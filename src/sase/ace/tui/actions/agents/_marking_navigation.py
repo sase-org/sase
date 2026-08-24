@@ -108,7 +108,7 @@ class AgentMarkNavigationMixin:
         else:
             self._record_marked_agent(identity)
 
-        # Auto-advance cursor to the next visible agent row (wraparound),
+        # Auto-advance cursor to the next selectable row (wraparound),
         # including the same unread side effects as ordinary navigation.
         prev_idx = self.current_idx
         selection_moved, new_agent, new_row_updated = self._advance_mark_selection(
@@ -234,12 +234,13 @@ class AgentMarkNavigationMixin:
                 return
 
     def _advance_mark_selection(self, prev_idx: int) -> tuple[bool, Agent | None, bool]:
-        """Move mark focus to the next visible agent row.
+        """Move mark focus to the next selectable Agents-tab row.
 
-        Marking targets agents, not collapsed banner rows, so auto-advance
-        walks ``_agents_visible_order()`` rather than the full selectable
-        stop list. When visible-order helpers are unavailable or the
-        current agent is hidden, fall back to the legacy raw-list step.
+        Auto-advance walks ``_panel_navigation_stops()`` so marking follows
+        the same rendered selectable sequence as j/k navigation: visible
+        agent rows plus collapsed group banners. When the stop list cannot
+        locate the current agent, fall back to the legacy visible-agent/raw
+        index step for partial harnesses or stale focus state.
 
         Returns ``(selection_moved, arrival_agent, arrival_row_updated)``.
         ``arrival_row_updated`` is true when unread acknowledgment already
@@ -247,12 +248,69 @@ class AgentMarkNavigationMixin:
         """
         if not self._agents:
             return False, None, False
-        if len(self._agents) == 1:
-            if not (0 <= prev_idx < len(self._agents)):
+
+        stops: list[tuple[str, int | tuple[str, ...]]] = []
+        try:
+            stops = self._panel_navigation_stops()  # type: ignore[attr-defined]
+        except Exception:
+            stops = []
+
+        stop_pos: int | None = None
+        if stops:
+            stop_maps = getattr(self, "_panel_navigation_stop_maps", None)
+            agent_positions: dict[int, int] = {}
+            if callable(stop_maps):
+                try:
+                    agent_positions, _ = stop_maps()
+                except Exception:
+                    agent_positions = {}
+            if not agent_positions:
+                for pos, (kind, payload) in enumerate(stops):
+                    if kind == "agent":
+                        assert isinstance(payload, int)
+                        agent_positions[payload] = pos
+            stop_pos = agent_positions.get(prev_idx)
+
+        if stop_pos is not None and stops:
+            kind, payload = stops[(stop_pos + 1) % len(stops)]
+            old_agent = (
+                self._agents[prev_idx] if 0 <= prev_idx < len(self._agents) else None
+            )
+            if kind == "banner":
+                assert isinstance(payload, tuple)
+                if old_agent is not None:
+                    arm_manual = getattr(
+                        self, "_arm_manual_unread_after_departure", None
+                    )
+                    if callable(arm_manual):
+                        arm_manual(old_agent)
+                self._current_group_key = payload
+                self._set_current_idx_to_group_anchor(payload)
+                return True, None, False
+
+            assert isinstance(payload, int)
+            if not (0 <= payload < len(self._agents)):
                 return False, None, False
-            new_agent = self._agents[prev_idx]
+
+            selection_moved = payload != prev_idx
+            new_agent = self._agents[payload]
+            if not selection_moved:
+                self._current_group_key = None
+                return (
+                    False,
+                    new_agent,
+                    self._acknowledge_mark_selection_arrival(new_agent),
+                )
+
+            if old_agent is not None:
+                arm_manual = getattr(self, "_arm_manual_unread_after_departure", None)
+                if callable(arm_manual):
+                    arm_manual(old_agent)
+
+            self.current_idx = payload
             self._current_group_key = None
-            return False, new_agent, self._acknowledge_mark_selection_arrival(new_agent)
+            arrival_row_updated = self._acknowledge_mark_selection_arrival(new_agent)
+            return True, new_agent, arrival_row_updated
 
         try:
             visible = self._agents_visible_order()  # type: ignore[attr-defined]

@@ -190,19 +190,42 @@ def test_toggle_mark_wraps_in_rendered_agent_order() -> None:
     assert app._agents[app.current_idx].cl_name == "a1"
 
 
-def test_toggle_mark_skips_collapsed_banner_rows() -> None:
+def test_toggle_mark_advances_to_intervening_collapsed_banner_row() -> None:
     agents = [
-        _make_agent(project_file="/tmp/projects/alpha/alpha.sase", cl_name="a1"),
-        _make_agent(project_file="/tmp/projects/beta/beta.sase", cl_name="b1"),
+        _make_agent(
+            project_file="/tmp/projects/alpha/alpha.sase",
+            cl_name="visible-a",
+            raw_suffix="20240101100000",
+        ),
+        _make_agent(
+            project_file="/tmp/projects/beta/beta.sase",
+            cl_name="folded",
+            raw_suffix="20240101110000",
+        ),
+        _make_agent(
+            project_file="/tmp/projects/beta/beta.sase",
+            cl_name="folded",
+            raw_suffix="20240101110100",
+        ),
+        _make_agent(
+            project_file="/tmp/projects/gamma/gamma.sase",
+            cl_name="visible-g",
+            raw_suffix="20240101120000",
+        ),
     ]
-    app = _FakeMarkApp(agents)
-    app._group_fold_registry.collapse(("alpha",))
-    app.current_idx = 1
+    app = _FakeMarkApp(agents, patch_result=True)
+    app._group_fold_registry.collapse(("beta", "folded"))
+    app.current_idx = 0
 
     app._toggle_mark_agent()
 
-    assert app.current_idx == 1
-    assert app._agents[app.current_idx].cl_name == "b1"
+    assert app._marked_agents == {agents[0].identity}
+    assert app._current_group_key == ("beta", "folded")
+    assert app.current_idx in {1, 2}
+    assert app._agents[app.current_idx].cl_name == "folded"
+    assert app.patch_calls == [agents[0]]
+    assert app.highlight_refresh_calls == 1
+    assert app.refresh_calls == 0
 
 
 def test_toggle_mark_on_focused_group_marks_top_level_members_in_order() -> None:
