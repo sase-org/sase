@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .cli import handle_memory_web_list_command, handle_memory_web_show_command
+from .closure import resolve_strand_closure
 from .discovery import FileMemoryWebProvider, MemoryWebProvider, discover_memory_webs
 from .feature import memory_webs_enabled
 from .frontmatter import parse_memory_strand, parse_web_descriptor, slug_to_keyword
@@ -22,6 +24,7 @@ from .models import (
     WebScope,
     WebStrandOrigin,
 )
+from .read_context import discover_scoped_memory_webs
 from .roster import (
     END_MARKER,
     START_MARKER,
@@ -55,6 +58,9 @@ __all__ = [
     "WebStrandOrigin",
     "cross_scope_keyword_warnings",
     "discover_memory_webs",
+    "discover_scoped_memory_webs",
+    "handle_memory_web_list_command",
+    "handle_memory_web_show_command",
     "memory_webs_enabled",
     "merge_memory_web_scopes",
     "normalize_memory_web_reference",
@@ -66,6 +72,7 @@ __all__ = [
     "render_web_descriptor_with_roster",
     "reserved_memory_web_names",
     "resolve_memory_strand",
+    "resolve_strand_closure",
     "slug_to_keyword",
     "validate_memory_web_root",
     "validate_memory_webs",

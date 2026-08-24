@@ -17,6 +17,11 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.core.time import format_local
+from sase.glossary.read_log import (
+    GlossaryReadEvent,
+    filter_glossary_read_events,
+    read_glossary_read_events,
+)
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.read_log import (
     MemoryReadEvent,
@@ -58,6 +63,7 @@ def handle_memory_log_command(
     agent_filter = getattr(args, "agent", None)
     read_id = getattr(args, "id", None)
     include_proposals = _include_proposals(args)
+    include_glossary = _include_glossary(args)
     filtered_events = filter_memory_read_events(
         events,
         canonical_path=path_filter,
@@ -70,6 +76,14 @@ def handle_memory_log_command(
             actor=agent_filter,
         )
         if include_proposals
+        else None
+    )
+    glossary_events = (
+        filter_glossary_read_events(
+            read_glossary_read_events(project=project_name),
+            agent_name=agent_filter,
+        )
+        if include_glossary
         else None
     )
 
@@ -103,6 +117,8 @@ def handle_memory_log_command(
         )
         if proposal_events is not None:
             payload.update(_build_memory_log_proposal_payload(proposal_events))
+        if glossary_events is not None:
+            payload.update(_build_memory_log_glossary_payload(glossary_events))
         json.dump(payload, sys.stdout, indent=2, sort_keys=True)
         sys.stdout.write("\n")
         return
@@ -114,6 +130,7 @@ def handle_memory_log_command(
         path_filter=path_filter,
         agent_filter=agent_filter,
         proposal_events=proposal_events,
+        glossary_events=glossary_events,
     )
 
 
@@ -125,6 +142,7 @@ def _render_memory_log_summary(
     path_filter: str | None = None,
     agent_filter: str | None = None,
     proposal_events: tuple[MemoryProposalLedgerEvent, ...] | None = None,
+    glossary_events: tuple[GlossaryReadEvent, ...] | None = None,
 ) -> None:
     """Print the Rich summary dashboard for memory-read events."""
     event_tuple = tuple(events)
@@ -136,6 +154,7 @@ def _render_memory_log_summary(
             path_filter=path_filter,
             agent_filter=agent_filter,
             proposal_events=proposal_events,
+            glossary_events=glossary_events,
         )
     )
 
@@ -185,6 +204,54 @@ def _build_memory_log_proposal_payload(
     }
 
 
+def _build_memory_log_glossary_payload(
+    events: Iterable[GlossaryReadEvent],
+) -> dict[str, Any]:
+    """Build deterministic legacy glossary-read audit data for inclusive views."""
+    event_tuple = tuple(sorted(events, key=lambda event: (event.timestamp, event.id)))
+    return {
+        "glossary_events": [asdict(event) for event in event_tuple],
+        "glossary_summary": {
+            "total_events": len(event_tuple),
+            "total_terms": len({term for event in event_tuple for term in event.terms}),
+        },
+    }
+
+
+def _glossary_events_panel(events: tuple[GlossaryReadEvent, ...]) -> Panel:
+    if not events:
+        return Panel(
+            Text(
+                "No legacy glossary read events match the current filters.", style="dim"
+            ),
+            title="Glossary Read Events (0)",
+            border_style="magenta",
+        )
+
+    table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
+    table.add_column("Timestamp", no_wrap=True)
+    table.add_column("Agent", no_wrap=True)
+    table.add_column("Terms")
+    table.add_column("Reason")
+
+    ordered = sorted(
+        events, key=lambda event: (event.timestamp, event.id), reverse=True
+    )
+    for event in ordered:
+        table.add_row(
+            format_local(event.timestamp),
+            event.agent_name,
+            ", ".join(event.terms),
+            _reason_preview(event.reason),
+        )
+
+    return Panel(
+        table,
+        title=f"Glossary Read Events ({len(events)})",
+        border_style="magenta",
+    )
+
+
 def _build_memory_log_summary_dashboard(
     events: tuple[MemoryReadEvent, ...],
     *,
@@ -192,6 +259,7 @@ def _build_memory_log_summary_dashboard(
     path_filter: str | None = None,
     agent_filter: str | None = None,
     proposal_events: tuple[MemoryProposalLedgerEvent, ...] | None = None,
+    glossary_events: tuple[GlossaryReadEvent, ...] | None = None,
 ) -> Group:
     """Build the static Rich dashboard for the memory-read summary."""
     panels: list[Panel] = [
@@ -214,6 +282,8 @@ def _build_memory_log_summary_dashboard(
     if proposal_events is not None:
         panels.append(_proposal_summary_panel(proposal_events))
         panels.append(_proposal_events_panel(proposal_events))
+    if glossary_events is not None:
+        panels.append(_glossary_events_panel(glossary_events))
     return Group(*panels)
 
 
@@ -556,6 +626,10 @@ def _proposal_event_detail(event: MemoryProposalLedgerEvent) -> str:
 
 def _include_proposals(args: argparse.Namespace) -> bool:
     return "proposals" in (getattr(args, "include", None) or ())
+
+
+def _include_glossary(args: argparse.Namespace) -> bool:
+    return "glossary" in (getattr(args, "include", None) or ())
 
 
 def _normalized_filter(value: str | None) -> str | None:

@@ -83,7 +83,7 @@ def test_memory_read_prints_body_and_appends_log(
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
 
     handle_memory_read_command(
-        argparse.Namespace(memory_path="foo.md", reason=" Need foo ")
+        argparse.Namespace(selectors=["foo.md"], reason=" Need foo ")
     )
 
     captured = capsys.readouterr()
@@ -113,7 +113,7 @@ def test_memory_read_json_format_still_appends_exactly_one_event(
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
 
     handle_memory_read_command(
-        argparse.Namespace(memory_path="foo.md", reason="Need foo", format="json")
+        argparse.Namespace(selectors=["foo.md"], reason="Need foo", format="json")
     )
 
     captured = capsys.readouterr()
@@ -140,7 +140,7 @@ def test_memory_read_accepts_flat_path_and_omits_empty_children(
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
 
     handle_memory_read_command(
-        argparse.Namespace(memory_path="foo.md", reason="Need foo")
+        argparse.Namespace(selectors=["foo.md"], reason="Need foo")
     )
 
     captured = capsys.readouterr()
@@ -184,7 +184,7 @@ def test_memory_read_appends_children_section(
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
 
     handle_memory_read_command(
-        argparse.Namespace(memory_path="sase/memory/hub.md", reason="Need hub")
+        argparse.Namespace(selectors=["sase/memory/hub.md"], reason="Need hub")
     )
 
     captured = capsys.readouterr()
@@ -222,7 +222,7 @@ def test_memory_read_falls_back_to_home_memory_and_logs_resolved_path(
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
 
     handle_memory_read_command(
-        argparse.Namespace(memory_path="foo.md", reason="Need home foo")
+        argparse.Namespace(selectors=["foo.md"], reason="Need home foo")
     )
 
     captured = capsys.readouterr()
@@ -249,7 +249,7 @@ def test_memory_read_rejects_nested_legacy_short_path_without_logging(
 
     with pytest.raises(SystemExit) as exc:
         handle_memory_read_command(
-            argparse.Namespace(memory_path="short/foo.md", reason="Need short")
+            argparse.Namespace(selectors=["short/foo.md"], reason="Need short")
         )
 
     captured = capsys.readouterr()
@@ -275,7 +275,7 @@ def test_memory_read_rejects_flat_short_memory_without_logging(
 
     with pytest.raises(SystemExit) as exc:
         handle_memory_read_command(
-            argparse.Namespace(memory_path="foo.md", reason="Need short")
+            argparse.Namespace(selectors=["foo.md"], reason="Need short")
         )
 
     captured = capsys.readouterr()
@@ -298,7 +298,7 @@ def test_memory_read_rejects_blank_reason_before_logging(
 
     with pytest.raises(SystemExit) as exc:
         handle_memory_read_command(
-            argparse.Namespace(memory_path="foo.md", reason="   ")
+            argparse.Namespace(selectors=["foo.md"], reason="   ")
         )
 
     captured = capsys.readouterr()
@@ -323,7 +323,7 @@ def test_memory_read_requires_agent_attribution_before_logging(
 
     with pytest.raises(SystemExit) as exc:
         handle_memory_read_command(
-            argparse.Namespace(memory_path="foo.md", reason="Need foo")
+            argparse.Namespace(selectors=["foo.md"], reason="Need foo")
         )
 
     captured = capsys.readouterr()

@@ -87,7 +87,7 @@ def test_home_root_omits_bead_memory_note(
     monkeypatch.setattr(Path, "home", lambda: home_root)
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
     handle_memory_read_command(
-        argparse.Namespace(memory_path="sase_beads.md", reason="Need bead guidance")
+        argparse.Namespace(selectors=["sase_beads.md"], reason="Need bead guidance")
     )
     read_output = capsys.readouterr().out
     assert "## Children" in read_output

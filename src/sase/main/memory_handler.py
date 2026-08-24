@@ -33,6 +33,26 @@ def _handle_memory_agent_docs_command(args: argparse.Namespace) -> None:
     sys.exit(1)
 
 
+def _handle_memory_web_command(args: argparse.Namespace) -> None:
+    """Dispatch the ``sase memory web`` group."""
+    sub = getattr(args, "memory_web_subcommand", None) or "list"
+
+    if sub == "list":
+        from sase.memory.web import handle_memory_web_list_command
+
+        handle_memory_web_list_command(args)
+        return
+
+    if sub == "show":
+        from sase.memory.web import handle_memory_web_show_command
+
+        handle_memory_web_show_command(args)
+        return
+
+    print("Usage: sase memory web {list,show}", file=sys.stderr)
+    sys.exit(1)
+
+
 def handle_memory_command(args: argparse.Namespace) -> None:
     """Dispatch to the appropriate ``sase memory`` sub-handler."""
     sub = getattr(args, "memory_subcommand", None) or "list"
@@ -79,8 +99,12 @@ def handle_memory_command(args: argparse.Namespace) -> None:
         _handle_memory_log_command(args)
         sys.exit(0)
 
+    if sub == "web":
+        _handle_memory_web_command(args)
+        sys.exit(0)
+
     print(
-        "Usage: sase memory {agent-docs,init,list,log,read,review,show,write}",
+        "Usage: sase memory {agent-docs,init,list,log,read,review,show,web,write}",
         file=sys.stderr,
     )
     sys.exit(1)

@@ -9449,6 +9449,68 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "f22457df509db522",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "defer",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "paths",
+                "hidden": false,
+                "kind": null,
+                "repeatable": true,
+                "strings": [
+                  "-p",
+                  "--paths"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "final",
+              "defer"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "repo_id",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "<repo-id>",
+                "nargs": null
+              },
+              {
+                "choices": [
+                  "protected_paths",
+                  "foreign_work",
+                  "unsafe_content",
+                  "belongs_to_another_turn"
+                ],
+                "dest": "reason",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "<reason>",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "5450bad30b2fb45d",
             "hidden": false,
             "mutex_groups": [],
@@ -12110,7 +12172,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "86bc941182414027",
+            "description_digest": "ad8d23029a6f5b2e",
             "hidden": false,
             "mutex_groups": [],
             "name": "log",
@@ -12131,7 +12193,7 @@
                 "choices": null,
                 "dest": "path",
                 "hidden": false,
-                "kind": "memory",
+                "kind": null,
                 "repeatable": false,
                 "strings": [
                   "--path"
@@ -12162,6 +12224,7 @@
               },
               {
                 "choices": [
+                  "glossary",
                   "proposals"
                 ],
                 "dest": "include",
@@ -12195,7 +12258,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "d933f0a43dc49afe",
+            "description_digest": "c74a7f3ed76015a6",
             "hidden": false,
             "mutex_groups": [],
             "name": "read",
@@ -12213,6 +12276,18 @@
                 "takes_value": false
               },
               {
+                "choices": null,
+                "dest": "depth",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-d",
+                  "--depth"
+                ],
+                "takes_value": true
+              },
+              {
                 "choices": [
                   "json",
                   "markdown",
@@ -12225,6 +12300,18 @@
                 "strings": [
                   "-f",
                   "--format"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
                 ],
                 "takes_value": true
               },
@@ -12248,11 +12335,11 @@
             "positionals": [
               {
                 "choices": null,
-                "dest": "memory_path",
+                "dest": "selectors",
                 "is_remainder": false,
                 "kind": "memory",
-                "metavar": "memory-relative-path",
-                "nargs": null
+                "metavar": "selector",
+                "nargs": "+"
               }
             ],
             "subcommands": []
@@ -12415,7 +12502,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "ae94ab106a879828",
+            "description_digest": "83c711f12d6b8626",
             "hidden": false,
             "mutex_groups": [],
             "name": "show",
@@ -12433,6 +12520,18 @@
                 "takes_value": false
               },
               {
+                "choices": null,
+                "dest": "depth",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-d",
+                  "--depth"
+                ],
+                "takes_value": true
+              },
+              {
                 "choices": [
                   "json",
                   "markdown",
@@ -12447,6 +12546,18 @@
                   "--format"
                 ],
                 "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
               }
             ],
             "path": [
@@ -12456,14 +12567,186 @@
             "positionals": [
               {
                 "choices": null,
-                "dest": "memory_path",
+                "dest": "selectors",
                 "is_remainder": false,
                 "kind": "memory",
-                "metavar": "memory-relative-path",
-                "nargs": null
+                "metavar": "selector",
+                "nargs": "+"
               }
             ],
             "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": "list",
+            "description_digest": "a7f8264fe4aa71a4",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "web",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "memory",
+              "web"
+            ],
+            "positionals": [],
+            "subcommands": [
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "a5f7f5e446fe9d1d",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "list",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": [
+                      "json",
+                      "names",
+                      "table"
+                    ],
+                    "dest": "format",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-f",
+                      "--format"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "project",
+                    "hidden": false,
+                    "kind": "project",
+                    "repeatable": false,
+                    "strings": [
+                      "-p",
+                      "--project"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "memory",
+                  "web",
+                  "list"
+                ],
+                "positionals": [],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "63ea6629eb8372ec",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "show",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "bodies",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-b",
+                      "--bodies"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": [
+                      "json",
+                      "names",
+                      "table"
+                    ],
+                    "dest": "format",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-f",
+                      "--format"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "project",
+                    "hidden": false,
+                    "kind": "project",
+                    "repeatable": false,
+                    "strings": [
+                      "-p",
+                      "--project"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "memory",
+                  "web",
+                  "show"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "web",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "WEB",
+                    "nargs": null
+                  },
+                  {
+                    "choices": null,
+                    "dest": "pattern",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "PATTERN",
+                    "nargs": "?"
+                  }
+                ],
+                "subcommands": []
+              }
+            ]
           },
           {
             "aliases": [],

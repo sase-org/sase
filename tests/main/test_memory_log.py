@@ -10,6 +10,8 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
+from sase.agent.identity import AgentIdentity
+from sase.glossary.read_log import append_glossary_read_event, build_glossary_read_event
 from sase.memory.cli_log import _render_memory_log_summary, handle_memory_log_command
 from sase.memory.proposals import (
     ProposalAuthor,
@@ -330,6 +332,63 @@ def test_memory_log_include_proposals_rich_output(
     assert "memory.md" in text
 
 
+def _seed_glossary_read_event(tmp_path: Path, *, project: str) -> None:
+    event = build_glossary_read_event(
+        reason="Need Stitch",
+        agent=AgentIdentity("agent-a", "SASE_AGENT_NAME", None),
+        terms=["Stitch"],
+        related_terms=["Patch"],
+        project=project,
+        cwd=tmp_path,
+        now=datetime(2026, 5, 23, 12, 0, tzinfo=UTC),
+        read_id="glossary-read-a",
+    )
+    append_glossary_read_event(event)
+
+
+def test_memory_log_include_glossary_json_adds_glossary_events(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = tmp_path.name
+    home = tmp_path / "home"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    _seed_glossary_read_event(tmp_path, project=project)
+    args = create_parser().parse_args(
+        ["memory", "log", "--include", "glossary", "--json"]
+    )
+
+    handle_memory_log_command(args)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["glossary_summary"] == {"total_events": 1, "total_terms": 1}
+    (event,) = payload["glossary_events"]
+    assert event["terms"] == ["Stitch"]
+    assert event["related_terms"] == ["Patch"]
+
+
+def test_memory_log_include_glossary_rich_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path.name
+    home = tmp_path / "home"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    _seed_glossary_read_event(tmp_path, project=project)
+    output = StringIO()
+    console = Console(file=output, force_terminal=False, color_system=None, width=180)
+    args = create_parser().parse_args(["memory", "log", "--include", "glossary"])
+
+    handle_memory_log_command(args, console=console)
+
+    text = output.getvalue()
+    assert "Glossary Read Events (1)" in text
+    assert "Stitch" in text
+
+
 def test_memory_log_json_id_outputs_raw_event(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -360,12 +419,18 @@ def test_memory_log_json_id_outputs_raw_event(
         "byte_count": 123,
         "canonical_path": "foo.md",
         "cwd": "/tmp/demo",
+        "depth": None,
         "frontmatter_stripped": True,
         "id": "read-b",
+        "included_targets": [],
+        "kind": "note",
         "project": project,
         "reason": "Need updated foo context",
         "resolved_path": "/tmp/demo/memory/foo.md",
+        "resolved_targets": [],
         "schema_version": 1,
+        "scope_origin": [],
+        "selectors": [],
         "timestamp": "2026-05-23T12:01:00+00:00",
     }
 

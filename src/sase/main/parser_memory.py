@@ -2,6 +2,7 @@
 
 import argparse
 
+from sase.main.parser_bead_common import nonnegative_int
 from sase.main.parser_init import add_enable_project_memory_argument
 
 
@@ -19,7 +20,10 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase memory read generated_skills.md --reason "
             '"Need generated skill context"\n'
+            '  sase memory read glossary:stitch -r "Need the stitch vocabulary"\n'
             "  sase memory show generated_skills.md\n"
+            "  sase memory web list\n"
+            "  sase memory web show glossary\n"
             '  sase memory write --title "Generated skills" --slug '
             'generated_skills --evidence "$(sase repo path research)/skills.md" --body '
             '"Durable memory body"\n'
@@ -27,6 +31,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase memory review mem-20260523-142233-a1b2c3d4 --edit\n"
             "  sase memory log\n"
             "  sase memory log --include proposals\n"
+            "  sase memory log --include glossary\n"
             "  sase memory log --path generated_skills.md\n"
             "  sase memory log --id <read-id>"
         ),
@@ -111,45 +116,55 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
 
     read_parser = memory_subparsers.add_parser(
         "read",
-        help="Read and audit a reference memory file",
+        help="Read and audit one or more memory selectors",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Read a reference memory markdown file from project sase/memory/, "
+            "Resolve one or more memory selectors from project sase/memory/, "
             "falling back to ~/sase/memory/ when the project file is absent. "
-            "Pass a flat note name such as generated_skills.md. Leading YAML "
-            "frontmatter is stripped before printing, child notes are listed "
-            "when present, and each read appends an attributable "
-            "audit log row. Identical to `sase memory show` except that it "
-            "requires a reason and records an audited read before printing."
+            "A selector is a flat note name (generated_skills.md), a bare "
+            "memory-web name (glossary, every strand), or a web:keyword "
+            "strand reference (glossary:stitch). The whole batch is resolved "
+            "before anything is printed or logged, so one unknown selector "
+            "fails the entire request. Leading YAML frontmatter is stripped "
+            "from notes, child notes are listed when present, and each read "
+            "appends one attributable audit log row. Identical to "
+            "`sase memory show` except that it requires a reason and records "
+            "an audited read before printing."
         ),
         epilog=(
-            "example:\n"
+            "examples:\n"
             "  sase memory read generated_skills.md --reason "
-            '"Need generated skill context"'
+            '"Need generated skill context"\n'
+            '  sase memory read glossary:stitch -r "Need the stitch/patch vocabulary"\n'
+            '  sase memory read glossary cli_rules.md -r "Need everything"'
         ),
     )
     _add_memory_view_arguments(read_parser, require_reason=True)
 
     show_parser = memory_subparsers.add_parser(
         "show",
-        help="Print a reference memory note without recording a read",
+        help="Print one or more memory selectors without recording a read",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Resolve a reference memory note exactly like `sase memory read` "
-            "— project sase/memory/ first, then ~/sase/memory/ — strip "
-            "leading YAML frontmatter, and append the `## Children` section "
-            "when children exist. Unlike `read`, this command records no "
-            "audit event, so agents consulting memory to do work must use "
-            "`sase memory read` instead."
+            "Resolve one or more memory selectors exactly like "
+            "`sase memory read` — project sase/memory/ first, then "
+            "~/sase/memory/ — strip leading YAML frontmatter from notes, and "
+            "append the `## Children` section when children exist. Unlike "
+            "`read`, this command records no audit event, so agents "
+            "consulting memory to do work must use `sase memory read` "
+            "instead."
         ),
         epilog=(
             "examples:\n"
             "  sase memory show generated_skills.md\n"
             "  sase memory show sase_beads.md -f rich\n"
-            "  sase memory show cli_rules.md -f json"
+            "  sase memory show glossary:stitch -f json\n"
+            "  sase memory show glossary -d 0"
         ),
     )
     _add_memory_view_arguments(show_parser)
+
+    _register_memory_web_parser(memory_subparsers)
 
     write_parser = memory_subparsers.add_parser(
         "write",
@@ -346,10 +361,13 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
     log_parser.add_argument(
         "--include",
         action="append",
-        choices=("proposals",),
+        choices=("glossary", "proposals"),
         default=[],
         metavar="KIND",
-        help="Include additional audit events; currently only 'proposals'",
+        help=(
+            "Include additional audit events: 'proposals' or 'glossary' "
+            "(folds in the legacy sase glossary read audit log)"
+        ),
     )
     log_parser.add_argument(
         "--json",
@@ -362,11 +380,24 @@ def _add_memory_view_arguments(
     parser: argparse.ArgumentParser, *, require_reason: bool = False
 ) -> None:
     parser.add_argument(
-        "memory_path",
-        metavar="memory-relative-path",
+        "selectors",
+        metavar="selector",
+        nargs="+",
         help=(
-            "Path relative to project sase/memory/ or ~/sase/memory/, for example "
-            "generated_skills.md"
+            "One or more selectors: a flat note name (generated_skills.md), "
+            "a bare memory-web name (glossary), or a web:keyword strand "
+            "reference (glossary:stitch)"
+        ),
+    )
+    parser.add_argument(
+        "-d",
+        "--depth",
+        type=nonnegative_int,
+        default=None,
+        metavar="N",
+        help=(
+            "Cap strand mention-closure recursion depth (default: unlimited); "
+            "-d 0 prints only the requested strands"
         ),
     )
     parser.add_argument(
@@ -376,6 +407,13 @@ def _add_memory_view_arguments(
         default="markdown",
         help="Output format (default: markdown)",
     )
+    parser.add_argument(
+        "-p",
+        "--project",
+        metavar="REF",
+        default=None,
+        help="Project to resolve memory from (default: infer from current directory)",
+    )
     if require_reason:
         parser.add_argument(
             "-r",
@@ -383,3 +421,103 @@ def _add_memory_view_arguments(
             required=True,
             help="Non-empty reason for the audited memory read",
         )
+
+
+def _register_memory_web_parser(
+    memory_subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register the ``memory web`` command group."""
+    web_parser = memory_subparsers.add_parser(
+        "web",
+        help="List and inspect memory webs and their strands",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Inspect memory webs — keyed strand collections addressed with "
+            "`sase memory read <web>:<keyword>`. Running `sase memory web` "
+            "defaults to `sase memory web list`."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase memory web list\n"
+            "  sase memory web show glossary\n"
+            "  sase memory web show glossary stitch -b"
+        ),
+    )
+    web_subparsers = web_parser.add_subparsers(
+        dest="memory_web_subcommand",
+        help="Memory web subcommands",
+    )
+
+    list_parser = web_subparsers.add_parser(
+        "list",
+        help="List memory webs for a project",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "List discovered memory webs: name, rendering (core/reference), "
+            "scope, and strand count."
+        ),
+        epilog=("examples:\n  sase memory web list\n  sase memory web list -f json"),
+    )
+    list_parser.add_argument(
+        "-f",
+        "--format",
+        choices=("json", "names", "table"),
+        default="table",
+        help="Output format (default: table)",
+    )
+    _add_web_project_option(list_parser)
+
+    show_parser = web_subparsers.add_parser(
+        "show",
+        help="Show one web's filterable strand index",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Print one web's strand index: keyword, slug, aliases, "
+            "mention-reference count, and summary, optionally filtered by "
+            "PATTERN. This is the index, the memory-web analogue of "
+            "`sase glossary list`; `sase memory show <web>:<keyword>` is the "
+            "content read."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase memory web show glossary\n"
+            "  sase memory web show glossary stitch\n"
+            "  sase memory web show glossary -b -f json"
+        ),
+    )
+    show_parser.add_argument(
+        "web",
+        metavar="WEB",
+        help="Memory web slug to inspect",
+    )
+    show_parser.add_argument(
+        "pattern",
+        metavar="PATTERN",
+        nargs="?",
+        default=None,
+        help="Case-insensitive substring filter over keywords and aliases",
+    )
+    show_parser.add_argument(
+        "-b",
+        "--bodies",
+        action="store_true",
+        help="Extend PATTERN matching into strand bodies",
+    )
+    show_parser.add_argument(
+        "-f",
+        "--format",
+        choices=("json", "names", "table"),
+        default="table",
+        help="Output format (default: table)",
+    )
+    _add_web_project_option(show_parser)
+
+
+def _add_web_project_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-p",
+        "--project",
+        metavar="REF",
+        default=None,
+        help="Project to resolve memory webs from (default: infer from current directory)",
+    )

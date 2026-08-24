@@ -12,6 +12,7 @@ from sase.memory.read_log import (
     AgentIdentityError,
     MemoryReadPathError,
     append_memory_read_event,
+    build_memory_read_batch_event,
     build_memory_read_event,
     discover_agent_identity,
     filter_memory_read_events,
@@ -321,6 +322,84 @@ def test_append_and_read_memory_read_events_tolerates_malformed_jsonl(
         f.write(json.dumps({"schema_version": 1, "id": "missing-fields"}) + "\n")
 
     assert read_memory_read_events(log_path=log_path) == (event,)
+
+
+def test_v1_event_upgrades_to_note_kind_defaults(tmp_path: Path) -> None:
+    log_path = tmp_path / "memory_reads.jsonl"
+    v1_row = {
+        "schema_version": 1,
+        "id": "read-legacy",
+        "timestamp": "2026-05-23T12:00:00+00:00",
+        "project": "proj",
+        "cwd": "/tmp/demo",
+        "canonical_path": "foo.md",
+        "resolved_path": "/tmp/demo/memory/foo.md",
+        "agent_name": "agent-a",
+        "agent_source": "SASE_AGENT_NAME",
+        "artifacts_dir": None,
+        "reason": "Need foo",
+        "byte_count": 42,
+        "frontmatter_stripped": False,
+    }
+    log_path.write_text(json.dumps(v1_row) + "\n", encoding="utf-8")
+
+    (event,) = read_memory_read_events(log_path=log_path)
+
+    assert event.schema_version == 1
+    assert event.canonical_path == "foo.md"
+    assert event.kind == "note"
+    assert event.selectors == ("foo.md",)
+    assert event.resolved_targets == ("foo.md",)
+    assert event.included_targets == ()
+    assert event.depth is None
+    assert event.scope_origin == ()
+
+
+def test_batch_event_round_trips_through_jsonl(tmp_path: Path) -> None:
+    log_path = tmp_path / "memory_reads.jsonl"
+    event = build_memory_read_batch_event(
+        kind="strand",
+        selectors=["glossary:stitch"],
+        resolved_targets=["glossary:stitch"],
+        included_targets=["glossary:patch"],
+        depth=None,
+        scope_origin={"glossary:stitch": "project", "glossary:patch": "project"},
+        byte_count=64,
+        frontmatter_stripped=False,
+        reason="Need stitch",
+        agent=AgentIdentity("agent-a", "SASE_AGENT_NAME", None),
+        project="proj",
+        cwd=tmp_path,
+        now=datetime(2026, 5, 23, 12, 0, tzinfo=UTC),
+        read_id="read-batch",
+    )
+
+    append_memory_read_event(event, log_path=log_path)
+
+    assert read_memory_read_events(log_path=log_path) == (event,)
+    assert event.schema_version == 2
+    assert event.canonical_path == "glossary:stitch"
+    assert event.resolved_path == ""
+
+
+def test_filter_memory_read_events_matches_resolved_targets() -> None:
+    strand_event = build_memory_read_batch_event(
+        kind="strand",
+        selectors=["glossary:stitch"],
+        resolved_targets=["glossary:stitch"],
+        byte_count=10,
+        frontmatter_stripped=False,
+        reason="Need stitch",
+        agent=AgentIdentity("agent-a", "SASE_AGENT_NAME", None),
+        project="proj",
+        cwd=Path("/tmp/demo"),
+        now=datetime(2026, 5, 23, 12, 0, tzinfo=UTC),
+        read_id="read-strand",
+    )
+
+    assert filter_memory_read_events(
+        [strand_event], canonical_path="glossary:stitch"
+    ) == (strand_event,)
 
 
 def test_memory_read_log_path_uses_project_state_under_home(

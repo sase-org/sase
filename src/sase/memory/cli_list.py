@@ -20,6 +20,7 @@ from sase.memory.inventory import (
     build_memory_inventory,
     display_path_for_context,
 )
+from sase.memory.web import discover_scoped_memory_webs, memory_webs_enabled
 
 _STATUS_STYLES: dict[MemoryEntryStatus, str] = {
     "loaded": "green",
@@ -60,11 +61,47 @@ def _build_memory_inventory_dashboard(
     inventory: MemoryInventory, *, project_name: str | None = None
 ) -> Group:
     """Build the static Rich dashboard for a memory inventory."""
-    return Group(
+    panels = [
         _summary_panel(inventory, project_name=project_name),
         _entries_panel(inventory),
-        _notes_panel(),
+    ]
+    webs_panel = _webs_panel(inventory)
+    if webs_panel is not None:
+        panels.append(webs_panel)
+    panels.append(_notes_panel())
+    return Group(*panels)
+
+
+def _webs_panel(inventory: MemoryInventory) -> Panel | None:
+    if not memory_webs_enabled():
+        return None
+
+    home_root = next(
+        (root.root for root in inventory.context_roots if root.kind == "home"),
+        Path.home(),
     )
+    scoped_webs = discover_scoped_memory_webs(inventory.root, home_root)
+    title = f"Memory Webs ({len(scoped_webs)})"
+    if not scoped_webs:
+        return Panel(
+            Text("No memory webs found.", style="dim"),
+            title=title,
+            border_style="cyan",
+        )
+
+    table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
+    table.add_column("Web")
+    table.add_column("Renders", no_wrap=True)
+    table.add_column("Strands", justify="right", no_wrap=True)
+    table.add_column("Description")
+    for scoped in scoped_webs:
+        table.add_row(
+            scoped.slug,
+            scoped.web.rendering_type,
+            str(len(scoped.strands)),
+            scoped.web.description or "",
+        )
+    return Panel(table, title=title, border_style="cyan")
 
 
 def _summary_panel(

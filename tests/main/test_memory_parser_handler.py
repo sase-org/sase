@@ -35,14 +35,16 @@ def test_parser_registers_memory_namespace() -> None:
     )
     assert read_args.command == "memory"
     assert read_args.memory_subcommand == "read"
-    assert read_args.memory_path == "foo.md"
+    assert read_args.selectors == ["foo.md"]
     assert read_args.reason == "Need context"
     assert read_args.format == "markdown"
+    assert read_args.depth is None
+    assert read_args.project is None
 
     show_args = parser.parse_args(["memory", "show", "foo.md"])
     assert show_args.command == "memory"
     assert show_args.memory_subcommand == "show"
-    assert show_args.memory_path == "foo.md"
+    assert show_args.selectors == ["foo.md"]
     assert show_args.format == "markdown"
 
     show_rich_args = parser.parse_args(["memory", "show", "foo.md", "-f", "rich"])
@@ -171,7 +173,7 @@ def test_parser_accepts_memory_read_reason_short_option() -> None:
 
     assert args.command == "memory"
     assert args.memory_subcommand == "read"
-    assert args.memory_path == "foo.md"
+    assert args.selectors == ["foo.md"]
     assert args.reason == "Need context"
 
 

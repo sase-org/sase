@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 import fcntl
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from sase.agent.identity import (
@@ -34,7 +34,9 @@ from sase.memory.paths import (
 )
 from sase.project_aliases import resolve_project_alias_ref
 
-READ_LOG_SCHEMA_VERSION = 1
+READ_LOG_SCHEMA_VERSION = 2
+
+MemoryReadKind = Literal["note", "web", "strand"]
 
 
 class MemoryReadError(ValueError):
@@ -75,6 +77,19 @@ class MemoryReadContent:
 
 @dataclass(frozen=True)
 class MemoryReadEvent:
+    """One audited ``sase memory read`` event.
+
+    ``canonical_path``/``resolved_path``/``byte_count``/``frontmatter_stripped``
+    keep their pre-web meaning exactly for a single-note read: every consumer
+    written before webs existed (the ACE memory-reads loader, ``memory log``)
+    keeps working unchanged. ``kind``/``selectors``/``resolved_targets``/
+    ``included_targets``/``depth``/``scope_origin`` generalize the event to
+    also describe a web or strand batch; for a single-note read they default
+    to the note-only values below. For a batch, ``canonical_path`` and
+    ``resolved_path`` fall back to the first resolved target so old
+    consumers still show something reasonable rather than an empty field.
+    """
+
     schema_version: int
     id: str
     timestamp: str
@@ -88,6 +103,12 @@ class MemoryReadEvent:
     reason: str
     byte_count: int
     frontmatter_stripped: bool
+    kind: MemoryReadKind = "note"
+    selectors: tuple[str, ...] = ()
+    resolved_targets: tuple[str, ...] = ()
+    included_targets: tuple[str, ...] = ()
+    depth: int | None = None
+    scope_origin: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -360,6 +381,67 @@ def build_memory_read_event(
         reason=normalize_read_reason(reason),
         byte_count=content.byte_count,
         frontmatter_stripped=content.frontmatter_stripped,
+        kind="note",
+        selectors=(content.path.canonical_path,),
+        resolved_targets=(content.path.canonical_path,),
+    )
+
+
+def build_memory_read_batch_event(
+    *,
+    kind: MemoryReadKind,
+    selectors: Sequence[str],
+    resolved_targets: Sequence[str],
+    byte_count: int,
+    frontmatter_stripped: bool,
+    reason: str,
+    agent: AgentIdentity,
+    included_targets: Sequence[str] = (),
+    depth: int | None = None,
+    scope_origin: Mapping[str, str] | Sequence[tuple[str, str]] = (),
+    project: str | None = None,
+    cwd: Path | None = None,
+    now: datetime | None = None,
+    read_id: str | None = None,
+) -> MemoryReadEvent:
+    """Build a structured log event for a resolved selector batch.
+
+    Used for any read that is not a single note: a bare web, a strand
+    selector, or a batch mixing more than one selector. ``canonical_path``
+    falls back to the first resolved target for pre-web consumers;
+    ``resolved_path`` has no single meaningful filesystem path for a batch,
+    so it is left empty.
+    """
+    cwd_path = (cwd or Path.cwd()).resolve(strict=False)
+    project_name = project or project_memory_name(cwd_path)
+    timestamp = _event_timestamp(now or datetime.now(tz=UTC))
+    resolved_list = tuple(resolved_targets)
+    primary = resolved_list[0] if resolved_list else ""
+    scope_pairs = (
+        tuple(scope_origin.items())
+        if isinstance(scope_origin, Mapping)
+        else tuple(scope_origin)
+    )
+    return MemoryReadEvent(
+        schema_version=READ_LOG_SCHEMA_VERSION,
+        id=read_id or uuid4().hex[:12],
+        timestamp=timestamp,
+        project=project_name,
+        cwd=str(cwd_path),
+        canonical_path=primary,
+        resolved_path="",
+        agent_name=agent.name,
+        agent_source=agent.source,
+        artifacts_dir=agent.artifacts_dir,
+        reason=normalize_read_reason(reason),
+        byte_count=byte_count,
+        frontmatter_stripped=frontmatter_stripped,
+        kind=kind,
+        selectors=tuple(selectors),
+        resolved_targets=resolved_list,
+        included_targets=tuple(included_targets),
+        depth=depth,
+        scope_origin=scope_pairs,
     )
 
 
@@ -425,13 +507,22 @@ def filter_memory_read_events(
     canonical_path: str | None = None,
     agent_name: str | None = None,
 ) -> tuple[MemoryReadEvent, ...]:
-    """Filter read events by canonical memory path and/or agent name."""
+    """Filter read events by canonical memory path/web/strand target and/or agent.
+
+    ``canonical_path`` matches either the legacy single-path field or
+    membership in ``resolved_targets``, so ``--path glossary:stitch`` finds a
+    strand read the same way ``--path foo.md`` finds a note read.
+    """
     path_filter = canonical_path.strip() if canonical_path else None
     agent_filter = agent_name.strip() if agent_name else None
     return tuple(
         event
         for event in events
-        if (path_filter is None or event.canonical_path == path_filter)
+        if (
+            path_filter is None
+            or event.canonical_path == path_filter
+            or path_filter in event.resolved_targets
+        )
         and (agent_filter is None or event.agent_name == agent_filter)
     )
 
@@ -498,8 +589,19 @@ def _event_timestamp(now: datetime) -> str:
     return now.astimezone(UTC).isoformat()
 
 
+_VALID_SCHEMA_VERSIONS = frozenset({1, 2})
+_VALID_KINDS = frozenset({"note", "web", "strand"})
+
+
 def _event_from_mapping(data: Mapping[str, Any]) -> MemoryReadEvent | None:
-    if data.get("schema_version") != READ_LOG_SCHEMA_VERSION:
+    """Parse one JSONL row, accepting both the v1 and v2 event shapes.
+
+    v1 rows (pre-web, ``schema_version: 1``) never had ``kind``/
+    ``selectors``/etc.; they are upgraded in place to the note-only defaults
+    so every reader can treat the log as one uniform sequence.
+    """
+    schema_version = data.get("schema_version")
+    if schema_version not in _VALID_SCHEMA_VERSIONS:
         return None
     required_strings = (
         "id",
@@ -523,13 +625,31 @@ def _event_from_mapping(data: Mapping[str, Any]) -> MemoryReadEvent | None:
     if artifacts_dir is not None and not isinstance(artifacts_dir, str):
         return None
 
+    kind = data.get("kind", "note")
+    if kind not in _VALID_KINDS:
+        return None
+    canonical_path = data["canonical_path"]
+    selectors = _string_tuple(data.get("selectors"), default=(canonical_path,))
+    resolved_targets = _string_tuple(
+        data.get("resolved_targets"), default=(canonical_path,)
+    )
+    included_targets = _string_tuple(data.get("included_targets"), default=())
+    if selectors is None or resolved_targets is None or included_targets is None:
+        return None
+    depth = data.get("depth")
+    if depth is not None and not isinstance(depth, int):
+        return None
+    scope_origin = _scope_origin_tuple(data.get("scope_origin"))
+    if scope_origin is None:
+        return None
+
     return MemoryReadEvent(
-        schema_version=READ_LOG_SCHEMA_VERSION,
+        schema_version=schema_version,
         id=data["id"],
         timestamp=data["timestamp"],
         project=data["project"],
         cwd=data["cwd"],
-        canonical_path=data["canonical_path"],
+        canonical_path=canonical_path,
         resolved_path=data["resolved_path"],
         agent_name=data["agent_name"],
         agent_source=data["agent_source"],
@@ -537,7 +657,38 @@ def _event_from_mapping(data: Mapping[str, Any]) -> MemoryReadEvent | None:
         reason=data["reason"],
         byte_count=data["byte_count"],
         frontmatter_stripped=data["frontmatter_stripped"],
+        kind=kind,
+        selectors=selectors,
+        resolved_targets=resolved_targets,
+        included_targets=included_targets,
+        depth=depth,
+        scope_origin=scope_origin,
     )
+
+
+def _string_tuple(value: Any, *, default: tuple[str, ...]) -> tuple[str, ...] | None:
+    if value is None:
+        return default
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        return None
+    return tuple(value)
+
+
+def _scope_origin_tuple(value: Any) -> tuple[tuple[str, str], ...] | None:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        return None
+    pairs: list[tuple[str, str]] = []
+    for item in value:
+        if (
+            not isinstance(item, list)
+            or len(item) != 2
+            or not all(isinstance(part, str) for part in item)
+        ):
+            return None
+        pairs.append((item[0], item[1]))
+    return tuple(pairs)
 
 
 def _latest_event(events: list[MemoryReadEvent]) -> MemoryReadEvent:
