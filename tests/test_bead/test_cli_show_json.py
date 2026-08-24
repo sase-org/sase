@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from sase.bead import cli as bead_cli
-from sase.bead.model import Dependency, Issue, IssueType
+from sase.bead.model import BeadNote, Dependency, Issue, IssueType
 from sase.bead.project import BeadProject
 from sase.main.parser import create_parser
 from tests.test_bead.cli_show_test_helpers import (
@@ -82,6 +82,57 @@ def test_show_json_includes_external_ref(
     payload = json.loads(show_with_format(issue, "json", capsys))
 
     assert payload["issue"]["external_ref"] == "bug:sase#42"
+
+
+def test_show_json_emits_structured_notes_and_flat_notes_text(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    issue = Issue(
+        id="beads-notes-json",
+        title="Notes JSON",
+        issue_type=IssueType.TASK,
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-08-01T11:30:00Z",
+                author="agent.alpha",
+                text="First note body.",
+            ),
+            BeadNote(
+                id="note-2",
+                timestamp="2026-08-01T11:45:00Z",
+                author="owner@example.com",
+                text="Corrected note body.",
+                edited_at="2026-08-01T11:50:00Z",
+                edited_by="owner@example.com",
+            ),
+        ],
+    )
+    use_single_issue_view(monkeypatch, issue)
+
+    payload = json.loads(show_with_format(issue, "json", capsys))
+
+    assert payload["issue"]["notes"] == [
+        {
+            "id": "note-1",
+            "timestamp": "2026-08-01T11:30:00Z",
+            "author": "agent.alpha",
+            "text": "First note body.",
+        },
+        {
+            "id": "note-2",
+            "timestamp": "2026-08-01T11:45:00Z",
+            "author": "owner@example.com",
+            "text": "Corrected note body.",
+            "edited_at": "2026-08-01T11:50:00Z",
+            "edited_by": "owner@example.com",
+        },
+    ]
+    assert payload["issue"]["notes_text"] == (
+        "[2026-08-01T11:30:00Z · agent.alpha] First note body.\n\n"
+        "[2026-08-01T11:45:00Z · owner@example.com] Corrected note body."
+    )
 
 
 def test_show_json_root_includes_children_and_self_plan(
@@ -258,6 +309,24 @@ def test_search_json_keeps_phase_size_in_machine_output(
     assert payload["results"][0]["issue"]["id"] == phase.id
     assert payload["results"][0]["issue"]["size"] == "medium"
     assert payload["results"][0]["matched_fields"] == ["size"]
+
+
+def test_search_json_uses_structured_notes_shape(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        project.create("Notes Carrier", IssueType.PLAN, notes="private needle note")
+
+    args = create_parser().parse_args(["bead", "search", "needle", "--format", "json"])
+    bead_cli.handle_bead_search(args)
+
+    payload = json.loads(capsys.readouterr().out)
+    note_payload = payload["results"][0]["issue"]["notes"][0]
+    assert note_payload["author"]
+    assert note_payload["timestamp"]
+    assert note_payload["text"] == "private needle note"
+    assert "private needle note" in payload["results"][0]["issue"]["notes_text"]
 
 
 def test_show_renders_recorded_and_unrecorded_resolution(

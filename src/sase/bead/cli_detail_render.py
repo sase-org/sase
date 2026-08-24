@@ -14,8 +14,8 @@ from sase.bead.cli_detail_sections import (
     display_design_path,
     lineage_kind,
     phase_size_field,
-    prose_lines,
     render_artifact_link_section_lines,
+    render_bead_note_lines,
     render_close_history_lines,
     render_flag_lines,
     render_plus_one_evidence_lines,
@@ -279,19 +279,7 @@ def render_issue_detail(
     description_lines = description_and_task_type_lines(issue, style=style, wrap=wrap)
     if description_lines:
         lines.extend(["", palette.section("DESCRIPTION"), *description_lines])
-    if issue.notes_text.strip():
-        lines.extend(
-            [
-                "",
-                palette.section("NOTES"),
-                *prose_lines(
-                    issue.notes_text,
-                    style=style,
-                    wrap=wrap,
-                    indent="  ",
-                ),
-            ]
-        )
+    lines.extend(render_bead_note_lines(issue, palette=palette, style=style, wrap=wrap))
     if issue.plus_one_evidence:
         lines.extend(
             render_plus_one_evidence_lines(

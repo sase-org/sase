@@ -21,6 +21,7 @@ from sase.bead.cli_detail import (
 )
 from sase.bead.flag_fields import flag_fields
 from sase.bead.model import BeadSearchMatch, Issue, IssueType, Status
+from sase.bead.note_presentation import bead_note_search_text
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_CLI_STYLE,
     POST_CLOSE_CLI_STYLE,
@@ -292,7 +293,7 @@ def search_field_value(issue: Issue, field: str) -> str:
         "id": issue.id,
         "title": issue.title,
         "description": issue.description,
-        "notes": issue.notes_text,
+        "notes": bead_note_search_text(issue.notes),
         "design": issue.design,
         "refs": "\n".join(issue.refs),
         "plus_one_evidence": plus_one_evidence_search_text(issue.plus_one_evidence),

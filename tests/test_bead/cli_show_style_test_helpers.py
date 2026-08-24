@@ -12,6 +12,7 @@ import pytest
 from sase.bead import cli as bead_cli
 from sase.bead.model import (
     BeadTier,
+    BeadNote,
     CloseRecord,
     Dependency,
     Issue,
@@ -222,6 +223,29 @@ def build_markdown_description() -> tuple[dict[str, Issue], str]:
     return {issue.id: issue}, issue.id
 
 
+def build_with_notes() -> tuple[dict[str, Issue], str]:
+    issue = Issue(
+        id="bd-notes",
+        title="Task With Notes",
+        issue_type=IssueType.TASK,
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-07-31T12:00:00Z",
+                author="agent.alpha",
+                text="First note body.",
+            ),
+            BeadNote(
+                id="note-2",
+                timestamp="2026-08-01T11:30:00Z",
+                author="owner@example.com",
+                text=("Follow-up with code:\n\n```python\nprint('done')\n```"),
+            ),
+        ],
+    )
+    return {issue.id: issue}, issue.id
+
+
 def build_cjk_emoji_title() -> tuple[dict[str, Issue], str]:
     issue = Issue(
         id="bd-cjk",
@@ -289,6 +313,7 @@ CORPUS: list[tuple[str, CorpusBuilder]] = [
     ("patch", build_patch),
     ("with_refs", build_with_refs),
     ("markdown_description", build_markdown_description),
+    ("with_notes", build_with_notes),
     ("cjk_emoji_title", build_cjk_emoji_title),
     ("reopened_task", build_reopened_task),
 ]

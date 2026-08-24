@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from sase.bead.model import Issue, IssueType, TaskPlusOneEvidence
+from sase.bead.model import BeadNote, Issue, IssueType, TaskPlusOneEvidence
 from sase.main.parser import create_parser
 from tests.test_bead.cli_show_style_test_helpers import render, strip_sgr
 
@@ -258,3 +258,38 @@ def test_plus_one_evidence_notes_wrap_with_four_space_indent(
     evidence_lines = [line for line in out.splitlines() if "evidence" in line]
     assert len(evidence_lines) > 1
     assert all(line.startswith("    ") for line in evidence_lines)
+
+
+def test_note_bodies_wrap_with_five_space_indent(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue = Issue(
+        id="bd-note-wrap",
+        title="Note Wrap",
+        issue_type=IssueType.TASK,
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-08-01T11:00:00Z",
+                author="agent.alpha",
+                text=" ".join(f"note{i}" for i in range(12)),
+            )
+        ],
+    )
+
+    out = render(
+        issue.id,
+        {issue.id: issue},
+        style="plain",
+        color="always",
+        wrap="50",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+
+    note_lines = [
+        line for line in out.splitlines() if line.startswith("     ") and "note" in line
+    ]
+    assert len(note_lines) > 1
+    assert all(len(line) <= 50 for line in note_lines)

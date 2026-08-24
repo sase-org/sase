@@ -13,6 +13,11 @@ from sase.bead.cli_detail_style import DetailPalette, DetailStyle
 from sase.bead.flag_due import flag_removal_due
 from sase.bead.flag_fields import FlagFields, flag_fields
 from sase.bead.model import BeadTier, Issue, IssueType
+from sase.bead.note_presentation import (
+    NOTE_CLI_STYLE,
+    NOTE_SECTION_LABEL,
+    bead_note_label,
+)
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_CLI_STYLE,
     PLUS_ONE_SECTION_LABEL,
@@ -94,7 +99,7 @@ def _render_artifact_link_entry(
         f"{palette.separator('·')} {palette.path(view.counterpart_ref)}"
     ]
     if view.reason:
-        lines.extend(prose_lines(view.reason, style=style, wrap=wrap, indent="    "))
+        lines.extend(_prose_lines(view.reason, style=style, wrap=wrap, indent="    "))
     added = view.timestamp if view.timestamp.strip() else None
     actor = view.actor if view.actor.strip() else None
     added_text = added if added is not None else palette.placeholder("(unknown)")
@@ -117,7 +122,7 @@ def description_and_task_type_lines(
     lines: list[str] = []
     if issue.description:
         lines.extend(
-            prose_lines(
+            _prose_lines(
                 issue.description,
                 style=style,
                 wrap=wrap,
@@ -128,7 +133,7 @@ def description_and_task_type_lines(
     if body:
         if lines:
             lines.extend(["", f"  {TASK_TYPE_BODY_SEPARATOR}", ""])
-        lines.extend(prose_lines(body, style=style, wrap=wrap, indent="  "))
+        lines.extend(_prose_lines(body, style=style, wrap=wrap, indent="  "))
     return lines
 
 
@@ -157,7 +162,7 @@ def render_snooze_lines(
     )
     if record.reason:
         lines.append(f"  {palette.label('Reason:')}")
-        lines.extend(prose_lines(record.reason, style=style, wrap=wrap, indent="    "))
+        lines.extend(_prose_lines(record.reason, style=style, wrap=wrap, indent="    "))
     return lines
 
 
@@ -207,7 +212,7 @@ def render_close_history_lines(
         if record.close_reason:
             lines.append(f"    {palette.label('Reason:')}")
             lines.extend(
-                prose_lines(
+                _prose_lines(
                     record.close_reason,
                     style=style,
                     wrap=wrap,
@@ -221,6 +226,31 @@ def render_close_history_lines(
                 f"    {palette.label('Reason:')} {palette.placeholder('(none)')}"
             )
         lines.append(f"    {close_record_reopened_label(record)}")
+    return lines
+
+
+def render_bead_note_lines(
+    issue: Issue,
+    *,
+    palette: DetailPalette,
+    style: DetailStyle,
+    wrap: int | None,
+) -> list[str]:
+    """Render one timestamped, attributed block for each note record."""
+
+    if not issue.notes:
+        return []
+    lines = [
+        "",
+        palette.accent(f"{NOTE_SECTION_LABEL} ({len(issue.notes)})", NOTE_CLI_STYLE),
+    ]
+    for ordinal, note in enumerate(issue.notes, start=1):
+        if ordinal > 1:
+            lines.append("")
+        lines.append(
+            f"  {palette.accent(bead_note_label(note, ordinal, relative=True), NOTE_CLI_STYLE)}"
+        )
+        lines.extend(_prose_lines(note.text, style=style, wrap=wrap, indent="     "))
     return lines
 
 
@@ -257,7 +287,7 @@ def render_plus_one_evidence_lines(
             lines.append(
                 f"    {palette.label('Observed since:')} {evidence.observed_since}"
             )
-        lines.extend(prose_lines(evidence.note, style=style, wrap=wrap, indent="    "))
+        lines.extend(_prose_lines(evidence.note, style=style, wrap=wrap, indent="    "))
         if not evidence.refs:
             continue
         resolved_refs: Iterable[ArtifactRefListEntry | str] = evidence.refs
@@ -277,7 +307,7 @@ def render_plus_one_evidence_lines(
     return lines
 
 
-def prose_lines(
+def _prose_lines(
     text: str,
     *,
     style: DetailStyle,

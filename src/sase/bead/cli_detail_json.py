@@ -11,6 +11,7 @@ from sase.bead.close_history_codec import close_history_to_dicts
 from sase.bead.flag_due import flag_removal_due
 from sase.bead.flag_fields import flag_fields
 from sase.bead.model import Dependency, Issue
+from sase.bead.note_codec import notes_to_dicts
 from sase.bead.plus_one_presentation import evidence_recorded_after_current_close
 from sase.bead.reopen_presentation import evidence_reopened_bead
 from sase.bead.snooze_presentation import snooze_plus_ones_remaining
@@ -97,7 +98,8 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "snooze": _snooze_to_wire_dict(issue),
         "flag": _flag_to_wire_dict(issue),
         "description": issue.description,
-        "notes": issue.notes_text,
+        "notes": notes_to_dicts(issue.notes),
+        "notes_text": issue.notes_text,
         "design": issue.design,
         **({"refs": list(issue.refs)} if issue.refs else {}),
         "links": [

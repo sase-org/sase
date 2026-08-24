@@ -28,6 +28,7 @@ from sase.ace.tui.widgets.artifacts.beads_rendering import (
     task_text,
 )
 from sase.bead.model import (
+    BeadNote,
     CloseRecord,
     Dependency,
     Issue,
@@ -545,6 +546,37 @@ def test_task_rows_and_detail_render_plus_one_badges_and_evidence(
     assert "## +1 Evidence" in body
     assert "+1 agent.beta · 2026-08-01T15:00:00Z" in body
     assert "research:202608/cache.md" in body
+
+
+def test_detail_body_renders_structured_notes_as_markdown_entries(
+    tmp_path: Path,
+    pinned_clock: None,
+) -> None:
+    value = snapshot(tmp_path)
+    issue = value.tasks[0].issue
+    issue.notes = [
+        BeadNote(
+            id="note-1",
+            timestamp="2026-07-07T12:00:00Z",
+            author="agent.alpha",
+            text="First note body.",
+        ),
+        BeadNote(
+            id="note-2",
+            timestamp="2026-07-08T15:30:00Z",
+            author="owner@example.com",
+            text="Second note body.",
+        ),
+    ]
+
+    body = bead_body_markdown(issue)
+
+    assert "## Notes (2)" in body
+    assert "### #1 · 2026-07-07 08:00:00 EDT · 1d ago · agent.alpha" in body
+    assert "First note body." in body
+    assert "### #2 · 2026-07-08 11:30:00 EDT · 30m ago · owner@example.com" in body
+    assert "Second note body." in body
+    assert "[2026-07-07T12:00:00Z · agent.alpha]" not in body
 
 
 def test_task_rows_and_detail_render_post_close_plus_one_badges(

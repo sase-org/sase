@@ -15,6 +15,7 @@ from tests.test_bead.cli_show_style_test_helpers import (
     build_closed_with_resolution,
     build_epic_with_children,
     build_markdown_description,
+    build_with_notes,
     install_view,
     read_golden,
     render,
@@ -257,6 +258,26 @@ def test_plain_style_emits_zero_escapes_even_with_color_always(
     )
 
     assert "\x1b" not in plain
+
+
+def test_rich_style_with_color_never_emits_zero_escapes_for_notes(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issues, target_id = build_with_notes()
+
+    out = render(
+        target_id,
+        issues,
+        style="rich",
+        color="never",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+
+    assert "\x1b" not in out
+    assert "NOTES (2)" in out
+    assert "#1 ·" in out
 
 
 def test_default_non_tty_stdout_emits_zero_escapes(

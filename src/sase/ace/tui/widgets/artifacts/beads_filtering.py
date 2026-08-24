@@ -8,6 +8,7 @@ from datetime import datetime
 from types import MappingProxyType
 
 from sase.bead.flag_fields import is_flag_bead
+from sase.bead.note_presentation import bead_note_search_text
 from sase.bead.plus_one_presentation import plus_one_evidence_search_text
 from sase.bead.reopen_presentation import close_history_search_text
 from sase.bug_links import normalize_external_ref
@@ -132,7 +133,7 @@ def _record(
             issue.id,
             issue.title,
             issue.description,
-            issue.notes_text,
+            bead_note_search_text(issue.notes),
             issue.design,
             *issue.refs,
             plus_one_evidence_search_text(issue.plus_one_evidence),

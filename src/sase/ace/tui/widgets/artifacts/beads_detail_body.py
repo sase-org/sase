@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sase.bead.flag_fields import flag_fields
 from sase.bead.model import Issue
-from sase.task_types import TASK_TYPE_BODY_SEPARATOR, render_task_type_display_block
+from sase.bead.note_presentation import NOTE_SECTION_LABEL, bead_note_label
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_SECTION_LABEL,
     POST_CLOSE_EVIDENCE_MARKER,
@@ -16,6 +16,7 @@ from sase.bead.reopen_presentation import (
     close_record_label,
     close_record_reopened_label,
 )
+from sase.task_types import TASK_TYPE_BODY_SEPARATOR, render_task_type_display_block
 
 
 def description_markdown(issue: Issue) -> list[str]:
@@ -73,6 +74,23 @@ def plus_one_evidence_markdown(issue: Issue) -> list[str]:
     return lines
 
 
+def note_markdown(issue: Issue) -> list[str]:
+    if not issue.notes:
+        return []
+    lines = ["", f"## {NOTE_SECTION_LABEL.title()} ({len(issue.notes)})", ""]
+    for ordinal, note in enumerate(issue.notes, start=1):
+        if ordinal > 1:
+            lines.append("")
+        lines.extend(
+            [
+                f"### {bead_note_label(note, ordinal, relative=True)}",
+                "",
+                note.text,
+            ]
+        )
+    return lines
+
+
 def flag_markdown(issue: Issue) -> list[str]:
     fields = flag_fields(issue)
     if fields is None:
@@ -95,5 +113,6 @@ __all__ = [
     "close_history_markdown",
     "description_markdown",
     "flag_markdown",
+    "note_markdown",
     "plus_one_evidence_markdown",
 ]

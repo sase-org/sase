@@ -8,7 +8,7 @@ import subprocess
 import pytest
 
 from sase.bead.cli_detail import resolve_bead_creator_url
-from sase.bead.model import Issue, IssueType
+from sase.bead.model import BeadNote, Issue, IssueType
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.main.parser import create_parser
 from sase.repo_inventory import collect_repo_inventory
@@ -236,6 +236,108 @@ def test_show_full_falls_back_to_raw_creator_without_agent_url(
 
     assert "\nCREATED BY\n  owner@example.com\n" in out
     assert "\n  → " not in out
+
+
+def test_show_full_omits_notes_section_without_note_records(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    issue = Issue(id="beads-no-notes", title="No notes", issue_type=IssueType.TASK)
+    use_single_issue_view(monkeypatch, issue)
+
+    out = show(issue, capsys)
+
+    assert "\nNOTES" not in out
+
+
+def test_show_full_renders_each_note_as_an_ordinal_block(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    issue = Issue(
+        id="beads-notes",
+        title="Has notes",
+        issue_type=IssueType.TASK,
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-07-31T12:00:00Z",
+                author="agent.alpha",
+                text="First note body.",
+            ),
+            BeadNote(
+                id="note-2",
+                timestamp="2026-08-01T11:30:00Z",
+                author="owner@example.com",
+                text="Second note body.",
+            ),
+        ],
+    )
+    use_single_issue_view(monkeypatch, issue)
+
+    out = show(issue, capsys)
+
+    assert "NOTES (2)" in out
+    assert "#1 · 2026-07-31 08:00:00 EDT · 1d ago · agent.alpha" in out
+    assert "     First note body." in out
+    assert "#2 · 2026-08-01 07:30:00 EDT · 4h ago · owner@example.com" in out
+    assert "     Second note body." in out
+    assert out.index("#1 ·") < out.index("#2 ·")
+
+
+def test_show_full_renders_invalid_note_timestamp_as_unknown(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    issue = Issue(
+        id="beads-legacy-note",
+        title="Legacy note",
+        issue_type=IssueType.TASK,
+        notes=[
+            BeadNote(
+                id="note-legacy",
+                timestamp="not-a-timestamp",
+                author="legacy-import",
+                text="Recovered from a sparse legacy row.",
+            )
+        ],
+    )
+    use_single_issue_view(monkeypatch, issue)
+
+    out = show(issue, capsys)
+
+    assert "#1 · unknown · legacy-import" in out
+
+
+def test_show_full_note_body_keeps_fenced_code_and_marker_like_text(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    issue = Issue(
+        id="beads-note-code",
+        title="Note code",
+        issue_type=IssueType.TASK,
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-08-01T11:30:00Z",
+                author="agent.alpha",
+                text=(
+                    "```python\n"
+                    "print('ok')\n"
+                    "```\n"
+                    "[2026-08-01T11:30:00Z · other] stays body text"
+                ),
+            )
+        ],
+    )
+    use_single_issue_view(monkeypatch, issue)
+
+    out = show(issue, capsys)
+
+    assert "     ```python" in out
+    assert "     print('ok')" in out
+    assert "     [2026-08-01T11:30:00Z · other] stays body text" in out
 
 
 def test_resolve_bead_creator_url_uses_hosted_agent_link(

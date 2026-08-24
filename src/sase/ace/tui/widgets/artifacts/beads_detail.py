@@ -34,6 +34,7 @@ from .beads_detail_body import (
     close_history_markdown as _close_history_markdown,
     description_markdown as _description_markdown,
     flag_markdown as _flag_markdown,
+    note_markdown as _note_markdown,
     plus_one_evidence_markdown as _plus_one_evidence_markdown,
 )
 from .beads_detail_external import (
@@ -172,8 +173,7 @@ def bead_body_markdown(
     lines.extend(_external_issue_markdown(issue, external_links))
     lines.extend(_description_markdown(issue))
     lines.extend(_plus_one_evidence_markdown(issue))
-    if issue.notes_text.strip():
-        lines.extend(["", "## Notes", "", issue.notes_text])
+    lines.extend(_note_markdown(issue))
     return "\n".join(lines)
 
 
