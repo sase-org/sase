@@ -1792,7 +1792,9 @@ A **soft** disable never fails a launch; it only deprioritizes the provider:
 either mode, but usage-limit auto-disable (`source: "usage_limit"`) always writes a
 **hard** disable — nothing in routing changes that. Create, flip, and inspect a soft
 disable from ACE Launch Control → Provider Routing (`p` from `,m`); see
-[Provider routing controls](ace.md#provider-routing-controls).
+[Provider routing controls](ace.md#provider-routing-controls). A hard disable can
+additionally drain the agents it stranded — relaunching them elsewhere or reporting why
+they cannot move; see [Draining a Disabled Provider](#draining-a-disabled-provider).
 
 Each top-level routing operation captures active disables once and passes that snapshot
 through alias resolution, autodetection, model-picker rows, completion overlays, and the
@@ -2041,6 +2043,60 @@ something other than the host's zone will skew those parses.
 
 Any failed or ambiguous parse falls back to `disable_seconds`. Reading a hint is an
 optimization, never a gate: it cannot block or delay the disable.
+
+### Draining a Disabled Provider
+
+A **hard** disable stops new launches from landing on a provider; draining goes further
+and relaunches the agents that provider already stranded — the ones that were
+`STARTING`, `RUNNING`, or `WAITING` on it when the disable landed, plus rows that failed
+on it just before the disable. `sase.agent._drain_selection` selects candidates from one
+`list_all_agents()` snapshot:
+
+- Live rows in `STARTING`, `RUNNING`, or `WAITING` on the disabled provider.
+- `FAILED` rows whose `done.finished_at` is at or after `disable.created_at - 300s` and
+  whose recorded `done.error` matches that provider's own usage-limit pattern through
+  `detect_usage_limit()` — the same matcher that caused the disable in the first place.
+  A manual disable therefore drains a recently-failed row only when the operator
+  disabled the provider because they watched agents fail on it.
+
+Effective provider is `agent_meta.json`'s `exec_llm_provider` when present, else the
+listed `llm_provider` — a row rerouted through `SASE_LLM_EXEC_PROVIDER` is selected by
+what actually ran, not by its display provider.
+
+Each candidate is replanned exactly like `sase agent restart`, then its rewritten
+prompt's route is classified through `plan_launch_units()`: if every launch unit is
+blocked, the agent is **stranded** and reported, never guessed onto a substitute model.
+Otherwise the first unit's resolved candidate — almost always chosen by ordinary alias
+resolution routing around the disabled provider — is the **reroute** destination. A
+prompt pinned to a direct `provider/model` spelling has nowhere else to go and is always
+stranded; only a size or custom alias can reroute.
+
+Never drained, and why:
+
+- **Monitor rows** (`RunningAgentInfo.is_monitor`) supervise a shell command, not
+  provider quota; killing one kills the monitored command instead of freeing anything.
+- **`QUESTION`/`ANSWERED`** rows hold a pending user interaction that a restart would
+  destroy.
+- **The calling agent** — `sase agent drain` run from inside an agent never drains its
+  own caller.
+
+The real cost: like `sase agent restart`, a drain's `execute_agent_restart()` deletes
+the previous run's artifacts before relaunching. Any in-flight progress on a `RUNNING`
+row is lost; the chat transcript under `~/.sase/chats` survives.
+
+The `llm_provider.usage_limit.relaunch` / `relaunch_limit` config fields (above) control
+whether and how much a usage-limit hard disable drains automatically; the
+`provider_drain` beta flag gates that automatic submission and the ACE Launch Control
+[provider-drain relaunch prompt](ace.md#provider-drain-relaunch-prompt) — both are off
+until the flag is enabled.
+
+`sase agent drain <provider>` is the always-available manual escape hatch regardless of
+the flag: it previews with `--dry-run`, refuses a provider with no active hard disable,
+and confirms before discarding live progress unless `-y`/`--yes` or `-j`/`--json` is
+given. `-m/--model` is the way to move an agent the plan would otherwise report stranded
+— pointing the whole drain at a reachable model turns every moved agent into an ordinary
+reroute. `-l/--limit` caps how many agents move at once; anything dropped by the limit
+is reported, never silently skipped.
 
 ## Environment Variables
 

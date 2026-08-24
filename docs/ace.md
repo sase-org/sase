@@ -3100,6 +3100,39 @@ A single-agent launch that only enables or soft-enables submits the original pro
 Picking a different model on a one-agent launch rewrites that prompt. Dropping or
 re-modelling a unit in a multi-agent launch submits only the agents that remain.
 
+### Provider-drain relaunch prompt {#provider-drain-relaunch-prompt}
+
+After a **manual** hard disable in Provider Routing (`p` from Launch Control, above)
+changes a provider's state, ACE offers to relaunch the agents that disable just
+stranded. The `provider-routing-write` worker computes a drain preview off the event
+loop through the same `plan_provider_drain()` the CLI and the automatic usage-limit path
+use, and only pushes `ProviderDrainPromptModal` when all of these hold:
+
+- The write was a **hard** disable (a soft disable never prompts — it strands nothing).
+- The write actually changed the provider's state (re-disabling an already-disabled
+  provider does not reprompt).
+- The `provider_drain` beta flag is enabled.
+- The resulting plan has at least one move or skip. A disable with no dependent agents
+  stays exactly as quiet as it is today.
+
+The panel names the provider, its remaining disable window and provenance, and how many
+agents can relaunch versus are left alone:
+
+| Key       | Action                                                                                                                 |
+| --------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `r`       | Relaunch every movable agent now, on the route `plan_provider_drain()` already resolved for each.                      |
+| `m`       | Open the model picker, then relaunch every movable agent on the chosen model (same spelling as `sase agent drain -m`). |
+| `l`       | Leave every agent alone; nothing is submitted.                                                                         |
+| `esc`/`q` | Same as `l` — escape is always the safe, no-op choice.                                                                 |
+
+Choosing `r` or `m` submits the drain through the same durable `agent.drain` operation
+and `provider-drain:<provider>` concurrency key the automatic usage-limit path uses (see
+[Draining a Disabled Provider](llms.md#draining-a-disabled-provider)), so it appears in
+the Procs tab and dedups against an automatic drain already in flight for that provider
+rather than running twice. A toast reports the outcome from the durable result envelope
+(`Relaunched N agent(s); M left alone`, plus a failed count when any move failed), and a
+failed submission toasts the proc id to inspect in Procs.
+
 ### tmux Agent {#tmux-agent}
 
 Press `t` from Launch Control to open **tmux Agent**. The panel lists every registered
