@@ -97,6 +97,42 @@ class TaskPlusOneEvidence:
 
 
 @dataclass(frozen=True)
+class BeadNote:
+    """One timestamped, attributed entry in a bead's append-only note log.
+
+    Mirrors ``BeadNoteWire`` in sase-core. ``id`` is the identity of the
+    event that created the entry (or a ``<event_id>#<k>`` derivative for an
+    entry recovered from a legacy free-text blob), never chosen by callers.
+    """
+
+    id: str
+    timestamp: str
+    author: str
+    text: str
+    edited_at: str | None = None
+    edited_by: str | None = None
+
+    def validate(self) -> None:
+        if not self.id.strip():
+            raise ValueError("bead note id cannot be empty or blank")
+        if not self.timestamp.strip():
+            raise ValueError("bead note timestamp cannot be empty or blank")
+        if not self.author.strip():
+            raise ValueError("bead note author cannot be empty or blank")
+        if not self.text.strip():
+            raise ValueError("bead note text cannot be empty or blank")
+        if (self.edited_at is None) != (self.edited_by is None):
+            raise ValueError(
+                "bead note edited_at and edited_by must both be present or "
+                "both be absent"
+            )
+        if self.edited_at is not None and not self.edited_at.strip():
+            raise ValueError("bead note edited_at cannot be empty or blank")
+        if self.edited_by is not None and not self.edited_by.strip():
+            raise ValueError("bead note edited_by cannot be empty or blank")
+
+
+@dataclass(frozen=True)
 class CloseRecord:
     """One close episode that has since been undone.
 
@@ -201,7 +237,7 @@ class Issue:
     close_reason: str | None = None
     resolution: Resolution | None = None
     description: str = ""
-    notes: str = ""
+    notes: list[BeadNote] = field(default_factory=list)
     design: str = ""
     refs: list[str] = field(default_factory=list)
     links: list[BeadLink] = field(default_factory=list)
@@ -240,6 +276,17 @@ class Issue:
     def plus_one_count(self) -> int:
         return len(self.plus_one_evidence)
 
+    @property
+    def notes_text(self) -> str:
+        """The flattened text projection of the structured note log.
+
+        Reproduces the byte format ``sase bead note`` has always written, so
+        search indexes, bead pages, and gate previews keep their bytes.
+        """
+        from sase.bead.note_codec import notes_text as _notes_text
+
+        return _notes_text(self.notes)
+
     def validate(self) -> None:
         """Validate issue constraints.
 
@@ -271,6 +318,8 @@ class Issue:
         # phases are reopened by ``sase bead open`` and by epic work preclaims.
         for record in self.close_history:
             record.validate()
+        for note in self.notes:
+            note.validate()
         if self.issue_type != IssueType.PLAN and self.is_ready_to_work:
             raise ValueError("Only plan issues can be marked is_ready_to_work")
         if self.issue_type == IssueType.PLAN and self.size is not None:

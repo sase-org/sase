@@ -131,7 +131,7 @@ class BeadProjectMutationMixin:
         else:
             issue = old_issue if old_issue is not None else self.show(issue_id)
         if notes_update is not None:
-            entry = _note_append_entry(issue.notes, notes_update)
+            entry = _note_append_entry(issue.notes_text, notes_update)
             if entry is not None:
                 issue, outcome = rust_beads.append_note(
                     self.beads_dir,
@@ -190,7 +190,7 @@ class BeadProjectMutationMixin:
         if notes_update is not None:
             for issue_id in resolved_ids:
                 issue = issue_by_id[issue_id]
-                entry = _note_append_entry(issue.notes, notes_update)
+                entry = _note_append_entry(issue.notes_text, notes_update)
                 if entry is None:
                     continue
                 issue, outcome = rust_beads.append_note(

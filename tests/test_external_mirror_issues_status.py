@@ -58,8 +58,8 @@ def test_upstream_close_appends_exactly_one_note_across_three_passes(
     [bead] = beads(bead_store)
     assert bead.status == Status.CLOSED
     assert bead.task_type == "github"
-    assert "open -> closed" in bead.notes
-    assert "Closed this mirrored bead to match." in bead.notes
+    assert "open -> closed" in bead.notes_text
+    assert "Closed this mirrored bead to match." in bead.notes_text
 
 
 def test_untyped_mirrored_bead_still_reconciles_when_github_type_is_absent(
@@ -124,8 +124,8 @@ def test_upstream_reopen_reopens_mirrored_bead(
     assert report.reopened_refs == ("bug:sase#42",)
     [bead] = beads(bead_store)
     assert bead.status == Status.OPEN
-    assert "closed -> open" in bead.notes
-    assert "Reopened this mirrored bead to match." in bead.notes
+    assert "closed -> open" in bead.notes_text
+    assert "Reopened this mirrored bead to match." in bead.notes_text
 
 
 def test_mirrored_status_round_trip_records_each_transition(
@@ -164,7 +164,7 @@ def test_mirrored_status_round_trip_records_each_transition(
     assert report.beads_closed == 1
     [bead] = beads(bead_store)
     assert bead.status == Status.CLOSED
-    assert bead.notes.count("changed state:") == 3
+    assert bead.notes_text.count("changed state:") == 3
 
 
 def test_referenced_only_bead_gets_note_but_status_stays_open(
@@ -195,7 +195,7 @@ def test_referenced_only_bead_gets_note_but_status_stays_open(
     assert report.beads_closed == 0
     [bead] = beads(bead_store)
     assert bead.status == Status.OPEN
-    assert "This bead's status is unchanged; reconcile deliberately." in bead.notes
+    assert "This bead's status is unchanged; reconcile deliberately." in bead.notes_text
 
 
 @pytest.mark.parametrize("status", [Status.IN_PROGRESS, Status.CLAIMED])
@@ -222,7 +222,7 @@ def test_working_mirrored_bead_gets_note_but_status_is_unchanged(
     assert report2.notes_appended == 0
     bead = show_bead(bead_store, bead_id)
     assert bead.status == status
-    assert "status is unchanged (an agent is working this bead)" in bead.notes
+    assert "status is unchanged (an agent is working this bead)" in bead.notes_text
 
 
 def test_mirrored_bead_with_unclosed_child_gets_note_but_status_stays_open(
@@ -261,7 +261,7 @@ def test_mirrored_bead_with_unclosed_child_gets_note_but_status_stays_open(
     assert report2.notes_appended == 0
     bead = show_bead(bead_store, parent.id)
     assert bead.status == Status.OPEN
-    assert "status is unchanged (the bead has unclosed descendants)" in bead.notes
+    assert "status is unchanged (the bead has unclosed descendants)" in bead.notes_text
 
 
 def test_human_closed_mirrored_bead_gets_note_but_is_not_reclosed(
@@ -289,7 +289,7 @@ def test_human_closed_mirrored_bead_gets_note_but_is_not_reclosed(
     assert report2.notes_appended == 0
     bead = show_bead(bead_store, bead_id)
     assert bead.status == Status.CLOSED
-    assert "status is unchanged (the bead is already closed)" in bead.notes
+    assert "status is unchanged (the bead is already closed)" in bead.notes_text
 
 
 def test_status_race_between_plan_and_apply_demotes_to_note_only(
@@ -335,7 +335,7 @@ def test_status_race_between_plan_and_apply_demotes_to_note_only(
     assert report.beads_closed == 0
     [bead] = beads(bead_store)
     assert bead.status == Status.IN_PROGRESS
-    assert "status is unchanged (an agent is working this bead)" in bead.notes
+    assert "status is unchanged (an agent is working this bead)" in bead.notes_text
 
 
 def test_dry_run_reports_status_transition_and_leaves_state_untouched(
@@ -358,7 +358,7 @@ def test_dry_run_reports_status_transition_and_leaves_state_untouched(
     assert report.beads_closed == 0
     [bead] = beads(bead_store)
     assert bead.status == Status.OPEN
-    assert bead.notes == ""
+    assert bead.notes_text == ""
     state = read_mirror_state(
         mirror_state_document_path("issues", "sase"), project="sase"
     )
@@ -398,7 +398,7 @@ def test_status_transitions_are_limited_by_note_budget_and_converge(
     assert {bead.status for bead in beads(bead_store)} == {Status.CLOSED}
     assert (
         sum(
-            bead.notes.count("Closed this mirrored bead to match.")
+            bead.notes_text.count("Closed this mirrored bead to match.")
             for bead in beads(bead_store)
         )
         == 2

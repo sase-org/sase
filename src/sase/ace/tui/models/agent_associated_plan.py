@@ -408,7 +408,7 @@ def _resolve_bead_plan_association(
     issue = _lookup_issue(agent, bead_id, lookup_session=lookup_session)
     if issue is None:
         return _ResolvedPlanAssociation(None)
-    notes = _normalize_bead_notes(issue.notes)
+    notes = _normalize_bead_notes(issue.notes_text)
     is_phase = issue.issue_type is IssueType.PHASE
     is_epic = issue.issue_type is IssueType.PLAN and issue.tier is BeadTier.EPIC
     is_flag = is_flag_bead(issue)
@@ -492,7 +492,7 @@ def _resolve_bead_issue_association(
         phase_bead_id=issue.id if is_phase else None,
         created_at=issue.created_at if is_phase else "",
         bead_summary=_plan_free_bead_summary(issue) if is_task or is_flag else None,
-        notes=_normalize_bead_notes(issue.notes),
+        notes=_normalize_bead_notes(issue.notes_text),
     )
 
 
@@ -512,7 +512,7 @@ def _plan_free_bead_summary(issue: Issue) -> BeadSummary:
         size=normalize_phase_size(issue.size),
         created_at=issue.created_at,
         bead_type=bead_type,
-        notes=_normalize_bead_notes(issue.notes),
+        notes=_normalize_bead_notes(issue.notes_text),
         plus_one_evidence=tuple(issue.plus_one_evidence),
         flag_key=None if fields is None else fields.key,
         flag_remove_by_date=None if fields is None else fields.remove_by_date,

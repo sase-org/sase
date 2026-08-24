@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.bead.model import Issue, IssueType, Status
+from sase.bead.model import BeadNote, Issue, IssueType, Status
 from sase.bead.project import BeadProject
 from sase.sdd.artifact_link_migrate_notes import (
     apply_related_note_migration,
@@ -16,11 +16,18 @@ from tests._conftest_environment import redirect_sase_home
 def test_migrate_notes_worklist_and_convertible_rows() -> None:
     left = Issue("sase-aa", "Left", issue_type=IssueType.PLAN, status=Status.OPEN)
     right = Issue("sase-bb", "Right", issue_type=IssueType.PLAN, status=Status.OPEN)
-    left.notes = (
-        "RELATED: sase-bb — shares the ACE-TUI flake root cause\n"
-        "RELATED: not a parseable line\n"
-        "RELATED: deadbeefdeadbeefdeadbeefdeadbeefdeadbeef — mystery commit\n"
-    )
+    left.notes = [
+        BeadNote(
+            id="note-1",
+            timestamp="2026-01-01T00:00:00Z",
+            author="test",
+            text=(
+                "RELATED: sase-bb — shares the ACE-TUI flake root cause\n"
+                "RELATED: not a parseable line\n"
+                "RELATED: deadbeefdeadbeefdeadbeefdeadbeefdeadbeef — mystery commit"
+            ),
+        )
+    ]
     plan = plan_related_note_migration((left, right))
     assert len(plan.conversions) == 1
     assert plan.conversions[0].targets == ("bead:sase-bb",)
@@ -44,8 +51,8 @@ def test_migrate_notes_apply_writes_events_and_migrated_notes(
         applied = apply_related_note_migration(project, plan)
         reloaded = project.show(left.id)
     assert applied["converted"] == 1
-    assert "MIGRATED: linked as related/" in reloaded.notes
-    assert "RELATED:" in reloaded.notes
+    assert "MIGRATED: linked as related/" in reloaded.notes_text
+    assert "RELATED:" in reloaded.notes_text
     assert reloaded.links[0].origin == "migrated"
     assert reloaded.links[0].target_ref == f"bead:{right.id}"
 

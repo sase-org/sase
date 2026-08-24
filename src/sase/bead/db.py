@@ -10,6 +10,7 @@ from pathlib import Path
 
 from sase.bead._db_codec import (
     close_history_json,
+    notes_json,
     plus_one_evidence_from_json,
     plus_one_evidence_json,
     snooze_json,
@@ -69,7 +70,7 @@ def create_issue(
             issue.close_reason,
             issue.resolution.value if issue.resolution else None,
             issue.description,
-            issue.notes,
+            notes_json(issue.notes),
             issue.design,
             "\n".join(issue.refs),
             plus_one_evidence_json(issue.plus_one_evidence),

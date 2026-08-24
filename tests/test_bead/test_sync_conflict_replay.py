@@ -133,9 +133,9 @@ def test_managed_sync_worker_replays_deep_multi_commit_divergence(
         first = project.show(contested_ids[0])
         second = project.show(contested_ids[1])
     assert first.title == "First from local commit one"
-    assert first.notes.endswith("First from upstream")
+    assert first.notes_text.endswith("First from upstream")
     assert first.description == "First from local commit three"
-    assert second.notes.endswith("Second from local commit two")
+    assert second.notes_text.endswith("Second from local commit two")
     assert second.description == "Second from upstream"
     assert second.design == "Second from local commit four"
 

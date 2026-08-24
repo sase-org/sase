@@ -14,6 +14,7 @@ from sase.ace.tui.models.agent_associated_plan import (
 )
 from sase.agent.bead_display import BeadIssueLookupSession
 from sase.bead.model import (
+    BeadNote,
     BeadTier,
     Issue,
     IssueType,
@@ -51,7 +52,14 @@ def test_modern_phase_without_authored_plan_allows_exact_note_lookup(
         issue_type=IssueType.PHASE,
         parent_id="stale-parent",
         created_at="2026-08-01T14:30:00Z",
-        notes="[2026-08-01T14:00:00Z · bryan] implementation note",
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-08-01T14:00:00Z",
+                author="bryan",
+                text="implementation note",
+            )
+        ],
     )
     lookups: list[str] = []
 
@@ -74,7 +82,7 @@ def test_modern_phase_without_authored_plan_allows_exact_note_lookup(
     assert enrichment.phase_bead.epic_title == "Epic phase metadata"
     assert enrichment.phase_bead.size == "small"
     assert enrichment.phase_bead.created_at == phase.created_at
-    assert enrichment.phase_bead.notes == phase.notes
+    assert enrichment.phase_bead.notes == phase.notes_text
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_paths == (str(plan.resolve()),)
     assert lookups == [phase.id]
@@ -91,10 +99,20 @@ def test_legacy_phase_resolves_parent_design_but_suppresses_plan(
         title="Phase",
         issue_type=IssueType.PHASE,
         parent_id="sase-1",
-        notes=(
-            "[2026-08-01T15:00:00Z · phase-agent] exact phase note\n\n"
-            "[2026-08-01T15:04:00Z · reviewer] follow-up"
-        ),
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-08-01T15:00:00Z",
+                author="phase-agent",
+                text="exact phase note",
+            ),
+            BeadNote(
+                id="note-2",
+                timestamp="2026-08-01T15:04:00Z",
+                author="reviewer",
+                text="follow-up",
+            ),
+        ],
     )
     epic = Issue(
         id="sase-1",
@@ -102,7 +120,14 @@ def test_legacy_phase_resolves_parent_design_but_suppresses_plan(
         issue_type=IssueType.PLAN,
         tier=BeadTier.EPIC,
         design="plans/epic.md",
-        notes="parent note must not appear",
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-08-01T15:10:00Z",
+                author="test",
+                text="parent note must not appear",
+            )
+        ],
     )
     issues = {phase.id: phase, epic.id: epic}
     lookups: list[str] = []
@@ -134,7 +159,7 @@ def test_legacy_phase_resolves_parent_design_but_suppresses_plan(
         plan_readable=True,
         epic_title="Epic phase metadata",
         size="small",
-        notes=phase.notes,
+        notes=phase.notes_text,
     )
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_path == str(plan.resolve())

@@ -97,7 +97,7 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "snooze": _snooze_to_wire_dict(issue),
         "flag": _flag_to_wire_dict(issue),
         "description": issue.description,
-        "notes": issue.notes,
+        "notes": issue.notes_text,
         "design": issue.design,
         **({"refs": list(issue.refs)} if issue.refs else {}),
         "links": [

@@ -132,8 +132,8 @@ def render_prose_sections(issue: Issue) -> list[str]:
             else:
                 lines.append("")
             lines.append(_bounded_prose(body))
-    if issue.notes.strip():
-        lines.extend(["", "## Notes", "", _bounded_prose(issue.notes)])
+    if issue.notes_text.strip():
+        lines.extend(["", "## Notes", "", _bounded_prose(issue.notes_text)])
     return lines
 
 

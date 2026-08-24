@@ -292,7 +292,7 @@ def search_field_value(issue: Issue, field: str) -> str:
         "id": issue.id,
         "title": issue.title,
         "description": issue.description,
-        "notes": issue.notes,
+        "notes": issue.notes_text,
         "design": issue.design,
         "refs": "\n".join(issue.refs),
         "plus_one_evidence": plus_one_evidence_search_text(issue.plus_one_evidence),

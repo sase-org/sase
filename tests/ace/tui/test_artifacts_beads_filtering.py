@@ -35,6 +35,7 @@ from sase.bead.filter_query import (
     to_query_string,
 )
 from sase.bead.model import (
+    BeadNote,
     CloseRecord,
     Issue,
     IssueType,
@@ -79,7 +80,14 @@ def _matched_ids(tmp_path: Path, query: str) -> list[str]:
     value.epics[0].issue.patch_bug_id = "42"
     value.epics[0].issue.external_ref = "bug:alpha#42"
     value.tasks[1].issue.assignee = "worker.alpha"
-    value.phases_by_epic[("alpha", "alpha-1")][0].issue.notes = "Closed phase notes."
+    value.phases_by_epic[("alpha", "alpha-1")][0].issue.notes = [
+        BeadNote(
+            id="note-1",
+            timestamp="2026-01-01T00:00:00Z",
+            author="test",
+            text="Closed phase notes.",
+        )
+    ]
     value = replace(value, blocked_ids=frozenset({("alpha", "alpha-open")}))
     parsed = parse_bead_filter_query(
         query,

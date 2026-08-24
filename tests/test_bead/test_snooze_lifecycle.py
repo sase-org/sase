@@ -56,11 +56,11 @@ def test_snooze_round_trips_through_every_persistence_surface(
 
         # The snooze note is what survives the wake that clears the record
         # above, so every persistence surface below must carry it unchanged.
-        assert issue.notes.startswith(
+        assert issue.notes_text.startswith(
             f"[{issue.snooze.snoozed_at} · {issue.snooze.snoozed_by}] "
             f"Snoozed until {UNTIL} (in "
         )
-        assert issue.notes.endswith(
+        assert issue.notes_text.endswith(
             "Also wakes at 2 more +1s. Reason: waiting on upstream"
         )
 
@@ -109,7 +109,7 @@ def test_plus_one_target_wakes_the_bead_with_the_preset_note(
         woken, _ = project.plus_one(task_id, "and again", reporter="agent-b")
         assert woken.status is Status.READY
         assert woken.snooze is None
-        assert "Reopened by +1 threshold: reached 2 +1s" in woken.notes
+        assert "Reopened by +1 threshold: reached 2 +1s" in woken.notes_text
 
 
 def test_update_refuses_the_snoozed_status_shortcut(tmp_path: Path) -> None:

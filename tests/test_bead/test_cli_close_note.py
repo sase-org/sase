@@ -54,7 +54,7 @@ def test_close_with_note_uses_one_slow_path_commit_and_agent_attribution(
     with BeadProject(project_dir) as project:
         closed = project.show(issue.id)
     assert closed.status is Status.CLOSED
-    assert closed.notes == (
+    assert closed.notes_text == (
         "[2026-01-01T00:01:00Z · phase-agent] verified with just check"
     )
 
@@ -84,7 +84,7 @@ def test_close_with_note_applies_to_each_explicit_id(
         for issue_id in (first.id, second.id):
             issue = project.show(issue_id)
             assert issue.status is Status.CLOSED
-            assert issue.notes.endswith("] multi close verified")
+            assert issue.notes_text.endswith("] multi close verified")
 
 
 def test_force_close_with_note_only_notes_explicit_parent(
@@ -119,9 +119,9 @@ def test_force_close_with_note_only_notes_explicit_parent(
     with BeadProject(project_dir) as project:
         closed_epic = project.show(epic.id)
         swept_phase = project.show(phase.id)
-    assert closed_epic.notes.endswith("] requirements changed")
+    assert closed_epic.notes_text.endswith("] requirements changed")
     assert closed_epic.resolution is Resolution.CANCELED
-    assert swept_phase.notes == ""
+    assert swept_phase.notes_text == ""
     assert swept_phase.resolution is Resolution.CANCELED
 
 
@@ -160,7 +160,7 @@ def test_close_with_note_defers_to_truthful_slow_path(
     with BeadProject(project_dir) as project:
         unchanged = project.show(issue.id)
     assert unchanged.status is Status.OPEN
-    assert unchanged.notes == ""
+    assert unchanged.notes_text == ""
 
 
 def test_reclose_with_note_reports_both_outcomes_and_commits_note(
@@ -194,4 +194,4 @@ def test_reclose_with_note_reports_both_outcomes_and_commits_note(
     with BeadProject(project_dir) as project:
         reclosed = project.show(issue.id)
     assert reclosed.closed_at == first_closed_at
-    assert reclosed.notes.endswith("] second look")
+    assert reclosed.notes_text.endswith("] second look")

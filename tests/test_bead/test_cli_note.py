@@ -69,7 +69,7 @@ def test_note_appends_to_empty_notes_with_explicit_author(
     assert f"Noted: {issue_id}" in output
     with BeadProject(project_dir) as project:
         issue = project.show(issue_id)
-    assert issue.notes == "[2026-01-01T00:01:00Z · alice] first note"
+    assert issue.notes_text == "[2026-01-01T00:01:00Z · alice] first note"
 
 
 def test_note_appends_to_existing_notes_and_history_shows_revisions(
@@ -85,7 +85,7 @@ def test_note_appends_to_existing_notes_and_history_shows_revisions(
 
     with BeadProject(project_dir) as project:
         issue = project.show(issue_id)
-    assert issue.notes == (
+    assert issue.notes_text == (
         "[2026-01-01T00:01:00Z · alice] first note\n\n"
         "[2026-01-01T00:02:00Z · alice] second note"
     )
@@ -116,7 +116,7 @@ def test_note_rejects_blank_entry_without_writing_or_committing(
     assert "note entry cannot be empty or blank" in capsys.readouterr().err
     auto_commit.assert_not_called()
     with BeadProject(project_dir) as project:
-        assert project.show(issue_id).notes == ""
+        assert project.show(issue_id).notes_text == ""
 
 
 def test_note_defaults_author_from_agent_identity(
@@ -132,7 +132,7 @@ def test_note_defaults_author_from_agent_identity(
 
     with BeadProject(project_dir) as project:
         issue = project.show(issue_id)
-    assert issue.notes == "[2026-01-01T00:01:00Z · phase-agent] agent note"
+    assert issue.notes_text == "[2026-01-01T00:01:00Z · phase-agent] agent note"
 
 
 def test_note_defaults_author_from_store_owner_without_agent_identity(
@@ -151,7 +151,7 @@ def test_note_defaults_author_from_store_owner_without_agent_identity(
 
     with BeadProject(project_dir) as project:
         issue = project.show(issue_id)
-    assert issue.notes == "[2026-01-01T00:01:00Z · owner@example.com] owner note"
+    assert issue.notes_text == "[2026-01-01T00:01:00Z · owner@example.com] owner note"
 
 
 def test_note_single_token_at_path_expands(
@@ -169,7 +169,7 @@ def test_note_single_token_at_path_expands(
 
     with BeadProject(project_dir) as project:
         issue = project.show(issue_id)
-    assert issue.notes == "[2026-01-01T00:01:00Z · alice] from file"
+    assert issue.notes_text == "[2026-01-01T00:01:00Z · alice] from file"
 
 
 def test_note_multi_token_text_still_joins_with_spaces(
@@ -184,7 +184,7 @@ def test_note_multi_token_text_still_joins_with_spaces(
 
     with BeadProject(project_dir) as project:
         issue = project.show(issue_id)
-    assert issue.notes == "[2026-01-01T00:01:00Z · alice] @not-a-file and more"
+    assert issue.notes_text == "[2026-01-01T00:01:00Z · alice] @not-a-file and more"
 
 
 def test_handle_bead_note_auto_commit_message(project_dir: Path) -> None:

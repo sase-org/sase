@@ -19,7 +19,7 @@ from sase.ace.tui.widgets.artifacts.beads_data_models import (
     ProjectBead,
 )
 from sase.ace.tui.widgets.artifacts.beads_list import BeadRow
-from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
+from sase.bead.model import BeadNote, BeadTier, Issue, IssueType, PhaseSize, Status
 
 
 @pytest.mark.parametrize(
@@ -56,13 +56,20 @@ def test_editor_result_submits_only_changed_type_valid_fields() -> None:
         "Old",
         issue_type=IssueType.TASK,
         description="same",
-        notes="notes",
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-01-01T00:00:00Z",
+                author="test",
+                text="notes",
+            )
+        ],
         size=PhaseSize.SMALL,
     )
     result = BeadEditorResult(
         title="New",
         description="same",
-        notes="notes",
+        notes="[2026-01-01T00:00:00Z · test] notes",
         status="ready",
         assignee="",
         owner="",

@@ -14,6 +14,7 @@ import pytest
 import sase.scripts.sase_chop_bead_task_triage as task_triage
 from sase.axe.chop_script_context import ChopScriptContext
 from sase.bead.model import (
+    BeadNote,
     Issue,
     IssueType,
     PhaseSize,
@@ -83,7 +84,14 @@ def make_task(
         status=Status.READY,
         issue_type=IssueType.TASK,
         description="Make cache invalidation deterministic.",
-        notes="Discovered while landing sase-bg.",
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-01-01T00:00:00Z",
+                author="test",
+                text="Discovered while landing sase-bg.",
+            )
+        ],
         created_at="2026-01-01T00:00:00Z",
         created_by=created_by,
         size=PhaseSize.SMALL,
@@ -146,7 +154,14 @@ def make_due_flag(
         status=Status.OPEN,
         issue_type=IssueType.TASK,
         description="Routes prettier formatting.",
-        notes="Discovered while landing sase-bg.",
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-01-01T00:00:00Z",
+                author="test",
+                text="Discovered while landing sase-bg.",
+            )
+        ],
         created_at="2026-01-01T00:00:00Z",
         created_by=created_by,
         task_type="flag",

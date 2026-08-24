@@ -154,7 +154,7 @@ def test_concurrent_bead_mutations_wait_past_the_old_lock_timeout(
     ), results
 
     with BeadProject(project_dir) as project:
-        notes = "\n".join(project.show(bead_id).notes for bead_id in bead_ids)
+        notes = "\n".join(project.show(bead_id).notes_text for bead_id in bead_ids)
     for worker_index in range(_CONCURRENT_MUTATION_WORKERS):
         assert f"contention worker {worker_index}" in notes
     assert "lock_timeout" not in notes.lower()

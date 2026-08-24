@@ -231,7 +231,7 @@ def _issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "close_reason": issue.close_reason,
         "resolution": issue.resolution.value if issue.resolution else None,
         "description": issue.description,
-        "notes": issue.notes,
+        "notes": issue.notes_text,
         "design": issue.design,
         "model": issue.model,
         "size": issue.size.value if issue.size else None,

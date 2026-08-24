@@ -55,6 +55,20 @@ def _migrate_add_patch_metadata(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_notes_default(conn: sqlite3.Connection) -> None:
+    """Backfill a NULL ``notes`` column to an empty structured note list.
+
+    ``notes`` predates this migration, so unlike a brand-new column this is
+    a value backfill rather than an ``ALTER TABLE ADD COLUMN``: a pre-existing
+    row may still carry SQL NULL from before ``notes`` defaulted to ``'[]'``.
+    """
+    columns = _columns(conn)
+    if not columns:
+        return
+    conn.execute("UPDATE issues SET notes = '[]' WHERE notes IS NULL")
+    conn.commit()
+
+
 def _migrate_add_model(conn: sqlite3.Connection) -> None:
     """Add model column to a pre-existing issues table if missing."""
     columns = _columns(conn)
@@ -279,6 +293,7 @@ def run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_issue_types(conn)
     _migrate_add_is_ready_to_work(conn)
     _migrate_add_patch_metadata(conn)
+    _migrate_notes_default(conn)
     _migrate_add_tier(conn)
     _migrate_add_model(conn)
     _migrate_add_refs(conn)

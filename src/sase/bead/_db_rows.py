@@ -6,6 +6,7 @@ import sqlite3
 
 from sase.bead._db_codec import (
     close_history_from_json,
+    notes_from_json,
     plus_one_evidence_from_json,
     snooze_from_json,
     task_type_fields_from_json,
@@ -38,7 +39,11 @@ def row_to_issue(row: sqlite3.Row) -> Issue:
         close_reason=row["close_reason"],
         resolution=Resolution(row["resolution"]) if row["resolution"] else None,
         description=row["description"] or "",
-        notes=row["notes"] or "",
+        notes=notes_from_json(
+            row["notes"],
+            fallback_timestamp=row["created_at"] or "",
+            fallback_author=row["created_by"] or "",
+        ),
         design=row["design"] or "",
         refs=(row["refs"] or "").splitlines(),
         plus_one_evidence=plus_one_evidence_from_json(row["plus_one_evidence"]),

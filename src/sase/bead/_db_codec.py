@@ -8,7 +8,13 @@ from sase.bead.close_history_codec import (
     close_history_from_dicts,
     close_history_to_dicts,
 )
-from sase.bead.model import CloseRecord, SnoozeRecord, TaskPlusOneEvidence
+from sase.bead.model import BeadNote, CloseRecord, SnoozeRecord, TaskPlusOneEvidence
+from sase.bead.note_codec import (
+    LEGACY_NOTE_ID_PREFIX,
+    notes_from_dicts,
+    notes_to_dicts,
+    parse_legacy_note_blob,
+)
 from sase.bead.snooze_codec import snooze_from_dict, snooze_to_dict
 
 
@@ -68,6 +74,41 @@ def close_history_from_json(value: object) -> list[CloseRecord]:
     except (json.JSONDecodeError, TypeError, ValueError):
         return []
     return close_history_from_dicts(records)
+
+
+def notes_json(notes: list[BeadNote]) -> str:
+    return json.dumps(
+        notes_to_dicts(notes),
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+
+
+def notes_from_json(
+    value: object,
+    *,
+    fallback_timestamp: str = "",
+    fallback_author: str = "",
+) -> list[BeadNote]:
+    """Decode the mirror's ``notes`` column.
+
+    Tolerates a pre-migration row that still carries a plain-text blob
+    (not valid JSON, or a JSON string) by recovering it the same way
+    :func:`sase.bead.note_codec.notes_from_data` does for ``issues.jsonl``.
+    """
+    if value in (None, ""):
+        return []
+    try:
+        parsed = json.loads(str(value))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return parse_legacy_note_blob(
+            str(value), LEGACY_NOTE_ID_PREFIX, fallback_timestamp, fallback_author
+        )
+    if isinstance(parsed, str):
+        return parse_legacy_note_blob(
+            parsed, LEGACY_NOTE_ID_PREFIX, fallback_timestamp, fallback_author
+        )
+    return notes_from_dicts(parsed)
 
 
 def task_type_fields_json(fields: dict[str, str]) -> str:

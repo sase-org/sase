@@ -7,6 +7,7 @@ from types import MappingProxyType
 from typing import cast
 
 from sase.bead.model import (
+    BeadNote,
     BeadTier,
     Dependency,
     Issue,
@@ -87,7 +88,14 @@ def fixtures() -> tuple[View, Issue, Issue, BeadAssociationIndex]:
         closed_at="2026-07-28T18:02:11Z",
         resolution=Resolution.DONE,
         description="Publish a stable page for every bead.",
-        notes="Verified with focused tests.",
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-07-28T14:20:20Z",
+                author=CREATOR,
+                text="Verified with focused tests.",
+            )
+        ],
         design="plan:202607/bead_pages.md",
     )
     phase_one = Issue(

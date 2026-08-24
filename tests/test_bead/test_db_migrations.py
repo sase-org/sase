@@ -12,7 +12,7 @@ from sase.bead.db import (
     init_db,
     list_issues,
 )
-from sase.bead.model import Issue, IssueType, PhaseSize, Resolution, Status
+from sase.bead.model import BeadNote, Issue, IssueType, PhaseSize, Resolution, Status
 
 from .db_test_helpers import NOW, child, epic
 
@@ -450,7 +450,14 @@ class TestSizeConstraintMigration:
         plan = epic("e-legacy", "Legacy plan")
         plan.description = "preserved description"
         phase = child("c-medium", "e-legacy", "Legacy phase")
-        phase.notes = "preserved notes"
+        phase.notes = [
+            BeadNote(
+                id="note-1",
+                timestamp="2026-01-01T00:00:00Z",
+                author="legacy-user",
+                text="preserved notes",
+            )
+        ]
         phase.size = PhaseSize.MEDIUM
         create_issue(old, plan)
         create_issue(old, phase)
@@ -473,7 +480,10 @@ class TestSizeConstraintMigration:
             assert loaded_plan.description == "preserved description"
             loaded_phase = get_issue(conn, phase.id)
             assert loaded_phase is not None
-            assert loaded_phase.notes == "preserved notes"
+            assert (
+                loaded_phase.notes_text
+                == "[2026-01-01T00:00:00Z · legacy-user] preserved notes"
+            )
             assert loaded_phase.size is PhaseSize.MEDIUM
             assert [
                 dependency.depends_on_id for dependency in loaded_phase.dependencies
@@ -561,7 +571,14 @@ class TestStatusConstraintMigration:
         plan.description = "preserved description"
         phase = child("c-running", plan.id, "Running phase")
         phase.status = Status.IN_PROGRESS
-        phase.notes = "preserved notes"
+        phase.notes = [
+            BeadNote(
+                id="note-1",
+                timestamp="2026-01-01T00:00:00Z",
+                author="legacy-user",
+                text="preserved notes",
+            )
+        ]
         create_issue(old, plan)
         create_issue(old, phase)
         add_dependency(old, phase.id, plan.id, NOW, "legacy-user")
@@ -584,7 +601,10 @@ class TestStatusConstraintMigration:
             loaded_phase = get_issue(conn, phase.id)
             assert loaded_phase is not None
             assert loaded_phase.status is Status.IN_PROGRESS
-            assert loaded_phase.notes == "preserved notes"
+            assert (
+                loaded_phase.notes_text
+                == "[2026-01-01T00:00:00Z · legacy-user] preserved notes"
+            )
             assert [
                 dependency.depends_on_id for dependency in loaded_phase.dependencies
             ] == [plan.id]

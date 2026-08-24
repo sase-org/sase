@@ -124,7 +124,7 @@ def test_snooze_leaves_one_note_naming_wake_time_length_target_and_reason(
     with BeadProject(project_dir) as proj:
         stored = proj.show(task.id)
     assert stored.snooze is not None
-    notes = stored.notes.split("\n\n")
+    notes = stored.notes_text.split("\n\n")
     assert len(notes) == 1
     note = notes[0]
     assert note.startswith(
@@ -145,7 +145,7 @@ def test_bare_snooze_with_no_reason_or_target_still_leaves_a_note(
     with BeadProject(project_dir) as proj:
         stored = proj.show(task.id)
     assert stored.snooze is not None
-    assert stored.notes == (
+    assert stored.notes_text == (
         f"[{stored.snooze.snoozed_at} · {stored.snooze.snoozed_by}] "
         f"Snoozed until {stored.snooze.until} (in 3d)."
     )
@@ -164,7 +164,7 @@ def test_re_snoozing_appends_a_second_note_naming_the_replaced_wake_time(
     with BeadProject(project_dir) as proj:
         stored = proj.show(task.id)
     assert stored.snooze is not None
-    notes = stored.notes.split("\n\n")
+    notes = stored.notes_text.split("\n\n")
     assert len(notes) == 2
     assert f"Snoozed until {first_until}" in notes[0]
     assert f"Re-snoozed until {stored.snooze.until}" in notes[1]
@@ -196,8 +196,8 @@ def test_a_multiline_reason_collapses_to_one_note_but_keeps_the_raw_reason(
         stored = proj.show(task.id)
     assert stored.snooze is not None
     assert stored.snooze.reason == reason
-    assert "\n\n" not in stored.notes
-    assert "Reason: line one line two" in stored.notes
+    assert "\n\n" not in stored.notes_text
+    assert "Reason: line one line two" in stored.notes_text
 
 
 def test_cancel_returns_the_bead_to_ready(

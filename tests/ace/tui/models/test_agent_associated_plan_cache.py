@@ -11,7 +11,7 @@ import pytest
 import sase.ace.tui.models.agent_associated_plan as plan_model
 import sase.ace.tui.models._agent_associated_plan_cache as cache_model
 from sase.ace.tui.models.agent_associated_plan import resolve_agent_plan_enrichment
-from sase.bead.model import BeadTier, Issue, IssueType
+from sase.bead.model import BeadNote, BeadTier, Issue, IssueType
 from tests.ace.tui.models._agent_associated_plan_helpers import (
     resolve_agent_associated_plan,
     write_epic,
@@ -82,7 +82,14 @@ def test_phase_note_association_cache_reuses_lookup_and_refreshes_after_ttl(
         title="Phase",
         issue_type=IssueType.PHASE,
         parent_id="sase-1",
-        notes="first note",
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-01-01T00:00:00Z",
+                author="test",
+                text="first note",
+            )
+        ],
     )
     lookups: list[str] = []
 
@@ -97,17 +104,24 @@ def test_phase_note_association_cache_reuses_lookup_and_refreshes_after_ttl(
 
     assert first is not None
     assert cached is not None
-    assert first.notes == "first note"
-    assert cached.notes == "first note"
+    assert first.notes == "[2026-01-01T00:00:00Z · test] first note"
+    assert cached.notes == "[2026-01-01T00:00:00Z · test] first note"
     assert lookups == [issue.id]
 
-    issue.notes = "second note"
+    issue.notes = [
+        BeadNote(
+            id="note-1",
+            timestamp="2026-01-01T00:02:00Z",
+            author="test",
+            text="second note",
+        )
+    ]
     now += 61.0
 
     refreshed = resolve_agent_plan_enrichment(agent).phase_bead
 
     assert refreshed is not None
-    assert refreshed.notes == "second note"
+    assert refreshed.notes == "[2026-01-01T00:02:00Z · test] second note"
     assert lookups == [issue.id, issue.id]
 
 

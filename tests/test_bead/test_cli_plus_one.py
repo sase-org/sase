@@ -158,8 +158,8 @@ def test_plus_one_withheld_reopen_reports_and_leaves_bead_closed(
     with BeadProject(project_dir) as project:
         updated = project.show(task.id)
     assert updated.status is Status.CLOSED
-    assert "stale.reporter" in updated.notes
-    assert "withheld" in updated.notes
+    assert "stale.reporter" in updated.notes_text
+    assert "withheld" in updated.notes_text
 
     output = capsys.readouterr().out
     assert "withheld" in output

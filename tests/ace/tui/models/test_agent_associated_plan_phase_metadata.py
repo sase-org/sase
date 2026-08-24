@@ -12,7 +12,7 @@ from sase.ace.tui.models.agent_associated_plan import (
     PhaseBeadSummary,
     resolve_agent_plan_enrichment,
 )
-from sase.bead.model import Issue, IssueType, PhaseSize
+from sase.bead.model import BeadNote, Issue, IssueType, PhaseSize
 from tests.ace.tui.models._agent_associated_plan_helpers import write_epic
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
@@ -85,7 +85,14 @@ def test_modern_phase_uses_validated_frontmatter_order_for_structure(
         parent_id="stale-parent",
         description="Stale bead description must not win.",
         created_at="2026-08-01T14:30:00Z",
-        notes="phase-owned note survives structure projection",
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-08-01T14:30:00Z",
+                author="test",
+                text="phase-owned note survives structure projection",
+            )
+        ],
         size=PhaseSize.XLARGE,
     )
     monkeypatch.setattr(
@@ -110,7 +117,7 @@ def test_modern_phase_uses_validated_frontmatter_order_for_structure(
         epic_title="Epic phase metadata",
         size=expected_size,  # type: ignore[arg-type]
         created_at=phase_issue.created_at,
-        notes=phase_issue.notes,
+        notes=phase_issue.notes_text,
     )
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_path == str(plan.resolve())
@@ -127,7 +134,14 @@ def test_modern_phase_issue_lookup_failure_keeps_plan_summary_note_free(
         id="sase-1.1",
         title="Wrong type",
         issue_type=IssueType.TASK,
-        notes="task notes must not appear on a phase lane",
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-01-01T00:00:00Z",
+                author="test",
+                text="task notes must not appear on a phase lane",
+            )
+        ],
     )
 
     def lookup(_agent: object, bead_id: str, **_kwargs: object) -> Issue | None:

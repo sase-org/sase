@@ -279,13 +279,13 @@ def render_issue_detail(
     description_lines = description_and_task_type_lines(issue, style=style, wrap=wrap)
     if description_lines:
         lines.extend(["", palette.section("DESCRIPTION"), *description_lines])
-    if issue.notes.strip():
+    if issue.notes_text.strip():
         lines.extend(
             [
                 "",
                 palette.section("NOTES"),
                 *prose_lines(
-                    issue.notes,
+                    issue.notes_text,
                     style=style,
                     wrap=wrap,
                     indent="  ",

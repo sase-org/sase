@@ -114,7 +114,7 @@ def _record(
         has_labels.add("bug")
     if issue.dependencies:
         has_labels.add("deps")
-    if issue.notes.strip():
+    if issue.notes_text.strip():
         has_labels.add("notes")
     if issue_key in snapshot.triage_gates:
         has_labels.add("triage")
@@ -132,7 +132,7 @@ def _record(
             issue.id,
             issue.title,
             issue.description,
-            issue.notes,
+            issue.notes_text,
             issue.design,
             *issue.refs,
             plus_one_evidence_search_text(issue.plus_one_evidence),

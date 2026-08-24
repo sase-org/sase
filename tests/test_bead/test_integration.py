@@ -429,7 +429,7 @@ class TestEdgeCases:
         )
         assert updated.title == "New Title"
         assert updated.description == "new desc"
-        assert updated.notes.endswith("some notes")
+        assert updated.notes_text.endswith("some notes")
         assert updated.design == "some design"
 
     def test_list_filter_combined(self, project):

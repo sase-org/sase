@@ -383,7 +383,7 @@ def test_lost_notes_restore_is_provenanced_and_idempotent(
     assert "✓ Restored 1 lost note revision across 1 bead" in output
 
     with BeadProject(project_dir) as project:
-        restored = project.show(issue.id).notes
+        restored = project.show(issue.id).notes_text
     assert "current summary" in restored
     assert "(restored 2026-07-27)" in restored
     assert "lost handoff" in restored
@@ -424,7 +424,7 @@ def test_lost_notes_restore_yes_skips_non_tty_confirmation(
     assert "✓ Restored 1 lost note revision across 1 bead" in output
 
     with BeadProject(project_dir) as project:
-        restored = project.show(issue.id).notes
+        restored = project.show(issue.id).notes_text
     assert "(restored 2026-07-27)" in restored
     assert "lost handoff" in restored
 

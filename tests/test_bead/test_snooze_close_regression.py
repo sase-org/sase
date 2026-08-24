@@ -193,7 +193,7 @@ def test_gate_ready_wakes_a_snoozed_bead_and_leaves_the_store_readable(
     reloaded = _reload(snooze_store)
     assert reloaded.status is Status.READY
     assert reloaded.snooze is None
-    assert "Woken from snooze and returned to triage." in reloaded.notes
+    assert "Woken from snooze and returned to triage." in reloaded.notes_text
 
 
 def test_gate_resnooze_defers_a_woken_bead_and_leaves_the_store_readable(

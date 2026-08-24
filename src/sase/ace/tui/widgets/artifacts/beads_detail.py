@@ -172,8 +172,8 @@ def bead_body_markdown(
     lines.extend(_external_issue_markdown(issue, external_links))
     lines.extend(_description_markdown(issue))
     lines.extend(_plus_one_evidence_markdown(issue))
-    if issue.notes.strip():
-        lines.extend(["", "## Notes", "", issue.notes])
+    if issue.notes_text.strip():
+        lines.extend(["", "## Notes", "", issue.notes_text])
     return "\n".join(lines)
 
 

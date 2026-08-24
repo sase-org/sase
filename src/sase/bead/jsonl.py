@@ -13,6 +13,7 @@ from pathlib import Path
 from sase.bead import db as db_mod
 from sase.bead._db_codec import (
     close_history_json,
+    notes_json,
     plus_one_evidence_json,
     snooze_json,
 )
@@ -20,6 +21,7 @@ from sase.bead.close_history_codec import (
     close_history_from_dicts,
     close_history_to_dicts,
 )
+from sase.bead.note_codec import notes_from_data, notes_to_dicts
 from sase.bead.snooze_codec import snooze_from_dict, snooze_to_dict
 from sase.bead.model import (
     BeadLink,
@@ -32,7 +34,6 @@ from sase.bead.model import (
     Status,
     TaskPlusOneEvidence,
 )
-from sase.core.bead_wire import notes_text_from_data
 
 
 def _optional_str(value: object) -> str:
@@ -129,7 +130,10 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
             else {}
         ),
         "description": issue.description,
-        "notes": issue.notes,
+        # Omitted when empty to match ``skip_serializing_if = "Vec::is_empty"``
+        # on the Rust wire, so rows for beads with no notes stay
+        # byte-identical to what they were before notes existed.
+        **({"notes": notes_to_dicts(issue.notes)} if issue.notes else {}),
         "design": issue.design,
         **({"refs": issue.refs} if issue.refs else {}),
         **(
@@ -222,7 +226,11 @@ def _dict_to_issue(data: dict[str, object]) -> Issue:
             Resolution(str(data["resolution"])) if data.get("resolution") else None
         ),
         description=_optional_str(data.get("description", "")),
-        notes=notes_text_from_data(data.get("notes")),
+        notes=notes_from_data(
+            data.get("notes"),
+            fallback_timestamp=_optional_str(data.get("created_at", "")),
+            fallback_author=_optional_str(data.get("created_by", "")),
+        ),
         design=_optional_str(data.get("design", "")),
         refs=_optional_str_list(data.get("refs")),
         links=_links_from_data(data.get("links")),
@@ -312,7 +320,7 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
                         issue.resolution.value if issue.resolution is not None else None
                     ),
                     description=issue.description,
-                    notes=issue.notes,
+                    notes=notes_json(issue.notes),
                     design=issue.design,
                     refs="\n".join(issue.refs),
                     plus_one_evidence=plus_one_evidence_json(issue.plus_one_evidence),

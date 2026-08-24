@@ -9,7 +9,7 @@ import pytest
 
 import sase.scripts.sase_chop_bead_task_triage as task_triage
 from sase.bead import work_liveness
-from sase.bead.model import TaskPlusOneEvidence
+from sase.bead.model import BeadNote, TaskPlusOneEvidence
 
 from tests._axe_chop_bead_task_triage_helpers import (
     _default_task_triage_min_plus_ones,  # noqa: F401 (registers the min_plus_ones fixture)
@@ -117,7 +117,14 @@ def test_pending_gate_with_launch_in_flight_ignores_presentation_changes(
     monkeypatch.setattr(task_triage, "_gate_state", lambda _kind, _id: "pending")
 
     task_triage._run(make_runtime(tmp_path))
-    task.notes = "Fresh evidence landed while the launch is still starting."
+    task.notes = [
+        BeadNote(
+            id="note-2",
+            timestamp="2026-01-01T00:01:00Z",
+            author="test",
+            text="Fresh evidence landed while the launch is still starting.",
+        )
+    ]
     patch_active_launches(monkeypatch, {"sase-task.1"})
     monkeypatch.setattr(
         task_triage,

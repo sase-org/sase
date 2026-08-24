@@ -9,7 +9,7 @@ import pytest
 
 import sase.ace.tui.models.agent_associated_plan as plan_model
 from sase.ace.tui.models.agent_associated_plan import resolve_agent_plan_enrichment
-from sase.bead.model import Issue, IssueType, PhaseSize, TaskPlusOneEvidence
+from sase.bead.model import BeadNote, Issue, IssueType, PhaseSize, TaskPlusOneEvidence
 from tests.ace.tui.models._agent_associated_plan_helpers import write_epic, write_plan
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
@@ -154,11 +154,20 @@ def test_task_worker_resolves_to_plan_free_task_bead_lane(
         description="Render task metadata without reading a plan file.",
         size=PhaseSize.MEDIUM,
         created_at="2026-08-01T14:30:00Z",
-        notes=(
-            "  [2026-08-01T14:03:00Z · alice] first note\r\n"
-            "continued line\r\n\r\n"
-            "[2026-08-01T14:07:00Z · bob] second note  "
-        ),
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-08-01T14:03:00Z",
+                author="alice",
+                text="first note\ncontinued line",
+            ),
+            BeadNote(
+                id="note-2",
+                timestamp="2026-08-01T14:07:00Z",
+                author="bob",
+                text="second note",
+            ),
+        ],
         plus_one_evidence=[
             TaskPlusOneEvidence(
                 timestamp="2026-08-01T15:00:00Z",

@@ -187,7 +187,7 @@ def test_bead_snooze_gate_preview_carries_the_real_snooze_note(
         project="sase",
         title=issue.title,
         snooze=issue.snooze,
-        notes=issue.notes,
+        notes=issue.notes_text,
         created_by=issue.created_by,
         created_at=issue.created_at,
     )

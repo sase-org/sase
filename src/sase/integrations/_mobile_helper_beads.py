@@ -306,7 +306,7 @@ def _bead_detail_wire(
             representative_dir,
         ),
         "description": issue.description or None,
-        "notes": issue.notes or None,
+        "notes": issue.notes_text or None,
         "model": issue.model or None,
         "task_type_fields": dict(issue.task_type_fields) or None,
         "design_path_display": _issue_plan_path(

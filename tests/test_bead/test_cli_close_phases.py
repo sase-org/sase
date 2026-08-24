@@ -266,7 +266,7 @@ def test_phase_close_composes_with_note_reason_and_resolution(
     with BeadProject(project_dir) as project:
         for phase in phases:
             closed = project.show(phase.id)
-            assert closed.notes.endswith("] landed together")
+            assert closed.notes_text.endswith("] landed together")
             assert closed.close_reason == "Replaced by the combined implementation"
             assert closed.resolution is Resolution.SUPERSEDED
 

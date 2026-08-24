@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS issues (
     resolution  TEXT
                   CHECK(resolution IN ('done', 'canceled', 'superseded')),
     description TEXT,
-    notes       TEXT,
+    notes       TEXT NOT NULL DEFAULT '[]',
     design      TEXT,
     refs        TEXT NOT NULL DEFAULT '',
     plus_one_evidence TEXT NOT NULL DEFAULT '[]',

@@ -85,7 +85,7 @@ class BeadEditorResult:
         current: dict[str, str | None] = {
             "title": issue.title,
             "description": issue.description,
-            "notes": issue.notes,
+            "notes": issue.notes_text,
             "status": issue.status.value,
             "assignee": issue.assignee,
             "owner": issue.owner,
@@ -127,7 +127,7 @@ class BeadEditorModal(ModalScreen[BeadEditorResult | None]):
                 yield Label("Description", classes="bead-modal-label")
                 yield TextArea(issue.description, id="bead-editor-description")
                 yield Label("Notes", classes="bead-modal-label")
-                yield TextArea(issue.notes, id="bead-editor-notes")
+                yield TextArea(issue.notes_text, id="bead-editor-notes")
                 statuses = [Status.OPEN, Status.IN_PROGRESS, Status.CLOSED]
                 if issue.issue_type is IssueType.TASK:
                     statuses.insert(1, Status.READY)

@@ -10,6 +10,7 @@ import pytest
 
 import sase.scripts.sase_chop_bead_task_triage as task_triage
 from sase.bead import work_liveness
+from sase.bead.model import BeadNote
 
 from tests._axe_chop_bead_task_triage_helpers import (
     _default_task_triage_min_plus_ones,  # noqa: F401 (registers the min_plus_ones fixture)
@@ -121,7 +122,14 @@ def test_pending_gate_with_live_agent_outranks_presentation_change(
     )
 
     task_triage._run(make_runtime(tmp_path))
-    task.notes = "Fresh evidence landed while the agent is already working."
+    task.notes = [
+        BeadNote(
+            id="note-2",
+            timestamp="2026-01-01T00:01:00Z",
+            author="test",
+            text="Fresh evidence landed while the agent is already working.",
+        )
+    ]
     patch_live_agent_beads(monkeypatch, {("sase", "sase-task.1")})
     result = task_triage._run(make_runtime(tmp_path))
 

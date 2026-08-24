@@ -57,7 +57,7 @@ def plan_related_note_migration(issues: Sequence[Issue]) -> RelatedNoteMigration
     scanned_notes = 0
     known_ids = {issue.id for issue in issues}
     for issue in issues:
-        for line in _related_lines(issue.notes):
+        for line in _related_lines(issue.notes_text):
             scanned_notes += 1
             conversion, work_item = _classify_related_line(issue.id, line, known_ids)
             if conversion is not None:

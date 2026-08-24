@@ -194,8 +194,8 @@ def test_close_note_reads_at_path(
     with BeadProject(project_dir) as project:
         closed = project.show(issue_id)
     assert closed.status is Status.CLOSED
-    assert contents in closed.notes
-    assert at_token not in closed.notes
+    assert contents in closed.notes_text
+    assert at_token not in closed.notes_text
 
 
 def test_close_reason_reads_at_path(
@@ -226,7 +226,7 @@ def test_close_double_at_note_and_reason_store_literal(project_dir: Path) -> Non
     with BeadProject(project_dir) as project:
         closed = project.show(issue_id)
     assert closed.status is Status.CLOSED
-    assert closed.notes.endswith("] @literal-note")
+    assert closed.notes_text.endswith("] @literal-note")
     assert closed.close_reason == "@literal-reason"
 
 
@@ -248,7 +248,7 @@ def test_close_missing_note_file_mutates_nothing(
     with BeadProject(project_dir) as project:
         issue = project.show(issue_id)
     assert issue.status is Status.OPEN
-    assert issue.notes == ""
+    assert issue.notes_text == ""
 
 
 def test_close_missing_reason_file_mutates_nothing(

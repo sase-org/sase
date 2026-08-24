@@ -224,7 +224,7 @@ def test_append_note_facade_returns_issue_and_repairs_projection(
 
     assert outcome["operation"] == "note"
     assert outcome["issue_ids"] == [issue.id]
-    assert noted.notes == "[2026-01-01T00:01:00Z · agent-1] done"
+    assert noted.notes_text == "[2026-01-01T00:01:00Z · agent-1] done"
     projection = json.loads(
         (root / "sdd/beads/issues.jsonl").read_text(encoding="utf-8")
     )
