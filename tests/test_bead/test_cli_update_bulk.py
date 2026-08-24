@@ -25,6 +25,7 @@ def _update_args(ids: list[str], **fields: object) -> argparse.Namespace:
         "status": None,
         "title": None,
         "description": None,
+        "note": None,
         "notes": None,
         "design": None,
         "assignee": None,
@@ -250,15 +251,17 @@ def test_status_closed_succeeds_across_parent_and_child_in_either_order(
         assert proj.show(child.id).status is Status.CLOSED
 
 
-def test_update_description_and_notes_read_at_path(
+def test_update_description_and_note_read_at_path(
     project_dir: Path,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     issue = _create_issue(project_dir, "Needs prose")
     desc = tmp_path / "desc.md"
-    notes = tmp_path / "notes.md"
+    note = tmp_path / "note.md"
     desc.write_text("description from file\n", encoding="utf-8")
-    notes.write_text("notes from file\n", encoding="utf-8")
+    note.write_text("note from file\n", encoding="utf-8")
+    monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:01:00Z")
 
     bead_cli.handle_bead_update(
         create_parser().parse_args(
@@ -269,7 +272,7 @@ def test_update_description_and_notes_read_at_path(
                 "-d",
                 f"@{desc}",
                 "-n",
-                f"@{notes}",
+                f"@{note}",
             ]
         )
     )
@@ -277,7 +280,62 @@ def test_update_description_and_notes_read_at_path(
     with BeadProject(project_dir) as proj:
         updated = proj.show(issue.id)
     assert updated.description == "description from file\n"
-    assert updated.notes_text.endswith("notes from file")
+    assert updated.notes_text.endswith("] note from file")
+
+
+def test_update_note_appends_to_each_unique_id_with_one_timestamp(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    first = _create_issue(project_dir, "First")
+    second = _create_issue(project_dir, "Second")
+    shorthand = first.id.rsplit("-", 1)[1]
+    monkeypatch.setenv("SASE_AGENT_NAME", "batch-agent")
+    monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:01:00Z")
+
+    bead_cli.handle_bead_update(
+        create_parser().parse_args(
+            ["bead", "update", first.id, second.id, shorthand, "--note", "batched"]
+        )
+    )
+
+    output = capsys.readouterr().out
+    assert output.splitlines() == [
+        f"✓ Updated issue: {first.id} — {first.title}",
+        f"✓ Updated issue: {second.id} — {second.title}",
+        f"✓ Updated issue: {first.id} — {first.title}",
+    ]
+    with BeadProject(project_dir) as proj:
+        first_notes = proj.show(first.id).notes_text
+        second_notes = proj.show(second.id).notes_text
+    expected = "[2026-01-01T00:01:00Z · batch-agent] batched"
+    assert first_notes == expected
+    assert second_notes == expected
+
+
+def test_update_notes_tombstone_rejects_without_writing_or_committing(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue = _create_issue(project_dir, "Protected notes")
+    jsonl_path = _issues_jsonl(project_dir)
+    before = jsonl_path.read_bytes()
+
+    with patch("sase.bead.cli_crud_update.auto_commit_bead_store") as auto_commit:
+        with pytest.raises(SystemExit) as excinfo:
+            bead_cli.handle_bead_update(
+                create_parser().parse_args(
+                    ["bead", "update", issue.id, "--notes", "replacement"]
+                )
+            )
+
+    assert excinfo.value.code == 1
+    auto_commit.assert_not_called()
+    error = capsys.readouterr().err
+    assert "`sase bead update --notes` was removed" in error
+    assert "sase bead note <id> <text>" in error
+    assert jsonl_path.read_bytes() == before
 
 
 def test_update_empty_description_still_clears(project_dir: Path) -> None:

@@ -119,9 +119,10 @@ def test_update_and_note_at_path_skip_rust_fast_path() -> None:
         try_handle_bead_fast_path(["update", "sase-1", "-d", "@/tmp/desc.md"]) is None
     )
     assert (
-        try_handle_bead_fast_path(["update", "sase-1", "--notes=@/tmp/notes.md"])
-        is None
+        try_handle_bead_fast_path(["update", "sase-1", "--note=@/tmp/note.md"]) is None
     )
+    assert try_handle_bead_fast_path(["update", "sase-1", "-n", "note"]) is None
+    assert try_handle_bead_fast_path(["update", "sase-1", "--notes=old"]) is None
     assert try_handle_bead_fast_path(["update", "sase-1", "-d", "@@literal"]) is None
     assert try_handle_bead_fast_path(["note", "sase-1", "@/tmp/note.md"]) is None
     assert try_handle_bead_fast_path(["close", "sase-1", "-n", "@/tmp/note.md"]) is None
@@ -480,7 +481,7 @@ _EXPANDED_FREE_TEXT = frozenset(
         ("note", "text"),
         ("snooze", "reason"),
         ("update", "description"),
-        ("update", "notes"),
+        ("update", "note"),
     }
 )
 

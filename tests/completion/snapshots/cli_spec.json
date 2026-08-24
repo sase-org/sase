@@ -7482,7 +7482,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "ba2980ff150f42a8",
+            "description_digest": "724360f06d623ea8",
             "hidden": false,
             "mutex_groups": [
               [
@@ -7579,12 +7579,23 @@
               {
                 "choices": null,
                 "dest": "notes",
+                "hidden": true,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "--notes"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "note",
                 "hidden": false,
                 "kind": null,
                 "repeatable": false,
                 "strings": [
                   "-n",
-                  "--notes"
+                  "--note"
                 ],
                 "takes_value": true
               },

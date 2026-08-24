@@ -13,8 +13,11 @@ def discover_scoped_memory_webs(
     project_root: Path,
     home_root: Path,
 ) -> tuple[ScopedMemoryWeb, ...]:
-    """Discover and scope-merge webs visible to a read command."""
+    """Discover and scope-merge webs visible to a read command.
 
+    Returns the merged project and home memory-web scopes visible to a read
+    command.
+    """
     project_discovery = discover_memory_webs(project_root)
     resolved_project = project_root.resolve(strict=False)
     resolved_home = home_root.resolve(strict=False)

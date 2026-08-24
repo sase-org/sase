@@ -7,7 +7,7 @@ import sys
 from typing import Any
 
 from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
-from sase.bead.cli_crud_common import mutation_outcome_ids
+from sase.bead.cli_crud_common import mutation_outcome_ids, resolve_mutation_author
 from sase.bead.flag_fields import (
     FlagFields,
     flag_fields,
@@ -61,11 +61,30 @@ def _parse_remove_by_arg(value: str, existing_key: str) -> FlagFields:
 _TASK_TYPE_IMMUTABLE_MESSAGE = (
     "task_type is immutable; close this bead and recreate it with -T 'task(<slug>)'"
 )
+_NOTES_TOMBSTONE_MESSAGE = (
+    "`sase bead update --notes` was removed because it replaced the note log; "
+    "use `sase bead note <id> <text>` to append one bead, or "
+    "`sase bead update <ids...> --note <text>` to append to a batch."
+)
+
+
+def _combined_outcome_ids(outcomes: list[dict[str, object]], field: str) -> list[str]:
+    ids: list[str] = []
+    seen: set[str] = set()
+    for outcome in outcomes:
+        for issue_id in mutation_outcome_ids(outcome, field):
+            if issue_id not in seen:
+                ids.append(issue_id)
+                seen.add(issue_id)
+    return ids
 
 
 def handle_bead_update(args: argparse.Namespace) -> None:
     if getattr(args, "task_type", None) is not None:
         print(f"Error: {_TASK_TYPE_IMMUTABLE_MESSAGE}", file=sys.stderr)
+        sys.exit(1)
+    if getattr(args, "notes", None) is not None:
+        print(f"Error: {_NOTES_TOMBSTONE_MESSAGE}", file=sys.stderr)
         sys.exit(1)
     try:
         description = (
@@ -73,13 +92,16 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             if args.description is not None
             else None
         )
-        notes = (
-            read_at_path_value(args.notes, target="--notes")
-            if args.notes is not None
+        note = (
+            read_at_path_value(args.note, target="--note")
+            if getattr(args, "note", None) is not None
             else None
         )
     except CliFileValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    if note is not None and not note.strip():
+        print("Error: note entry cannot be empty or blank", file=sys.stderr)
         sys.exit(1)
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         proj = mutation.project
@@ -90,8 +112,6 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             fields["title"] = args.title
         if description is not None:
             fields["description"] = description
-        if notes is not None:
-            fields["notes"] = notes
         if args.design is not None:
             fields["design"] = args.design
         if args.assignee is not None:
@@ -139,11 +159,20 @@ def handle_bead_update(args: argparse.Namespace) -> None:
                 remove_by_date=new_flag.remove_by_date,
                 remove_by_release=new_flag.remove_by_release,
             )
-        if not fields:
+        if not fields and note is None:
             print("No fields to update.", file=sys.stderr)
             sys.exit(1)
+        outcomes: list[dict[str, object]] = []
         try:
-            issues = proj.update_many(args.ids, **fields)
+            if fields:
+                issues = proj.update_many(args.ids, **fields)
+                outcomes.append(proj.last_mutation_outcome)
+            else:
+                issues = [proj.show(issue_id) for issue_id in args.ids]
+            if note is not None:
+                author = resolve_mutation_author(proj)
+                issues = proj.append_note_many(args.ids, note, author=author)
+                outcomes.append(proj.last_mutation_outcome)
         except KeyError as exc:
             message = str(exc.args[0]) if exc.args else ""
             missing_id = message.rsplit("Issue not found:", 1)[-1].strip()
@@ -152,9 +181,8 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        outcome = mutation.project.last_mutation_outcome
-        changed_ids = mutation_outcome_ids(outcome, "issue_ids")
-        reopened_ancestor_ids = mutation_outcome_ids(outcome, "reopened_ancestor_ids")
+        changed_ids = _combined_outcome_ids(outcomes, "issue_ids")
+        reopened_ancestor_ids = _combined_outcome_ids(outcomes, "reopened_ancestor_ids")
         reopened_ancestors = [
             proj.show(ancestor_id) for ancestor_id in reopened_ancestor_ids
         ]

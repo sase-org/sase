@@ -228,6 +228,37 @@ class BeadProjectMutationMixin:
         self._refresh_db_from_jsonl()
         return issue
 
+    def append_note_many(
+        self,
+        issue_ids: list[str],
+        entry: str,
+        *,
+        author: str | None = None,
+    ) -> list[Issue]:
+        """Append one attributed entry to each unique issue, preserving result order."""
+        from sase.core import bead_mutation_facade as rust_beads
+
+        resolved_ids = [self.resolve_id(issue_id) for issue_id in issue_ids]
+        unique_ids = list(dict.fromkeys(resolved_ids))
+        for issue_id in unique_ids:
+            self.show(issue_id)
+        now = self._current_time()
+        issue_by_id: dict[str, Issue] = {}
+        outcomes: list[dict[str, object]] = []
+        for issue_id in unique_ids:
+            issue, outcome = rust_beads.append_note(
+                self.beads_dir,
+                issue_id,
+                entry,
+                author=author,
+                now=now,
+            )
+            issue_by_id[issue_id] = issue
+            outcomes.append(outcome)
+        self._record_mutation_outcome(_combine_mutation_outcomes("update", outcomes))
+        self._refresh_db_from_jsonl()
+        return [issue_by_id[issue_id] for issue_id in resolved_ids]
+
     def plus_one(
         self,
         issue_id: str,

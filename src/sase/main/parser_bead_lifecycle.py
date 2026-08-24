@@ -532,9 +532,13 @@ def register_bead_update_parser(
         ),
     )
     parser.add_argument(
-        "-n",
         "--notes",
-        help=f"Issue notes; {_AT_PATH_READS_THEM}",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "-n",
+        "--note",
+        help=(f"Append this attributed note to each issue; {_AT_PATH_READS_IT}"),
     )
     parser.add_argument(
         "-b",

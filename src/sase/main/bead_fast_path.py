@@ -39,6 +39,8 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     # is a Python working-tree scan, not a bead-store query.
     if argv[0] in {"close", "create", "epic-symbols", "task-type"}:
         return None
+    if argv[0] == "update" and _update_uses_python_note_surface(argv):
+        return None
     # ``@<path>`` free-text expansion lives in the Python handlers. A Rust
     # fast path for any of these verbs would store the raw token, so they
     # fall through whenever argv might name a file (or the ``@@`` escape).
@@ -185,6 +187,18 @@ def _argv_requests_at_path(argv: list[str]) -> bool:
             return True
         separator = arg.find("=")
         if separator > 0 and arg[separator + 1 :].startswith("@"):
+            return True
+    return False
+
+
+def _update_uses_python_note_surface(argv: list[str]) -> bool:
+    """Defer update note flags to argparse for the append-only/tombstone surface."""
+    for arg in argv[1:]:
+        if arg in {"-n", "--note", "--notes"}:
+            return True
+        if arg.startswith("--note=") or arg.startswith("--notes="):
+            return True
+        if arg.startswith("-n") and arg != "-n":
             return True
     return False
 
