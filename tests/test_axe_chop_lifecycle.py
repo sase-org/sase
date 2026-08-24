@@ -15,7 +15,7 @@ from sase.axe.chop_agents import (
     _record_chop_agent_launch,
     get_chop_agent_records,
 )
-from sase.axe._chop_lifecycle_completion import _agent_completion
+from sase.axe._chop_lifecycle_completion import agent_completion
 from sase.axe.chop_lifecycle import finalize_launched_chop_runs
 from sase.axe.chop_policy import apply_chop_once_per
 from sase.axe.chop_proposals import prepare_chop_proposals
@@ -673,7 +673,7 @@ def test_lifecycle_uses_done_dismissed_bundle_when_done_marker_is_missing(
             return_value=[child, root],
         ) as load_summaries,
     ):
-        completion = _agent_completion(record)
+        completion = agent_completion(record)
         assert finalize_launched_chop_runs("docs", ["docs"]) == 1
 
     assert completion.succeeded

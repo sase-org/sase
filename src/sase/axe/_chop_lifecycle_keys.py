@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from ._chop_lifecycle_types import _AgentCompletion, _MatchedAgentRecord
+from ._chop_lifecycle_types import AgentCompletion, MatchedAgentRecord
 from .chop_policy import release_chop_once_per_keys
 from .state import append_chop_run_output
 
 
-def _log_unmatched_records(
+def log_unmatched_records(
     *,
     lumberjack_name: str,
     chop_name: str,
@@ -32,13 +32,13 @@ def _log_unmatched_records(
     )
 
 
-def _release_failed_launch_keys(
+def release_failed_launch_keys(
     *,
     lumberjack_name: str,
     chop_name: str,
     run_id: str,
-    matched_records: list[_MatchedAgentRecord],
-    completions: list[_AgentCompletion],
+    matched_records: list[MatchedAgentRecord],
+    completions: list[AgentCompletion],
 ) -> None:
     keys: list[str] = []
     for matched, completion in zip(matched_records, completions, strict=True):
@@ -68,7 +68,7 @@ def _release_failed_launch_keys(
     )
 
 
-def _release_typed_nonlaunched_keys(
+def release_typed_nonlaunched_keys(
     *,
     lumberjack_name: str,
     chop_name: str,
@@ -94,3 +94,10 @@ def _release_typed_nonlaunched_keys(
         run_id,
         f"Released {released} once-per key(s) after typed admission\n",
     )
+
+
+__all__ = [
+    "log_unmatched_records",
+    "release_failed_launch_keys",
+    "release_typed_nonlaunched_keys",
+]

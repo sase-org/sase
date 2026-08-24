@@ -7,15 +7,15 @@ from typing import Literal
 
 from sase.core.time import get_timezone
 
-from ._chop_lifecycle_completion import _agent_completion
+from ._chop_lifecycle_completion import agent_completion
 from ._chop_lifecycle_keys import (
-    _log_unmatched_records,
-    _release_failed_launch_keys,
-    _release_typed_nonlaunched_keys,
+    log_unmatched_records,
+    release_failed_launch_keys,
+    release_typed_nonlaunched_keys,
 )
-from ._chop_lifecycle_matching import _duration_ms, _match_records_to_launches
-from ._chop_lifecycle_types import _AgentCompletion
-from ._chop_lifecycle_typed_admission import _typed_admission_reconciliation
+from ._chop_lifecycle_matching import duration_ms, match_records_to_launches
+from ._chop_lifecycle_types import AgentCompletion
+from ._chop_lifecycle_typed_admission import typed_admission_reconciliation
 from .chop_agents import (
     garbage_collect_chop_agent_records,
     get_chop_agent_records,
@@ -54,14 +54,14 @@ def finalize_launched_chop_runs(
                 chop_name=chop_name,
                 run_id=run_id,
             )
-            typed_reconciliation = _typed_admission_reconciliation(
+            typed_reconciliation = typed_admission_reconciliation(
                 entry=entry,
                 records=list(records),
             )
             if typed_reconciliation.waiting:
                 continue
             if typed_reconciliation.applies:
-                _release_typed_nonlaunched_keys(
+                release_typed_nonlaunched_keys(
                     lumberjack_name=lumberjack_name,
                     chop_name=chop_name,
                     run_id=run_id,
@@ -73,21 +73,21 @@ def finalize_launched_chop_runs(
                 else list(entry.launches)
             )
             matched_records, unmatched_records, linkage_failures = (
-                _match_records_to_launches(list(records), launches)
+                match_records_to_launches(list(records), launches)
             )
             if linkage_failures:
                 completions = [
-                    _AgentCompletion(True, False, detail) for detail in linkage_failures
+                    AgentCompletion(True, False, detail) for detail in linkage_failures
                 ]
             else:
                 completions = [
-                    _agent_completion(matched.record) for matched in matched_records
+                    agent_completion(matched.record) for matched in matched_records
                 ]
 
             if any(not completion.terminal for completion in completions):
                 continue
 
-            _log_unmatched_records(
+            log_unmatched_records(
                 lumberjack_name=lumberjack_name,
                 chop_name=chop_name,
                 run_id=run_id,
@@ -95,7 +95,7 @@ def finalize_launched_chop_runs(
             )
 
             if matched_records and not linkage_failures:
-                _release_failed_launch_keys(
+                release_failed_launch_keys(
                     lumberjack_name=lumberjack_name,
                     chop_name=chop_name,
                     run_id=run_id,
@@ -145,7 +145,7 @@ def finalize_launched_chop_runs(
                 run_id,
                 status=status,
                 finished_at=finished_at.isoformat(),
-                duration_ms=_duration_ms(entry, finished_at),
+                duration_ms=duration_ms(entry, finished_at),
                 exit_code=entry.exit_code,
                 agent_pid=entry.agent_pid,
                 error=detail if failures else None,

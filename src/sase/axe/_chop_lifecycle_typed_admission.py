@@ -7,8 +7,8 @@ from types import SimpleNamespace
 
 from sase.ace.hooks.processes import is_process_running
 
-from ._chop_lifecycle_completion import _record_artifacts_dir
-from ._chop_lifecycle_types import _TypedAdmissionReconciliation
+from ._chop_lifecycle_completion import record_artifacts_dir
+from ._chop_lifecycle_types import TypedAdmissionReconciliation
 from .chop_typed_admission import (
     UNIT_DISPATCH_METADATA_KEY,
     launch_descriptor_from_metadata,
@@ -16,24 +16,24 @@ from .chop_typed_admission import (
 from .state import ChopRunEntry
 
 
-def _typed_admission_reconciliation(
+def typed_admission_reconciliation(
     *,
     entry: ChopRunEntry,
     records: list[object],
-) -> _TypedAdmissionReconciliation:
+) -> TypedAdmissionReconciliation:
     typed = entry.typed_admission
     if not isinstance(typed, dict):
-        return _TypedAdmissionReconciliation()
+        return TypedAdmissionReconciliation()
     bundle_raw = str(typed.get("bundle_dir") or "")
     if not bundle_raw:
-        return _TypedAdmissionReconciliation(
+        return TypedAdmissionReconciliation(
             applies=True,
             failures=["typed admission linkage incomplete: missing bundle path"],
         )
     bundle_dir = Path(bundle_raw).expanduser()
     payload = _read_typed_admission_payload(bundle_dir)
     if payload is None:
-        return _TypedAdmissionReconciliation(
+        return TypedAdmissionReconciliation(
             applies=True,
             failures=[
                 "typed admission linkage incomplete: launch bundle is missing or invalid"
@@ -43,7 +43,7 @@ def _typed_admission_reconciliation(
     receipt = _read_admission_receipt(bundle_dir)
     if not _receipt_complete(receipt):
         if _coordinator_live(bundle_dir):
-            return _TypedAdmissionReconciliation(applies=True, waiting=True)
+            return TypedAdmissionReconciliation(applies=True, waiting=True)
         try:
             from sase.agent.launch_admission import dispatch_typed_launch_request
 
@@ -53,16 +53,16 @@ def _typed_admission_reconciliation(
                 spawn_coordinator=True,
             )
         except Exception as exc:
-            return _TypedAdmissionReconciliation(
+            return TypedAdmissionReconciliation(
                 applies=True,
                 failures=[f"typed admission coordinator restart failed: {exc}"],
             )
         if not progress.admission_complete:
-            return _TypedAdmissionReconciliation(applies=True, waiting=True)
+            return TypedAdmissionReconciliation(applies=True, waiting=True)
         receipt = _read_admission_receipt(bundle_dir)
 
     if not isinstance(receipt, dict):
-        return _TypedAdmissionReconciliation(
+        return TypedAdmissionReconciliation(
             applies=True,
             failures=["typed admission linkage incomplete: missing receipt"],
         )
@@ -123,7 +123,7 @@ def _typed_admission_reconciliation(
                     artifacts_timestamp=str(
                         getattr(record, "artifacts_timestamp", "") or ""
                     ),
-                    artifacts_dir=str(_record_artifacts_dir(record) or ""),
+                    artifacts_dir=str(record_artifacts_dir(record) or ""),
                 ),
                 logical_id=logical_id,
                 fingerprint=str(getattr(record, "admission_fingerprint", "") or ""),
@@ -137,7 +137,7 @@ def _typed_admission_reconciliation(
         f"{_json_int(summary.get('launched'))} launched, "
         f"{_json_int(summary.get('skipped'))} skipped"
     )
-    return _TypedAdmissionReconciliation(
+    return TypedAdmissionReconciliation(
         applies=True,
         launches=launches,
         failures=failures,
@@ -216,3 +216,6 @@ def _json_int(value: object) -> int:
         return int(value or 0)
     except (TypeError, ValueError):
         return 0
+
+
+__all__ = ["typed_admission_reconciliation"]

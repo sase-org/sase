@@ -8,12 +8,12 @@ from pathlib import Path
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
 
-from ._chop_lifecycle_completion import _record_artifacts_dir
-from ._chop_lifecycle_types import _MatchedAgentRecord
+from ._chop_lifecycle_completion import record_artifacts_dir
+from ._chop_lifecycle_types import MatchedAgentRecord
 from .state import ChopRunEntry
 
 
-def _duration_ms(entry: ChopRunEntry, finished_at: datetime) -> int:
+def duration_ms(entry: ChopRunEntry, finished_at: datetime) -> int:
     try:
         started_at = datetime.fromisoformat(entry.started_at)
     except ValueError:
@@ -68,7 +68,7 @@ def _launch_for_record(
 
 
 def _retry_successor_timestamp(record: object) -> str:
-    artifacts_dir = _record_artifacts_dir(record)
+    artifacts_dir = record_artifacts_dir(record)
     done_path = artifacts_dir / "done.json" if artifacts_dir is not None else None
     if done_path is None or not done_path.is_file():
         return ""
@@ -81,13 +81,13 @@ def _retry_successor_timestamp(record: object) -> str:
     return str(raw.get("retried_as_timestamp") or "").strip()
 
 
-def _match_records_to_launches(
+def match_records_to_launches(
     records: list[object],
     launches: list[dict[str, object]],
-) -> tuple[list[_MatchedAgentRecord], list[object], list[str]]:
+) -> tuple[list[MatchedAgentRecord], list[object], list[str]]:
     """Match launch roots and their retry successors to registry records."""
     available = set(range(len(records)))
-    matched: list[_MatchedAgentRecord] = []
+    matched: list[MatchedAgentRecord] = []
     linkage_failures: list[str] = []
 
     if not launches and records:
@@ -117,7 +117,7 @@ def _match_records_to_launches(
         while record_index is not None:
             available.remove(record_index)
             record = records[record_index]
-            matched.append(_MatchedAgentRecord(record=record, launch=launch))
+            matched.append(MatchedAgentRecord(record=record, launch=launch))
 
             successor_timestamp = _retry_successor_timestamp(record)
             if not successor_timestamp:
@@ -147,3 +147,6 @@ def _match_records_to_launches(
 
     unmatched = [records[index] for index in sorted(available)]
     return matched, unmatched, linkage_failures
+
+
+__all__ = ["duration_ms", "match_records_to_launches"]
