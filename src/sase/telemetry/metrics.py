@@ -70,6 +70,7 @@ FINALIZER_DURATION: StubHistogram = StubHistogram()
 FINALIZER_RECOVERIES: StubCounter = StubCounter()
 FINALIZER_SUBMISSIONS: StubCounter = StubCounter()
 FINALIZER_SHARED_CLONE: StubCounter = StubCounter()
+FINALIZER_DEFERRALS: StubCounter = StubCounter()
 
 
 # ---------------------------------------------------------------------------
@@ -354,6 +355,14 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         "sase_finalizer_shared_clone_total",
         "Commit finalizer shared-clone dirty-work classifications",
         ["repo_kind", "attribution_class", "classification", "upstream_ahead"],
+        {},
+    ),
+    (
+        "FINALIZER_DEFERRALS",
+        "counter",
+        "sase_finalizer_deferrals_total",
+        "Total commit finalizer deferral decisions by typed reason and outcome",
+        ["reason", "outcome"],
         {},
     ),
 ]

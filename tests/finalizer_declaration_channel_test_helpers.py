@@ -15,6 +15,8 @@ from sase.finalizers.declaration import (
     FinalContextPublication,
 )
 from sase.finalizers.plan import resolve_and_persist_finalizer_plan
+from sase.llm_provider.commit_finalizer_baseline import FINALIZER_BASELINE_FILENAME
+from sase.llm_provider.commit_finalizer_git import normalize_path
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.xprompt.directives import PromptDirectives
 
@@ -68,6 +70,51 @@ def attempt_records(root: Path) -> list[dict[str, object]]:
         .read_text(encoding="utf-8")
         .splitlines()
     ]
+
+
+def add_deferral(
+    manifest: dict[str, object],
+    repo_id: str,
+    *,
+    reason: str = "foreign_work",
+    paths: list[str] | None = None,
+) -> None:
+    payload = manifest["payloads"][0]["payload"]  # type: ignore[index]
+    payload["deferrals"].append(
+        {
+            "repo_id": repo_id,
+            "reason": reason,
+            "paths": paths if paths is not None else ["src/app.py"],
+        }
+    )
+
+
+def write_run_start_baseline(
+    artifacts: Path,
+    repo: Path,
+    *,
+    fingerprints: dict[str, tuple[str, str]],
+) -> None:
+    payload = {
+        "schema_version": 1,
+        "repositories": [
+            {
+                "repo_id": "main",
+                "path": normalize_path(str(repo)),
+                "kind": "main",
+                "name": "main",
+                "scope": "run_start",
+                "fingerprints": {
+                    path: list(fingerprint)
+                    for path, fingerprint in fingerprints.items()
+                },
+            }
+        ],
+    }
+    (artifacts / FINALIZER_BASELINE_FILENAME).write_text(
+        json.dumps(payload),
+        encoding="utf-8",
+    )
 
 
 def patch_dirty(

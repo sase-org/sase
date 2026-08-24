@@ -1938,7 +1938,7 @@ finalizers:
       use: builtin@commit
       after: []
       max_attempts: 2
-      refusal: fail
+      refusal: defer
 ```
 
 `defaults` is the ordered selection used when a prompt omits `%final`. `required`
@@ -1946,6 +1946,19 @@ instances cannot be removed by `%final:none` or `%final:!name`. `instances` is k
 lowercase slug; each instance names a trusted provider with `use`, optional dependency
 edges in `after`, bounded attempts through `max_attempts`, refusal handling, and
 provider-specific `config`.
+
+`sase final submit` is authoring-only: every dirty repository obligation takes a
+Conventional Commit message, because SASE agents work in ephemeral numbered workspace
+clones where uncommitted work is lost work. There is no free-text refusal action. The
+only escape hatch is `sase final defer`, a separate, deliberate command that names a
+typed reason from a closed set (`protected_paths`, `foreign_work`, `unsafe_content`,
+`belongs_to_another_turn`) and is adjudicated by the host against run evidence at submit
+time — a deferral the host can disprove is rejected with counter-evidence so the agent
+can repair and resubmit in the same turn. `refusal` controls what happens when the host
+upholds a deferral: `fail` (still fails the run; the historical behavior) or `defer`
+(the shipped default — the run completes with a distinct `deferred` status and the tree
+stays dirty, and a notification names the repository, reason, paths, and the command to
+finish the commit by hand).
 
 Only trusted configuration can define providers, commands, cwd policy, environment
 allowlists, timeouts, or retry policy. Prompt text can only select configured instances:

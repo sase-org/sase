@@ -23,20 +23,20 @@ from sase.finalizers.declaration import (
     submit_final_manifest,
 )
 from sase.finalizers.declaration_context_evidence import COMMIT_DECLARATION_RULE
-from sase.llm_provider.commit_finalizer_baseline import FINALIZER_BASELINE_FILENAME
-from sase.llm_provider.commit_finalizer_git import normalize_path
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 from sase.main.parser import create_parser
 from sase.xprompt.directives import PromptDirectives
 
 from .finalizer_declaration_channel_test_helpers import (
+    add_deferral,
     attempt_records,
     clean_state,
     dirty_state,
     prepare_agent_env,
     prepare_dirty_declaration,
     valid_manifest,
+    write_run_start_baseline,
 )
 
 _COMMIT_DECLARATION_HELPERS = (
@@ -125,7 +125,7 @@ def test_context_publishes_bounded_repository_commit_provenance(
         fingerprints=fingerprints,
         collect=lambda _root: dirty,
     )
-    _write_run_start_baseline(
+    write_run_start_baseline(
         tmp_path,
         tmp_path,
         fingerprints={
@@ -237,7 +237,7 @@ def test_submit_rejects_unknown_typed_deferral_reason(
     prepare_dirty_declaration(monkeypatch, tmp_path)
     publication = publish_final_context()
     manifest = valid_manifest(publication)
-    _add_deferral(
+    add_deferral(
         manifest,
         publication.context.obligations[0].obligation_id,
         reason="not_asked_to_commit",
@@ -257,10 +257,10 @@ def test_submit_rejects_run_owned_deferral_from_baseline_evidence(
     reason: str,
 ) -> None:
     prepare_dirty_declaration(monkeypatch, tmp_path)
-    _write_run_start_baseline(tmp_path, tmp_path, fingerprints={})
+    write_run_start_baseline(tmp_path, tmp_path, fingerprints={})
     publication = publish_final_context()
     manifest = valid_manifest(publication)
-    _add_deferral(
+    add_deferral(
         manifest, publication.context.obligations[0].obligation_id, reason=reason
     )
 
@@ -292,7 +292,7 @@ def test_submit_rejects_run_owned_deferral_from_direct_write_evidence(
     )
     publication = publish_final_context()
     manifest = valid_manifest(publication)
-    _add_deferral(
+    add_deferral(
         manifest,
         publication.context.obligations[0].obligation_id,
         reason="belongs_to_another_turn",
@@ -310,7 +310,7 @@ def test_submit_upholds_foreign_work_when_baseline_proves_pre_existing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     prepare_dirty_declaration(monkeypatch, tmp_path)
-    _write_run_start_baseline(
+    write_run_start_baseline(
         tmp_path,
         tmp_path,
         fingerprints={"src/app.py": ("M", "content")},
@@ -321,7 +321,7 @@ def test_submit_upholds_foreign_work_when_baseline_proves_pre_existing(
     )
     publication = publish_final_context()
     manifest = valid_manifest(publication)
-    _add_deferral(
+    add_deferral(
         manifest,
         publication.context.obligations[0].obligation_id,
         reason="foreign_work",
@@ -351,7 +351,7 @@ def test_submit_upholds_protected_path_deferral(
     )
     publication = publish_final_context()
     manifest = valid_manifest(publication)
-    _add_deferral(
+    add_deferral(
         manifest,
         publication.context.obligations[0].obligation_id,
         reason="protected_paths",
@@ -369,7 +369,7 @@ def test_submit_upholds_unsafe_content_deferral(
     prepare_dirty_declaration(monkeypatch, tmp_path)
     publication = publish_final_context()
     manifest = valid_manifest(publication)
-    _add_deferral(
+    add_deferral(
         manifest,
         publication.context.obligations[0].obligation_id,
         reason="unsafe_content",
@@ -387,7 +387,7 @@ def test_submit_rejects_deferral_paths_outside_obligation(
     prepare_dirty_declaration(monkeypatch, tmp_path)
     publication = publish_final_context()
     manifest = valid_manifest(publication)
-    _add_deferral(
+    add_deferral(
         manifest,
         publication.context.obligations[0].obligation_id,
         paths=["other.py"],
@@ -709,48 +709,3 @@ def test_context_host_snapshot_is_not_model_visible(
     records = load_accepted_host_repositories(tmp_path)
     assert records[0].path == str(tmp_path)
     assert records[0].obligation_id == publication.context.obligations[0].obligation_id
-
-
-def _add_deferral(
-    manifest: dict[str, object],
-    repo_id: str,
-    *,
-    reason: str = "foreign_work",
-    paths: list[str] | None = None,
-) -> None:
-    payload = manifest["payloads"][0]["payload"]
-    payload["deferrals"].append(
-        {
-            "repo_id": repo_id,
-            "reason": reason,
-            "paths": paths if paths is not None else ["src/app.py"],
-        }
-    )
-
-
-def _write_run_start_baseline(
-    artifacts: Path,
-    repo: Path,
-    *,
-    fingerprints: dict[str, tuple[str, str]],
-) -> None:
-    payload = {
-        "schema_version": 1,
-        "repositories": [
-            {
-                "repo_id": "main",
-                "path": normalize_path(str(repo)),
-                "kind": "main",
-                "name": "main",
-                "scope": "run_start",
-                "fingerprints": {
-                    path: list(fingerprint)
-                    for path, fingerprint in fingerprints.items()
-                },
-            }
-        ],
-    }
-    (artifacts / FINALIZER_BASELINE_FILENAME).write_text(
-        json.dumps(payload),
-        encoding="utf-8",
-    )

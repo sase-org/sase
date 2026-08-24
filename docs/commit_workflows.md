@@ -649,9 +649,19 @@ Final declarations have three distinct boundaries:
    one recovery turn that explicitly requests `/sase_final` again.
 3. For `builtin@commit`, require each dirty repository obligation to receive exactly one
    `commit` decision with a Conventional Commit message; `commit` is the only legal
-   repository action. Typed `deferrals` entries can name explicit paths that must not be
-   committed, using the adjudicated reasons `protected_paths`, `foreign_work`,
-   `unsafe_content`, or `belongs_to_another_turn`.
+   repository action. There is no free-text refusal — a SASE agent's workspace is an
+   ephemeral clone, so leaving a tree dirty needs the user's standing consent, not the
+   agent's. `sase final submit` therefore asks the agent only to author commit messages.
+   The one escape hatch is `sase final defer`, a separate, deliberate command that names
+   a typed reason from a closed set (`protected_paths`, `foreign_work`,
+   `unsafe_content`, `belongs_to_another_turn`) and explicit paths. The host adjudicates
+   every deferral against run evidence inside `sase final submit`'s existing lock: a
+   deferral it can disprove is rejected with concrete counter-evidence so the agent
+   repairs and resubmits in the same turn, and a deferral it cannot refute is upheld.
+   `finalizers.instances.<id>.refusal` then decides what an upheld deferral does to the
+   run: `fail` still fails it, while the shipped default `defer` completes the run with
+   a distinct `deferred` status, a dirty tree, and a notification naming the repository,
+   reason, paths, and the command to finish the commit by hand.
 4. Resolve the project directory from provider/workspace environment variables, then
    check the main workspace, configured linked repos, and repos opened through
    `/sase_repo`.

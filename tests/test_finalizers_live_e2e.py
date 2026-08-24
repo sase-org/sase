@@ -265,6 +265,50 @@ def test_live_upheld_deferral_still_fails_under_refusal_fail_policy(
     assert git_changed_files(str(repo)) == ["secret.env"]
 
 
+def test_live_rejected_deferral_is_repaired_by_resubmitting_a_commit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A deferral the host can disprove is corrected inside the same turn:
+    `sase final submit` rejects it with counter-evidence, and repairing the
+    manifest into an authored commit still lands normally."""
+
+    from sase.finalizers.declaration import FinalizerDeclarationError
+
+    isolate_host_config(monkeypatch, tmp_path)
+    repo = init_live_repo(tmp_path / "repo")
+    attach_bare_remote(repo, tmp_path / "remote.git")
+    artifacts = tmp_path / "artifacts"
+    prepare_live_env(monkeypatch, artifacts, repo)
+    capture_dirty_baseline(str(repo), str(artifacts))
+    (repo / "agent.py").write_text("print('agent')\n", encoding="utf-8")
+    use_real_git_stitch(monkeypatch)
+
+    resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
+    with pytest.raises(FinalizerDeclarationError) as exc_info:
+        submit_deferral_from_context(
+            artifacts, reason="foreign_work", paths=["agent.py"]
+        )
+    assert exc_info.value.code == "commit_deferral_rejected"
+    assert not (artifacts / "finalizer_result.json").exists()
+
+    submit_from_context(artifacts)
+    result = run_controller(artifacts)
+
+    assert result.content == "done"
+    payload = load_result(artifacts)
+    assert payload["status"] == "success"
+    assert git_changed_files(str(repo)) == []
+    markers = json.loads(
+        (artifacts / "commit_results.json").read_text(encoding="utf-8")
+    )
+    assert len(markers) == 1
+    remote_sha = run_git(
+        tmp_path / "remote.git", "rev-parse", "refs/heads/main"
+    ).stdout.strip()
+    assert markers[0]["commit_sha"] == remote_sha
+
+
 def test_live_intentional_handoffs_skip_controller(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

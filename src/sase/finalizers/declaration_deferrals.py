@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.core.finalizer_wire import FinalizerContextWire, FinalizerPlanWire
+from sase.core.finalizer_wire import (
+    FINALIZER_DEFERRAL_REASONS,
+    FinalizerContextWire,
+    FinalizerPlanWire,
+)
 from sase.finalizers.commit_validation import protected_baseline_paths
 from sase.finalizers.declaration_manifest import (
     CommitDeferralDecision,
@@ -27,6 +31,7 @@ from sase.llm_provider.commit_finalizer_git import (
     normalize_path,
     split_pre_existing_changed_files,
 )
+from sase.telemetry.metrics import FINALIZER_DEFERRALS
 
 
 @dataclass(frozen=True)
@@ -87,7 +92,7 @@ def adjudicate_commit_deferrals(
                     code="commit_deferral_rejected",
                 )
             accepted.append(
-                _adjudicate_decision(
+                _adjudicate_decision_with_telemetry(
                     instance_id,
                     decision,
                     record,
@@ -100,6 +105,39 @@ def adjudicate_commit_deferrals(
                 )
             )
     return tuple(accepted)
+
+
+def _adjudicate_decision_with_telemetry(
+    instance_id: str,
+    decision: CommitDeferralDecision,
+    record: HostRepositoryRecord,
+    *,
+    repo_display_name: str,
+    root: Path,
+    baseline: DirtyBaseline | None,
+    written_paths: tuple[str, ...],
+) -> _AcceptedCommitDeferral:
+    reason_label = (
+        decision.deferral.reason
+        if decision.deferral.reason in FINALIZER_DEFERRAL_REASONS
+        else "invalid"
+    )
+    FINALIZER_DEFERRALS.labels(reason=reason_label, outcome="submitted").inc()
+    try:
+        result = _adjudicate_decision(
+            instance_id,
+            decision,
+            record,
+            repo_display_name=repo_display_name,
+            root=root,
+            baseline=baseline,
+            written_paths=written_paths,
+        )
+    except FinalizerDeclarationError:
+        FINALIZER_DEFERRALS.labels(reason=reason_label, outcome="rejected").inc()
+        raise
+    FINALIZER_DEFERRALS.labels(reason=reason_label, outcome="upheld").inc()
+    return result
 
 
 def _commit_payloads(
