@@ -224,6 +224,29 @@ def _sdd_publication_error(current_artifacts_dir: str | None) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def _deferred_commit_notes(current_artifacts_dir: str | None) -> list[str]:
+    """Describe every commit deferral the host upheld this turn, if any."""
+    if not current_artifacts_dir:
+        return []
+    from sase.axe.runner_reporting import deferred_commit_details
+
+    notes = []
+    for item in deferred_commit_details(current_artifacts_dir):
+        reason = item.get("reason") or "unknown"
+        paths = item.get("paths")
+        path_text = (
+            ", ".join(str(path) for path in paths)
+            if isinstance(paths, list) and paths
+            else "no paths"
+        )
+        notes.append(
+            f"This turn deferred a commit ({reason}): {path_text}. The tree is "
+            "left dirty on purpose; inspect it and run `sase stitch create` "
+            "from the repository to finish the commit by hand."
+        )
+    return notes
+
+
 def _completion_notification_agent_name(
     agent_name: str | None,
     current_artifacts_dir: str | None,
@@ -337,6 +360,8 @@ def send_completion_notification(
             f"is missing ({sdd_publication_error}); the host-owned epic launch "
             "is unaffected."
         )
+    if success:
+        notes.extend(_deferred_commit_notes(current_artifacts_dir))
     if held_workspace_num is not None:
         location = held_workspace_dir or f"workspace #{held_workspace_num}"
         notes.append(

@@ -67,7 +67,7 @@ def failed_result(
     )
 
 
-_STATUS_RANK = {"success": 0, "pending": 1, "refused": 2, "failed": 3}
+_STATUS_RANK = {"success": 0, "deferred": 1, "pending": 2, "refused": 3, "failed": 4}
 
 
 def _fail_closed_status(requested: str, aggregated: str) -> str:

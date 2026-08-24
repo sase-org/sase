@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
+    FinalizerDeferralWire,
     FinalizerDiagnosticWire,
     FinalizerInstanceResultWire,
     FinalizerOutcomeEvidenceWire,
@@ -82,6 +83,37 @@ def success_result(
     )
 
 
+def deferred_result(
+    instance_id: str,
+    *,
+    deferral: FinalizerDeferralWire,
+    attempts: Sequence[FinalizerAttemptWire],
+    evidence: Sequence[FinalizerOutcomeEvidenceWire],
+) -> FinalizerInstanceResultWire:
+    """Build a non-failing result for a host-upheld commit deferral."""
+
+    diagnostics = [
+        FinalizerDiagnosticWire(
+            code="commit_deferred",
+            severity="warning",
+            message=(
+                f"commit finalizer accepted a deferral ({deferral.reason}) for: "
+                + ", ".join(deferral.paths)
+            ),
+            instance_id=instance_id,
+            attempt=attempts[-1].attempt if attempts else None,
+        )
+    ]
+    return FinalizerInstanceResultWire(
+        instance_id=instance_id,
+        status="deferred",
+        attempts=list(attempts),
+        deferral=deferral,
+        evidence=list(evidence),
+        diagnostics=diagnostics,
+    )
+
+
 def failed_result(
     instance_id: str,
     code: str,
@@ -121,6 +153,7 @@ __all__ = [
     "ResumeRunner",
     "StitchCommandResult",
     "StitchRunner",
+    "deferred_result",
     "failed_result",
     "success_result",
 ]

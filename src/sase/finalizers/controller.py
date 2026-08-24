@@ -184,7 +184,14 @@ def run_finalizers(
                         len(execution.result.attempts),
                         time.monotonic() - started,
                     )
-                    if execution.result.status != "success":
+                    deferred_and_non_failing = (
+                        execution.result.status == "deferred"
+                        and instance.refusal == "defer"
+                    )
+                    if (
+                        execution.result.status != "success"
+                        and not deferred_and_non_failing
+                    ):
                         _write_aggregate_result(
                             artifacts_dir,
                             list(results_by_id.values()),

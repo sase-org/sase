@@ -12,6 +12,7 @@ from sase.core.finalizer_wire import (
 )
 from sase.finalizers.config import ConfiguredFinalizerInstance
 from sase.finalizers.commit_declaration import (
+    accepted_deferrals_for_instance as _accepted_deferrals_for_instance,
     accepted_repos_from_host as _accepted_repos_from_host,
     commit_decisions_for_instance as _commit_decisions_for_instance,
     dirty_repos_in_context_order as _dirty_repos_in_context_order,
@@ -22,6 +23,7 @@ from sase.finalizers.commit_declaration import (
 )
 from sase.finalizers.commit_dispatch import (
     dispatch_commit_decisions as _dispatch_commit_decisions,
+    merge_deferrals as _merge_deferrals,
     peek_attempt as _peek_attempt,
     preflight_attempt as _preflight_attempt,
 )
@@ -36,6 +38,7 @@ from sase.finalizers.commit_types import (
     ResumeRunner,
     StitchCommandResult,
     StitchRunner,
+    deferred_result as _deferred_result,
     failed_result as _failed_result,
     success_result as _success_result,
 )
@@ -102,9 +105,12 @@ def execute_commit_finalizer(
     dirty_before_decisions = state.dirty_state
     dirty_before_reconciliation = pre_reconciliation_dirty_state(state)
     try:
-        envelope, accepted_context, host_records = _load_accepted_commit_declaration(
-            context.artifacts_dir
-        )
+        (
+            envelope,
+            accepted_context,
+            host_records,
+            accepted_deferrals_raw,
+        ) = _load_accepted_commit_declaration(context.artifacts_dir)
     except Exception as exc:
         if state.dirty_state.is_clean and _is_missing_declaration(exc):
             _raise_if_unpublished_machine_state(
@@ -144,6 +150,9 @@ def execute_commit_finalizer(
         if obligation.kind == "repository"
     }
     decisions = _commit_decisions_for_instance(envelope, instance.instance_id)
+    accepted_deferrals = _accepted_deferrals_for_instance(
+        accepted_deferrals_raw, instance.instance_id
+    )
     current_result = invoke_result
     for repo in dirty_before_reconciliation.repos:
         _reject_stale_repository_obligation(
@@ -259,6 +268,7 @@ def execute_commit_finalizer(
         prepare_dirty_state=prepare_commit_dirty_state,
         protected_path_resolver=_protected_baseline_paths,
         unexpected_path_resolver=_unexpected_remaining_paths,
+        accepted_deferrals=accepted_deferrals,
     )
     current_result = dispatched.invoke_result
     state = dispatched.state
@@ -278,9 +288,21 @@ def execute_commit_finalizer(
         ledger_before=ledger_after_reconciliation,
     )
 
-    if not state.dirty_state.is_clean:
+    deferred_repo_ids = {
+        _repository_decision_id(item.repo) for item in dispatched.deferred
+    }
+    residual_repos = tuple(
+        repo
+        for repo in state.dirty_state.repos
+        if _repository_decision_id(repo) not in deferred_repo_ids
+    )
+    if residual_repos:
         message_text = failure_message(
-            state.dirty_state,
+            DirtyState(
+                project_dir=state.dirty_state.project_dir,
+                repos=residual_repos,
+                details=state.dirty_state.details,
+            ),
             max_passes=1,
             no_progress_passes=0,
         )
@@ -304,6 +326,18 @@ def execute_commit_finalizer(
         attempts=attempts,
         evidence=evidence,
     )
+    if dispatched.deferred:
+        assert attempt_id is not None
+        attempts[0] = FinalizerAttemptWire(attempt=attempt_id, status="deferred")
+        return BuiltinCommitExecution(
+            invoke_result=current_result,
+            result=_deferred_result(
+                instance.instance_id,
+                deferral=_merge_deferrals(dispatched.deferred),
+                attempts=attempts,
+                evidence=evidence,
+            ),
+        )
     if attempt_id is None:
         return BuiltinCommitExecution(
             invoke_result=current_result,

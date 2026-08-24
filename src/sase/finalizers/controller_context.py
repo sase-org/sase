@@ -177,12 +177,16 @@ def pending_instance_ids(
         instance_id = entry["instance_id"]
         provider_ref = entry["provider_ref"]
         if provider_ref == BUILTIN_COMMIT_PROVIDER_REF:
+            previous = results_by_id.get(instance_id)
+            if previous is not None and previous.status == "deferred":
+                # A deferred repository stays dirty by design; its trigger
+                # persists but the instance is already resolved for this run.
+                continue
             requirement = requirements.get(instance_id, {})
             triggered = bool(
                 requirement.get("submission_required")
                 or requirement.get("trigger") == "dirty_repository"
             )
-            previous = results_by_id.get(instance_id)
             if previous is None or previous.status != "success" or triggered:
                 pending.append(instance_id)
             continue

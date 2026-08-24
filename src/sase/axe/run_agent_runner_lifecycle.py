@@ -21,6 +21,7 @@ from sase.core.dismissed_agents_facade import (
     persist_dismissed_agents as save_dismissed_agents,
 )
 from sase.axe.run_agent_monitor_handoff import monitor_handoff_claim_transferred
+from sase.axe.runner_reporting import deferred_commit_details
 
 _NON_HOLD_FAILURE_OUTCOMES = {
     "killed",
@@ -107,16 +108,24 @@ def _should_hold_workspace(
     was_killed: bool,
     auto_dismiss: bool,
     steps_hidden: bool,
+    has_deferred_commit: bool,
 ) -> bool:
-    """Return whether this failed run has a visible dismissal path."""
-    return (
-        not state.success
-        and state.exec_outcome not in _NON_HOLD_FAILURE_OUTCOMES
-        and not was_killed
-        and not auto_dismiss
-        and not steps_hidden
-        and not state.suppress_completion_notification
-    )
+    """Return whether this run has a visible dismissal path.
+
+    A failed run always needs one. A completed run needs one too when the
+    host upheld a commit deferral: the tree is dirty on purpose and someone
+    still has to finish the commit by hand.
+    """
+    if (
+        was_killed
+        or auto_dismiss
+        or steps_hidden
+        or state.suppress_completion_notification
+    ):
+        return False
+    if state.success:
+        return has_deferred_commit
+    return state.exec_outcome not in _NON_HOLD_FAILURE_OUTCOMES
 
 
 def _held_bead_claim_from_state(
@@ -173,6 +182,9 @@ def finalize_runner_shutdown(
     workspace_held = False
     killed = deps.was_killed()
     steps_hidden = deps.all_steps_hidden(state.current_artifacts_dir)
+    deferred_commits = (
+        deferred_commit_details(state.current_artifacts_dir) if state.success else []
+    )
     monitor_handoff_transferred = (
         state.exec_outcome == "monitored"
         and monitor_handoff_claim_transferred(
@@ -188,6 +200,7 @@ def finalize_runner_shutdown(
                 was_killed=killed,
                 auto_dismiss=auto_dismiss,
                 steps_hidden=steps_hidden,
+                has_deferred_commit=bool(deferred_commits),
             ):
                 from sase.running_field import hold_workspace_claim
 
@@ -201,8 +214,11 @@ def finalize_runner_shutdown(
                 )
                 workspace_held = result.success
                 if workspace_held:
+                    hold_reason = (
+                        "deferred commit" if deferred_commits else "visible failed run"
+                    )
                     print(
-                        f"Workspace #{state.workspace_num} held (visible failed run) — "
+                        f"Workspace #{state.workspace_num} held ({hold_reason}) — "
                         "dismiss the agent in ace to release it"
                     )
                 else:

@@ -267,6 +267,36 @@ def submit_from_context(artifacts: Path, *, action: str = "commit") -> None:
     submit_final_manifest(manifest, artifacts_dir=str(artifacts))
 
 
+def submit_deferral_from_context(
+    artifacts: Path,
+    *,
+    reason: str,
+    paths: list[str],
+) -> dict[str, Any]:
+    """Submit a commit with one typed deferral for the sole repository obligation."""
+    publication = publish_final_context(artifacts_dir=str(artifacts))
+    repo_id = next(
+        obligation.obligation_id
+        for obligation in publication.context.obligations
+        if obligation.kind == "repository"
+    )
+    manifest = deepcopy(publication.payload["manifest_template"])
+    for item in manifest.get("payloads", []):
+        payload = item.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        repositories = payload.get("repositories")
+        if not isinstance(repositories, list):
+            continue
+        for decision in repositories:
+            decision["action"] = "commit"
+            decision["message"] = "chore(final): defer pending review"
+        payload["deferrals"].append(
+            {"repo_id": repo_id, "reason": reason, "paths": paths}
+        )
+    return submit_final_manifest(manifest, artifacts_dir=str(artifacts))
+
+
 def run_controller(artifacts: Path, provider: MagicMock | None = None) -> InvokeResult:
     return run_finalizers(
         provider=provider or MagicMock(),

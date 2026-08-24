@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
+    FinalizerDeferralWire,
     FinalizerDiagnosticWire,
     FinalizerInstanceResultWire,
     FinalizerOutcomeEvidenceWire,
@@ -39,6 +40,7 @@ class InstanceLedger:
     evidence: list[FinalizerOutcomeEvidenceWire] = field(default_factory=list)
     diagnostics: list[FinalizerDiagnosticWire] = field(default_factory=list)
     refusal_reason: str | None = None
+    deferral: FinalizerDeferralWire | None = None
     status: str = "pending"
 
     def remaining(self) -> int:
@@ -76,6 +78,8 @@ class InstanceLedger:
         self.diagnostics.extend(result.diagnostics)
         if result.refusal_reason:
             self.refusal_reason = result.refusal_reason
+        if result.deferral is not None:
+            self.deferral = result.deferral
         self.status = result.status
         return self.to_result()
 
@@ -85,6 +89,7 @@ class InstanceLedger:
             status=self.status,
             attempts=list(self.attempts),
             refusal_reason=self.refusal_reason,
+            deferral=self.deferral,
             evidence=list(self.evidence),
             diagnostics=list(self.diagnostics),
         )

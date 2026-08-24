@@ -25,27 +25,59 @@ from tests._run_agent_runner_lifecycle_helpers import (
 
 
 @pytest.mark.parametrize(
-    ("overrides", "was_killed", "auto_dismiss", "steps_hidden", "expected"),
+    (
+        "overrides",
+        "was_killed",
+        "auto_dismiss",
+        "steps_hidden",
+        "has_deferred_commit",
+        "expected",
+    ),
     [
-        ({}, False, False, False, True),
+        ({}, False, False, False, False, True),
         (
             {"success": True, "exec_outcome": "completed"},
             False,
             False,
             False,
             False,
+            False,
         ),
-        ({"exec_outcome": "killed"}, False, False, False, False),
-        ({"exec_outcome": "failed_retried"}, False, False, False, False),
-        ({"exec_outcome": "plan_rejected"}, False, False, False, False),
-        ({"exec_outcome": "plan_committed"}, False, False, False, False),
-        ({"exec_outcome": "epic_approved"}, False, False, False, False),
-        ({"exec_outcome": "epic_launch_failed"}, False, False, False, False),
-        ({}, True, False, False, False),
-        ({}, False, True, False, False),
-        ({}, False, False, True, False),
-        ({"suppress_completion_notification": True}, False, False, False, False),
-        ({"agent_hidden": True}, False, False, False, True),
+        ({"exec_outcome": "killed"}, False, False, False, False, False),
+        ({"exec_outcome": "failed_retried"}, False, False, False, False, False),
+        ({"exec_outcome": "plan_rejected"}, False, False, False, False, False),
+        ({"exec_outcome": "plan_committed"}, False, False, False, False, False),
+        ({"exec_outcome": "epic_approved"}, False, False, False, False, False),
+        ({"exec_outcome": "epic_launch_failed"}, False, False, False, False, False),
+        ({}, True, False, False, False, False),
+        ({}, False, True, False, False, False),
+        ({}, False, False, True, False, False),
+        (
+            {"suppress_completion_notification": True},
+            False,
+            False,
+            False,
+            False,
+            False,
+        ),
+        ({"agent_hidden": True}, False, False, False, False, True),
+        (
+            {"success": True, "exec_outcome": "completed"},
+            False,
+            False,
+            False,
+            True,
+            True,
+        ),
+        ({"exec_outcome": "killed"}, False, False, False, True, False),
+        (
+            {"success": True, "suppress_completion_notification": True},
+            False,
+            False,
+            False,
+            True,
+            False,
+        ),
     ],
 )
 def test_should_hold_workspace_matches_terminal_failed_rows(
@@ -53,6 +85,7 @@ def test_should_hold_workspace_matches_terminal_failed_rows(
     was_killed: bool,
     auto_dismiss: bool,
     steps_hidden: bool,
+    has_deferred_commit: bool,
     expected: bool,
 ) -> None:
     assert (
@@ -61,6 +94,7 @@ def test_should_hold_workspace_matches_terminal_failed_rows(
             was_killed=was_killed,
             auto_dismiss=auto_dismiss,
             steps_hidden=steps_hidden,
+            has_deferred_commit=has_deferred_commit,
         )
         is expected
     )

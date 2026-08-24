@@ -1200,7 +1200,9 @@ finalizers:
       use: builtin@commit
       after: []
       max_attempts: 2
-      refusal: fail
+      # A deliberate, host-adjudicated deferral completes the run with a
+      # dirty tree instead of failing it; see `sase final defer`.
+      refusal: defer
 
 vcs_provider:
   provider: "auto"

@@ -37,6 +37,7 @@ from .finalizers_live_e2e_test_helpers import (
     prepare_live_env,
     run_controller,
     run_git,
+    submit_deferral_from_context,
     submit_from_context,
     use_config,
     use_real_git_stitch,
@@ -191,6 +192,77 @@ def test_live_refusal_rejected_even_with_defer_policy_configured(
     assert not (artifacts / "finalizer_result.json").exists()
     assert git_changed_files(str(repo)) == ["agent.py"]
     assert run_git(repo, "rev-list", "--count", "HEAD").stdout.strip() == "1"
+
+
+def test_live_upheld_deferral_completes_run_with_dirty_tree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    isolate_host_config(monkeypatch, tmp_path)
+    repo = init_live_repo(tmp_path / "repo")
+    attach_bare_remote(repo, tmp_path / "remote.git")
+    artifacts = tmp_path / "artifacts"
+    prepare_live_env(monkeypatch, artifacts, repo)
+    (repo / "secret.env").write_text("TOKEN=xyz\n", encoding="utf-8")
+    runner = MagicMock()
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    config = config_for(
+        {"commit": replace(commit_instance(), refusal="defer")}, ("commit",)
+    )
+    use_config(monkeypatch, config)
+
+    resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
+    submit_deferral_from_context(
+        artifacts, reason="unsafe_content", paths=["secret.env"]
+    )
+    result = run_controller(artifacts)
+
+    assert result.content == "done"
+    payload = load_result(artifacts)
+    assert payload["status"] == "deferred"
+    # A repository left dirty by an accepted deferral must not keep
+    # re-triggering the controller's dirty_repository requirement forever.
+    assert payload["cycles"] == 1
+    assert len(payload["instances"]) == 1
+    instance = payload["instances"][0]
+    assert instance["status"] == "deferred"
+    assert instance["deferral"] == {
+        "reason": "unsafe_content",
+        "paths": ["secret.env"],
+    }
+    runner.assert_not_called()
+    assert git_changed_files(str(repo)) == ["secret.env"]
+    assert run_git(repo, "rev-list", "--count", "HEAD").stdout.strip() == "1"
+
+
+def test_live_upheld_deferral_still_fails_under_refusal_fail_policy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    isolate_host_config(monkeypatch, tmp_path)
+    repo = init_live_repo(tmp_path / "repo")
+    attach_bare_remote(repo, tmp_path / "remote.git")
+    artifacts = tmp_path / "artifacts"
+    prepare_live_env(monkeypatch, artifacts, repo)
+    (repo / "secret.env").write_text("TOKEN=xyz\n", encoding="utf-8")
+    runner = MagicMock()
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    config = config_for(
+        {"commit": replace(commit_instance(), refusal="fail")}, ("commit",)
+    )
+    use_config(monkeypatch, config)
+
+    resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
+    submit_deferral_from_context(
+        artifacts, reason="unsafe_content", paths=["secret.env"]
+    )
+    with pytest.raises(RuntimeError):
+        run_controller(artifacts)
+
+    payload = load_result(artifacts)
+    assert payload["status"] == "failed"
+    runner.assert_not_called()
+    assert git_changed_files(str(repo)) == ["secret.env"]
 
 
 def test_live_intentional_handoffs_skip_controller(

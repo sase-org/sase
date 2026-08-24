@@ -6,7 +6,11 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from sase.core.finalizer_facade import validate_finalizer_submission
-from sase.core.finalizer_wire import FinalizerAttemptWire, FinalizerContextWire
+from sase.core.finalizer_wire import (
+    FinalizerAttemptWire,
+    FinalizerContextWire,
+    FinalizerDeferralWire,
+)
 from sase.finalizers import declaration as finalizer_declaration
 from sase.finalizers.commit_types import (
     BuiltinCommitFinalizerError,
@@ -54,6 +58,7 @@ def load_accepted_commit_declaration(
     dict[str, Any],
     FinalizerContextWire,
     tuple[finalizer_declaration.HostRepositoryRecord, ...],
+    tuple[Mapping[str, Any], ...],
 ]:
     root = finalizer_declaration.require_artifacts_dir(
         artifacts_dir,
@@ -73,7 +78,37 @@ def load_accepted_commit_declaration(
         validate_finalizer_submission(plan, context, envelope)
         finalizer_declaration.validate_provider_payloads(plan, context, envelope)
         host_records = finalizer_declaration.load_accepted_host_repositories(root)
-        return envelope, context, host_records
+        raw_deferrals = submission.get("accepted_deferrals")
+        accepted_deferrals = (
+            tuple(item for item in raw_deferrals if isinstance(item, Mapping))
+            if isinstance(raw_deferrals, list)
+            else ()
+        )
+        return envelope, context, host_records, accepted_deferrals
+
+
+def accepted_deferrals_for_instance(
+    accepted_deferrals: Sequence[Mapping[str, Any]],
+    instance_id: str,
+) -> dict[str, FinalizerDeferralWire]:
+    """Return this instance's accepted deferrals, keyed by repository id."""
+
+    deferrals: dict[str, FinalizerDeferralWire] = {}
+    for item in accepted_deferrals:
+        if item.get("instance_id") != instance_id:
+            continue
+        repo_id = item.get("repo_id")
+        reason = item.get("reason")
+        paths = item.get("paths")
+        if not isinstance(repo_id, str) or not isinstance(reason, str):
+            continue
+        if not isinstance(paths, list):
+            continue
+        deferrals[repo_id] = FinalizerDeferralWire(
+            reason=reason,
+            paths=[str(path) for path in paths],
+        )
+    return deferrals
 
 
 def accepted_repos_from_host(

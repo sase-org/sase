@@ -7,6 +7,36 @@ from collections.abc import Callable, Mapping
 from sase.ace.patch import Patch, parse_project_file
 
 
+def deferred_commit_details(artifacts_dir: str) -> list[dict[str, object]]:
+    """Return one entry per finalizer instance the host left dirty on purpose."""
+    result_path = os.path.join(artifacts_dir, "finalizer_result.json")
+    try:
+        with open(result_path, encoding="utf-8") as f:
+            result = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+    if not isinstance(result, dict):
+        return []
+    instances = result.get("instances")
+    if not isinstance(instances, list):
+        return []
+    deferred: list[dict[str, object]] = []
+    for item in instances:
+        if not isinstance(item, dict) or item.get("status") != "deferred":
+            continue
+        deferral = item.get("deferral")
+        if not isinstance(deferral, dict):
+            continue
+        deferred.append(
+            {
+                "instance_id": item.get("instance_id"),
+                "reason": deferral.get("reason"),
+                "paths": deferral.get("paths"),
+            }
+        )
+    return deferred
+
+
 def _finalizer_verdict(artifacts_dir: str) -> str | None:
     result_path = os.path.join(artifacts_dir, "finalizer_result.json")
     if not os.path.exists(result_path):

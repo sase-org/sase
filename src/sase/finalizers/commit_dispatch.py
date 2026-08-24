@@ -9,6 +9,7 @@ from typing import Any
 
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
+    FinalizerDeferralWire,
     FinalizerOutcomeEvidenceWire,
 )
 from sase.finalizers.commit_declaration import repository_decision_id
@@ -41,6 +42,14 @@ UnexpectedPathResolver = Callable[[str, Sequence[str]], list[str]]
 
 
 @dataclass(frozen=True)
+class _DeferredRepoOutcome:
+    """One repository whose accepted deferral skipped its stitch."""
+
+    repo: DirtyRepo
+    deferral: FinalizerDeferralWire
+
+
+@dataclass(frozen=True)
 class _CommitDispatchResult:
     """State accumulated while dispatching accepted repository decisions."""
 
@@ -49,6 +58,7 @@ class _CommitDispatchResult:
     attempt_id: int | None
     attempts: list[FinalizerAttemptWire]
     evidence: list[FinalizerOutcomeEvidenceWire]
+    deferred: tuple[_DeferredRepoOutcome, ...] = ()
 
 
 def dispatch_commit_decisions(
@@ -72,12 +82,24 @@ def dispatch_commit_decisions(
     prepare_dirty_state: PrepareDirtyState,
     protected_path_resolver: ProtectedPathResolver,
     unexpected_path_resolver: UnexpectedPathResolver,
+    accepted_deferrals: Mapping[str, FinalizerDeferralWire] = {},
 ) -> _CommitDispatchResult:
-    """Execute accepted commit decisions in host context order."""
+    """Execute accepted commit decisions in host context order.
 
+    A repository named in *accepted_deferrals* skips its stitch entirely; its
+    dirt is expected to remain and is reported as a deferred outcome instead
+    of a failure. When every repository is deferred, no attempt budget is
+    consumed -- the host adjudicated the deferral at submit time, so nothing
+    here is retryable.
+    """
+
+    needs_commit = any(
+        repository_decision_id(repo) not in accepted_deferrals for repo in ordered_repos
+    )
     attempt_id: int | None = None
     attempts: list[FinalizerAttemptWire] = []
     evidence: list[FinalizerOutcomeEvidenceWire] = []
+    deferred: list[_DeferredRepoOutcome] = []
     current_result = invoke_result
 
     for repo in ordered_repos:
@@ -108,7 +130,13 @@ def dispatch_commit_decisions(
         if attempt_id is None:
             try:
                 attempt_id = (
-                    ledger.consume_before_execute() if ledger is not None else 1
+                    (
+                        ledger.consume_before_execute()
+                        if needs_commit
+                        else ledger.allocate_attempt()
+                    )
+                    if ledger is not None
+                    else 1
                 )
             except FinalizerBudgetError as exc:
                 raise BuiltinCommitFinalizerError(
@@ -128,6 +156,19 @@ def dispatch_commit_decisions(
                     invoke_result=current_result,
                 ) from exc
             attempts = [FinalizerAttemptWire(attempt=attempt_id, status="failed")]
+
+        deferral = accepted_deferrals.get(repository_decision_id(repo))
+        if deferral is not None:
+            deferred.append(_DeferredRepoOutcome(repo=repo, deferral=deferral))
+            evidence.append(
+                FinalizerOutcomeEvidenceWire(
+                    kind="deferred_repo",
+                    value=(
+                        f"{repo.name}:{deferral.reason}:" + ",".join(deferral.paths)
+                    ),
+                )
+            )
+            continue
         consumed_attempt = attempt_id
 
         message = str(decision.get("message", "")).strip()
@@ -257,7 +298,30 @@ def dispatch_commit_decisions(
         attempt_id=attempt_id,
         attempts=attempts,
         evidence=evidence,
+        deferred=tuple(deferred),
     )
+
+
+def merge_deferrals(
+    deferred: Sequence[_DeferredRepoOutcome],
+) -> FinalizerDeferralWire:
+    """Combine one dispatch's deferred repositories into one wire record.
+
+    The result wire carries a single typed reason, so a mixed-reason dispatch
+    keeps the first repository's reason; every deferred path across every
+    repository is still recorded, and the full per-repository detail lives in
+    the ``deferred_repo`` evidence entries.
+    """
+
+    reason = deferred[0].deferral.reason
+    paths: list[str] = []
+    seen: set[str] = set()
+    for item in deferred:
+        for path in item.deferral.paths:
+            if path not in seen:
+                seen.add(path)
+                paths.append(path)
+    return FinalizerDeferralWire(reason=reason, paths=paths)
 
 
 def preflight_attempt(ledger: InstanceLedger | None) -> int:
