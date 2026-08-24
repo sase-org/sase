@@ -92,3 +92,27 @@ def test_resolve_cmd_sub_resolves_dollar_paren(
     )
     assert pos == ["PROJ-123"]
     assert named == {"id": "PROJ-123"}
+
+
+# --- Shorthand free-text payload binding (structural, not [[...]] round-trip) ---
+
+
+def test_process_xprompt_double_colon_shorthand_payload_is_not_reparsed() -> None:
+    """A ':: text' payload is bound as one positional, never re-lexed as source."""
+    xprompt = XPrompt(
+        name="research_swarm",
+        content="{{ prompt }}",
+        inputs=[InputArg(name="prompt", type=InputType.TEXT, default=None)],
+    )
+    payload = (
+        "sase memory read <web>:<keyword> [<web>:<keyword> [...]], and more, "
+        "with a trailing apostrophe's worth of text"
+    )
+
+    with patch(
+        "sase.xprompt.processor.get_all_xprompts",
+        return_value={"research_swarm": xprompt},
+    ):
+        result = process_xprompt_references(f"#research_swarm:: {payload}")
+
+    assert result == payload

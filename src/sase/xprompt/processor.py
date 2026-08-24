@@ -39,7 +39,6 @@ from ._parsing import (
     find_matching_paren_for_args,
     iter_xprompt_references,
     parse_args,
-    preprocess_shorthand_syntax,
 )
 from ._trace import ExpansionTrace, format_circular_ref_diagnostic
 from .loader import get_all_xprompts
@@ -287,6 +286,32 @@ def _resolve_command_substitution_in_args(
     return resolved_positional, resolved_named
 
 
+def _consume_trailing_shorthand_text(prompt: str, end: int) -> tuple[list[str], int]:
+    """Bind a ``: text``/``:: text`` shorthand payload trailing *end* structurally.
+
+    Returns the payload as a single-element positional list (empty when no
+    shorthand text follows *end*) plus the position past the consumed text.
+    The payload is bound directly from source, never re-serialized into
+    ``[[...]]`` and re-lexed, so prose containing ``]]`` survives intact.
+    """
+    after = prompt[end:]
+    is_double = after.startswith(":: ")
+    if not is_double and not after.startswith(": "):
+        return [], end
+
+    text_start = end + (3 if is_double else 2)
+    text_end = (
+        find_double_colon_text_end(prompt, text_start)
+        if is_double
+        else find_shorthand_text_end(prompt, text_start)
+    )
+    shorthand_text = prompt[text_start:text_end].rstrip()
+    if not shorthand_text:
+        return [], end
+
+    return decode_xprompt_args([shorthand_text], {})[0], text_end
+
+
 def _scope_for_local_xprompts(
     scope: dict[str, Any] | None,
     positional_args: list[Any],
@@ -455,10 +480,6 @@ def process_xprompt_references_with_catalog(
 
     iteration = 0
     while iteration < _MAX_EXPANSION_ITERATIONS:
-        # Pre-process shorthand syntax on each iteration
-        # (expanded content may contain shorthand that needs processing)
-        prompt = preprocess_shorthand_syntax(prompt, expandable_names)
-
         # Find all xprompt references
         matches = list(re.finditer(_XPROMPT_PATTERN, prompt, re.MULTILINE))
 
@@ -513,30 +534,16 @@ def process_xprompt_references_with_catalog(
                         )
                         match_end = paren_end + 1  # Include the closing )
 
-                        # Handle ": text" or ":: text" shorthand after closing
-                        # paren. This is a fallback for references introduced
-                        # mid-iteration by prior expansions.
-                        after_close = prompt[match_end:]
-                        if after_close.startswith(":: ") or after_close.startswith(
-                            ": "
-                        ):
-                            is_double = after_close.startswith(":: ")
-                            text_start = match_end + (3 if is_double else 2)
-                            text_end = (
-                                find_double_colon_text_end(prompt, text_start)
-                                if is_double
-                                else find_shorthand_text_end(prompt, text_start)
-                            )
-                            shorthand_text = prompt[text_start:text_end].rstrip()
-                            if shorthand_text:
-                                # Map to first input not already provided
-                                for inp in xprompt.inputs:
-                                    if inp.name not in named_args:
-                                        named_args[inp.name] = shorthand_text
-                                        break
-                                else:
-                                    positional_args.append(shorthand_text)
-                                match_end = text_end
+                        # Handle "#name(args): text" / "#name(args):: text"
+                        # shorthand: the payload is appended as an extra
+                        # positional, bound directly from source rather than
+                        # re-serialized into "[[...]]" and re-lexed.
+                        shorthand_positional, shorthand_end = (
+                            _consume_trailing_shorthand_text(prompt, match_end)
+                        )
+                        if shorthand_positional:
+                            positional_args.extend(shorthand_positional)
+                            match_end = shorthand_end
                 elif colon_arg is not None:
                     # Strip backticks if present (backtick-delimited syntax)
                     if colon_arg.startswith("`") and colon_arg.endswith("`"):
@@ -551,7 +558,14 @@ def process_xprompt_references_with_catalog(
                 elif plus_suffix is not None:
                     positional_args, named_args = ["true"], {}
                 else:
-                    positional_args, named_args = [], {}
+                    # Handle "#name: text" / "#name:: text" shorthand: the
+                    # payload is bound directly from source as a single
+                    # positional, rather than re-serialized into "[[...]]"
+                    # and re-lexed.
+                    named_args = {}
+                    positional_args, match_end = _consume_trailing_shorthand_text(
+                        prompt, match_end
+                    )
 
                 # Resolve any $(cmd) command substitutions in arguments
                 positional_args, named_args = _resolve_command_substitution_in_args(
