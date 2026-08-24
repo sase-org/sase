@@ -1,5 +1,7 @@
 """Tests for xprompt._parsing core parsing helpers."""
 
+import pytest
+
 from sase.xprompt._parsing import (
     _preprocess_paren_shorthand,
     find_matching_paren_for_args,
@@ -18,6 +20,58 @@ def test_find_matching_paren_not_at_paren() -> None:
 def test_find_matching_paren_with_text_block() -> None:
     """Test find_matching_paren_for_args handles text blocks."""
     assert find_matching_paren_for_args("([[content]]))", 0) == 12
+
+
+def test_find_matching_paren_with_inner_text_block_marker() -> None:
+    """Text blocks close only when ``]]`` reaches an argument boundary."""
+    prose = (
+        "Use `[<web>:<keyword> [...]]` for example, then keep "
+        "the following comma inside the same argument."
+    )
+    source = f"#research_swarm([[{prose}]], wait=ready)"
+    open_paren = source.index("(")
+    close_paren = find_matching_paren_for_args(source, open_paren)
+
+    assert close_paren == len(source) - 1
+    positional, named = parse_args(source[open_paren + 1 : close_paren])
+    assert positional == [prose]
+    assert named == {"wait": "ready"}
+
+
+def test_parse_args_text_block_ignores_non_terminating_marker() -> None:
+    """A ``]]`` followed by prose remains part of the text block."""
+    positional, named = parse_args("[[a [b [c]] d, e]]")
+
+    assert positional == ["a [b [c]] d, e"]
+    assert named == {}
+
+
+def test_parse_args_text_block_closes_after_content_bracket() -> None:
+    """A content-ending ``]`` may overlap the real closing ``]]`` marker."""
+    positional, named = parse_args("summary=[[[bold]Research[/bold]]]")
+
+    assert positional == []
+    assert named == {"summary": "[bold]Research[/bold]"}
+
+
+@pytest.mark.parametrize(
+    ("source", "expected_positional", "expected_named"),
+    [
+        ("[[a]], [[b]]", ["a", "b"], {}),
+        ("foo=[[a]], bar=1", [], {"foo": "a", "bar": "1"}),
+        ("[[x, y]]", ["x, y"], {}),
+    ],
+)
+def test_parse_args_text_block_compatibility_cases(
+    source: str,
+    expected_positional: list[str],
+    expected_named: dict[str, str],
+) -> None:
+    """Existing well-formed text-block argument shapes keep parsing."""
+    positional, named = parse_args(source)
+
+    assert positional == expected_positional
+    assert named == expected_named
 
 
 def test_parse_args_decodes_plus_space_substitution() -> None:

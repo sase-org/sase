@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from sase.agent.multi_prompt_reference_directives import extract_static_clan_directive
 from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import extract_prompt_directives
 
@@ -61,6 +62,25 @@ def test_clan_directive_parses_literal_summary(
     assert directives.clan == "research"
     assert directives.clan_summary == expected
     assert directives.clan_summary_script is None
+
+
+def test_clan_directive_text_block_summary_ignores_inner_marker() -> None:
+    summary = (
+        "Use `[<web>:<keyword> [...]]` for example, then continue.\n"
+        "Keep this comma, and the rest of the prose in the summary."
+    )
+    prompt = f"%clan(research, tribe=study, summary=[[{summary}]])\nDo work"
+
+    cleaned, directives = extract_prompt_directives(prompt)
+    static = extract_static_clan_directive(prompt)
+
+    assert cleaned == "Do work"
+    assert directives.clan == "research"
+    assert directives.clan_tribe == "study"
+    assert directives.clan_summary == summary
+    assert static is not None
+    assert static.name == "research"
+    assert static.tribe == "study"
 
 
 def test_clan_directive_parses_summary_script_with_tribe() -> None:

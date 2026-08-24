@@ -98,6 +98,32 @@ def process_text_block(value: str) -> str:
     return "\n".join(processed_lines).strip()
 
 
+_TEXT_BLOCK_ARGUMENT_TERMINATORS = frozenset({",", ")", "}", "|"})
+
+
+def find_text_block_close_for_args(text: str, start: int) -> int | None:
+    """Return the closing ``]]`` for a ``[[...]]`` argument text block.
+
+    A text block closes only when the next non-whitespace character after
+    ``]]`` is an argument terminator: comma, closing paren, closing brace,
+    alt-branch pipe, or the end of the scanned text.
+    """
+    if start >= len(text) or text[start : start + 2] != "[[":
+        return None
+
+    search_start = start + 2
+    while True:
+        close = text.find("]]", search_start)
+        if close == -1:
+            return None
+        next_idx = close + 2
+        while next_idx < len(text) and text[next_idx].isspace():
+            next_idx += 1
+        if next_idx >= len(text) or text[next_idx] in _TEXT_BLOCK_ARGUMENT_TERMINATORS:
+            return close
+        search_start = close + 1
+
+
 def _find_matching_delimiter_for_args(
     text: str, start: int, open_char: str, close_char: str
 ) -> int | None:
@@ -121,26 +147,18 @@ def _find_matching_delimiter_for_args(
     depth = 1
     in_quotes = False
     quote_char = ""
-    in_text_block = False
     i = start + 1
 
     while i < len(text):
         # Check for text block start
-        if not in_quotes and not in_text_block and text[i : i + 2] == "[[":
-            in_text_block = True
-            i += 2
-            continue
-        # Check for text block end
-        if in_text_block and text[i : i + 2] == "]]":
-            in_text_block = False
-            i += 2
+        if not in_quotes and text[i : i + 2] == "[[":
+            close = find_text_block_close_for_args(text, i)
+            if close is None:
+                return None
+            i = close + 2
             continue
 
         char = text[i]
-
-        if in_text_block:
-            i += 1
-            continue
 
         if char in ('"', "'") and not in_quotes:
             in_quotes = True
@@ -198,28 +216,24 @@ def _top_level_delimiter_positions(text: str, delimiter: str) -> list[int]:
     positions: list[int] = []
     in_quotes = False
     quote_char = ""
-    in_text_block = False
     i = 0
 
     while i < len(text):
         char = text[i]
         # Check for text block start
-        if not in_quotes and not in_text_block and text[i : i + 2] == "[[":
-            in_text_block = True
-            i += 2
+        if not in_quotes and text[i : i + 2] == "[[":
+            close = find_text_block_close_for_args(text, i)
+            if close is None:
+                break
+            i = close + 2
             continue
-        # Check for text block end
-        if in_text_block and text[i : i + 2] == "]]":
-            in_text_block = False
-            i += 2
-            continue
-        if char in ('"', "'") and not in_quotes and not in_text_block:
+        if char in ('"', "'") and not in_quotes:
             in_quotes = True
             quote_char = char
         elif char == quote_char and in_quotes:
             in_quotes = False
             quote_char = ""
-        elif char == delimiter and not in_quotes and not in_text_block:
+        elif char == delimiter and not in_quotes:
             positions.append(i)
         i += 1
 

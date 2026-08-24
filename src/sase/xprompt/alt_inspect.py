@@ -22,7 +22,7 @@ from typing import Literal
 
 from ._directive_alt import _ALT_DIRECTIVE_RE
 from ._literal_zones import literal_zone_ranges
-from ._parsing import find_matching_paren_for_args
+from ._parsing import find_matching_paren_for_args, find_text_block_close_for_args
 
 AltSpanKind = Literal["delimiter", "separator", "branch_name", "error"]
 
@@ -138,19 +138,13 @@ def _top_level_offsets(text: str, target: str) -> list[int]:
     depth = 0
     quote: str | None = None
     escaped = False
-    in_text_block = False
     idx = 0
     while idx < len(text):
-        if in_text_block:
-            if text[idx : idx + 2] == "]]":
-                in_text_block = False
-                idx += 2
-            else:
-                idx += 1
-            continue
         if quote is None and text[idx : idx + 2] == "[[":
-            in_text_block = True
-            idx += 2
+            close = find_text_block_close_for_args(text, idx)
+            if close is None:
+                break
+            idx = close + 2
             continue
 
         char = text[idx]

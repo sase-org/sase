@@ -157,6 +157,16 @@ def test_tokenize_paren_forms_ignore_quoted_and_text_block_commas() -> None:
     assert [text[s.start : s.end] for s in _of_kind(text, "branch_name")] == ["block"]
 
 
+def test_tokenize_text_block_ignores_inner_marker_before_branch_separator() -> None:
+    text = "%{doc=[[Use `[x [...]]` for A | B, then stop]] | other}"
+
+    separators = _of_kind(text, "separator")
+
+    assert [text[s.start : s.end] for s in separators] == ["|"]
+    assert separators[0].start == text.rindex("|")
+    assert [text[s.start : s.end] for s in _of_kind(text, "branch_name")] == ["doc"]
+
+
 def test_tokenize_marks_unmatched_paren_opener_as_error() -> None:
     for text in ("%alt(a, b", "%(a, b"):
         spans = alt_inspect.tokenize(text)
