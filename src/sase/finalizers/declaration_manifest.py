@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 import hashlib
 import json
@@ -11,9 +12,12 @@ from typing import Any
 
 from sase.core.finalizer_facade import finalizer_json_digest
 from sase.core.finalizer_wire import (
+    FINALIZER_DEFERRAL_REASONS,
     FINALIZER_WIRE_SCHEMA_VERSION,
     FinalizerContextWire,
+    FinalizerDeferralWire,
     FinalizerPlanWire,
+    finalizer_deferral_from_dict,
     finalizer_context_from_dict,
 )
 from sase.finalizers.declaration_store import (
@@ -32,6 +36,14 @@ FINAL_SUBMISSION_ATTEMPTS_FILENAME = "final_submission_attempts.jsonl"
 
 MAX_FINAL_SUBMISSION_BYTES = 256 * 1024
 MAX_ATTEMPT_RECORDS = 50
+
+
+@dataclass(frozen=True)
+class CommitDeferralDecision:
+    """One typed commit deferral submitted for host adjudication."""
+
+    repo_id: str
+    deferral: FinalizerDeferralWire
 
 
 def read_final_manifest_from_path(
@@ -113,7 +125,8 @@ def manifest_template(context: FinalizerContextWire) -> dict[str, Any]:
                         "message": "feat(scope): describe the completed work",
                     }
                     for repo_id in repo_ids
-                ]
+                ],
+                "deferrals": [],
             }
         else:
             payload = {}
@@ -271,11 +284,7 @@ def _validate_commit_payload(
             "commit finalizer payload requires repositories list",
             code="commit_repositories_missing",
         )
-    expected = {
-        obligation.obligation_id
-        for obligation in context.obligations
-        if obligation.kind == "repository"
-    }
+    expected = _repository_obligation_paths(context)
     seen: set[str] = set()
     for index, decision in enumerate(raw_repositories):
         if not isinstance(decision, Mapping):
@@ -303,20 +312,101 @@ def _validate_commit_payload(
         action = decision.get("action")
         if action == "commit":
             _validate_commit_decision(repo_id, decision)
-        elif action == "refuse":
-            _validate_refusal_decision(repo_id, decision)
         else:
             raise FinalizerDeclarationError(
-                f"commit repository decision for {repo_id} has invalid action",
+                f"commit repository decision for {repo_id} has invalid action; "
+                "the only legal action is 'commit'",
                 code="commit_action_invalid",
             )
-    missing = expected - seen
+    missing = set(expected) - seen
     if missing:
         raise FinalizerDeclarationError(
             "commit finalizer payload is missing repository decision(s): "
             + ", ".join(sorted(missing)),
             code="commit_repo_decision_missing",
         )
+    commit_deferral_decisions_for_payload(context, payload)
+
+
+def commit_deferral_decisions_for_payload(
+    context: FinalizerContextWire,
+    payload: Mapping[str, Any],
+) -> tuple[CommitDeferralDecision, ...]:
+    """Return structurally valid typed commit deferrals from *payload*."""
+
+    expected = _repository_obligation_paths(context)
+    raw_deferrals = payload.get("deferrals", [])
+    if not isinstance(raw_deferrals, list):
+        raise FinalizerDeclarationError(
+            "commit finalizer payload deferrals must be a list",
+            code="commit_deferrals_not_list",
+        )
+
+    decisions: list[CommitDeferralDecision] = []
+    seen: set[tuple[str, str]] = set()
+    for index, raw_decision in enumerate(raw_deferrals):
+        if not isinstance(raw_decision, Mapping):
+            raise FinalizerDeclarationError(
+                f"commit deferral #{index + 1} must be an object",
+                code="commit_deferral_not_object",
+            )
+        decision = dict(raw_decision)
+        _reject_extra_keys(decision, {"repo_id", "reason", "paths"}, "defer")
+        repo_id = decision.get("repo_id")
+        if not isinstance(repo_id, str) or not repo_id:
+            raise FinalizerDeclarationError(
+                f"commit deferral #{index + 1} requires repo_id",
+                code="commit_deferral_repo_id_missing",
+            )
+        if repo_id not in expected:
+            raise FinalizerDeclarationError(
+                f"commit deferral names unknown repo_id {repo_id!r}",
+                code="commit_deferral_repo_id_unknown",
+            )
+        reason = decision.get("reason")
+        if reason not in FINALIZER_DEFERRAL_REASONS:
+            allowed = ", ".join(FINALIZER_DEFERRAL_REASONS)
+            raise FinalizerDeclarationError(
+                f"commit deferral for {repo_id} has invalid reason {reason!r}; "
+                f"expected one of: {allowed}",
+                code="commit_deferral_reason_invalid",
+            )
+        raw_paths = decision.get("paths")
+        if not (
+            isinstance(raw_paths, list)
+            and raw_paths
+            and all(isinstance(path, str) and path for path in raw_paths)
+        ):
+            raise FinalizerDeclarationError(
+                f"commit deferral for {repo_id} requires nonblank paths",
+                code="commit_deferral_paths_missing",
+            )
+        if len(set(raw_paths)) != len(raw_paths):
+            raise FinalizerDeclarationError(
+                f"commit deferral for {repo_id} contains duplicate paths",
+                code="commit_deferral_path_duplicate",
+            )
+        unknown_paths = sorted(set(raw_paths) - set(expected[repo_id]))
+        if unknown_paths:
+            raise FinalizerDeclarationError(
+                f"commit deferral for {repo_id} names path(s) outside the "
+                "repository obligation: " + ", ".join(unknown_paths),
+                code="commit_deferral_path_unknown",
+            )
+        key = (repo_id, str(reason))
+        if key in seen:
+            raise FinalizerDeclarationError(
+                f"commit deferral duplicates {reason!r} for {repo_id}",
+                code="commit_deferral_duplicate",
+            )
+        seen.add(key)
+        decisions.append(
+            CommitDeferralDecision(
+                repo_id=repo_id,
+                deferral=finalizer_deferral_from_dict(decision),
+            )
+        )
+    return tuple(decisions)
 
 
 def _validate_commit_decision(
@@ -343,24 +433,6 @@ def _validate_commit_decision(
         )
 
 
-def _validate_refusal_decision(
-    repo_id: str,
-    decision: Mapping[str, Any],
-) -> None:
-    _reject_extra_keys(decision, {"repo_id", "action", "reason"}, "refuse")
-    reason = decision.get("reason")
-    if not isinstance(reason, str) or not reason.strip():
-        raise FinalizerDeclarationError(
-            f"refusal decision for {repo_id} requires a nonblank reason",
-            code="commit_refusal_reason_missing",
-        )
-    if len(reason) > 4000:
-        raise FinalizerDeclarationError(
-            f"refusal decision for {repo_id} has an oversized reason",
-            code="commit_refusal_reason_too_large",
-        )
-
-
 def _reject_extra_keys(
     data: Mapping[str, Any],
     allowed: set[str],
@@ -372,6 +444,16 @@ def _reject_extra_keys(
             f"{action} decision contains unknown key(s): {', '.join(extra)}",
             code="commit_decision_unknown_key",
         )
+
+
+def _repository_obligation_paths(
+    context: FinalizerContextWire,
+) -> dict[str, list[str]]:
+    return {
+        obligation.obligation_id: list(obligation.paths)
+        for obligation in context.obligations
+        if obligation.kind == "repository"
+    }
 
 
 def context_requires_submission(context: FinalizerContextWire) -> bool:

@@ -137,11 +137,11 @@ def test_live_final_none_skips_commit_on_dirty_tree(
     assert git_changed_files(str(repo)) == ["agent.py"]
 
 
-def test_live_refusal_preserves_dirty_work(
+def test_live_refusal_is_rejected_before_controller_runs(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.finalizers.commit import BuiltinCommitFinalizerError
+    from sase.finalizers.declaration import FinalizerDeclarationError
 
     isolate_host_config(monkeypatch, tmp_path)
     repo = init_live_repo(tmp_path / "repo")
@@ -153,25 +153,21 @@ def test_live_refusal_preserves_dirty_work(
     monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
 
     resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
-    submit_from_context(artifacts, action="refuse")
-    with pytest.raises(BuiltinCommitFinalizerError, match="not mine"):
-        run_controller(artifacts)
+    with pytest.raises(FinalizerDeclarationError) as exc_info:
+        submit_from_context(artifacts, action="refuse")
 
+    assert exc_info.value.code == "commit_action_invalid"
     runner.assert_not_called()
-    payload = load_result(artifacts)
-    assert payload["status"] == "refused"
-    assert payload["instances"][0]["refusal_reason"] == "not mine"
+    assert not (artifacts / "finalizer_result.json").exists()
     assert git_changed_files(str(repo)) == ["agent.py"]
     assert run_git(repo, "rev-list", "--count", "HEAD").stdout.strip() == "1"
 
 
-def test_live_refusal_preserves_dirty_work_with_defer_policy_configured(
+def test_live_refusal_rejected_even_with_defer_policy_configured(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A configured ``refusal: defer`` policy is inert until the escape phase."""
-
-    from sase.finalizers.commit import BuiltinCommitFinalizerError
+    from sase.finalizers.declaration import FinalizerDeclarationError
 
     isolate_host_config(monkeypatch, tmp_path)
     repo = init_live_repo(tmp_path / "repo")
@@ -187,14 +183,12 @@ def test_live_refusal_preserves_dirty_work_with_defer_policy_configured(
     use_config(monkeypatch, config)
 
     resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
-    submit_from_context(artifacts, action="refuse")
-    with pytest.raises(BuiltinCommitFinalizerError, match="not mine"):
-        run_controller(artifacts)
+    with pytest.raises(FinalizerDeclarationError) as exc_info:
+        submit_from_context(artifacts, action="refuse")
 
+    assert exc_info.value.code == "commit_action_invalid"
     runner.assert_not_called()
-    payload = load_result(artifacts)
-    assert payload["status"] == "refused"
-    assert payload["instances"][0]["refusal_reason"] == "not mine"
+    assert not (artifacts / "finalizer_result.json").exists()
     assert git_changed_files(str(repo)) == ["agent.py"]
     assert run_git(repo, "rev-list", "--count", "HEAD").stdout.strip() == "1"
 

@@ -82,35 +82,6 @@ def success_result(
     )
 
 
-def refused_result(
-    instance_id: str,
-    reason: str,
-    *,
-    attempt: int = 1,
-) -> FinalizerInstanceResultWire:
-    return FinalizerInstanceResultWire(
-        instance_id=instance_id,
-        status="refused",
-        refusal_reason=reason,
-        attempts=[
-            FinalizerAttemptWire(
-                attempt=attempt,
-                status="refused",
-                diagnostic_code="commit_refused",
-            )
-        ],
-        diagnostics=[
-            FinalizerDiagnosticWire(
-                code="commit_refused",
-                severity="error",
-                message=reason,
-                instance_id=instance_id,
-                attempt=attempt,
-            )
-        ],
-    )
-
-
 def failed_result(
     instance_id: str,
     code: str,
@@ -151,6 +122,5 @@ __all__ = [
     "StitchCommandResult",
     "StitchRunner",
     "failed_result",
-    "refused_result",
     "success_result",
 ]

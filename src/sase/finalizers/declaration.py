@@ -37,6 +37,7 @@ from sase.core.finalizer_wire import (
     finalizer_wire_to_json_dict,
 )
 from sase.finalizers.declaration_format import format_context_pretty
+from sase.finalizers.declaration_deferrals import adjudicate_commit_deferrals
 from sase.finalizers.declaration_manifest import (
     FINAL_CONTEXT_FILENAME,
     FINAL_SUBMISSION_ATTEMPTS_FILENAME,
@@ -240,6 +241,24 @@ def submit_final_manifest(
             )
             raise stale
 
+        try:
+            accepted_deferrals = adjudicate_commit_deferrals(
+                plan,
+                current,
+                envelope,
+                root=root,
+                host_records=host_records,
+            )
+        except FinalizerDeclarationError as exc:
+            _append_attempt_record_locked(
+                root,
+                accepted=False,
+                code=exc.code,
+                message=str(exc),
+                content_digest=content_digest,
+            )
+            raise
+
         _declaration_sync_hook("before_submit_accept")
         submission_payload = {
             "schema_version": 1,
@@ -247,6 +266,7 @@ def submit_final_manifest(
             "accepted_context": finalizer_wire_to_json_dict(current),
             "submission": envelope,
             "validation": finalizer_wire_to_json_dict(validation),
+            "accepted_deferrals": [item.to_json() for item in accepted_deferrals],
         }
         _append_attempt_record_locked(
             root,
@@ -289,6 +309,13 @@ def final_submission_is_current(*, artifacts_dir: str | None = None) -> bool:
             envelope = normalize_submission_envelope(submission["submission"])
             validate_finalizer_submission(plan, context, envelope)
             validate_provider_payloads(plan, context, envelope)
+            adjudicate_commit_deferrals(
+                plan,
+                context,
+                envelope,
+                root=root,
+                host_records=load_accepted_host_repositories(root),
+            )
         except Exception:
             return False
         return True

@@ -16,6 +16,7 @@ from sase.finalizers.declaration import (
     FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME,
     SASE_FINAL_TURN_NONCE_ENV,
     FinalContextPublication,
+    FinalizerDeclarationError,
     ensure_final_declaration_or_recover,
     publish_final_context,
     submit_final_manifest,
@@ -44,12 +45,19 @@ _INCIDENT_PATHS = (
 )
 
 
-def _refuse_manifest(publication: FinalContextPublication) -> dict[str, object]:
+def _foreign_work_deferral_manifest(
+    publication: FinalContextPublication,
+) -> dict[str, object]:
     manifest = deepcopy(publication.payload["manifest_template"])
-    repositories = manifest["payloads"][0]["payload"]["repositories"]
-    repositories[0]["action"] = "refuse"
-    repositories[0].pop("message", None)
-    repositories[0]["reason"] = "I have no context"
+    payload = manifest["payloads"][0]["payload"]
+    repo_id = publication.context.obligations[0].obligation_id
+    payload["deferrals"].append(
+        {
+            "repo_id": repo_id,
+            "reason": "foreign_work",
+            "paths": list(_INCIDENT_PATHS),
+        }
+    )
     return manifest
 
 
@@ -234,8 +242,11 @@ def test_incident_shaped_recovery_prompt_attributes_paths_to_this_run(
     def recover(prompt: str, **_kwargs: object) -> InvokeResult:
         captured["prompt"] = prompt
         publication = publish_final_context()
-        submit_final_manifest(_refuse_manifest(publication))
-        return InvokeResult(content="refused")
+        with pytest.raises(FinalizerDeclarationError) as exc_info:
+            submit_final_manifest(_foreign_work_deferral_manifest(publication))
+        assert exc_info.value.code == "commit_deferral_rejected"
+        submit_final_manifest(valid_manifest(publication))
+        return InvokeResult(content="recovered")
 
     provider.invoke.side_effect = recover
     ensure_final_declaration_or_recover(

@@ -156,6 +156,13 @@ def test_finalizer_facade_round_trips_deferred_instance_result() -> None:
             FinalizerInstanceResultWire(
                 instance_id="commit",
                 status="deferred",
+                attempts=[
+                    FinalizerAttemptWire(
+                        attempt=1,
+                        status="deferred",
+                        diagnostic_code="finalizer_deferred",
+                    )
+                ],
                 deferral=FinalizerDeferralWire(
                     reason="foreign_work",
                     paths=["sase/repos/linked/sase-core"],

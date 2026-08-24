@@ -26,7 +26,6 @@ from sase.finalizers.commit_types import (
     ResumeRunner,
     StitchRunner,
     failed_result,
-    refused_result,
 )
 from sase.finalizers.commit_validation import reconcile_commit_file_hooks
 from sase.finalizers.executor import FinalizerExecutionContext
@@ -84,15 +83,25 @@ def dispatch_commit_decisions(
     for repo in ordered_repos:
         decision = decisions[repository_decision_id(repo)]
         action = str(decision.get("action"))
-        if action == "refuse":
-            reason = str(decision.get("reason", "")).strip()
-            result = refused_result(
+        if action != "commit":
+            message_text = (
+                f"commit declaration for {repo.name} has invalid accepted action "
+                f"{action!r}"
+            )
+            result = failed_result(
                 instance_id,
-                reason,
-                attempt=preflight_attempt(ledger),
+                "invalid_commit_declaration",
+                message_text,
+                attempts=[
+                    FinalizerAttemptWire(
+                        attempt=preflight_attempt(ledger),
+                        status="failed",
+                        diagnostic_code="invalid_commit_declaration",
+                    )
+                ],
             )
             raise BuiltinCommitFinalizerError(
-                f"commit finalizer refused dirty repository {repo.name}: {reason}",
+                message_text,
                 result=result,
                 invoke_result=current_result,
             )

@@ -196,7 +196,7 @@ def _provenance_section(baseline_available: bool) -> str:
 def _written_files_section(root: Path | None) -> str | None:
     if root is None:
         return None
-    paths = _written_paths_from_tool_calls(root)
+    paths = written_paths_from_tool_calls(root)
     if not paths:
         return None
     lines = [f"- `{path}`" for path in paths]
@@ -205,7 +205,9 @@ def _written_files_section(root: Path | None) -> str | None:
     )
 
 
-def _written_paths_from_tool_calls(root: Path) -> tuple[str, ...]:
+def written_paths_from_tool_calls(root: Path) -> tuple[str, ...]:
+    """Return workspace-relative paths directly written by this run's tools."""
+
     path = root / _TOOL_CALLS_FILENAME
     try:
         raw = path.read_text(encoding="utf-8")

@@ -38,11 +38,40 @@ def _handle_submit(args: argparse.Namespace) -> int:
         raw = validation.get("accepted_instances")
         if isinstance(raw, list):
             accepted = [str(item) for item in raw]
+    deferrals = _accepted_deferral_summaries(payload)
     if accepted:
-        print("Accepted final declaration for: " + ", ".join(accepted))
+        message = "Accepted final declaration for: " + ", ".join(accepted)
+        if deferrals:
+            message += "; deferred: " + "; ".join(deferrals)
+        print(message)
     else:
         print("Accepted final declaration; no payloads were required.")
     return 0
+
+
+def _accepted_deferral_summaries(payload: dict[str, object]) -> list[str]:
+    raw = payload.get("accepted_deferrals")
+    if not isinstance(raw, list):
+        return []
+    summaries: list[str] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        repo = item.get("repo_display_name") or item.get("repo_id")
+        reason = item.get("reason")
+        paths = item.get("paths")
+        if not isinstance(repo, str) or not isinstance(reason, str):
+            continue
+        rendered_paths = ""
+        if isinstance(paths, list):
+            path_values = [str(path) for path in paths[:3]]
+            if path_values:
+                rendered_paths = " (" + ", ".join(path_values)
+                if len(paths) > len(path_values):
+                    rendered_paths += f", +{len(paths) - len(path_values)} more"
+                rendered_paths += ")"
+        summaries.append(f"{repo} {reason}{rendered_paths}")
+    return summaries
 
 
 _DECLARATION_HANDLERS = {

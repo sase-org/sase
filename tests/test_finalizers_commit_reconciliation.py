@@ -12,6 +12,7 @@ from sase.finalizers.commit import (
     BuiltinCommitFinalizerError,
     StitchCommandResult,
 )
+from sase.finalizers.declaration import FinalizerDeclarationError
 from sase.finalizers.controller import run_finalizers
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult
@@ -85,7 +86,7 @@ def test_builtin_commit_executes_declared_stitch_without_reprompt(
     assert aggregate["instances"][0]["evidence"][0]["kind"] == "cwd"
 
 
-def test_builtin_commit_refusal_fails_without_running_stitch(
+def test_builtin_commit_refusal_is_rejected_before_running_stitch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -98,25 +99,13 @@ def test_builtin_commit_refusal_fails_without_running_stitch(
     runner = MagicMock()
     monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
 
-    persist_and_submit_commit(artifacts, action="refuse", reason="not mine")
-    with pytest.raises(BuiltinCommitFinalizerError, match="not mine"):
-        run_finalizers(
-            provider=MagicMock(),
-            original_prompt="do work",
-            invoke_result=InvokeResult(content="done"),
-            model_tier="large",
-            suppress_output=True,
-            model_override=None,
-            artifacts_dir=str(artifacts),
-        )
+    with pytest.raises(FinalizerDeclarationError) as exc_info:
+        persist_and_submit_commit(artifacts, action="refuse", reason="not mine")
 
+    assert exc_info.value.code == "commit_action_invalid"
     runner.assert_not_called()
     assert not (artifacts / "commit_finalizer_result.json").exists()
-    aggregate = json.loads(
-        (artifacts / "finalizer_result.json").read_text(encoding="utf-8")
-    )
-    assert aggregate["status"] == "refused"
-    assert aggregate["instances"][0]["refusal_reason"] == "not mine"
+    assert not (artifacts / "finalizer_result.json").exists()
 
 
 def test_post_submit_cleanup_fails_without_proven_transition(
