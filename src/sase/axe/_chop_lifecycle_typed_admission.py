@@ -74,6 +74,9 @@ def typed_admission_reconciliation(
         else []
     )
     metadata = _dispatch_metadata(payload)
+    from sase.agent.launch_admission_store import admission_dir
+
+    admission_root = admission_dir(bundle_dir)
     keys_by_logical_id = _typed_admission_keys(typed)
     failures: list[str] = []
     release_keys: list[str] = []
@@ -127,6 +130,8 @@ def typed_admission_reconciliation(
                 ),
                 logical_id=logical_id,
                 fingerprint=str(getattr(record, "admission_fingerprint", "") or ""),
+                all_metadata=metadata,
+                admission_root=admission_root,
             )
         )
 

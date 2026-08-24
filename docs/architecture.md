@@ -74,13 +74,17 @@ originating chop run owning the bundle across process restarts (see
 Within an AXE chop clan, dispatch — not planning — owns the declarer decision: the first
 surviving (eligible, dispatched) member of an undeclared clan claims it durably, so a
 `%if`-skipped statically planned declarer never leaves later members joining a clan
-nobody declared. A detached launch-admission coordinator — infrastructure owned by the
-launch-request bundle, not an Agents-tab row — journals each unit through waiting,
-checking, skipped/error, dispatching, and launched states. Waits resolve before
-conditions; a false `%if` is a resource-free terminal skip; eligible Agent units still
-use the established agent launch path; eligible `%proc` units dispatch as native
-`proc-shell` records with origin `xprompt-proc`. Restarts replay the journal instead of
-re-running settled predicates or duplicating reserved identities.
+nobody declared. AXE chop proposal `wait_on` edges also have one chop-specific dispatch
+effect: admission consumes the logical edge for launch ordering, then an admitted Agent
+unit receives a restored named-agent `%wait` for the nearest earlier unit that actually
+launched. Generic typed logical waits outside AXE remain coordinator-owned and are not
+re-emitted into rebuilt agent prompts. A detached launch-admission coordinator —
+infrastructure owned by the launch-request bundle, not an Agents-tab row — journals each
+unit through waiting, checking, skipped/error, dispatching, and launched states. Waits
+resolve before conditions; a false `%if` is a resource-free terminal skip; eligible
+Agent units still use the established agent launch path; eligible `%proc` units dispatch
+as native `proc-shell` records with origin `xprompt-proc`. Restarts replay the journal
+instead of re-running settled predicates or duplicating reserved identities.
 
 Detached launches appear in the agent registry and ACE Agents tab. Multi-prompt launches
 create a sequence of detached agents. Stand-alone `%proc` shells appear in the same

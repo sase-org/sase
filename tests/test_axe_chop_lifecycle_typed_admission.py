@@ -7,9 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from sase.agent.launch_admission_store import RECEIPT_FILENAME, admission_dir
+from sase.agent.launch_admission_store import (
+    RECEIPT_FILENAME,
+    admission_dir,
+    write_unit_receipt,
+)
 from sase.agent.launch_request_types import DIRECT_TYPED_LAUNCH_KIND
 from sase.axe.chop_agents import get_chop_agent_records
+from sase.axe._chop_lifecycle_typed_admission import typed_admission_reconciliation
 from sase.axe.chop_lifecycle import finalize_launched_chop_runs
 from sase.axe.chop_policy import apply_chop_once_per
 from sase.axe.chop_proposals import prepare_chop_proposals
@@ -157,6 +162,186 @@ def test_lifecycle_reconstructs_typed_admission_launch_from_registry(
     output = chop_run_log_path("docs", "docs", run_id).read_text(encoding="utf-8")
     assert "typed admission completed: 1 launched, 0 skipped" in output
     assert get_chop_agent_records("docs", chop_name="docs", run_id=run_id) == []
+
+
+def test_lifecycle_reconstructs_relinked_wait_for_skipped_typed_unit(
+    temp_state_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    run_id = "20260718T120022_000000"
+    bundle = tmp_path / "bundle-chain"
+    metadata = {
+        "unit-1": {
+            "lumberjack_name": "docs",
+            "chop_name": "docs",
+            "run_id": run_id,
+            "logical_id": "unit-1",
+            "source_order": 0,
+            "proposal_index": 0,
+            "proposal_id": "first",
+            "agent_name": "planned.first",
+            "workspace": "git:sase",
+            "dedupe_key": None,
+            "wait_on": None,
+            "wait_name": None,
+            "env": {},
+        },
+        "unit-2": {
+            "lumberjack_name": "docs",
+            "chop_name": "docs",
+            "run_id": run_id,
+            "logical_id": "unit-2",
+            "source_order": 1,
+            "proposal_index": 1,
+            "proposal_id": "second",
+            "agent_name": "planned.second",
+            "workspace": "git:sase",
+            "dedupe_key": None,
+            "wait_on": "first",
+            "wait_name": "planned.first",
+            "env": {},
+        },
+        "unit-3": {
+            "lumberjack_name": "docs",
+            "chop_name": "docs",
+            "run_id": run_id,
+            "logical_id": "unit-3",
+            "source_order": 2,
+            "proposal_index": 2,
+            "proposal_id": "third",
+            "agent_name": "planned.third",
+            "workspace": "git:sase",
+            "dedupe_key": None,
+            "wait_on": "second",
+            "wait_name": "planned.second",
+            "env": {},
+        },
+    }
+    payload: dict[str, object] = {
+        "request_id": "req-chain",
+        "source_surface": "axe_chop",
+        "plan_digest": "digest",
+        "typed_plan": {
+            "schema_version": 1,
+            "launch_kind": "axe_chop",
+            "selected_project": "sase",
+            "content_digest": "digest",
+            "units": [],
+            "approval_preview": [],
+            "diagnostics": [],
+        },
+        "unit_dispatch_metadata": metadata,
+        "dispatch": {"cwd": str(tmp_path), "prompt": "prompt"},
+    }
+    bundle.mkdir(parents=True)
+    (bundle / REQUEST_FILENAME).write_text(
+        json.dumps(
+            {
+                "kind": DIRECT_TYPED_LAUNCH_KIND,
+                "request_id": "req-chain",
+                "payload": payload,
+            }
+        ),
+        encoding="utf-8",
+    )
+    root = admission_dir(bundle)
+    root.mkdir(parents=True)
+    write_unit_receipt(
+        root,
+        logical_id="unit-1",
+        fingerprint="fp-1",
+        identity="actual.first",
+    )
+    write_unit_receipt(
+        root,
+        logical_id="unit-3",
+        fingerprint="fp-3",
+        identity="actual.third",
+    )
+    (root / RECEIPT_FILENAME).write_text(
+        json.dumps(
+            {
+                "complete": True,
+                "summary": {
+                    "total": 3,
+                    "eligible": 2,
+                    "launched": 2,
+                    "skipped": 1,
+                    "condition_errors": 0,
+                    "launch_errors": 0,
+                },
+                "units": [
+                    {"logical_id": "unit-1", "outcome": "launched"},
+                    {"logical_id": "unit-2", "outcome": "skipped"},
+                    {"logical_id": "unit-3", "outcome": "launched"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    typed_admission = {
+        "request_id": "req-chain",
+        "bundle_dir": str(bundle),
+        "plan_digest": "digest",
+        "source_surface": "axe_chop",
+        "units": [
+            {
+                "logical_id": "unit-1",
+                "source_order": 0,
+                "proposal_index": 0,
+                "proposal_id": "first",
+            },
+            {
+                "logical_id": "unit-2",
+                "source_order": 1,
+                "proposal_index": 1,
+                "proposal_id": "second",
+            },
+            {
+                "logical_id": "unit-3",
+                "source_order": 2,
+                "proposal_index": 2,
+                "proposal_id": "third",
+            },
+        ],
+    }
+    launched_entry(
+        run_id,
+        pid=0,
+        launches=[],
+        typed_admission=typed_admission,
+    )
+    record_agent(
+        run_id,
+        pid=777,
+        admission_logical_id="unit-1",
+        admission_fingerprint="fp-1",
+        proposal_index=0,
+        proposal_id="first",
+    )
+    record_agent(
+        run_id,
+        pid=778,
+        timestamp="260718_120001",
+        admission_logical_id="unit-3",
+        admission_fingerprint="fp-3",
+        proposal_index=2,
+        proposal_id="third",
+    )
+    entry = read_chop_run("docs", "docs", run_id)
+    assert entry is not None
+    records = get_chop_agent_records("docs", chop_name="docs", run_id=run_id)
+
+    result = typed_admission_reconciliation(entry=entry, records=records)
+
+    assert result.applies is True
+    assert result.failures == []
+    assert len(result.launches or []) == 2
+    third_launch = (result.launches or [])[1]
+    assert third_launch["wait_on"] == "first"
+    assert third_launch["wait_name"] == "actual.first"
 
 
 def test_lifecycle_releases_once_per_key_for_skipped_typed_unit(

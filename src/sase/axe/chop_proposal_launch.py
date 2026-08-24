@@ -179,6 +179,7 @@ def _metadata_for_unit(
     chop_name: str,
     run_id: str,
     wait_name: str | None,
+    wait_logical_id: str | None,
 ) -> dict[str, Any]:
     proposal = plan.proposal
     return {
@@ -205,8 +206,57 @@ def _metadata_for_unit(
         "dedupe_key": proposal.dedupe_key,
         "wait_on": proposal.wait_on,
         "wait_name": wait_name,
+        "wait_logical_id": wait_logical_id,
         "env": dict(proposal.env),
     }
+
+
+def _plan_for_unit(
+    unit: Any,
+    plans: Sequence[PlannedChopProposal],
+) -> PlannedChopProposal:
+    try:
+        return plans[int(unit.source_order)]
+    except (IndexError, ValueError) as exc:
+        from sase.agent.launch_request_types import LaunchRequestError
+
+        raise LaunchRequestError(
+            "invalid_request",
+            unit.logical_id,
+            (
+                "typed AXE chop plan unit "
+                f"{unit.logical_id} has invalid source_order {unit.source_order}"
+            ),
+        ) from exc
+
+
+def _proposal_logical_id_maps(
+    *,
+    typed_plan: LaunchPlanWire,
+    plans: Sequence[PlannedChopProposal],
+) -> tuple[dict[int, str], dict[str, str]]:
+    logical_by_index: dict[int, str] = {}
+    logical_by_id: dict[str, str] = {}
+    for unit in typed_plan.units:
+        plan = _plan_for_unit(unit, plans)
+        proposal = plan.proposal
+        logical_by_index[proposal.index] = unit.logical_id
+        if proposal.proposal_id is not None:
+            logical_by_id[proposal.proposal_id] = unit.logical_id
+    return logical_by_index, logical_by_id
+
+
+def _wait_logical_id(
+    wait_on: int | str | None,
+    *,
+    logical_by_index: Mapping[int, str],
+    logical_by_id: Mapping[str, str],
+) -> str | None:
+    if wait_on is None:
+        return None
+    if isinstance(wait_on, int):
+        return logical_by_index.get(wait_on)
+    return logical_by_id.get(wait_on)
 
 
 def _unit_dispatch_metadata(
@@ -218,21 +268,13 @@ def _unit_dispatch_metadata(
     run_id: str,
 ) -> dict[str, dict[str, Any]]:
     wait_names = _wait_names_by_proposal_index(plans)
+    logical_by_index, logical_by_id = _proposal_logical_id_maps(
+        typed_plan=typed_plan,
+        plans=plans,
+    )
     metadata: dict[str, dict[str, Any]] = {}
     for unit in typed_plan.units:
-        try:
-            plan = plans[int(unit.source_order)]
-        except (IndexError, ValueError) as exc:
-            from sase.agent.launch_request_types import LaunchRequestError
-
-            raise LaunchRequestError(
-                "invalid_request",
-                unit.logical_id,
-                (
-                    "typed AXE chop plan unit "
-                    f"{unit.logical_id} has invalid source_order {unit.source_order}"
-                ),
-            ) from exc
+        plan = _plan_for_unit(unit, plans)
         metadata[unit.logical_id] = _metadata_for_unit(
             plan=plan,
             logical_id=unit.logical_id,
@@ -241,6 +283,11 @@ def _unit_dispatch_metadata(
             chop_name=chop_name,
             run_id=run_id,
             wait_name=wait_names.get(plan.proposal.index),
+            wait_logical_id=_wait_logical_id(
+                plan.proposal.wait_on,
+                logical_by_index=logical_by_index,
+                logical_by_id=logical_by_id,
+            ),
         )
     return metadata
 
@@ -262,6 +309,7 @@ def _typed_admission_record(
                 "proposal_index": unit_meta.get("proposal_index"),
                 "proposal_id": unit_meta.get("proposal_id"),
                 "dedupe_key": unit_meta.get("dedupe_key"),
+                "wait_logical_id": unit_meta.get("wait_logical_id"),
             }
         )
     return {

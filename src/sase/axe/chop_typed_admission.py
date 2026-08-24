@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -22,6 +22,12 @@ from .chop_agents import build_chop_launch_env
 
 AXE_CHOP_SOURCE_SURFACE = "axe_chop"
 UNIT_DISPATCH_METADATA_KEY = "unit_dispatch_metadata"
+
+
+@dataclass(frozen=True)
+class _EffectiveChopWait:
+    wait_on: int | str | None
+    wait_name: str | None
 
 
 def is_axe_chop_typed_request(data: Mapping[str, Any]) -> bool:
@@ -66,7 +72,16 @@ def make_axe_chop_agent_dispatcher(
                 unit_meta=unit_meta,
             )
 
-        prompt, prompt_error = _agent_unit_launch_prompt(payload, unit_meta)
+        effective_wait = _resolve_effective_wait_from_metadata(
+            unit_meta,
+            metadata,
+            admission_root=admission_root,
+        )
+        prompt, prompt_error = _agent_unit_launch_prompt(
+            payload,
+            unit_meta,
+            wait_name=effective_wait.wait_name,
+        )
         if prompt_error is not None:
             return False, None, prompt_error, []
         assert prompt is not None
@@ -87,6 +102,7 @@ def make_axe_chop_agent_dispatcher(
                         result,
                         logical_id=unit.logical_id,
                         fingerprint=fingerprint,
+                        effective_wait=effective_wait,
                     )
                 )
         identity = results[0].agent_name or f"pid:{results[0].pid}"
@@ -101,9 +117,24 @@ def launch_descriptor_from_metadata(
     *,
     logical_id: str | None = None,
     fingerprint: str | None = None,
+    effective_wait: _EffectiveChopWait | None = None,
+    all_metadata: Mapping[str, Mapping[str, Any]] | None = None,
+    admission_root: Path | None = None,
 ) -> dict[str, Any]:
     """Build the chop run launch row for a typed-admitted agent."""
     from sase.artifacts import convert_timestamp_to_artifacts_format
+
+    if effective_wait is None and all_metadata is not None:
+        effective_wait = _resolve_effective_wait_from_metadata(
+            metadata,
+            all_metadata,
+            admission_root=admission_root,
+        )
+    if effective_wait is None:
+        effective_wait = _EffectiveChopWait(
+            metadata.get("wait_on"),
+            _str_or_none(metadata.get("wait_name")),
+        )
 
     timestamp = str(getattr(result, "timestamp", "") or "")
     artifacts_timestamp = str(getattr(result, "artifacts_timestamp", "") or "")
@@ -129,12 +160,104 @@ def launch_descriptor_from_metadata(
         "artifacts_timestamp": artifacts_timestamp,
         "artifacts_dir": str(getattr(result, "artifacts_dir", "") or ""),
         "dedupe_key": _str_or_none(metadata.get("dedupe_key")),
-        "wait_on": metadata.get("wait_on"),
-        "wait_name": _str_or_none(metadata.get("wait_name")),
+        "wait_on": effective_wait.wait_on,
+        "wait_name": effective_wait.wait_name,
         "admission_logical_id": logical_id or _str_or_none(metadata.get("logical_id")),
         "admission_fingerprint": fingerprint
         or _str_or_none(metadata.get("admission_fingerprint")),
     }
+
+
+def _resolve_effective_wait_from_metadata(
+    metadata: Mapping[str, Any],
+    all_metadata: Mapping[str, Mapping[str, Any]],
+    *,
+    admission_root: Path | None,
+) -> _EffectiveChopWait:
+    """Resolve an AXE chop predecessor to the nearest launched agent identity."""
+    if admission_root is None:
+        return _EffectiveChopWait(None, None)
+
+    current_logical_id = _str_or_none(metadata.get("logical_id"))
+    predecessor = _metadata_wait_logical_id(metadata, all_metadata)
+    visited = {current_logical_id} if current_logical_id is not None else set()
+    while predecessor is not None:
+        if predecessor in visited:
+            return _EffectiveChopWait(None, None)
+        visited.add(predecessor)
+        predecessor_meta = all_metadata.get(predecessor)
+        identity = _unit_receipt_identity(admission_root, predecessor)
+        if identity is not None:
+            wait_on = _metadata_proposal_reference(predecessor_meta)
+            return _EffectiveChopWait(
+                wait_on if wait_on is not None else predecessor,
+                identity,
+            )
+        if predecessor_meta is None:
+            return _EffectiveChopWait(None, None)
+        predecessor = _metadata_wait_logical_id(predecessor_meta, all_metadata)
+    return _EffectiveChopWait(None, None)
+
+
+def _metadata_wait_logical_id(
+    metadata: Mapping[str, Any],
+    all_metadata: Mapping[str, Mapping[str, Any]],
+) -> str | None:
+    direct = _str_or_none(
+        metadata.get("wait_logical_id") or metadata.get("wait_on_logical_id")
+    )
+    if direct is not None:
+        return direct
+
+    wait_on = metadata.get("wait_on")
+    if isinstance(wait_on, int) and not isinstance(wait_on, bool):
+        return _logical_id_for_proposal_index(all_metadata, wait_on)
+    wait_id = _str_or_none(wait_on)
+    if wait_id is not None:
+        return _logical_id_for_proposal_id(all_metadata, wait_id)
+    return None
+
+
+def _logical_id_for_proposal_index(
+    all_metadata: Mapping[str, Mapping[str, Any]],
+    proposal_index: int,
+) -> str | None:
+    for key, value in all_metadata.items():
+        if _int_or_none(value.get("proposal_index")) == proposal_index:
+            return _str_or_none(value.get("logical_id")) or key
+    return None
+
+
+def _logical_id_for_proposal_id(
+    all_metadata: Mapping[str, Mapping[str, Any]],
+    proposal_id: str,
+) -> str | None:
+    for key, value in all_metadata.items():
+        if _str_or_none(value.get("proposal_id")) == proposal_id:
+            return _str_or_none(value.get("logical_id")) or key
+    return None
+
+
+def _metadata_proposal_reference(
+    metadata: Mapping[str, Any] | None,
+) -> int | str | None:
+    if metadata is None:
+        return None
+    proposal_id = _str_or_none(metadata.get("proposal_id"))
+    if proposal_id is not None:
+        return proposal_id
+    return _int_or_none(metadata.get("proposal_index"))
+
+
+def _unit_receipt_identity(admission_root: Path, logical_id: str) -> str | None:
+    if not logical_id or "/" in logical_id or "\\" in logical_id:
+        return None
+    from sase.agent.launch_admission_store import UNITS_DIRNAME, read_json
+
+    receipt = read_json(admission_root / UNITS_DIRNAME / f"{logical_id}.json")
+    if not isinstance(receipt, Mapping):
+        return None
+    return _str_or_none(receipt.get("identity"))
 
 
 def _resolve_clan_dispatch_payload(
@@ -198,6 +321,8 @@ def _clan_declared_marker_path(admission_root: Path, clan: str) -> Path:
 def _agent_unit_launch_prompt(
     payload: AgentUnitWire,
     metadata: Mapping[str, Any],
+    *,
+    wait_name: str | None = None,
 ) -> tuple[str | None, str | None]:
     """Rebuild an Axe dispatch prompt with its durable project routing."""
     workspace_tag = _workspace_launch_tag(metadata)
@@ -206,7 +331,10 @@ def _agent_unit_launch_prompt(
         return None, f"missing AXE chop workspace for {logical_id}"
 
     prompt = agent_unit_dispatch_prompt(payload)
-    return _qualify_prompt_with_workspace(prompt, workspace_tag), None
+    prompt = _qualify_prompt_with_workspace(prompt, workspace_tag)
+    if wait_name is not None:
+        prompt = _add_named_wait_to_prompt(prompt, wait_name)
+    return prompt, None
 
 
 def _workspace_launch_tag(metadata: Mapping[str, Any]) -> str | None:
@@ -245,6 +373,28 @@ def _qualify_prompt_with_workspace(prompt: str, workspace_tag: str) -> str:
 
     offset = find_vcs_workflow_tag_prepend_offset(prompt)
     return f"{prompt[:offset]}{workspace_tag}\n{prompt[offset:]}"
+
+
+def _add_named_wait_to_prompt(prompt: str, wait_name: str) -> str:
+    clean_wait_name = wait_name.strip()
+    if not clean_wait_name or "\n" in clean_wait_name or "\r" in clean_wait_name:
+        return prompt
+    lines = prompt.splitlines()
+    if not lines:
+        return f"%wait:{clean_wait_name}\n"
+    insert_at = _after_workspace_line_index(lines)
+    lines.insert(insert_at, f"%wait:{clean_wait_name}")
+    suffix = "\n" if prompt.endswith("\n") else ""
+    return "\n".join(lines) + suffix
+
+
+def _after_workspace_line_index(lines: list[str]) -> int:
+    from sase.xprompt._parsing_vcs_tags import extract_vcs_workflow_tag
+
+    for index, line in enumerate(lines):
+        if extract_vcs_workflow_tag(line) is not None:
+            return index + 1
+    return 0
 
 
 def _unit_metadata(data: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
