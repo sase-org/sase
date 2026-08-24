@@ -10,6 +10,8 @@ from textual.widgets import OptionList, Static
 from textual.worker import WorkerState
 
 import sase.ace.tui.modals.models_panel_provider_modal as provider_modal
+import sase.ace.tui.modals.models_panel_provider_modal_drain as provider_modal_drain
+import sase.ace.tui.modals.models_panel_provider_modal_workers as provider_modal_workers
 from sase.ace.tui.modals.duration_choice_modal import DurationChoiceCancelled
 from sase.ace.tui.modals.model_picker_modal import ModelPickerModal
 from sase.ace.tui.modals.models_panel_duration import (
@@ -180,8 +182,8 @@ async def test_provider_modal_disable_accepts_every_duration_result(
     )
     relative_disable = MagicMock(return_value=disable)
     exact_disable = MagicMock(return_value=disable)
-    monkeypatch.setattr(provider_modal, "disable_provider", relative_disable)
-    monkeypatch.setattr(provider_modal, "disable_provider_until", exact_disable)
+    monkeypatch.setattr(provider_modal_workers, "disable_provider", relative_disable)
+    monkeypatch.setattr(provider_modal_workers, "disable_provider_until", exact_disable)
     monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
 
     def load_snapshot() -> ProviderRoutingSnapshot:
@@ -233,7 +235,7 @@ async def test_provider_modal_disable_writes_and_refreshes_snapshot(
         return after if disable_mock.called else before
 
     load_snapshot_mock = MagicMock(side_effect=load_snapshot)
-    monkeypatch.setattr(provider_modal, "disable_provider", disable_mock)
+    monkeypatch.setattr(provider_modal_workers, "disable_provider", disable_mock)
     monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
     snapshots: list[ProviderRoutingSnapshot] = []
 
@@ -282,9 +284,11 @@ async def test_provider_modal_hard_disable_prompts_for_drain_preview(
     def load_snapshot() -> ProviderRoutingSnapshot:
         return after if disable_mock.called else before
 
-    monkeypatch.setattr(provider_modal, "disable_provider", disable_mock)
-    monkeypatch.setattr(provider_modal, "plan_provider_drain", plan_mock)
-    monkeypatch.setattr(provider_modal, "_provider_drain_flag_enabled", lambda: True)
+    monkeypatch.setattr(provider_modal_workers, "disable_provider", disable_mock)
+    monkeypatch.setattr(provider_modal_workers, "plan_provider_drain", plan_mock)
+    monkeypatch.setattr(
+        provider_modal_workers, "_provider_drain_flag_enabled", lambda: True
+    )
     monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
 
     async with ModelsPanelTestApp().run_test() as pilot:
@@ -315,13 +319,15 @@ async def test_provider_modal_empty_drain_preview_stays_silent(
         disables={"claude": disable},
     )
     disable_mock = MagicMock(return_value=disable)
-    monkeypatch.setattr(provider_modal, "disable_provider", disable_mock)
+    monkeypatch.setattr(provider_modal_workers, "disable_provider", disable_mock)
     monkeypatch.setattr(
-        provider_modal,
+        provider_modal_workers,
         "plan_provider_drain",
         MagicMock(return_value=_drain_plan()),
     )
-    monkeypatch.setattr(provider_modal, "_provider_drain_flag_enabled", lambda: True)
+    monkeypatch.setattr(
+        provider_modal_workers, "_provider_drain_flag_enabled", lambda: True
+    )
     monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
 
     async with ModelsPanelTestApp().run_test() as pilot:
@@ -356,9 +362,11 @@ async def test_provider_modal_soft_disable_does_not_plan_drain(
     )
     disable_mock = MagicMock(return_value=disable)
     plan_mock = MagicMock()
-    monkeypatch.setattr(provider_modal, "disable_provider", disable_mock)
-    monkeypatch.setattr(provider_modal, "plan_provider_drain", plan_mock)
-    monkeypatch.setattr(provider_modal, "_provider_drain_flag_enabled", lambda: True)
+    monkeypatch.setattr(provider_modal_workers, "disable_provider", disable_mock)
+    monkeypatch.setattr(provider_modal_workers, "plan_provider_drain", plan_mock)
+    monkeypatch.setattr(
+        provider_modal_workers, "_provider_drain_flag_enabled", lambda: True
+    )
     monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
 
     async with ModelsPanelTestApp().run_test() as pilot:
@@ -388,9 +396,11 @@ async def test_provider_modal_flag_off_does_not_plan_drain(
     )
     disable_mock = MagicMock(return_value=disable)
     plan_mock = MagicMock()
-    monkeypatch.setattr(provider_modal, "disable_provider", disable_mock)
-    monkeypatch.setattr(provider_modal, "plan_provider_drain", plan_mock)
-    monkeypatch.setattr(provider_modal, "_provider_drain_flag_enabled", lambda: False)
+    monkeypatch.setattr(provider_modal_workers, "disable_provider", disable_mock)
+    monkeypatch.setattr(provider_modal_workers, "plan_provider_drain", plan_mock)
+    monkeypatch.setattr(
+        provider_modal_workers, "_provider_drain_flag_enabled", lambda: False
+    )
     monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
 
     async with ModelsPanelTestApp().run_test() as pilot:
@@ -419,7 +429,7 @@ async def test_provider_modal_relaunch_decision_submits_drain(
         submitted.append({"provider": provider, "model": model})
         return True
 
-    monkeypatch.setattr(provider_modal, "submit_provider_drain", fake_submit)
+    monkeypatch.setattr(provider_modal_drain, "submit_provider_drain", fake_submit)
 
     async with ModelsPanelTestApp().run_test() as pilot:
         modal = ProviderRoutingModal(before, load_snapshot=lambda: before)
@@ -455,7 +465,7 @@ async def test_provider_modal_model_decision_opens_picker() -> None:
 
 def test_provider_modal_drain_completion_message_uses_counts() -> None:
     assert (
-        provider_modal._drain_completion_message(
+        provider_modal_drain._drain_completion_message(
             {"counts": {"relaunched": 4, "skipped": 1, "failed": 0}}
         )
         == "Relaunched 4 agents; 1 left alone"
@@ -483,7 +493,7 @@ async def test_provider_modal_idempotent_disable_does_not_emit_change(
     )
     disable_mock = MagicMock(return_value=after_disable)
     on_snapshot = MagicMock()
-    monkeypatch.setattr(provider_modal, "disable_provider", disable_mock)
+    monkeypatch.setattr(provider_modal_workers, "disable_provider", disable_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
         modal = ProviderRoutingModal(
@@ -525,7 +535,7 @@ async def test_provider_modal_disable_replacement_with_new_expiry_emits_change(
     on_snapshot = MagicMock()
     disable_mock = MagicMock(return_value=after_disable)
     monkeypatch.setattr(
-        provider_modal,
+        provider_modal_workers,
         "disable_provider",
         disable_mock,
     )
@@ -559,7 +569,7 @@ async def test_provider_modal_enable_writes_and_refreshes_snapshot(monkeypatch) 
     after = _snapshot(_status("claude"), disables={})
     enable_mock = MagicMock(return_value=True)
     on_snapshot = MagicMock()
-    monkeypatch.setattr(provider_modal, "enable_provider", enable_mock)
+    monkeypatch.setattr(provider_modal_workers, "enable_provider", enable_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
         modal = ProviderRoutingModal(
@@ -582,7 +592,7 @@ async def test_provider_modal_enable_writes_and_refreshes_snapshot(monkeypatch) 
 async def test_provider_modal_enabled_provider_enable_is_noop(monkeypatch) -> None:
     before = _snapshot(_status("claude"))
     enable_mock = MagicMock()
-    monkeypatch.setattr(provider_modal, "enable_provider", enable_mock)
+    monkeypatch.setattr(provider_modal_workers, "enable_provider", enable_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
         modal = ProviderRoutingModal(before, load_snapshot=lambda: before)
@@ -610,7 +620,7 @@ async def test_provider_modal_idempotent_enable_does_not_emit_change(
     )
     enable_mock = MagicMock(return_value=False)
     on_snapshot = MagicMock()
-    monkeypatch.setattr(provider_modal, "enable_provider", enable_mock)
+    monkeypatch.setattr(provider_modal_workers, "enable_provider", enable_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
         modal = ProviderRoutingModal(
@@ -639,7 +649,7 @@ async def test_provider_modal_write_failure_reports_error(monkeypatch) -> None:
     def fail_disable(*_args, **_kwargs):
         raise RuntimeError("provider store busy")
 
-    monkeypatch.setattr(provider_modal, "disable_provider", fail_disable)
+    monkeypatch.setattr(provider_modal_workers, "disable_provider", fail_disable)
 
     async with ModelsPanelTestApp().run_test() as pilot:
         modal = ProviderRoutingModal(
@@ -725,7 +735,7 @@ async def test_provider_modal_s_writes_soft_disable_with_picked_duration(
     def load_snapshot() -> ProviderRoutingSnapshot:
         return after if disable_mock.called else before
 
-    monkeypatch.setattr(provider_modal, "disable_provider", disable_mock)
+    monkeypatch.setattr(provider_modal_workers, "disable_provider", disable_mock)
     monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
 
     async with ModelsPanelTestApp().run_test() as pilot:
@@ -779,7 +789,7 @@ async def test_provider_modal_d_on_soft_row_offers_keep_current_window(
     def load_snapshot() -> ProviderRoutingSnapshot:
         return after if exact_disable.called else before
 
-    monkeypatch.setattr(provider_modal, "disable_provider_until", exact_disable)
+    monkeypatch.setattr(provider_modal_workers, "disable_provider_until", exact_disable)
     monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
 
     async with ModelsPanelTestApp().run_test() as pilot:
@@ -839,7 +849,7 @@ async def test_provider_modal_x_clears_soft_disable(monkeypatch) -> None:
     )
     after = _snapshot(_status("claude"), disables={})
     enable_mock = MagicMock(return_value=True)
-    monkeypatch.setattr(provider_modal, "enable_provider", enable_mock)
+    monkeypatch.setattr(provider_modal_workers, "enable_provider", enable_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
         modal = ProviderRoutingModal(before, load_snapshot=lambda: after)
