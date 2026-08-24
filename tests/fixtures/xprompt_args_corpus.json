@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "description": "Shared Python/Rust xprompt argument-list corpus. Each case.source is the inside of a parenthesized argument list. positional/named are the bound values after [[...]] stripping.",
+  "cases": [
+    {
+      "id": "two-text-blocks",
+      "source": "[[a]], [[b]]",
+      "positional": ["a", "b"],
+      "named": {}
+    },
+    {
+      "id": "named-text-block-and-bare",
+      "source": "foo=[[a]], bar=1",
+      "positional": [],
+      "named": {
+        "foo": "a",
+        "bar": "1"
+      }
+    },
+    {
+      "id": "commas-inside-text-block",
+      "source": "[[x, y]]",
+      "positional": ["x, y"],
+      "named": {}
+    },
+    {
+      "id": "inner-non-terminating-marker",
+      "source": "[[a [b [c]] d, e]]",
+      "positional": ["a [b [c]] d, e"],
+      "named": {}
+    },
+    {
+      "id": "clan-summary-inner-marker",
+      "source": "research, tribe=study, summary=[[note: use ]] here, and more]]",
+      "positional": ["research"],
+      "named": {
+        "tribe": "study",
+        "summary": "note: use ]] here, and more"
+      }
+    },
+    {
+      "id": "overlapping-content-closer",
+      "source": "summary=[[[bold]Research[/bold]]]",
+      "positional": [],
+      "named": {
+        "summary": "[bold]Research[/bold]"
+      }
+    },
+    {
+      "id": "trailing-closer-ambiguity",
+      "source": "[[foo]]]]",
+      "positional": ["foo]]"],
+      "named": {}
+    },
+    {
+      "id": "plus-in-text-block-not-decoded",
+      "source": "[[Compare C++ and Rust]]",
+      "positional": ["Compare C++ and Rust"],
+      "named": {}
+    }
+  ]
+}

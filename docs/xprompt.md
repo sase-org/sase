@@ -598,13 +598,28 @@ For multi-line argument values, use `[[...]]` delimiters:
 ]])
 ```
 
+A `[[` opens a text block. It closes at the first `]]` whose next non-whitespace
+character is an argument terminator — `,`, `)`, `}`, `|`, or the end of the scanned
+region. A `]]` anywhere else is ordinary content, so prose such as
+`` `[<web>:<keyword> [...]]` `` does not end the argument.
+
 Text blocks automatically strip leading whitespace from the first line and dedent
 continuation lines by their minimum common indentation.
 
+Shorthand free-text payloads (`#name: text`, `#name:: text`, and `#name(args): text`)
+are bound structurally during expansion. The captured text is not rewritten into
+`#name([[...]])` and re-lexed, so commas, `]]`, `+`, and unbalanced parentheses in user
+prose stay inside the bound value.
+
+A text block whose content itself ends with `]]` (`#name([[foo]]]])`) resolves one `]`
+short, because first-match cannot distinguish that content from the terminator. Prefer
+an explicit quoted argument in that case, for example `#name("foo]]")`.
+
 ## Shorthand Syntax
 
-Shorthand syntax converts line-oriented prompt text into `#name([[text]])` calls,
-avoiding the need for explicit text block delimiters.
+Shorthand syntax captures line-oriented prompt text as a single argument without
+requiring explicit `[[...]]` delimiters. Expansion binds that payload structurally; it
+does not round-trip the prose through source syntax.
 
 ### Single-Colon Shorthand
 
@@ -616,8 +631,8 @@ string:
 and performance issues.
 ```
 
-This is equivalent to
-`#review([[Please check this code for correctness\nand performance issues.]])`.
+The captured payload is the same value `#review([[...]])` would bind, but expansion does
+not rewrite the source into that form.
 
 ### Double-Colon Shorthand
 
