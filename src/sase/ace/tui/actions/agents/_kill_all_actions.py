@@ -31,18 +31,24 @@ class AgentKillAllActionsMixin:
         """Kill running and dismiss done agents from a candidate list."""
         from ._core import DISMISSABLE_STATUSES
 
+        from ._proc_shell_dismiss import (
+            partition_proc_shells,
+            proc_shell_count_phrase,
+        )
+
+        others, proc_shells, _active = partition_proc_shells(agents)
         killable = [
             a
-            for a in agents
+            for a in others
             if a.pid is not None and a.status not in DISMISSABLE_STATUSES
         ]
         dismissable = [
             a
-            for a in agents
+            for a in others
             if a.status in DISMISSABLE_STATUSES and a.raw_suffix is not None
         ]
 
-        if not killable and not dismissable:
+        if not killable and not dismissable and not proc_shells:
             self.notify(empty_message, severity="warning")  # type: ignore[attr-defined]
             return
 
@@ -66,12 +72,18 @@ class AgentKillAllActionsMixin:
                     loaded_agents,
                 ).subject_lines("Dismiss")
             )
+        if proc_shells:
+            desc_parts.append(f"Dismiss {proc_shell_count_phrase(len(proc_shells))}")
         agent_description = "\n".join(desc_parts)
 
         from ...modals import ConfirmKillAllModal
 
         def on_dismiss(confirmed: bool | None) -> None:
-            if confirmed:
+            if not confirmed:
+                return
+            if killable or dismissable:
                 self._do_bulk_kill_agents(killable, dismissable)  # type: ignore[attr-defined]
+            if proc_shells:
+                self._dismiss_proc_shell_rows(proc_shells)  # type: ignore[attr-defined]
 
         self.push_screen(ConfirmKillAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]

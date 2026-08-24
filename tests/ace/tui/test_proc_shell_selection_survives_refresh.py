@@ -36,6 +36,7 @@ class ProcShellFakeApp(ProcCompletionActionsMixin, FakeAgentApp):
     def __init__(self) -> None:
         super().__init__()
         self._proc_projection = ProcProjection()
+        self._dismissed_proc_shells: set[str] = set()
         self._session_completion_callbacks: dict[
             str, tuple[Callable[..., Any], Any]
         ] = {}
@@ -282,3 +283,44 @@ def test_observed_proc_identity_is_stable_when_durable_row_replaces_overlay(
     assert (
         proc_shell_agents_from_observed(projection.rows)[0].identity == overlay_identity
     )
+
+
+def test_dismissed_terminal_proc_shell_does_not_return_on_projection_sync() -> None:
+    from sase.ace.tui.actions.agents._proc_shell_dismiss import ProcShellDismissMixin
+
+    class _App(ProcShellDismissMixin, ProcShellFakeApp):
+        pass
+
+    alpha = _make_agent(cl_name="alpha", raw_suffix="alpha")
+    beta = _make_agent(cl_name="beta", raw_suffix="beta")
+    app = _App()
+    row = _observed_proc(status="success")
+    proc_shell = _seed_roster_with_proc_shell(app, [alpha, beta], row)
+    proc_identity = proc_shell.identity
+    finalize_calls = 0
+    original_finalize = app._finalize_agent_list
+
+    def _counting_finalize(*args: Any, **kwargs: Any) -> None:
+        nonlocal finalize_calls
+        finalize_calls += 1
+        original_finalize(*args, **kwargs)
+
+    app._finalize_agent_list = _counting_finalize  # type: ignore[method-assign]
+    app._dismiss_proc_shell_rows([proc_shell])
+    finalize_calls = 0
+    app._sync_proc_shell_agents_from_projection()
+
+    assert finalize_calls == 0
+    assert all(agent.identity != proc_identity for agent in app._agents)
+    assert all(agent.identity != proc_identity for agent in app._agents_with_children)
+    assert proc_shell.proc_id in app._dismissed_proc_shells
+
+    _apply_disk_refresh(
+        app,
+        [alpha, beta],
+        on_agents_tab=True,
+        selected_identity=alpha.identity,
+    )
+
+    assert all(agent.identity != proc_identity for agent in app._agents)
+    assert all(agent.identity != proc_identity for agent in app._agents_with_children)

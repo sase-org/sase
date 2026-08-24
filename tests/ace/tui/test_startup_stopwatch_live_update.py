@@ -212,6 +212,7 @@ def test_start_post_mount_background_loads_schedules_all_once() -> None:
     assert scheduled.count(app._run_axe_startup_init) == 1
     assert scheduled.count(app._run_mount_state_loads) == 1
     assert scheduled.count(app._run_agents_fold_state_load) == 1
+    assert scheduled.count(app._run_dismissed_proc_shells_startup_prune) == 1
     assert scheduled.count(app._run_startup_update_toast_check) == 1
     assert (
         sum(

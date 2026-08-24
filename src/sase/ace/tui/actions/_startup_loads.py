@@ -102,6 +102,14 @@ class StartupLoadsMixin:
             )
         except Exception:
             log.exception("Failed to schedule startup axe init")
+        schedule_proc_shell_prune = getattr(
+            self, "_schedule_dismissed_proc_shells_startup_prune", None
+        )
+        if callable(schedule_proc_shell_prune):
+            try:
+                schedule_proc_shell_prune()
+            except Exception:
+                log.exception("Failed to schedule startup dismissed-proc-shell prune")
         try:
             self._start_artifact_watcher()
         except Exception:
@@ -331,3 +339,40 @@ class StartupLoadsMixin:
             )
         if report.changed:
             self._schedule_agents_async_refresh(source="dismissed_index_sync")
+
+    def _schedule_dismissed_proc_shells_startup_prune(self: Any) -> None:
+        """Schedule dismissed-proc-shell retention prune after first paint."""
+        try:
+            self.run_worker(
+                cast(Any, self._run_dismissed_proc_shells_startup_prune),
+                thread=False,
+                exclusive=False,
+                group="startup-loads",
+            )
+        except Exception:
+            log.exception("Failed to schedule startup dismissed-proc-shell prune")
+
+    async def _run_dismissed_proc_shells_startup_prune(self: Any) -> None:
+        """Bound the dismissed-proc-shell set to ids still in the proc store.
+
+        ``_init_app_state`` only loads the JSON; intersecting with ``read_procs()``
+        is store I/O and must not run before first paint.
+        """
+        import asyncio
+
+        from sase.ace.dismissed_proc_shells import prune_dismissed_proc_shells
+        from sase.procs import read_procs
+
+        before = set(getattr(self, "_dismissed_proc_shells", ()))
+
+        def _prune() -> set[str]:
+            live_ids = {proc.proc_id for proc in read_procs()}
+            return prune_dismissed_proc_shells(live_ids)
+
+        try:
+            pruned = await asyncio.to_thread(_prune)
+        except Exception:
+            log.exception("Startup dismissed-proc-shell prune failed")
+            return
+        added_during = set(getattr(self, "_dismissed_proc_shells", ())) - before
+        self._dismissed_proc_shells = pruned | added_during

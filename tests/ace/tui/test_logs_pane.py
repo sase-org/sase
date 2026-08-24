@@ -229,17 +229,20 @@ async def test_logs_tab_g_and_shift_g_scroll_detail_extremes(log_dir: Path) -> N
         option_list = pane.query_one("#log-source-list", OptionList)
         highlighted_before = option_list.highlighted
         scroll = pane.query_one("#log-detail-scroll", VerticalScroll)
+        # Load finishing does not mean the detail scroller has laid out yet.
+        # G clamps to the current max, so wait until the pane is scrollable.
+        await wait_for(pilot, lambda: scroll.max_scroll_y > 0)
 
         # G jumps to the bottom of the detail pane.
         await pilot.press("G")
-        await pilot.pause()
-        assert scroll.max_scroll_y > 0  # pane really is scrollable
-        assert scroll.scroll_y == scroll.max_scroll_y
+        await wait_for(
+            pilot,
+            lambda: scroll.max_scroll_y > 0 and scroll.scroll_y == scroll.max_scroll_y,
+        )
 
         # g returns to the top.
         await pilot.press("g")
-        await pilot.pause()
-        assert scroll.scroll_y == 0
+        await wait_for(pilot, lambda: scroll.scroll_y == 0)
 
         # The highlighted log source is untouched by g / G.
         assert option_list.highlighted == highlighted_before

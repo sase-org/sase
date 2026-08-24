@@ -115,6 +115,17 @@ def test_proc_shell_projection_selects_standalone_xprompt_procs_and_dedupes(
     assert "password" not in (agent.proc_log_tail or "")
 
 
+def test_proc_shell_projection_skips_dismissed_proc_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_projection_io(monkeypatch)
+    skipped = proc_shell_agents_from_observed(
+        [_proc()],
+        dismissed_proc_ids={"abc123def456"},
+    )
+    assert skipped == []
+
+
 @pytest.mark.parametrize(
     ("proc_status", "agent_status", "bucket"),
     [

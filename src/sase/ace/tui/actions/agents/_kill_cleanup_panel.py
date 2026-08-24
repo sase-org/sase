@@ -180,6 +180,8 @@ class AgentCleanupPanelMixin:
             if agent.identity in seen:
                 return
             if agent.is_proc_shell:
+                # Planner-backed cleanup has no proc-shell concept. Dismiss
+                # those rows through the Agents-tab proc-shell path instead.
                 return
             seen.add(agent.identity)
             targets.append(agent)

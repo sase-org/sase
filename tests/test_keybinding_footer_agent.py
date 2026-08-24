@@ -97,6 +97,7 @@ def test_keybinding_footer_agent_bindings_terminal_proc_shell() -> None:
     bindings = footer._compute_agent_bindings(agent)
 
     assert ("x", "kill proc") not in bindings
+    assert ("x", "dismiss proc") in bindings
     assert ("x", "dismiss") not in bindings
     assert ("r", "retry") not in bindings
     assert (_edit_hooks_key(footer), "fork") not in bindings

@@ -178,6 +178,13 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                 expanded_agents.append(candidate)
         agents = expanded_agents
 
+        from ._proc_shell_dismiss import (
+            partition_proc_shells,
+            proc_shell_count_phrase,
+        )
+
+        agents, proc_dismissable, active_proc_shells = partition_proc_shells(agents)
+
         killable: list[Agent] = [
             a
             for a in agents
@@ -206,16 +213,34 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                 loaded_agents,
             )
             desc_parts.extend(dismiss_summary.subject_lines("Dismiss"))
+        if proc_dismissable:
+            desc_parts.append(
+                f"Dismiss {proc_shell_count_phrase(len(proc_dismissable))}"
+            )
+        skip_line = ""
+        if active_proc_shells:
+            skip_line = "Skipping " + proc_shell_count_phrase(
+                len(active_proc_shells), running=True
+            )
+            desc_parts.append(skip_line)
         agent_description = "\n".join(desc_parts)
 
         from ...modals import ConfirmDismissAllModal, ConfirmKillAllModal
 
         confirm = on_confirm or self._do_bulk_kill_agents  # type: ignore[attr-defined]
 
+        if not killable and not dismissable and not proc_dismissable:
+            if skip_line:
+                self.notify(skip_line, severity="warning")  # type: ignore[attr-defined]
+            return
+
         def on_dismiss(confirmed: bool | None) -> None:
             if not confirmed:
                 return
-            confirm(killable, dismissable)
+            if killable or dismissable:
+                confirm(killable, dismissable)
+            if proc_dismissable:
+                self._dismiss_proc_shell_rows(proc_dismissable)  # type: ignore[attr-defined]
 
         if killable:
             self.push_screen(ConfirmKillAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]

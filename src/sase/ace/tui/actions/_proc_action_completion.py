@@ -146,7 +146,10 @@ class ProcCompletionActionsMixin(ProcSubmissionActionsMixin):
         current_proc_shells = [
             agent for agent in current_unfiltered if agent.is_proc_shell
         ]
-        proc_shells = proc_shell_agents_from_observed(projection.rows)
+        proc_shells = proc_shell_agents_from_observed(
+            projection.rows,
+            dismissed_proc_ids=getattr(self, "_dismissed_proc_shells", ()),
+        )
         if proc_shell_agent_signature(
             current_proc_shells
         ) == proc_shell_agent_signature(proc_shells):

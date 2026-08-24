@@ -127,6 +127,7 @@ class LogsPane(PaneEntryJumpMixin, CopyModeForwardingMixin, Vertical):
         self._bookmark = bookmark or SelectionBookmark()
         self._error_target = error_target
         self._focus_scroll_retries = 0
+        self._bottom_scroll_retries = 0
         self._selected_index = restore_selection_by_identity(
             self._sources,
             prior_identity=self._bookmark.identity,
@@ -398,8 +399,21 @@ class LogsPane(PaneEntryJumpMixin, CopyModeForwardingMixin, Vertical):
 
     def action_scroll_to_bottom(self) -> None:
         """Scroll the detail pane to the very bottom (highlight unchanged)."""
-        scroll = self.query_one("#log-detail-scroll", VerticalScroll)
-        self._force_scroll_detail_to(scroll.max_scroll_y)
+        self._scroll_detail_end()
+
+    def _scroll_detail_end(self) -> None:
+        """Jump to the current bottom, retrying while layout still reports 0."""
+        try:
+            scroll = self.query_one("#log-detail-scroll", VerticalScroll)
+            retries = self._bottom_scroll_retries
+            if int(scroll.max_scroll_y) == 0 and retries < 3:
+                self._bottom_scroll_retries = retries + 1
+                scroll.call_after_refresh(self._scroll_detail_end)
+                return
+            self._bottom_scroll_retries = 0
+            self._force_scroll_detail_to(scroll.max_scroll_y)
+        except Exception:
+            self._bottom_scroll_retries = 0
 
     def _scroll_detail_home(self) -> None:
         try:

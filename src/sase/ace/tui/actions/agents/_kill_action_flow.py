@@ -68,7 +68,12 @@ class AgentKillActionFlowMixin:
             return
 
         if agent.is_proc_shell:
-            self._handle_proc_shell_kill_action(agent)  # type: ignore[attr-defined]
+            from sase.procs import ACTIVE_PROC_STATUSES
+
+            if agent.proc_status in ACTIVE_PROC_STATUSES:
+                self._handle_proc_shell_kill_action(agent)  # type: ignore[attr-defined]
+            else:
+                self._dismiss_proc_shell_rows([agent])  # type: ignore[attr-defined]
             return
 
         if agent.is_clan_container:
@@ -170,8 +175,18 @@ class AgentKillActionFlowMixin:
             )
             return
 
+        from sase.procs import ACTIVE_PROC_STATUSES
+
         targets = self._agent_cleanup_targets_from_candidates(panel_agents)  # type: ignore[attr-defined]
-        if not targets or self._resolve_panel_cleanup_focus() != focus:
+        proc_shells = [
+            agent
+            for agent in panel_agents
+            if getattr(agent, "is_proc_shell", False)
+            and agent.proc_status not in ACTIVE_PROC_STATUSES
+        ]
+        if (
+            not targets and not proc_shells
+        ) or self._resolve_panel_cleanup_focus() != focus:
             self.notify(  # type: ignore[attr-defined]
                 f"{scope} membership changed; nothing cleaned up",
                 severity="warning",
@@ -182,7 +197,7 @@ class AgentKillActionFlowMixin:
 
         label = agent_panel_label(focus.panel_key)
         self._present_bulk_kill_modal(  # type: ignore[attr-defined]
-            targets,
+            [*targets, *proc_shells],
             header=f"Panel: {label}",
         )
 

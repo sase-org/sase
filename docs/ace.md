@@ -2023,9 +2023,11 @@ with a Bash/Python language badge, current phase/status, elapsed time, and proje
 a panel title reports it in a separate `▣<count>` chip alongside the ordinary agent
 metrics. Selecting one opens a `PROC SHELL` detail (status/phase timeline, project/
 workspace/cwd, language, code digest and safe preview, waits, condition result,
-timeouts, and a bounded live-log tail) and routes stop/kill through the native proc
-service with confirmation. The same proc shell is also visible from the
-[Procs pane](#durable-procs). See
+timeouts, and a bounded live-log tail). `x` kills a running stand-alone proc shell
+through the native proc service with confirmation, and dismisses a finished one with no
+confirmation. Dismissal only clears the Agents-tab row — the proc stays visible in the
+[Procs pane](#durable-procs) and in `sase proc show`, and a dismissed Agents-tab row
+does not come back. See
 [Experimental typed launch units](xprompt.md#experimental-typed-launch-units) for the
 directives that create it.
 

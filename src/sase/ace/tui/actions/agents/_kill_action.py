@@ -13,6 +13,7 @@ from ._kill_cleanup_clan import AgentCleanupClanMixin
 from ._kill_cleanup_panel import AgentCleanupPanelMixin
 from ._kill_cleanup_selection import AgentCleanupSelectionMixin
 from ._monitor_stop_flow import MonitorStopActionFlowMixin
+from ._proc_shell_dismiss import ProcShellDismissMixin
 from sase.project_display_names import humanize_cl_name as humanize_cl_name
 
 if TYPE_CHECKING:
@@ -27,6 +28,7 @@ class AgentKillMixin(
     AgentCleanupPanelMixin,
     AgentCleanupClanMixin,
     AgentCleanupSelectionMixin,
+    ProcShellDismissMixin,
     MonitorStopActionFlowMixin,
     AgentKillActionFlowMixin,
 ):

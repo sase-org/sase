@@ -291,13 +291,11 @@ class KeybindingBindingsMixin:
             return bindings
 
         if getattr(agent, "is_proc_shell", False):
-            if (
-                agent.proc_status in ACTIVE_PROC_STATUSES
-                and marked_count == 0
-                and not panel_focused
-                and not group_focused
-            ):
-                bindings.append((x, "kill proc"))
+            if marked_count == 0 and not panel_focused and not group_focused:
+                if agent.proc_status in ACTIVE_PROC_STATUSES:
+                    bindings.append((x, "kill proc"))
+                else:
+                    bindings.append((x, "dismiss proc"))
             if completed_count > 0:
                 bindings.append(
                     (

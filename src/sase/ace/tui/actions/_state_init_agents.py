@@ -267,6 +267,7 @@ def init_agent_state(self: Any) -> None:
         dismissed_agents_file_signature,
         load_dismissed_agents,
     )
+    from ...dismissed_proc_shells import load_dismissed_proc_shells
 
     self._last_unread_ids = set()
     self._delivered_notification_activity_cursors = set()
@@ -287,6 +288,9 @@ def init_agent_state(self: Any) -> None:
     self._dismissed_agents_disk_signature = dismissed_agents_file_signature()
     self._dismissed_agents_disk_identities = set(self._dismissed_agents)
     self._dismissed_agents_disk_signature_initialized = True
+    # Single small JSON read. Do not prune here: ``_init_app_state`` runs
+    # before first paint. StartupLoadsMixin prunes off the paint path.
+    self._dismissed_proc_shells = load_dismissed_proc_shells()
     # The artifact-index dismissed-projection sync is deliberately NOT
     # run here: it is O(archive) on signature drift (and unbounded on
     # a corrupt index), and __init__ runs before Textual ever paints.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 import json
 import re
 from typing import Any
@@ -31,11 +31,18 @@ _SENSITIVE_LINE_RE = re.compile(
 )
 
 
-def proc_shell_agents_from_observed(rows: Sequence[ObservedProc]) -> list[Agent]:
+def proc_shell_agents_from_observed(
+    rows: Sequence[ObservedProc],
+    *,
+    dismissed_proc_ids: Collection[str] = (),
+) -> list[Agent]:
     """Project observer-cached proc-shell rows into presentation-only Agent rows."""
     selected: dict[str, ObservedProc] = {}
+    dismissed = set(dismissed_proc_ids)
     for row in rows:
         if not _is_standalone_xprompt_row(row):
+            continue
+        if row.proc_id in dismissed:
             continue
         selected.setdefault(row.proc_id, row)
     return [_observed_proc_to_agent(row) for row in selected.values()]
