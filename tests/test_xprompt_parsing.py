@@ -74,14 +74,14 @@ def test_parse_args_text_block_compatibility_cases(
     assert named == expected_named
 
 
-def test_parse_args_decodes_plus_space_substitution() -> None:
-    """Application+Support is decoded in positional and named values."""
+def test_parse_args_does_not_decode_plus_space_substitution() -> None:
+    """Paren/comma arguments never decode `+`, so `C++` in prose survives."""
     positional, named = parse_args(
         "/Users/me/Library/Application+Support/sase, root=/tmp/Application+Support"
     )
 
-    assert positional == ["/Users/me/Library/Application Support/sase"]
-    assert named == {"root": "/tmp/Application Support"}
+    assert positional == ["/Users/me/Library/Application+Support/sase"]
+    assert named == {"root": "/tmp/Application+Support"}
 
 
 def test_parse_workflow_reference_plus() -> None:
@@ -109,14 +109,35 @@ def test_parse_workflow_reference_paren() -> None:
     assert named == {"key": "b"}
 
 
-def test_parse_workflow_reference_paren_decodes_plus_space_substitution() -> None:
-    """Test parse_workflow_reference decodes plus substitution in paren args."""
+def test_parse_workflow_reference_paren_does_not_decode_plus_space_substitution() -> (
+    None
+):
+    """Test parse_workflow_reference never decodes plus substitution in paren args."""
     name, pos, named = parse_workflow_reference(
         "myworkflow(/Users/me/Library/Application+Support/sase, root=/tmp/Application+Support)"
     )
     assert name == "myworkflow"
-    assert pos == ["/Users/me/Library/Application Support/sase"]
-    assert named == {"root": "/tmp/Application Support"}
+    assert pos == ["/Users/me/Library/Application+Support/sase"]
+    assert named == {"root": "/tmp/Application+Support"}
+
+
+def test_parse_workflow_reference_backtick_colon_does_not_decode() -> None:
+    """Backtick-delimited colon arguments are quoted and never decoded."""
+    name, pos, named = parse_workflow_reference("myworkflow:`Compare C++ and Rust`")
+    assert name == "myworkflow"
+    assert pos == ["`Compare C++ and Rust`"]
+    assert named == {}
+
+
+def test_parse_workflow_reference_shorthand_text_does_not_decode() -> None:
+    """`: `/`:: ` free text is never decoded, so `C++` in prose survives."""
+    name, pos, _ = parse_workflow_reference("myworkflow: Compare C++ and Rust")
+    assert name == "myworkflow"
+    assert pos == ["Compare C++ and Rust"]
+
+    name, pos, _ = parse_workflow_reference("myworkflow:: Compare C++ and Rust")
+    assert name == "myworkflow"
+    assert pos == ["Compare C++ and Rust"]
 
 
 def test_paren_shorthand_multiline_double_newline() -> None:

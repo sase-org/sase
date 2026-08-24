@@ -28,6 +28,11 @@ def decode_xprompt_arg_value(value: str) -> str:
 
     Bare colon arguments are whitespace-delimited, so ``+`` is accepted as the
     space substitution for path-like values such as ``Application+Support``.
+
+    Callers MUST apply this only to the bare, unquoted ``#name:a,b`` colon
+    argument form. Paren arguments, quoted values, ``[[...]]`` text blocks,
+    backtick colon arguments, and ``: ``/``:: `` free text must not be
+    decoded, since a literal ``+`` in prose (``C++``) is not a space.
     """
     return value.replace("+", " ")
 
@@ -366,8 +371,7 @@ def parse_workflow_reference(
         and ":" not in workflow_ref
         and "(" not in workflow_ref
     ):
-        positional_args, named_args = decode_xprompt_args(["true"], {})
-        return workflow_ref[:-1], positional_args, named_args
+        return workflow_ref[:-1], ["true"], {}
 
     # Parenthesis syntax: workflow(args) or workflow(args): text
     if "(" in workflow_ref:
@@ -384,17 +388,16 @@ def parse_workflow_reference(
                 positional_args, named_args = [], {}
 
             # Handle text after closing paren: "): text" or "):: text"
+            # (free text, never decoded) or a bare "):value" (decoded like
+            # any other bare colon argument).
             rest = workflow_ref[close_paren + 1 :]
             if rest.startswith(":: "):
-                positional_args.append(decode_xprompt_arg_value(rest[3:]))
+                positional_args.append(rest[3:])
             elif rest.startswith(": "):
-                positional_args.append(decode_xprompt_arg_value(rest[2:]))
+                positional_args.append(rest[2:])
             elif rest.startswith(":") and len(rest) > 1:
                 positional_args.append(decode_xprompt_arg_value(rest[1:]))
 
-            positional_args, named_args = decode_xprompt_args(
-                positional_args, named_args
-            )
             return workflow_name, positional_args, named_args
         return workflow_name, [], {}
 
@@ -403,15 +406,18 @@ def parse_workflow_reference(
         colon_idx = workflow_ref.index(":")
         workflow_name = workflow_ref[:colon_idx]
         rest = workflow_ref[colon_idx + 1 :]
-        # Double-colon shorthand: workflow:: text -> strip the extra colon
+        # Double-colon shorthand: workflow:: text -> strip the extra colon.
+        # This is free text, never decoded.
         if rest.startswith(": "):
-            positional_args, named_args = decode_xprompt_args([rest[2:]], {})
-            return workflow_name, positional_args, named_args
-        # The entire rest (with or without leading space) is a single positional arg
-        # But we strip leading space for multi-line syntax aesthetics
+            return workflow_name, [rest[2:]], {}
+        # Single-colon multi-line shorthand: workflow: text. Free text, never
+        # decoded. We strip leading space for multi-line syntax aesthetics.
         if rest.startswith(" "):
-            positional_args, named_args = decode_xprompt_args([rest[1:]], {})
-            return workflow_name, positional_args, named_args
+            return workflow_name, [rest[1:]], {}
+        # Backtick-delimited colon argument: quoted, never decoded.
+        if rest.startswith("`"):
+            return workflow_name, [rest], {}
+        # Bare, unquoted colon argument: the only form that decodes `+`.
         positional_args, named_args = decode_xprompt_args([rest], {})
         return workflow_name, positional_args, named_args
 
@@ -429,6 +435,10 @@ def parse_args(
 
     Handles quoted strings and text blocks [[...]] that may contain commas or equals.
     Named args use syntax: name=value or name="value with spaces" or name=[[text block]]
+
+    This is the paren/comma argument grammar, so ``+`` is never decoded to a
+    space here: that substitution is reserved for the bare, unquoted colon
+    argument form (see :func:`decode_xprompt_arg_value`).
 
     Args:
         args_str: The argument string (e.g., "arg1, name=value" or 'hello, "world"')
@@ -469,4 +479,4 @@ def parse_args(
             value = process_text_block(value)
             positional.append(value)
 
-    return decode_xprompt_args(positional, named)
+    return positional, named

@@ -116,3 +116,37 @@ def test_process_xprompt_double_colon_shorthand_payload_is_not_reparsed() -> Non
         result = process_xprompt_references(f"#research_swarm:: {payload}")
 
     assert result == payload
+
+
+def test_process_xprompt_shorthand_payload_plus_is_not_decoded() -> None:
+    """A ':: text' payload keeps literal `+` (`C++`), it is not space-decoded."""
+    xprompt = XPrompt(
+        name="research_swarm",
+        content="{{ prompt }}",
+        inputs=[InputArg(name="prompt", type=InputType.TEXT, default=None)],
+    )
+    payload = "Compare C++ and Rust for A+B work."
+
+    with patch(
+        "sase.xprompt.processor.get_all_xprompts",
+        return_value={"research_swarm": xprompt},
+    ):
+        result = process_xprompt_references(f"#research_swarm:: {payload}")
+
+    assert result == payload
+
+
+def test_process_xprompt_paren_arg_plus_is_not_decoded() -> None:
+    """Paren-form xprompt arguments keep literal `+`, it is not space-decoded."""
+    xprompt = XPrompt(
+        name="describe",
+        content="{{ prompt }}",
+        inputs=[InputArg(name="prompt", type=InputType.TEXT)],
+    )
+
+    with patch(
+        "sase.xprompt.processor.get_all_xprompts", return_value={"describe": xprompt}
+    ):
+        result = process_xprompt_references("#describe(Compare C++ and Rust)")
+
+    assert result == "Compare C++ and Rust"

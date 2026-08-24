@@ -150,7 +150,7 @@ def _parse_xprompt_reference_arguments(
     if ref.arg_kind is XPromptReferenceArgKind.COLON:
         colon_arg = ref.argument_source[1:]
         if colon_arg.startswith("`") and colon_arg.endswith("`"):
-            return decode_xprompt_args([colon_arg[1:-1]], {})
+            return [colon_arg[1:-1]], {}
         return decode_xprompt_args(colon_arg.split(","), {})
     return ref.parse_arguments()
 

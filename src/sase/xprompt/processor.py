@@ -315,7 +315,7 @@ def _consume_trailing_shorthand_text(prompt: str, end: int) -> tuple[list[str], 
     if not shorthand_text:
         return [], end
 
-    return decode_xprompt_args([shorthand_text], {})[0], text_end
+    return [shorthand_text], text_end
 
 
 def _scope_for_local_xprompts(
@@ -562,12 +562,11 @@ def process_xprompt_references_with_catalog(
                             positional_args.extend(shorthand_positional)
                             match_end = shorthand_end
                 elif colon_arg is not None:
-                    # Strip backticks if present (backtick-delimited syntax)
+                    # Strip backticks if present (backtick-delimited syntax);
+                    # a quoted value is never decoded.
                     if colon_arg.startswith("`") and colon_arg.endswith("`"):
                         colon_arg = colon_arg[1:-1]
-                        positional_args, named_args = decode_xprompt_args(
-                            [colon_arg], {}
-                        )
+                        positional_args, named_args = [colon_arg], {}
                     else:
                         positional_args, named_args = decode_xprompt_args(
                             colon_arg.split(","), {}

@@ -333,13 +333,20 @@ def test_wait_bead_value_does_not_resolve_agent_name_template() -> None:
     assert directives.wait_beads == ["sase-@"]
 
 
-@pytest.mark.parametrize("value", ["", '"two words"', "two+words"])
+@pytest.mark.parametrize("value", ["", '"two words"', "two words"])
 def test_wait_bead_keyword_rejects_empty_or_whitespace_value(value: str) -> None:
     with pytest.raises(
         DirectiveError,
         match=r"%wait\(bead=\.\.\.\).*non-empty, whitespace-free bead ID",
     ):
         extract_prompt_directives(f"%wait(bead={value})\nDo work")
+
+
+def test_wait_bead_keyword_does_not_decode_plus_to_space() -> None:
+    """A paren directive argument keeps a literal `+`, it is not space-decoded."""
+    _, directives = extract_prompt_directives("%wait(bead=two+words)\nDo work")
+
+    assert directives.wait_beads == ["two+words"]
 
 
 def test_wait_bead_keyword_rejects_duplicate_in_one_directive() -> None:
