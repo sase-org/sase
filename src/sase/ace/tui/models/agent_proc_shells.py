@@ -15,6 +15,7 @@ from sase.procs import (
     XPROMPT_PROC_ORIGIN,
     short_proc_id,
 )
+from sase.procs.text_bounding import bound_and_redact_text
 from sase.project_display_names import project_display_name_for
 
 from .._proc_observer_models import ObservedProc
@@ -26,9 +27,6 @@ _PROC_LOG_TAIL_MAX_CHARS = 12000
 _PROC_COMMAND_TITLE_MAX_CELLS = 48
 _PROC_COMMAND_TITLE_PREFIX = "❯ "
 _ELLIPSIS = "…"
-_SENSITIVE_LINE_RE = re.compile(
-    r"(?i)\b(password|passwd|secret|token|api[_-]?key|authorization|bearer)\b"
-)
 
 
 def proc_shell_agents_from_observed(
@@ -141,7 +139,7 @@ def _observed_proc_to_agent(row: ObservedProc) -> Agent:
         proc_code_digest=_string_meta(meta, "code_digest"),
         proc_safe_preview=_safe_preview(meta),
         proc_log_path=row.log_path or None,
-        proc_log_tail=_bound_and_redact(row.output, _PROC_LOG_TAIL_MAX_CHARS) or "",
+        proc_log_tail=bound_and_redact_text(row.output, _PROC_LOG_TAIL_MAX_CHARS) or "",
         proc_waits=_wait_labels(meta.get("waits")),
         proc_condition_result=_condition_result(meta.get("condition_result")),
         proc_supervisor_id=row.supervisor_id,
@@ -258,7 +256,7 @@ def _safe_preview(meta: Mapping[str, Any]) -> str | None:
         code = meta.get("code")
         if isinstance(code, Mapping):
             preview = _string_meta(code, "preview")
-    return _bound_and_redact(preview, _PROC_PREVIEW_MAX_CHARS)
+    return bound_and_redact_text(preview, _PROC_PREVIEW_MAX_CHARS)
 
 
 def _wait_labels(raw: object) -> list[str]:
@@ -293,7 +291,7 @@ def _condition_result(raw: object) -> str | None:
         if status and reason:
             return f"{status}: {reason}"
         return status or reason or _bounded_json(raw, 400)
-    return _bound_and_redact(str(raw), 400)
+    return bound_and_redact_text(str(raw), 400)
 
 
 def _observed_settlement_state(row: ObservedProc) -> str | None:
@@ -324,19 +322,6 @@ def _first_string(meta: Mapping[str, Any], *keys: str) -> str | None:
         if value:
             return value
     return None
-
-
-def _bound_and_redact(raw: str | None, max_chars: int) -> str | None:
-    if not raw:
-        return None
-    lines = [
-        "<redacted sensitive line>" if _SENSITIVE_LINE_RE.search(line) else line
-        for line in raw.splitlines()
-    ]
-    value = "\n".join(lines)
-    if len(value) <= max_chars:
-        return value
-    return f"{value[-max_chars:]}\n... truncated to last {max_chars} chars ..."
 
 
 def _bounded_json(value: Mapping[str, Any], max_chars: int) -> str:

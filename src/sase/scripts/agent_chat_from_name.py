@@ -25,7 +25,10 @@ from sase.agent.names import (
     resolve_resume_agent_name,
 )
 from sase.agent.names._lookup_artifacts import SUCCESS_OUTCOME, is_success_outcome
-from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
+from sase.core.agent_artifact_paths import (
+    iter_agent_artifact_dirs,
+    parse_agent_artifact_path,
+)
 from sase.core.agent_tribe import parse_tribe_reference
 from sase.core.dismissed_agent_completion import (
     ArchivedAgentCompletion,
@@ -41,7 +44,16 @@ from sase.core.wait_dependency_resolution import (
 )
 from sase.history.chat_resume import sanitize_resume_prompt
 from sase.history.chat_storage import find_chat_by_timestamp
+from sase.monitor.models import MonitorRecord
+from sase.monitor.store import read_monitor_marker
+from sase.monitor_state import is_real_monitor_member, monitor_state_is_terminal
 from sase.plan_chain import agent_family_base
+from sase.procs import ProcRefError, read_procs, resolve_proc_ref
+from sase.scripts._fork_proc_sources import (
+    ForkProcInfo,
+    proc_info_from_monitor,
+    proc_info_from_proc,
+)
 
 _MAX_LAUNCH_PROMPT_CHARS = 2000
 
@@ -79,12 +91,30 @@ class _ForkClanMemberSource:
 
 @dataclass(frozen=True)
 class _ForkFamilyMemberSource:
-    """One completed family member included in a family fork source."""
+    """One included family member: an agent shell or a proc/monitor shell."""
 
     name: str
-    path: str
     artifact_dir: str
     outcome: str
+    kind: str = "agent"
+    path: str = ""
+    proc: ForkProcInfo | None = None
+    failure: _ForkFailure | None = None
+
+    def to_json_data(self) -> dict[str, object]:
+        data: dict[str, object] = {
+            "kind": self.kind,
+            "name": self.name,
+            "artifact_dir": self.artifact_dir,
+            "outcome": self.outcome,
+        }
+        if self.path:
+            data["path"] = self.path
+        if self.proc is not None:
+            data["proc"] = self.proc.to_json_data()
+        if self.failure is not None:
+            data["failure"] = self.failure.to_json_data()
+        return data
 
 
 @dataclass(frozen=True)
@@ -97,7 +127,7 @@ class _ForkExcludedFamilyMember:
 
 @dataclass(frozen=True)
 class _ForkSource:
-    """One agent conversation, family, or completed clan used by ``#fork``."""
+    """One agent conversation, proc shell, family, or completed clan."""
 
     kind: str
     name: str
@@ -107,6 +137,7 @@ class _ForkSource:
     members: tuple[_ForkClanMemberSource | _ForkFamilyMemberSource, ...] = ()
     excluded: tuple[_ForkExcludedFamilyMember, ...] = ()
     failure: _ForkFailure | None = None
+    proc: ForkProcInfo | None = None
 
     def to_json_data(self) -> dict[str, object]:
         """Return the stable wire shape consumed by the fork history builder."""
@@ -119,17 +150,20 @@ class _ForkSource:
             if self.failure is not None:
                 data["failure"] = self.failure.to_json_data()
             return data
+        if self.kind == "proc":
+            data = {
+                "kind": self.kind,
+                "name": self.name,
+            }
+            if self.proc is not None:
+                data["proc"] = self.proc.to_json_data()
+            return data
         if self.kind == "family":
             return {
                 "kind": self.kind,
                 "name": self.name,
                 "members": [
-                    {
-                        "name": member.name,
-                        "path": member.path,
-                        "artifact_dir": member.artifact_dir,
-                        "outcome": member.outcome,
-                    }
+                    member.to_json_data()
                     for member in self.members
                     if isinstance(member, _ForkFamilyMemberSource)
                 ],
@@ -169,7 +203,7 @@ def _resolve_agent_chat_path(name: str | None = None) -> str:
 
     family_member = _find_family_member(resolved_name)
     if family_member is not None:
-        path, _status = _resolve_family_member_transcript(family_member)
+        path = _resolve_family_member_resume_transcript(family_member)
         if path:
             return path
         raise RuntimeError(f"No agent with chat history found for: {resolved_name}")
@@ -221,28 +255,36 @@ def _resolve_agent_chat_sources(names: Sequence[str]) -> list[_ForkSource]:
 
 
 def _coalesce_fork_sources(sources: Sequence[_ForkSource]) -> list[_ForkSource]:
-    """Keep each canonical transcript once in stable parent/member order."""
+    """Keep each canonical transcript or proc once in stable parent/member order.
+
+    Identity is the canonical chat/artifact path for an agent shell and the
+    durable proc ID for a proc or monitor shell. A transcript-less entry (a
+    failed agent with no saved chat, or a proc source missing its info) never
+    claims an identity, so two such entries are never mistakenly coalesced
+    together.
+    """
     coalesced: list[_ForkSource] = []
-    seen_transcripts: set[Path] = set()
+    seen_identities: set[tuple[str, str]] = set()
+
+    def claim(identity: tuple[str, str] | None) -> bool:
+        if identity is None:
+            return True
+        if identity in seen_identities:
+            return False
+        seen_identities.add(identity)
+        return True
 
     for source in sources:
-        if source.kind == "agent":
-            if not source.path:
-                coalesced.append(source)
+        if source.kind in ("agent", "proc"):
+            if not claim(_source_identity(source)):
                 continue
-            canonical_path = _canonical_transcript_path(source.path)
-            if canonical_path in seen_transcripts:
-                continue
-            seen_transcripts.add(canonical_path)
             coalesced.append(source)
             continue
 
         unique_members: list[_ForkClanMemberSource | _ForkFamilyMemberSource] = []
         for member in source.members:
-            canonical_path = _canonical_transcript_path(member.path)
-            if canonical_path in seen_transcripts:
+            if not claim(_member_identity(member)):
                 continue
-            seen_transcripts.add(canonical_path)
             unique_members.append(member)
 
         if not unique_members:
@@ -256,6 +298,28 @@ def _coalesce_fork_sources(sources: Sequence[_ForkSource]) -> list[_ForkSource]:
         )
 
     return coalesced
+
+
+def _source_identity(source: _ForkSource) -> tuple[str, str] | None:
+    if source.kind == "proc":
+        if source.proc is None:
+            return None
+        return ("proc", source.proc.proc_id)
+    if not source.path:
+        return None
+    return ("path", str(_canonical_transcript_path(source.path)))
+
+
+def _member_identity(
+    member: _ForkClanMemberSource | _ForkFamilyMemberSource,
+) -> tuple[str, str] | None:
+    if isinstance(member, _ForkFamilyMemberSource) and member.kind == "proc":
+        if member.proc is None:
+            return None
+        return ("proc", member.proc.proc_id)
+    if not member.path:
+        return None
+    return ("path", str(_canonical_transcript_path(member.path)))
 
 
 def _canonical_transcript_path(path: str) -> Path:
@@ -319,6 +383,42 @@ def _resolve_default_agent_name() -> str:
     return name
 
 
+def _resolve_family_member_resume_transcript(member: AgentFamilyMember) -> str | None:
+    """Resolve one sequential member's owned transcript for plain resume.
+
+    Kept independent of the ``#fork`` shell classifier below: a resume target
+    is just a chat path, so a monitor/proc member or a failed member without a
+    saved transcript both resolve to "nothing to resume" here, matching
+    long-standing ``%resume`` behavior rather than the fork resolver's richer
+    proc/failure reporting.
+    """
+    meta_path = _read_json_string_field(
+        member.artifacts_dir / "agent_meta.json", "chat_path"
+    )
+    if meta_path is not None:
+        try:
+            _validate_readable_transcript(member.name, meta_path)
+        except OSError:
+            return None
+        return meta_path
+
+    if not is_success_outcome(member.outcome):
+        return None
+
+    done_path = _read_json_string_field(
+        member.artifacts_dir / "done.json", "response_path"
+    )
+    if done_path is None and member.archived_completion is not None:
+        done_path = archived_response_path(member.archived_completion)
+    if done_path is None:
+        return None
+    try:
+        _validate_readable_transcript(member.name, done_path)
+    except OSError:
+        return None
+    return done_path
+
+
 def _resolve_fork_source(name: str) -> _ForkSource:
     """Resolve *name* to an agent, family, or complete clan source."""
     tribe = parse_tribe_reference(name)
@@ -369,23 +469,11 @@ def _resolve_fork_source(name: str) -> _ForkSource:
         family_members: list[_ForkFamilyMemberSource] = []
         excluded: list[_ForkExcludedFamilyMember] = []
         for family_member in family.members:
-            family_path, status = _resolve_family_member_transcript(family_member)
-            if family_path is None:
-                excluded.append(
-                    _ForkExcludedFamilyMember(
-                        name=family_member.name,
-                        status=status,
-                    )
-                )
-                continue
-            family_members.append(
-                _ForkFamilyMemberSource(
-                    name=family_member.name,
-                    path=family_path,
-                    artifact_dir=str(family_member.artifacts_dir),
-                    outcome=SUCCESS_OUTCOME,
-                )
-            )
+            resolved = _resolve_family_member_shell(family_member)
+            if isinstance(resolved, _ForkExcludedFamilyMember):
+                excluded.append(resolved)
+            else:
+                family_members.append(resolved)
 
         if not family_members:
             raise RuntimeError(f"No agent with chat history found for: {name}")
@@ -398,13 +486,52 @@ def _resolve_fork_source(name: str) -> _ForkSource:
             excluded=tuple(excluded),
         )
 
-    return _resolve_agent_fork_source(name)
+    return _resolve_agent_or_proc_fork_source(name)
+
+
+def _resolve_agent_or_proc_fork_source(name: str) -> _ForkSource:
+    """Resolve one named agent, falling back to a stand-alone proc shell.
+
+    Existing agent names keep their current meaning: a proc/monitor lookup is
+    attempted only once agent resolution fails outright, so a reusable proc
+    name never shadows an agent. An ambiguous proc reference is surfaced as an
+    actionable error rather than silently falling back to "agent not found".
+    """
+    try:
+        return _resolve_agent_fork_source(name)
+    except RuntimeError as agent_error:
+        proc_source = _try_resolve_standalone_proc_fork_source(name)
+        if proc_source is not None:
+            return proc_source
+        raise agent_error
+
+
+def _try_resolve_standalone_proc_fork_source(name: str) -> _ForkSource | None:
+    try:
+        proc = resolve_proc_ref(name, read_procs())
+    except ProcRefError as exc:
+        if "ambiguous" in str(exc):
+            raise RuntimeError(str(exc)) from exc
+        return None
+    return _ForkSource(
+        kind="proc",
+        name=name,
+        path="",
+        proc=proc_info_from_proc(proc),
+    )
 
 
 def _resolve_agent_fork_source(name: str) -> _ForkSource:
     """Resolve one named agent, including terminal failure context."""
     family_member = _find_family_member(name)
     if family_member is not None:
+        meta = _read_json_dict(family_member.artifacts_dir / "agent_meta.json") or {}
+        if is_real_monitor_member(
+            _json_string(meta, "agent_family_role"),
+            _json_string(meta, "monitor_id"),
+        ):
+            return _resolve_monitor_fork_source(name, family_member.artifacts_dir)
+
         done = _read_json_dict(family_member.artifacts_dir / "done.json") or {}
         outcome = _json_string(done, "outcome") or family_member.outcome
         if outcome in FAILURE_OUTCOMES:
@@ -430,6 +557,32 @@ def _resolve_agent_fork_source(name: str) -> _ForkSource:
     )
     _validate_readable_transcript(source.name, source.path)
     return source
+
+
+def _resolve_monitor_fork_source(name: str, artifacts_dir: Path) -> _ForkSource:
+    """Resolve one explicitly named monitor family member as a proc source."""
+    record = _read_family_monitor_marker(artifacts_dir)
+    if record is None:
+        raise RuntimeError(f"No agent with chat history found for: {name}")
+    return _ForkSource(
+        kind="proc",
+        name=name,
+        path="",
+        proc=proc_info_from_monitor(record),
+    )
+
+
+def _read_family_monitor_marker(artifacts_dir: Path) -> MonitorRecord | None:
+    project_name = _project_name_for_artifact_dir(artifacts_dir)
+    return read_monitor_marker(project_name, str(artifacts_dir))
+
+
+def _project_name_for_artifact_dir(artifact_dir: Path) -> str:
+    try:
+        info = parse_agent_artifact_path(artifact_dir)
+    except (OSError, RuntimeError, ValueError):
+        return ""
+    return info.project_name if info is not None else ""
 
 
 def _failed_agent_fork_source(
@@ -670,15 +823,54 @@ def _find_family_member(name: str) -> AgentFamilyMember | None:
     return next((member for member in family.members if member.name == name), None)
 
 
-def _resolve_family_member_transcript(
+def _resolve_family_member_shell(
     member: AgentFamilyMember,
-) -> tuple[str | None, str]:
-    """Resolve one sequential member's owned transcript and display status.
+) -> _ForkFamilyMemberSource | _ForkExcludedFamilyMember:
+    """Classify and resolve one sequential family member's concrete shell.
+
+    A monitor member is a proc shell, never a chat transcript: its
+    ``agent_family_role``/``monitor_id`` markers route it to the durable
+    monitor+proc join instead of the agent chat-path lookup below.
+    """
+    meta = _read_json_dict(member.artifacts_dir / "agent_meta.json") or {}
+    if is_real_monitor_member(
+        _json_string(meta, "agent_family_role"),
+        _json_string(meta, "monitor_id"),
+    ):
+        return _resolve_monitor_family_member_shell(member)
+    return _resolve_agent_family_member_shell(member)
+
+
+def _resolve_monitor_family_member_shell(
+    member: AgentFamilyMember,
+) -> _ForkFamilyMemberSource | _ForkExcludedFamilyMember:
+    record = _read_family_monitor_marker(member.artifacts_dir)
+    if record is None:
+        return _ForkExcludedFamilyMember(
+            name=member.name, status="unreadable monitor record"
+        )
+    if not monitor_state_is_terminal(record.monitor_state):
+        return _ForkExcludedFamilyMember(name=member.name, status="running")
+    return _ForkFamilyMemberSource(
+        name=member.name,
+        artifact_dir=str(member.artifacts_dir),
+        outcome=record.monitor_state,
+        kind="proc",
+        proc=proc_info_from_monitor(record),
+    )
+
+
+def _resolve_agent_family_member_shell(
+    member: AgentFamilyMember,
+) -> _ForkFamilyMemberSource | _ForkExcludedFamilyMember:
+    """Resolve one sequential agent member's owned transcript or failure record.
 
     A metadata chat path is written only after a phase saves its handoff, so it
     identifies that member's conversation even when the root later receives an
     aggregate done marker for the terminal child. Legacy and terminal members
-    without that metadata continue to use a successful done response.
+    without that metadata continue to use a successful done response. A
+    terminal failed member is included with failure context rather than
+    dropped; only a still-running, missing, or unreadable member is excluded.
     """
     meta_path = _read_json_string_field(
         member.artifacts_dir / "agent_meta.json", "chat_path"
@@ -687,11 +879,28 @@ def _resolve_family_member_transcript(
         try:
             _validate_readable_transcript(member.name, meta_path)
         except OSError:
-            return None, "unreadable transcript"
-        return meta_path, SUCCESS_OUTCOME
+            return _ForkExcludedFamilyMember(
+                name=member.name, status="unreadable transcript"
+            )
+        return _ForkFamilyMemberSource(
+            name=member.name,
+            artifact_dir=str(member.artifacts_dir),
+            outcome=SUCCESS_OUTCOME,
+            kind="agent",
+            path=meta_path,
+        )
+
+    if member.outcome is None:
+        return _ForkExcludedFamilyMember(name=member.name, status="running")
+
+    if member.outcome in FAILURE_OUTCOMES:
+        done = _read_json_dict(member.artifacts_dir / "done.json") or {}
+        return _failed_agent_family_member_shell(member, done, member.outcome)
 
     if not is_success_outcome(member.outcome):
-        return None, member.outcome or "running"
+        return _ForkExcludedFamilyMember(
+            name=member.name, status=member.outcome or "running"
+        )
 
     done_path = _read_json_string_field(
         member.artifacts_dir / "done.json", "response_path"
@@ -699,12 +908,51 @@ def _resolve_family_member_transcript(
     if done_path is None and member.archived_completion is not None:
         done_path = archived_response_path(member.archived_completion)
     if done_path is None:
-        return None, "missing transcript"
+        return _ForkExcludedFamilyMember(name=member.name, status="missing transcript")
     try:
         _validate_readable_transcript(member.name, done_path)
     except OSError:
-        return None, "unreadable transcript"
-    return done_path, SUCCESS_OUTCOME
+        return _ForkExcludedFamilyMember(
+            name=member.name, status="unreadable transcript"
+        )
+    return _ForkFamilyMemberSource(
+        name=member.name,
+        artifact_dir=str(member.artifacts_dir),
+        outcome=SUCCESS_OUTCOME,
+        kind="agent",
+        path=done_path,
+    )
+
+
+def _failed_agent_family_member_shell(
+    member: AgentFamilyMember,
+    done: dict[str, Any],
+    outcome: str,
+) -> _ForkFamilyMemberSource:
+    transcript_path = _resolve_failed_agent_transcript(
+        member.name, member.artifacts_dir, done
+    )
+    transcript_available = bool(transcript_path)
+    failure = _ForkFailure(
+        outcome=outcome,
+        error=_json_string(done, "error"),
+        traceback=_json_string(done, "traceback"),
+        ended_at=_format_finished_at(done.get("finished_at")),
+        transcript_available=transcript_available,
+        launch_prompt=(
+            None
+            if transcript_available
+            else _read_sanitized_launch_prompt(member.artifacts_dir)
+        ),
+    )
+    return _ForkFamilyMemberSource(
+        name=member.name,
+        artifact_dir=str(member.artifacts_dir),
+        outcome=outcome,
+        kind="agent",
+        path=transcript_path,
+        failure=failure,
+    )
 
 
 def _resolve_done_response_path(name: str) -> str | None:

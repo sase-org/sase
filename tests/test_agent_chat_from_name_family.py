@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from sase.scripts.agent_chat_from_name import (
+    _ForkFamilyMemberSource,
     _resolve_agent_chat_path,
     _resolve_agent_chat_sources,
 )
@@ -132,12 +133,14 @@ def test_family_source_includes_completed_members_in_chain_order(
         "name": "cx",
         "members": [
             {
+                "kind": "agent",
                 "name": "cx--plan",
                 "path": str(planner_chat),
                 "artifact_dir": str(planner_dir),
                 "outcome": "completed",
             },
             {
+                "kind": "agent",
                 "name": "cx--code",
                 "path": str(coder_chat),
                 "artifact_dir": str(coder_dir),
@@ -212,9 +215,13 @@ def test_family_source_reports_running_tip_as_excluded(
     assert source.path == str(planner_chat)
 
 
-def test_family_source_excludes_failed_and_unavailable_transcripts(
+def test_family_source_includes_failed_member_excludes_unavailable_transcripts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """A terminal failed member is included with failure context, not dropped.
+
+    Only a still-missing or unreadable transcript is excluded from the roster.
+    """
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
     planner_chat = tmp_path / "planner.md"
     unreadable_chat = tmp_path / "unreadable.md"
@@ -236,7 +243,7 @@ def test_family_source_excludes_failed_and_unavailable_transcripts(
         tmp_path,
         "20260718010303",
         "cx--test",
-        done={"outcome": "failed"},
+        done={"outcome": "failed", "error": "assertion failed"},
         meta={"agent_family": "cx", "parent_timestamp": "20260718010202"},
     )
     write_agent(
@@ -250,10 +257,15 @@ def test_family_source_excludes_failed_and_unavailable_transcripts(
 
     source = _resolve_agent_chat_sources(["cx"])[0]
 
-    assert [member.name for member in source.members] == ["cx--plan"]
+    assert [member.name for member in source.members] == ["cx--plan", "cx--test"]
+    failed_member = source.members[1]
+    assert isinstance(failed_member, _ForkFamilyMemberSource)
+    assert failed_member.kind == "agent"
+    assert failed_member.outcome == "failed"
+    assert failed_member.failure is not None
+    assert failed_member.failure.error == "assertion failed"
     assert [(member.name, member.status) for member in source.excluded] == [
         ("cx--code", "missing transcript"),
-        ("cx--test", "failed"),
         ("cx--fix", "unreadable transcript"),
     ]
 
