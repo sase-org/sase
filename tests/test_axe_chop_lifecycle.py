@@ -15,7 +15,8 @@ from sase.axe.chop_agents import (
     _record_chop_agent_launch,
     get_chop_agent_records,
 )
-from sase.axe.chop_lifecycle import _agent_completion, finalize_launched_chop_runs
+from sase.axe._chop_lifecycle_completion import _agent_completion
+from sase.axe.chop_lifecycle import finalize_launched_chop_runs
 from sase.axe.chop_policy import apply_chop_once_per
 from sase.axe.chop_proposals import prepare_chop_proposals
 from sase.axe.chop_runner import run_configured_chop_once
