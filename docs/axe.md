@@ -770,6 +770,18 @@ deduplicated. Different raw clan templates may have different summaries. A summa
 be nonblank, contain no NUL byte, fit within 32 KiB of UTF-8, and avoid both the `]]`
 text-block terminator and `+` (which xprompt argument decoding would turn into a space).
 
+A proposal that also carries an active `%if` predicate is admitted through the typed
+launch path (see [Agent Launch Flow](architecture.md#agent-launch-flow)), so a member
+statically planned to declare the clan can still be skipped at admission time. That
+promotion works the same way once-per filtering already promotes the first accepted
+member: admission-time filtering promotes the first surviving (eligible, dispatched)
+member of an undeclared clan to declarer regardless of which member was planned to
+declare it, carrying the group's agreed `tribe` and `clan_summary` with it. A skipped or
+condition-errored member never claims the role, and an all-skipped batch declares no
+clan. The declarer claim is recorded durably before that member's launch attempt runs,
+so a launch failure cannot let a later member declare the same clan a second time, and a
+detached coordinator resuming in a fresh process still honors an earlier claim.
+
 `report` is an optional structured document rendered with the result on the ACE AXE tab.
 Chop authors supply semantic tones rather than colors, and the frontend owns the palette
 and width-responsive layout. The public SDK keeps report construction typed and

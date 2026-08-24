@@ -192,6 +192,15 @@ def _metadata_for_unit(
         "agent_name": plan.agent_name,
         "clan": plan.clan,
         "member_id": plan.member_id,
+        # The statically planned role, from before admission-time `%if`
+        # filtering. Dispatch promotes whichever eligible member reaches the
+        # clan first, so this is informational rather than authoritative.
+        "declares_clan": plan.declares_clan,
+        # Every member of a clan repeats its raw proposal's intended tribe
+        # and summary, so a promoted declarer can recover them without
+        # re-deriving anything from mutable prompt prose.
+        "clan_tribe": proposal.tribe,
+        "clan_summary": proposal.clan_summary,
         "workspace": proposal.workspace,
         "dedupe_key": proposal.dedupe_key,
         "wait_on": proposal.wait_on,
@@ -336,6 +345,7 @@ def _maybe_dispatch_typed_chop_proposals(
         payload,
         launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
         launch_recorded_fn=_record,
+        bundle_dir=bundle_dir,
     )
     result = dispatch_typed_launch_request(
         bundle_dir,

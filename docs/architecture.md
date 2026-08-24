@@ -71,13 +71,16 @@ LaunchApproval; AXE chop batches containing an active `%if`/`%proc` directive di
 through the same durable bundle under a distinct `axe_chop` source surface, with the
 originating chop run owning the bundle across process restarts (see
 [Structured Results and Launch Proposals](axe.md#structured-results-and-launch-proposals)).
-A detached launch-admission coordinator — infrastructure owned by the launch-request
-bundle, not an Agents-tab row — journals each unit through waiting, checking,
-skipped/error, dispatching, and launched states. Waits resolve before conditions; a
-false `%if` is a resource-free terminal skip; eligible Agent units still use the
-established agent launch path; eligible `%proc` units dispatch as native `proc-shell`
-records with origin `xprompt-proc`. Restarts replay the journal instead of re-running
-settled predicates or duplicating reserved identities.
+Within an AXE chop clan, dispatch — not planning — owns the declarer decision: the first
+surviving (eligible, dispatched) member of an undeclared clan claims it durably, so a
+`%if`-skipped statically planned declarer never leaves later members joining a clan
+nobody declared. A detached launch-admission coordinator — infrastructure owned by the
+launch-request bundle, not an Agents-tab row — journals each unit through waiting,
+checking, skipped/error, dispatching, and launched states. Waits resolve before
+conditions; a false `%if` is a resource-free terminal skip; eligible Agent units still
+use the established agent launch path; eligible `%proc` units dispatch as native
+`proc-shell` records with origin `xprompt-proc`. Restarts replay the journal instead of
+re-running settled predicates or duplicating reserved identities.
 
 Detached launches appear in the agent registry and ACE Agents tab. Multi-prompt launches
 create a sequence of detached agents. Stand-alone `%proc` shells appear in the same

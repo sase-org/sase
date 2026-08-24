@@ -74,7 +74,9 @@ def dispatch_typed_launch_request(
     root = admission_dir(response_dir)
     lock_path = root / LOCK_FILENAME
     root.mkdir(parents=True, exist_ok=True)
-    agent_dispatcher = agent_dispatcher or _agent_dispatcher_for_request(data)
+    agent_dispatcher = agent_dispatcher or _agent_dispatcher_for_request(
+        data, response_dir
+    )
     with lock_path.open("a+", encoding="utf-8") as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
         try:
@@ -115,7 +117,7 @@ def run_coordinator_in_bundle(
 
     data = read_launch_request(response_dir)
     plan = typed_plan_from_request(data)
-    agent_dispatcher = _agent_dispatcher_for_request(data)
+    agent_dispatcher = _agent_dispatcher_for_request(data, response_dir)
     root = admission_dir(response_dir)
     root.mkdir(parents=True, exist_ok=True)
     lock_path = root / LOCK_FILENAME
@@ -199,14 +201,16 @@ def _dispatch_result(
     )
 
 
-def _agent_dispatcher_for_request(data: Mapping[str, Any]) -> UnitDispatcher | None:
+def _agent_dispatcher_for_request(
+    data: Mapping[str, Any], response_dir: Path
+) -> UnitDispatcher | None:
     from sase.axe.chop_typed_admission import (
         is_axe_chop_typed_request,
         make_axe_chop_agent_dispatcher,
     )
 
     if is_axe_chop_typed_request(data):
-        dispatcher = make_axe_chop_agent_dispatcher(data)
+        dispatcher = make_axe_chop_agent_dispatcher(data, bundle_dir=response_dir)
         if dispatcher is not None:
             return dispatcher
 
