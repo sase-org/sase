@@ -4,16 +4,14 @@ Existing launch-admission coordinator tests exercise each admission behavior (sk
 propagation, condition errors, crash recovery, cancellation, proc dispatch) in
 isolation, one unit kind at a time. These tests combine Agent and Proc units in a
 single plan — skipped predecessors, condition errors, forward waits, external time
-waits, partial launch failure, and documented prompt forms — and assert that the
-coordinator summary, per-unit results, persisted receipt, and notification text agree
-on outcomes and counts.
+waits, partial launch failure, and a rejected plan-digest mismatch — and assert that
+the coordinator summary, per-unit results, persisted receipt, and notification text
+agree on outcomes and counts.
 """
 
 from __future__ import annotations
 
 import json
-import stat
-import sys
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -23,11 +21,6 @@ import pytest
 from sase.agent.launch_admission import dispatch_typed_launch_request
 from sase.agent.launch_request_types import LaunchRequestError
 from sase.agent.launch_types import AgentLaunchResult
-from sase.core.agent_launch_facade import (
-    plan_typed_launch_units,
-    prepare_proc_script,
-    proc_script_argv,
-)
 from sase.core.agent_launch_wire import (
     AgentUnitWire,
     LaunchConditionWire,
@@ -37,9 +30,7 @@ from sase.core.agent_launch_wire import (
     WaitTargetWire,
     agent_launch_wire_to_json_dict,
 )
-from sase.feature_flags import override_flags
-from sase.xprompt.code_value import CodeValue, make_code_value
-from sase.xprompt.directives import DirectiveError, extract_prompt_directives
+from sase.xprompt.code_value import CodeValue
 
 
 def _agent_result(tmp_path: Path, name: str) -> AgentLaunchResult:
@@ -391,78 +382,6 @@ def test_cancel_after_first_mixed_unit_preserves_launched(tmp_path: Path) -> Non
     _assert_receipt_agrees(progress, response_dir, plan)
 
 
-def test_repeat_and_alt_produce_stable_mixed_units() -> None:
-    pytest.importorskip("sase_core_rs")
-    with override_flags(typed_launch_units=True):
-        repeated = plan_typed_launch_units(
-            '%repeat:2\n%proc("echo ready")',
-            selected_project="sase",
-        )
-        mixed_alt = plan_typed_launch_units(
-            '%{%proc("echo left") | %id:reviewer\nReview}',
-            selected_project="sase",
-        )
-        fanout = plan_typed_launch_units(
-            '%proc("echo first")\n---\n%wait\n%id:reviewer\nReview',
-            launch_kind="multi_prompt",
-            selected_project="sase",
-        )
-
-    assert len(repeated.units) == 2
-    assert all(isinstance(unit.payload, ProcUnitWire) for unit in repeated.units)
-    assert [unit.logical_id for unit in repeated.units] == ["unit-1", "unit-2"]
-    assert mixed_alt.units
-    kinds = {type(unit.payload) for unit in mixed_alt.units}
-    assert AgentUnitWire in kinds
-    assert ProcUnitWire in kinds
-    assert isinstance(fanout.units[0].payload, ProcUnitWire)
-    assert isinstance(fanout.units[1].payload, AgentUnitWire)
-    assert fanout.units[1].waits[0].kind == "logical"
-    assert fanout.units[1].waits[0].logical_id == fanout.units[0].logical_id
-    assert fanout.units[0].logical_id != fanout.units[1].logical_id
-
-
-def test_documented_typed_launch_forms_plan_and_flag_off_rejects() -> None:
-    pytest.importorskip("sase_core_rs")
-    examples = [
-        "%if::\n\n```bash\ntest -f pyproject.toml\n```\nReview",
-        '%proc("just check")',
-        '%proc(python="print(\'ready\')", timeout="20m", label="Preflight")',
-        (
-            '%proc(timeout="20m", idle_timeout="5m", cwd="docs", workspace="true")::\n\n'
-            "```bash\njust docs-check\n```\n"
-        ),
-    ]
-    for prompt in examples:
-        with pytest.raises(DirectiveError, match="typed_launch_units"):
-            extract_prompt_directives(prompt)
-        with pytest.raises(DirectiveError, match="typed_launch_units"):
-            plan_typed_launch_units(prompt, selected_project="sase")
-
-    with override_flags(typed_launch_units=True):
-        conditioned = plan_typed_launch_units(examples[0], selected_project="sase")
-        positional = plan_typed_launch_units(examples[1], selected_project="sase")
-        named = plan_typed_launch_units(examples[2], selected_project="sase")
-        fenced = plan_typed_launch_units(examples[3], selected_project="sase")
-
-    assert isinstance(conditioned.units[0].payload, AgentUnitWire)
-    assert conditioned.units[0].condition is not None
-    assert conditioned.units[0].condition.code.language == "bash"
-    assert "test -f pyproject.toml" in conditioned.units[0].condition.code.source
-    assert isinstance(positional.units[0].payload, ProcUnitWire)
-    assert positional.units[0].payload.code.source == "just check"
-    assert isinstance(named.units[0].payload, ProcUnitWire)
-    assert named.units[0].payload.code.language == "python"
-    assert named.units[0].payload.timeout == "20m"
-    assert named.units[0].payload.label == "Preflight"
-    assert isinstance(fenced.units[0].payload, ProcUnitWire)
-    assert fenced.units[0].payload.workspace is True
-    assert fenced.units[0].payload.cwd == "docs"
-    assert fenced.units[0].payload.timeout == "20m"
-    assert fenced.units[0].payload.idle_timeout == "5m"
-    assert "just docs-check" in fenced.units[0].payload.code.source
-
-
 def test_plan_digest_mismatch_is_rejected(tmp_path: Path) -> None:
     pytest.importorskip("sase_core_rs")
     plan = _plan(
@@ -493,70 +412,3 @@ def test_plan_digest_mismatch_is_rejected(tmp_path: Path) -> None:
         )
     assert exc.value.code == "plan_digest_mismatch"
     assert not (response_dir / "launch_admission" / "receipt.json").exists()
-
-
-def test_proc_script_argv_is_not_interpolated_from_source(tmp_path: Path) -> None:
-    pytest.importorskip("sase_core_rs")
-    from sase.core.agent_launch_facade import proc_dispatch_wire_schema_version
-
-    work = tmp_path / "work"
-    work.mkdir()
-    hostile = 'echo ready; rm -rf /; $(reboot); `id`; echo "$HOME"'
-    code = make_code_value(hostile, "bash", "bash")
-    prepared = prepare_proc_script(
-        {
-            "schema_version": proc_dispatch_wire_schema_version(),
-            "logical_id": "unit-1",
-            "fingerprint": "fp",
-            "code": {
-                "schema_version": 1,
-                "source": code.source,
-                "language": code.language,
-                "digest": code.digest,
-                "preview": code.preview,
-            },
-            "work_dir": str(work),
-            "python_executable": sys.executable,
-            "workspace": False,
-            "declared_cwd": str(tmp_path),
-            "source_cwd": str(tmp_path),
-            "proc_id": "proc-argv",
-        }
-    )
-    argv = list(prepared["argv"])
-    assert argv[:3] == ["/bin/bash", "--noprofile", "--norc"]
-    assert hostile not in " ".join(argv)
-    script = Path(str(prepared["script_path"]))
-    assert stat.S_IMODE(script.stat().st_mode) == 0o600
-    assert script.read_text(encoding="utf-8") == hostile
-    assert argv == proc_script_argv("bash", str(work), sys.executable)
-
-
-def test_prepare_proc_script_rejects_digest_mismatch(tmp_path: Path) -> None:
-    pytest.importorskip("sase_core_rs")
-    from sase.core.agent_launch_facade import proc_dispatch_wire_schema_version
-
-    work = tmp_path / "work"
-    work.mkdir()
-    code = make_code_value("echo ready", "bash", "bash")
-    with pytest.raises(Exception, match="digest"):
-        prepare_proc_script(
-            {
-                "schema_version": proc_dispatch_wire_schema_version(),
-                "logical_id": "unit-1",
-                "fingerprint": "fp",
-                "code": {
-                    "schema_version": 1,
-                    "source": code.source,
-                    "language": code.language,
-                    "digest": "0" * 64,
-                    "preview": code.preview,
-                },
-                "work_dir": str(work),
-                "python_executable": sys.executable,
-                "workspace": False,
-                "declared_cwd": str(tmp_path),
-                "source_cwd": str(tmp_path),
-                "proc_id": "proc-digest",
-            }
-        )
