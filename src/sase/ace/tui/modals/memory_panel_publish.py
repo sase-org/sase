@@ -64,6 +64,10 @@ def memory_publish_subject(
         return f"Update memory note {stem}"
     if stem and kind == "delete":
         return f"Delete memory note {stem}"
+    if stem and kind == "add_strand":
+        return f"Add memory strand {stem}"
+    if stem and kind == "delete_strand":
+        return f"Delete memory strand {stem}"
     return f"Publish memory notes for {scope_display_name}"
 
 

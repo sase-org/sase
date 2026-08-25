@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.widgets._prompt_input_bar_stack_models import (
@@ -284,16 +286,18 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
             action()
 
     def request_open_glossary_panel(self) -> None:
-        """Ask the app to open the glossary panel.
+        """Ask the app to open the Memory panel on the glossary term under the cursor.
 
-        Presentation-only: the bar captures the glossary term under the
-        cursor (if any) and posts ``GlossaryPanelRequested`` with that term
-        and the bar's current mode. The app opens the panel and restores
-        prompt focus and vim mode on dismiss (boundary rule D6).
+        Presentation-only: the bar resolves the glossary term under the
+        cursor (if any) to its ``glossary:<slug>`` memory-web identity and
+        posts ``GlossaryPanelRequested`` with that identity and the bar's
+        current mode. The app opens the Memory subtab seeded with that
+        identity and restores prompt focus and vim mode on dismiss (boundary
+        rule D6).
         """
         self.post_message(
             self.GlossaryPanelRequested(  # type: ignore[attr-defined]
-                self._glossary_term_under_cursor(),
+                self._glossary_note_identity_under_cursor(),
                 self._mode,
             )
         )
@@ -346,12 +350,15 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
             )
         )
 
-    def _glossary_term_under_cursor(self) -> str | None:
-        """Return the highlighted glossary term at the cursor, if any.
+    def _glossary_note_identity_under_cursor(self) -> str | None:
+        """Return the ``glossary:<slug>`` identity for the term at the cursor.
 
         Reuses the prompt-area ``lookup_glossary_span`` match used by the
-        glossary preview action. A cold or missing catalog is a miss: the
-        panel loads its own catalog and opens on the first term.
+        glossary preview action, deriving the strand slug from its already
+        in-memory source path so this stays disk-read-free on the event
+        loop. A cold or missing catalog, or a term with no source path, is a
+        miss: the Memory panel loads its own catalog and opens on the
+        seeded scope's first note.
         """
         try:
             match = self.active_text_area()._glossary_match_under_cursor(schedule=False)
@@ -359,8 +366,12 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
             return None
         if not isinstance(match, tuple) or len(match) != 3:
             return None
-        term = getattr(match[2], "term", None)
-        return term if isinstance(term, str) and term else None
+        source = getattr(match[2], "source", None)
+        source_path = source.get("source_path") if isinstance(source, Mapping) else None
+        if not isinstance(source_path, str) or not source_path:
+            return None
+        slug = Path(source_path).stem
+        return f"glossary:{slug}" if slug else None
 
     def _memory_note_under_cursor(self) -> str | None:
         """Return the ``#memory/<stem>`` reference at the cursor, if any.

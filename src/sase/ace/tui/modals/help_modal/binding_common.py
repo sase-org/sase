@@ -142,35 +142,6 @@ def custom_mode_sections(km: KeymapRegistry) -> Sections:
     return sections
 
 
-def glossary_panel_section(
-    km: KeymapRegistry,
-) -> tuple[str, list[tuple[str, str]]]:
-    """Build the Glossary panel keybinding section from configured keys."""
-    d = key_display_name
-    g = km.glossary
-    return (
-        "Glossary Panel",
-        [
-            ("gG / Ctrl+G G", "Open from prompt"),
-            (f"{d(g.next_term)} / {d(g.prev_term)}", "Move through terms"),
-            (f"{d(g.first_term)} / {d(g.last_term)}", "First / last term"),
-            (d(g.filter_terms), "Filter terms / aliases"),
-            (d(g.toggle_definition_filter), "Match definition bodies"),
-            (f"{d(g.next_relation)} / {d(g.prev_relation)}", "Move relation chip"),
-            (d(g.follow_relation), "Follow relation"),
-            (NUMBERED_LINK_HELP_KEYS, "Follow numbered chip"),
-            (d(g.travel_back), "Walk back along trail"),
-            (f"{d(g.next_project)} / {d(g.prev_project)}", "Cycle visible project"),
-            (d(g.add_term), "Add a term"),
-            (d(g.delete_term), "Delete selected term"),
-            (d(g.open_source), "Open source in editor"),
-            (d(g.copy_definition), "Copy definition"),
-            (d(g.help), "Panel-scoped help"),
-            ("Esc", "Close and restore prompt"),
-        ],
-    )
-
-
 def memory_panel_section(
     km: KeymapRegistry,
 ) -> tuple[str, list[tuple[str, str]]]:

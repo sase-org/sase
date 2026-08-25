@@ -5521,94 +5521,6 @@ GlossaryPreviewModal #glossary-preview-footer {
     text-overflow: ellipsis;
 }
 
-/* ===== Glossary Panel Styling ===== */
-
-GlossaryPanel {
-    align: center middle;
-}
-
-GlossaryPanel #glossary-panel-container {
-    width: 90%;
-    max-width: 150;
-    height: 90%;
-    max-height: 44;
-    border: double $primary;
-    background: $surface;
-    padding: 1 2;
-}
-
-GlossaryPane #glossary-panel-container {
-    width: 100%;
-    height: 100%;
-}
-
-GlossaryPane #glossary-panel-header {
-    height: auto;
-    margin-bottom: 1;
-}
-
-GlossaryPane #glossary-panel-body {
-    height: 1fr;
-}
-
-GlossaryPane #glossary-panel-terms {
-    width: 32;      /* default; fitted at runtime by term_rail_width() */
-    min-width: 32;  /* keep in sync with _TERM_RAIL_MIN_WIDTH */
-    max-width: 52;  /* keep in sync with _TERM_RAIL_MAX_WIDTH */
-    height: 100%;
-    border: solid $secondary;
-    scrollbar-gutter: stable;
-}
-
-GlossaryPane #glossary-panel-detail {
-    width: 1fr;
-    height: 100%;
-    border: solid $secondary;
-    margin-left: 1;
-    padding: 0 1;
-    scrollbar-gutter: stable;
-}
-
-GlossaryPane #glossary-panel-card-title {
-    height: auto;
-    margin-bottom: 1;
-}
-
-GlossaryPane #glossary-panel-card-definition {
-    width: 100%;
-    height: auto;
-}
-
-GlossaryPane #glossary-panel-card-meta {
-    width: 100%;
-    height: auto;
-    margin-top: 1;
-}
-
-GlossaryPane #glossary-panel-filter {
-    height: 3;
-    margin-top: 1;
-    border: tall $accent;
-}
-
-GlossaryPane #glossary-panel-trail {
-    height: auto;
-    margin-top: 1;
-    text-wrap: nowrap;
-    text-overflow: ellipsis;
-}
-
-GlossaryPane #glossary-panel-footer {
-    text-align: center;
-    color: $text-muted;
-    height: auto;
-    margin-top: 1;
-    border-top: solid $secondary;
-    padding-top: 1;
-    text-wrap: nowrap;
-    text-overflow: ellipsis;
-}
-
 FeatureFlagsPane {
     width: 100%;
     height: 100%;
@@ -5678,45 +5590,6 @@ FeatureFlagsPane #feature-flags-pane-footer {
     padding-top: 1;
     text-wrap: nowrap;
     text-overflow: ellipsis;
-}
-
-/* ===== Glossary Panel Help Modal Styling ===== */
-
-GlossaryPanelHelpModal {
-    align: center middle;
-}
-
-GlossaryPanelHelpModal #glossary-panel-help-container {
-    width: 84;
-    max-width: 94%;
-    height: auto;
-    max-height: 80%;
-    border: thick $primary;
-    background: $surface;
-    padding: 1 2;
-}
-
-GlossaryPanelHelpModal #glossary-panel-help-title {
-    text-align: center;
-    height: auto;
-    margin-bottom: 1;
-}
-
-GlossaryPanelHelpModal #glossary-panel-help-scroll {
-    height: auto;
-    max-height: 100%;
-    scrollbar-gutter: stable;
-    border: solid $secondary;
-    padding: 0 1;
-}
-
-GlossaryPanelHelpModal #glossary-panel-help-footer {
-    text-align: center;
-    color: $text-muted;
-    height: auto;
-    margin-top: 1;
-    border-top: solid $secondary;
-    padding-top: 1;
 }
 
 /* ===== Snippets Panel Styling ===== */
@@ -6173,6 +6046,59 @@ MemoryNoteFormModal #memory-note-form-hints {
     margin-top: 1;
 }
 
+/* ===== Memory Strand Form Modal ===== */
+
+MemoryStrandFormModal {
+    align: center middle;
+}
+
+MemoryStrandFormModal #memory-strand-form-container {
+    width: 84;
+    max-width: 94%;
+    height: auto;
+    max-height: 90%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+MemoryStrandFormModal #memory-strand-form-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+MemoryStrandFormModal .memory-strand-form-label {
+    height: 1;
+    color: $text-muted;
+    margin-top: 1;
+}
+
+MemoryStrandFormModal #memory-strand-form-slug,
+MemoryStrandFormModal #memory-strand-form-keyword,
+MemoryStrandFormModal #memory-strand-form-aliases,
+MemoryStrandFormModal #memory-strand-form-summary {
+    height: 3;
+    border: tall $secondary;
+}
+
+MemoryStrandFormModal #memory-strand-form-body {
+    height: 8;
+    min-height: 5;
+    border: tall $secondary;
+}
+
+MemoryStrandFormModal .memory-strand-form-error {
+    height: auto;
+    color: #ff5f5f;
+}
+
+MemoryStrandFormModal #memory-strand-form-hints {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+}
+
 /* ===== Memory Publish Modal ===== */
 
 MemoryPublishModal {
@@ -6273,57 +6199,6 @@ RepoPreviewModal #repo-preview-footer {
     padding-top: 1;
     text-wrap: nowrap;
     text-overflow: ellipsis;
-}
-
-/* ===== Glossary Term Add Modal ===== */
-
-GlossaryTermAddModal {
-    align: center middle;
-}
-
-GlossaryTermAddModal #glossary-add-container {
-    width: 84;
-    max-width: 94%;
-    height: auto;
-    max-height: 90%;
-    border: double $primary;
-    background: $surface;
-    padding: 1 2;
-}
-
-GlossaryTermAddModal #glossary-add-title {
-    height: auto;
-    margin-bottom: 1;
-}
-
-GlossaryTermAddModal .glossary-add-label {
-    height: 1;
-    color: $text-muted;
-    margin-top: 1;
-}
-
-GlossaryTermAddModal #glossary-add-term,
-GlossaryTermAddModal #glossary-add-aliases {
-    height: 3;
-    border: tall $secondary;
-}
-
-GlossaryTermAddModal #glossary-add-definition {
-    height: 10;
-    min-height: 6;
-    border: tall $secondary;
-}
-
-GlossaryTermAddModal .glossary-add-error {
-    height: auto;
-    color: #ff5f5f;
-}
-
-GlossaryTermAddModal #glossary-add-hints {
-    text-align: center;
-    color: $text-muted;
-    height: auto;
-    margin-top: 1;
 }
 
 /* ===== Snippets Add/Edit Form ===== */
@@ -7415,7 +7290,6 @@ ConfigHubPane #config-hub-empty {
     height: 1fr;
 }
 
-ConfigHubPane GlossaryPane,
 ConfigHubPane MemoryPane,
 ConfigHubPane SnippetsPane,
 ConfigHubPane XPromptBrowserPane,
@@ -7438,7 +7312,6 @@ ConfigHubPane ConfigPane.-embedded #config-pane-title {
     display: none;
 }
 
-ConfigHubPane #glossary-panel-container,
 ConfigHubPane #memory-panel-container,
 ConfigHubPane #snippets-panel-container,
 ConfigHubPane #feature-flags-pane-container {

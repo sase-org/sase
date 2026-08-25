@@ -8,7 +8,6 @@ from typing import Any
 from sase.ace.tui.keymaps.defaults import (
     load_builtin_config_defaults,
     load_builtin_gate_defaults,
-    load_builtin_glossary_defaults,
     load_builtin_memory_defaults,
     load_builtin_projects_defaults,
     load_builtin_snippets_defaults,
@@ -17,7 +16,6 @@ from sase.ace.tui.keymaps.defaults import (
 from sase.ace.tui.keymaps.app_keymaps import (
     ConfigHubKeymaps,
     GateModalKeymaps,
-    GlossaryPanelKeymaps,
     MemoryPanelKeymaps,
     ProjectsPaneKeymaps,
     SnippetPanelKeymaps,
@@ -32,9 +30,9 @@ from sase.ace.tui.keymaps.key_validation import (
 
 log = logging.getLogger(__name__)
 
-# Glossary and Memory keep ``.`` (``full_stop``) as the fixed numbered-link
-# prefix. An override that assigns it to a configurable action is reverted so
-# it cannot shadow or be shadowed by that prefix. Snippets is not reserved.
+# Memory keeps ``.`` (``full_stop``) as the fixed numbered-link prefix. An
+# override that assigns it to a configurable action is reverted so it cannot
+# shadow or be shadowed by that prefix. Snippets is not reserved.
 _NUMBERED_LINK_RESERVED_KEYS = frozenset({"full_stop"})
 
 
@@ -192,18 +190,6 @@ def load_gate_keymaps(keymaps_cfg: dict[str, Any]) -> GateModalKeymaps:
         dataclass_type=GateModalKeymaps,
         defaults=load_builtin_gate_defaults(),
         pre_step=_migrate_gate_legacy_activate_control,
-    )
-
-
-def load_glossary_keymaps(keymaps_cfg: dict[str, Any]) -> GlossaryPanelKeymaps:
-    """Load and validate the focused Glossary-panel binding scope."""
-
-    return _load_scope_keymaps(
-        keymaps_cfg,
-        scope="glossary",
-        dataclass_type=GlossaryPanelKeymaps,
-        defaults=load_builtin_glossary_defaults(),
-        reserved_keys=_NUMBERED_LINK_RESERVED_KEYS,
     )
 
 

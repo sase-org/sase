@@ -437,6 +437,64 @@ def test_snapshot_includes_collapsed_web_rows_and_strand_metadata(
     assert snapshot.webs == (web_node.web,)
     assert snapshot.stats["decisions:alpha"].line_count > 0
     assert snapshot.digests["decisions:alpha"].sha256
+    assert snapshot.mention_catalogs == {}
+
+
+def test_snapshot_builds_mention_catalog_for_closure_mentions_web(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "demo"
+    memory_root = workspace / "sase" / "memory"
+    memory_root.mkdir(parents=True)
+    (memory_root / "glossary.md").write_text(
+        "---\ntype: core\nweb: true\nclosure: mentions\n---\nGlossary body.\n",
+        encoding="utf-8",
+    )
+    strand_dir = memory_root / "glossary"
+    strand_dir.mkdir()
+    (strand_dir / "alpha.md").write_text(
+        "---\nkeyword: Alpha Term\n---\nAlpha body mentions Beta Term.\n",
+        encoding="utf-8",
+    )
+    (strand_dir / "beta.md").write_text(
+        "---\nkeyword: Beta Term\n---\nBeta body, unrelated.\n",
+        encoding="utf-8",
+    )
+
+    ref = panel_catalog.MemoryScopeRef(
+        kind="project",
+        key="gh_demo__demo",
+        display_name="Demo",
+        content_root=str(workspace),
+        memory_read_root=str(memory_root),
+        has_memory=True,
+    )
+    snapshot = panel_catalog.load_memory_scope_snapshot(ref)
+
+    assert "glossary" in snapshot.mention_catalogs
+    web = snapshot.webs[0]
+    strands_by_slug = {strand.slug: strand for strand in web.strands}
+
+    def _rail_node(slug: str) -> panel_catalog.MemoryRailNode:
+        strand = strands_by_slug[slug]
+        return panel_catalog.MemoryRailNode(
+            note=panel_catalog.memory_strand_note(web, strand),
+            depth=1,
+            web=web,
+            strand=strand,
+        )
+
+    parent, children = panel_catalog.memory_rail_node_relations(
+        snapshot, _rail_node("alpha")
+    )
+    assert [note.path.stem for note in parent] == ["glossary:beta"]
+    assert children == ()
+
+    beta_parent, beta_children = panel_catalog.memory_rail_node_relations(
+        snapshot, _rail_node("beta")
+    )
+    assert beta_parent == ()
+    assert [note.path.stem for note in beta_children] == ["glossary:alpha"]
 
 
 def test_snapshot_marks_generated_and_shadowed_stems(
@@ -472,7 +530,8 @@ def test_snapshot_marks_generated_and_shadowed_stems(
     assert snapshot.shadowed_stems == frozenset({"shared"})
     assert "sase/memory/sase.md" in snapshot.generated_paths
     assert "sase/memory/task_types.md" in snapshot.generated_paths
-    assert "sase/memory/glossary.md" in snapshot.generated_paths
+    # glossary.md is a user-owned memory-web descriptor, not a generated note.
+    assert "sase/memory/glossary.md" not in snapshot.generated_paths
     assert "sase/memory/sase_artifacts.md" in snapshot.generated_paths
     assert "sase/memory/sase_beads.md" in snapshot.generated_paths
     assert "sase/memory/sase_sizes.md" in snapshot.generated_paths

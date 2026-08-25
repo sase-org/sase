@@ -68,12 +68,6 @@ def load_builtin_gate_defaults() -> dict[str, str]:
     return dict(_builtin_scope_defaults("gate"))
 
 
-def load_builtin_glossary_defaults() -> dict[str, str]:
-    """Return a mutable copy of bundled focused Glossary-panel defaults."""
-
-    return dict(_builtin_scope_defaults("glossary"))
-
-
 def load_builtin_memory_defaults() -> dict[str, str]:
     """Return a mutable copy of bundled focused Memory-panel defaults."""
 

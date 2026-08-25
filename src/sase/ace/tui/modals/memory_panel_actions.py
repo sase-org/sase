@@ -8,12 +8,15 @@ in :mod:`sase.ace.tui.modals.memory_panel_publish_actions`.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion, TrackedProcResult
 from sase.ace.tui.memory_panel_catalog import (
     MemoryScopeRef,
     invalidate_memory_scope,
+    memory_rail_node_label,
+    memory_rail_node_relations,
 )
 from sase.memory.text_filter import filter_memory_notes
 
@@ -23,11 +26,13 @@ from .memory_panel_add import MemoryNoteFormDraft, MemoryNoteFormModal
 from .memory_panel_delete import (
     build_child_blocked_delete_message,
     build_memory_delete_subject,
+    build_memory_strand_delete_subject,
     children_of,
     neighbor_note_after_delete,
 )
 from .memory_panel_publish import memory_publish_subject
 from .memory_panel_publish_actions import MemoryPanelPublishActionsMixin
+from .memory_panel_strand_add import MemoryStrandFormDraft, MemoryStrandFormModal
 from .memory_panel_write import (
     MemoryWriteKind,
     MemoryWritePayload,
@@ -46,11 +51,13 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
     if TYPE_CHECKING:
         _accent: str
         _current_note: str | None
+        _expanded_webs: set[str]
         _filter_bodies: bool
         _filter_text: str
         _loading: bool
         _pending_delete_neighbor: str | None
         _pending_delete_path: str | None
+        _pending_delete_strand: tuple[str, str] | None
         _ring: tuple[MemoryScopeRef, ...]
         _rows: tuple[MemoryRailNode, ...]
         _scope_index: int
@@ -82,6 +89,17 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
             return
         scope = self._current_scope()
         if scope is None:
+            return
+        node = self._selected_row()
+        if node is not None and node.is_web and node.web is not None:
+            self.app.push_screen(
+                MemoryStrandFormModal(
+                    web=node.web,
+                    scope_display_name=scope.display_name,
+                    accent=self._accent,
+                ),
+                self._on_add_strand_draft,
+            )
             return
         notes = self._snapshot.notes if self._snapshot is not None else ()
         self.app.push_screen(
@@ -141,10 +159,7 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
         if node is None or snapshot is None:
             return
         if node.is_strand:
-            self.app.notify(
-                "memory strands are deleted from their source directory",
-                severity="warning",
-            )
+            self._confirm_strand_delete(node, snapshot)
             return
         if node.note.relative_path in snapshot.generated_paths:
             self.app.notify(
@@ -166,6 +181,7 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
                 )
             )
             return
+        self._pending_delete_strand = None
         self._pending_delete_path = node.note.relative_path
         self._pending_delete_neighbor = neighbor_note_after_delete(
             [row.note.relative_path for row in self._rows],
@@ -186,6 +202,38 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
             self._on_delete_confirmed,
         )
 
+    def _confirm_strand_delete(
+        self, node: MemoryRailNode, snapshot: MemoryScopeSnapshot
+    ) -> None:
+        web = node.web
+        strand = node.strand
+        if web is None or strand is None:
+            return
+        _outbound, inbound = memory_rail_node_relations(snapshot, node)
+        referenced_by = tuple(
+            memory_rail_node_label(snapshot, item) for item in inbound
+        )
+        self._pending_delete_strand = (web.slug, strand.slug)
+        self._pending_delete_path = node.note.relative_path
+        self._pending_delete_neighbor = neighbor_note_after_delete(
+            [row.note.relative_path for row in self._rows],
+            node.note.relative_path,
+        )
+        self.app.push_screen(
+            ConfirmActionModal(
+                "Delete memory strand",
+                "Remove this strand from the web? A backup copy will be kept.",
+                subject=build_memory_strand_delete_subject(
+                    web, strand, referenced_by=referenced_by
+                ),
+                kind=ConfirmKind.DANGER,
+                confirm_label="Delete",
+                cancel_label="Cancel",
+                default="cancel",
+            ),
+            self._on_delete_confirmed,
+        )
+
     def _on_add_draft(self, draft: MemoryNoteFormDraft | None) -> None:
         if draft is None:
             return
@@ -195,6 +243,19 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
             note_type=draft.note_type,
             parent=draft.parent,
             description=draft.description,
+        )
+
+    def _on_add_strand_draft(self, draft: MemoryStrandFormDraft | None) -> None:
+        if draft is None:
+            return
+        self._submit_memory_write(
+            kind="add_strand",
+            web_slug=draft.web_slug,
+            slug=draft.slug,
+            keyword=draft.keyword,
+            aliases=draft.aliases,
+            summary=draft.summary,
+            body=draft.body,
         )
 
     def _on_edit_draft(self, draft: MemoryNoteFormDraft | None) -> None:
@@ -215,6 +276,18 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
     def _on_delete_confirmed(self, confirmed: bool | None) -> None:
         if not confirmed:
             return
+        strand_pending = getattr(self, "_pending_delete_strand", None)
+        if strand_pending is not None:
+            web_slug, slug = strand_pending
+            self._pending_delete_strand = None
+            self._submit_memory_write(
+                kind="delete_strand",
+                relative_path=f"{web_slug}:{slug}",
+                web_slug=web_slug,
+                slug=slug,
+                preferred_note=getattr(self, "_pending_delete_neighbor", None),
+            )
+            return
         path = getattr(self, "_pending_delete_path", None)
         if not path:
             return
@@ -234,6 +307,12 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
         parent: str = "",
         description: str = "",
         preferred_note: str | None = None,
+        web_slug: str = "",
+        slug: str = "",
+        keyword: str | None = None,
+        aliases: Sequence[str] = (),
+        summary: str | None = None,
+        body: str = "",
     ) -> None:
         if self._write_busy or not self._ring:
             return
@@ -243,7 +322,7 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
             else self._ring[self._scope_index]
         )
         expected_digest = ""
-        if kind in {"edit", "delete"}:
+        if kind in {"edit", "delete", "delete_strand"}:
             digest = (
                 self._snapshot.digests.get(relative_path) if self._snapshot else None
             )
@@ -274,6 +353,12 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
                 description=description,
                 expected_digest=expected_digest,
                 preferred_note=preferred_note,
+                web_slug=web_slug,
+                slug=slug,
+                keyword=keyword,
+                aliases=aliases,
+                summary=summary,
+                body=body,
             )
 
         submitted = submit(
@@ -281,7 +366,7 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
             task,
             on_complete=self._on_memory_write_complete,
             display_name=f"{kind} memory note",
-            cl_name=stem or relative_path,
+            cl_name=stem or slug or relative_path,
             project_file=scope.content_root,
             dedup_key=f"memory-write:{scope.key}",
             exclusive_scopes=(f"memory-write:{scope.key}",),
@@ -317,6 +402,8 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
         if self._scope_worker is not None and not self._scope_worker.is_finished:
             self._scope_worker.cancel()
             self._scope_worker = None
+        if payload.strand_outcome is not None:
+            self._expanded_webs.add(payload.strand_outcome.web_slug)
         preferred = payload.preferred_note
         if preferred and self._filter_text:
             visible = {
@@ -335,10 +422,13 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
         self._loading = False
         self._apply_snapshot(payload.snapshot, preferred_note=preferred)
         scope = payload.snapshot.scope
+        stem = payload.outcome.stem if payload.outcome is not None else None
+        if stem is None and payload.strand_outcome is not None:
+            stem = payload.strand_outcome.keyword
         subject = memory_publish_subject(
             scope.display_name,
             kind=payload.kind,
-            stem=payload.outcome.stem if payload.outcome is not None else None,
+            stem=stem,
         )
         if payload.offer_editor:
             note_path = (

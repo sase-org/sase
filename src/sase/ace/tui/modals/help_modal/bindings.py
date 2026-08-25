@@ -13,7 +13,6 @@ from .binding_common import (
     _Sections,
     _custom_mode_sections,
     _sk,
-    glossary_panel_section,
     memory_panel_section,
     snippets_panel_section,
 )
@@ -33,7 +32,6 @@ __all__ = [
     "agents_bindings",
     "axe_bindings",
     "cls_bindings",
-    "glossary_panel_section",
     "memory_panel_section",
     "snippets_panel_section",
 ]

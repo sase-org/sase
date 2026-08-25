@@ -85,10 +85,10 @@ async def test_config_number_prefix_selects_alphabetic_subtabs(
         assert hub._pending_subtab_select is False
         _assert_hub_caption(hub, "flags")
 
-        await pilot.press("0", "5")
+        await pilot.press("0", "4")
         await wait_for(pilot, lambda: hub._active_subtab == "memory")
         _assert_hub_caption(hub, "memory")
-        await pilot.press("0", "7")
+        await pilot.press("0", "6")
         await wait_for(pilot, lambda: hub._active_subtab == "xprompts")
 
         assert calls == ["xprompts", "flags", "memory"]
@@ -208,7 +208,7 @@ async def test_relationship_children_own_tab_keys(
 
         assert modal.check_action("next_center_tab", ()) is not False
 
-        await hub._switch_to("glossary")
+        await hub._switch_to("memory")
         assert hub.child_owns_tab_keys() is True
         assert modal.check_action("next_center_tab", ()) is False
         assert modal.check_action("prev_center_tab", ()) is False

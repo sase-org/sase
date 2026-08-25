@@ -41,7 +41,15 @@ def _seed_note_from_reference(note_reference: str | None) -> str | None:
 
 
 class PromptBarMemoryPanelMixin:
-    """Handle ``PromptInputBar.MemoryPanelRequested`` from the app layer."""
+    """Handle ``PromptInputBar.MemoryPanelRequested`` (and the glossary
+    shortcut's ``GlossaryPanelRequested``) from the app layer.
+
+    Both open the same Memory subtab of the Config hub -- the glossary
+    shortcut is just a different seed-detection mechanism (the highlighted
+    glossary term under the cursor, already resolved to a ``glossary:<slug>``
+    identity by the bar) than the ``#memory/<stem>`` xprompt reference the
+    plain memory shortcut captures.
+    """
 
     _prompt_context: PromptContext | None
 
@@ -67,6 +75,32 @@ class PromptBarMemoryPanelMixin:
                     subtab="memory",
                     launch_workspace=launch_workspace,
                     note=_seed_note_from_reference(event.note_reference),
+                ),
+                on_dismissed=_on_dismissed,
+            )
+
+    def on_prompt_input_bar_glossary_panel_requested(self, event: object) -> None:
+        """Open the memory panel seeded from the glossary term under the cursor."""
+        from ...modals.config_hub_session import ConfigHubEntry
+        from ...widgets import PromptInputBar
+
+        if not isinstance(event, PromptInputBar.GlossaryPanelRequested):
+            return
+
+        restore = self._capture_memory_prompt_focus()
+        launch_workspace = self._memory_panel_launch_workspace()
+
+        def _on_dismissed(_result: object) -> None:
+            self._restore_memory_prompt_focus(restore)
+
+        opener = getattr(self, "_open_config_center", None)
+        if callable(opener):
+            opener(
+                "config",
+                config_entry=ConfigHubEntry(
+                    subtab="memory",
+                    launch_workspace=launch_workspace,
+                    note=event.note_identity,
                 ),
                 on_dismissed=_on_dismissed,
             )

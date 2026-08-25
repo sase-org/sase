@@ -10,7 +10,8 @@ from rich.text import Text
 from sase.ace.tui.memory_panel_catalog import (
     MemoryRailNode,
     MemoryScopeSnapshot,
-    memory_note_relations,
+    memory_rail_node_label,
+    memory_rail_node_relations,
 )
 from sase.memory.notes import MemoryNote
 from sase.notifications.models import format_relative_time
@@ -48,7 +49,7 @@ def build_rail_node_card_meta(
             focused_link_number=focused_link_number,
         )
     if parent is None or children is None:
-        parent, children = memory_note_relations(snapshot, node.note)
+        parent, children = memory_rail_node_relations(snapshot, node)
     sections: list[RenderableType] = []
     badges = build_note_badge_row(snapshot, node.note, accent=accent)
     if badges is not None:
@@ -56,10 +57,23 @@ def build_rail_node_card_meta(
     extra_badges = _build_web_or_strand_badges(node, strand_read_state, accent=accent)
     if extra_badges is not None:
         sections.append(extra_badges)
+    is_mention_strand = (
+        node.strand is not None
+        and node.web is not None
+        and node.web.closure == "mentions"
+    )
+    first_label = "SEE ALSO" if is_mention_strand else "PARENT"
+    second_label = "REFERENCED BY" if is_mention_strand else "CHILDREN"
     chip_rows = build_numbered_chip_rows(
         (
-            ("PARENT", tuple(item.path.stem for item in parent)),
-            ("CHILDREN", tuple(item.path.stem for item in children)),
+            (
+                first_label,
+                tuple(memory_rail_node_label(snapshot, item) for item in parent),
+            ),
+            (
+                second_label,
+                tuple(memory_rail_node_label(snapshot, item) for item in children),
+            ),
         ),
         focused_number=focused_link_number,
         accent=accent,

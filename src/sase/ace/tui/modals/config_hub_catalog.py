@@ -72,21 +72,6 @@ def _snippets_factory(hub: ConfigHubPane) -> Widget:
     return pane
 
 
-def _glossary_factory(hub: ConfigHubPane) -> Widget:
-    from .glossary_pane import GlossaryPane
-
-    entry = hub._entry
-    pane = GlossaryPane(
-        launch_workspace=_entry_workspace(entry),
-        initial_term=_entry_term(entry),
-        host=hub,
-        session=hub._session_state.config_hub.glossary,
-        id="glossary",
-    )
-    pane.add_class("-embedded")
-    return pane
-
-
 def _memory_factory(hub: ConfigHubPane) -> Widget:
     from .memory_pane import MemoryPane
 
@@ -133,12 +118,6 @@ def _entry_workspace(entry: ConfigHubEntry | None) -> str | None:
     return None if entry is None else entry.launch_workspace
 
 
-def _entry_term(entry: ConfigHubEntry | None) -> str | None:
-    if entry is None or entry.subtab != "glossary":
-        return None
-    return entry.term
-
-
 def _entry_note(entry: ConfigHubEntry | None) -> str | None:
     if entry is None or entry.subtab != "memory":
         return None
@@ -169,15 +148,6 @@ CONFIG_SUBTAB_SPECS: tuple[ConfigSubTabSpec, ...] = (
         "Review feature rollouts, effective state, provenance, and saved overrides.",
         "Control feature rollouts and saved overrides.",
         _flags_factory,
-    ),
-    ConfigSubTabSpec(
-        "glossary",
-        "Glossary",
-        "Gloss",
-        "Gloss",
-        "Browse shared terms, aliases, definitions, and their relationships.",
-        "Browse shared terms, definitions, and relationships.",
-        _glossary_factory,
     ),
     ConfigSubTabSpec(
         "launch",
@@ -222,9 +192,7 @@ CONFIG_SUBTAB_BY_ID: dict[ConfigSubTab, ConfigSubTabSpec] = {
 CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = tuple(
     spec.id for spec in CONFIG_SUBTAB_SPECS
 )
-RELATION_SUBTABS: frozenset[ConfigSubTab] = frozenset(
-    ("snippets", "glossary", "memory")
-)
+RELATION_SUBTABS: frozenset[ConfigSubTab] = frozenset(("snippets", "memory"))
 
 
 def config_subtab_specs() -> tuple[ConfigSubTabSpec, ...]:

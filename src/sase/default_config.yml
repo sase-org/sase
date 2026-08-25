@@ -325,31 +325,6 @@ ace:
       scroll_up: "ctrl+u"
       refresh: "r"
       help: "question_mark"
-    # Focused Glossary-panel bindings. These keys are inactive everywhere
-    # else, even when they overlap app-level actions.
-    glossary:
-      next_term: "j"
-      prev_term: "k"
-      first_term: "g"
-      last_term: "G"
-      scroll_definition_down: "ctrl+d"
-      scroll_definition_up: "ctrl+u"
-      filter_terms: "slash"
-      toggle_definition_filter: "greater_than_sign"
-      next_relation: "tab"
-      prev_relation: "shift+tab"
-      follow_relation: "enter,l"
-      travel_back: "backspace,h"
-      next_project: "p"
-      prev_project: "P"
-      add_term: "a"
-      delete_term: "d"
-      open_source: "o"
-      open_viewer: "Z"
-      copy_definition: "y"
-      copy_source_path: "Y"
-      refresh: "r"
-      help: "question_mark"
     # Focused Memory-panel bindings. These keys are inactive everywhere
     # else, even when they overlap app-level actions.
     memory:

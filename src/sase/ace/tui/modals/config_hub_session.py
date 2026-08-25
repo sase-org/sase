@@ -7,13 +7,10 @@ from typing import Any, Literal
 
 from .catalog_pane_contract import CatalogPaneSession
 
-ConfigSubTab = Literal[
-    "flags", "glossary", "launch", "memory", "misc", "snippets", "xprompts"
-]
+ConfigSubTab = Literal["flags", "launch", "memory", "misc", "snippets", "xprompts"]
 CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
     "misc",
     "flags",
-    "glossary",
     "launch",
     "memory",
     "snippets",
@@ -59,7 +56,6 @@ class ConfigHubEntry:
 
     subtab: ConfigSubTab
     launch_workspace: str | None = None
-    term: str | None = None
     note: str | None = None
     trigger: str | None = None
 
@@ -68,14 +64,13 @@ class ConfigHubEntry:
 class ConfigHubSessionState:
     """Session-only Config catalog cursor: active child plus per-tool bookmarks.
 
-    Glossary uses the shared catalog bookmark. Memory and Snippets session
-    objects are created on first Config-hub mount so constructing an
-    :class:`AdminCenterSessionState` does not import those pane modules.
+    Memory and Snippets session objects are created on first Config-hub mount
+    so constructing an :class:`AdminCenterSessionState` does not import those
+    pane modules.
     """
 
     active_subtab: ConfigSubTab = "xprompts"
     flags: CatalogPaneSession = field(default_factory=CatalogPaneSession)
-    glossary: CatalogPaneSession = field(default_factory=CatalogPaneSession)
     memory: Any = None
     launch: Any = None
     snippets: Any = None

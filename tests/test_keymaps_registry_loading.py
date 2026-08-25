@@ -7,7 +7,6 @@ from sase.ace.tui.keymaps import (
     CopyModeKeymaps,
     FoldModeKeymaps,
     GateModalKeymaps,
-    GlossaryPanelKeymaps,
     LeaderModeKeymaps,
     MemoryPanelKeymaps,
     ModeKeymaps,
@@ -44,7 +43,6 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.config.select_subtab == "0"
     assert isinstance(reg.statistics, StatisticsPaneKeymaps)
     assert isinstance(reg.gate, GateModalKeymaps)
-    assert isinstance(reg.glossary, GlossaryPanelKeymaps)
     assert isinstance(reg.memory, MemoryPanelKeymaps)
     assert isinstance(reg.snippets, SnippetPanelKeymaps)
     assert reg.snippets.next_snippet == "j"
@@ -70,13 +68,6 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.statistics.scroll_up == "ctrl+u"
     assert reg.statistics.refresh == "r"
     assert reg.statistics.help == "question_mark"
-    assert reg.glossary.next_term == "j"
-    assert reg.glossary.prev_term == "k"
-    assert reg.glossary.filter_terms == "slash"
-    assert reg.glossary.toggle_definition_filter == "greater_than_sign"
-    assert reg.glossary.next_project == "p"
-    assert reg.glossary.prev_project == "P"
-    assert reg.glossary.help == "question_mark"
     assert reg.memory.next_note == "j"
     assert reg.memory.prev_note == "k"
     assert reg.memory.filter_notes == "slash"
@@ -363,3 +354,18 @@ def test_non_dict_keymaps_config() -> None:
     reg = load_keymap_registry({"keymaps": "invalid"})
     assert reg.app.next_patch == "j"
     assert isinstance(reg.fold_mode, FoldModeKeymaps)
+
+
+def test_legacy_glossary_keymap_scope_is_ignored_without_error() -> None:
+    """A retired ``ace.keymaps.glossary`` user override loads without error.
+
+    The Glossary panel keymap scope is retired: ``KeymapRegistry`` no longer
+    has a ``.glossary`` field, and no bindings are built from it. The config
+    schema still accepts the key for one release, so the loader must ignore
+    it silently rather than raising.
+    """
+    reg = load_keymap_registry(
+        {"keymaps": {"glossary": {"next_term": "down", "help": "f9"}}}
+    )
+    assert not hasattr(reg, "glossary")
+    assert reg.app.next_patch == "j"  # unaffected

@@ -8,7 +8,6 @@ from .binding_common import (
     admin_center_opener_help_label,
     Sections,
     custom_mode_sections,
-    glossary_panel_section,
     key_sequence_display,
     memory_panel_section,
     snippets_panel_section,
@@ -146,7 +145,6 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
     # Insert custom mode sections before "General".
     sections.extend(custom_mode_sections(km))
     sections.append(PROMPT_INPUT_SECTION)
-    sections.append(glossary_panel_section(km))
     sections.append(memory_panel_section(km))
     sections.append(snippets_panel_section(km))
     sections.append(ADMIN_CENTER_TASKS_SECTION)

@@ -184,6 +184,7 @@ class MemoryPane(
         self._unpublished_scopes: set[str] = set()
         self._pending_delete_path: str | None = None
         self._pending_delete_neighbor: str | None = None
+        self._pending_delete_strand: tuple[str, str] | None = None
 
     def on_key(self, event: events.Key) -> None:
         from .config_hub_keys import handle_config_hub_subtab_select_key

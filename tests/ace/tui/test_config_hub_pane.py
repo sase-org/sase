@@ -32,7 +32,7 @@ from tests.ace.tui._config_hub_pane_helpers import (
 )
 def test_numbered_config_strip_fits_each_layout_tier(width: int, tier: str) -> None:
     tabs = config_panel_tabs()
-    compact_below, micro_below = (98, 73) if len(tabs) >= 7 else (85, 73)
+    compact_below, micro_below = (98, 73) if len(tabs) >= 6 else (85, 73)
     strip = PanelTabStrip(
         tabs,
         "flags",
@@ -52,7 +52,7 @@ def test_numbered_config_strip_fits_each_layout_tier(width: int, tier: str) -> N
     assert [
         rendered.plain[start:end].split(maxsplit=1)[0]
         for start, end in strip._tab_ranges.values()
-    ] == [f"{number:02d}" for number in range(1, 8)]
+    ] == [f"{number:02d}" for number in range(1, 7)]
 
 
 async def test_opening_config_constructs_only_the_active_child(
@@ -109,7 +109,7 @@ async def test_failed_child_mount_leaves_previous_child_visible(
     original = ConfigHubPane._create_pane
 
     def maybe_fail(self: ConfigHubPane, subtab: str) -> _HubChild:
-        if subtab == "glossary":
+        if subtab == "launch":
             raise RuntimeError("boom")
         return original(self, subtab)
 
@@ -126,7 +126,7 @@ async def test_failed_child_mount_leaves_previous_child_visible(
         await pilot.pause()
 
         assert hub._active_subtab == "xprompts"
-        assert "glossary" not in hub._panes
+        assert "launch" not in hub._panes
         assert calls == ["xprompts"]
         assert created["xprompts"][0].visibility[-1] is True
         assert _caption_text(hub).plain == before
@@ -138,24 +138,24 @@ async def test_direct_entry_opens_requested_child_once(
 ) -> None:
     _created, calls = _patch_hub_children(monkeypatch)
     state = AdminCenterSessionState()
-    state.config_hub.active_subtab = "memory"
+    state.config_hub.active_subtab = "xprompts"
     async with _HostApp().run_test() as pilot:
         modal = ConfigCenterModal(
             initial_tab="config",
             session_state=state,
-            config_entry=ConfigHubEntry(subtab="glossary", term="Agent Hood"),
+            config_entry=ConfigHubEntry(subtab="memory", note="glossary:agent-hood"),
         )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await wait_for(pilot, lambda: "glossary" in hub._panes)
+        await wait_for(pilot, lambda: "memory" in hub._panes)
 
-        assert calls == ["glossary"]
-        assert hub._active_subtab == "glossary"
-        assert state.config_hub.active_subtab == "glossary"
+        assert calls == ["memory"]
+        assert hub._active_subtab == "memory"
+        assert state.config_hub.active_subtab == "memory"
         assert hub._entry is not None
-        assert hub._entry.term == "Agent Hood"
-        _assert_hub_caption(hub, "glossary")
+        assert hub._entry.note == "glossary:agent-hood"
+        _assert_hub_caption(hub, "memory")
 
 
 async def test_legacy_xprompts_resume_opens_config_hub(

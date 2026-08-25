@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from .config_transaction import (
         ConfigTransactionConflict as ConfigTransactionConflict,
     )
-    from .glossary_panel import GlossaryPanel as GlossaryPanel
     from .input_item_modal import InputItemModal as InputItemModal
     from .local_xprompt_name_modal import LocalXPromptNameModal as LocalXPromptNameModal
     from .memory_panel import MemoryPanel as MemoryPanel
@@ -195,7 +194,6 @@ _LAZY_EXPORTS = {
     "GateInputPanelResult": (".gate_input_panel", "GateInputPanelResult"),
     "GateInputRequest": (".gate_input_panel_model", "GateInputRequest"),
     "GateRetryModal": (".gate_retry_modal", "GateRetryModal"),
-    "GlossaryPanel": (".glossary_panel", "GlossaryPanel"),
     "HelpModal": (".help_modal", "HelpModal"),
     "HookHistoryAction": (".hook_history_modal", "HookHistoryAction"),
     "HookHistoryModal": (".hook_history_modal", "HookHistoryModal"),
@@ -532,7 +530,6 @@ __all__ = [
     "ConfirmStopMonitorModal",
     "DismissedAgentSelectModal",
     "HelpModal",
-    "GlossaryPanel",
     "StatisticsHelpModal",
     "StatisticsXPromptPickerModal",
     "XPromptFocusChoice",

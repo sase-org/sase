@@ -83,33 +83,6 @@ def test_gate_modal_keys_can_be_overridden_independently() -> None:
     )
 
 
-def test_glossary_panel_keys_can_be_overridden_independently() -> None:
-    reg = load_keymap_registry(
-        {
-            "keymaps": {
-                "glossary": {
-                    "next_term": "down",
-                    "prev_term": "up",
-                    "filter_terms": "f12",
-                    "next_project": "f11",
-                    "prev_project": "f10",
-                    "help": "f9",
-                }
-            }
-        }
-    )
-
-    assert reg.glossary.next_term == "down"
-    assert reg.glossary.prev_term == "up"
-    assert reg.glossary.filter_terms == "f12"
-    assert reg.glossary.next_project == "f11"
-    assert reg.glossary.prev_project == "f10"
-    assert reg.glossary.help == "f9"
-    # Unoverridden fields keep their bundled defaults.
-    assert reg.glossary.add_term == "a"
-    assert reg.glossary.delete_term == "d"
-
-
 def test_memory_panel_keys_can_be_overridden_independently() -> None:
     reg = load_keymap_registry(
         {
@@ -174,38 +147,6 @@ def test_snippets_panel_keys_can_be_overridden_independently() -> None:
     assert reg.snippets.delete_snippet == "d"
 
 
-def test_glossary_reserved_full_stop_reverts_to_default(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    with caplog.at_level(logging.WARNING):
-        reg = load_keymap_registry(
-            {"keymaps": {"glossary": {"toggle_definition_filter": "full_stop"}}}
-        )
-
-    assert reg.glossary.toggle_definition_filter == "greater_than_sign"
-    assert "Reserved key 'full_stop' for glossary action" in caplog.text
-
-
-def test_glossary_reserved_full_stop_on_other_action_reverts(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    with caplog.at_level(logging.WARNING):
-        reg = load_keymap_registry(
-            {"keymaps": {"glossary": {"next_term": "full_stop"}}}
-        )
-
-    assert reg.glossary.next_term == "j"
-    assert "Reserved key 'full_stop' for glossary action" in caplog.text
-
-
-def test_glossary_custom_toggle_binding_is_kept() -> None:
-    reg = load_keymap_registry(
-        {"keymaps": {"glossary": {"toggle_definition_filter": "colon"}}}
-    )
-
-    assert reg.glossary.toggle_definition_filter == "colon"
-
-
 def test_memory_reserved_full_stop_reverts_to_default(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -230,16 +171,6 @@ def test_snippets_full_stop_toggle_is_not_reserved() -> None:
     )
 
     assert reg.snippets.toggle_body_filter == "full_stop"
-
-
-def test_duplicate_glossary_help_override_reverts_to_default(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    with caplog.at_level(logging.WARNING):
-        reg = load_keymap_registry({"keymaps": {"glossary": {"help": "r"}}})
-
-    assert reg.glossary.help == "question_mark"
-    assert "Duplicate glossary key" in caplog.text
 
 
 def test_duplicate_memory_help_override_reverts_to_default(

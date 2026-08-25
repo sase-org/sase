@@ -14,7 +14,6 @@ from sase.ace.tui.keymaps import (
     CopyModeKeymaps,
     FoldModeKeymaps,
     GateModalKeymaps,
-    GlossaryPanelKeymaps,
     KeymapRegistry,
     LeaderModeKeymaps,
     MemoryPanelKeymaps,
@@ -25,7 +24,6 @@ from sase.ace.tui.keymaps import (
     load_builtin_app_defaults,
     load_builtin_config_defaults,
     load_builtin_gate_defaults,
-    load_builtin_glossary_defaults,
     load_builtin_memory_defaults,
     load_builtin_projects_defaults,
     load_builtin_snippets_defaults,
@@ -474,38 +472,6 @@ def test_default_config_covers_all_config_hub_keymaps() -> None:
     field_names = {field.name for field in fields(ConfigHubKeymaps)}
 
     assert defaults == {"select_subtab": "0"}
-    assert field_names == set(defaults)
-
-
-def test_default_config_covers_all_glossary_keymaps() -> None:
-    """The bundled config is the source of truth for Glossary-panel keys."""
-    defaults = load_builtin_glossary_defaults()
-    field_names = {field.name for field in fields(GlossaryPanelKeymaps)}
-
-    assert defaults == {
-        "next_term": "j",
-        "prev_term": "k",
-        "first_term": "g",
-        "last_term": "G",
-        "scroll_definition_down": "ctrl+d",
-        "scroll_definition_up": "ctrl+u",
-        "filter_terms": "slash",
-        "toggle_definition_filter": "greater_than_sign",
-        "next_relation": "tab",
-        "prev_relation": "shift+tab",
-        "follow_relation": "enter,l",
-        "travel_back": "backspace,h",
-        "next_project": "p",
-        "prev_project": "P",
-        "add_term": "a",
-        "delete_term": "d",
-        "open_source": "o",
-        "open_viewer": "Z",
-        "copy_definition": "y",
-        "copy_source_path": "Y",
-        "refresh": "r",
-        "help": "question_mark",
-    }
     assert field_names == set(defaults)
 
 

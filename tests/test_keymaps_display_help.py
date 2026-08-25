@@ -2,7 +2,6 @@
 
 from sase.ace.tui.keymaps import (
     footer_key_display,
-    glossary_help_bindings,
     key_display_name,
     load_keymap_registry,
     memory_help_bindings,
@@ -321,27 +320,18 @@ def test_help_modal_lists_at_reference_completion() -> None:
         assert ("@", "Artifact kinds; Ctrl+T files") in pairs
 
 
-def test_help_modal_lists_glossary_panel() -> None:
-    """Prompt Input and the Glossary Panel section advertise gG / Ctrl+G G."""
+def test_help_modal_no_longer_lists_glossary_panel_section() -> None:
+    """The retired Glossary Panel keybinding section no longer builds.
+
+    ``PROMPT_INPUT_SECTION`` still advertises the ``gG`` pane-opening
+    shortcut by name (that belongs to the separate pane-deletion effort),
+    but the panel's own keybinding section -- built from the now-removed
+    ``KeymapRegistry.glossary`` -- must be gone.
+    """
     reg = load_keymap_registry({})
     for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
-        pairs = {
-            (key, label) for _section, bindings in sections for key, label in bindings
-        }
         names = {name for name, _bindings in sections}
-        assert ("gG / Ctrl+G G", "Glossary panel") in pairs
-        assert ("gG / Ctrl+G G", "Open from prompt") in pairs
-        assert "Glossary Panel" in names
-        assert ("j / k", "Move through terms") in pairs
-        assert (">", "Match definition bodies") in pairs
-        assert (".1-9", "Follow numbered chip") in pairs
-        assert ("Esc", "Close and restore prompt") in pairs
-        for _name, bindings in sections:
-            if _name != "Glossary Panel":
-                continue
-            for key, description in bindings:
-                assert len(key) <= 16, key
-                assert len(description) <= 32, description
+        assert "Glossary Panel" not in names
 
 
 def test_help_modal_lists_memory_panel() -> None:
@@ -371,7 +361,6 @@ def test_help_modal_lists_memory_panel() -> None:
 
 def test_panel_scoped_help_lists_prefixed_chip_shortcut() -> None:
     reg = load_keymap_registry({})
-    assert (".1-9", "Follow numbered chip") in glossary_help_bindings(reg.glossary)
     assert (".1-9", "Follow numbered chip") in memory_help_bindings(reg.memory)
 
 

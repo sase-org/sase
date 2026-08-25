@@ -16,7 +16,6 @@ from textual.containers import Horizontal
 from textual.css.query import NoMatches
 from textual.widgets import Markdown, Static
 
-from .glossary_panel_rendering import build_trail_strip
 from .memory_panel_rendering import (
     build_diagnostics_message,
     build_empty_scope_message,
@@ -28,6 +27,7 @@ from .memory_panel_rendering import (
     build_rail_node_description,
     note_rail_width,
 )
+from .trail_strip import build_trail_strip
 from .memory_panel_web_rendering import build_rail_node_card_meta
 
 if TYPE_CHECKING:

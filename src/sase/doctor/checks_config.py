@@ -10,6 +10,7 @@ from sase.doctor.checks_config_external_mirror import check_config_external_mirr
 from sase.doctor.checks_config_file_hooks import check_config_file_hooks
 from sase.doctor.checks_config_init import check_config_init
 from sase.doctor.checks_config_keymap_actions import check_config_keymap_actions
+from sase.doctor.checks_config_keymap_glossary import check_config_keymap_glossary
 from sase.doctor.checks_config_layers import check_config_layers
 from sase.doctor.checks_config_memory_webs import check_config_memory_webs
 from sase.doctor.checks_config_model_aliases import check_config_model_aliases
@@ -76,6 +77,12 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=check_config_keymap_actions,
         ),
         CheckSpec(
+            id="config.keymap_glossary",
+            group="config",
+            title="Glossary keymap scope",
+            runner=check_config_keymap_glossary,
+        ),
+        CheckSpec(
             id="config.repos",
             group="config",
             title="Sidecar repo config",
@@ -140,6 +147,7 @@ _check_config_sdd = check_config_sdd
 _check_config_memory_webs = check_config_memory_webs
 _check_config_model_aliases = check_config_model_aliases
 _check_config_keymap_actions = check_config_keymap_actions
+_check_config_keymap_glossary = check_config_keymap_glossary
 _check_config_notification_tabs = check_config_notification_tabs
 _check_config_repos = check_config_repos
 _check_config_artifact_refs = check_config_artifact_refs

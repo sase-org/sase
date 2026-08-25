@@ -7,6 +7,7 @@ performance rules in ``sase/memory/tui_perf.md``.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -28,21 +29,34 @@ from sase.memory.mutation import (
     delete_memory_note,
     update_memory_note,
 )
+from sase.memory.web.mutation import create_memory_strand, delete_memory_strand
+from sase.memory.web.mutation_models import (
+    MemoryStrandMutationError,
+    MemoryStrandMutationOutcome,
+    MemoryStrandValidationError,
+)
 from sase.noninteractive_subprocess import run_noninteractive
 
 from .memory_panel_publish import format_memory_publish_failure
 
-MemoryWriteKind = Literal["add", "edit", "delete"]
+MemoryWriteKind = Literal["add", "edit", "delete", "add_strand", "delete_strand"]
 
 
 @dataclass(frozen=True, slots=True)
 class MemoryWritePayload:
-    """Outcome of one Memory-panel create/update/delete worker."""
+    """Outcome of one Memory-panel create/update/delete worker.
+
+    ``outcome`` is set for the flat-note kinds (``add``/``edit``/``delete``);
+    ``strand_outcome`` is set for the strand kinds (``add_strand``/
+    ``delete_strand``). A single payload only ever carries one of the two,
+    since a write is always either a flat note or a strand.
+    """
 
     kind: MemoryWriteKind
     scope_key: str
     error: str | None = None
     outcome: MemoryMutationOutcome | None = None
+    strand_outcome: MemoryStrandMutationOutcome | None = None
     snapshot: MemoryScopeSnapshot | None = None
     preferred_note: str | None = None
     offer_editor: bool = False
@@ -67,13 +81,23 @@ def run_memory_panel_write(
     description: str,
     expected_digest: str,
     preferred_note: str | None,
+    web_slug: str = "",
+    slug: str = "",
+    keyword: str | None = None,
+    aliases: Sequence[str] = (),
+    summary: str | None = None,
+    body: str = "",
 ) -> TrackedProcResult[MemoryWritePayload]:
     """Apply one create/update/delete and reload that scope's snapshot.
 
     Called only from a session worker: disk writes and the snapshot reload
-    must stay off the event loop.
+    must stay off the event loop. ``web_slug``/``slug``/``keyword``/
+    ``aliases``/``summary``/``body`` are only used by the ``add_strand`` and
+    ``delete_strand`` kinds; the flat-note kinds ignore them.
     """
     cleaned_description = description.strip() or None
+    outcome: MemoryMutationOutcome | None = None
+    strand_outcome: MemoryStrandMutationOutcome | None = None
     try:
         if kind == "add":
             outcome = create_memory_note(
@@ -96,7 +120,7 @@ def run_memory_panel_write(
                 expected_digest=expected_digest,
                 scope_kind=scope.kind,
             )
-        else:
+        elif kind == "delete":
             outcome = delete_memory_note(
                 scope_key=scope.key,
                 content_root=scope.content_root,
@@ -104,6 +128,35 @@ def run_memory_panel_write(
                 expected_digest=expected_digest,
                 scope_kind=scope.kind,
             )
+        elif kind == "add_strand":
+            strand_outcome = create_memory_strand(
+                scope_key=scope.key,
+                content_root=scope.content_root,
+                web_slug=web_slug,
+                slug=slug,
+                keyword=keyword,
+                aliases=aliases,
+                summary=summary,
+                body=body,
+                scope_kind=scope.kind,
+            )
+        else:
+            strand_outcome = delete_memory_strand(
+                scope_key=scope.key,
+                content_root=scope.content_root,
+                web_slug=web_slug,
+                slug=slug,
+                expected_digest=expected_digest,
+                scope_kind=scope.kind,
+            )
+    except MemoryStrandValidationError as exc:
+        return TrackedProcResult(
+            False,
+            _strand_validation_message(exc),
+            payload=MemoryWritePayload(
+                kind=kind, scope_key=scope.key, error="validation"
+            ),
+        )
     except MemoryValidationError as exc:
         return TrackedProcResult(
             False,
@@ -128,6 +181,12 @@ def run_memory_panel_write(
                 kind=kind, scope_key=scope.key, error="generated"
             ),
         )
+    except MemoryStrandMutationError as exc:
+        return TrackedProcResult(
+            False,
+            str(exc),
+            payload=MemoryWritePayload(kind=kind, scope_key=scope.key, error="other"),
+        )
     except MemoryMutationError as exc:
         return TrackedProcResult(
             False,
@@ -136,21 +195,36 @@ def run_memory_panel_write(
         )
     invalidate_memory_scope(scope.key)
     snapshot = load_memory_scope_snapshot(scope)
-    preferred: str | None
-    if kind == "delete":
-        preferred = preferred_note
-    else:
-        preferred = outcome.relative_path
+    if outcome is not None:
+        preferred = preferred_note if kind == "delete" else outcome.relative_path
+        return TrackedProcResult(
+            True,
+            _success_message(kind, outcome, scope.display_name),
+            payload=MemoryWritePayload(
+                kind=kind,
+                scope_key=scope.key,
+                outcome=outcome,
+                snapshot=snapshot,
+                preferred_note=preferred,
+                offer_editor=kind == "add",
+            ),
+        )
+    assert strand_outcome is not None
+    strand_preferred = (
+        preferred_note
+        if kind == "delete_strand"
+        else f"{strand_outcome.web_slug}:{strand_outcome.slug}"
+    )
     return TrackedProcResult(
         True,
-        _success_message(kind, outcome, scope.display_name),
+        _strand_success_message(kind, strand_outcome, scope.display_name),
         payload=MemoryWritePayload(
             kind=kind,
             scope_key=scope.key,
-            outcome=outcome,
+            strand_outcome=strand_outcome,
             snapshot=snapshot,
-            preferred_note=preferred,
-            offer_editor=kind == "add",
+            preferred_note=strand_preferred,
+            offer_editor=False,
         ),
     )
 
@@ -205,6 +279,26 @@ def _success_message(
 
 
 def _validation_message(exc: MemoryValidationError) -> str:
+    if not exc.validation.by_field:
+        return str(exc)
+    field, messages = next(iter(exc.validation.by_field.items()))
+    if not messages:
+        return str(exc)
+    return f"{field}: {messages[0]}"
+
+
+def _strand_success_message(
+    kind: MemoryWriteKind,
+    outcome: MemoryStrandMutationOutcome,
+    scope_display_name: str,
+) -> str:
+    if kind == "add_strand":
+        return f'Added strand "{outcome.keyword}" to {scope_display_name}.'
+    backup = f" Backup: {outcome.backup_path}." if outcome.backup_path else ""
+    return f'Deleted strand "{outcome.keyword}" from {scope_display_name}.{backup}'
+
+
+def _strand_validation_message(exc: MemoryStrandValidationError) -> str:
     if not exc.validation.by_field:
         return str(exc)
     field, messages = next(iter(exc.validation.by_field.items()))

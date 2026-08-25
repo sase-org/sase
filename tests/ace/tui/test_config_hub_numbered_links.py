@@ -1,4 +1,4 @@
-"""Admin Center regressions for Glossary/Memory prefixed links vs Snippets digits."""
+"""Admin Center regressions for Memory prefixed links vs Snippets digits."""
 
 from __future__ import annotations
 
@@ -8,20 +8,15 @@ from sase.ace.testing import wait_for
 from sase.ace.tui.modals.config_center_modal import CenterTab, ConfigCenterModal
 from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
 from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
-from sase.ace.tui.modals.glossary_pane import GlossaryPane
 from sase.ace.tui.modals.memory_pane import MemoryPane
 from sase.ace.tui.modals.snippets_panel import SnippetsPane
 from sase.memory.notes import MemoryNote
 from tests.ace.tui._config_center_tabs_helpers import _HostApp, _StubPane
-from tests.ace.tui.modals.glossary_panel_test_helpers import (
-    glossary_entry,
-    install_fixed_load as install_glossary_load,
-    project_ref as glossary_project_ref,
-    project_snapshot as glossary_project_snapshot,
-)
 from tests.ace.tui.modals.memory_panel_test_helpers import (
+    install_fake_strand_read,
     install_fixed_load as install_memory_load,
     memory_note,
+    memory_web_with_mentioning_strands,
     scope_ref,
     scope_snapshot,
 )
@@ -61,56 +56,57 @@ def _keep_real_config_stub_other_tabs(
     return created
 
 
-async def test_embedded_glossary_bare_digit_selects_admin_tab_prefixed_follows(
+async def test_embedded_memory_glossary_bare_digit_selects_admin_tab_prefixed_follows(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    ref = glossary_project_ref("sase", "sase")
-    entries = (
-        glossary_entry(0, "Alpha", definition="Alpha mentions Beta and Gamma."),
-        glossary_entry(1, "Beta"),
-        glossary_entry(2, "Gamma"),
+    ref = scope_ref("sase", "sase")
+    web = memory_web_with_mentioning_strands()
+    descriptor = memory_note(
+        "glossary", note_type="core", description="Glossary.", body="Glossary body."
     )
-    snapshot = glossary_project_snapshot(ref, entries, scanning=True)
-    install_glossary_load(monkeypatch, (ref,), {"sase": snapshot})
+    snapshot = scope_snapshot(ref, (descriptor,), webs=(web,))
+    install_memory_load(monkeypatch, (ref,), {"sase": snapshot})
+    install_fake_strand_read(monkeypatch)
     _keep_real_config_stub_other_tabs(monkeypatch)
 
     async with _HostApp().run_test(size=(120, 40)) as pilot:
         modal = ConfigCenterModal(
             initial_tab="config",
-            config_entry=ConfigHubEntry(subtab="glossary", term="Alpha"),
+            config_entry=ConfigHubEntry(subtab="memory", note="glossary:alpha"),
         )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await wait_for(pilot, lambda: "glossary" in hub._panes)
-        pane = hub.query_one("#glossary", GlossaryPane)
+        await wait_for(pilot, lambda: "memory" in hub._panes)
+        pane = hub.query_one("#memory", MemoryPane)
         await wait_for(
-            pilot, lambda: not pane._loading and pane._current_term == "Alpha"
+            pilot,
+            lambda: not pane._loading and pane._current_note == "glossary:alpha",
         )
 
         await pilot.press("2")
         await wait_for(pilot, lambda: modal._active_tab == "logs")
-        assert pane._current_term == "Alpha"
+        assert pane._current_note == "glossary:alpha"
         assert pane._trail == []
 
         await pilot.press("1")
         await wait_for(pilot, lambda: modal._active_tab == "config")
-        assert hub._active_subtab == "glossary"
-
-        await pilot.press("0", "4")
-        await wait_for(pilot, lambda: hub._active_subtab == "launch")
-        assert modal._active_tab == "config"
-        assert pane._current_term == "Alpha"
-        assert pane._trail == []
+        assert hub._active_subtab == "memory"
 
         await pilot.press("0", "3")
-        await wait_for(pilot, lambda: hub._active_subtab == "glossary")
+        await wait_for(pilot, lambda: hub._active_subtab == "launch")
+        assert modal._active_tab == "config"
+        assert pane._current_note == "glossary:alpha"
+        assert pane._trail == []
+
+        await pilot.press("0", "4")
+        await wait_for(pilot, lambda: hub._active_subtab == "memory")
 
         await pilot.press(".", "1")
-        await wait_for(pilot, lambda: pane._current_term == "Beta")
+        await wait_for(pilot, lambda: pane._current_note == "glossary:beta")
         assert modal._active_tab == "config"
-        assert hub._active_subtab == "glossary"
-        assert pane._trail == ["Alpha"]
+        assert hub._active_subtab == "memory"
+        assert pane._trail == ["glossary:alpha"]
 
 
 async def test_embedded_memory_bare_digit_selects_admin_tab_prefixed_follows(
@@ -146,13 +142,13 @@ async def test_embedded_memory_bare_digit_selects_admin_tab_prefixed_follows(
         await wait_for(pilot, lambda: modal._active_tab == "config")
         assert hub._active_subtab == "memory"
 
-        await pilot.press("0", "4")
+        await pilot.press("0", "3")
         await wait_for(pilot, lambda: hub._active_subtab == "launch")
         assert modal._active_tab == "config"
         assert pane._current_note == "sase/memory/hub.md"
         assert pane._trail == []
 
-        await pilot.press("0", "5")
+        await pilot.press("0", "4")
         await wait_for(pilot, lambda: hub._active_subtab == "memory")
 
         await pilot.press(".", "1")

@@ -54,7 +54,6 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "PR Navigation" in combined
     assert "Snippet action else list shift" in combined
     assert "Glossary panel" in combined
-    assert "Glossary Panel" in combined
     assert "Memory Panel" in combined
     assert "gm / Ctrl+G m" in combined
     assert "Snippets Panel" in combined

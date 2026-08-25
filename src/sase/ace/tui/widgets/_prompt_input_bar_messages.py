@@ -109,16 +109,19 @@ class RestoreRequested(Message, namespace="prompt_input_bar"):
 
 
 class GlossaryPanelRequested(Message, namespace="prompt_input_bar"):
-    """Message sent when the user asks to open the glossary panel.
+    """Message sent when the user asks to open the glossary term under the cursor.
 
-    Presentation-only (boundary rule D6): the bar captures the glossary term
-    under the cursor (or ``None``) and its current ``mode``. The app opens the
-    panel with that seed and restores prompt focus and vim mode on dismiss.
+    Presentation-only (boundary rule D6): the bar captures the already-resolved
+    ``glossary:<slug>`` memory-web identity for the term under the cursor (or
+    ``None``) and its current ``mode``, using the in-memory prompt-highlight
+    catalog so no disk read happens on the event loop. The app opens the
+    Memory subtab of the Config hub seeded with that identity and restores
+    prompt focus and vim mode on dismiss.
     """
 
-    def __init__(self, term: str | None = None, mode: str = "prompt") -> None:
+    def __init__(self, note_identity: str | None = None, mode: str = "prompt") -> None:
         super().__init__()
-        self.term = term
+        self.note_identity = note_identity
         self.mode = mode
 
 

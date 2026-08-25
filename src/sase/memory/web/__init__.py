@@ -5,7 +5,12 @@ from __future__ import annotations
 from .cli import handle_memory_web_list_command, handle_memory_web_show_command
 from .closure import resolve_strand_closure
 from .discovery import FileMemoryWebProvider, MemoryWebProvider, discover_memory_webs
-from .frontmatter import parse_memory_strand, parse_web_descriptor, slug_to_keyword
+from .frontmatter import (
+    parse_memory_strand,
+    parse_web_descriptor,
+    render_strand_frontmatter,
+    slug_to_keyword,
+)
 from .generated import (
     GeneratedMemoryWebProvider,
     GeneratedStrandSource,
@@ -29,6 +34,20 @@ from .models import (
     WebSource,
     WebStrandOrigin,
 )
+from .mutation import (
+    MemoryConflictError,
+    create_memory_strand,
+    delete_memory_strand,
+    memory_strand_digest,
+)
+from .mutation_models import (
+    MemoryStrandDraft,
+    MemoryStrandDraftValidation,
+    MemoryStrandMutationError,
+    MemoryStrandMutationOutcome,
+    MemoryStrandValidationError,
+)
+from .mutation_validate import validate_memory_strand_draft
 from .read_context import discover_scoped_memory_webs
 from .roster import (
     END_MARKER,
@@ -52,7 +71,13 @@ __all__ = [
     "GeneratedMemoryWebProvider",
     "GeneratedStrandSource",
     "GeneratedWebSource",
+    "MemoryConflictError",
     "MemoryStrand",
+    "MemoryStrandDraft",
+    "MemoryStrandDraftValidation",
+    "MemoryStrandMutationError",
+    "MemoryStrandMutationOutcome",
+    "MemoryStrandValidationError",
     "MemoryWeb",
     "MemoryWebDiscovery",
     "MemoryWebDiscoveryIssue",
@@ -65,16 +90,20 @@ __all__ = [
     "WebScope",
     "WebSource",
     "WebStrandOrigin",
+    "create_memory_strand",
     "cross_scope_keyword_warnings",
+    "delete_memory_strand",
     "discover_memory_webs",
     "discover_scoped_memory_webs",
     "handle_memory_web_list_command",
     "handle_memory_web_show_command",
+    "memory_strand_digest",
     "merge_memory_web_scopes",
     "normalize_memory_web_reference",
     "parse_memory_strand",
     "parse_web_descriptor",
     "render_managed_roster_region",
+    "render_strand_frontmatter",
     "render_strand_roster",
     "render_web_body_with_roster",
     "render_web_descriptor_with_roster",
@@ -82,6 +111,7 @@ __all__ = [
     "resolve_memory_strand",
     "resolve_strand_closure",
     "slug_to_keyword",
+    "validate_memory_strand_draft",
     "validate_memory_web_root",
     "validate_memory_webs",
 ]

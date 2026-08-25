@@ -1,4 +1,4 @@
-"""App-handler tests for opening the glossary panel from the prompt bar."""
+"""App-handler tests for opening the Memory panel from the glossary shortcut."""
 
 from __future__ import annotations
 
@@ -6,14 +6,14 @@ import pytest
 from textual.app import App, ComposeResult
 
 from sase.ace.testing import wait_for
-from sase.ace.tui.actions.agent_workflow._prompt_bar_glossary_panel import (
-    PromptBarGlossaryPanelMixin,
+from sase.ace.tui.actions.agent_workflow._prompt_bar_memory_panel import (
+    PromptBarMemoryPanelMixin,
 )
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
 from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
-from sase.ace.tui.modals.glossary_panel_load import GlossaryPanelInitialLoad
+from sase.ace.tui.modals.memory_panel_load import MemoryPanelInitialLoad
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
 
@@ -44,8 +44,8 @@ class _FakeBar:
         return self._text_area
 
 
-class _GlossaryOpenHarness(PromptBarGlossaryPanelMixin):
-    """Drive the glossary-panel handler without a live Textual DOM."""
+class _GlossaryOpenHarness(PromptBarMemoryPanelMixin):
+    """Drive the glossary-shortcut handler without a live Textual DOM."""
 
     def __init__(
         self,
@@ -64,8 +64,8 @@ class _GlossaryOpenHarness(PromptBarGlossaryPanelMixin):
         return self._bar
 
 
-class _GlossaryOpenApp(PromptBarGlossaryPanelMixin, App[None]):
-    """Host a prompt bar and the real glossary-panel handler."""
+class _GlossaryOpenApp(PromptBarMemoryPanelMixin, App[None]):
+    """Host a prompt bar and the real glossary-shortcut handler."""
 
     ENABLE_COMMAND_PALETTE = False
 
@@ -111,17 +111,17 @@ def _prompt_context(
 
 def _stub_panel_load(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.modals.glossary_pane.load_glossary_panel_initial_state",
-        lambda **_: GlossaryPanelInitialLoad(ring=(), project_index=0, snapshot=None),
+        "sase.ace.tui.modals.memory_pane.load_memory_panel_initial_state",
+        lambda **_: MemoryPanelInitialLoad(ring=(), scope_index=0, snapshot=None),
     )
 
 
-def test_handler_opens_panel_with_seeded_term() -> None:
+def test_handler_opens_memory_subtab_with_seeded_identity() -> None:
     text_area = _FakeTextArea(vim_mode="normal", cursor=(1, 2))
     harness = _GlossaryOpenHarness(_FakeBar(text_area))
 
     harness.on_prompt_input_bar_glossary_panel_requested(
-        PromptInputBar.GlossaryPanelRequested("Agent Hood", "prompt")
+        PromptInputBar.GlossaryPanelRequested("glossary:agent-hood", "prompt")
     )
 
     assert len(harness.opened) == 1
@@ -129,8 +129,8 @@ def test_handler_opens_panel_with_seeded_term() -> None:
     assert tab == "config"
     entry = kwargs["config_entry"]
     assert isinstance(entry, ConfigHubEntry)
-    assert entry.subtab == "glossary"
-    assert entry.term == "Agent Hood"
+    assert entry.subtab == "memory"
+    assert entry.note == "glossary:agent-hood"
     assert entry.launch_workspace is None
 
 
@@ -199,7 +199,7 @@ def test_dismiss_restores_normal_mode() -> None:
     assert text_area.cursor_location == (2, 1)
 
 
-async def test_gg_opens_panel_and_escape_restores_normal_focus(
+async def test_gg_opens_memory_subtab_and_escape_restores_normal_focus(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _stub_panel_load(monkeypatch)
@@ -217,7 +217,7 @@ async def test_gg_opens_panel_and_escape_restores_normal_focus(
 
         await wait_for(pilot, lambda: isinstance(app.screen, ConfigCenterModal))
         hub = app.screen.query_one(ConfigHubPane)
-        await wait_for(pilot, lambda: hub._active_subtab == "glossary")
+        await wait_for(pilot, lambda: hub._active_subtab == "memory")
 
         await pilot.press("escape")
         await pilot.pause()
@@ -245,7 +245,7 @@ async def test_ctrl_g_g_from_insert_restores_insert_mode(
 
         await wait_for(pilot, lambda: isinstance(app.screen, ConfigCenterModal))
         hub = app.screen.query_one(ConfigHubPane)
-        await wait_for(pilot, lambda: hub._active_subtab == "glossary")
+        await wait_for(pilot, lambda: hub._active_subtab == "memory")
 
         await pilot.press("escape")
         await pilot.pause()

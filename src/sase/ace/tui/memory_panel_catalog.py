@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
 from pathlib import Path
 import time
@@ -32,6 +32,11 @@ from sase.memory.read_log import (
     MemoryReadPathSummary,
     read_memory_read_events,
     summarize_memory_reads_by_path,
+)
+from sase.memory.web.closure import (
+    StrandMentionCatalog,
+    build_strand_mention_catalog,
+    strand_mention_relations,
 )
 from sase.memory.web.discovery import discover_memory_webs
 from sase.memory.web.models import MemoryStrand, MemoryWeb, WebScope
@@ -109,6 +114,7 @@ class MemoryScopeSnapshot:
     read_summaries: Mapping[str, MemoryReadPathSummary]
     diagnostics: tuple[str, ...]
     webs: tuple[MemoryWeb, ...] = ()
+    mention_catalogs: Mapping[str, StrandMentionCatalog] = field(default_factory=dict)
 
 
 @dataclass
@@ -214,6 +220,44 @@ def memory_note_relations(
         )
     )
     return parent, children
+
+
+def memory_rail_node_relations(
+    snapshot: MemoryScopeSnapshot, node: MemoryRailNode
+) -> tuple[tuple[MemoryNote, ...], tuple[MemoryNote, ...]]:
+    """Return the ordered relation-chip notes for *node*'s card.
+
+    Web-descriptor and flat-note rows use the parent/child hierarchy from
+    :func:`memory_note_relations`. A strand row in a ``closure: mentions`` web
+    instead surfaces outbound/inbound mention relations from that web's cached
+    :class:`~sase.memory.web.closure.StrandMentionCatalog`.
+    """
+    if node.strand is not None and node.web is not None:
+        mention_catalog = snapshot.mention_catalogs.get(node.web.slug)
+        if mention_catalog is not None:
+            outbound, inbound = strand_mention_relations(mention_catalog, node.strand)
+            return (
+                tuple(memory_strand_note(node.web, strand) for strand in outbound),
+                tuple(memory_strand_note(node.web, strand) for strand in inbound),
+            )
+    return memory_note_relations(snapshot, node.note)
+
+
+def memory_rail_node_label(snapshot: MemoryScopeSnapshot, note: MemoryNote) -> str:
+    """Return the display label for one relation-chip note.
+
+    Strand pseudo-notes render their human keyword rather than their
+    ``web:slug`` identity; real notes render their file stem.
+    """
+    web_slug, sep, strand_slug = note.relative_path.partition(":")
+    if sep:
+        for web in snapshot.webs:
+            if web.slug != web_slug:
+                continue
+            for strand in web.strands:
+                if strand.slug == strand_slug:
+                    return strand.keyword
+    return note.path.stem
 
 
 def memory_strand_note(web: MemoryWeb, strand: MemoryStrand) -> MemoryNote:
@@ -395,7 +439,23 @@ def _load_memory_scope_snapshot(ref: MemoryScopeRef) -> MemoryScopeSnapshot:
         read_summaries=_read_summaries_for(ref),
         diagnostics=diagnostics,
         webs=webs,
+        mention_catalogs=_mention_catalogs_for(webs),
     )
+
+
+def _mention_catalogs_for(
+    webs: tuple[MemoryWeb, ...],
+) -> dict[str, StrandMentionCatalog]:
+    """Precompute each mentions-closure web's phrase catalog once per load.
+
+    Rebuilding this per selection change would recompile the phrase matcher
+    on the event loop; see the TUI performance rules.
+    """
+    return {
+        web.slug: build_strand_mention_catalog(web, web.strands)
+        for web in webs
+        if web.closure == "mentions" and web.strands
+    }
 
 
 def _empty_snapshot(
@@ -580,6 +640,8 @@ __all__ = [
     "build_memory_scope_ring",
     "invalidate_memory_scope",
     "load_memory_scope_snapshot",
+    "memory_rail_node_label",
+    "memory_rail_node_relations",
     "memory_strand_note",
     "memory_note_relations",
 ]

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 from textual.containers import VerticalScroll
 
-from sase.ace.tui.memory_panel_catalog import memory_note_relations
+from sase.ace.tui.memory_panel_catalog import memory_rail_node_relations
 
 if TYPE_CHECKING:
     from textual.widget import Widget as _MixinBase
@@ -74,7 +74,7 @@ class MemoryPanelTravelMixin(_MixinBase):
             self._chip_notes = ()
             self._chip_parent_count = 0
             return
-        parent, children = memory_note_relations(self._snapshot, node.note)
+        parent, children = memory_rail_node_relations(self._snapshot, node)
         self._chip_notes = parent + children
         self._chip_parent_count = len(parent)
 

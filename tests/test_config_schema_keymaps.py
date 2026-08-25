@@ -99,6 +99,28 @@ def test_config_schema_rejects_invalid_scoped_gate_keymaps(
         Draft7Validator(schema()).validate({"ace": {"keymaps": {"gate": gate}}})
 
 
+def test_config_schema_accepts_legacy_glossary_keymaps() -> None:
+    """ace.keymaps.glossary is deprecated but still schema-valid for compatibility.
+
+    The Glossary panel keymap scope is retired and no longer builds bindings,
+    but the schema keeps accepting it for one release so an existing user
+    config does not fail validation; customization there is silently ignored.
+    """
+    Draft7Validator(schema()).validate(
+        {
+            "ace": {
+                "keymaps": {
+                    "glossary": {
+                        "next_term": "down",
+                        "prev_term": "up",
+                        "help": "f9",
+                    }
+                }
+            }
+        }
+    )
+
+
 def test_config_schema_accepts_scoped_memory_keymaps() -> None:
     Draft7Validator(schema()).validate(
         {

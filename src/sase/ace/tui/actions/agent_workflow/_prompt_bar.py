@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._prompt_bar_glossary_panel import PromptBarGlossaryPanelMixin
 from ._prompt_bar_memory_panel import PromptBarMemoryPanelMixin
 from ._prompt_bar_mini_xprompt_pane import PromptBarMiniXPromptPaneMixin
 from ._prompt_bar_snippets_panel import PromptBarSnippetsPanelMixin
@@ -31,7 +30,6 @@ class PromptBarMixin(
     PromptBarSnippetPaneMixin,
     PromptBarMiniXPromptPaneMixin,
     PromptBarRequestsMixin,
-    PromptBarGlossaryPanelMixin,
     PromptBarMemoryPanelMixin,
     PromptBarSnippetsPanelMixin,
 ):

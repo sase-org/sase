@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.actions.agent_workflow._prompt_bar_glossary_panel import (
-    PromptBarGlossaryPanelMixin,
-)
 from sase.ace.tui.actions.agent_workflow._prompt_bar_memory_panel import (
     PromptBarMemoryPanelMixin,
 )
@@ -16,7 +13,6 @@ from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
 
 class _HubOpenHarness(
-    PromptBarGlossaryPanelMixin,
     PromptBarMemoryPanelMixin,
     PromptBarSnippetsPanelMixin,
 ):
@@ -34,9 +30,6 @@ class _HubOpenHarness(
     def _mounted_prompt_bar(self) -> None:
         return None
 
-    def _mounted_glossary_prompt_bar(self) -> None:
-        return None
-
     def _mounted_memory_prompt_bar(self) -> None:
         return None
 
@@ -44,10 +37,10 @@ class _HubOpenHarness(
         return None
 
 
-def test_glossary_shortcut_opens_config_hub_on_glossary() -> None:
+def test_glossary_shortcut_opens_config_hub_on_memory() -> None:
     harness = _HubOpenHarness()
     harness.on_prompt_input_bar_glossary_panel_requested(
-        PromptInputBar.GlossaryPanelRequested("Agent Hood", "prompt")
+        PromptInputBar.GlossaryPanelRequested("glossary:agent-hood", "prompt")
     )
 
     assert harness.pushed == []
@@ -56,8 +49,8 @@ def test_glossary_shortcut_opens_config_hub_on_glossary() -> None:
     assert tab == "config"
     entry = kwargs["config_entry"]
     assert isinstance(entry, ConfigHubEntry)
-    assert entry.subtab == "glossary"
-    assert entry.term == "Agent Hood"
+    assert entry.subtab == "memory"
+    assert entry.note == "glossary:agent-hood"
     assert callable(kwargs["on_dismissed"])
 
 

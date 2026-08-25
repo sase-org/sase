@@ -20,12 +20,17 @@ from sase.ace.tui.modals import memory_pane as memory_pane_module
 from sase.ace.tui.modals.memory_pane import MemoryPane
 from sase.ace.tui.modals.memory_panel_load import (
     MemoryPanelInitialLoad,
+    MemoryPanelStrandRead,
     MemoryScopeChoice,
 )
 from sase.memory.inventory import MemoryStats
 from sase.memory.notes import AGENTS_PARENT, MemoryNote
-from sase.memory.read_log import MemoryReadPathSummary
-from sase.memory.web.models import MemoryWeb
+from sase.memory.read_log import (
+    READ_LOG_SCHEMA_VERSION,
+    MemoryReadEvent,
+    MemoryReadPathSummary,
+)
+from sase.memory.web.models import MemoryStrand, MemoryWeb
 
 
 class MemoryPanelTestApp(App[None]):
@@ -105,6 +110,52 @@ def memory_note(
     )
 
 
+def memory_web_with_mentioning_strands(root: Path = Path("/tmp/memory")) -> MemoryWeb:
+    """A ``closure: mentions`` web whose ``alpha`` strand mentions ``beta``."""
+    memory_root = root / "sase" / "memory"
+
+    def _strand(slug: str, keyword: str, body: str) -> MemoryStrand:
+        relative_path = f"sase/memory/glossary/{slug}.md"
+        return MemoryStrand(
+            root=root,
+            memory_root=memory_root,
+            web_slug="glossary",
+            slug=slug,
+            path=memory_root / "glossary" / f"{slug}.md",
+            relative_path=relative_path,
+            keyword=keyword,
+            aliases=(),
+            summary=None,
+            metadata={},
+            body=body,
+            raw_text=f"---\nkeyword: {keyword}\n---\n{body}",
+            body_start=0,
+            frontmatter={"keyword": keyword},
+        )
+
+    alpha = _strand("alpha", "Alpha Term", "Alpha body mentions Beta Term.")
+    beta = _strand("beta", "Beta Term", "Beta body, unrelated.")
+    return MemoryWeb(
+        root=root,
+        memory_root=memory_root,
+        slug="glossary",
+        path=memory_root / "glossary.md",
+        relative_path="sase/memory/glossary.md",
+        rendering_type="core",
+        description="Glossary.",
+        roster="inline",
+        roster_label="GLOSSARY TERMS",
+        strand_noun="term",
+        closure="mentions",
+        metadata={},
+        body="Glossary body.",
+        raw_text="---\ntype: core\nweb: true\nclosure: mentions\n---\nGlossary body.",
+        body_start=0,
+        frontmatter={"type": "core", "web": True, "closure": "mentions"},
+        strands=(alpha, beta),
+    )
+
+
 def scope_snapshot(
     ref: MemoryScopeRef,
     notes: tuple[MemoryNote, ...] = (),
@@ -128,6 +179,7 @@ def scope_snapshot(
         read_summaries=read_summaries or {},
         diagnostics=diagnostics,
         webs=webs,
+        mention_catalogs=panel_catalog._mention_catalogs_for(webs),
     )
 
 
@@ -182,6 +234,45 @@ def install_fixed_load(
         memory_pane_module, "load_memory_scope_snapshot", fake_scope_load
     )
     return off_main_thread
+
+
+def install_fake_strand_read(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Patch the panel's audited strand-read recorder with an instant fake.
+
+    Selecting a strand row otherwise requires real agent-identity env, since
+    it reuses ``sase memory read``'s event-building path.
+    """
+    reads: list[str] = []
+
+    def fake_record(
+        _scope: MemoryScopeRef, *, web_slug: str, strand_slug: str
+    ) -> MemoryPanelStrandRead:
+        identity = f"{web_slug}:{strand_slug}"
+        reads.append(identity)
+        event = MemoryReadEvent(
+            schema_version=READ_LOG_SCHEMA_VERSION,
+            id=f"read-{identity}",
+            timestamp="2026-08-24T12:00:00+00:00",
+            project="demo",
+            cwd="/tmp/demo",
+            canonical_path=identity,
+            resolved_path="",
+            agent_name="agent-a",
+            agent_source="SASE_AGENT_NAME",
+            artifacts_dir=None,
+            reason=f"ACE MemoryPane previewed {identity}",
+            byte_count=10,
+            frontmatter_stripped=False,
+            kind="strand",
+            selectors=(identity,),
+            resolved_targets=(identity,),
+        )
+        return MemoryPanelStrandRead(identity=identity, event=event)
+
+    monkeypatch.setattr(
+        memory_pane_module, "record_memory_panel_strand_read", fake_record
+    )
+    return reads
 
 
 def install_fixed_scope_choices(

@@ -8,7 +8,6 @@ from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
     ConfigHubKeymaps,
     GateModalKeymaps,
-    GlossaryPanelKeymaps,
     MemoryPanelKeymaps,
     ProjectsPaneKeymaps,
     SnippetPanelKeymaps,
@@ -20,7 +19,6 @@ from sase.ace.tui.keymaps.metadata import (
     _CONFIG_HUB_BINDING_META,
     _GATE_BINDING_META,
     _GATE_INPUT_PANEL_BINDING_META,
-    _GLOSSARY_BINDING_META,
     _MEMORY_BINDING_META,
     _PROJECTS_BINDING_META,
     _PROJECTS_INVENTORY_BINDING_META,
@@ -134,33 +132,6 @@ def build_gate_input_panel_bindings(keymaps: GateModalKeymaps) -> list[Binding]:
         )
         for action, description in _GATE_INPUT_PANEL_BINDING_META
     ]
-
-
-def build_glossary_bindings(keymaps: GlossaryPanelKeymaps) -> list[Binding]:
-    """Build instance-local bindings for the Glossary panel."""
-
-    return [
-        Binding(
-            getattr(keymaps, action),
-            action,
-            description,
-            show=False,
-        )
-        for action, description in _GLOSSARY_BINDING_META
-    ]
-
-
-def glossary_help_bindings(
-    keymaps: GlossaryPanelKeymaps,
-) -> list[tuple[str, str]]:
-    """Return effective Glossary panel keys and descriptions for help surfaces."""
-
-    bindings: list[tuple[str, str]] = []
-    for action, description in _GLOSSARY_BINDING_META:
-        bindings.append((key_display_name(getattr(keymaps, action)), description))
-        if action == "follow_relation":
-            bindings.append((".1-9", "Follow numbered chip"))
-    return bindings
 
 
 def build_memory_bindings(keymaps: MemoryPanelKeymaps) -> list[Binding]:

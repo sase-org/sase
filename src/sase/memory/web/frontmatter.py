@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +15,7 @@ from sase.memory.notes import (
     collapse_description,
     normalize_memory_priority,
     normalize_memory_note_type,
+    render_frontmatter_block,
 )
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
 
@@ -121,6 +123,34 @@ def slug_to_keyword(slug: str) -> str:
 
     words = [part for part in _SLUG_WORD_RE.split(slug.strip()) if part]
     return " ".join(word[:1].upper() + word[1:] for word in words) or slug
+
+
+def render_strand_frontmatter(
+    *,
+    keyword: str,
+    aliases: Sequence[str] = (),
+    summary: str | None = None,
+    metadata: Mapping[str, Any] | None = None,
+    body: str = "",
+) -> str:
+    """Render one strand file's full content: frontmatter, then *body*.
+
+    Mirrors :func:`sase.memory.notes.apply_memory_frontmatter`'s role for flat
+    notes, but for a brand-new strand file rather than an edit of one already
+    on disk: there is no prior frontmatter block to preserve, so this simply
+    renders a fresh header (via :func:`sase.memory.notes.render_frontmatter_block`,
+    which never declares ``type:``/``parent:`` — a strand must not carry
+    either) and appends *body* unchanged.
+    """
+
+    data: dict[str, Any] = {"keyword": keyword}
+    if aliases:
+        data["aliases"] = list(aliases)
+    if summary is not None:
+        data["summary"] = summary
+    if metadata:
+        data["metadata"] = dict(metadata)
+    return render_frontmatter_block(data) + body.lstrip("\n")
 
 
 def _default_roster_label(strand_noun: str) -> str:
@@ -324,6 +354,7 @@ def parse_memory_strand(
 __all__ = [
     "parse_memory_strand",
     "parse_web_descriptor",
+    "render_strand_frontmatter",
     "replace_web_body",
     "slug_to_keyword",
 ]

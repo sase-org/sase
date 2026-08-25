@@ -1524,7 +1524,7 @@
             },
             "glossary": {
               "type": "object",
-              "description": "Bindings active only while the Glossary panel is focused",
+              "description": "Deprecated legacy bindings for the retired Glossary panel scope, accepted for compatibility and ignored. Move any customization to ace.keymaps.memory.",
               "additionalProperties": false,
               "properties": {
                 "next_term": {

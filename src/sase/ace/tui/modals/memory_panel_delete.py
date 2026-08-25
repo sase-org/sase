@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from sase.memory.notes import MemoryNote
+from sase.memory.web.models import MemoryStrand, MemoryWeb
 
 
 def build_memory_delete_subject(
@@ -33,6 +34,28 @@ def build_memory_delete_subject(
         lines.append(
             "WARNING: deleting a core note removes always-loaded agent context."
         )
+    return "\n".join(lines)
+
+
+def build_memory_strand_delete_subject(
+    web: MemoryWeb,
+    strand: MemoryStrand,
+    *,
+    referenced_by: Sequence[str] = (),
+) -> str:
+    """Build the confirm-dialog subject for deleting *strand* from *web*."""
+    first_line = next(
+        (line.strip() for line in strand.body.splitlines() if line.strip()),
+        "",
+    )
+    lines = [
+        f"Strand: {strand.relative_path}",
+        f"Keyword: {strand.keyword}",
+        f"Aliases: {', '.join(strand.aliases) if strand.aliases else '(none)'}",
+        f"Body: {first_line or '(empty)'}",
+    ]
+    if referenced_by:
+        lines.append(f"Referenced by: {', '.join(referenced_by)}")
     return "\n".join(lines)
 
 
@@ -71,6 +94,7 @@ def children_of(
 __all__ = [
     "build_child_blocked_delete_message",
     "build_memory_delete_subject",
+    "build_memory_strand_delete_subject",
     "children_of",
     "neighbor_note_after_delete",
 ]

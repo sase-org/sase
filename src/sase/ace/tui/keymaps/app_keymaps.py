@@ -295,34 +295,6 @@ class GateModalKeymaps:
 
 
 @dataclass
-class GlossaryPanelKeymaps:
-    """Focused-pane actions for the Glossary panel."""
-
-    next_term: str = "j"
-    prev_term: str = "k"
-    first_term: str = "g"
-    last_term: str = "G"
-    scroll_definition_down: str = "ctrl+d"
-    scroll_definition_up: str = "ctrl+u"
-    filter_terms: str = "slash"
-    toggle_definition_filter: str = "greater_than_sign"
-    next_relation: str = "tab"
-    prev_relation: str = "shift+tab"
-    follow_relation: str = "enter,l"
-    travel_back: str = "backspace,h"
-    next_project: str = "p"
-    prev_project: str = "P"
-    add_term: str = "a"
-    delete_term: str = "d"
-    open_source: str = "o"
-    open_viewer: str = "Z"
-    copy_definition: str = "y"
-    copy_source_path: str = "Y"
-    refresh: str = "r"
-    help: str = "question_mark"
-
-
-@dataclass
 class MemoryPanelKeymaps:
     """Focused-pane actions for the Memory panel."""
 
