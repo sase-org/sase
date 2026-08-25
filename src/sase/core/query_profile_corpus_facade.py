@@ -41,7 +41,7 @@ from sase.ace.query.limit_token import LimitTokenError, extract_limit
 from sase.ace.query.profile_evaluator import (
     ArtifactQueryRow,
     ArtifactQueryRowInput,
-    coerce_artifact_query_rows,
+    coerce_artifact_query_rows_with_wire,
 )
 from sase.ace.query.profile_reference import canonical_query_for_profile
 from sase.ace.query.profile_reference_support import ProfileQueryError
@@ -119,9 +119,8 @@ def compile_artifact_query_index(
     are both real work proportional to entry count.
     """
 
-    rows = coerce_artifact_query_rows(profile, entries)
+    rows, wire_rows = coerce_artifact_query_rows_with_wire(profile, entries)
     compile_corpus = require_rust_binding("compile_corpus_with_profile")
-    wire_rows = [_row_wire(row) for row in rows]
     rust_handle = compile_corpus(profile.to_wire(), wire_rows)
     return ArtifactQueryIndex(
         pane_id=pane_id,
@@ -202,18 +201,6 @@ def _canonicalize_artifact_query(query: str, profile: CompiledQueryProfile) -> s
 
     rust_canonicalize = require_rust_binding("canonicalize_query_with_profile")
     return rust_canonicalize(query, profile.to_wire())
-
-
-def _row_wire(row: ArtifactQueryRow) -> dict[str, Any]:
-    return {
-        "fields": {key: list(values) for key, values in row.fields.items()},
-        "searchable_text": row.searchable_text,
-        "predicates": {
-            "error_suffix": "error_suffix" in row.predicates,
-            "running_agent": "running_agent" in row.predicates,
-            "running_process": "running_process" in row.predicates,
-        },
-    }
 
 
 def _observed_facets(

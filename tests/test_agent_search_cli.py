@@ -9,7 +9,10 @@ from typing import Any
 
 import pytest
 
+from sase.ace.query.profile_evaluator import coerce_artifact_query_rows_with_wire
+from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.agents.catalog import AgentCatalogRow, AgentCatalogSnapshot
+from sase.agents.catalog import agent_catalog_query_entry
 from sase.agents.cli_search import handle_agents_search
 from sase.main.parser import create_parser
 from sase.project_display_names import (
@@ -220,6 +223,116 @@ def test_agent_search_json_filters_with_shared_profile(
     assert row["project_display"] == "sase"
     assert row["status"] == "FAILED"
     assert row["runtime_seconds"] == 300
+
+
+def test_agent_catalog_query_entry_emits_stable_rust_wire_shape() -> None:
+    display = ProjectRefDisplaySnapshot(
+        display_snapshot=ProjectDisplaySnapshot({"gh_sase-org__sase": "sase"})
+    )
+    started = "2026-08-01T00:00:00+00:00"
+    finished = _epoch("2026-08-01T00:05:00+00:00")
+    row = _row(
+        "research.12--code",
+        family="research.12",
+        role="code",
+        clan="athena.sase-tt",
+        tribe="epic",
+        workflow="review",
+        parent_timestamp="20260801000100",
+        raw_suffix="20260801000000",
+        artifacts_dir="/agents/research.12--code",
+        bundle_path="/dismissed/research.12--code.json",
+        state="dismissed",
+        status="running",
+        hidden=True,
+        dismissed=True,
+        revivable=True,
+        attention=True,
+        retry=True,
+        retry_attempt=2,
+        started_at=started,
+        finished_at=finished,
+        patch="sase-tt",
+    )
+
+    entry = agent_catalog_query_entry(row, project_ref_display=display)
+    profile = compiled_profile_for_builtin_pane("agents")
+    assert profile is not None
+    _rows, wire_rows = coerce_artifact_query_rows_with_wire(profile, (entry,))
+
+    assert entry.stable_id == "agent:research.12--code"
+    assert wire_rows == [
+        {
+            "fields": {
+                "kind": ["agent"],
+                "name": [
+                    "research.12--code",
+                    "bbugyi200.athena.research.12--code",
+                ],
+                "project": ["gh_sase-org__sase", "sase"],
+                "state": ["dismissed"],
+                "status": ["RUNNING"],
+                "hidden": [True],
+                "dismissed": [True],
+                "revivable": [True],
+                "attention": [True],
+                "retry": [True],
+                "family": ["research.12"],
+                "role": ["code"],
+                "clan": ["athena.sase-tt"],
+                "tribe": ["epic"],
+                "workflow": ["review"],
+                "parent": ["20260801000100"],
+                "model": ["gpt-5"],
+                "provider": ["codex"],
+                "patch": ["sase-tt"],
+                "attempt": [2],
+                "since": [int(datetime.fromisoformat(started).timestamp())],
+                "until": [int(datetime.fromisoformat(started).timestamp())],
+                "after": [int(finished)],
+                "before": [int(finished)],
+                "min": [300],
+                "max": [300],
+                "label": [
+                    "research.12--code",
+                    "bbugyi200.athena.research.12--code",
+                    "gh_sase-org__sase",
+                    "sase",
+                    "dismissed",
+                    "RUNNING",
+                    "gpt-5",
+                    "codex",
+                ],
+                "text": [
+                    "research.12--code",
+                    "bbugyi200.athena.research.12--code",
+                    "gh_sase-org__sase",
+                    "sase",
+                    "dismissed",
+                    "RUNNING",
+                    "gpt-5",
+                    "codex",
+                    "agent",
+                    "research.12",
+                    "code",
+                    "athena.sase-tt",
+                    "epic",
+                    "review",
+                    "20260801000100",
+                    "20260801000000",
+                    "/agents/research.12--code",
+                    "/dismissed/research.12--code.json",
+                    "sase-tt",
+                ],
+            },
+            "searchable_text": "\n".join(str(item) for item in entry.fields["text"]),
+            "predicates": {
+                "error_suffix": False,
+                "running_agent": True,
+                "running_process": False,
+            },
+        }
+    ]
 
 
 def test_agent_search_default_scope_excludes_hidden_and_workflow_children(

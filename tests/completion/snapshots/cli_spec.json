@@ -2147,10 +2147,10 @@
               {
                 "choices": null,
                 "dest": "query",
-                "is_remainder": true,
+                "is_remainder": false,
                 "kind": null,
                 "metavar": "QUERY",
-                "nargs": "..."
+                "nargs": "*"
               }
             ],
             "subcommands": []

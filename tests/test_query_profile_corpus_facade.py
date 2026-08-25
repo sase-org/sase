@@ -6,6 +6,10 @@ from dataclasses import replace
 
 import pytest
 
+from sase.ace.query.profile_evaluator import (
+    coerce_artifact_query_rows,
+    coerce_artifact_query_rows_with_wire,
+)
 from sase.ace.query.profile_reference import (
     canonical_query_for_profile,
     evaluate_query_many_for_profile,
@@ -106,6 +110,43 @@ def test_observed_facets_report_distinct_filterable_values() -> None:
     # Non-filterable (search-only) fields never appear in facets.
     assert "title" not in index.facets
     assert "body" not in index.facets
+
+
+def test_coerce_rows_with_wire_preserves_rust_row_wire_shape() -> None:
+    profile = compile_query_profile(beads_query_schema())
+    entries = [
+        {
+            "stable_id": "open-task",
+            "fields": {
+                "type": "task",
+                "status": ("open", "blocked"),
+                "project": ("gh_sase-org__sase", "sase"),
+                "title": "Load filter profile",
+            },
+            "searchable_text": "Load filter profile",
+            "predicates": ("running_agent",),
+        }
+    ]
+
+    rows, wire_rows = coerce_artifact_query_rows_with_wire(profile, entries)
+
+    assert rows == coerce_artifact_query_rows(profile, entries)
+    assert wire_rows == [
+        {
+            "fields": {
+                "type": ["task"],
+                "status": ["open", "blocked"],
+                "project": ["gh_sase-org__sase", "sase"],
+                "title": ["Load filter profile"],
+            },
+            "searchable_text": "Load filter profile",
+            "predicates": {
+                "error_suffix": False,
+                "running_agent": True,
+                "running_process": False,
+            },
+        }
+    ]
 
 
 def test_cache_key_is_sensitive_to_generation_profile_and_query() -> None:

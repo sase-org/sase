@@ -108,16 +108,14 @@ def coerce_artifact_query_row(
 ) -> ArtifactQueryRow:
     """Coerce an ArtifactEntry-like object or mapping into a typed query row."""
 
+    if isinstance(entry, ArtifactQueryRow):
+        return entry
     if _is_patch_row(entry):
         return _coerce_patch_query_row(profile, entry)
 
     raw = _entry_mapping(entry)
     raw_fields = _entry_field_mapping(raw)
-    fields = {
-        spec.key: values
-        for spec in profile.fields
-        if (values := _coerce_field_values(spec, raw_fields.get(spec.key)))
-    }
+    fields = _coerced_fields(profile, raw_fields)
     searchable_text = _searchable_text(profile, fields, raw)
     predicates = frozenset(str(item) for item in _raw_sequence(raw.get("predicates")))
     return ArtifactQueryRow(
@@ -139,10 +137,11 @@ def coerce_artifact_query_rows(
     parent chain, matching the Rust Patch corpus.
     """
 
+    if profile.pane_id != "patches":
+        return tuple(coerce_artifact_query_row(profile, entry) for entry in entries)
+
     materialized = tuple(entries)
-    if profile.pane_id == "patches" and all(
-        _is_patch_row(item) for item in materialized
-    ):
+    if all(_is_patch_row(item) for item in materialized):
         parent_by_name = {
             str(getattr(item, "name", "")).casefold(): _patch_parent_name(item)
             for item in materialized
@@ -156,6 +155,129 @@ def coerce_artifact_query_rows(
             for item in materialized
         )
     return tuple(coerce_artifact_query_row(profile, entry) for entry in materialized)
+
+
+def coerce_artifact_query_rows_with_wire(
+    profile: CompiledQueryProfile,
+    entries: Iterable[ArtifactQueryRowInput],
+) -> tuple[tuple[ArtifactQueryRow, ...], list[dict[str, Any]]]:
+    """Coerce *entries* and build their Rust corpus wire in the same pass."""
+
+    if profile.pane_id == "patches":
+        materialized = tuple(entries)
+        if all(_is_patch_row(item) for item in materialized):
+            parent_by_name = {
+                str(getattr(item, "name", "")).casefold(): _patch_parent_name(item)
+                for item in materialized
+            }
+            rows: list[ArtifactQueryRow] = []
+            wire_rows: list[dict[str, Any]] = []
+            for item in materialized:
+                row, wire = _coerce_patch_query_row_with_wire(
+                    profile,
+                    item,
+                    ancestor_chain=_patch_ancestor_chain(item, parent_by_name),
+                )
+                rows.append(row)
+                wire_rows.append(wire)
+            return tuple(rows), wire_rows
+        entries = materialized
+
+    rows = []
+    wire_rows = []
+    for entry in entries:
+        row, wire = _coerce_artifact_query_row_with_wire(profile, entry)
+        rows.append(row)
+        wire_rows.append(wire)
+    return tuple(rows), wire_rows
+
+
+def coerce_artifact_query_date_value(value: object) -> int | None:
+    """Coerce one row date value using the profile query row rules."""
+
+    return _coerce_date_value(value)
+
+
+def _artifact_query_row_wire(row: ArtifactQueryRow) -> dict[str, Any]:
+    """Return the Rust corpus wire shape for one already-coerced query row."""
+
+    return _row_wire_from_parts(
+        {key: list(values) for key, values in row.fields.items()},
+        searchable_text=row.searchable_text,
+        predicates=row.predicates,
+    )
+
+
+def _coerce_artifact_query_row_with_wire(
+    profile: CompiledQueryProfile,
+    entry: ArtifactQueryRowInput,
+) -> tuple[ArtifactQueryRow, dict[str, Any]]:
+    if isinstance(entry, ArtifactQueryRow):
+        return entry, _artifact_query_row_wire(entry)
+    if _is_patch_row(entry):
+        return _coerce_patch_query_row_with_wire(profile, entry)
+
+    raw = _entry_mapping(entry)
+    raw_fields = _entry_field_mapping(raw)
+    fields, wire_fields = _coerced_fields_with_wire(profile, raw_fields)
+    searchable_text = _searchable_text(profile, fields, raw)
+    predicates = frozenset(str(item) for item in _raw_sequence(raw.get("predicates")))
+    row = ArtifactQueryRow(
+        stable_id=_stable_id(raw),
+        fields=fields,
+        searchable_text=searchable_text,
+        predicates=predicates,
+    )
+    return row, _row_wire_from_parts(
+        wire_fields,
+        searchable_text=searchable_text,
+        predicates=predicates,
+    )
+
+
+def _coerced_fields(
+    profile: CompiledQueryProfile,
+    raw_fields: Mapping[str, Any],
+) -> dict[str, tuple[ProfileFieldValue, ...]]:
+    return {
+        spec.key: values
+        for spec in profile.fields
+        if (values := _coerce_field_values(spec, raw_fields.get(spec.key)))
+    }
+
+
+def _coerced_fields_with_wire(
+    profile: CompiledQueryProfile,
+    raw_fields: Mapping[str, Any],
+) -> tuple[
+    dict[str, tuple[ProfileFieldValue, ...]], dict[str, list[ProfileFieldValue]]
+]:
+    fields: dict[str, tuple[ProfileFieldValue, ...]] = {}
+    wire_fields: dict[str, list[ProfileFieldValue]] = {}
+    for spec in profile.fields:
+        values = _coerce_field_values(spec, raw_fields.get(spec.key))
+        if not values:
+            continue
+        fields[spec.key] = values
+        wire_fields[spec.key] = list(values)
+    return fields, wire_fields
+
+
+def _row_wire_from_parts(
+    fields: dict[str, list[ProfileFieldValue]],
+    *,
+    searchable_text: str,
+    predicates: frozenset[str],
+) -> dict[str, Any]:
+    return {
+        "fields": fields,
+        "searchable_text": searchable_text,
+        "predicates": {
+            "error_suffix": "error_suffix" in predicates,
+            "running_agent": "running_agent" in predicates,
+            "running_process": "running_process" in predicates,
+        },
+    }
 
 
 def _entry_mapping(entry: ArtifactQueryRowInput) -> Mapping[str, Any]:
@@ -457,6 +579,48 @@ def _coerce_patch_query_row(
     *,
     ancestor_chain: tuple[str, ...] | None = None,
 ) -> ArtifactQueryRow:
+    stable_id, raw_fields, searchable, predicates = _patch_query_row_parts(
+        entry,
+        ancestor_chain=ancestor_chain,
+    )
+    fields = _coerced_fields(profile, raw_fields)
+    return ArtifactQueryRow(
+        stable_id=stable_id,
+        fields=fields,
+        searchable_text=searchable,
+        predicates=predicates,
+    )
+
+
+def _coerce_patch_query_row_with_wire(
+    profile: CompiledQueryProfile,
+    entry: object,
+    *,
+    ancestor_chain: tuple[str, ...] | None = None,
+) -> tuple[ArtifactQueryRow, dict[str, Any]]:
+    stable_id, raw_fields, searchable, predicates = _patch_query_row_parts(
+        entry,
+        ancestor_chain=ancestor_chain,
+    )
+    fields, wire_fields = _coerced_fields_with_wire(profile, raw_fields)
+    row = ArtifactQueryRow(
+        stable_id=stable_id,
+        fields=fields,
+        searchable_text=searchable,
+        predicates=predicates,
+    )
+    return row, _row_wire_from_parts(
+        wire_fields,
+        searchable_text=searchable,
+        predicates=predicates,
+    )
+
+
+def _patch_query_row_parts(
+    entry: object,
+    *,
+    ancestor_chain: tuple[str, ...] | None,
+) -> tuple[str, dict[str, Any], str, frozenset[str]]:
     from sase.ace.patch import has_any_status_suffix, normalize_pr_origin
     from sase.ace.query.matchers import get_base_status
     from sase.ace.query.searchable import get_searchable_text
@@ -482,11 +646,6 @@ def _coerce_patch_query_row(
         raw_fields["ancestor"] = (name, str(parent))
     else:
         raw_fields["ancestor"] = (name,)
-    fields = {
-        spec.key: values
-        for spec in profile.fields
-        if (values := _coerce_field_values(spec, raw_fields.get(spec.key)))
-    }
     predicates = set[str]()
     if has_any_status_suffix(cast(Any, entry)):
         predicates.add("error_suffix")
@@ -494,11 +653,11 @@ def _coerce_patch_query_row(
         predicates.add("running_agent")
     if RUNNING_PROCESS_MARKER in searchable:
         predicates.add("running_process")
-    return ArtifactQueryRow(
-        stable_id=patch_query_stable_id(entry),
-        fields=fields,
-        searchable_text=searchable,
-        predicates=frozenset(predicates),
+    return (
+        patch_query_stable_id(entry),
+        raw_fields,
+        searchable,
+        frozenset(predicates),
     )
 
 
@@ -547,8 +706,10 @@ __all__ = [
     "ArtifactQueryRowInput",
     "ProfileFieldValue",
     "build_query_context_for_profile",
+    "coerce_artifact_query_date_value",
     "coerce_artifact_query_row",
     "coerce_artifact_query_rows",
+    "coerce_artifact_query_rows_with_wire",
     "evaluate_query_for_profile",
     "evaluate_query_with_profile_context",
     "patch_query_stable_id",
