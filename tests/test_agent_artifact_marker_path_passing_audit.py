@@ -176,6 +176,15 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "separately."
         ),
     ),
+    "src/sase/ace/tui/widgets/artifacts/agents_detail.py:load_agent_detail": (
+        PathPassingReview(
+            exemption=(
+                "Read-only Artifacts Agent pane detail lookup: agent_meta.json "
+                "is read only to recover the chat_path shown in the lazy detail "
+                "panel, off the shared ArtifactFileCache; no marker is written."
+            ),
+        )
+    ),
 }
 
 

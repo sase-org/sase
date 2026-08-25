@@ -10,6 +10,8 @@ from ...models.artifact_file_clipboard import (
     artifact_file_clipboard_path,
     artifact_file_source_clipboard_path,
 )
+from ...widgets.artifacts.agents_detail import load_agent_detail
+from ...widgets.artifacts.agents_list import agent_row_target
 from ...widgets.artifacts.beads_list import bead_row_target
 from ...widgets.artifacts.commits_timeline import commit_row_target
 from ...widgets.artifacts.entry_navigation import ArtifactEntryTarget
@@ -123,6 +125,47 @@ class ClipboardArtifactMarkedTargetsMixin(ClipboardArtifactTargetSupportMixin):
                 for row in rows
             ],
             plural_label=f"bead {plural(target)}",
+        )
+
+    def _copy_marked_agent_targets(
+        self,
+        pane: Any,
+        targets: tuple[ArtifactEntryTarget, ...],
+        target: str,
+    ) -> None:
+        if not targets:
+            return
+        by_target = {
+            agent_row_target(row): row for row in getattr(pane, "_rows", {}).values()
+        }
+        rows = [by_target[item] for item in targets if item in by_target]
+        labels = {
+            "name": "agent names",
+            "path": "artifacts directory paths",
+            "chat": "chat paths",
+            "prompt": "prompts",
+        }
+
+        def value(row: Any) -> str:
+            entry = row.entry
+            if target == "name":
+                return entry.name
+            detail = load_agent_detail(entry)
+            if target == "path":
+                if detail.resolved_artifacts_dir is None:
+                    raise ValueError(f"{entry.name} has no artifacts directory")
+                return detail.resolved_artifacts_dir
+            if target == "chat":
+                if detail.chat_path is None:
+                    raise ValueError(f"{entry.name} has no chat file")
+                return detail.chat_path
+            if detail.prompt_preview is None:
+                raise ValueError(f"{entry.name} has no prompt available")
+            return detail.prompt_preview
+
+        self._schedule_marked_copy(
+            [(row.entry.name, partial(value, row)) for row in rows],
+            plural_label=labels[target],
         )
 
     def _copy_marked_file_targets(

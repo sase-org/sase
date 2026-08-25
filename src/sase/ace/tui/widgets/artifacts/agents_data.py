@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sase.agents.catalog import AgentCatalogRow, build_agent_catalog_snapshot
+
+from ...relations.artifact_links import (
+    ArtifactLinksSnapshot,
+    empty_artifact_links_snapshot,
+    load_artifact_links_snapshot,
+)
 
 # The full catalog build (registry parse + index/archive enrichment) already
 # completes in ~150-400ms on a worker thread (measured in
@@ -24,6 +30,9 @@ class AgentsSnapshot:
     rows: tuple[AgentCatalogRow, ...]
     total_row_count: int
     truncated: bool
+    artifact_links: ArtifactLinksSnapshot = field(
+        default_factory=empty_artifact_links_snapshot
+    )
 
 
 def load_agents_snapshot(
@@ -50,6 +59,7 @@ def load_agents_snapshot(
         rows=rows,
         total_row_count=total,
         truncated=truncated,
+        artifact_links=load_artifact_links_snapshot(project),
     )
 
 

@@ -130,6 +130,17 @@ class CopyModeKeymaps(ModeKeymaps):
                 "reference": "at",
                 "snapshot": "s",
             },
+            "artifacts_agents": {
+                "reference": "at",
+                "handoff": "exclamation_mark",
+                "name": "n",
+                "link": "l",
+                "path": "p",
+                "chat": "c",
+                "prompt": "P",
+                "json": "j",
+                "snapshot": "s",
+            },
             "axe": {
                 "visible": "o",
                 "full": "O",

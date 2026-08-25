@@ -523,6 +523,7 @@ def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:
         "patches",
         "stitches",
         "beads",
+        "agents",
         "files",
     )
     assert ARTIFACTS_PANE_IDS["patches"] == "artifacts-patches-pane"

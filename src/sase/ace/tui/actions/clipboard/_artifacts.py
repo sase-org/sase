@@ -164,6 +164,13 @@ class ClipboardArtifactsMixin(
                 str(subtab_keys["design"]): lambda: self._copy_bead_target("design"),
                 str(subtab_keys["bug"]): lambda: self.action_beads_copy_bug(),  # type: ignore[attr-defined]
             }
+        elif subtab == "agents":
+            handlers = {
+                str(subtab_keys["name"]): lambda: self._copy_agent_target("name"),
+                str(subtab_keys["path"]): lambda: self._copy_agent_target("path"),
+                str(subtab_keys["chat"]): lambda: self._copy_agent_target("chat"),
+                str(subtab_keys["prompt"]): lambda: self._copy_agent_target("prompt"),
+            }
         else:
             handlers = {
                 str(subtab_keys["contents"]): lambda: self._copy_file_target(

@@ -2,11 +2,10 @@
 
 Mounted on the same :class:`~.snapshot_pane.ArtifactsSnapshotPane` lifecycle
 as ``files_pane`` (the closest structural analogue: index-backed,
-snapshot-loaded), kept intentionally thin. The ``query`` (sase-tj.5),
-``detail`` (sase-tj.6), and ``revive`` (sase-tj.7) phases each add their own
-sibling module and one base-class/compose entry here — a filter bar, a
-detail panel and relation panel, and a revive binding, respectively — rather
-than growing this class body.
+snapshot-loaded). The ``query`` (sase-tj.5) phase adds a filter bar sibling
+module and one compose entry here rather than growing this class body; the
+``detail`` phase (sase-tj.6) lands here as grouping, a relation panel, a
+lazy detail panel, and link-target resolution.
 """
 
 from __future__ import annotations
@@ -18,24 +17,35 @@ from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import OptionList, Static
+from textual.worker import Worker
 
 from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
+from sase.core.artifact_relations import RelationIndex
 
 from ..._artifact_tab_model import ArtifactsPaneContract
+from ...relations import build_agents_relation_index
+from ...relations._support import relation_index_if_enabled
 from .agents_data import AgentsSnapshot, load_agents_snapshot
+from .agents_detail_panel import AgentsDetailMixin
 from .agents_navigation import AgentsNavigationMixin, AgentsOptionList
 from .agents_options import AgentsOptionsMixin
+from .group_fold_navigation import ArtifactGroupFoldMixin
+from .relation_panel import RelationPanel, RelationPanelHostMixin
 from .snapshot_pane import ArtifactsSnapshotPane, SnapshotRequest
 
 
 @dataclass(frozen=True, slots=True)
 class _AgentsSnapshotResult:
     snapshot: AgentsSnapshot
+    relation_index: RelationIndex | None = None
 
 
 class ArtifactsAgentsPane(
+    AgentsDetailMixin,
     AgentsNavigationMixin,
     AgentsOptionsMixin,
+    ArtifactGroupFoldMixin,
+    RelationPanelHostMixin,
     ArtifactsSnapshotPane,
 ):
     """Browse the durable agent catalog without blocking the event loop."""
@@ -55,6 +65,8 @@ class ArtifactsAgentsPane(
         self._project_display_name: str | None = None
         self._registry = load_keymap_registry({})
         self._init_agents_navigation()
+        self._init_agents_detail()
+        self._init_group_fold()
 
     def compose(self) -> ComposeResult:
         yield Static(
@@ -69,6 +81,10 @@ class ArtifactsAgentsPane(
                 yield Static("No agents found.", id="agents-empty")
                 yield Static(self._status_text(), id="agents-status")
                 yield AgentsOptionList(id="agents-list")
+                yield RelationPanel(
+                    id="agents-relation-panel",
+                    classes="artifacts-relation-panel",
+                )
             detail_panel = Vertical(id="agents-detail-panel")
             detail_panel.border_title = "Details"
             with detail_panel:
@@ -80,10 +96,16 @@ class ArtifactsAgentsPane(
         yield Static(self._hints_text(), id="agents-hints")
 
     def on_mount(self) -> None:
+        self._start_detail_debouncer()
         self._refresh_options()
 
     def on_unmount(self) -> None:
+        self._cancel_detail_debouncer()
+        self._cancel_detail_worker()
         self._cancel_snapshot_worker()
+
+    def on_deactivate(self) -> None:
+        self._cancel_detail_debouncer()
 
     def on_first_activate(self) -> None:
         self._request_load(force=False)
@@ -136,7 +158,16 @@ class ArtifactsAgentsPane(
         self._update_status()
 
     def _build_snapshot(self, request: SnapshotRequest) -> _AgentsSnapshotResult:
-        return _AgentsSnapshotResult(snapshot=load_agents_snapshot(request.project))
+        snapshot = load_agents_snapshot(request.project)
+        return _AgentsSnapshotResult(
+            snapshot=snapshot,
+            relation_index=relation_index_if_enabled(
+                self.contract,
+                lambda contract: build_agents_relation_index(
+                    snapshot, contract=contract
+                ),
+            ),
+        )
 
     def _accept_snapshot(self, result: Any, request: SnapshotRequest) -> bool:
         return (
@@ -148,7 +179,9 @@ class ArtifactsAgentsPane(
         del request
         preferred = self.selected_entry_target()
         self._snapshot = result.snapshot
+        self._relation_index = result.relation_index
         self._load_error = None
+        self._invalidate_detail_cache()
         self._refresh_options(preferred_target=preferred)
 
     def _on_snapshot_error(self, error: str, request: SnapshotRequest) -> None:
@@ -156,11 +189,18 @@ class ArtifactsAgentsPane(
         self._load_error = error
         self._update_status()
 
+    def _handle_auxiliary_worker(self, event: Worker.StateChanged) -> bool:
+        if event.worker is self._detail_worker:
+            self._on_detail_worker_changed(event)
+            return True
+        return False
+
     @on(OptionList.OptionHighlighted, "#agents-list")
     def _on_option_highlighted(self, _event: OptionList.OptionHighlighted) -> None:
         if self._syncing_options:
             return
         self._update_static("#agents-hints", self._hints_text())
+        self._schedule_detail()
 
     @on(OptionList.OptionSelected, "#agents-list")
     def _on_option_selected(self, event: OptionList.OptionSelected) -> None:

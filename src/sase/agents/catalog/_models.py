@@ -35,6 +35,9 @@ class AgentCatalogRow:
     started_at: str | None
     finished_at: float | None
     retry_attempt: int | None
+    retry_of_timestamp: str | None
+    retried_as_timestamp: str | None
+    retry_chain_root_timestamp: str | None
     patch: str | None
     dismissed: bool
     revivable: bool

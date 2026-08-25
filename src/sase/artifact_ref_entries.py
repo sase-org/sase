@@ -37,6 +37,8 @@ def reference_for_entry_target(
             "plan": "plan",
             "files": "file",
             "file": "file",
+            "agents": "agent",
+            "agent": "agent",
         }.get(subtab)
     )
     if expected is None or not target or target[0] != expected:
@@ -44,6 +46,10 @@ def reference_for_entry_target(
     try:
         if expected == "file" and len(target) == 2:
             return parse_artifact_ref(f"file:{target[1]}").rendered
+        if expected == "agent" and len(target) == 2:
+            entry = getattr(row, "entry", None)
+            name = getattr(entry, "canonical_global_name", None) or target[1]
+            return parse_artifact_ref(f"agent:{name}").rendered
         if context is None:
             return None
         if expected == "commit" and len(target) == 3:

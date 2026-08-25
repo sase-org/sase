@@ -195,6 +195,10 @@ def _known_target_for_ref(
         exact_file = ArtifactEntryTarget("files", (payload,))
         if exact_file in known_targets:
             return exact_file
+    if kind == "agent":
+        exact_agent = ArtifactEntryTarget("agents", (payload,))
+        if exact_agent in known_targets:
+            return exact_agent
     for target in known_targets:
         if kind == "stitch" and target.pane_id == "stitches":
             repo, at, sha = payload.partition("@")
@@ -210,6 +214,21 @@ def _known_target_for_ref(
         elif kind == "file" and target.pane_id == "files":
             if target.parts and target.parts[0] == payload:
                 return target
+        elif kind == "agent" and target.pane_id == "agents":
+            # ``payload`` may be a bare local name (the common case, matched
+            # above) or the owner-qualified ``canonical_global_name`` a
+            # remote writer recorded. Re-derive the same current-owner
+            # compatibility spellings ``reference_for_agent_name`` uses so
+            # both forms resolve to the one row keyed on its bare name.
+            if target.parts:
+                from sase.core.agent_identity_facade import (
+                    current_owner_agent_name_lookup_candidates,
+                )
+
+                if payload in current_owner_agent_name_lookup_candidates(
+                    str(target.parts[-1])
+                ):
+                    return target
         elif target.pane_id == f"ref:{kind}":
             if target.parts and target.parts[-1] == payload:
                 return target

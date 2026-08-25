@@ -12,6 +12,7 @@ from ...models.artifact_file_clipboard import (
     artifact_file_clipboard_path,
     artifact_file_source_clipboard_path,
 )
+from ...widgets.artifacts.agents_detail import load_agent_detail
 from ._artifact_target_marked import ClipboardArtifactMarkedTargetsMixin
 from ._artifact_target_values import (
     artifact_file_contents,
@@ -140,6 +141,51 @@ class ClipboardArtifactSelectedTargetsMixin(ClipboardArtifactMarkedTargetsMixin)
             value,
             copied_message=f"Copied plan {target}",
             content_shaped=target == "body",
+        )
+
+    def _copy_agent_target(self, target: str) -> None:
+        pane = self._agents_pane()  # type: ignore[attr-defined]
+        marked = self._visible_marked_targets(pane)
+        if marked is not None:
+            self._copy_marked_agent_targets(pane, marked, target)
+            return
+        row = pane.selected_row() if pane is not None else None
+        if row is None:
+            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+        entry = row.entry
+
+        if target == "name":
+            self._schedule_artifacts_copy(
+                entry.name,
+                copied_message=f"Copied agent name ({entry.name})",
+            )
+            return
+
+        def value() -> str:
+            detail = load_agent_detail(entry)
+            if target == "path":
+                if detail.resolved_artifacts_dir is None:
+                    raise ValueError(f"{entry.name} has no artifacts directory")
+                return detail.resolved_artifacts_dir
+            if target == "chat":
+                if detail.chat_path is None:
+                    raise ValueError(f"{entry.name} has no chat file")
+                return detail.chat_path
+            if detail.prompt_preview is None:
+                raise ValueError(f"{entry.name} has no prompt available")
+            return detail.prompt_preview
+
+        labels = {
+            "path": "artifacts directory path",
+            "chat": "chat path",
+            "prompt": "prompt",
+        }
+        self._schedule_artifacts_copy(
+            value,
+            copied_message=f"Copied {labels[target]}",
+            task_name=f"sase-agent-copy-{target}",
+            content_shaped=target == "prompt",
         )
 
     def _copy_file_target(self, target: str) -> None:

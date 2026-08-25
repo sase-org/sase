@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .agents import build_agents_relation_index
 from .artifact_links import (
     ArtifactLinksSnapshot,
     empty_artifact_links_snapshot,
@@ -16,6 +17,7 @@ from .stitches import build_stitches_relation_index
 
 __all__ = [
     "ArtifactLinksSnapshot",
+    "build_agents_relation_index",
     "build_beads_relation_index",
     "build_documents_relation_index",
     "build_files_relation_index",

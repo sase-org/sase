@@ -62,12 +62,7 @@ class AgentsOptionList(OptionList):
 
 
 class AgentsNavigationMixin(_MixinBase):
-    """Own agent-row selection and the shared Artifacts entry contract.
-
-    Flat only: no grouping banners yet. The ``detail`` phase (sase-tj.6)
-    adds family/state/project grouping banners on top of this once it
-    lands ``ArtifactGroupFoldMixin`` for this pane.
-    """
+    """Own agent-row selection and the shared Artifacts entry contract."""
 
     _rows: dict[str, AgentRow]
     _syncing_options: bool
@@ -76,6 +71,7 @@ class AgentsNavigationMixin(_MixinBase):
     _entry_targets_cache: tuple[ArtifactEntryTarget, ...]
     _option_id_by_target: dict[ArtifactEntryTarget, str]
     _option_index_by_target: dict[ArtifactEntryTarget, int]
+    _banner_target_by_option_id: dict[str, ArtifactEntryTarget]
     _pending_entry_target: ArtifactEntryTarget | None
 
     if TYPE_CHECKING:
@@ -86,6 +82,12 @@ class AgentsNavigationMixin(_MixinBase):
             preferred_target: ArtifactEntryTarget | None = None,
         ) -> None: ...
 
+        def refresh_relation_panel(self, *, refresh_footer: bool = True) -> Any: ...
+
+        def relation_footer_entries(
+            self, keymap: Any = None
+        ) -> tuple[tuple[str, str], ...]: ...
+
     def _init_agents_navigation(self) -> None:
         self._rows = {}
         self._syncing_options = False
@@ -94,17 +96,24 @@ class AgentsNavigationMixin(_MixinBase):
         self._entry_targets_cache = ()
         self._option_id_by_target = {}
         self._option_index_by_target = {}
+        self._banner_target_by_option_id = {}
         self._pending_entry_target = None
 
     def _set_agent_rows(
         self,
         rows: dict[str, AgentRow],
         options: list[Option],
+        banner_targets: dict[str, ArtifactEntryTarget] | None = None,
     ) -> None:
         self._rows = rows
-        target_by_option_id = {
+        self._banner_target_by_option_id = dict(banner_targets or {})
+        target_by_option_id: dict[str, ArtifactEntryTarget] = {
             option_id: agent_row_target(row) for option_id, row in rows.items()
         }
+        target_by_option_id.update(self._banner_target_by_option_id)
+        # Expanded banners render as disabled headers — visible, but not a
+        # navigation/jump stop, mirroring Files (only collapsed banners are
+        # stops; real rows are never disabled).
         indexed_targets = tuple(
             (index, target)
             for index, option in enumerate(options)
@@ -131,6 +140,17 @@ class AgentsNavigationMixin(_MixinBase):
             return None
         return self._rows.get(option.id or "")
 
+    def selected_group_banner_target(self) -> ArtifactEntryTarget | None:
+        """Return the highlighted banner's target, or ``None`` for a real row."""
+        option_list = self._option_list()
+        if option_list is None or option_list.highlighted is None:
+            return None
+        try:
+            option = option_list.get_option_at_index(option_list.highlighted)
+        except Exception:
+            return None
+        return self._banner_target_by_option_id.get(option.id or "")
+
     def focus_list(self) -> None:
         option_list = self._option_list()
         if option_list is not None:
@@ -154,7 +174,9 @@ class AgentsNavigationMixin(_MixinBase):
 
     def selected_entry_target(self) -> ArtifactEntryTarget | None:
         row = self.selected_row()
-        return None if row is None else agent_row_target(row)
+        if row is not None:
+            return agent_row_target(row)
+        return self.selected_group_banner_target()
 
     def select_entry_target(self, target: ArtifactEntryTarget) -> bool:
         option_list = self._option_list()
@@ -180,9 +202,16 @@ class AgentsNavigationMixin(_MixinBase):
         self._pending_entry_target = None
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
-        # No relation panel yet (the ``detail`` phase, sase-tj.6, adds it),
-        # so there is nothing selection-dependent to add to the footer.
-        return ()
+        keymap = getattr(
+            getattr(self, "app", None),
+            "_relation_footer_keymap_override",
+            None,
+        )
+        if keymap is not None:
+            return self.relation_footer_entries(keymap)
+        return self.relation_footer_entries(
+            self.refresh_relation_panel(refresh_footer=False)
+        )
 
     def apply_entry_jump_hints(
         self,

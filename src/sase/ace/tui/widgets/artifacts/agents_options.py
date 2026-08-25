@@ -10,8 +10,20 @@ from textual.widgets import Static
 
 from sase.ace.tui.keymaps import KeymapRegistry, key_display_name
 
+from ..._artifact_tab_model import PaneGroupingModeDecl
+from ...models.artifact_groups import (
+    ArtifactGroupBuildResult,
+    group_banner_option_id,
+    group_banner_target,
+)
+from ...models.group_fold import GroupFoldRegistry
 from .agents_data import AgentsSnapshot
-from .agents_list import AgentRow, build_agent_options
+from .agents_list import (
+    AGENTS_PANE_ID,
+    AgentRow,
+    build_agent_options,
+    build_grouped_agent_rows,
+)
 from .agents_navigation import AgentsOptionList
 from .entry_navigation import ArtifactEntryTarget
 from .shell import (
@@ -55,7 +67,31 @@ class AgentsOptionsMixin(_MixinBase):
             self,
             rows: dict[str, AgentRow],
             options: list,
+            banner_targets: dict[str, ArtifactEntryTarget] | None = None,
         ) -> None: ...
+
+        def _active_grouping_mode(self) -> PaneGroupingModeDecl | None: ...
+
+        def _group_fold_registry(self) -> GroupFoldRegistry: ...
+
+    def _group_pane_id(self) -> str:
+        return AGENTS_PANE_ID
+
+    def _group_build_result(
+        self,
+        *,
+        fold_registry: GroupFoldRegistry,
+    ) -> ArtifactGroupBuildResult:
+        mode = self._active_grouping_mode()
+        snapshot = self._current_snapshot()
+        if mode is None or snapshot is None:
+            return ArtifactGroupBuildResult(rows=(), known_group_keys=())
+        return build_grouped_agent_rows(
+            snapshot, mode=mode, fold_registry=fold_registry
+        )
+
+    def _group_refresh(self, preferred_target: ArtifactEntryTarget | None) -> None:
+        self._refresh_options(preferred_target=preferred_target)
 
     def _refresh_options(
         self,
@@ -70,13 +106,30 @@ class AgentsOptionsMixin(_MixinBase):
             preferred_target = pending_target
         elif preferred_target is None:
             preferred_target = self.selected_entry_target()
-        options, rows = build_agent_options(
+        mode = self._active_grouping_mode()
+        registry = self._group_fold_registry() if mode is not None else None
+        options, rows, known_group_keys = build_agent_options(
             self._current_snapshot(),
             loading=self._loading,
+            mode=mode,
+            fold_registry=registry,
+            accent=self._accent(),
             jump_hints=self._entry_jump_hints,
             marks=self._entry_marks,
         )
-        self._set_agent_rows(rows, options)
+        if registry is not None:
+            registry.clear_unknown(known_group_keys)
+        banner_targets_by_option_id = (
+            {}
+            if mode is None
+            else {
+                group_banner_option_id(mode.id, key): group_banner_target(
+                    AGENTS_PANE_ID, mode.id, key
+                )
+                for key in known_group_keys
+            }
+        )
+        self._set_agent_rows(rows, options, banner_targets_by_option_id)
         preferred_option_id = (
             None
             if preferred_target is None

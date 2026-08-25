@@ -356,22 +356,81 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
         is_plan_adapter=False,
         project_scoped=True,
         has_detail=True,
-        # Empty: relations (family, clan, retry_chain, parent) and grouping
-        # (by_family, by_state, by_project) are the ``detail`` phase's job
-        # (sase-tj.6). Declaring them here without that implementation is
-        # the "claims a feature its data cannot support" case the contract
-        # rules exist to prevent (sase-m6.9), mirrored from the ``beads``
-        # entry's grouping precedent above.
-        relations=(),
-        grouping=PaneGroupingDecl(),
+        relations=(
+            PaneRelationDecl(
+                name="family",
+                kind=RelationKind.HIERARCHY,
+                label="Family",
+                source="agent_family_container",
+                target_pane=None,
+                inverse=None,
+                directed=True,
+                transitive=False,
+            ),
+            PaneRelationDecl(
+                name="clan",
+                kind=RelationKind.HIERARCHY,
+                label="Clan",
+                source="agent_clan_container",
+                target_pane=None,
+                inverse=None,
+                directed=True,
+                transitive=False,
+            ),
+            PaneRelationDecl(
+                name="parent",
+                kind=RelationKind.HIERARCHY,
+                label="Parent",
+                source="agent_parent_timestamp",
+                target_pane=None,
+                inverse=None,
+                directed=True,
+                transitive=False,
+            ),
+            PaneRelationDecl(
+                name="retry_chain",
+                kind=RelationKind.FAMILY,
+                label="Retry chain",
+                source="agent_retry_chain",
+                target_pane=None,
+                inverse=None,
+                directed=False,
+                transitive=False,
+            ),
+        ),
+        grouping=PaneGroupingDecl(
+            modes=(
+                PaneGroupingModeDecl(
+                    id="by_family",
+                    label="Family",
+                    keys=("family",),
+                ),
+                PaneGroupingModeDecl(
+                    id="by_state",
+                    label="State",
+                    keys=("state",),
+                ),
+                PaneGroupingModeDecl(
+                    id="by_project",
+                    label="Project",
+                    keys=("project",),
+                ),
+            ),
+            default_mode="by_family",
+        ),
         status_counters=(PaneStatusCounter(name="status", field="status"),),
         copy_group="artifacts_agents",
-        # Empty: the ``detail`` phase (sase-tj.6) registers the
-        # ``artifacts_agents`` copy group's targets (reference, name, link,
-        # path, chat, prompt, json, handoff, snapshot). Declaring targets
-        # before their implementation exists would fail
-        # ``check_declared_copy_targets_are_registered``.
-        copy_targets=(),
+        copy_targets=(
+            "reference",
+            "name",
+            "link",
+            "path",
+            "chat",
+            "prompt",
+            "json",
+            "handoff",
+            "snapshot",
+        ),
         copy_keymap_group="artifacts_agents",
         detail_fields=(),
         detail_scroll_id="agents-detail-scroll",

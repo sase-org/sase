@@ -28,6 +28,8 @@ class ClipboardArtifactReferencesMixin(ClipboardBase):
             resolver_name = "_beads_pane"
         elif subtab == "files":
             resolver_name = "_files_pane"
+        elif subtab == "agents":
+            resolver_name = "_agents_pane"
         elif _is_document_pane_key(str(subtab)):
             resolver_name = "_active_documents_pane"
         else:

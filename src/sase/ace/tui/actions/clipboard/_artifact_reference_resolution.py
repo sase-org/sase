@@ -13,6 +13,7 @@ from sase.artifact_refs import (
     reference_for_entry_target,
 )
 
+from ...widgets.artifacts.agents_list import agent_row_target
 from ...widgets.artifacts.beads_list import bead_row_target
 from ...widgets.artifacts.commits_timeline import commit_row_target
 from ...widgets.artifacts.entry_navigation import ArtifactEntryTarget
@@ -137,6 +138,26 @@ def reference_items_for_targets(
                     workspace_dir,
                     markdown_label=_plan_markdown_label(row),
                     kind_label=kind_label,
+                )
+            )
+    elif subtab == "agents":
+        agents_by_target: dict[ArtifactEntryTarget, Any] = {
+            agent_row_target(row): row for row in getattr(pane, "_rows", {}).values()
+        }
+        project = getattr(pane, "project_scope", None)
+        for target in targets:
+            row = agents_by_target.get(target)
+            if row is None:
+                continue
+            items.append(
+                ArtifactReferenceItem(
+                    row.entry.name,
+                    target,
+                    row,
+                    project or row.entry.project,
+                    cwd,
+                    markdown_label=row.entry.name,
+                    kind_label="agent",
                 )
             )
     elif subtab in {"other", "files"}:

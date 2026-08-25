@@ -21,6 +21,7 @@ from sase.project_display_names import (
 
 from ..tab_order import ARTIFACTS_TAB
 from ..widgets.artifacts import FIXED_ARTIFACTS_SUBTAB_ORDER
+from .artifacts_agents import ArtifactsAgentsActionsMixin
 from .artifacts_beads import ArtifactsBeadsActionsMixin, BEADS_ARTIFACT_ACTIONS
 from .artifacts_commits import (
     COMMITS_ARTIFACT_ACTIONS,
@@ -262,6 +263,7 @@ class ArtifactsMixin(
     ArtifactsBeadsActionsMixin,
     ArtifactsPlansActionsMixin,
     ArtifactsFilesActionsMixin,
+    ArtifactsAgentsActionsMixin,
     ArtifactsQueryHistoryActionsMixin,
     ArtifactsLimitActionsMixin,
 ):
