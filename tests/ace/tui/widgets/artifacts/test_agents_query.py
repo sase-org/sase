@@ -126,6 +126,75 @@ def test_agents_query_limit_is_applied_after_full_membership() -> None:
     assert match_count == 3
 
 
+def test_agents_blank_query_uses_incomplete_head_without_query_index() -> None:
+    pane = ArtifactsAgentsPane()
+    pane.project_scope = None
+    rows = tuple(_row(f"agent-{index}") for index in range(3))
+    pane._snapshot = AgentsSnapshot(
+        project=None,
+        rows=rows,
+        total_row_count=7,
+        complete=False,
+    )
+    pane.query_source = "limit:2"
+    pane._query_index = None
+
+    filtered, exact, pending, truncated, match_count = pane._filtered_agents_snapshot()
+
+    assert filtered is not None
+    assert tuple(row.name for row in filtered.rows) == ("agent-0", "agent-1")
+    assert exact is True
+    assert pending is False
+    assert truncated is True
+    assert match_count == 7
+
+
+def test_agents_filtered_query_waits_for_full_index() -> None:
+    pane = ArtifactsAgentsPane()
+    pane.project_scope = None
+    pane._snapshot = AgentsSnapshot(
+        project=None,
+        rows=(_row("agent-1", role="code"),),
+        total_row_count=3,
+        complete=False,
+    )
+    pane.query_source = "role:code limit:2"
+    pane._query_index = None
+    requested: list[bool] = []
+    pane._request_full_agents_snapshot = lambda: requested.append(True)  # type: ignore[method-assign]
+
+    filtered, exact, pending, truncated, match_count = pane._filtered_agents_snapshot()
+
+    assert filtered is pane._snapshot
+    assert exact is False
+    assert pending is True
+    assert truncated is False
+    assert match_count is None
+    assert requested == [True]
+
+
+def test_agents_complete_snapshot_missing_index_rebuilds_index_only() -> None:
+    pane = ArtifactsAgentsPane()
+    pane.project_scope = None
+    pane._snapshot = _snapshot((_row("agent-1", role="code"),))
+    pane.query_source = "role:code limit:2"
+    pane._query_index = None
+    full_requests: list[bool] = []
+    rebuilds: list[bool] = []
+    pane._request_full_agents_snapshot = lambda: full_requests.append(True)  # type: ignore[method-assign]
+    pane._request_agents_query_index_rebuild = lambda: rebuilds.append(True)  # type: ignore[method-assign]
+
+    _filtered, exact, pending, _truncated, match_count = (
+        pane._filtered_agents_snapshot()
+    )
+
+    assert exact is False
+    assert pending is True
+    assert match_count is None
+    assert full_requests == []
+    assert rebuilds == [True]
+
+
 def test_agents_query_history_record_preserves_host_limit() -> None:
     pane = ArtifactsAgentsPane()
     pane.query_source = "role:code limit:2"

@@ -50,7 +50,7 @@ class AgentsRevivalMixin(_MixinBase):
             preferred_target: ArtifactEntryTarget | None = None,
         ) -> None: ...
 
-        def _request_load(self, *, force: bool) -> None: ...
+        def _request_load(self, *, force: bool, full: bool = False) -> None: ...
 
     def _init_agents_revival(self) -> None:
         self._seed_query = None
@@ -193,7 +193,10 @@ def _apply_seed_query(
         project=snapshot.project,
         rows=rows,
         total_row_count=len(rows),
+        complete=snapshot.complete,
         truncated=False,
+        artifact_links=snapshot.artifact_links,
+        facets=snapshot.facets,
     )
 
 

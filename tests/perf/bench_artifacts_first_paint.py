@@ -8,15 +8,12 @@ Measures, per pane (Agent, Bead, Plan, File), the split between:
   (``build_*_query_index`` in ``query_rows.py``), when the pane's current code
   builds one at all.
 - **first-paint**: what a default ``limit:100`` blank-query view actually
-  costs *today*, before this epic's sibling phases land. For panes that
-  already short-circuit past the query index (Agent) or already bound their
-  index build (File), first paint is cheaper than snapshot-load +
-  query-index. For panes that do not yet have that short circuit (Bead,
-  Plan), first paint equals (or, for Plan, approximates) snapshot-load plus
-  whatever index cost the pane's current code pays before it can render —
-  that gap is exactly what this epic's sibling phases close, and this bench
-  reports it plainly rather than inventing a shortcut that does not exist
-  yet (``plan:202608/artifacts_query_performance.md`` §1.4, §3).
+  costs for the current pane implementation. Agent and File both paint from
+  bounded first-page snapshots and defer full-corpus work. Bead and Plan
+  still include whatever index or inventory work their current code pays
+  before rows can render; the bench reports those gaps plainly rather than
+  inventing shortcuts that do not exist yet
+  (``plan:202608/artifacts_query_performance.md`` §1.4, §3).
 
 This bench calls the same plain-Python functions the panes' Textual workers
 call, never ``AcePage``/the mounted TUI: driving the real async/worker
@@ -25,12 +22,10 @@ benefit (see ``src/sase/ace/tui/widgets/artifacts/snapshot_pane.py``).
 
 Corpus sizes mirror the plan's measured live-scale reference point (§1.1):
 12,525 Agent registry names (reusing ``bench_agent_catalog``'s fixture),
-4,346 beads, 1,900 archived plan files, 8,099 File rows. None of the panes
-are expected to already hit the epic's ~400ms/~700ms targets (§2.1) — this
-phase (``bench``) only builds honest measurement infrastructure; the
-sibling phases (``registry``, ``agent-paint``, ``core-corpus``,
-``entry-projection``, ``plans``, ``beads``) are what make those targets
-reachable.
+4,346 beads, 1,900 archived plan files, 8,099 File rows. Assertions are
+structural rather than tight wall-clock budgets; the sibling performance
+phases move the reported numbers toward the epic's ~400ms/~700ms targets
+(§2.1).
 
 Assertions are structural, not tight wall-clock budgets, mirroring
 ``tests/ace/tui/bench_admin_center_open.py``'s stated philosophy.
@@ -54,7 +49,10 @@ import pytest
 from sase.ace.query.limit_token import apply_limit, extract_limit
 from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui.widgets.artifacts import beads_data, files_data
-from sase.ace.tui.widgets.artifacts.agents_data import load_agents_snapshot
+from sase.ace.tui.widgets.artifacts.agents_data import (
+    AGENTS_FIRST_PAGE_LIMIT,
+    load_agents_snapshot,
+)
 from sase.ace.tui.widgets.artifacts.beads_data import load_beads_snapshot
 from sase.ace.tui.widgets.artifacts.files_data import (
     FILES_FIRST_PAGE_LIMIT,
@@ -121,7 +119,7 @@ def bench_agent_pane(
     warmup: int,
     monkeypatch: pytest.MonkeyPatch,
 ) -> dict[str, Any]:
-    """Agent pane: full registry/artifact-index load, then a blank ``limit:100`` view.
+    """Agent pane: bounded registry/artifact-index head, then a blank view.
 
     Reuses ``bench_agent_catalog``'s repaired (real ``source`` + real on-disk
     artifact tree) fixture so the Agent corpus pays the same registry
@@ -146,12 +144,13 @@ def bench_agent_pane(
 
     def _sample() -> tuple[float, float, float, int]:
         start = time.perf_counter()
-        snapshot = load_agents_snapshot(None)
+        snapshot = load_agents_snapshot(None, AGENTS_FIRST_PAGE_LIMIT)
         load_s = time.perf_counter() - start
 
+        full_snapshot = load_agents_snapshot(None)
         start = time.perf_counter()
         index = build_agents_query_index(
-            snapshot,
+            full_snapshot,
             pane_id="agents",
             generation=0,
             profile=profile,
@@ -191,6 +190,8 @@ def bench_agent_pane(
         "first_paint_ms": _summarize(first_paints),
         "first_paint_needs_index": False,
         "default_view_row_count": default_view_row_count,
+        "snapshot_row_count": AGENTS_FIRST_PAGE_LIMIT,
+        "snapshot_complete": False,
     }
 
 
@@ -569,9 +570,13 @@ def test_bench_artifacts_first_paint(monkeypatch: pytest.MonkeyPatch) -> None:
         assert report["default_view_row_count"] <= _DEFAULT_LIMIT, report["pane"]
 
     # The Agent pane already short-circuits past the query index for a blank
-    # query (agents_query.py's _filtered_agents_snapshot); first paint must
-    # not require it.
-    assert by_pane["agents"]["first_paint_needs_index"] is False
+    # query and now loads a bounded head before the background full-corpus
+    # extension builds the index.
+    agents_report = by_pane["agents"]
+    assert agents_report["first_paint_needs_index"] is False
+    assert agents_report["corpus_size"] > AGENTS_FIRST_PAGE_LIMIT
+    assert agents_report["snapshot_row_count"] == AGENTS_FIRST_PAGE_LIMIT
+    assert agents_report["snapshot_complete"] is False
 
     # The Bead pane has no such short circuit yet: its _build_snapshot
     # always builds the full query index before any row can render. This is

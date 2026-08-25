@@ -10,6 +10,7 @@ lazy detail panel, and link-target resolution.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -19,6 +20,10 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import OptionList, Static
 from textual.worker import Worker
 
+from sase.ace.tui.util.pump_tasks import (
+    cancel_pump_free_tasks,
+    spawn_pump_free_task,
+)
 from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
 from sase.core.artifact_relations import RelationIndex
 from sase.core.query_profile_corpus_facade import (
@@ -29,7 +34,11 @@ from sase.core.query_profile_corpus_facade import (
 from ..._artifact_tab_model import ArtifactsPaneContract
 from ...relations import build_agents_relation_index
 from ...relations._support import relation_index_if_enabled
-from .agents_data import AgentsSnapshot, load_agents_snapshot
+from .agents_data import (
+    AGENTS_FIRST_PAGE_LIMIT,
+    AgentsSnapshot,
+    load_agents_snapshot,
+)
 from .agents_detail_panel import AgentsDetailMixin
 from .agents_navigation import AgentsNavigationMixin, AgentsOptionList
 from .agents_options import AgentsOptionsMixin
@@ -43,7 +52,7 @@ from .snapshot_pane import ArtifactsSnapshotPane, SnapshotRequest
 @dataclass(frozen=True, slots=True)
 class _AgentsSnapshotResult:
     snapshot: AgentsSnapshot
-    query_index: ArtifactQueryIndex
+    query_index: ArtifactQueryIndex | None
     initial_query_result: ArtifactQueryResult | None
     relation_index: RelationIndex | None = None
 
@@ -75,6 +84,7 @@ class ArtifactsAgentsPane(
         self.project_scope: str | None = None
         self._project_display_name: str | None = None
         self._registry = load_keymap_registry({})
+        self._extension_generation = 0
         self._init_agents_navigation()
         self._init_agents_detail()
         self._init_group_fold()
@@ -113,7 +123,9 @@ class ArtifactsAgentsPane(
         self._refresh_options()
 
     def on_unmount(self) -> None:
+        self._extension_generation += 1
         self._cancel_detail_debouncer()
+        cancel_pump_free_tasks(self)
         self._cancel_detail_worker()
         self._cancel_agents_query_workers()
         self._cancel_snapshot_worker()
@@ -122,15 +134,15 @@ class ArtifactsAgentsPane(
         self._cancel_detail_debouncer()
 
     def on_first_activate(self) -> None:
-        self._request_load(force=False)
+        self._request_load(force=False, full=False)
 
     def on_activate(self) -> None:
         self.focus_list()
         if not self._loading and self._current_snapshot() is None:
-            self._request_load(force=False)
+            self._request_load(force=False, full=False)
 
     def on_refresh(self) -> None:
-        self._request_load(force=True)
+        self._request_load(force=True, full=False)
 
     def set_keymap_registry(self, registry: KeymapRegistry) -> None:
         """Use the active registry for pane-scoped key hints."""
@@ -154,9 +166,10 @@ class ArtifactsAgentsPane(
         if not changed:
             return
         self.clear_pending_entry_target()
+        self._extension_generation += 1
         self._load_error = None
         if self.artifacts_active:
-            self._request_load(force=False)
+            self._request_load(force=False, full=False)
         else:
             self._refresh_options()
 
@@ -164,18 +177,22 @@ class ArtifactsAgentsPane(
     def snapshot(self) -> AgentsSnapshot | None:
         return self._snapshot
 
-    def _request_load(self, *, force: bool) -> None:
-        self._request_snapshot(force=force)
+    def _request_load(self, *, force: bool, full: bool = False) -> None:
+        self._request_snapshot(force=force, full=full)
 
     def _on_snapshot_started(self, request: SnapshotRequest) -> None:
         del request
         self._update_status()
 
     def _build_snapshot(self, request: SnapshotRequest) -> _AgentsSnapshotResult:
-        snapshot = load_agents_snapshot(request.project)
-        query_index = self._build_agents_query_index(
-            snapshot,
-            generation=request.generation,
+        snapshot = load_agents_snapshot(
+            request.project,
+            None if request.full else AGENTS_FIRST_PAGE_LIMIT,
+        )
+        query_index = (
+            self._build_agents_query_index(snapshot, generation=request.generation)
+            if request.full
+            else None
         )
         return _AgentsSnapshotResult(
             snapshot=snapshot,
@@ -186,7 +203,11 @@ class ArtifactsAgentsPane(
                 ),
             ),
             query_index=query_index,
-            initial_query_result=self._initial_agents_query_result(query_index),
+            initial_query_result=(
+                None
+                if query_index is None
+                else self._initial_agents_query_result(query_index)
+            ),
         )
 
     def _accept_snapshot(self, result: Any, request: SnapshotRequest) -> bool:
@@ -194,11 +215,13 @@ class ArtifactsAgentsPane(
             isinstance(result, _AgentsSnapshotResult)
             and request.generation == self._load_generation
             and result.snapshot.project == self.project_scope
-            and result.query_index.generation == request.generation
+            and (
+                result.query_index is None
+                or result.query_index.generation == request.generation
+            )
         )
 
     def _apply_snapshot(self, result: Any, request: SnapshotRequest) -> None:
-        del request
         preferred = self.selected_entry_target()
         self._query_session.clear()
         self._snapshot = result.snapshot
@@ -210,6 +233,12 @@ class ArtifactsAgentsPane(
         self._load_error = None
         self._set_agent_filter_completion_sources()
         self._refresh_options(preferred_target=preferred)
+        if (
+            not request.full
+            and not result.snapshot.complete
+            and self._load_error is None
+        ):
+            self._schedule_full_extension(request.generation)
 
     def _on_snapshot_error(self, error: str, request: SnapshotRequest) -> None:
         del request
@@ -221,6 +250,29 @@ class ArtifactsAgentsPane(
             self._on_detail_worker_changed(event)
             return True
         return self._handle_agents_query_worker(event)
+
+    def _schedule_full_extension(self, generation: int) -> None:
+        """Yield first paint, then request the unbounded index extension."""
+
+        self._extension_generation += 1
+        extension_generation = self._extension_generation
+
+        async def extend() -> None:
+            await asyncio.sleep(0)
+            if (
+                extension_generation != self._extension_generation
+                or generation != self._load_generation
+                or not self.artifacts_active
+            ):
+                return
+            self._request_load(force=False, full=True)
+
+        spawn_pump_free_task(
+            self,
+            extend(),
+            name="sase-artifacts-agents-full-extension",
+            registry_attr="_agents_extension_tasks",
+        )
 
     @on(OptionList.OptionHighlighted, "#agents-list")
     def _on_option_highlighted(self, _event: OptionList.OptionHighlighted) -> None:

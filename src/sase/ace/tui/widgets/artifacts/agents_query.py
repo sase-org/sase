@@ -114,6 +114,8 @@ class AgentsQueryMixin(_MixinBase):
             preferred_target: ArtifactEntryTarget | None = None,
         ) -> None: ...
 
+        def _request_load(self, *, force: bool, full: bool = False) -> None: ...
+
     def _init_agents_query(self) -> None:
         from sase.ace.config import get_ace_page_size
         from sase.ace.query.limit_token import ensure_limit
@@ -192,6 +194,9 @@ class AgentsQueryMixin(_MixinBase):
     def _request_agents_query_index_rebuild(self) -> None:
         snapshot = self._current_snapshot()
         if snapshot is None:
+            return
+        if not snapshot.complete:
+            self._request_full_agents_snapshot()
             return
         self._cancel_agents_query_workers()
         generation = self._load_generation
@@ -296,7 +301,6 @@ class AgentsQueryMixin(_MixinBase):
     def apply_host_limit_query(self, query: str, *, grow: bool = False) -> None:
         """Commit a host-limit rewrite and keep the visible selection stable."""
 
-        del grow
         from sase.ace.tui.actions.artifacts_limit import restore_selection_after_limit
 
         try:
@@ -305,6 +309,8 @@ class AgentsQueryMixin(_MixinBase):
             return
         preferred = self.selected_entry_target()
         self._commit_agents_query(query, preferred_target=preferred)
+        if grow:
+            self._maybe_grow_agents_snapshot(query)
         restore_selection_after_limit(self, preferred)  # type: ignore[arg-type]
 
     def on_filter_bar_clicked(self, event: FilterBar.Clicked) -> None:
@@ -345,6 +351,7 @@ class AgentsQueryMixin(_MixinBase):
         self._filter_query_error = None
         self._live_query_source = event.text
         self._cancel_jump_mode_for_filter_change()
+        self._maybe_grow_agents_snapshot(event.text)
         self._refresh_options()
 
     def on_agent_filter_bar_submitted(self, event: AgentFilterBar.Submitted) -> None:
@@ -396,6 +403,7 @@ class AgentsQueryMixin(_MixinBase):
         if self._filter_session_open:
             self.query_one(AgentFilterBar).set_query(source)
         self._cancel_jump_mode_for_filter_change()
+        self._maybe_grow_agents_snapshot(source)
         self._refresh_options(preferred_target=preferred_target)
 
     def _record_query_history_transition(
@@ -438,9 +446,14 @@ class AgentsQueryMixin(_MixinBase):
 
         if not remainder.strip():
             matched_rows = snapshot.rows
+            match_count = snapshot.total_row_count if not snapshot.complete else None
         else:
             query_index = self._query_index
             if query_index is None:
+                if not snapshot.complete:
+                    self._request_full_agents_snapshot()
+                elif self._query_index_worker is None:
+                    self._request_agents_query_index_rebuild()
                 return snapshot, False, True, False, None
             try:
                 result = self._query_session.result(query, query_index)
@@ -458,8 +471,10 @@ class AgentsQueryMixin(_MixinBase):
             matched_rows = tuple(
                 row for row in snapshot.rows if agent_query_row_id(row) in matched_ids
             )
+            match_count = None
 
-        match_count = len(matched_rows)
+        if match_count is None:
+            match_count = len(matched_rows)
         capped_rows, truncated = apply_limit(matched_rows, cap)
         if truncated or matched_rows != snapshot.rows:
             snapshot = replace(
@@ -469,6 +484,26 @@ class AgentsQueryMixin(_MixinBase):
                 truncated=truncated,
             )
         return snapshot, True, False, truncated, match_count
+
+    def _maybe_grow_agents_snapshot(self, query: str) -> None:
+        snapshot = self._current_snapshot()
+        if snapshot is None or snapshot.complete:
+            return
+        try:
+            remainder, cap = extract_limit(query)
+        except LimitTokenError:
+            return
+        if remainder.strip() or cap is None or cap > len(snapshot.rows):
+            self._request_full_agents_snapshot()
+
+    def _request_full_agents_snapshot(self) -> None:
+        if not getattr(self, "artifacts_active", False):
+            return
+        if getattr(self, "_loading_full", False):
+            return
+        if getattr(self, "_loading", False) and getattr(self, "_full_pending", False):
+            return
+        self._request_load(force=False, full=True)
 
     def _sync_agent_query_bar(
         self,

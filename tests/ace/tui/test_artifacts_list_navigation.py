@@ -392,7 +392,9 @@ async def test_agents_implements_next_prev_navigation(
     )
     snapshot = AgentsSnapshot(project=None, rows=rows, total_row_count=len(rows))
     monkeypatch.setattr(
-        agents_pane_module, "load_agents_snapshot", lambda _project: snapshot
+        agents_pane_module,
+        "load_agents_snapshot",
+        lambda _project, _limit=None: snapshot,
     )
 
     # The fast startup stub does not yet know about the "agents" pane
