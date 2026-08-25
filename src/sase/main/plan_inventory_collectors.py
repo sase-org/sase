@@ -83,6 +83,9 @@ def _proposed_plan_from_notification(
     )
 
 
+_ApprovedCandidate = tuple[dict[str, Any], Path, str, datetime]
+
+
 def collect_approved_plans(
     *,
     limit: int,
@@ -92,10 +95,17 @@ def collect_approved_plans(
     candidate_limit: int | None,
     read_meta: _ReadMeta,
 ) -> tuple[tuple[ApprovedPlan, ...], bool]:
-    """Collect approved plans from newest-first agent metadata paths."""
+    """Collect approved plans from newest-first agent metadata paths.
+
+    Plan-file metadata (title, tier) is read lazily, after dedup and the
+    ``limit`` slice, so a scan of many approval candidates only pays a plan
+    file read for the handful of rows actually returned. A tier filter needs
+    every candidate's tier to decide inclusion, so that path keeps reading
+    eagerly, matching the previous behavior.
+    """
     target = limit if limit > 0 else None
 
-    by_plan_key: dict[str, tuple[datetime, ApprovedPlan]] = {}
+    by_plan_key: dict[str, tuple[datetime, ApprovedPlan | _ApprovedCandidate]] = {}
     paths_to_scan = (
         meta_paths if candidate_limit is None else meta_paths[:candidate_limit]
     )
@@ -109,36 +119,46 @@ def collect_approved_plans(
         if not plan_path:
             continue
         timestamp = _approval_timestamp(meta, meta_path)
-        row = _approved_plan_from_meta(
-            meta,
-            meta_path,
-            plan_path,
-            timestamp,
-            display_roots=display_roots,
-        )
-        if tiers and row.tier not in tiers:
-            continue
+        candidate: ApprovedPlan | _ApprovedCandidate
+        if tiers:
+            candidate = _approved_plan_from_meta(
+                meta,
+                meta_path,
+                plan_path,
+                timestamp,
+                display_roots=display_roots,
+            )
+            if candidate.tier not in tiers:
+                continue
+        else:
+            candidate = (meta, meta_path, plan_path, timestamp)
         key = path_key(plan_path)
         previous = by_plan_key.get(key)
         if previous is None or timestamp > previous[0]:
-            by_plan_key[key] = (timestamp, row)
+            by_plan_key[key] = (timestamp, candidate)
         if target is not None and len(by_plan_key) >= target:
             break
 
-    rows = [
-        row
-        for _, row in sorted(
+    ordered = [
+        candidate
+        for _, candidate in sorted(
             by_plan_key.values(), key=lambda item: item[0], reverse=True
         )
     ]
-    selected_rows = rows if target is None else rows[:target]
+    selected = ordered if target is None else ordered[:target]
+    rows = tuple(
+        candidate
+        if isinstance(candidate, ApprovedPlan)
+        else _approved_plan_from_meta(*candidate, display_roots=display_roots)
+        for candidate in selected
+    )
     scan_truncated = (
         target is not None
         and len(by_plan_key) < target
         and candidate_limit is not None
         and len(meta_paths) > candidate_limit
     )
-    return tuple(selected_rows), scan_truncated
+    return rows, scan_truncated
 
 
 def _approved_plan_from_meta(
@@ -179,31 +199,45 @@ def collect_rejected_plans(
     display_roots: DisplayPathRoots,
     tiers: set[str],
 ) -> tuple[RejectedPlan, ...]:
-    """Infer rejected plans from unrepresented archived proposals."""
-    rows: list[tuple[datetime, RejectedPlan]] = []
-    for path in archived_paths:
-        if path_key(path) in represented_paths:
-            continue
-        timestamp = _file_mtime(path)
-        timestamp_text = timestamp.isoformat()
+    """Infer rejected plans from unrepresented archived proposals.
+
+    Every candidate already carries an mtime from a cheap ``stat`` before any
+    plan file needs to be read for title/tier. Sort and slice to ``limit``
+    first, then read plan-file metadata only for the survivors -- unless a
+    tier filter is active, since tier comes from frontmatter and every
+    candidate needs it to decide inclusion, matching the previous behavior.
+    """
+    candidates = [
+        (_file_mtime(path), path)
+        for path in archived_paths
+        if path_key(path) not in represented_paths
+    ]
+
+    def _row(timestamp: datetime, path: Path) -> RejectedPlan:
         plan_metadata = plan_metadata_for_path(str(path))
-        if tiers and plan_metadata.tier not in tiers:
-            continue
-        rows.append(
-            (
-                timestamp,
-                RejectedPlan(
-                    timestamp=timestamp_text,
-                    age=format_relative_time(timestamp_text),
-                    plan_path=display_path(str(path), display_roots=display_roots),
-                    title=plan_metadata.title,
-                    tier=plan_metadata.tier,
-                ),
-            )
+        timestamp_text = timestamp.isoformat()
+        return RejectedPlan(
+            timestamp=timestamp_text,
+            age=format_relative_time(timestamp_text),
+            plan_path=display_path(str(path), display_roots=display_roots),
+            title=plan_metadata.title,
+            tier=plan_metadata.tier,
         )
-    sorted_rows = sorted(rows, key=lambda item: item[0], reverse=True)
-    selected_rows = sorted_rows if limit == 0 else sorted_rows[:limit]
-    return tuple(row for _, row in selected_rows)
+
+    if tiers:
+        rows: list[tuple[datetime, RejectedPlan]] = []
+        for timestamp, path in candidates:
+            row = _row(timestamp, path)
+            if row.tier not in tiers:
+                continue
+            rows.append((timestamp, row))
+        sorted_rows = sorted(rows, key=lambda item: item[0], reverse=True)
+        selected_rows = sorted_rows if limit == 0 else sorted_rows[:limit]
+        return tuple(row for _, row in selected_rows)
+
+    ordered = sorted(candidates, key=lambda item: item[0], reverse=True)
+    selected = ordered if limit == 0 else ordered[:limit]
+    return tuple(_row(timestamp, path) for timestamp, path in selected)
 
 
 def agent_meta_paths_newest_first() -> tuple[Path, ...]:

@@ -59,18 +59,23 @@ def build_plan_inventory(
 
     # Collect approvals even when their section is filtered out. A larger
     # history limit also makes rejected inference more accurate by recognizing
-    # more archived plans as represented.
-    represented_paths = {row._plan_key for row in proposed if row._plan_key} | {
-        row._plan_key for row in approved if row._plan_key
-    }
+    # more archived plans as represented. Rejected inference reads and
+    # YAML-parses every unrepresented archived plan file, so skip it outright
+    # when the caller did not ask for that section.
     archived_paths = _archived_plan_paths()
-    rejected = _collect_rejected_plans(
-        archived_paths,
-        represented_paths=represented_paths,
-        limit=limit,
-        display_roots=display_roots,
-        tiers=tier_set,
-    )
+    if not status_filter or "rejected" in status_filter:
+        represented_paths = {row._plan_key for row in proposed if row._plan_key} | {
+            row._plan_key for row in approved if row._plan_key
+        }
+        rejected = _collect_rejected_plans(
+            archived_paths,
+            represented_paths=represented_paths,
+            limit=limit,
+            display_roots=display_roots,
+            tiers=tier_set,
+        )
+    else:
+        rejected = ()
 
     if tier_set:
         proposed = tuple(row for row in proposed if row.tier in tier_set)

@@ -320,6 +320,19 @@ def test_inventory_status_filter_is_a_json_view_not_collection_change() -> None:
     }
 
 
+def test_inventory_skips_rejected_collection_when_not_requested() -> None:
+    _archived_plan("skip-rejected.md", minutes_ago=1)
+
+    with patch("sase.main.plan_inventory._collect_rejected_plans") as collect_rejected:
+        payload = plan_inventory_to_json(
+            build_plan_inventory(limit=50, statuses=("proposed",))
+        )
+
+    collect_rejected.assert_not_called()
+    assert "rejected" not in payload
+    assert payload["summary"]["rejected_shown"] == 0
+
+
 def test_inventory_status_and_tier_filters_compose() -> None:
     epic = _archived_plan("approved-epic.md", minutes_ago=2)
     _set_plan_tier(epic, "epic")

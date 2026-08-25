@@ -69,6 +69,61 @@ def test_approved_plan_scan_stops_after_limit() -> None:
     assert read_json.call_count == 10
 
 
+def test_approved_plan_metadata_read_only_for_selected_rows() -> None:
+    """Plan-file metadata reads pay only for the rows returned, not every candidate.
+
+    Requests only the ``approved`` status so the 15 candidates this scan's
+    early break never inspects don't also get read as unrepresented
+    (rejected) archived plans, which would confound the read count this test
+    is isolating.
+    """
+    for index in range(20):
+        plan = _archived_plan(f"approved-scan-{index:02d}.md", minutes_ago=index + 1)
+        _write_agent_meta(
+            "demo",
+            "workflow-plan",
+            f"2026061313{index:02d}00",
+            {
+                "plan_approved": True,
+                "plan_action": "approve",
+                "plan_path": str(plan),
+            },
+            minutes_ago=index + 1,
+        )
+
+    from sase.main import plan_inventory_paths as plan_inventory_paths_module
+
+    with patch(
+        "sase.main.plan_inventory_paths._read_plan_metadata",
+        wraps=plan_inventory_paths_module._read_plan_metadata,
+    ) as read_metadata:
+        payload = plan_inventory_to_json(
+            build_plan_inventory(limit=5, statuses=("approved",))
+        )
+
+    assert len(payload["approved"]) == 5
+    assert read_metadata.call_count == 5
+
+
+def test_rejected_plan_metadata_read_only_for_selected_rows() -> None:
+    """Rejected inference sorts by mtime before reading any plan-file content."""
+    for index in range(20):
+        _archived_plan(f"rejected-scan-{index:02d}.md", minutes_ago=index + 1)
+
+    from sase.main import plan_inventory_paths as plan_inventory_paths_module
+
+    with patch(
+        "sase.main.plan_inventory_paths._read_plan_metadata",
+        wraps=plan_inventory_paths_module._read_plan_metadata,
+    ) as read_metadata:
+        payload = plan_inventory_to_json(build_plan_inventory(limit=5))
+
+    assert len(payload["rejected"]) == 5
+    read_names = {call.args[0].name for call in read_metadata.call_args_list}
+    expected_names = {f"rejected-scan-{index:02d}.md" for index in range(5)}
+    assert read_names == expected_names
+
+
 def test_inventory_reads_each_status_plan_once_for_title_and_tier(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

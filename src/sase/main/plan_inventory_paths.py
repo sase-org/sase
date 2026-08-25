@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
+from threading import RLock
 
 from sase.core.paths import iter_sharded_files, sase_home
 from sase.main.plan_inventory_models import DisplayPathRoots
+
+_PLAN_METADATA_CACHE_MAX_ENTRIES = 512
+_PlanMetadataSignature = tuple[int, int]
 
 
 @dataclass(frozen=True)
@@ -15,6 +20,12 @@ class _PlanPathMetadata:
 
     title: str | None
     tier: str
+
+
+_PLAN_METADATA_CACHE: OrderedDict[
+    Path, tuple[_PlanMetadataSignature, _PlanPathMetadata]
+] = OrderedDict()
+_PLAN_METADATA_CACHE_LOCK = RLock()
 
 
 def display_path_roots() -> DisplayPathRoots:
@@ -56,15 +67,45 @@ def display_path(
 
 
 def plan_metadata_for_path(path: str | None) -> _PlanPathMetadata:
-    """Return normalized title and tier from one best-effort plan-file read."""
+    """Return normalized title and tier from one best-effort plan-file read.
+
+    Reads are memoized against the plan file's ``(mtime_ns, size)`` signature,
+    mirroring ``sase.sdd.plan_tiers``'s ``_PLAN_TIER_CACHE`` idea, so a plan
+    file that has not changed since its last read does not pay a fresh read
+    and YAML parse on every call.
+    """
     unavailable = _PlanPathMetadata(title=None, tier="-")
     if not path:
         return unavailable
-    from sase.sdd.plan_tiers import normalize_plan_tier, parse_plan_frontmatter
 
     candidate = Path(path).expanduser()
     try:
-        content = candidate.read_text(encoding="utf-8")
+        stat = candidate.stat()
+    except OSError:
+        return unavailable
+    signature: _PlanMetadataSignature = (stat.st_mtime_ns, stat.st_size)
+
+    with _PLAN_METADATA_CACHE_LOCK:
+        entry = _PLAN_METADATA_CACHE.get(candidate)
+        if entry is not None and entry[0] == signature:
+            _PLAN_METADATA_CACHE.move_to_end(candidate)
+            return entry[1]
+
+    metadata = _read_plan_metadata(candidate)
+    with _PLAN_METADATA_CACHE_LOCK:
+        _PLAN_METADATA_CACHE[candidate] = (signature, metadata)
+        _PLAN_METADATA_CACHE.move_to_end(candidate)
+        while len(_PLAN_METADATA_CACHE) > _PLAN_METADATA_CACHE_MAX_ENTRIES:
+            _PLAN_METADATA_CACHE.popitem(last=False)
+    return metadata
+
+
+def _read_plan_metadata(path: Path) -> _PlanPathMetadata:
+    unavailable = _PlanPathMetadata(title=None, tier="-")
+    from sase.sdd.plan_tiers import normalize_plan_tier, parse_plan_frontmatter
+
+    try:
+        content = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return unavailable
 
