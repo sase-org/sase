@@ -34,6 +34,7 @@ from sase.plugins.catalog import PluginCatalogError, load_plugin_catalog
 from sase.plugins.installed import build_installed_index
 from sase.plugins.operations import (
     AlreadyInstalled,
+    AvailabilityProbeFn,
     ClockFn,
     InstallNotFound,
     InstallOutcome,
@@ -48,6 +49,7 @@ from sase.plugins.operations import (
     plan_install,
     resolve_install_spec,
 )
+from sase.plugins.pypi_source import probe_availability
 from sase.plugins.render import (
     render_install_already_installed,
     render_install_dry_run,
@@ -81,6 +83,7 @@ def handle_plugin_install_command(
     axe_running_fn: AxeRunningFn = is_axe_running,
     restart_axe_fn: RestartAxeFn = restart_axe_daemon_result,
     clock: ClockFn = time.monotonic,
+    availability_fn: AvailabilityProbeFn = probe_availability,
 ) -> int:
     """Run ``sase plugin install <plugin>``; return the process exit code."""
     query = str(getattr(args, "plugin", "") or "")
@@ -93,7 +96,12 @@ def handle_plugin_install_command(
 
     try:
         plan = plan_install(
-            query, git=git, refresh=refresh, load_fn=load_fn, probe_fn=probe_fn
+            query,
+            git=git,
+            refresh=refresh,
+            load_fn=load_fn,
+            probe_fn=probe_fn,
+            availability_fn=availability_fn,
         )
     except PluginCatalogError as exc:
         return _fail_catalog(exc, as_json=as_json, err=err)

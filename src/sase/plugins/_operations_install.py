@@ -6,11 +6,18 @@ import time
 from dataclasses import dataclass
 
 from sase.plugins.catalog import (
+    PluginCatalog,
     PluginCatalogEntry,
+    find_plugin,
     load_plugin_catalog,
     suggest_plugins,
 )
 from sase.plugins.installed import build_installed_index
+from sase.plugins.pypi_source import (
+    ProjectAvailability,
+    probe_availability,
+    probe_availability_many,
+)
 from sase.uv_tool.commands import build_install, build_install_many
 from sase.uv_tool.detect import NotUvToolInstall, probe_uv_tool_install
 from sase.uv_tool.errors import NotAUvToolInstallError
@@ -20,6 +27,8 @@ from sase.uv_tool.receipt import load_receipt
 from sase.uv_tool.runner import UvChangeSet, run_uv
 
 from ._operations_common import (
+    AvailabilityBatchFn,
+    AvailabilityProbeFn,
     ClockFn,
     InstalledIndexFn,
     LoadFn,
@@ -116,13 +125,16 @@ def plan_install(
     offline: bool = False,
     load_fn: LoadFn = load_plugin_catalog,
     probe_fn: ProbeFn = probe_uv_tool_install,
+    availability_fn: AvailabilityProbeFn = probe_availability,
 ) -> InstallPlan:
     """Plan ``sase plugin install <query>`` without running ``uv``.
 
     Probes the uv-tool install, loads the catalog, resolves *query* to a uv
-    spec, reads the receipt, and either reports a terminal outcome
-    (:class:`NotUvTool`, :class:`InstallNotFound`, :class:`AlreadyInstalled`) or
-    returns an :class:`InstallReady` carrying the exact ``uv`` argv. Raises
+    spec (falling back to git only on a definitive public-PyPI 404 — see
+    :func:`~sase.plugins.operations.resolve_install_spec`), reads the
+    receipt, and either reports a terminal outcome (:class:`NotUvTool`,
+    :class:`InstallNotFound`, :class:`AlreadyInstalled`) or returns an
+    :class:`InstallReady` carrying the exact ``uv`` argv. Raises
     :class:`~sase.plugins.catalog.PluginCatalogError` if the catalog cannot be
     loaded and :class:`~sase.uv_tool.errors.ReceiptError` if the receipt is
     unreadable — callers catch and render those.
@@ -132,7 +144,9 @@ def plan_install(
         return NotUvTool(NotAUvToolInstallError(install))
 
     catalog = load_catalog(load_fn, refresh=refresh, offline=offline)
-    spec = resolve_install_spec(catalog, query, git=git)
+    spec = resolve_install_spec(
+        catalog, query, git=git, offline=offline, availability_fn=availability_fn
+    )
     if spec is None:
         return InstallNotFound(query, suggest_plugins(catalog, query))
     if (error := ephemeral_install_source_error(spec.requirement)) is not None:
@@ -160,13 +174,18 @@ def plan_install_many(
     offline: bool = False,
     load_fn: LoadFn = load_plugin_catalog,
     probe_fn: ProbeFn = probe_uv_tool_install,
+    availability_batch_fn: AvailabilityBatchFn = probe_availability_many,
 ) -> InstallManyPlan:
     """Plan a batch install as one combined ``uv`` operation.
 
-    Each input is resolved through the catalog using the default index source.
-    Unknown or already-injected plugins are reported in ``skipped``; resolvable
-    not-yet-injected plugins are added to one reconstructed receipt install
-    argv. No mutation runs here.
+    Each input is resolved through the catalog, falling back to git only on a
+    definitive public-PyPI 404. Every catalog hit's distribution is probed
+    through one bounded *availability_batch_fn* call up front, so N
+    marked/required plugins share one fixed time budget instead of
+    multiplying the single-probe timeout by N. Unknown or already-injected
+    plugins are reported in ``skipped``; resolvable not-yet-injected plugins
+    are added to one reconstructed receipt install argv. No mutation runs
+    here.
     """
     install = probe_fn()
     if isinstance(install, NotUvToolInstall):
@@ -174,12 +193,17 @@ def plan_install_many(
 
     catalog = load_catalog(load_fn, refresh=refresh, offline=offline)
     receipt = load_receipt(install.receipt_path)
+    availability_fn = _batch_availability_fn(
+        catalog, queries, offline=offline, availability_batch_fn=availability_batch_fn
+    )
     specs: list[ResolvedSpec] = []
     skipped: list[InstallSkipped] = []
     selected: set[str] = set()
 
     for query in queries:
-        spec = resolve_install_spec(catalog, query, git=False)
+        spec = resolve_install_spec(
+            catalog, query, git=False, offline=offline, availability_fn=availability_fn
+        )
         if spec is None:
             skipped.append(
                 InstallSkipped(
@@ -217,6 +241,36 @@ def plan_install_many(
         argv=argv,
         skipped=tuple(skipped),
     )
+
+
+def _batch_availability_fn(
+    catalog: PluginCatalog,
+    queries: list[str] | tuple[str, ...],
+    *,
+    offline: bool,
+    availability_batch_fn: AvailabilityBatchFn,
+) -> AvailabilityProbeFn:
+    """One shared probe map for every catalog hit among *queries*.
+
+    Unresolvable queries (raw specs, unknown names) never match a catalog
+    entry, so only genuine catalog hits are probed. ``offline`` skips the
+    network entirely; :func:`~sase.plugins._operations_common.resolve_install_spec`
+    never calls the returned function in that case either, but skipping the
+    batch call here also avoids the unused round trip.
+    """
+    if offline:
+        return lambda _dist_name: ProjectAvailability.UNAVAILABLE
+    dist_names = sorted(
+        {
+            entry.repo
+            for query in queries
+            if (entry := find_plugin(catalog, query.strip())) is not None
+        }
+    )
+    if not dist_names:
+        return lambda _dist_name: ProjectAvailability.UNAVAILABLE
+    resolved = availability_batch_fn(dist_names)
+    return lambda dist_name: resolved.get(dist_name, ProjectAvailability.UNAVAILABLE)
 
 
 def execute_install(

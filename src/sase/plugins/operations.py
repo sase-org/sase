@@ -8,6 +8,8 @@ callers continue to import from :mod:`sase.plugins.operations`.
 from __future__ import annotations
 
 from ._operations_common import (
+    AvailabilityBatchFn,
+    AvailabilityProbeFn,
     ClockFn,
     InstalledIndexFn,
     LoadFn,
@@ -57,6 +59,8 @@ from ._operations_update import (
 __all__ = [
     "AlreadyAbsent",
     "AlreadyInstalled",
+    "AvailabilityBatchFn",
+    "AvailabilityProbeFn",
     "ClockFn",
     "InstallManyNothing",
     "InstallManyOutcome",

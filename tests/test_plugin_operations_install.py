@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -21,11 +22,15 @@ from sase.plugins.operations import (
     plan_install,
     plan_install_many,
 )
+from sase.plugins.pypi_source import ProjectAvailability
 from sase.uv_tool.errors import UvCommandFailedError
 from sase.uv_tool.runner import UvChangeSet, parse_uv_output
 
 from ._plugin_operations_helpers import (
     _INSTALL_OUTPUT,
+    _all_available,
+    _all_available_batch,
+    _all_missing,
     _catalog,
     _install,
     _not_install,
@@ -63,6 +68,7 @@ requirements = [
         "github",
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path, receipt),
+        availability_fn=_all_available,
     )
     assert isinstance(plan, AlreadyInstalled)
     assert plan.spec.display_name == "github"
@@ -74,6 +80,7 @@ def test_plan_install_ready_builds_full_with_set(tmp_path: Path) -> None:
         "github",
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        availability_fn=_all_available,
     )
     assert isinstance(plan, InstallReady)
     # The reconstructed --with set keeps the existing plugin and adds the new one.
@@ -107,6 +114,7 @@ requirements = [
         "github",
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path, receipt),
+        availability_fn=_all_available,
     )
 
     assert isinstance(plan, InstallReady)
@@ -122,6 +130,7 @@ def test_plan_install_many_ready_builds_one_full_with_set(tmp_path: Path) -> Non
         ("github", "jira"),
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        availability_batch_fn=_all_available_batch,
     )
     assert isinstance(plan, InstallManyReady)
     assert [spec.display_name for spec in plan.specs] == ["github", "jira"]
@@ -157,6 +166,7 @@ requirements = [
         ("github", "jira"),
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path, receipt),
+        availability_batch_fn=_all_available_batch,
     )
 
     assert isinstance(plan, InstallManyReady)
@@ -170,10 +180,88 @@ def test_plan_install_many_skips_terminal_inputs(tmp_path: Path) -> None:
         ("telegram", "githubb"),
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        availability_batch_fn=_all_available_batch,
     )
     assert isinstance(plan, InstallManyNothing)
     assert [item.reason for item in plan.skipped] == ["already installed", "not found"]
     assert "github" in {entry.name for entry in plan.skipped[1].suggestions}
+
+
+def test_plan_install_falls_back_to_git_on_missing_distribution(
+    tmp_path: Path,
+) -> None:
+    plan = plan_install(
+        "github",
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+        availability_fn=_all_missing,
+    )
+    assert isinstance(plan, InstallReady)
+    assert plan.spec.source == "git"
+    assert "git+https://github.com/sase-org/sase-github" in plan.argv
+
+
+def test_plan_install_many_builds_mixed_source_argv(tmp_path: Path) -> None:
+    def _mixed_availability(
+        dist_names: Sequence[str],
+    ) -> dict[str, ProjectAvailability]:
+        return {
+            name: (
+                ProjectAvailability.MISSING
+                if name == "sase-github"
+                else ProjectAvailability.AVAILABLE
+            )
+            for name in dist_names
+        }
+
+    plan = plan_install_many(
+        ("github", "jira"),
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+        availability_batch_fn=_mixed_availability,
+    )
+    assert isinstance(plan, InstallManyReady)
+    sources = {spec.display_name: spec.source for spec in plan.specs}
+    assert sources == {"github": "git", "jira": "catalog"}
+    assert "git+https://github.com/sase-org/sase-github" in plan.argv
+    assert "acme-jira" in plan.argv
+
+
+def test_plan_install_many_probes_every_catalog_hit_in_one_batch_call(
+    tmp_path: Path,
+) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def _recording_batch(
+        dist_names: Sequence[str],
+    ) -> dict[str, ProjectAvailability]:
+        calls.append(tuple(sorted(dist_names)))
+        return _all_available_batch(dist_names)
+
+    plan_install_many(
+        ("github", "jira", "githubb"),
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+        availability_batch_fn=_recording_batch,
+    )
+    # One shared batch call covering every catalog hit, not one call per plugin
+    # (an unknown query like "githubb" never reaches the probe).
+    assert calls == [("acme-jira", "sase-github")]
+
+
+def test_plan_install_many_offline_never_probes(tmp_path: Path) -> None:
+    def _explode(dist_names: Sequence[str]) -> dict[str, ProjectAvailability]:
+        raise AssertionError("--offline must never probe PyPI")
+
+    plan = plan_install_many(
+        ("github",),
+        offline=True,
+        load_fn=lambda *, refresh, offline: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+        availability_batch_fn=_explode,
+    )
+    assert isinstance(plan, InstallManyReady)
+    assert plan.specs[0].source == "catalog"
 
 
 def test_plan_install_ready_git(tmp_path: Path) -> None:
@@ -235,6 +323,7 @@ def test_plan_install_many_skips_ephemeral_local_path(
         (str(plugin_path), "github"),
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        availability_batch_fn=_all_available_batch,
     )
 
     assert isinstance(plan, InstallManyReady)
@@ -258,7 +347,10 @@ def test_plan_install_receipt_error_propagates(tmp_path: Path) -> None:
     install = _install(tmp_path, "this is not toml = [")
     with pytest.raises(ReceiptError):
         plan_install(
-            "github", load_fn=lambda *, refresh: _catalog(), probe_fn=lambda: install
+            "github",
+            load_fn=lambda *, refresh: _catalog(),
+            probe_fn=lambda: install,
+            availability_fn=_all_available,
         )
 
 
@@ -290,6 +382,7 @@ def test_execute_install_runs_and_collects_groups(tmp_path: Path) -> None:
         "github",
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        availability_fn=_all_available,
     )
     assert isinstance(plan, InstallReady)
 
@@ -327,6 +420,7 @@ Resolved 3 packages in 120ms
         ("github", "jira"),
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        availability_batch_fn=_all_available_batch,
     )
     assert isinstance(plan, InstallManyReady)
 
@@ -360,6 +454,7 @@ def test_execute_install_groups_are_best_effort(tmp_path: Path) -> None:
         "github",
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        availability_fn=_all_available,
     )
     assert isinstance(plan, InstallReady)
     outcome = execute_install(
@@ -379,6 +474,7 @@ def test_execute_install_uv_error_propagates(tmp_path: Path) -> None:
         "github",
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        availability_fn=_all_available,
     )
     assert isinstance(plan, InstallReady)
     with pytest.raises(UvCommandFailedError):

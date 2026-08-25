@@ -1,10 +1,33 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.installed import InstalledInfo
+from sase.plugins.pypi_source import ProjectAvailability
 from sase.uv_tool.detect import NotUvToolInstall, NotUvToolReason, UvToolInstall
+
+
+def _all_available(_dist_name: str) -> ProjectAvailability:
+    """A fake ``availability_fn``: every distribution resolves from the index.
+
+    The default injected into existing tests so pre-existing "catalog" source
+    expectations are unaffected; it never touches the network.
+    """
+    return ProjectAvailability.AVAILABLE
+
+
+def _all_missing(_dist_name: str) -> ProjectAvailability:
+    """A fake ``availability_fn``: every distribution is a definitive 404."""
+    return ProjectAvailability.MISSING
+
+
+def _all_available_batch(
+    dist_names: Sequence[str],
+) -> dict[str, ProjectAvailability]:
+    """A fake ``availability_batch_fn``: every probed name resolves from the index."""
+    return dict.fromkeys(dist_names, ProjectAvailability.AVAILABLE)
 
 
 def _entry(

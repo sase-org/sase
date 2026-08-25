@@ -20,9 +20,16 @@ from sase.plugins.cli_install import (
     _resolve_install_spec,
 )
 from sase.plugins.installed import InstalledInfo
+from sase.plugins.pypi_source import ProjectAvailability
 from sase.uv_tool.detect import NotUvToolInstall, NotUvToolReason, UvToolInstall
 from sase.uv_tool.errors import UvCommandFailedError
 from sase.uv_tool.runner import UvChangeSet, parse_uv_output
+
+
+def _all_available(_dist_name: str) -> ProjectAvailability:
+    """A fake ``availability_fn``: every distribution resolves from the index."""
+    return ProjectAvailability.AVAILABLE
+
 
 # --------------------------------------------------------------------------- #
 # Builders
@@ -160,7 +167,9 @@ def test_install_requires_plugin() -> None:
 
 
 def test_resolve_catalog_name_uses_distribution() -> None:
-    resolved = _resolve_install_spec(_catalog(), "github")
+    resolved = _resolve_install_spec(
+        _catalog(), "github", availability_fn=_all_available
+    )
     assert resolved is not None
     assert resolved.source == "catalog"
     assert resolved.display_name == "github"
@@ -170,7 +179,9 @@ def test_resolve_catalog_name_uses_distribution() -> None:
 
 def test_resolve_repo_and_full_name_match_catalog() -> None:
     for query in ("sase-github", "sase-org/sase-github"):
-        resolved = _resolve_install_spec(_catalog(), query)
+        resolved = _resolve_install_spec(
+            _catalog(), query, availability_fn=_all_available
+        )
         assert resolved is not None
         assert resolved.requirement.name == "sase-github"
         assert resolved.source == "catalog"
@@ -329,6 +340,7 @@ def test_install_runs_full_set_plus_new_plugin(tmp_path: Path) -> None:
         console=out,
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        availability_fn=_all_available,
         run_fn=_run,
         installed_index_fn=lambda: {
             "sase-github": InstalledInfo(
@@ -364,6 +376,7 @@ def test_install_json_payload_is_stable(tmp_path: Path, capsys: Any) -> None:
         _args("github", json=True),
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        availability_fn=_all_available,
         run_fn=lambda _argv: parse_uv_output(_INSTALL_OUTPUT),
         installed_index_fn=lambda: {
             "sase-github": InstalledInfo(
@@ -402,6 +415,7 @@ def test_install_restarts_axe_when_changed(tmp_path: Path) -> None:
         console=out,
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        availability_fn=_all_available,
         run_fn=lambda _argv: parse_uv_output(_INSTALL_OUTPUT),
         installed_index_fn=lambda: {},
         axe_running_fn=lambda: True,
@@ -425,6 +439,7 @@ def test_install_noop_does_not_check_axe(tmp_path: Path) -> None:
         console=out,
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        availability_fn=_all_available,
         run_fn=lambda _argv: UvChangeSet(),
         installed_index_fn=lambda: {},
         axe_running_fn=_axe_running,
@@ -453,6 +468,7 @@ requirements = [
         console=out,
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path, receipt),
+        availability_fn=_all_available,
         run_fn=_run,
     )
     assert code == 0
@@ -472,6 +488,7 @@ def test_install_command_failure_exits_one(tmp_path: Path) -> None:
         err_console=err,
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        availability_fn=_all_available,
         run_fn=_run,
     )
     assert code == 1
@@ -487,6 +504,7 @@ def test_install_receipt_error_exits_one(tmp_path: Path) -> None:
         err_console=err,
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: install,
+        availability_fn=_all_available,
     )
     assert code == 1
 
@@ -506,6 +524,7 @@ def test_install_dry_run_does_not_execute(tmp_path: Path) -> None:
         console=out,
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        availability_fn=_all_available,
         run_fn=_run,
     )
     assert code == 0
@@ -522,6 +541,7 @@ def test_install_dry_run_json(tmp_path: Path, capsys: Any) -> None:
         _args("github", dry_run=True, json=True),
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        availability_fn=_all_available,
     )
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
@@ -529,6 +549,24 @@ def test_install_dry_run_json(tmp_path: Path, capsys: Any) -> None:
     assert payload["plugin"] == "github"
     assert payload["source"] == "catalog"
     assert "sase-github" in payload["command"]
+
+
+def test_install_dry_run_json_falls_back_to_git_on_missing_distribution(
+    tmp_path: Path, capsys: Any
+) -> None:
+    def _all_missing(_dist_name: str) -> ProjectAvailability:
+        return ProjectAvailability.MISSING
+
+    code = handle_plugin_install_command(
+        _args("github", dry_run=True, json=True),
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+        availability_fn=_all_missing,
+    )
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["source"] == "git"
+    assert "git+https://github.com/sase-org/sase-github" in payload["command"]
 
 
 def test_install_git_dry_run_uses_git_spec(tmp_path: Path, capsys: Any) -> None:

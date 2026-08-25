@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry, find_plugin
 from sase.plugins.installed import InstalledInfo
+from sase.plugins.pypi_source import ProjectAvailability, probe_availability
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
 from sase.uv_tool.errors import UvToolError
 from sase.uv_tool.receipt import Requirement, ToolReceipt
@@ -22,6 +23,10 @@ ProbeFn = Callable[[], UvToolInstall | NotUvToolInstall]
 RunUvFn = Callable[[list[str]], UvChangeSet]
 InstalledIndexFn = Callable[[], dict[str, InstalledInfo]]
 ClockFn = Callable[[], float]
+#: Single-distribution public-index availability probe (see :mod:`pypi_source`).
+AvailabilityProbeFn = Callable[[str], ProjectAvailability]
+#: Bounded batch probe: one shared time budget for every name, not N budgets.
+AvailabilityBatchFn = Callable[[Sequence[str]], dict[str, ProjectAvailability]]
 
 
 @dataclass(frozen=True)
@@ -55,17 +60,26 @@ class ResolvedSpec:
 
 
 def resolve_install_spec(
-    catalog: PluginCatalog, query: str, *, git: bool = False
+    catalog: PluginCatalog,
+    query: str,
+    *,
+    git: bool = False,
+    offline: bool = False,
+    availability_fn: AvailabilityProbeFn = probe_availability,
 ) -> ResolvedSpec | None:
     """Resolve a ``<plugin>`` argument to a :class:`ResolvedSpec`, or ``None``.
 
-    Resolution order (epic Phase 3):
+    Resolution order:
 
     1. A raw requirement, git URL, or local path is passed through verbatim.
-    2. Otherwise the name is looked up in the catalog: a hit installs from the
-       distribution name (PyPI) by default, or from ``git+<repo url>`` when
-       ``git`` is set.
-    3. A catalog miss returns ``None`` so the caller can render ranked
+    2. ``git=True`` forces ``git+<repo url>``; no availability probe is made.
+    3. Otherwise the name is looked up in the catalog: a definitive public
+       PyPI 404 (``availability_fn`` returns
+       :attr:`~sase.plugins.pypi_source.ProjectAvailability.MISSING`) falls
+       back to ``git+<repo url>``. Every other probe result — available,
+       offline, timeout, malformed — keeps the distribution name, so an
+       index outage is never mistaken for a definitive absence.
+    4. A catalog miss returns ``None`` so the caller can render ranked
        suggestions and exit non-zero.
     """
     stripped = query.strip()
@@ -83,7 +97,9 @@ def resolve_install_spec(
     entry = find_plugin(catalog, stripped)
     if entry is None:
         return None
-    return _spec_from_entry(entry, git=git)
+    return _spec_from_entry(
+        entry, git=git, offline=offline, availability_fn=availability_fn
+    )
 
 
 def load_catalog(load_fn: LoadFn, *, refresh: bool, offline: bool) -> PluginCatalog:
@@ -120,9 +136,20 @@ def short_display_name(dist_name: str) -> str:
     return dist_name
 
 
-def _spec_from_entry(entry: PluginCatalogEntry, *, git: bool) -> ResolvedSpec:
+def _spec_from_entry(
+    entry: PluginCatalogEntry,
+    *,
+    git: bool,
+    offline: bool,
+    availability_fn: AvailabilityProbeFn,
+) -> ResolvedSpec:
     if git:
         # html_url (``https://github.com/owner/repo``) is git-cloneable as-is.
+        requirement = Requirement.from_spec(f"git+{entry.url}")
+        return ResolvedSpec(
+            requirement=requirement, display_name=entry.name, source="git"
+        )
+    if not offline and availability_fn(entry.repo) is ProjectAvailability.MISSING:
         requirement = Requirement.from_spec(f"git+{entry.url}")
         return ResolvedSpec(
             requirement=requirement, display_name=entry.name, source="git"

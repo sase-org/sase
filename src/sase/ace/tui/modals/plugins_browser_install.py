@@ -72,12 +72,16 @@ class InstallManyPreview:
 
 
 def plan_install_preview(name: str, *, offline: bool) -> InstallPreview:
-    """Plan ``install <name>`` (index, then git) for the confirm-preview modal.
+    """Plan ``install <name>`` (default source, then git) for the confirm modal.
 
     Delegates to :func:`sase.plugins.operations.plan_install` — the single
     source of truth shared with the PatchI — once per source. Cache-first
-    (``refresh=False``); the optional git variant is only resolved when the
-    index plan is ready, so a terminal outcome short-circuits the second load.
+    (``refresh=False``). The default-source plan is no longer guaranteed to
+    resolve from the index: a definitive public-PyPI 404 makes it fall back to
+    git automatically. The explicit forced-git variant is only resolved when
+    the default plan is ready *and* did not already fall back, so a terminal
+    outcome or an already-git default short-circuits the second load instead
+    of offering a redundant duplicate variant.
     """
     try:
         index_plan = plan_install(name, git=False, offline=offline)
@@ -85,7 +89,7 @@ def plan_install_preview(name: str, *, offline: bool) -> InstallPreview:
         return InstallPreview(index_plan=None, error=str(exc))
 
     git_plan: InstallReady | None = None
-    if isinstance(index_plan, InstallReady):
+    if isinstance(index_plan, InstallReady) and index_plan.spec.source != "git":
         try:
             candidate = plan_install(name, git=True, offline=offline)
         except (PluginCatalogError, ReceiptError):
@@ -149,6 +153,18 @@ def missing_plugin_message(
 def install_not_found_message(plan: InstallNotFound) -> str:
     """The install not-found toast (shared wording with ``update``)."""
     return missing_plugin_message(plan.query, plan.suggestions)
+
+
+_SOURCE_VARIANT_LABELS: dict[str, str] = {
+    "catalog": "from index",
+    "git": "from git",
+    "passthrough": "from source",
+}
+
+
+def _source_variant_label(source: str) -> str:
+    """The confirm-modal variant label for a resolved :class:`ResolvedSpec` source."""
+    return _SOURCE_VARIANT_LABELS.get(source, f"from {source}")
 
 
 def _install_many_skipped_message(skipped: InstallSkipped) -> str:
@@ -343,7 +359,7 @@ class PluginInstallActionsMixin:
         variants = [
             PluginActionVariant(
                 key="index",
-                label="from index",
+                label=_source_variant_label(index_plan.spec.source),
                 argv=tuple(index_plan.argv),
                 summary=install_summary(index_plan),
                 details=(
@@ -356,7 +372,7 @@ class PluginInstallActionsMixin:
             variants.append(
                 PluginActionVariant(
                     key="git",
-                    label="from git",
+                    label=_source_variant_label(git_plan.spec.source),
                     argv=tuple(git_plan.argv),
                     summary=install_summary(git_plan),
                     details=(

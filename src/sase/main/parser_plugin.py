@@ -149,8 +149,12 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
             "<plugin> name is resolved through the GitHub catalog (`github` -> "
             "`sase-github`); a raw requirement, git URL, or local path is passed "
             "through verbatim. By default the plugin is installed from its "
-            "published distribution; pass `-g|--git` to install from its "
-            "repository instead.\n"
+            "published distribution; it falls back to the plugin's git "
+            "repository automatically only when public PyPI definitively has "
+            "no such distribution (a 404). An unreachable or slow index is "
+            "never treated as absence, so a transient outage still resolves "
+            "from the index. Pass `-g|--git` to force the repository install "
+            "regardless of index state.\n"
             "\n"
             "This only works when sase was installed via `uv tool install sase` "
             "(the canonical install path). When run from a pip/pipx install or a "
@@ -182,7 +186,7 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
         "-g",
         "--git",
         action="store_true",
-        help="Install from the plugin's git repository instead of an index",
+        help="Force install from the plugin's git repository instead of an index",
     )
     install_parser.add_argument(
         "-j",

@@ -56,13 +56,16 @@ The recommended way to add a plugin to an existing managed install is the
 inside `sase ace`, switch to the **Updates** tab, highlight the plugin, and press `i` to
 install. To install several plugins from ACE, mark installable rows with `I` / `Space`,
 then press `i` once; ACE previews one combined `uv` operation before changing the
-environment. For a single-plugin install preview that offers both index and git sources,
-press `g` in the confirmation modal to switch variants before confirming. Install
-confirmations show the exact `uv` command and selected source; a batch preview also
-lists every included or skipped plugin. Use `Ctrl+D` / `Ctrl+U` when a preview
-overflows. Install previews do not fetch incoming commit subjects—the repository-grouped
-commit pane is available on update confirmations when ACE has an installed commit range
-to compare. The equivalent CLI for one plugin is `sase plugin install github`.
+environment. A single-plugin preview offers both an explicit git variant and the
+default-source variant; when public PyPI definitively lacks the distribution the default
+variant already resolves to git automatically, so no redundant duplicate variant is
+offered. Otherwise press `g` in the confirmation modal to switch to the git variant
+before confirming. Install confirmations show the exact `uv` command and selected
+source; a batch preview also lists every included or skipped plugin, each with its own
+resolved source. Use `Ctrl+D` / `Ctrl+U` when a preview overflows. Install previews do
+not fetch incoming commit subjects—the repository-grouped commit pane is available on
+update confirmations when ACE has an installed commit range to compare. The equivalent
+CLI for one plugin is `sase plugin install github`.
 
 ## Plugin Catalog (`sase plugin list` / `sase plugin show`)
 
@@ -426,12 +429,18 @@ sase plugin install github -j       # stable machine-readable JSON (also on upda
 ```
 
 - **Name resolution.** A bare `<plugin>` is resolved through the catalog (`github` →
-  `sase-github`), so the short name, repo, or `owner/repo` full name all work. By
-  default the plugin is installed from its published distribution (PyPI); pass
-  `-g|--git` to install from its repository instead. A value that already looks like a
-  requirement, git URL, or local path (`==`, `git+…`, `…://…`, `/path`) is passed
-  through to uv verbatim. An unknown name prints ranked `did you mean…?` suggestions and
-  exits non-zero.
+  `sase-github`), so the short name, repo, or `owner/repo` full name all work. A value
+  that already looks like a requirement, git URL, or local path (`==`, `git+…`, `…://…`,
+  `/path`) is passed through to uv verbatim. An unknown name prints ranked
+  `did you mean…?` suggestions and exits non-zero.
+- **Index-first resolution with a definitive git fallback.** By default a catalog hit is
+  installed from its published distribution (PyPI). It automatically falls back to
+  `git+<repository>` only when public PyPI gives a definitive "not found" (an HTTP 404)
+  for that distribution — an unreachable index, a timeout, or any other transient
+  failure keeps resolving from the index instead of silently switching source on an
+  outage. Pass `-g|--git` to force the repository install regardless of index state; a
+  forced `--git` never probes PyPI. The resolved `source` (`catalog`, `git`, or
+  `passthrough`) is reported in `-j|--json` output and ACE's install confirmation.
 - **The receipt is the source of truth.** uv's `--with X` _replaces_ the injected set
   rather than appending to it, so both commands reconstruct the **full** `--with` set
   from sase's `uv-receipt.toml` — faithfully preserving existing plugins, editable/dev
