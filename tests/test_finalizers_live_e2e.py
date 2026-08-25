@@ -175,6 +175,12 @@ def test_live_clean_preexisting_sdd_sidecar_work_written_before_open_commits(
     assert payload["status"] == "success"
     assert git_changed_files(str(research)) == []
     assert run_git(research, "show", f"HEAD:{target}").stdout == "agent report\n"
+    commit_instance_result = next(
+        instance
+        for instance in payload["instances"]
+        if instance["instance_id"] == "commit"
+    )
+    assert len(commit_instance_result["attempts"]) == 1
 
 
 def test_live_dirty_preexisting_sdd_sidecar_file_stays_protected(

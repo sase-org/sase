@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.axe.runner_reporting import write_error_report
 from sase.finalizers.commit_declaration import repository_decision_id
 from sase.finalizers.commit_dispatch import dispatch_commit_decisions
 from sase.finalizers.commit_types import (
@@ -158,3 +159,70 @@ def test_partial_protection_still_dispatches_remaining_paths(tmp_path: Path) -> 
 
 def test_protected_paths_exhausted_is_not_retryable() -> None:
     assert "protected_paths_exhausted" not in RETRYABLE_DIAGNOSTIC_CODES
+
+
+def test_protection_exhausted_error_report_names_reason_and_paths(
+    tmp_path: Path,
+) -> None:
+    """An operator reading only error_report.md must be able to diagnose a
+    protection-exhausted refusal without opening per-attempt artifacts."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    dirty = _repo(repo, changed_files=("src/app.py",))
+    ledger = InstanceLedger(instance_id="commit", max_attempts=2)
+    record = FinalizerBaselineRecord(
+        repo_id="linked:research",
+        path=str(repo),
+        kind="linked",
+        name="research",
+        scope="opened_repo",
+        fingerprints={"src/app.py": ("??", "sha")},
+        captured_at="2026-08-25T11:21:06+00:00",
+    )
+
+    with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
+        dispatch_commit_decisions(
+            (dirty,),
+            {repository_decision_id(dirty): {"action": "commit", "message": "fix: x"}},
+            state=_state(dirty),
+            context=FinalizerExecutionContext(
+                artifacts_dir=str(artifacts), plan_digest="sha256:test"
+            ),
+            instance_id="commit",
+            artifacts=artifacts,
+            project_dir=str(repo),
+            provider=None,
+            invoke_result=InvokeResult(content=""),
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            options=None,
+            stitch_runner=_never_stitch,
+            resume_runner=_never_stitch,
+            ledger=ledger,
+            prepare_dirty_state=lambda _project_dir, _artifacts: _state(dirty),
+            protected_path_resolver=lambda _artifacts, _path: ("src/app.py",),
+            unexpected_path_resolver=lambda _path, _protected: [],
+            baseline_record_resolver=lambda _artifacts, _path: record,
+        )
+
+    report_path = write_error_report(
+        str(tmp_path),
+        agent_model=None,
+        agent_llm_provider=None,
+        workflow_name="commit",
+        cl_name="test",
+        duration="1s",
+        error_summary=str(exc_info.value),
+        error_traceback=None,
+    )
+
+    assert report_path is not None
+    rendered = Path(report_path).read_text(encoding="utf-8")
+    assert "protection already excludes every changed path" in rendered
+    assert "src/app.py" in rendered
+    assert record.repo_id in rendered
+    assert record.scope in rendered
+    assert "deferral with reason 'protected_paths'" in rendered
