@@ -79,6 +79,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "artifacts_load_more",
         "artifacts_unload",
         "start_saved_query_mode",
+        "open_saved_query_picker",
         "prev_query",
         "next_query",
         "scroll_to_top",

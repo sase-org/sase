@@ -343,13 +343,7 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
         ref_kind=None,
         target_prefix="agent",
         has_inventory=True,
-        # False: FILTER_SESSION/QUERY_HISTORY/SAVED_QUERIES need
-        # ``AgentFilterBar`` and an ``action_edit_query`` branch for this
-        # pane, which is the ``query`` phase's job (sase-tj.5). Flipping
-        # this before that lands would declare a capability whose key
-        # silently no-ops, the same anti-pattern the ``beads`` grouping
-        # comment above documents.
-        has_fields=False,
+        has_fields=True,
         has_stable_identity=True,
         has_revisions=False,
         can_mutate=True,

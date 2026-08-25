@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from sase.agents.catalog import AgentCatalogRow, build_agent_catalog_snapshot
@@ -12,35 +13,29 @@ from ...relations.artifact_links import (
     load_artifact_links_snapshot,
 )
 
-# The full catalog build (registry parse + index/archive enrichment) already
-# completes in ~150-400ms on a worker thread (measured in
-# ``tests/perf/bench_agent_catalog.py``), so there is no partial-then-extend
-# loading pattern here the way ``files_pane`` has for its own, much larger,
-# incrementally paged index. The bound below is a presentation cap only —
-# per the epic's performance contract, queries evaluate across the full
-# corpus and only the rendered option list is capped.
+# Kept as a compatibility constant for older callers/tests that imported it
+# from the pane scaffold. The Agent pane no longer caps the loaded snapshot:
+# query evaluation runs over the full project-scoped corpus and ``limit:`` is
+# applied only to the rendered option list.
 AGENTS_DEFAULT_LIMIT = 500
 
 
 @dataclass(frozen=True, slots=True)
 class AgentsSnapshot:
-    """One project-scoped, presentation-bounded view of the agent catalog."""
+    """One complete, project-scoped view of the agent catalog."""
 
     project: str | None
     rows: tuple[AgentCatalogRow, ...]
     total_row_count: int
-    truncated: bool
+    truncated: bool = False
     artifact_links: ArtifactLinksSnapshot = field(
         default_factory=empty_artifact_links_snapshot
     )
+    facets: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 
 
-def load_agents_snapshot(
-    project: str | None,
-    *,
-    limit: int | None = AGENTS_DEFAULT_LIMIT,
-) -> AgentsSnapshot:
-    """Build a project-scoped, newest-first, presentation-bounded snapshot."""
+def load_agents_snapshot(project: str | None) -> AgentsSnapshot:
+    """Build a complete project-scoped, newest-first catalog snapshot."""
 
     catalog = build_agent_catalog_snapshot()
     rows = catalog.rows
@@ -51,15 +46,12 @@ def load_agents_snapshot(
     rows = tuple(sorted(rows, key=lambda row: row.name))
     rows = tuple(sorted(rows, key=lambda row: row.started_at or "", reverse=True))
     total = len(rows)
-    truncated = limit is not None and total > limit
-    if limit is not None:
-        rows = rows[:limit]
     return AgentsSnapshot(
         project=project,
         rows=rows,
         total_row_count=total,
-        truncated=truncated,
         artifact_links=load_artifact_links_snapshot(project),
+        facets=catalog.facets,
     )
 
 

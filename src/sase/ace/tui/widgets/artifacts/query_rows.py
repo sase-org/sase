@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
+from datetime import datetime
+import time
 from typing import Any
 
 from sase.ace.query_profile import CompiledQueryProfile
+from sase.agents.catalog import AgentCatalogRow
 from sase.core.query_profile_corpus_facade import (
     ArtifactQueryIndex,
     compile_artifact_query_index,
@@ -15,6 +18,7 @@ from sase.core.vcs_log_facade import classify_commit_types
 from sase.project_display_names import ProjectRefDisplaySnapshot
 from sase.vcs_log.models import VcsLogResult
 
+from .agents_data import AgentsSnapshot
 from .beads_data import BeadsSnapshot
 from .beads_filtering import BeadFilterIndex, build_bead_filter_index
 from .files_data import FilesSnapshot, LogicalFile
@@ -83,6 +87,27 @@ def build_files_query_index(
         profile=profile,
         entries=(
             _file_query_entry(row, project_ref_display=project_ref_display)
+            for row in snapshot.rows
+        ),
+    )
+
+
+def build_agents_query_index(
+    snapshot: AgentsSnapshot,
+    *,
+    pane_id: str,
+    generation: int,
+    profile: CompiledQueryProfile,
+    project_ref_display: ProjectRefDisplaySnapshot,
+) -> ArtifactQueryIndex:
+    """Build a Rust query index for the full Agent catalog snapshot."""
+
+    return compile_artifact_query_index(
+        pane_id=pane_id,
+        generation=generation,
+        profile=profile,
+        entries=(
+            _agent_query_entry(row, project_ref_display=project_ref_display)
             for row in snapshot.rows
         ),
     )
@@ -189,6 +214,96 @@ def _plan_query_entry(
         "searchable_text": "\n".join(record.haystack),
         "predicates": (),
     }
+
+
+def _agent_query_entry(
+    row: AgentCatalogRow,
+    *,
+    project_ref_display: ProjectRefDisplaySnapshot,
+) -> dict[str, Any]:
+    started_at = _epoch_seconds(row.started_at)
+    finished_at = _epoch_seconds(row.finished_at)
+    runtime_seconds = _runtime_seconds(
+        started_at=started_at,
+        finished_at=finished_at,
+        status=row.status,
+        state=row.state,
+    )
+    family = row.family or (row.name if "family" in row.kind else None)
+    project_labels = _project_labels(row.project, project_ref_display)
+    provider = _normalized_lower(row.llm_provider)
+    fields: dict[str, object] = {
+        "name": _dedupe_text((row.name, row.canonical_global_name)),
+        "kind": row.kind,
+        "family": family,
+        "clan": row.clan,
+        "tribe": row.tribe,
+        "role": row.role,
+        "workflow": row.workflow,
+        "parent": row.parent_timestamp,
+        "project": project_labels,
+        "state": _normalized_lower(row.state),
+        "status": row.status.upper() if row.status else None,
+        "hidden": row.hidden,
+        "dismissed": row.dismissed,
+        "revivable": row.revivable,
+        "attention": row.attention,
+        "retry": row.retry,
+        "attempt": row.retry_attempt,
+        "model": row.model,
+        "provider": provider,
+    }
+    if started_at is not None:
+        fields["since"] = started_at
+        fields["until"] = started_at
+    if finished_at is not None:
+        fields["after"] = finished_at
+        fields["before"] = finished_at
+    if runtime_seconds is not None:
+        fields["min"] = runtime_seconds
+        fields["max"] = runtime_seconds
+
+    metadata = _dedupe_text(
+        (
+            row.name,
+            row.canonical_global_name,
+            *row.kind,
+            family,
+            row.clan,
+            row.tribe,
+            row.role,
+            row.workflow,
+            row.parent_timestamp,
+            *project_labels,
+            row.state,
+            row.status,
+            row.model,
+            provider,
+            row.patch,
+            "dismissed" if row.dismissed else None,
+            "revivable" if row.revivable else None,
+            "attention" if row.attention else None,
+            "retry" if row.retry else None,
+            "hidden" if row.hidden else None,
+            "collision" if row.has_collision_history else None,
+            "artifact-index" if row.from_artifact_index else None,
+            "dismissed-archive" if row.from_dismissed_archive else None,
+        )
+    )
+    fields["label"] = metadata
+    fields["text"] = metadata
+    return {
+        "stable_id": agent_query_row_id(row),
+        "fields": fields,
+        "searchable_text": "\n".join(metadata),
+        "predicates": (),
+    }
+
+
+def agent_query_row_id(row: AgentCatalogRow) -> str:
+    """Return the stable query row id for one Agent catalog row."""
+
+    return f"agent:{row.name}"
 
 
 def _plan_provider_properties(
@@ -308,7 +423,73 @@ def commit_query_row_id(entry: Any) -> str:
     return f"commit:{entry.repo}:{entry.commit.full_id}"
 
 
+def _project_labels(
+    project: str | None,
+    project_ref_display: ProjectRefDisplaySnapshot,
+) -> tuple[str, ...]:
+    if not project:
+        return ()
+    return _dedupe_text((project, project_ref_display.label_for_ref(project)))
+
+
+def _dedupe_text(values: Sequence[object | None]) -> tuple[str, ...]:
+    items: list[str] = []
+    for value in values:
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            items.append(text)
+    return tuple(dict.fromkeys(items))
+
+
+def _normalized_lower(value: str | None) -> str | None:
+    return value.casefold() if value else None
+
+
+def _epoch_seconds(value: object | None) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if text.isdigit():
+        return int(text)
+    try:
+        return int(datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp())
+    except ValueError:
+        return None
+
+
+def _runtime_seconds(
+    *,
+    started_at: int | None,
+    finished_at: int | None,
+    status: str | None,
+    state: str | None,
+) -> int | None:
+    if started_at is None:
+        return None
+    if finished_at is not None:
+        return max(0, finished_at - started_at)
+    if (state or "").casefold() == "active" or (status or "").upper() in {
+        "STARTING",
+        "RUNNING",
+        "WAITING",
+    }:
+        return max(0, int(time.time()) - started_at)
+    return None
+
+
 __all__ = [
+    "agent_query_row_id",
+    "build_agents_query_index",
     "build_beads_query_index",
     "build_commits_query_index",
     "build_files_query_index",

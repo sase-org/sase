@@ -32,11 +32,15 @@ _ARTIFACT_GROUP_CYCLE_ACTIONS = frozenset(
     }
 )
 _ARTIFACT_QUERY_HISTORY_ACTIONS = frozenset({"prev_query", "next_query"})
+_ARTIFACT_SAVED_QUERY_ACTIONS = frozenset(
+    {"start_saved_query_mode", "open_saved_query_picker"}
+)
 _CONTRACT_GATED_ARTIFACT_ACTIONS = (
     _ARTIFACT_RELATION_ACTIONS
     | _ARTIFACT_GROUP_FOLD_ACTIONS
     | _ARTIFACT_GROUP_CYCLE_ACTIONS
     | _ARTIFACT_QUERY_HISTORY_ACTIONS
+    | _ARTIFACT_SAVED_QUERY_ACTIONS
 )
 
 
@@ -167,9 +171,11 @@ def check_app_action(
         if app.current_tab != ARTIFACTS_TAB:
             return False
     if action == "open_saved_query_picker":
+        if app.current_tab != ARTIFACTS_TAB:
+            return False
         if (
-            app.current_tab != ARTIFACTS_TAB
-            or app.current_artifacts_subtab != "patches"
+            app.current_artifacts_pane_key != "patches"
+            and not _artifact_contract_action_available(app, action)
         ):
             return False
     if action == "start_saved_query_mode" and app.current_tab != ARTIFACTS_TAB:
@@ -295,6 +301,8 @@ def _artifact_contract_action_available(app: Any, action: str) -> bool:
         return contract.has(PaneCapability.RELATIONS)
     if action in _ARTIFACT_QUERY_HISTORY_ACTIONS:
         return contract.has(PaneCapability.QUERY_HISTORY)
+    if action in _ARTIFACT_SAVED_QUERY_ACTIONS:
+        return contract.has(PaneCapability.SAVED_QUERIES)
     if action == "expand_all_folds" and contract.has(PaneCapability.PLAN_OPEN_BEAD):
         # Bare ``L`` is artifacts_link_jump on Plan. Fold-snap lives on ``zL``.
         return False

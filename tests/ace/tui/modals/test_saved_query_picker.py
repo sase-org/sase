@@ -17,7 +17,7 @@ async def _open_picker(
     page: AcePage,
     queries: dict[str, str],
 ) -> SavedQueryPickerModal:
-    await page.press("2")
+    await page.press(page.artifacts_digit("patches"))
     await page.expect_state("artifacts_subtab", "patches")
     page.app._saved_queries = {
         "patches": {
@@ -160,22 +160,27 @@ async def test_picker_mouse_selection_and_empty_state() -> None:
         await page.press("q")
 
 
-async def test_picker_is_pr_only_and_bare_digits_only_switch_artifacts() -> None:
+async def test_picker_follows_active_query_pane_and_digits_switch_artifacts() -> None:
     async with AcePage(query='"feature"') as page:
         page.app._saved_queries = {
-            "patches": {"2": QueryRecord(source='"saved"', canonical='"saved"')}
+            "patches": {"2": QueryRecord(source='"saved"', canonical='"saved"')},
+            "stitches": {},
+            "beads": {},
+            "files": {},
         }
 
-        await page.press("1")
+        await page.press(page.artifacts_digit("stitches"))
         await page.expect_state("artifacts_subtab", "stitches")
         assert page.app.canonical_query_string == '"feature" limit:100'
 
-        for subtab_key in ("1", "3", "4"):
-            await page.press(subtab_key, "asterisk")
+        for subtab in ("stitches", "beads", "files"):
+            await page.press(page.artifacts_digit(subtab), "asterisk")
             await page.pause()
-            assert page.state["modal"] is None
+            await page.expect_modal("SavedQueryPickerModal")
+            await page.press("q")
+            await page.expect_no_modal()
 
-        await page.press("2", "asterisk")
+        await page.press(page.artifacts_digit("patches"), "asterisk")
         await page.expect_modal("SavedQueryPickerModal")
 
 

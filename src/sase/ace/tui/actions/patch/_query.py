@@ -109,10 +109,7 @@ class PatchQueryMixin:
         "active Artifacts pane" to respect until the Artifacts tab is
         showing. A call made while already on the Artifacts tab no longer
         force-switches the sub-tab: loading always targets whichever pane
-        is currently active. Only the Patches pane applies a loaded slot
-        today (the other panes' own filter sessions aren't wired onto this
-        mechanism yet), so pressing a slot key on another pane just
-        reports that pane's own (currently empty) namespace.
+        is currently active when that pane declares saved-query support.
         """
         if self.current_tab != "artifacts":
             self._save_current_tab_position()  # type: ignore[attr-defined]
@@ -121,11 +118,12 @@ class PatchQueryMixin:
             switch_to_artifacts_subtab(self, "patches")
 
         pane_id = getattr(self, "current_artifacts_pane_key", "patches")
-        if pane_id != "patches":
-            self.notify(f"No query saved in slot {slot}", severity="warning")  # type: ignore[attr-defined]
-            return
+        queries = self._saved_queries.get(pane_id)
+        if queries is None:
+            from ....saved_queries import load_saved_queries
 
-        queries = self._saved_queries.get(pane_id, {})
+            queries = load_saved_queries(pane_id)
+            self._saved_queries[pane_id] = queries
         if slot not in queries:
             self.notify(f"No query saved in slot {slot}", severity="warning")  # type: ignore[attr-defined]
             return
@@ -136,6 +134,46 @@ class PatchQueryMixin:
                 f"Slot {slot}'s saved query no longer matches this pane's "
                 f"query dialect and needs review: {record.source}",
                 severity="error",
+            )
+            return
+
+        if pane_id != "patches":
+            from ...artifact_tabs import PaneCapability, artifacts_pane_contract
+
+            contract = getattr(self, "active_artifacts_contract", None) or (
+                artifacts_pane_contract(str(pane_id))
+            )
+            if contract is None or not contract.has(PaneCapability.SAVED_QUERIES):
+                self.notify(  # type: ignore[attr-defined]
+                    f"Saved queries are not available on {pane_id}",
+                    severity="warning",
+                )
+                return
+            pane_for_query = self._query_history_pane(contract)  # type: ignore[attr-defined]
+            apply = getattr(pane_for_query, "apply_saved_query_record", None)
+            if not callable(apply):
+                apply = getattr(pane_for_query, "apply_query_history_record", None)
+            if not callable(apply):
+                self.notify(  # type: ignore[attr-defined]
+                    f"Saved queries are not available on {pane_id}",
+                    severity="warning",
+                )
+                return
+            try:
+                applied = bool(apply(record))
+            except Exception as exc:
+                self.notify(f"Error loading query: {exc}", severity="error")  # type: ignore[attr-defined]
+                return
+            if not applied:
+                self.notify(  # type: ignore[attr-defined]
+                    "Stored query no longer matches this pane's query dialect",
+                    severity="error",
+                )
+                return
+            self._restore_artifacts_query_selection(  # type: ignore[attr-defined]
+                pane_id,
+                record.canonical,
+                pane_for_query,
             )
             return
 
@@ -196,15 +234,35 @@ class PatchQueryMixin:
     def action_open_saved_query_picker(self) -> None:
         """Open the cached saved-query chooser on the active Artifacts pane."""
         pane_id = getattr(self, "current_artifacts_pane_key", "patches")
-        if self.current_tab != "artifacts" or pane_id != "patches":
+        if self.current_tab != "artifacts":
             return
+        contract = None
+        if pane_id != "patches":
+            from ...artifact_tabs import PaneCapability, artifacts_pane_contract
+
+            contract = getattr(self, "active_artifacts_contract", None) or (
+                artifacts_pane_contract(str(pane_id))
+            )
+            if contract is None or not contract.has(PaneCapability.SAVED_QUERIES):
+                return
 
         from ...modals import SavedQueryPickerModal
+        from ....saved_queries import load_saved_queries
 
         def _load_slot(slot: str | None) -> None:
             if slot is not None:
                 self._load_saved_query(slot)
 
+        if pane_id not in self._saved_queries:
+            self._saved_queries[pane_id] = load_saved_queries(str(pane_id))
+        if pane_id == "patches":
+            active_query = self.canonical_query_string  # type: ignore[attr-defined]
+        else:
+            assert contract is not None
+            record = self._active_artifacts_query_record(  # type: ignore[attr-defined]
+                contract
+            )
+            active_query = "" if record is None else record.canonical
         queries = {
             slot: record.canonical
             for slot, record in self._saved_queries.get(pane_id, {}).items()
@@ -212,7 +270,7 @@ class PatchQueryMixin:
         self.push_screen(  # type: ignore[attr-defined]
             SavedQueryPickerModal(
                 queries,
-                self.canonical_query_string,  # type: ignore[attr-defined]
+                active_query,
             ),
             _load_slot,
         )

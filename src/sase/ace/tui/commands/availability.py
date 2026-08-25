@@ -47,6 +47,7 @@ from sase.ace.tui.models.fold_scale import (
 )
 
 if TYPE_CHECKING:
+    from sase.ace.tui.artifact_tabs import PaneCapability
     from sase.ace.tui.widgets.bgcmd_list import AxeItem
 
 
@@ -108,6 +109,8 @@ _NON_PRS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.artifacts_copy_reference",
         "app.artifacts_load_more",
         "app.artifacts_unload",
+        "app.start_saved_query_mode",
+        "app.open_saved_query_picker",
         "projects",
         "logs",
         "tasks",
@@ -164,6 +167,13 @@ _FILES_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.files_filters",
         "app.files_cycle_kind",
         "app.files_copy_path",
+    }
+)
+
+_SAVED_QUERY_COMMANDS: frozenset[str] = frozenset(
+    {
+        "app.start_saved_query_mode",
+        "app.open_saved_query_picker",
     }
 )
 
@@ -235,6 +245,20 @@ def _artifacts_copy_group(subtab: str) -> str:
     return copy_group_for_artifacts_pane(subtab)
 
 
+def _artifacts_subtab_has_capability(
+    subtab: str,
+    capability: PaneCapability,
+) -> bool:
+    from sase.ace.tui.artifact_tabs import (
+        LEGACY_ARTIFACTS_SUBTABS,
+        artifacts_pane_contract,
+    )
+
+    pane_id = LEGACY_ARTIFACTS_SUBTABS.get(subtab, subtab)
+    contract = artifacts_pane_contract(pane_id)
+    return contract is not None and contract.has(capability)
+
+
 # ---------------------------------------------------------------------------
 # Per-spec entry predicates
 # ---------------------------------------------------------------------------
@@ -250,6 +274,13 @@ def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         if ctx.artifact_available_targets is not None:
             return spec.id.rsplit(".", 1)[-1] in ctx.artifact_available_targets
         return True
+    if spec.id in _SAVED_QUERY_COMMANDS or spec.id.startswith("saved_query."):
+        from sase.ace.tui.artifact_tabs import PaneCapability
+
+        return _artifacts_subtab_has_capability(
+            ctx.artifacts_subtab,
+            PaneCapability.SAVED_QUERIES,
+        )
     if spec.id == "app.edit_query":
         from sase.ace.tui.artifact_tabs import (
             PaneCapability,

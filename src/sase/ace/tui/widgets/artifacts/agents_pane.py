@@ -21,6 +21,10 @@ from textual.worker import Worker
 
 from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
 from sase.core.artifact_relations import RelationIndex
+from sase.core.query_profile_corpus_facade import (
+    ArtifactQueryIndex,
+    ArtifactQueryResult,
+)
 
 from ..._artifact_tab_model import ArtifactsPaneContract
 from ...relations import build_agents_relation_index
@@ -29,6 +33,7 @@ from .agents_data import AgentsSnapshot, load_agents_snapshot
 from .agents_detail_panel import AgentsDetailMixin
 from .agents_navigation import AgentsNavigationMixin, AgentsOptionList
 from .agents_options import AgentsOptionsMixin
+from .agents_query import AgentFilterBar, AgentsQueryMixin
 from .agents_revival import AgentsRevivalMixin
 from .group_fold_navigation import ArtifactGroupFoldMixin
 from .relation_panel import RelationPanel, RelationPanelHostMixin
@@ -38,6 +43,8 @@ from .snapshot_pane import ArtifactsSnapshotPane, SnapshotRequest
 @dataclass(frozen=True, slots=True)
 class _AgentsSnapshotResult:
     snapshot: AgentsSnapshot
+    query_index: ArtifactQueryIndex
+    initial_query_result: ArtifactQueryResult | None
     relation_index: RelationIndex | None = None
 
 
@@ -48,6 +55,7 @@ class ArtifactsAgentsPane(
     AgentsOptionsMixin,
     ArtifactGroupFoldMixin,
     RelationPanelHostMixin,
+    AgentsQueryMixin,
     ArtifactsSnapshotPane,
 ):
     """Browse the durable agent catalog without blocking the event loop."""
@@ -63,6 +71,7 @@ class ArtifactsAgentsPane(
         super().__init__(**kwargs)
         self._init_snapshot_lifecycle()
         self.contract = contract
+        self._init_agents_query()
         self.project_scope: str | None = None
         self._project_display_name: str | None = None
         self._registry = load_keymap_registry({})
@@ -72,6 +81,7 @@ class ArtifactsAgentsPane(
         self._init_agents_revival()
 
     def compose(self) -> ComposeResult:
+        yield AgentFilterBar(id="agent-filter-bar", profile=self._query_profile)
         yield Static(
             self._scope_text(),
             id="agents-info",
@@ -105,6 +115,7 @@ class ArtifactsAgentsPane(
     def on_unmount(self) -> None:
         self._cancel_detail_debouncer()
         self._cancel_detail_worker()
+        self._cancel_agents_query_workers()
         self._cancel_snapshot_worker()
 
     def on_deactivate(self) -> None:
@@ -162,6 +173,10 @@ class ArtifactsAgentsPane(
 
     def _build_snapshot(self, request: SnapshotRequest) -> _AgentsSnapshotResult:
         snapshot = load_agents_snapshot(request.project)
+        query_index = self._build_agents_query_index(
+            snapshot,
+            generation=request.generation,
+        )
         return _AgentsSnapshotResult(
             snapshot=snapshot,
             relation_index=relation_index_if_enabled(
@@ -170,21 +185,30 @@ class ArtifactsAgentsPane(
                     snapshot, contract=contract
                 ),
             ),
+            query_index=query_index,
+            initial_query_result=self._initial_agents_query_result(query_index),
         )
 
     def _accept_snapshot(self, result: Any, request: SnapshotRequest) -> bool:
         return (
             isinstance(result, _AgentsSnapshotResult)
-            and result.snapshot.project == request.project
+            and request.generation == self._load_generation
+            and result.snapshot.project == self.project_scope
+            and result.query_index.generation == request.generation
         )
 
     def _apply_snapshot(self, result: Any, request: SnapshotRequest) -> None:
         del request
         preferred = self.selected_entry_target()
+        self._query_session.clear()
         self._snapshot = result.snapshot
         self._relation_index = result.relation_index
-        self._load_error = None
         self._invalidate_detail_cache()
+        self._query_index = result.query_index
+        if result.initial_query_result is not None:
+            self._query_session.remember(result.initial_query_result)
+        self._load_error = None
+        self._set_agent_filter_completion_sources()
         self._refresh_options(preferred_target=preferred)
 
     def _on_snapshot_error(self, error: str, request: SnapshotRequest) -> None:
@@ -196,7 +220,7 @@ class ArtifactsAgentsPane(
         if event.worker is self._detail_worker:
             self._on_detail_worker_changed(event)
             return True
-        return False
+        return self._handle_agents_query_worker(event)
 
     @on(OptionList.OptionHighlighted, "#agents-list")
     def _on_option_highlighted(self, _event: OptionList.OptionHighlighted) -> None:

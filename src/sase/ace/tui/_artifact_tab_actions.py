@@ -48,7 +48,10 @@ CAPABILITY_HOST_ACTIONS: dict[PaneCapability, tuple[str, ...]] = {
     PaneCapability.DETAIL_SCROLL: ("scroll_detail_down", "scroll_detail_up"),
     PaneCapability.STABLE_REFERENCE_COPY: ("artifacts_copy_reference",),
     PaneCapability.QUERY_HISTORY: ("edit_query", "prev_query", "next_query"),
-    PaneCapability.SAVED_QUERIES: ("start_saved_query_mode",),
+    PaneCapability.SAVED_QUERIES: (
+        "start_saved_query_mode",
+        "open_saved_query_picker",
+    ),
     PaneCapability.VERSIONS: ("files_prev_version", "files_next_version"),
     PaneCapability.MUTATION: (
         "agents_revive",

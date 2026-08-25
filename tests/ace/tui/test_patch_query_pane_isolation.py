@@ -36,7 +36,9 @@ async def test_beads_pane_saved_and_history_keys_do_not_touch_patch_query() -> N
         await page.pause()
 
         await page.expect_state("artifacts_subtab", "beads")
-        assert page.state["modal"] is None
+        await page.expect_modal("SavedQueryPickerModal")
+        await page.press("q")
+        await page.expect_no_modal()
         assert page.app.query_string == original_query
         assert page.app._query_history["patches"] == original_history
         assert page.app._query_selections["patches"] == original_selections

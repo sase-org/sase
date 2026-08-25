@@ -496,6 +496,15 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             if pane is not None:
                 pane.show_filters()
             return
+        if (
+            self.current_tab == "artifacts"
+            and getattr(self, "current_artifacts_pane_key", "patches") == "agents"
+        ):
+            pane = self._artifacts_entry_navigator("agents")  # type: ignore[attr-defined]
+            show_filters = getattr(pane, "show_filters", None)
+            if callable(show_filters):
+                show_filters()
+            return
         if self.current_tab == "artifacts":
             from ..artifact_tabs import PaneCapability, artifacts_pane_contract
 

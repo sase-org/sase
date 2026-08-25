@@ -345,8 +345,10 @@ class ArtifactsView(Vertical):
             project_files=project_files,
             project_ref_display=project_ref_display,
         )
-        for pane in self.query(ArtifactsFilesPane):
-            pane.set_project_ref_display(project_ref_display)
+        for files_pane in self.query(ArtifactsFilesPane):
+            files_pane.set_project_ref_display(project_ref_display)
+        for agents_pane in self.query(ArtifactsAgentsPane):
+            agents_pane.set_project_ref_display(project_ref_display)
 
     @on(PanelTabStrip.TabClicked)
     def _on_subtab_clicked(self, event: PanelTabStrip.TabClicked) -> None:

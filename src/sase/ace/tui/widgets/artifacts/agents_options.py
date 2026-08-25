@@ -8,6 +8,7 @@ from rich.console import RenderableType
 from rich.text import Text
 from textual.widgets import Static
 
+from sase.ace.query.profile_reference_support import ProfileQueryError
 from sase.ace.tui.keymaps import KeymapRegistry, key_display_name
 
 from ..._artifact_tab_model import PaneGroupingModeDecl
@@ -56,10 +57,32 @@ class AgentsOptionsMixin(_MixinBase):
     _option_id_by_target: dict[ArtifactEntryTarget, str]
     _pending_entry_target: ArtifactEntryTarget | None
     _syncing_options: bool
+    _filter_session_open: bool
+    _filter_query_error: ProfileQueryError | None
+    _filtered_count: int | None
+    _display_count: int | None
+    _display_total_count: int | None
+    _display_truncated: bool
 
     if TYPE_CHECKING:
 
         def selected_entry_target(self) -> ArtifactEntryTarget | None: ...
+
+        def _filtered_agents_snapshot(
+            self,
+        ) -> tuple[AgentsSnapshot | None, bool, bool, bool, int | None]: ...
+
+        def _query_has_active_filter(self) -> bool: ...
+
+        def _sync_agent_query_bar(
+            self,
+            match_count: int | None,
+            *,
+            exact: bool,
+            blank: bool = False,
+            coverage_label: str | None = None,
+            lower_bound: bool = False,
+        ) -> None: ...
 
         def _option_list(self) -> AgentsOptionList | None: ...
 
@@ -108,8 +131,18 @@ class AgentsOptionsMixin(_MixinBase):
             preferred_target = self.selected_entry_target()
         mode = self._active_grouping_mode()
         registry = self._group_fold_registry() if mode is not None else None
+        filtered, exact, pending, truncated, match_count = (
+            self._filtered_agents_snapshot()
+        )
+        if pending:
+            self._sync_agent_query_bar(None, exact=False)
+            return
+        self._filtered_count = match_count
+        self._display_count = None if filtered is None else len(filtered.rows)
+        self._display_total_count = match_count
+        self._display_truncated = truncated
         options, rows, known_group_keys = build_agent_options(
-            self._current_snapshot(),
+            filtered,
             loading=self._loading,
             mode=mode,
             fold_registry=registry,
@@ -168,6 +201,17 @@ class AgentsOptionsMixin(_MixinBase):
         self._update_status()
         self._update_static("#agents-info", self._scope_text())
         self._update_static("#agents-hints", self._hints_text())
+        self._sync_agent_query_bar(
+            match_count,
+            exact=exact and not truncated,
+            blank=(
+                not self._filter_session_open
+                and not self._query_has_active_filter()
+                and not truncated
+            ),
+            coverage_label="capped" if truncated else None,
+            lower_bound=truncated,
+        )
 
     def _update_empty(self) -> None:
         if not self.is_mounted:
@@ -182,10 +226,26 @@ class AgentsOptionsMixin(_MixinBase):
             and self._load_error is None
         )
         if show_empty:
+            has_active_filter = self._query_has_active_filter()
             if self.contract is not None:
-                empty.update(build_empty_card(self.contract, has_active_filter=False))
+                empty.update(
+                    build_empty_card(
+                        self.contract,
+                        has_active_filter=has_active_filter,
+                        clear_filter_hint=(
+                            f"Press {key_display_name(self._registry.app.edit_query)} "
+                            "to edit or clear it."
+                        ),
+                    )
+                )
             else:
-                empty.update("No agents found.")
+                empty.update(
+                    "No agents found."
+                    if not has_active_filter
+                    else "No agents match the active filters. "
+                    f"Press {key_display_name(self._registry.app.edit_query)} "
+                    "to edit or clear them."
+                )
         empty.display = show_empty
         option_list.display = not show_empty
 
@@ -212,10 +272,15 @@ class AgentsOptionsMixin(_MixinBase):
             style="dim",
         )
         snapshot = self._current_snapshot()
-        if snapshot is not None and snapshot.truncated:
+        if (
+            snapshot is not None
+            and self._display_count is not None
+            and self._display_total_count is not None
+            and self._display_count < self._display_total_count
+        ):
             text.append("  │  ", style="dim")
             text.append(
-                f"showing {len(snapshot.rows):,} of {snapshot.total_row_count:,}",
+                f"showing {self._display_count:,} of {self._display_total_count:,}",
                 style=f"bold {self._accent()}",
             )
         return text
@@ -242,7 +307,7 @@ class AgentsOptionsMixin(_MixinBase):
                 )
             )
             text.append("  ·  ", style="dim")
-        text.append(f"{snapshot.total_row_count:,} agents loaded", style="dim")
+        text.append(f"{len(snapshot.rows):,} agents loaded", style="dim")
         return text
 
     def _hints_text(self) -> RenderableType:
@@ -252,6 +317,8 @@ class AgentsOptionsMixin(_MixinBase):
             (key_display_name(keymap.toggle_mark), "mark"),
             (key_display_name(keymap.agents_revive), "revive"),
             (key_display_name(keymap.artifacts_copy_reference), "copy ref"),
+            (key_display_name(keymap.edit_query), "filter"),
+            (key_display_name(keymap.artifacts_load_more), "more"),
             (key_display_name(keymap.refresh), "refresh"),
         )
         return build_footer_hints(parts, accent=self._accent())

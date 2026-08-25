@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from sase.ace.patch import CommitEntry
+from sase.ace.tui.artifact_tabs import reset_artifacts_subtabs_cache
 from sase.ace.tui.commands import CommandContext, is_command_available
+from sase.feature_flags import override_flags
 from tests._command_availability_helpers import (
     catalog_by_id as _catalog_by_id,
     make_patch as _make_patch,
@@ -99,46 +101,61 @@ def test_artifacts_copy_commands_follow_the_active_subtab() -> None:
     )
 
 
-def test_saved_query_picker_and_slots_are_pr_only() -> None:
+def test_saved_query_picker_and_slots_follow_query_pane_capability() -> None:
     catalog = _catalog_by_id()
     picker = catalog["app.open_saved_query_picker"]
     slot = catalog["saved_query.3"]
 
     for spec in (picker, slot):
-        assert is_command_available(
-            spec,
-            CommandContext(
-                tab="changespecs", artifacts_subtab="patches"
-            ),  # legacy tab id
-        )
-        assert not is_command_available(
-            spec,
-            CommandContext(
-                tab="changespecs", artifacts_subtab="stitches"
-            ),  # legacy tab id
-        )
+        for subtab in ("patches", "stitches", "beads", "files"):
+            assert is_command_available(
+                spec,
+                CommandContext(
+                    tab="changespecs",
+                    artifacts_subtab=subtab,
+                ),  # legacy tab id
+            )
+        with override_flags(artifacts_agents_pane=True):
+            reset_artifacts_subtabs_cache()
+            try:
+                assert is_command_available(
+                    spec,
+                    CommandContext(
+                        tab="changespecs",
+                        artifacts_subtab="agents",
+                    ),  # legacy tab id
+                )
+            finally:
+                reset_artifacts_subtabs_cache()
         assert not is_command_available(spec, CommandContext(tab="agents"))
         assert not is_command_available(spec, CommandContext(tab="axe"))
 
 
-def test_saved_query_slot_mode_command_is_pr_only() -> None:
-    """The palette entry mirrors the chooser's PR-only scoping.
-
-    The live keybinding itself is reachable from any Artifacts subtab (see
-    ``_app_action_availability.check_app_action``), but the palette command
-    surfaces it the same way as the chooser for a consistent catalog.
-    """
+def test_saved_query_slot_mode_command_follows_query_pane_capability() -> None:
+    """The palette entry mirrors the chooser's pane capability scoping."""
     catalog = _catalog_by_id()
     spec = catalog["app.start_saved_query_mode"]
 
-    assert is_command_available(
-        spec,
-        CommandContext(tab="changespecs", artifacts_subtab="patches"),  # legacy tab id
-    )
-    assert not is_command_available(
-        spec,
-        CommandContext(tab="changespecs", artifacts_subtab="stitches"),  # legacy tab id
-    )
+    for subtab in ("patches", "stitches", "beads", "files"):
+        assert is_command_available(
+            spec,
+            CommandContext(
+                tab="changespecs",
+                artifacts_subtab=subtab,
+            ),  # legacy tab id
+        )
+    with override_flags(artifacts_agents_pane=True):
+        reset_artifacts_subtabs_cache()
+        try:
+            assert is_command_available(
+                spec,
+                CommandContext(
+                    tab="changespecs",
+                    artifacts_subtab="agents",
+                ),  # legacy tab id
+            )
+        finally:
+            reset_artifacts_subtabs_cache()
     assert not is_command_available(spec, CommandContext(tab="agents"))
     assert not is_command_available(spec, CommandContext(tab="axe"))
 
