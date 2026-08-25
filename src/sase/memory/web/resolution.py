@@ -70,7 +70,7 @@ class GlossaryLookupError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
-class GlossaryReferrer:
+class _GlossaryReferrer:
     """The term and matched phrase that pulled a related node into a closure."""
 
     term: str
@@ -84,7 +84,7 @@ class GlossaryClosureNode:
     entry: GlossaryEntry
     depth: int
     origin: Literal["requested", "related"]
-    referrer: GlossaryReferrer | None
+    referrer: _GlossaryReferrer | None
     also_referenced_by: tuple[str, ...]
     spans: tuple[GlossarySpan, ...]
 
@@ -105,7 +105,7 @@ class _NodeBuilder:
     entry: GlossaryEntry
     depth: int
     origin: Literal["requested", "related"]
-    referrer: GlossaryReferrer | None
+    referrer: _GlossaryReferrer | None
     also_referenced_by: list[str] = field(default_factory=list)
     spans: tuple[GlossarySpan, ...] = ()
 
@@ -254,7 +254,7 @@ def resolve_glossary_closure(
                 entry=target,
                 depth=current.depth + 1,
                 origin="related",
-                referrer=GlossaryReferrer(
+                referrer=_GlossaryReferrer(
                     term=current.entry.term,
                     matched_text=span.matched_text,
                 ),
@@ -359,7 +359,6 @@ __all__ = [
     "GlossaryClosure",
     "GlossaryClosureNode",
     "GlossaryLookupError",
-    "GlossaryReferrer",
     "normalize_glossary_reference",
     "resolve_glossary_closure",
 ]

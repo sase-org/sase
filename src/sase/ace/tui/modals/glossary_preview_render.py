@@ -100,32 +100,6 @@ def build_see_also_chips(
     return text
 
 
-def build_relation_chip_rows(
-    outbound: tuple[GlossaryEntry, ...],
-    inbound: tuple[GlossaryEntry, ...],
-    *,
-    focused_number: int | None,
-    accent: str,
-    shortcut_prefix: str = "",
-) -> RenderableType | None:
-    """Build the numbered SEE ALSO / REFERENCED BY chip rows.
-
-    Numbering is continuous across both rows -- SEE ALSO starts at 1 and
-    REFERENCED BY continues from ``len(outbound) + 1`` -- so a numbered
-    shortcut is never ambiguous. A row with no members is omitted rather
-    than rendered empty. Returns ``None`` when both rows are empty.
-    """
-    return build_numbered_chip_rows(
-        (
-            ("SEE ALSO", tuple(entry.term for entry in outbound)),
-            ("REFERENCED BY", tuple(entry.term for entry in inbound)),
-        ),
-        focused_number=focused_number,
-        accent=accent,
-        shortcut_prefix=shortcut_prefix,
-    )
-
-
 def build_numbered_chip_rows(
     groups: tuple[tuple[str, tuple[str, ...]], ...],
     *,
@@ -393,7 +367,6 @@ __all__ = [
     "build_glossary_title",
     "build_numbered_chip_rows",
     "build_property_grid",
-    "build_relation_chip_rows",
     "build_see_also_chips",
     "glossary_card_accent",
     "glossary_cross_references",

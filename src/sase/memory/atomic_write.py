@@ -94,10 +94,10 @@ def write_bytes_atomically(path: Path, data: bytes, *, overwrite: bool) -> None:
                 temp_path.unlink()
             except FileNotFoundError:
                 pass
-    fsync_directory(path.parent)
+    _fsync_directory(path.parent)
 
 
-def fsync_directory(path: Path) -> None:
+def _fsync_directory(path: Path) -> None:
     """Best-effort fsync of a directory's entries after a publish/unlink."""
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
     try:
@@ -142,6 +142,5 @@ __all__ = [
     "BACKUP_DIRNAME",
     "backup_path_for",
     "content_digest",
-    "fsync_directory",
     "write_bytes_atomically",
 ]

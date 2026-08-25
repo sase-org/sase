@@ -288,4 +288,5 @@ def _sync_workspace_sdd_clone(
     if not _paths_same_file(workspace_sdd, primary_sdd):
         _fast_forward_workspace_clone_from_primary(workspace_sdd, primary_sdd)
 
+
 is_matching_store_clone = _is_matching_store_clone

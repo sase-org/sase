@@ -18,10 +18,6 @@ from sase.project_aliases import resolve_project_alias_ref
 GLOSSARY_READ_LOG_SCHEMA_VERSION = 1
 
 
-class GlossaryReadError(ValueError):
-    """Base class for glossary-read validation errors."""
-
-
 @dataclass(frozen=True)
 class GlossaryReadEvent:
     """One audited glossary-read invocation."""
@@ -42,35 +38,11 @@ class GlossaryReadEvent:
     source_path: str | None
 
 
-@dataclass(frozen=True)
-class GlossaryReadTermSummary:
-    """Aggregated read counts and latest-read context for one glossary term."""
-
-    term: str
-    read_count: int
-    distinct_agent_count: int
-    last_read_at: str
-    last_agent: str
-    last_reason: str
-
-
-@dataclass(frozen=True)
-class GlossaryReadAgentSummary:
-    """Aggregated read counts and latest-read context for one agent."""
-
-    agent_name: str
-    read_count: int
-    distinct_term_count: int
-    last_read_at: str
-    last_term: str
-    last_reason: str
-
-
 def normalize_read_reason(reason: str) -> str:
     """Normalize and validate a legacy glossary-read reason."""
     normalized = reason.strip()
     if not normalized:
-        raise GlossaryReadError("glossary read reason must not be empty")
+        raise ValueError("glossary read reason must not be empty")
     return normalized
 
 
@@ -132,53 +104,6 @@ def filter_glossary_read_events(
     )
 
 
-def summarize_glossary_reads_by_term(
-    events: Iterable[GlossaryReadEvent],
-) -> tuple[GlossaryReadTermSummary, ...]:
-    """Aggregate read counts and latest-read context by canonical glossary term."""
-    grouped: dict[str, list[GlossaryReadEvent]] = {}
-    for event in events:
-        for event_term in _event_terms(event):
-            grouped.setdefault(event_term, []).append(event)
-
-    summaries = [
-        GlossaryReadTermSummary(
-            term=event_term,
-            read_count=len(term_events),
-            distinct_agent_count=len({item.agent_name for item in term_events}),
-            last_read_at=_latest_event(term_events).timestamp,
-            last_agent=_latest_event(term_events).agent_name,
-            last_reason=_latest_event(term_events).reason,
-        )
-        for event_term, term_events in grouped.items()
-    ]
-    return tuple(sorted(summaries, key=lambda summary: summary.term))
-
-
-def summarize_glossary_reads_by_agent(
-    events: Iterable[GlossaryReadEvent],
-) -> tuple[GlossaryReadAgentSummary, ...]:
-    """Aggregate read counts and latest-read context by agent name."""
-    grouped: dict[str, list[GlossaryReadEvent]] = {}
-    for event in events:
-        grouped.setdefault(event.agent_name, []).append(event)
-
-    summaries = [
-        GlossaryReadAgentSummary(
-            agent_name=agent,
-            read_count=len(agent_events),
-            distinct_term_count=len(
-                {term for item in agent_events for term in _event_terms(item)}
-            ),
-            last_read_at=_latest_event(agent_events).timestamp,
-            last_term=_first_requested_term(_latest_event(agent_events)),
-            last_reason=_latest_event(agent_events).reason,
-        )
-        for agent, agent_events in grouped.items()
-    ]
-    return tuple(sorted(summaries, key=lambda summary: summary.agent_name))
-
-
 def _event_has_term(event: GlossaryReadEvent, needle: str) -> bool:
     return any(
         normalize_glossary_reference(item) == needle for item in _event_terms(event)
@@ -194,10 +119,6 @@ def _event_terms(event: GlossaryReadEvent) -> tuple[str, ...]:
         seen.add(item)
         terms.append(item)
     return tuple(terms)
-
-
-def _first_requested_term(event: GlossaryReadEvent) -> str:
-    return event.terms[0] if event.terms else ""
 
 
 def _event_from_mapping(data: Mapping[str, Any]) -> GlossaryReadEvent | None:
@@ -257,20 +178,11 @@ def _string_tuple(value: Any) -> tuple[str, ...] | None:
     return tuple(value)
 
 
-def _latest_event(events: list[GlossaryReadEvent]) -> GlossaryReadEvent:
-    return max(events, key=lambda event: event.timestamp)
-
-
 __all__ = [
     "GLOSSARY_READ_LOG_SCHEMA_VERSION",
-    "GlossaryReadAgentSummary",
-    "GlossaryReadError",
     "GlossaryReadEvent",
-    "GlossaryReadTermSummary",
     "filter_glossary_read_events",
     "glossary_read_log_path",
     "normalize_read_reason",
     "read_glossary_read_events",
-    "summarize_glossary_reads_by_agent",
-    "summarize_glossary_reads_by_term",
 ]

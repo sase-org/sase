@@ -9,20 +9,17 @@ from pathlib import Path
 import pytest
 
 from sase.memory.legacy_glossary_read_log import (
-    GlossaryReadError,
     GlossaryReadEvent,
     filter_glossary_read_events,
     glossary_read_log_path,
     normalize_read_reason,
     read_glossary_read_events,
-    summarize_glossary_reads_by_agent,
-    summarize_glossary_reads_by_term,
 )
 
 
 def test_normalize_read_reason_rejects_blank() -> None:
     assert normalize_read_reason("  Need hood  ") == "Need hood"
-    with pytest.raises(GlossaryReadError, match="must not be empty"):
+    with pytest.raises(ValueError, match="must not be empty"):
         normalize_read_reason("   ")
 
 
@@ -76,7 +73,7 @@ def test_glossary_read_log_path_uses_project_state_and_aliases(
     )
 
 
-def test_filter_and_summaries_cover_requested_and_related_terms() -> None:
+def test_filter_covers_requested_and_related_terms() -> None:
     base = _event()
     second = replace(
         base,
@@ -106,24 +103,6 @@ def test_filter_and_summaries_cover_requested_and_related_terms() -> None:
 
     related_hits = filter_glossary_read_events([base, second, third], term="sase agent")
     assert related_hits == (base, third)
-
-    term_summaries = summarize_glossary_reads_by_term([base, second, third])
-    agent_summaries = summarize_glossary_reads_by_agent([base, second, third])
-
-    by_term = {summary.term: summary for summary in term_summaries}
-    assert by_term["Agent Hood"].read_count == 2
-    assert by_term["Agent Hood"].distinct_agent_count == 1
-    assert by_term["Agent Hood"].last_reason == "Third"
-    assert by_term["Sase Agent"].read_count == 2
-    assert by_term["Stitch"].read_count == 1
-    assert by_term["Stitch"].last_agent == "agent-b"
-
-    assert agent_summaries[0].agent_name == "agent-a"
-    assert agent_summaries[0].read_count == 2
-    assert agent_summaries[0].distinct_term_count == 2
-    assert agent_summaries[0].last_term == "Agent Hood"
-    assert agent_summaries[1].agent_name == "agent-b"
-    assert agent_summaries[1].read_count == 1
 
 
 def _event(**overrides: object) -> GlossaryReadEvent:
