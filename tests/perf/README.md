@@ -48,7 +48,8 @@ snapshot-load, query-index build, and what a default `limit:100` blank-query vie
 actually costs today, over a live-scale synthetic corpus:
 
 ```bash
-pytest -s -m slow tests/perf/bench_artifacts_first_paint.py
+just install
+.venv/bin/python -m pytest -s -m slow tests/perf/bench_artifacts_first_paint.py
 ```
 
 Prints a p50/p95/max table per pane per phase and asserts only structural invariants (no
@@ -56,6 +57,72 @@ tight wall-clock budgets, per `tests/ace/tui/bench_admin_center_open.py`'s style
 including whether each pane's first paint already short-circuits past the full query
 index. Pair with the repaired `bench_agent_catalog.py` (see below) when investigating
 Agent pane regressions, since both fixtures share the same synthetic registry corpus.
+
+The corpus shape is live-scale synthetic data matching the `sase-tt` baseline: 12,525
+agent registry names, 4,346 beads, 1,900 archived plan files, and 8,099 file rows. The
+Agent fixture also writes a real synthetic artifact tree and dismissed summaries so
+registry revalidation and owner-existence checks stay represented.
+
+Certified on 2026-08-25 from this checkout:
+
+| Pane  | Corpus | Baseline first paint |    Target | Measured first-paint p50 | Measured first-paint p95 | Result |
+| ----- | -----: | -------------------: | --------: | -----------------------: | -----------------------: | ------ |
+| Agent | 12,525 |            ~3,100 ms | <= 400 ms |                171.22 ms |                311.65 ms | met    |
+| Bead  |  4,346 |            ~2,500 ms | <= 700 ms |                631.20 ms |                786.34 ms | missed |
+| Plan  |  1,900 |            ~2,500 ms | <= 400 ms |                239.33 ms |                449.52 ms | missed |
+| File  |  8,099 |              ~800 ms | <= 500 ms |                 39.75 ms |                 41.63 ms | met    |
+
+The same verification run reported Agent background query-index build p95 1,427.12 ms,
+inside the epic's "available within ~1.5s after first paint" target. Re-run the repaired
+agent catalog bench with:
+
+```bash
+.venv/bin/python -m pytest -s -m slow tests/perf/bench_agent_catalog.py
+```
+
+On 2026-08-25 it passed both variants: real-source median 157.82 ms and no-real-source
+median 149.44 ms over the 12,525-name synthetic registry.
+
+Artifact-link aggregates are already loaded on the Agent snapshot path through
+`load_artifact_links_snapshot(project)`, but the pane benchmark does not break that cost
+out. Record it separately when changing relation or artifact-link facets:
+
+```bash
+.venv/bin/python - <<'PY'
+import statistics
+import time
+
+from sase.ace.tui.relations.artifact_links import _CACHE, load_artifact_links_snapshot
+
+runs = []
+row_count = 0
+errors = 0
+for index in range(7):
+    _CACHE.clear()
+    start = time.perf_counter()
+    snapshot = load_artifact_links_snapshot(None)
+    elapsed = (time.perf_counter() - start) * 1000
+    if index > 0:
+        runs.append(elapsed)
+    row_count = len(snapshot.rows)
+    errors = len(snapshot.errors)
+
+print(f"artifact_links rows={row_count} errors={errors}")
+print(
+    "cold_load_ms "
+    f"count={len(runs)} median={statistics.median(runs):.2f} "
+    f"p95={sorted(runs)[round(0.95 * (len(runs) - 1))]:.2f} max={max(runs):.2f}"
+)
+start = time.perf_counter()
+snapshot = load_artifact_links_snapshot(None)
+print(f"cache_hit_ms={(time.perf_counter() - start) * 1000:.4f} rows={len(snapshot.rows)}")
+PY
+```
+
+On 2026-08-25, this machine's aggregate held 185 rows with zero errors; cold load median
+was 6.38 ms, p95 6.54 ms, and max 6.54 ms. The immediate cache-hit probe measured 4.8130
+ms for the same 185 rows. This is the baseline to re-check when artifact-link facet
+joins are added to `agent_catalog_query_entry`.
 
 ## Agent Artifact Startup
 
