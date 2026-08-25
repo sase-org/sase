@@ -72,6 +72,30 @@ def _write_config(workspace: Path, body: str) -> Path:
     return config_path
 
 
+def _write_glossary_web(workspace: Path, *, term: str, slug: str) -> Path:
+    """Write a minimal ``glossary`` memory web claiming *term* and return it."""
+    descriptor = workspace / "sase" / "memory" / "glossary.md"
+    descriptor.parent.mkdir(parents=True, exist_ok=True)
+    descriptor.write_text(
+        "---\n"
+        "type: core\n"
+        "parent: AGENTS.md\n"
+        "web: true\n"
+        "roster: inline\n"
+        "roster_label: GLOSSARY TERMS\n"
+        "---\n\n"
+        "Glossary descriptor.\n",
+        encoding="utf-8",
+    )
+    strand_path = descriptor.parent / "glossary" / f"{slug}.md"
+    strand_path.parent.mkdir(parents=True, exist_ok=True)
+    strand_path.write_text(
+        f"---\nkeyword: {term}\n---\n\nThe core crate.\n",
+        encoding="utf-8",
+    )
+    return strand_path
+
+
 def _write_marker(
     checkout: Path,
     *,
@@ -103,11 +127,16 @@ def _setup_project(
     monkeypatch: pytest.MonkeyPatch,
     *,
     config_body: str = "",
+    glossary_term: str | None = None,
 ) -> Path:
     workspace = tmp_path / "sase-workspace"
     workspace.mkdir()
     if config_body:
         _write_config(workspace, config_body)
+    if glossary_term:
+        _write_glossary_web(
+            workspace, term=glossary_term, slug=glossary_term.casefold()
+        )
     record = _record("sase", workspace)
     monkeypatch.setattr(
         glossary_catalog, "list_project_records", lambda *_a, **_kw: [record]
@@ -121,8 +150,11 @@ def _load_catalog(
     records: tuple[RepoRecord, ...],
     *,
     config_body: str = "",
+    glossary_term: str | None = None,
 ) -> catalog.EditorRepoMentionCatalogResult:
-    _setup_project(tmp_path, monkeypatch, config_body=config_body)
+    _setup_project(
+        tmp_path, monkeypatch, config_body=config_body, glossary_term=glossary_term
+    )
     monkeypatch.setattr(
         catalog,
         "collect_repo_inventory",
@@ -205,17 +237,12 @@ def test_glossary_claimed_name_excluded(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config_body = """memory:
-  glossary:
-    sase-core:
-      definition: The core crate.
-"""
     records = (
         _repo_record("sase-core", "linked"),
         _repo_record("other-repo", "linked"),
     )
 
-    result = _load_catalog(tmp_path, monkeypatch, records, config_body=config_body)
+    result = _load_catalog(tmp_path, monkeypatch, records, glossary_term="sase-core")
 
     assert result.ok
     assert result.catalog is not None

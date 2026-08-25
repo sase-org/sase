@@ -150,7 +150,7 @@ async def test_embedded_launch_unchanged_close_does_not_refresh_indicators(
     assert close_calls == [True]
 
 
-async def test_config_hub_strip_thresholds_grow_for_seven_labels(
+async def test_config_hub_strip_thresholds_grow_for_six_labels(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_hub_children(monkeypatch)
@@ -160,16 +160,16 @@ async def test_config_hub_strip_thresholds_grow_for_seven_labels(
             pilot.app.push_screen(modal)
             await wait_for(pilot, lambda: modal._active_tab == "config")
             hub = modal.query_one("#config", ConfigHubPane)
-            assert hub._compact_below == 85
-            assert hub._micro_below == 73
+            assert hub._compact_below == 69
+            assert hub._micro_below == 60
     with override_flags(admin_center_flags=True):
         async with _HostApp().run_test() as pilot:
             modal = ConfigCenterModal(initial_tab="config")
             pilot.app.push_screen(modal)
             await wait_for(pilot, lambda: modal._active_tab == "config")
             hub = modal.query_one("#config", ConfigHubPane)
-            assert hub._compact_below == 98
-            assert hub._micro_below == 73
+            assert hub._compact_below == 82
+            assert hub._micro_below == 60
 
 
 async def test_flags_resume_falls_back_when_rollout_is_off(
@@ -193,7 +193,7 @@ async def test_flags_resume_falls_back_when_rollout_is_off(
             _assert_hub_caption(hub, "xprompts")
 
 
-async def test_flags_off_prefix_keeps_six_child_numbering(
+async def test_flags_off_prefix_keeps_five_child_numbering(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_hub_children(monkeypatch)
@@ -208,9 +208,9 @@ async def test_flags_off_prefix_keeps_six_child_numbering(
             await pilot.press("0", "1")
             await wait_for(pilot, lambda: hub._active_subtab == "misc")
             _assert_hub_caption(hub, "misc")
-            await pilot.press("0", "6")
+            await pilot.press("0", "5")
             await wait_for(pilot, lambda: hub._active_subtab == "xprompts")
-            await pilot.press("0", "7")
+            await pilot.press("0", "6")
             await pilot.pause()
             assert hub._active_subtab == "xprompts"
             _assert_hub_caption(hub, "xprompts")

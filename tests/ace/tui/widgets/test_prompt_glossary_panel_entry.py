@@ -21,7 +21,7 @@ async def test_gg_from_normal_posts_glossary_request() -> None:
         assert len(app.glossary_requests) == 1
         event = app.glossary_requests[0]
         assert event.mode == "prompt"
-        assert event.term is None
+        assert event.note_identity is None
 
 
 async def test_ctrl_g_g_from_insert_posts_glossary_request() -> None:
@@ -34,7 +34,7 @@ async def test_ctrl_g_g_from_insert_posts_glossary_request() -> None:
 
         assert len(app.glossary_requests) == 1
         assert app.glossary_requests[0].mode == "prompt"
-        assert app.glossary_requests[0].term is None
+        assert app.glossary_requests[0].note_identity is None
 
 
 async def test_ctrl_g_g_from_normal_posts_glossary_request() -> None:
@@ -47,10 +47,10 @@ async def test_ctrl_g_g_from_normal_posts_glossary_request() -> None:
 
         assert len(app.glossary_requests) == 1
         assert app.glossary_requests[0].mode == "prompt"
-        assert app.glossary_requests[0].term is None
+        assert app.glossary_requests[0].note_identity is None
 
 
-async def test_glossary_request_carries_term_under_cursor(
+async def test_glossary_request_carries_strand_identity_under_cursor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = GPrefixHintApp("see Agent Hood here")
@@ -65,7 +65,10 @@ async def test_glossary_request_carries_term_under_cursor(
             lambda *, schedule=False: (
                 object(),
                 object(),
-                SimpleNamespace(term="Agent Hood"),
+                SimpleNamespace(
+                    term="Agent Hood",
+                    source={"source_path": "sase/memory/glossary/agent-hood.md"},
+                ),
             ),
         )
 
@@ -73,7 +76,32 @@ async def test_glossary_request_carries_term_under_cursor(
         await pilot.pause()
 
         assert len(app.glossary_requests) == 1
-        assert app.glossary_requests[0].term == "Agent Hood"
+        assert app.glossary_requests[0].note_identity == "glossary:agent-hood"
+
+
+async def test_glossary_request_is_none_without_a_strand_source_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = GPrefixHintApp("see Agent Hood here")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        monkeypatch.setattr(
+            bar.active_text_area(),
+            "_glossary_match_under_cursor",
+            lambda *, schedule=False: (
+                object(),
+                object(),
+                SimpleNamespace(term="Agent Hood", source=None),
+            ),
+        )
+
+        await pilot.press("escape", "g", "G")
+        await pilot.pause()
+
+        assert len(app.glossary_requests) == 1
+        assert app.glossary_requests[0].note_identity is None
 
 
 async def test_glossary_request_is_none_when_catalog_is_cold(
@@ -94,7 +122,7 @@ async def test_glossary_request_is_none_when_catalog_is_cold(
         await pilot.pause()
 
         assert len(app.glossary_requests) == 1
-        assert app.glossary_requests[0].term is None
+        assert app.glossary_requests[0].note_identity is None
 
 
 async def test_feedback_bar_does_not_hint_glossary() -> None:

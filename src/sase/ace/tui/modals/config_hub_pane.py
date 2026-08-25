@@ -37,17 +37,18 @@ from .config_hub_session import (
 )
 
 _EMPTY_ID = "config-hub-empty"
-# Six-child strip: full labels are 84 cells, so compact starts at 85.
-_CONFIG_TABS_COMPACT_BELOW_WIDTH = 85
-_CONFIG_TABS_MICRO_BELOW_WIDTH = 73
-# Seven-child strip (Flags on): full labels are 97 cells. Compact labels
-# (All/Flags/Gloss/Launch/Memory/Snip/XP) are 70 cells and still fit at 73.
-_CONFIG_TABS_COMPACT_BELOW_WIDTH_WITH_FLAGS = 98
+# Five-child strip (Flags off): full labels are 68 cells, so compact starts at 69.
+_CONFIG_TABS_COMPACT_BELOW_WIDTH = 69
+# Compact labels (All/Flags/Launch/Memory/Snip/XP) are 59 cells at the widest
+# six-child tier, so micro starts at 60 for both strips.
+_CONFIG_TABS_MICRO_BELOW_WIDTH = 60
+# Six-child strip (Flags on): full labels are 81 cells, so compact starts at 82.
+_CONFIG_TABS_COMPACT_BELOW_WIDTH_WITH_FLAGS = 82
 
 
 def _config_hub_strip_thresholds(tab_count: int) -> tuple[int, int]:
     """Return compact/micro breakpoints that keep numbered labels unclipped."""
-    if tab_count >= 7:
+    if tab_count >= 6:
         return (
             _CONFIG_TABS_COMPACT_BELOW_WIDTH_WITH_FLAGS,
             _CONFIG_TABS_MICRO_BELOW_WIDTH,
