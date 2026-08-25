@@ -81,7 +81,11 @@ launched. Generic typed logical waits outside AXE remain coordinator-owned and a
 re-emitted into rebuilt agent prompts. A detached launch-admission coordinator —
 infrastructure owned by the launch-request bundle, not an Agents-tab row — journals each
 unit through waiting, checking, skipped/error, dispatching, and launched states. Waits
-resolve before conditions; a false `%if` is a resource-free terminal skip; eligible
+resolve before conditions. For a selected managed project, `%if` briefly claims and
+prepares a numbered operational workspace, runs the predicate from that checkout, and
+releases the claim before dispatch. Home/unmanaged conditions have no claimable
+workspace and keep using their explicit source cwd. A false `%if` is still terminal
+without allocating a runner, agent identity, proc identity, or model request; eligible
 Agent units still use the established agent launch path; eligible `%proc` units dispatch
 as native `proc-shell` records with origin `xprompt-proc`. Restarts replay the journal
 instead of re-running settled predicates or duplicating reserved identities.

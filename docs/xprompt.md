@@ -1661,12 +1661,17 @@ Execution depends on who initiated the launch:
   units.
 
 For `%if`, exit `0` makes the unit eligible, exit `1` skips it, and any other exit,
-signal, timeout, cancellation, or execution failure records a condition error. A false
-or erroneous condition allocates no runner, workspace, agent, or proc identity. The
-default timeout is 10 seconds. The predicate receives a sanitized environment, a private
-`HOME`, and a versioned JSON context at `SASE_CONDITION_CONTEXT`, but this isolation is
-not a security boundary: the predicate runs with the SASE process's filesystem and
-network permissions and uses the launch request's source working directory.
+signal, timeout, cancellation, or execution failure records a condition error. For a
+selected managed project, admission waits first, then briefly claims and prepares a
+numbered operational workspace, runs the predicate from that checkout, and releases the
+claim before any dispatch. The launch request's source cwd is not used as a project
+fallback after lease, materialization, or preparation failure; those failures record a
+condition error. Home/unmanaged conditions have no claimable numbered workspace and
+retain the explicit source-cwd behavior. A false or erroneous condition allocates no
+runner, agent identity, proc identity, or model request. The default timeout is 10
+seconds. The predicate receives a sanitized environment, a private `HOME`, and a
+versioned JSON context at `SASE_CONDITION_CONTEXT`, but this isolation is not a security
+boundary: the predicate runs with the SASE process's filesystem and network permissions.
 
 `%wait(agent=<name>)` is also an alternate spelling of an ordinary agent wait on direct
 launch paths. Logical-unit and proc-wait admission are active only in the LaunchApproval

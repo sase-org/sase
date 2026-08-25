@@ -1,9 +1,11 @@
 """Durable launch-admission coordinator over the Rust journal planner.
 
 The coordinator is infrastructure owned by a launch-request bundle: it is not
-a proc shell, agent, or Agents-tab row. Waiting never claims runners,
-workspaces, proc records, or provider capacity. Eligible AgentUnits still
-dispatch through the established agent launch path.
+a proc shell, agent, or Agents-tab row. Waiting never claims runners, proc
+records, or provider capacity. Project-scoped conditions briefly claim a
+prepared operational workspace for the predicate only; eligible AgentUnits
+still dispatch through the established agent launch path after that claim is
+released.
 
 The on-disk journal lives in ``launch_admission_store``, the in-process
 driver in ``launch_admission_engine``, and wait resolution plus unit
