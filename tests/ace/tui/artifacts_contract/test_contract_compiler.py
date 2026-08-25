@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.query_profile import compiled_profile_for_builtin_pane
+from sase.ace.tui._artifact_link_contract import ARTIFACT_LINK_RELATIONS
 from sase.ace.tui._artifact_tab_contract import (
     GENERIC_DOCUMENT_COPY_TARGETS,
     PLAN_COPY_TARGETS,
@@ -18,6 +19,10 @@ from sase.ace.tui._artifact_tab_model import PaneCapability, RelationKind
 from sase.artifact_providers import builtin_plan_ref_provider_spec
 
 from .contract_compiler_support import document_spec
+
+
+def _artifact_link_relation_names() -> list[str]:
+    return [item.name for item in ARTIFACT_LINK_RELATIONS]
 
 
 @pytest.mark.parametrize("adapter", ["stitches", "patches", "beads", "files"])
@@ -84,15 +89,13 @@ def test_patch_contract_names_relation_and_grouping_declarations() -> None:
         "ancestors",
         "children",
         "siblings",
-        "links",
-        "linked_by",
+        *_artifact_link_relation_names(),
     ]
     assert [item.kind for item in contract.relations] == [
         RelationKind.HIERARCHY,
         RelationKind.HIERARCHY,
         RelationKind.FAMILY,
-        RelationKind.LINK,
-        RelationKind.LINK,
+        *([RelationKind.LINK] * len(_artifact_link_relation_names())),
     ]
     assert contract.grouping.default_mode == "by_project"
     assert [item.id for item in contract.grouping.modes] == [
@@ -113,8 +116,7 @@ def test_stitches_contract_names_patches_not_plans() -> None:
         "parents",
         "children",
         "patches",
-        "links",
-        "linked_by",
+        *_artifact_link_relation_names(),
     ]
     patches = next(item for item in contract.relations if item.name == "patches")
     assert patches.target_pane == "patches"
@@ -256,8 +258,7 @@ def test_plan_provider_earns_plan_only_capabilities() -> None:
         "parent",
         "children",
         "beads",
-        "links",
-        "linked_by",
+        *_artifact_link_relation_names(),
     ]
 
 
@@ -281,8 +282,7 @@ def test_unknown_document_provider_gets_generic_copy_targets() -> None:
     assert contract.has(PaneCapability.RELATIONS)
     assert [item.name for item in contract.relations] == [
         "bundle",
-        "links",
-        "linked_by",
+        *_artifact_link_relation_names(),
     ]
     assert not contract.has(PaneCapability.GROUPING)
     relations = contract.verdict_for(PaneCapability.RELATIONS)

@@ -3333,6 +3333,129 @@
               },
               {
                 "aliases": [],
+                "default_child": "list",
+                "description_digest": "2e0562bccdf591cc",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "relation",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "artifact",
+                  "link",
+                  "relation"
+                ],
+                "positionals": [],
+                "subcommands": [
+                  {
+                    "aliases": [],
+                    "default_child": null,
+                    "description_digest": "a1bdd9574c3876dc",
+                    "hidden": false,
+                    "mutex_groups": [],
+                    "name": "list",
+                    "options": [
+                      {
+                        "choices": null,
+                        "dest": "help",
+                        "hidden": false,
+                        "kind": null,
+                        "repeatable": false,
+                        "strings": [
+                          "-h",
+                          "--help"
+                        ],
+                        "takes_value": false
+                      },
+                      {
+                        "choices": null,
+                        "dest": "json",
+                        "hidden": false,
+                        "kind": null,
+                        "repeatable": false,
+                        "strings": [
+                          "-j",
+                          "--json"
+                        ],
+                        "takes_value": false
+                      }
+                    ],
+                    "path": [
+                      "artifact",
+                      "link",
+                      "relation",
+                      "list"
+                    ],
+                    "positionals": [],
+                    "subcommands": []
+                  },
+                  {
+                    "aliases": [],
+                    "default_child": null,
+                    "description_digest": "b7899345f10ef1c5",
+                    "hidden": false,
+                    "mutex_groups": [],
+                    "name": "show",
+                    "options": [
+                      {
+                        "choices": null,
+                        "dest": "help",
+                        "hidden": false,
+                        "kind": null,
+                        "repeatable": false,
+                        "strings": [
+                          "-h",
+                          "--help"
+                        ],
+                        "takes_value": false
+                      },
+                      {
+                        "choices": null,
+                        "dest": "json",
+                        "hidden": false,
+                        "kind": null,
+                        "repeatable": false,
+                        "strings": [
+                          "-j",
+                          "--json"
+                        ],
+                        "takes_value": false
+                      }
+                    ],
+                    "path": [
+                      "artifact",
+                      "link",
+                      "relation",
+                      "show"
+                    ],
+                    "positionals": [
+                      {
+                        "choices": null,
+                        "dest": "slug",
+                        "is_remainder": false,
+                        "kind": "artifact_relation",
+                        "metavar": "SLUG",
+                        "nargs": null
+                      }
+                    ],
+                    "subcommands": []
+                  }
+                ]
+              },
+              {
+                "aliases": [],
                 "default_child": null,
                 "description_digest": "4d60e87996a13d67",
                 "hidden": false,

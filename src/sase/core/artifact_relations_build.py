@@ -89,6 +89,9 @@ def _mark_dangling(
                 label=edge.label,
                 source=edge.source,
                 target=edge.target,
+                description=edge.description,
+                origin=edge.origin,
+                uses=edge.uses,
                 dangling=dangling,
                 derived=edge.derived,
             )
@@ -132,6 +135,9 @@ def _derive_edges(
                         label=label,
                         source=edge.target,
                         target=edge.source,
+                        description=edge.description,
+                        origin=edge.origin,
+                        uses=edge.uses,
                         dangling=False,
                         derived=True,
                     )
@@ -158,6 +164,9 @@ def _derive_edges(
                     label=decl.label,
                     source=edge.target,
                     target=edge.source,
+                    description=edge.description,
+                    origin=edge.origin,
+                    uses=edge.uses,
                     dangling=False,
                     derived=True,
                 )

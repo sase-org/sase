@@ -248,6 +248,22 @@ def check_app_action(
 
         if isinstance(getattr(app, "screen", None), ModalScreen):
             return False
+    if action == "artifacts_link_marked":
+        if (
+            app.current_tab != ARTIFACTS_TAB
+            or app.current_artifacts_pane_key == "patches"
+        ):
+            return False
+        from .artifact_tabs import PaneCapability, artifacts_pane_contract
+
+        contract = getattr(app, "active_artifacts_contract", None) or (
+            artifacts_pane_contract(str(app.current_artifacts_pane_key))
+        )
+        return (
+            contract is not None
+            and contract.has(PaneCapability.STABLE_MARKS)
+            and contract.has(PaneCapability.STABLE_REFERENCE_COPY)
+        )
     if action in {
         "change_status",
         "bulk_change_status",

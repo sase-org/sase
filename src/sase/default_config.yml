@@ -501,6 +501,7 @@ ace:
       sync: "Y"
       refresh: "R"
       artifacts_copy_reference: "y"
+      artifacts_link_marked: "unbound"
       # Fold / collapse (Agents: h navigates member → family → clan → tribe,
       # collapses an explicitly selected expanded panel, and jumps from a
       # collapsed panel to the last expanded panel when one exists. H compacts

@@ -307,6 +307,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("copy reference", "copy sha", "copy bug ref"),
     ),
     (
+        "artifacts_link_marked",
+        "Artifacts: link marked row to current",
+        "Display",
+        CL_ONLY,
+        ("artifact link", "link marked", "typed link"),
+    ),
+    (
         "agents_revive",
         "Artifacts Agent: revive selected agent",
         "Proposals & Sync",

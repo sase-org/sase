@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+from sase.ace.tui._artifact_link_contract import ARTIFACT_LINK_RELATIONS
 from sase.ace.tui._artifact_tab_descriptors import (
     assign_artifacts_digit_shortcuts,
     fixed_descriptor,
@@ -12,6 +13,10 @@ from sase.ace.tui._artifact_tab_descriptors import (
 from sase.ace.tui._artifact_tab_model import PaneCapability
 from sase.artifact_cli.pane import handle_pane
 from sase.main.parser import create_parser
+
+
+def _artifact_link_relation_names() -> list[str]:
+    return [item.name for item in ARTIFACT_LINK_RELATIONS]
 
 
 def test_parser_accepts_pane_show_json() -> None:
@@ -70,8 +75,7 @@ def test_pane_show_json_explains_verdicts(
         "children",
         "plans",
         "dependencies",
-        "links",
-        "linked_by",
+        *_artifact_link_relation_names(),
     ]
     assert payload["grouping"]["default_mode"] is None
     assert payload["grouping"]["modes"] == []

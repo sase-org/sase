@@ -203,18 +203,24 @@ def test_files_source_emits_row_to_version_family() -> None:
     assert not any(edge.dangling for edge in index.edges)
 
 
-def test_artifact_links_source_emits_links_and_linked_by_for_current_pane() -> None:
+def test_artifact_links_source_emits_typed_relations_for_current_pane() -> None:
     snapshot = _files_snapshot_with_link_rows(
         (
             {
                 "source_ref": "file:doc",
                 "relation": "implements",
                 "target_ref": "bead:sase-r8",
+                "description": "extends requirement",
+                "origin": "manual",
+                "uses": 3,
             },
             {
-                "source_ref": "bead:sase-r7",
-                "relation": "motivates",
+                "source_ref": "plan:202608/design.md",
+                "relation": "implements",
                 "target_ref": "file:doc",
+                "description": "frontmatter link",
+                "origin": "derived",
+                "uses": 2,
             },
         )
     )
@@ -222,14 +228,22 @@ def test_artifact_links_source_emits_links_and_linked_by_for_current_pane() -> N
     index = build_files_relation_index(snapshot, contract=contract)
     row = ArtifactEntryTarget("files", ("doc",))
 
-    assert index.edges_for_relation(row, "links")[0].target == ArtifactEntryTarget(
+    implements = index.edges_for_relation(row, "implements")
+    assert implements[0].target == ArtifactEntryTarget(
         "beads", ("alpha", "task", "sase-r8")
     )
-    linked_by = index.edges_for_relation(row, "linked_by")
-    assert linked_by[0].target == ArtifactEntryTarget(
-        "beads", ("alpha", "task", "sase-r7")
+    assert implements[0].label == "implements"
+    assert implements[0].description == "extends requirement"
+    assert implements[0].origin == "manual"
+    assert implements[0].uses == 3
+    implemented_by = index.edges_for_relation(row, "implemented-by")
+    assert implemented_by[0].target == ArtifactEntryTarget(
+        "ref:plan", ("alpha", "archive", "202608/design.md")
     )
-    assert linked_by[0].label == "Linked By"
+    assert implemented_by[0].label == "implemented-by"
+    assert implemented_by[0].description == "frontmatter link"
+    assert implemented_by[0].origin == "derived"
+    assert implemented_by[0].uses == 2
 
 
 def test_artifact_links_source_deduplicates_undirected_related_rows() -> None:
@@ -253,7 +267,7 @@ def test_artifact_links_source_deduplicates_undirected_related_rows() -> None:
     row = ArtifactEntryTarget("files", ("doc",))
 
     assert [
-        edge.target.parts[0] for edge in index.edges_for_relation(row, "links")
+        edge.target.parts[0] for edge in index.edges_for_relation(row, "related")
     ] == ["other"]
 
 

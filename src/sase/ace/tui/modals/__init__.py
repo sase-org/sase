@@ -10,6 +10,11 @@ if TYPE_CHECKING:
     from .axe_add_modals import (
         validate_axe_new_entry_identity as validate_axe_new_entry_identity,
     )
+    from .artifact_link_modal import (
+        ArtifactLinkModal as ArtifactLinkModal,
+        ArtifactLinkRelationChoice as ArtifactLinkRelationChoice,
+        ArtifactLinkResult as ArtifactLinkResult,
+    )
     from .command_input_modal import CommandInputModal as CommandInputModal
     from .config_transaction import (
         ConfigTransactionConflict as ConfigTransactionConflict,
@@ -86,6 +91,12 @@ _LAZY_EXPORTS = {
         ".artifact_files_modal",
         "ArtifactFileSelectionResult",
     ),
+    "ArtifactLinkModal": (".artifact_link_modal", "ArtifactLinkModal"),
+    "ArtifactLinkRelationChoice": (
+        ".artifact_link_modal",
+        "ArtifactLinkRelationChoice",
+    ),
+    "ArtifactLinkResult": (".artifact_link_modal", "ArtifactLinkResult"),
     "AutoApproveChoice": (".auto_approve_modal", "AutoApproveChoice"),
     "AutoApproveModal": (".auto_approve_modal", "AutoApproveModal"),
     "AxeAddChooserModal": (".axe_add_modals", "AxeAddChooserModal"),

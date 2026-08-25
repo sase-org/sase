@@ -39,6 +39,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("start_checkout_mode", "Checkout Mode", False),
     ("refresh", "Refresh", False),
     ("artifacts_copy_reference", "Copy Reference", False),
+    ("artifacts_link_marked", "Link Marked Artifact", False),
     ("sync", "Sync", False),
     ("search_forward", "Search Forward", False),
     ("edit_query", "Edit Query", False),

@@ -27,6 +27,9 @@ class RelationEdge:
     label: str
     source: ArtifactEntryTarget
     target: ArtifactEntryTarget
+    description: str = ""
+    origin: str = ""
+    uses: int = 0
     dangling: bool = False
     derived: bool = False
 

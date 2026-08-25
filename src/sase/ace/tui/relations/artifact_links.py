@@ -102,16 +102,16 @@ def artifact_link_edges(
 
     if snapshot is None:
         return ()
-    decl = {item.name: item for item in contract.relations}.get("links")
-    if decl is None:
-        return ()
+    declarations = {item.name: item for item in contract.relations}
     known = frozenset(known_targets)
     seen: set[tuple[str, ArtifactEntryTarget, ArtifactEntryTarget]] = set()
     edges: list[RelationEdge] = []
     for row in snapshot.rows:
         source_ref = str(row.get("source_ref") or "").strip()
         target_ref = str(row.get("target_ref") or "").strip()
-        if not source_ref or not target_ref:
+        relation = str(row.get("relation") or "").strip()
+        decl = declarations.get(relation)
+        if not source_ref or not target_ref or decl is None:
             continue
         project = str(row.get("_project") or project_hint or "").strip() or None
         source = _target_for_ref(source_ref, known, project_hint=project)
@@ -124,12 +124,13 @@ def artifact_link_edges(
         if key in seen:
             continue
         seen.add(key)
-        edges.append(_emit_link_edge(decl, source, target))
+        edges.append(_emit_link_edge(decl, row, source, target))
     return tuple(edges)
 
 
 def _emit_link_edge(
     decl: PaneRelationDecl,
+    row: Mapping[str, Any],
     source: ArtifactEntryTarget,
     target: ArtifactEntryTarget,
 ) -> RelationEdge:
@@ -139,7 +140,18 @@ def _emit_link_edge(
         label=decl.label,
         source=source,
         target=target,
+        description=str(row.get("description") or "").strip(),
+        origin=str(row.get("origin") or "").strip(),
+        uses=_uses_count(row.get("uses")),
     )
+
+
+def _uses_count(value: Any) -> int:
+    try:
+        uses = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, uses)
 
 
 def _edge_key(

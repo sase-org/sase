@@ -162,12 +162,17 @@ def test_compiled_artifact_panes_declare_artifact_link_relations() -> None:
 
     for contract in contracts:
         declarations = {item.name: item for item in contract.relations}
-        assert declarations["links"].source == "artifact_links"
-        assert declarations["links"].inverse == "linked_by"
-        assert declarations["links"].directed is True
-        assert declarations["linked_by"].source == "artifact_links"
-        assert declarations["linked_by"].inverse == "links"
-        assert declarations["linked_by"].transitive is False
+        assert "links" not in declarations
+        assert "linked_by" not in declarations
+        assert declarations["implements"].source == "artifact_links"
+        assert declarations["implements"].inverse == "implemented-by"
+        assert declarations["implements"].directed is True
+        assert declarations["implemented-by"].source == "artifact_links"
+        assert declarations["implemented-by"].inverse == "implements"
+        assert declarations["implemented-by"].transitive is False
+        assert declarations["related"].source == "artifact_links"
+        assert declarations["related"].directed is False
+        assert declarations["related"].inverse == "related"
 
 
 def test_pane_only_changes_presentation_digest_not_query_profile() -> None:

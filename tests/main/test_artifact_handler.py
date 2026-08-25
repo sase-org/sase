@@ -162,7 +162,13 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
     ]
     assert _long_options(subcommands.choices["doctor"]) == ["--fix", "--verify"]
     link_subcommands = _subparser_action(subcommands.choices["link"])
-    assert list(link_subcommands.choices) == ["add", "list", "migrate-notes", "rm"]
+    assert list(link_subcommands.choices) == [
+        "add",
+        "list",
+        "migrate-notes",
+        "relation",
+        "rm",
+    ]
     assert _long_options(link_subcommands.choices["add"]) == []
     assert _long_options(link_subcommands.choices["list"]) == [
         "--direction",
@@ -175,6 +181,10 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
         "--apply",
         "--json",
     ]
+    relation_subcommands = _subparser_action(link_subcommands.choices["relation"])
+    assert list(relation_subcommands.choices) == ["list", "show"]
+    assert _long_options(relation_subcommands.choices["list"]) == ["--json"]
+    assert _long_options(relation_subcommands.choices["show"]) == ["--json"]
     assert _long_options(link_subcommands.choices["rm"]) == ["--relation"]
     assert _long_options(subcommands.choices["list"]) == [
         "--agent",

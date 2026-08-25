@@ -29,6 +29,7 @@ from .artifacts_commits import (
 )
 from .artifacts_files import ArtifactsFilesActionsMixin, FILES_ARTIFACT_ACTIONS
 from .artifacts_limit import ArtifactsLimitActionsMixin
+from .artifacts_link import ArtifactsLinkActionsMixin
 from .artifacts_navigation import ArtifactsNavigationActionsMixin
 from .artifacts_plans import ArtifactsPlansActionsMixin, PLANS_ARTIFACT_ACTIONS
 from .artifacts_query_history import ArtifactsQueryHistoryActionsMixin
@@ -107,6 +108,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "dismiss_toasts",
         "refresh",
         "artifacts_copy_reference",
+        "artifacts_link_marked",
         "edit_query",
         "start_leader_mode",
     }
@@ -267,6 +269,7 @@ class ArtifactsMixin(
     ArtifactsFilesActionsMixin,
     ArtifactsAgentsActionsMixin,
     ArtifactsQueryHistoryActionsMixin,
+    ArtifactsLinkActionsMixin,
     ArtifactsLimitActionsMixin,
 ):
     """Compose Artifacts pane actions and manage their shared project scope."""

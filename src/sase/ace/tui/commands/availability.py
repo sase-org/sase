@@ -107,6 +107,7 @@ _NON_PRS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.dismiss_toasts",
         "app.refresh",
         "app.artifacts_copy_reference",
+        "app.artifacts_link_marked",
         "app.artifacts_load_more",
         "app.artifacts_unload",
         "app.start_saved_query_mode",
@@ -350,6 +351,11 @@ def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return ctx.artifacts_subtab == "beads"
     if spec.id in _FILES_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "files"
+    if spec.id == "app.artifacts_link_marked":
+        return (
+            ctx.artifacts_subtab != "patches"
+            and ctx.artifact_selection_present is not False
+        )
     if ctx.artifacts_subtab != "patches":
         return spec.id.startswith("artifacts.") or spec.id in _NON_PRS_ARTIFACT_COMMANDS
     if spec.id == "app.pick_artifacts_project":

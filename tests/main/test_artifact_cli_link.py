@@ -10,7 +10,12 @@ from types import SimpleNamespace
 import pytest
 
 from sase.artifact_cli.link_migrate import handle_link_migrate_notes
-from sase.artifact_cli.link_ops import handle_link_add, handle_link_list, handle_link_rm
+from sase.artifact_cli.link_ops import (
+    add_artifact_link,
+    handle_link_add,
+    handle_link_list,
+    handle_link_rm,
+)
 from sase.artifact_cli.link_relations import handle_link_relation
 from sase.main.parser import create_parser
 from sase.sdd.artifact_link_store import ArtifactLinkStore
@@ -122,6 +127,22 @@ def test_add_and_rm_work_without_feature_override(
         == 0
     )
     assert capsys.readouterr().err == ""
+
+
+def test_add_artifact_link_requires_reason(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    _patch_store(monkeypatch, store)
+    with pytest.raises(ValueError, match="reason is required"):
+        add_artifact_link(
+            source_ref="plan:202608/a.md",
+            relation="related",
+            target_ref="plan:202608/b.md",
+            why=" ",
+        )
+    assert store.load_artifact_rows("plan:202608/a.md") == ()
 
 
 def test_list_reads_rows_without_feature_override(

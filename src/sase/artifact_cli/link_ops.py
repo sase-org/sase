@@ -33,34 +33,68 @@ def handle_link_add(args: argparse.Namespace) -> int:
     """Add or rewrite one typed artifact link."""
 
     try:
-        relation = _cli_writable_relation(args.relation)
-        store = _store()
-        identity = _created_by()
-        row = {
-            "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
-            "source_ref": args.source_ref,
-            "relation": relation,
-            "target_ref": args.target_ref,
-            "description": args.why,
-            "origin": _CLI_ORIGIN,
-            "created_by": identity,
-            "created_at": _created_at(),
-            "uses": 1,
-        }
-        outcome = store.upsert_row(row)
-        _persist_link_mutation(
-            store,
-            changed_indexes=tuple(outcome.get("changed_indexes") or ()),
-            beads_changed=bool(outcome.get("beads_changed")),
+        outcome = add_artifact_link(
+            source_ref=args.source_ref,
+            relation=args.relation,
+            target_ref=args.target_ref,
+            why=args.why,
         )
     except (RuntimeError, TypeError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
     kind = str(outcome.get("kind") or "unchanged")
-    stored = dict(outcome.get("row") or row)
+    stored = dict(outcome.get("row") or {})
     _print_add_outcome(kind, stored)
     return 0
+
+
+def add_artifact_link(
+    *,
+    source_ref: str,
+    relation: str,
+    target_ref: str,
+    why: str,
+) -> dict[str, Any]:
+    """Add or rewrite one manual typed artifact link and persist the mutation."""
+
+    source = str(source_ref).strip()
+    target = str(target_ref).strip()
+    description = _validated_why(why)
+    if not source:
+        raise ValueError("source artifact reference is required")
+    if not target:
+        raise ValueError("target artifact reference is required")
+    relation = _cli_writable_relation(relation)
+    store = _store()
+    identity = _created_by()
+    row = {
+        "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+        "source_ref": source,
+        "relation": relation,
+        "target_ref": target,
+        "description": description,
+        "origin": _CLI_ORIGIN,
+        "created_by": identity,
+        "created_at": _created_at(),
+        "uses": 1,
+    }
+    outcome = store.upsert_row(row)
+    _persist_link_mutation(
+        store,
+        changed_indexes=tuple(outcome.get("changed_indexes") or ()),
+        beads_changed=bool(outcome.get("beads_changed")),
+    )
+    return dict(outcome)
+
+
+def _validated_why(value: str) -> str:
+    why = " ".join(str(value).strip().splitlines())
+    if not why:
+        raise ValueError("artifact link reason is required")
+    if len(why) > 240:
+        raise ValueError("artifact link reason must be 240 characters or fewer")
+    return why
 
 
 def handle_link_list(args: argparse.Namespace) -> int:

@@ -37,6 +37,9 @@ class RelationRow:
     target: ArtifactEntryTarget
     label: str
     status: str
+    description: str
+    origin: str
+    uses: int
     depth: int
     dangling: bool
     cross_pane: bool
@@ -424,6 +427,9 @@ def _row_from_edge(
         target=edge.target,
         label=fact.label,
         status=fact.status,
+        description=edge.description,
+        origin=edge.origin,
+        uses=edge.uses,
         depth=depth,
         dangling=edge.dangling,
         cross_pane=edge.target.pane_id != edge.source.pane_id,

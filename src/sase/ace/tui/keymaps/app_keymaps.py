@@ -116,6 +116,7 @@ class AppKeymaps:
     sync: str
     refresh: str
     artifacts_copy_reference: str
+    artifacts_link_marked: str
     # Fold / collapse
     hooks_or_collapse: str
     hooks_or_collapse_all: str

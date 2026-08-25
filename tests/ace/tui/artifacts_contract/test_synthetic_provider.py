@@ -6,6 +6,7 @@ from pathlib import Path
 
 import yaml
 
+from sase.ace.tui._artifact_link_contract import ARTIFACT_LINK_RELATIONS
 from sase.ace.tui._artifact_tab_contract import compile_provider_contract
 from sase.ace.tui._artifact_tab_descriptors import provider_descriptors
 from sase.ace.tui._artifact_tab_model import PaneCapability, ProjectProviderRecord
@@ -22,6 +23,10 @@ from .harness import PANE_CONFORMANCE_CHECKS
 
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "notes"
+
+
+def _artifact_link_relation_names() -> list[str]:
+    return [item.name for item in ARTIFACT_LINK_RELATIONS]
 
 
 def _load_fixture_spec() -> dict[str, object]:
@@ -85,8 +90,7 @@ def test_synthetic_provider_earns_generic_document_capabilities() -> None:
         "link",
         "family",
         "bundle",
-        "links",
-        "linked_by",
+        *_artifact_link_relation_names(),
     ]
     assert contract.has(PaneCapability.GROUPING)
     assert contract.grouping.default_mode == "by_status"

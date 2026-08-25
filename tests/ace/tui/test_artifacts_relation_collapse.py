@@ -9,6 +9,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+from rich.text import Text
 
 from sase.ace.patch import Patch
 from sase.ace.testing import AcePage
@@ -27,6 +28,7 @@ from sase.ace.tui.widgets.artifacts.relation_panel import (
 )
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from sase.core.artifact_relation_layout import (
+    RelationEntryFact,
     RelationKeymap,
     RelationRole,
     build_relation_view,
@@ -193,6 +195,42 @@ def test_collapsed_empty_view_stays_hidden() -> None:
 
     assert not view.keymap
     assert _build_collapsed_rail(view, accent="#87D7FF") is None
+
+
+def test_expanded_link_row_renders_edge_metadata() -> None:
+    origin = _target("current")
+    linked = _target("linked")
+    relations = (_decl("implements", RelationKind.LINK, label="implements"),)
+    index = build_relation_index(
+        pane_id="patches",
+        relations=relations,
+        edges=(
+            RelationEdge(
+                kind=RelationKind.LINK,
+                relation="implements",
+                label="implements",
+                source=origin,
+                target=linked,
+                description="extends requirement",
+                origin="derived",
+                uses=2,
+            ),
+        ),
+        known_targets={origin, linked},
+    )
+    view = build_relation_view(
+        index=index,
+        origin=origin,
+        relations=relations,
+        facts={linked: RelationEntryFact("linked.md")},
+    )
+    row = view.sections[0].rows[0]
+    text = Text()
+
+    RelationPanel()._render_name(text, row)  # noqa: SLF001
+
+    plain = text.plain
+    assert "linked.md — extends requirement · derived · 2 uses" in plain
 
 
 def test_patches_footer_appends_toggle_when_keymap_is_live() -> None:

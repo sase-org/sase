@@ -240,6 +240,22 @@ class RelationPanel(Static):
             text.append(f" → {row.target.pane_id}", style="dim #808080")
         if visually_missing:
             text.append(" (missing)", style="dim #808080")
+        details = _row_detail_parts(row)
+        if details:
+            text.append(" — ", style="dim #808080")
+            text.append(" · ".join(details), style="dim #A8A8A8")
+
+
+def _row_detail_parts(row: RelationRow) -> tuple[str, ...]:
+    parts: list[str] = []
+    if row.description:
+        parts.append(row.description)
+    if row.origin:
+        parts.append(row.origin)
+    if row.uses > 0:
+        noun = "use" if row.uses == 1 else "uses"
+        parts.append(f"{row.uses} {noun}")
+    return tuple(parts)
 
 
 class RelationPanelHostMixin:
