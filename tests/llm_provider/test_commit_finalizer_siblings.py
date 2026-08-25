@@ -71,7 +71,6 @@ def test_dirty_configured_sibling_with_open_marker_is_discovered(
     sibling = tmp_path / "sase-core_10"
     main.mkdir()
     init_git_repo(sibling)
-    (sibling / "dirty.txt").write_text("dirty\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
     monkeypatch.setenv(
@@ -90,6 +89,7 @@ def test_dirty_configured_sibling_with_open_marker_is_discovered(
     )
     artifacts_dir = tmp_path / "artifacts"
     mark_opened_sibling(monkeypatch, artifacts_dir, "core", sibling)
+    (sibling / "dirty.txt").write_text("dirty\n", encoding="utf-8")
 
     state = collected_dirty_state(main, artifacts_dir)
 
@@ -104,12 +104,12 @@ def test_opened_dirty_sibling_uses_recorded_path_when_config_omits_it(
     sibling = tmp_path / "sase-core_10"
     main.mkdir()
     init_git_repo(sibling)
-    (sibling / "dirty.txt").write_text("dirty\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
     monkeypatch.setenv(SIBLING_REPOS_JSON_ENV, json.dumps([]))
     artifacts_dir = tmp_path / "artifacts"
     mark_opened_sibling(monkeypatch, artifacts_dir, "core", sibling)
+    (sibling / "dirty.txt").write_text("dirty\n", encoding="utf-8")
 
     state = collected_dirty_state(main, artifacts_dir)
 
@@ -196,8 +196,6 @@ def test_multiple_dirty_configured_siblings_are_discovered(
     main.mkdir()
     init_git_repo(alpha)
     init_git_repo(beta)
-    (alpha / "alpha.txt").write_text("alpha\n", encoding="utf-8")
-    (beta / "beta.txt").write_text("beta\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
     monkeypatch.setenv(
@@ -212,6 +210,8 @@ def test_multiple_dirty_configured_siblings_are_discovered(
     artifacts_dir = tmp_path / "artifacts"
     mark_opened_sibling(monkeypatch, artifacts_dir, "alpha", alpha)
     mark_opened_sibling(monkeypatch, artifacts_dir, "beta", beta)
+    (alpha / "alpha.txt").write_text("alpha\n", encoding="utf-8")
+    (beta / "beta.txt").write_text("beta\n", encoding="utf-8")
 
     state = collected_dirty_state(main, artifacts_dir)
 
@@ -228,7 +228,6 @@ def test_dirty_configured_suffix_siblings_are_discovered_without_open_marker(
     main.mkdir()
     init_git_repo(alpha)
     init_git_repo(beta)
-    (alpha / "alpha.txt").write_text("alpha\n", encoding="utf-8")
     (beta / "beta.txt").write_text("beta\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
@@ -244,6 +243,7 @@ def test_dirty_configured_suffix_siblings_are_discovered_without_open_marker(
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
     mark_opened_sibling(monkeypatch, artifacts_dir, "alpha", alpha)
+    (alpha / "alpha.txt").write_text("alpha\n", encoding="utf-8")
 
     state = collected_dirty_state(main, artifacts_dir)
 

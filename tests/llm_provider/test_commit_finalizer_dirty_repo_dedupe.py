@@ -85,11 +85,11 @@ def test_repo_reachable_as_both_external_and_sdd_sidecar_prefers_sdd_kind(
     shared = tmp_path / "shared-external"
     for repo in (main, plans, shared):
         init_git_repo(repo)
-    (shared / "notes.md").write_text("dirty\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
     artifacts_dir = tmp_path / "artifacts"
     mark_opened_external(monkeypatch, artifacts_dir, "shared", shared)
+    (shared / "notes.md").write_text("dirty\n", encoding="utf-8")
     _use_sdd_store(
         monkeypatch,
         SddStore(

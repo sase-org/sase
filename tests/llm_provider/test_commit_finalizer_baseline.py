@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.finalizers.commit_validation import protected_baseline_paths
 from sase.llm_provider import commit_finalizer_git as finalizer_git
 from sase.llm_provider.commit_finalizer_baseline import (
     BASELINE_FILENAME,
@@ -21,6 +22,7 @@ from sase.llm_provider.commit_finalizer_baseline import (
     capture_dirty_baseline,
     capture_opened_repo_dirty_baseline,
     load_dirty_baseline,
+    load_finalizer_baseline_records,
 )
 from sase.llm_provider.commit_finalizer_git import (
     dirty_path_fingerprints,
@@ -36,6 +38,9 @@ from ._commit_finalizer_sibling_helpers import (
 )
 
 _PRE_EXISTING_HEADER = "Pre-existing changes detected before this run started"
+_PROVENANCE_ALREADY_DIRTY = "already_dirty_at_run_start"
+_PROVENANCE_CHANGED = "changed_since_run_start"
+_PROVENANCE_NEW = "new_since_run_start"
 
 
 def _run_git(repo: Path, *args: str) -> str:
@@ -81,6 +86,70 @@ def _use_git_dirty_details(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _dirty_details(project_dir: Path, artifacts_dir: Path) -> str:
     return collect_dirty_state(str(project_dir), artifact_root=artifacts_dir).details
+
+
+def _write_finalizer_baseline_records(
+    artifacts_dir: Path,
+    records: list[dict[str, object]],
+) -> None:
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / FINALIZER_BASELINE_FILENAME).write_text(
+        json.dumps({"schema_version": 1, "repositories": records}),
+        encoding="utf-8",
+    )
+
+
+def _finalizer_baseline_record(
+    *,
+    repo_id: str,
+    repo_path: Path,
+    kind: str,
+    name: str,
+    scope: str,
+    fingerprints: dict[str, tuple[str, str | None]],
+    captured_at: str,
+) -> dict[str, object]:
+    return {
+        "repo_id": repo_id,
+        "path": finalizer_git.normalize_path(str(repo_path)),
+        "kind": kind,
+        "name": name,
+        "scope": scope,
+        "captured_at": captured_at,
+        "fingerprints": {
+            path: list(fingerprint) for path, fingerprint in fingerprints.items()
+        },
+    }
+
+
+def _path_provenance(
+    *,
+    repo_path: Path,
+    path: str,
+    baseline: dict[str, dict[str, tuple[str, str | None]]],
+) -> str:
+    fingerprints = baseline.get(finalizer_git.normalize_path(str(repo_path)))
+    if fingerprints is None:
+        return _PROVENANCE_NEW
+
+    _run_owned, pre_existing = split_pre_existing_changed_files(
+        str(repo_path),
+        [path],
+        fingerprints,
+    )
+    if path in pre_existing:
+        return _PROVENANCE_ALREADY_DIRTY
+    if path in fingerprints:
+        return _PROVENANCE_CHANGED
+    return _PROVENANCE_NEW
+
+
+def _is_protected(artifacts_dir: Path, repo_path: Path, path: str) -> bool:
+    return path in protected_baseline_paths(
+        artifacts_dir,
+        str(repo_path),
+        get_changed_files=lambda _repo: [path],
+    )
 
 
 def test_pre_existing_main_file_is_excluded_and_reported_separately(
@@ -341,7 +410,135 @@ def test_late_open_baseline_capture_first_repo_id_wins(tmp_path: Path) -> None:
     assert payload["repositories"][0]["path"] == finalizer_git.normalize_path(str(repo))
     assert payload["repositories"][0]["scope"] == "opened_repo"
     assert sorted(payload["repositories"][0]["fingerprints"]) == ["pre_existing.txt"]
-    assert load_dirty_baseline(artifacts_dir) == {}
+    assert load_dirty_baseline(artifacts_dir) == {
+        finalizer_git.normalize_path(str(repo)): {
+            "pre_existing.txt": (
+                "??",
+                _run_git(repo, "hash-object", "pre_existing.txt").strip(),
+            )
+        }
+    }
+
+
+def test_finalizer_baseline_views_share_scope_and_duplicate_path_contract(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    run_start_repo = tmp_path / "run-start"
+    opened_repo = tmp_path / "opened"
+    duplicate_repo = tmp_path / "duplicate"
+    for repo in (run_start_repo, opened_repo, duplicate_repo):
+        _init_git_repo_with_identity(repo)
+
+    (run_start_repo / "run.txt").write_text("foreign at run start\n", encoding="utf-8")
+    (opened_repo / "opened.txt").write_text("foreign at open\n", encoding="utf-8")
+    (duplicate_repo / "dup.txt").write_text("agent work\n", encoding="utf-8")
+
+    duplicate_fingerprints = dirty_path_fingerprints(str(duplicate_repo))
+    _write_finalizer_baseline_records(
+        artifacts_dir,
+        [
+            _finalizer_baseline_record(
+                repo_id="linked:duplicate",
+                repo_path=duplicate_repo,
+                kind="linked",
+                name="duplicate",
+                scope="opened_repo",
+                fingerprints=duplicate_fingerprints,
+                captured_at="2026-08-25T11:00:02+00:00",
+            ),
+            _finalizer_baseline_record(
+                repo_id="linked:opened",
+                repo_path=opened_repo,
+                kind="linked",
+                name="opened",
+                scope="opened_repo",
+                fingerprints=dirty_path_fingerprints(str(opened_repo)),
+                captured_at="2026-08-25T11:00:01+00:00",
+            ),
+            _finalizer_baseline_record(
+                repo_id="main",
+                repo_path=run_start_repo,
+                kind="main",
+                name="main",
+                scope="run_start",
+                fingerprints=dirty_path_fingerprints(str(run_start_repo)),
+                captured_at="2026-08-25T11:00:00+00:00",
+            ),
+            _finalizer_baseline_record(
+                repo_id="sdd:duplicate",
+                repo_path=duplicate_repo,
+                kind="sdd",
+                name="duplicate",
+                scope="run_start",
+                fingerprints={},
+                captured_at="2026-08-25T10:59:59+00:00",
+            ),
+        ],
+    )
+
+    records = load_finalizer_baseline_records(artifacts_dir)
+    assert records is not None
+    records_by_path = {record.path: record for record in records}
+    duplicate_key = finalizer_git.normalize_path(str(duplicate_repo))
+    opened_key = finalizer_git.normalize_path(str(opened_repo))
+    assert records_by_path[duplicate_key].scope == "run_start"
+    assert records_by_path[opened_key].scope == "opened_repo"
+
+    baseline = load_dirty_baseline(artifacts_dir)
+    assert baseline is not None
+    pairs = (
+        (run_start_repo, "run.txt"),
+        (opened_repo, "opened.txt"),
+        (duplicate_repo, "dup.txt"),
+    )
+    for repo_path, path in pairs:
+        provenance = _path_provenance(
+            repo_path=repo_path,
+            path=path,
+            baseline=baseline,
+        )
+        assert _is_protected(artifacts_dir, repo_path, path) == (
+            provenance != _PROVENANCE_NEW
+        )
+
+
+def test_historical_opened_repo_baseline_views_agree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "research"
+    _init_git_repo_with_identity(repo)
+    target = "202608/remove_direct_git_plugin_installs.md"
+    (repo / "202608").mkdir()
+    (repo / target).write_text("historical report body\n", encoding="utf-8")
+    artifacts_dir = tmp_path / "artifacts"
+    recorded_fingerprint = ("??", "727c244a43888a5ac147acfcc54b5699862f777c")
+    _write_finalizer_baseline_records(
+        artifacts_dir,
+        [
+            _finalizer_baseline_record(
+                repo_id="linked:research",
+                repo_path=repo,
+                kind="linked",
+                name="research",
+                scope="opened_repo",
+                fingerprints={target: recorded_fingerprint},
+                captured_at="2026-08-25T15:21:06+00:00",
+            ),
+        ],
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.commit_finalizer_git_status.dirty_path_fingerprints",
+        lambda _repo_path: {target: recorded_fingerprint},
+    )
+
+    baseline = load_dirty_baseline(artifacts_dir)
+    assert baseline is not None
+    provenance = _path_provenance(repo_path=repo, path=target, baseline=baseline)
+
+    assert provenance != _PROVENANCE_NEW
+    assert _is_protected(artifacts_dir, repo, target) is True
 
 
 @pytest.mark.parametrize(

@@ -1,4 +1,10 @@
-"""State and result validation for the built-in commit finalizer."""
+"""State and result validation for the built-in commit finalizer.
+
+Commit protection reads ``finalizer_baseline.json`` through the same canonical
+record loader as model-visible provenance. That keeps the protected-path view
+and the declaration evidence view from making contradictory ownership claims
+for the same normalized repository path.
+"""
 
 from __future__ import annotations
 
@@ -23,7 +29,7 @@ from sase.finalizers.commit_types import (
 from sase.finalizers.reconciliation import PreparedCommitDirtyState
 from sase.llm_provider.commit_finalizer_baseline import (
     BASELINE_FILENAME,
-    FINALIZER_BASELINE_FILENAME,
+    load_finalizer_baseline_records,
 )
 from sase.llm_provider.commit_finalizer_git import (
     discarded_dirty_work_evidence,
@@ -99,33 +105,14 @@ def _load_baseline_fingerprints(
     repo_path: str,
 ) -> dict[str, tuple[str, str | None]]:
     normalized_repo = normalize_path(repo_path)
-    records = _read_finalizer_baseline_records(artifacts)
+    records = load_finalizer_baseline_records(artifacts)
     if records is None:
         return _read_legacy_baseline(artifacts, normalized_repo)
     for record in records:
-        if normalize_path(str(record.get("path", ""))) != normalized_repo:
+        if record.path != normalized_repo:
             continue
-        raw = record.get("fingerprints")
-        if isinstance(raw, Mapping):
-            return _normalize_fingerprints(raw)
+        return dict(record.fingerprints)
     return {}
-
-
-def _read_finalizer_baseline_records(
-    artifacts: Path,
-) -> list[Mapping[str, Any]] | None:
-    try:
-        payload = json.loads(
-            (artifacts / FINALIZER_BASELINE_FILENAME).read_text(encoding="utf-8")
-        )
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(payload, Mapping) or payload.get("schema_version") != 1:
-        return None
-    records = payload.get("repositories")
-    if not isinstance(records, list):
-        return None
-    return [item for item in records if isinstance(item, Mapping)]
 
 
 def _read_legacy_baseline(

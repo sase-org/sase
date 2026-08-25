@@ -26,7 +26,6 @@ def test_dirty_external_repo_is_discovered(
     external = main / "sase" / "repos" / "external" / "gh" / "acme" / "widget"
     main.mkdir()
     init_git_repo(external)
-    (external / "dirty.txt").write_text("dirty\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
     artifacts_dir = tmp_path / "artifacts"
@@ -36,6 +35,7 @@ def test_dirty_external_repo_is_discovered(
         "gh:acme/widget",
         external,
     )
+    (external / "dirty.txt").write_text("dirty\n", encoding="utf-8")
 
     state = collected_dirty_state(main, artifacts_dir)
 

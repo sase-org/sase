@@ -222,7 +222,6 @@ def test_sibling_done_status_change_uses_provider_path(
     main.mkdir()
     sibling = tmp_path / "sase-core_10"
     plan = _create_repo_with_plan(sibling)
-    plan.write_text(_PLAN_DONE, encoding="utf-8")
     _set_agent_env(monkeypatch, main)
     _use_git_dirty_details(monkeypatch)
     monkeypatch.setenv(
@@ -233,6 +232,7 @@ def test_sibling_done_status_change_uses_provider_path(
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
     record_opened_sibling("core", str(sibling))
     artifacts_dir.mkdir(parents=True, exist_ok=True)
+    plan.write_text(_PLAN_DONE, encoding="utf-8")
 
     state = _prepare(artifacts_dir)
 

@@ -1,13 +1,27 @@
 """Pre-existing dirty-path baseline capture for commit finalization.
 
-Captured once at runner start, before the agent's first turn, so later
-finalizer passes can tell paths that were already dirty in the workspace
-apart from paths this agent's own run touched, and stop attributing
-pre-existing dirt to the agent (bead sase-lb.1.6).
+``finalizer_baseline.json`` records repository dirt that predates work this
+run owns. A ``run_start`` record is captured before the agent's first turn; an
+``opened_repo`` record is captured before the run first contacts a repository
+whose checkout was not part of the run-start snapshot. Both scopes are
+legitimate "not this run's work" evidence.
+
+All current readers go through :func:`load_finalizer_baseline_records`, which
+keeps the record scope intact and canonicalizes duplicate repository paths.
+When a run-start and opened-repo record name the same normalized path, the
+run-start record wins because it was captured earlier by contract. Same-scope
+legacy duplicates have no capture metadata, so they fall back to a stable
+repo-id tie-breaker instead of depending on JSON list order.
+
+``commit_finalizer_baseline.json`` is a historical read-only fallback for
+archived agents; new code never writes it.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import UTC, datetime
 import fcntl
 import json
 import logging
@@ -23,10 +37,27 @@ _logger = logging.getLogger(__name__)
 BASELINE_FILENAME = "commit_finalizer_baseline.json"
 FINALIZER_BASELINE_FILENAME = "finalizer_baseline.json"
 
-DirtyBaseline = dict[str, dict[str, tuple[str, "str | None"]]]
+DirtyBaseline = dict[str, dict[str, tuple[str, str | None]]]
 
 _BASELINE_SCOPE_RUN_START = "run_start"
 _BASELINE_SCOPE_OPENED_REPO = "opened_repo"
+_BASELINE_SCOPE_PRECEDENCE = {
+    _BASELINE_SCOPE_RUN_START: 0,
+    _BASELINE_SCOPE_OPENED_REPO: 1,
+}
+
+
+@dataclass(frozen=True)
+class FinalizerBaselineRecord:
+    """One canonical ``finalizer_baseline.json`` repository record."""
+
+    repo_id: str
+    path: str
+    kind: str
+    name: str
+    scope: str
+    fingerprints: dict[str, tuple[str, str | None]]
+    captured_at: str | None = None
 
 
 def capture_dirty_baseline(project_dir: str, artifacts_dir: str) -> None:
@@ -112,7 +143,7 @@ def capture_opened_repo_dirty_baseline(
 
 
 def load_dirty_baseline(artifact_root: Path | None) -> DirtyBaseline | None:
-    """Load the baseline :func:`capture_dirty_baseline` wrote, if any.
+    """Load the baseline evidence for callers that only need fingerprints.
 
     New runs write ``finalizer_baseline.json``. ``commit_finalizer_baseline.json``
     is a historical-only reader for archived agents; this function never writes
@@ -123,10 +154,45 @@ def load_dirty_baseline(artifact_root: Path | None) -> DirtyBaseline | None:
     """
     if artifact_root is None:
         return None
-    baseline = _load_finalizer_dirty_baseline(Path(artifact_root))
-    if baseline is not None:
-        return baseline
+    records = load_finalizer_baseline_records(Path(artifact_root))
+    if records is not None:
+        return {record.path: dict(record.fingerprints) for record in records}
     return _load_legacy_dirty_baseline(Path(artifact_root))
+
+
+def load_finalizer_baseline_records(
+    artifact_root: Path | None,
+) -> tuple[FinalizerBaselineRecord, ...] | None:
+    """Load canonical ``finalizer_baseline.json`` records, if present.
+
+    The returned records preserve ``scope`` and contain at most one record per
+    normalized repository path. Missing, unreadable, or malformed files return
+    ``None`` so callers can fall back to legacy behavior or no-baseline
+    behavior.
+    """
+    if artifact_root is None:
+        return None
+    try:
+        payload = json.loads(
+            (Path(artifact_root) / FINALIZER_BASELINE_FILENAME).read_text(
+                encoding="utf-8"
+            )
+        )
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, Mapping) or payload.get("schema_version") != 1:
+        return None
+    records = payload.get("repositories")
+    if not isinstance(records, list):
+        return None
+
+    parsed: list[FinalizerBaselineRecord] = []
+    for item in records:
+        record = _parse_finalizer_baseline_record(item)
+        if record is None:
+            return None
+        parsed.append(record)
+    return _canonical_baseline_records(parsed)
 
 
 def _load_legacy_dirty_baseline(artifact_root: Path) -> DirtyBaseline | None:
@@ -152,36 +218,87 @@ def _load_legacy_dirty_baseline(artifact_root: Path) -> DirtyBaseline | None:
     return baseline
 
 
-def _load_finalizer_dirty_baseline(artifact_root: Path) -> DirtyBaseline | None:
-    try:
-        payload = json.loads(
-            (artifact_root / FINALIZER_BASELINE_FILENAME).read_text(encoding="utf-8")
-        )
-    except (OSError, json.JSONDecodeError):
+def _parse_finalizer_baseline_record(
+    item: object,
+) -> FinalizerBaselineRecord | None:
+    if not isinstance(item, Mapping):
         return None
-    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+    repo_id = item.get("repo_id")
+    repo_path = item.get("path")
+    kind = item.get("kind")
+    name = item.get("name")
+    scope = item.get("scope")
+    raw_fingerprints = item.get("fingerprints")
+    captured_at = item.get("captured_at")
+    if not (
+        isinstance(repo_id, str)
+        and isinstance(repo_path, str)
+        and isinstance(kind, str)
+        and isinstance(name, str)
+        and isinstance(scope, str)
+        and scope in _BASELINE_SCOPE_PRECEDENCE
+        and isinstance(raw_fingerprints, Mapping)
+        and (captured_at is None or isinstance(captured_at, str))
+    ):
         return None
-    records = payload.get("repositories")
-    if not isinstance(records, list):
+    fingerprints = _normalize_fingerprints(raw_fingerprints)
+    if fingerprints is None:
         return None
-    baseline: DirtyBaseline = {}
-    for item in records:
-        if not isinstance(item, dict):
+    return FinalizerBaselineRecord(
+        repo_id=repo_id,
+        path=normalize_path(repo_path),
+        kind=kind,
+        name=name,
+        scope=scope,
+        fingerprints=fingerprints,
+        captured_at=captured_at,
+    )
+
+
+def _normalize_fingerprints(
+    raw: Mapping[object, object],
+) -> dict[str, tuple[str, str | None]] | None:
+    normalized: dict[str, tuple[str, str | None]] = {}
+    for path, fingerprint in raw.items():
+        if not (
+            isinstance(path, str)
+            and isinstance(fingerprint, list)
+            and len(fingerprint) == 2
+            and isinstance(fingerprint[0], str)
+            and (fingerprint[1] is None or isinstance(fingerprint[1], str))
+        ):
             return None
-        repo_path = item.get("path")
-        scope = item.get("scope")
-        fingerprints = item.get("fingerprints")
-        if not isinstance(repo_path, str) or not isinstance(fingerprints, dict):
-            return None
-        if scope != _BASELINE_SCOPE_RUN_START:
+        normalized[path] = (fingerprint[0], fingerprint[1])
+    return normalized
+
+
+def _canonical_baseline_records(
+    records: list[FinalizerBaselineRecord],
+) -> tuple[FinalizerBaselineRecord, ...]:
+    selected: dict[str, FinalizerBaselineRecord] = {}
+    for record in records:
+        existing = selected.get(record.path)
+        if existing is None:
+            selected[record.path] = record
             continue
-        repo_entries: dict[str, tuple[str, str | None]] = {}
-        for path, fingerprint in fingerprints.items():
-            if not _is_valid_fingerprint_entry(path, fingerprint):
-                return None
-            repo_entries[path] = (fingerprint[0], fingerprint[1])
-        baseline[repo_path] = repo_entries
-    return baseline
+        if _baseline_record_sort_key(record) < _baseline_record_sort_key(existing):
+            selected[record.path] = record
+    return tuple(
+        sorted(
+            selected.values(),
+            key=lambda record: (record.path, _baseline_record_sort_key(record)),
+        )
+    )
+
+
+def _baseline_record_sort_key(
+    record: FinalizerBaselineRecord,
+) -> tuple[int, str, str]:
+    return (
+        _BASELINE_SCOPE_PRECEDENCE[record.scope],
+        record.captured_at or "",
+        record.repo_id,
+    )
 
 
 def _is_valid_fingerprint_entry(path: object, fingerprint: object) -> bool:
@@ -215,6 +332,7 @@ def _baseline_record(
         "kind": kind,
         "name": name,
         "scope": scope,
+        "captured_at": datetime.now(UTC).isoformat(),
         "fingerprints": {
             item_path: list(fingerprint)
             for item_path, fingerprint in dirty_path_fingerprints(path).items()

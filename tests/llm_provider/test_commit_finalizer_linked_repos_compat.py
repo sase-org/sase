@@ -29,7 +29,6 @@ def test_dirty_configured_linked_env_is_discovered(
     linked = tmp_path / "sase-core_10"
     main.mkdir()
     init_git_repo(linked)
-    (linked / "dirty.txt").write_text("dirty\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
     monkeypatch.setenv(
@@ -48,6 +47,7 @@ def test_dirty_configured_linked_env_is_discovered(
     )
     artifacts_dir = tmp_path / "artifacts"
     mark_opened_linked(monkeypatch, artifacts_dir, "core", linked)
+    (linked / "dirty.txt").write_text("dirty\n", encoding="utf-8")
 
     state = collected_dirty_state(main, artifacts_dir)
 
