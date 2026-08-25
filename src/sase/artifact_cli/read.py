@@ -39,6 +39,11 @@ from sase.core.artifact_consumption import (
     build_artifact_consumption_event,
 )
 from sase.core.rust import require_rust_binding
+from sase.sdd.artifact_link_neighborhood import (
+    load_neighborhood_rows,
+    neighborhood_footer,
+    superseded_by_refs,
+)
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     canonicalize_artifact_link_ref,
@@ -83,6 +88,7 @@ def handle_read(args: argparse.Namespace) -> int:
             recorded_link=recorded_link,
             resolved_path=path,
         )
+        link_ref, link_rows = _link_neighborhood(result)
         if recorded_link:
             try:
                 _record_read_link(result, reason=str(args.reason))
@@ -90,6 +96,7 @@ def handle_read(args: argparse.Namespace) -> int:
                 print(f"Error: could not record read link: {exc}", file=sys.stderr)
         else:
             print(_READ_NOT_RECORDED, file=sys.stderr)
+        _print_neighborhood(link_ref, link_rows)
     except ArtifactReadError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -262,6 +269,33 @@ def _record_read_link(result: ResolvedArtifactReference, *, reason: str) -> None
             "uses": 1,
         }
     )
+
+
+def _link_neighborhood(
+    result: ResolvedArtifactReference,
+) -> tuple[str | None, tuple[dict[str, object], ...]]:
+    """Load the stored link rows touching *result*, before this read is recorded."""
+
+    try:
+        canonical = canonicalize_artifact_link_ref(
+            render_artifact_ref(replace(result.parsed, fragment=None))
+        )
+    except Exception:  # noqa: BLE001 - neighborhood lookup is best-effort
+        return None, ()
+    return canonical, load_neighborhood_rows(canonical)
+
+
+def _print_neighborhood(
+    canonical: str | None, rows: tuple[dict[str, object], ...]
+) -> None:
+    if canonical is None or not rows:
+        return
+    superseded_by = superseded_by_refs(canonical, rows)
+    if superseded_by:
+        print(f"warning: superseded by {', '.join(superseded_by)}", file=sys.stderr)
+    footer = neighborhood_footer(canonical, rows)
+    if footer is not None:
+        print(footer, file=sys.stderr)
 
 
 def _should_record_link() -> bool:

@@ -18,8 +18,8 @@ def handle_link_relation(args: argparse.Namespace) -> int:
     """Dispatch one parsed ``sase artifact link relation`` subcommand."""
 
     handlers = {
-        "list": handle_link_relation_list,
-        "show": handle_link_relation_show,
+        "list": _handle_link_relation_list,
+        "show": _handle_link_relation_show,
     }
     subcommand = getattr(args, "relation_subcommand", None)
     handler = handlers.get(subcommand) if isinstance(subcommand, str) else None
@@ -29,7 +29,7 @@ def handle_link_relation(args: argparse.Namespace) -> int:
     return handler(args)
 
 
-def handle_link_relation_list(args: argparse.Namespace) -> int:
+def _handle_link_relation_list(args: argparse.Namespace) -> int:
     """List every relation in the closed registry."""
 
     relations = assembled_artifact_relations()
@@ -41,7 +41,7 @@ def handle_link_relation_list(args: argparse.Namespace) -> int:
     return 0
 
 
-def handle_link_relation_show(args: argparse.Namespace) -> int:
+def _handle_link_relation_show(args: argparse.Namespace) -> int:
     """Show one relation's direction, worked examples, and recommended kinds."""
 
     try:

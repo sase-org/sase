@@ -149,6 +149,79 @@ def test_read_json_and_line_limit(
     assert payload["text"].splitlines() == ["one", "two"]
 
 
+def test_read_prints_link_neighborhood_footer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    path = tmp_path / "doc.md"
+    path.write_text("# Heading\nbody line\n", encoding="utf-8")
+    result = resolved_reference(path, reference="plan:doc.md")
+    monkeypatch.setattr(
+        "sase.artifact_cli.read.resolve_cli_reference",
+        lambda _value: result,
+    )
+    from sase.sdd.artifact_link_store import canonicalize_artifact_link_ref
+
+    canonical = canonicalize_artifact_link_ref("plan:doc.md")
+    rows = (
+        {
+            "source_ref": canonical,
+            "relation": "implements",
+            "target_ref": "bead:sase-r8",
+        },
+        {
+            "source_ref": "agent:sase-tj.land",
+            "relation": "read",
+            "target_ref": canonical,
+        },
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.read.load_neighborhood_rows",
+        lambda _canonical: rows,
+    )
+
+    assert handle_read(_read_args()) == 0
+
+    err = capsys.readouterr().err
+    assert "Links: implements bead:sase-r8 · read-by agent:sase-tj.land" in err
+
+
+def test_read_warns_when_artifact_is_superseded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    path = tmp_path / "doc.md"
+    path.write_text("# Heading\nbody line\n", encoding="utf-8")
+    result = resolved_reference(path, reference="plan:doc.md")
+    monkeypatch.setattr(
+        "sase.artifact_cli.read.resolve_cli_reference",
+        lambda _value: result,
+    )
+    from sase.sdd.artifact_link_store import canonicalize_artifact_link_ref
+
+    canonical = canonicalize_artifact_link_ref("plan:doc.md")
+    rows = (
+        {
+            "source_ref": "plan:202608/v2_design.md",
+            "relation": "supersedes",
+            "target_ref": canonical,
+        },
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.read.load_neighborhood_rows",
+        lambda _canonical: rows,
+    )
+
+    assert handle_read(_read_args()) == 0
+
+    err = capsys.readouterr().err
+    assert "warning: superseded by plan:202608/v2_design.md" in err
+
+
 def test_read_binary_prints_open_pointer(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

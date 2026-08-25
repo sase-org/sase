@@ -61,6 +61,61 @@ def test_expands_document_chat_file_and_fragments(tmp_path: Path) -> None:
     assert f"@{artifact}" not in expanded
 
 
+def test_document_expansion_includes_one_hop_semantic_neighborhood(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = make_context(tmp_path)
+    plan = tmp_path / "plans" / "202607" / "plan.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Plan\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "sase.artifact_ref_prompt_rendering.load_neighborhood_rows",
+        lambda _canonical: (
+            {
+                "source_ref": "plan:202607/plan.md",
+                "relation": "implements",
+                "target_ref": "bead:sase-r8",
+            },
+            {
+                "source_ref": "agent:sase-tj.land",
+                "relation": "read",
+                "target_ref": "plan:202607/plan.md",
+            },
+        ),
+    )
+
+    expanded = process_artifact_references(
+        "Read @plans:202607/plan.md.", context=context
+    )
+
+    assert "(linked: implements bead:sase-r8)" in expanded
+    assert "read-by" not in expanded
+
+
+def test_document_expansion_omits_neighborhood_when_no_links(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = make_context(tmp_path)
+    plan = tmp_path / "plans" / "202607" / "plan.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Plan\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "sase.artifact_ref_prompt_rendering.load_neighborhood_rows",
+        lambda _canonical: (),
+    )
+
+    expanded = process_artifact_references(
+        "Read @plans:202607/plan.md.", context=context
+    )
+
+    assert expanded == "Read the 202607/plan.md file in the plans sidecar repo."
+    assert "linked:" not in expanded
+
+
 def test_expands_vcs_backed_file_to_materialized_cache_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

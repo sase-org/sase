@@ -21,6 +21,11 @@ from sase.artifact_ref_operations import (
 )
 from sase.artifact_ref_prompt_resolution import artifact_resolved_path
 from sase.artifact_ref_renderers import ArtifactRendererJinjaProtection
+from sase.sdd.artifact_link_neighborhood import (
+    launch_one_hop_neighborhood,
+    load_neighborhood_rows,
+)
+from sase.sdd.artifact_link_store import canonicalize_artifact_link_ref
 from sase.sidecar_ref_config import (
     DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT,
     sidecar_role_for_ref_kind,
@@ -144,7 +149,30 @@ def _document_expansion_text(
             raise RuntimeError("resolver returned no artifact path")
         available["checkout_path"] = str(resolved_path)
     values = {name: available[name] for name in used_placeholders}
-    return artifact_ref_expansion_render(expansion_format, values)
+    text = artifact_ref_expansion_render(expansion_format, values)
+    return _with_one_hop_neighborhood(reference, text)
+
+
+def _with_one_hop_neighborhood(reference: ArtifactRef, text: str) -> str:
+    """Append one typed hop of *reference*'s link neighborhood, if any.
+
+    Never expands transitively: only rows touching *reference* itself, so a
+    launch prompt stays predictable and small instead of pulling in a
+    two-hop context explosion.
+    """
+
+    try:
+        canonical = canonicalize_artifact_link_ref(
+            render_artifact_ref(replace(reference, fragment=None))
+        )
+        items = launch_one_hop_neighborhood(
+            canonical, load_neighborhood_rows(canonical)
+        )
+    except Exception:  # noqa: BLE001 - neighborhood expansion is best-effort
+        return text
+    if not items:
+        return text
+    return f"{text} (linked: {' · '.join(items)})"
 
 
 def _path_file_text(resolved_path: Path | None) -> str:

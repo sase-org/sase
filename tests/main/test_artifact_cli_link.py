@@ -13,8 +13,8 @@ from sase.artifact_cli.link_migrate import handle_link_migrate_notes
 from sase.artifact_cli.link_ops import handle_link_add, handle_link_list, handle_link_rm
 from sase.artifact_cli.link_relations import (
     handle_link_relation,
-    handle_link_relation_list,
-    handle_link_relation_show,
+    _handle_link_relation_list,
+    _handle_link_relation_show,
 )
 from sase.main.parser import create_parser
 from sase.sdd.artifact_link_store import ArtifactLinkStore
@@ -234,7 +234,7 @@ def test_migrate_notes_apply_and_dry_run_succeed(
 def test_relation_show_prints_direction_and_examples(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    assert handle_link_relation_show(argparse.Namespace(slug="implements")) == 0
+    assert _handle_link_relation_show(argparse.Namespace(slug="implements")) == 0
     output = " ".join(capsys.readouterr().out.split())
     assert "implemented-by" in output
     assert "plan is the source, the bead is the target" in output
@@ -248,7 +248,8 @@ def test_relation_show_json_emits_full_registry_entry(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert (
-        handle_link_relation_show(argparse.Namespace(slug="implements", json=True)) == 0
+        _handle_link_relation_show(argparse.Namespace(slug="implements", json=True))
+        == 0
     )
     payload = json.loads(capsys.readouterr().out)
     assert payload["slug"] == "implements"
@@ -263,14 +264,14 @@ def test_relation_show_json_emits_full_registry_entry(
 def test_relation_show_unknown_slug_errors(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    assert handle_link_relation_show(argparse.Namespace(slug="bogus")) == 1
+    assert _handle_link_relation_show(argparse.Namespace(slug="bogus")) == 1
     assert "unknown relation" in capsys.readouterr().err
 
 
 def test_relation_list_covers_every_builtin_slug(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    assert handle_link_relation_list(argparse.Namespace(json=True)) == 0
+    assert _handle_link_relation_list(argparse.Namespace(json=True)) == 0
     payload = json.loads(capsys.readouterr().out)
     slugs = {item["slug"] for item in payload}
     assert slugs == {
