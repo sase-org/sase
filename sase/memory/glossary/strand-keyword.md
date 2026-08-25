@@ -2,5 +2,5 @@
 keyword: Strand Keyword
 ---
 
-The display key a Memory Strand is addressed by, distinct from its filename slug, which
-is its identity.
+The `keyword:` a Memory Strand is addressed by, as `<web>:<keyword>`, together with any
+`aliases:`. It is distinct from the strand's filename slug, which is its identity.
