@@ -9,16 +9,28 @@ from typing import Any
 from sase.artifact_cli.references import resolve_cli_reference
 from sase.artifact_read_log import read_artifact_read_events
 from sase.core.rust import require_rust_binding
+from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
+from sase.sdd._artifact_link_projection import safety_body
+from sase.sdd._artifact_link_store_support import (
+    kind_of_ref,
+    read_artifact_link_index,
+)
 from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
     resolve_artifact_link_store,
 )
 from sase.sdd.artifact_link_outbox import inspect_artifact_link_outbox
 from sase.sdd.referenced_by_doctor import missing_referenced_by_indexes
-from sase.sdd.referenced_by_index import document_has_referenced_by_block
+from sase.sdd.referenced_by_index import (
+    REFERENCED_BY_LINKS_DIR,
+    document_has_referenced_by_block,
+)
 
 
 _LINKS_START = "<!-- sase:links:start -->"
+_LINKS_END = "<!-- sase:links:end -->"
+_REFERENCED_BY_START = "<!-- sase:referenced-by:start -->"
+_REFERENCED_BY_END = "<!-- sase:referenced-by:end -->"
 _RESOLVED = frozenset({"exact", "drifted", "vcs_backed"})
 
 
@@ -28,8 +40,10 @@ class ArtifactLinkHealthReport:
 
     skipped: bool
     dangling: tuple[str, ...] = ()
+    unpublished_agent_refs: tuple[str, ...] = ()
     stale_tables: tuple[str, ...] = ()
     missing_companions: tuple[str, ...] = ()
+    orphaned_companions: tuple[str, ...] = ()
     missing_head_indexes: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
     read_events: int = 0
@@ -40,6 +54,7 @@ class ArtifactLinkHealthReport:
     outbox_entries: int = 0
     outbox_dropped: int = 0
     rebuilt: bool = False
+    repaired_renames: int = 0
 
     @property
     def healthy(self) -> bool:
@@ -50,6 +65,7 @@ class ArtifactLinkHealthReport:
                 self.dangling,
                 self.stale_tables,
                 self.missing_companions,
+                self.orphaned_companions,
                 self.missing_head_indexes,
                 self.errors,
             )
@@ -71,7 +87,23 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         sidecar_rows = store.durable_sidecar_rows()
     except Exception as exc:  # noqa: BLE001 - surface unsupported v1/schema errors
         return ArtifactLinkHealthReport(skipped=False, errors=(str(exc),))
-    dangling = _dangling_refs(rows, store)
+    dangling, unpublished_agents = _dangling_refs(rows, store)
+    orphaned_companions = _orphaned_link_indexes(store)
+    repaired_renames = 0
+    if fix:
+        repair = repair_historical_artifact_renames(
+            store,
+            (*dangling, *orphaned_companions),
+        )
+        repaired_renames = len(repair.renames) if repair.changed else 0
+        if repair.changed:
+            try:
+                rows = [dict(row) for row in store.load_aggregate().get("rows", [])]
+                sidecar_rows = store.durable_sidecar_rows()
+                dangling, unpublished_agents = _dangling_refs(rows, store)
+                orphaned_companions = _orphaned_link_indexes(store)
+            except Exception as exc:  # noqa: BLE001 - report the failed repair.
+                return ArtifactLinkHealthReport(skipped=False, errors=(str(exc),))
     stale = _stale_tables(store, rows)
     missing_companions = _missing_companions(rows)
     missing_head = _missing_head_indexes(store)
@@ -95,8 +127,10 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
     return ArtifactLinkHealthReport(
         skipped=False,
         dangling=tuple(dangling),
+        unpublished_agent_refs=tuple(unpublished_agents),
         stale_tables=tuple(stale),
         missing_companions=tuple(missing_companions),
+        orphaned_companions=tuple(orphaned_companions),
         missing_head_indexes=tuple(missing_head),
         read_events=read_events,
         recorded_read_events=recorded_read_events,
@@ -106,6 +140,7 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         outbox_entries=0 if outbox is None else outbox.queued,
         outbox_dropped=0 if outbox is None else outbox.dropped,
         rebuilt=fix,
+        repaired_renames=repaired_renames,
     )
 
 
@@ -124,9 +159,13 @@ def _read_row_count(rows: tuple[dict[str, Any], ...]) -> int:
     return len(seen)
 
 
-def _dangling_refs(rows: list[dict[str, Any]], store: ArtifactLinkStore) -> list[str]:
+def _dangling_refs(
+    rows: list[dict[str, Any]],
+    store: ArtifactLinkStore,
+) -> tuple[list[str], list[str]]:
     seen: set[str] = set()
     dangling: list[str] = []
+    unpublished_agents: list[str] = []
     bead_ids = _known_bead_ids(store)
     for row in rows:
         for key in ("source_ref", "target_ref"):
@@ -141,11 +180,17 @@ def _dangling_refs(rows: list[dict[str, Any]], store: ArtifactLinkStore) -> list
             try:
                 result = resolve_cli_reference(ref)
             except (RuntimeError, ValueError):
-                dangling.append(ref)
+                if kind_of_ref(ref) == "agent":
+                    unpublished_agents.append(ref)
+                else:
+                    dangling.append(ref)
                 continue
             if result.resolution.status not in _RESOLVED:
-                dangling.append(ref)
-    return sorted(dangling)
+                if kind_of_ref(ref) == "agent":
+                    unpublished_agents.append(ref)
+                else:
+                    dangling.append(ref)
+    return sorted(dangling), sorted(unpublished_agents)
 
 
 def _known_bead_ids(store: ArtifactLinkStore) -> set[str] | None:
@@ -261,9 +306,52 @@ def _missing_companions(rows: list[dict[str, Any]]) -> list[str]:
     return sorted(missing)
 
 
+def _orphaned_link_indexes(store: ArtifactLinkStore) -> list[str]:
+    orphaned: list[str] = []
+    seen: set[str] = set()
+    for kind, root in store.sidecar_roots.items():
+        links_root = root / REFERENCED_BY_LINKS_DIR
+        if not links_root.is_dir():
+            continue
+        for path in sorted(links_root.rglob("*.json")):
+            relative = path.relative_to(links_root).as_posix()
+            if not relative.endswith(".json"):
+                continue
+            fallback_ref = f"{kind}:{relative[: -len('.json')]}"
+            try:
+                index = read_artifact_link_index(path, artifact_ref=fallback_ref)
+            except Exception:  # noqa: BLE001 - malformed indexes are separate health.
+                continue
+            ref = str(index.get("artifact_ref") or fallback_ref)
+            if ref in seen:
+                continue
+            seen.add(ref)
+            artifact_path = _artifact_path_for(root, ref)
+            if artifact_path is not None and not artifact_path.is_file():
+                orphaned.append(ref)
+    return sorted(orphaned)
+
+
+def _artifact_path_for(root: Path, artifact_ref: str) -> Path | None:
+    try:
+        _kind, separator, relpath = artifact_ref.partition(":")
+        if not separator or not relpath:
+            return None
+        relative = Path(relpath)
+        if relative.is_absolute() or any(
+            part in {"", ".", ".."} for part in relative.parts
+        ):
+            return None
+    except (TypeError, ValueError):
+        return None
+    return root / relative
+
+
 def _missing_head_indexes(store: ArtifactLinkStore) -> list[str]:
     missing: list[str] = []
     for kind, root in store.sidecar_roots.items():
+        if not root.is_dir():
+            continue
         for relpath in missing_referenced_by_indexes(root):
             missing.append(f"{kind}:{relpath}")
     return sorted(missing)
@@ -341,8 +429,18 @@ def _rebuild_existing_projections(
             updated = str(upsert(text, table))
         except (TypeError, ValueError):
             continue
+        if _has_unmatched_managed_marker(text):
+            continue
+        if safety_body(updated) != safety_body(text):
+            continue
         if updated != text:
             path.write_text(updated, encoding="utf-8")
+
+
+def _has_unmatched_managed_marker(text: str) -> bool:
+    return text.count(_LINKS_START) != text.count(_LINKS_END) or text.count(
+        _REFERENCED_BY_START
+    ) != text.count(_REFERENCED_BY_END)
 
 
 __all__ = ["ArtifactLinkHealthReport", "inspect_artifact_link_health"]

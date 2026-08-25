@@ -275,6 +275,43 @@ def test_reconcile_aggregate_collects_sidecar_rows_from_known_workspace_stores(
     }
 
 
+def test_reconcile_aggregate_skips_unreadable_sibling_workspace_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    plans_a = tmp_path / "clone-a" / "plans"
+    plans_b = tmp_path / "clone-b" / "plans"
+    plans_a.mkdir(parents=True)
+    plans_b.mkdir(parents=True)
+    store_a = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans_a},
+    )
+    store_b = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans_b},
+    )
+    store_a.upsert_row(_row(source="plan:202608/a.md", target="plan:202608/b.md"))
+    stale = plans_b / "links" / "202608" / "old.md.json"
+    stale.parent.mkdir(parents=True)
+    stale.write_text(
+        json.dumps({"schema_version": 1, "artifact_ref": "plan:202608/old.md"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        ArtifactLinkStore,
+        "_iter_reconciliation_stores",
+        lambda _self: iter((store_a, store_b)),
+    )
+
+    reconciled = store_a.reconcile_aggregate()
+
+    assert [(row["source_ref"], row["target_ref"]) for row in reconciled["rows"]] == [
+        ("plan:202608/a.md", "plan:202608/b.md")
+    ]
+    assert len(store_a.durable_sidecar_rows()) == 1
+
+
 def test_reconcile_aggregate_skips_unpublished_agent_rows(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -291,7 +291,7 @@ class ArtifactLinkStore:
             unique_rows(
                 row
                 for store in self._iter_reconciliation_stores()
-                for row in store._iter_sidecar_rows()
+                for row in self._iter_reconciliation_sidecar_rows(store)
                 if self._row_is_publishable(row)
             )
         )
@@ -301,8 +301,8 @@ class ArtifactLinkStore:
 
         collected: list[dict[str, Any]] = []
         for store in self._iter_reconciliation_stores():
-            collected.extend(store._iter_sidecar_rows())
-            collected.extend(store._iter_bead_rows())
+            collected.extend(self._iter_reconciliation_sidecar_rows(store))
+            collected.extend(self._iter_reconciliation_bead_rows(store))
         collected.extend(self.load_aggregate().get("rows", []))
         return {
             "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
@@ -657,6 +657,26 @@ class ArtifactLinkStore:
                     continue
                 if remember(store):
                     yield store
+
+    def _iter_reconciliation_sidecar_rows(
+        self,
+        store: ArtifactLinkStore,
+    ) -> Iterable[dict[str, Any]]:
+        try:
+            yield from store._iter_sidecar_rows()
+        except Exception:  # noqa: BLE001 - sibling clones prove nothing.
+            if store._store_identity() == self._store_identity():
+                raise
+
+    def _iter_reconciliation_bead_rows(
+        self,
+        store: ArtifactLinkStore,
+    ) -> Iterable[dict[str, Any]]:
+        try:
+            yield from store._iter_bead_rows()
+        except Exception:  # noqa: BLE001 - sibling clones prove nothing.
+            if store._store_identity() == self._store_identity():
+                raise
 
     def _store_identity(self) -> tuple[tuple[tuple[str, str], ...], str | None]:
         roots = tuple(

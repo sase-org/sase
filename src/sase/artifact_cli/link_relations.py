@@ -10,7 +10,6 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
-from sase.core.rust import require_rust_binding
 from sase.sdd.artifact_link_store import assembled_artifact_relations
 
 
@@ -44,12 +43,9 @@ def _handle_link_relation_list(args: argparse.Namespace) -> int:
 def _handle_link_relation_show(args: argparse.Namespace) -> int:
     """Show one relation's direction, worked examples, and recommended kinds."""
 
-    try:
-        relation = dict(
-            require_rust_binding("artifact_relation_lookup")(str(args.slug))
-        )
-    except (RuntimeError, TypeError, ValueError) as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+    relation = _lookup_relation(str(args.slug))
+    if relation is None:
+        print(f"Error: unknown relation: {args.slug}", file=sys.stderr)
         return 1
     if bool(getattr(args, "json", False)):
         json.dump(relation, sys.stdout, indent=2)
@@ -93,6 +89,17 @@ def _print_relation_detail(relation: dict[str, Any]) -> None:
     target_kinds = ", ".join(relation.get("recommended_target_kinds") or []) or "any"
     console.print(f"Recommended source kinds: {source_kinds}")
     console.print(f"Recommended target kinds: {target_kinds}")
+
+
+def _lookup_relation(slug: str) -> dict[str, Any] | None:
+    return next(
+        (
+            dict(relation)
+            for relation in assembled_artifact_relations()
+            if relation.get("slug") == slug
+        ),
+        None,
+    )
 
 
 __all__ = ["handle_link_relation"]

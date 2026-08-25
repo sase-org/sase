@@ -16,6 +16,8 @@ from sase.sdd._artifact_link_projection import (
     render_artifact_link_projection,
     safety_body,
 )
+from sase.sdd._artifact_link_renames import consume_recent_artifact_renames
+from sase.sdd._artifact_link_store_support import sidecar_kind_for_role
 from sase.sdd._referenced_by_refresh_models import (
     ReferencedByRefreshAction,
     ReferencedByRefreshIssue,
@@ -52,6 +54,13 @@ def refresh_artifact_links_locked(
         store,
         project=requests[0].project if requests else None,
     )
+    if write:
+        rename_report = consume_recent_artifact_renames(
+            link_store,
+            repo_root=repo_root,
+            kind=sidecar_kind_for_role(role),
+        )
+        changed_paths.extend(rename_report.changed_paths)
     for artifact_id, group in sorted(grouped.items()):
         asset = (repo_root / group[0].repo_relpath).resolve(strict=False)
         if not asset.is_relative_to(repo_root) or not asset.is_file():

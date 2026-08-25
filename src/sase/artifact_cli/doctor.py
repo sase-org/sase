@@ -149,8 +149,15 @@ def _print_report(
     else:
         _add_ids(table, "Artifact link errors", link_report.errors)
         _add_ids(table, "Dangling link refs", link_report.dangling)
+        _add_ids(
+            table,
+            "Unpublished agent refs",
+            link_report.unpublished_agent_refs,
+            healthy=True,
+        )
         _add_ids(table, "Stale Links tables", link_report.stale_tables)
         _add_ids(table, "Missing companions", link_report.missing_companions)
+        _add_ids(table, "Orphaned links/ indexes", link_report.orphaned_companions)
         _add_ids(
             table,
             "Rendered block missing links/ JSON in HEAD",
@@ -179,6 +186,11 @@ def _print_report(
         table.add_row("Read-link outbox dropped", str(link_report.outbox_dropped))
         if link_report.rebuilt:
             table.add_row("Link aggregate", "[green]rebuilt[/green]")
+        if link_report.repaired_renames:
+            table.add_row(
+                "Renamed link refs repaired",
+                f"[green]{link_report.repaired_renames}[/green]",
+            )
 
     Console().print(
         Panel(

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
+import subprocess
+from types import SimpleNamespace
 
 import pytest
 
@@ -102,6 +105,228 @@ def test_inspect_fix_reconciles_aggregate(
 
     assert calls == ["reconcile"]
     assert report.rebuilt is True
+    assert report.healthy is True
+
+
+def test_inspect_fix_repairs_historical_research_rename(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    root = tmp_path / "research"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "SASE Test"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "sase-test@example.invalid"],
+        cwd=root,
+        check=True,
+    )
+    source = root / "202608" / "source.md"
+    lead = root / "202608" / "lead.md"
+    source.parent.mkdir(parents=True)
+    source.write_text("# Source\n", encoding="utf-8")
+    lead.write_text("# Lead\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=root, check=True)
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"research": root},
+    )
+    store.upsert_row(
+        {
+            "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+            "source_ref": "research:202608/lead.md",
+            "relation": "derives-from",
+            "target_ref": "research:202608/source.md",
+            "description": "lead consolidation includes the source report",
+            "origin": "manual",
+            "created_by": "agent",
+            "created_at": "2026-08-21T00:00:00Z",
+            "uses": 1,
+        }
+    )
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "add links"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "mv", "202608/source.md", "202608/source_renamed.md"],
+        cwd=root,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-q", "-am", "rename source"], cwd=root, check=True
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.resolve_artifact_link_store",
+        lambda: store,
+    )
+
+    def resolve(ref: str) -> object:
+        status = "missing" if ref.endswith("source.md") else "exact"
+        return SimpleNamespace(
+            resolution=SimpleNamespace(status=status, resolved_path=None)
+        )
+
+    monkeypatch.setattr("sase.artifact_cli.link_health.resolve_cli_reference", resolve)
+
+    report = inspect_artifact_link_health(fix=True)
+
+    assert report.dangling == ()
+    assert report.orphaned_companions == ()
+    assert report.repaired_renames == 1
+    assert report.healthy is True
+    assert not (root / "links" / "202608" / "source.md.json").exists()
+    payload = json.loads(
+        (root / "links" / "202608" / "source_renamed.md.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert payload["artifact_ref"] == "research:202608/source_renamed.md"
+    assert payload["rows"][0]["target_ref"] == "research:202608/source_renamed.md"
+
+
+def test_inspect_fix_does_not_reintroduce_renamed_rows_from_sibling_clone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    root = tmp_path / "research"
+    sibling = tmp_path / "sibling-research"
+    root.mkdir()
+    sibling.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "SASE Test"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "sase-test@example.invalid"],
+        cwd=root,
+        check=True,
+    )
+    source = root / "202608" / "source.md"
+    lead = root / "202608" / "lead.md"
+    source.parent.mkdir(parents=True)
+    source.write_text("# Source\n", encoding="utf-8")
+    lead.write_text("# Lead\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=root, check=True)
+    row = {
+        "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+        "source_ref": "research:202608/lead.md",
+        "relation": "derives-from",
+        "target_ref": "research:202608/source.md",
+        "description": "lead consolidation includes the source report",
+        "origin": "manual",
+        "created_by": "agent",
+        "created_at": "2026-08-21T00:00:00Z",
+        "uses": 1,
+    }
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"research": root},
+    )
+    sibling_store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"research": sibling},
+    )
+    store.upsert_row(row)
+    sibling_store.upsert_row(row)
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "add links"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "mv", "202608/source.md", "202608/source_renamed.md"],
+        cwd=root,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-q", "-am", "rename source"], cwd=root, check=True
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.resolve_artifact_link_store",
+        lambda: store,
+    )
+    monkeypatch.setattr(
+        ArtifactLinkStore,
+        "_iter_reconciliation_stores",
+        lambda _self: iter((store, sibling_store)),
+    )
+
+    def resolve(ref: str) -> object:
+        status = "missing" if ref.endswith("source.md") else "exact"
+        return SimpleNamespace(
+            resolution=SimpleNamespace(status=status, resolved_path=None)
+        )
+
+    monkeypatch.setattr("sase.artifact_cli.link_health.resolve_cli_reference", resolve)
+
+    report = inspect_artifact_link_health(fix=True)
+
+    assert report.dangling == ()
+    aggregate_targets = {row["target_ref"] for row in store.load_aggregate()["rows"]}
+    assert "research:202608/source.md" not in aggregate_targets
+    assert "research:202608/source_renamed.md" in aggregate_targets
+
+
+def test_unpublished_agent_refs_are_informational(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    plans = tmp_path / "plans"
+    (plans / "202608").mkdir(parents=True)
+    (plans / "202608" / "a.md").write_text("# A\n", encoding="utf-8")
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans},
+    )
+    store.upsert_row(
+        {
+            "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+            "source_ref": "agent:pending.athena.worker",
+            "relation": "cites",
+            "target_ref": "plan:202608/a.md",
+            "description": "prompt citation",
+            "origin": "prompt_ref",
+            "created_by": "pending.athena.worker",
+            "created_at": "2026-08-21T00:00:00Z",
+            "uses": 1,
+        }
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.resolve_artifact_link_store",
+        lambda: store,
+    )
+
+    def resolve(ref: str) -> object:
+        status = "missing" if ref.startswith("agent:") else "exact"
+        return SimpleNamespace(
+            resolution=SimpleNamespace(status=status, resolved_path=None)
+        )
+
+    monkeypatch.setattr("sase.artifact_cli.link_health.resolve_cli_reference", resolve)
+
+    report = inspect_artifact_link_health()
+
+    assert report.dangling == ()
+    assert report.unpublished_agent_refs == ("agent:pending.athena.worker",)
+    assert report.healthy is True
+
+
+def test_missing_sidecar_roots_are_skipped_for_head_index_check(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"research": tmp_path / "missing-research"},
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.resolve_artifact_link_store",
+        lambda: store,
+    )
+
+    report = inspect_artifact_link_health()
+
+    assert report.missing_head_indexes == ()
     assert report.healthy is True
 
 
@@ -276,6 +501,55 @@ def test_missing_derived_row_projection_is_reported_stale(
     report = inspect_artifact_link_health()
 
     assert report.stale_tables == ("plan:x.md",)
+
+
+def test_fix_does_not_rewrite_when_marker_text_is_unmanaged_prose(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    plans = tmp_path / "plans"
+    plans.mkdir()
+    document = plans / "x.md"
+    original = (
+        "# X\n\n"
+        "| Layer | Contract |\n"
+        "| --- | --- |\n"
+        "| Projection | `<!-- sase:links:start -->` appears in docs prose |\n\n"
+        "Body that must stay intact.\n"
+    )
+    document.write_text(original, encoding="utf-8")
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans},
+    )
+    store.upsert_row(
+        {
+            "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+            "source_ref": "plan:x.md",
+            "relation": "implements",
+            "target_ref": "bead:sase-tw",
+            "description": "derived from plan bead_id: frontmatter",
+            "origin": "derived",
+            "created_by": "sase",
+            "created_at": "2026-08-25T00:00:00Z",
+            "uses": 1,
+        }
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.resolve_artifact_link_store",
+        lambda: store,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.resolve_cli_reference",
+        lambda _ref: SimpleNamespace(
+            resolution=SimpleNamespace(status="exact", resolved_path=None)
+        ),
+    )
+
+    inspect_artifact_link_health(fix=True)
+
+    assert document.read_text(encoding="utf-8") == original
 
 
 def test_doctor_reports_skipped_link_checks_for_missing_store(

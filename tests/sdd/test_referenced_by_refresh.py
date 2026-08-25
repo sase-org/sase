@@ -43,6 +43,42 @@ def _request() -> ReferencedByOutboxItem:
     )
 
 
+def _research_request(artifact_id: str, repo_relpath: str) -> ReferencedByOutboxItem:
+    return ReferencedByOutboxItem(
+        project_key="proj",
+        project="Project",
+        global_agent="alice.athena.worker",
+        agent_url="https://example.test/agents/worker",
+        primary_revision="a" * 40,
+        sidecar_role="research",
+        provider="research",
+        artifact_id=artifact_id,
+        repo_relpath=repo_relpath,
+        identity_value=None,
+        canonical_ref=artifact_id,
+        destination="https://example.test/prompts/example.md",
+        uses=1,
+        published_date="2026-08-12",
+        description=f"prompt reference @{artifact_id}",
+    )
+
+
+def _init_git_repo(root: Path) -> None:
+    root.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "SASE Test"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "sase-test@example.invalid"],
+        cwd=root,
+        check=True,
+    )
+
+
+def _git_commit(root: Path, message: str) -> None:
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", message], cwd=root, check=True)
+
+
 def test_refresh_referenced_by_dry_write_and_second_write_are_idempotent(
     tmp_path: Path,
     monkeypatch,
@@ -126,6 +162,104 @@ def test_refresh_referenced_by_dry_write_and_second_write_are_idempotent(
     assert second.changed_files == ()
     assert not second.committed
     assert len(committed) == 1
+
+
+def test_refresh_artifact_links_follows_committed_research_rename(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    root = tmp_path / "research"
+    _init_git_repo(root)
+    left = root / "202608" / "source.md"
+    right = root / "202608" / "lead.md"
+    left.parent.mkdir(parents=True)
+    left.write_text("# Source\n\nBody\n", encoding="utf-8")
+    right.write_text("# Lead\n\nBody\n", encoding="utf-8")
+    _git_commit(root, "initial research")
+    store = SddStore(
+        "sidecar_repos",
+        tmp_path / "plans",
+        tmp_path / "plans",
+        sidecar_dirs={"research": root},
+    )
+    from sase.sdd.artifact_link_store import ArtifactLinkStore
+
+    link_store = ArtifactLinkStore(
+        project_key="proj",
+        sidecar_roots={"research": root},
+    )
+    link_store.upsert_row(
+        {
+            "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+            "source_ref": "research:202608/lead.md",
+            "relation": "derives-from",
+            "target_ref": "research:202608/source.md",
+            "description": "lead consolidation includes the source report",
+            "origin": "manual",
+            "created_by": "alice.athena.worker",
+            "created_at": "2026-08-12T00:00:00Z",
+            "uses": 1,
+        }
+    )
+    _git_commit(root, "add artifact links")
+    subprocess.run(
+        ["git", "mv", "202608/source.md", "202608/source_renamed.md"],
+        cwd=root,
+        check=True,
+    )
+    _git_commit(root, "rename source")
+    monkeypatch.setattr(
+        "sase.sdd.referenced_by_refresh._pull_rebase_if_remote",
+        lambda _repo_root: None,
+    )
+    monkeypatch.setattr(
+        "sase.file_references.format_markdown_files_with_prettier",
+        lambda _paths: True,
+    )
+
+    report = refresh_referenced_by(
+        store,
+        role="research",
+        requests=(
+            _research_request(
+                "research:202608/source_renamed.md",
+                "202608/source_renamed.md",
+            ),
+        ),
+        write=True,
+    )
+
+    assert report.ok and report.committed
+    old_index = root / "links" / "202608" / "source.md.json"
+    new_index = root / "links" / "202608" / "source_renamed.md.json"
+    lead_index = root / "links" / "202608" / "lead.md.json"
+    assert not old_index.exists()
+    new_rows = json.loads(new_index.read_text(encoding="utf-8"))["rows"]
+    lead_rows = json.loads(lead_index.read_text(encoding="utf-8"))["rows"]
+    assert {
+        (row["source_ref"], row["relation"], row["target_ref"])
+        for row in (*new_rows, *lead_rows)
+    } >= {
+        (
+            "research:202608/lead.md",
+            "derives-from",
+            "research:202608/source_renamed.md",
+        ),
+    }
+    aggregate_rows = link_store.load_aggregate()["rows"]
+    assert not any(
+        "research:202608/source.md" in {row["source_ref"], row["target_ref"]}
+        for row in aggregate_rows
+    )
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert status == ""
 
 
 def test_refresh_artifact_links_writes_v2_tables_after_plan_header(
