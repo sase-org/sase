@@ -918,10 +918,15 @@ projection, and `beads.db` remains a local compatibility cache. They are kept in
   so duplicate closes cannot move `closed_at` or erase a close reason. Reopening or
   otherwise moving out of `closed` ends the interval and archives its close metadata as
   a [close-history](#close-history) record instead of discarding it.
-- **Note appends** use `note_appended` events whose payload stores only the new entry
-  text. The reducer renders the timestamped attribution from the event metadata, so
-  concurrent note appends merge as separate entries instead of replacing each other.
-  Legacy `issue_updated { notes }` events remain whole-field replacements.
+- **Notes are a structured, append-only log**, not a free-text blob. `note_appended`
+  events store only the new entry text; the reducer builds a timestamped, attributed
+  record from the event's own metadata, so concurrent note appends merge as separate
+  records instead of replacing each other. `sase bead note --edit`/`--remove` record
+  their own events and stamp an `edited_at`/`edited_by` marker rather than mutating the
+  original record in place; a retraction stays visible in `sase bead history`. Legacy
+  `issue_updated { notes }` events (written before this log existed) remain immutable
+  whole-field replacements in the stream; on replay their blob is parsed back into
+  individually timestamped and attributed records instead of one opaque string.
 
 The `.gitignore` excludes `beads.db*` files. The event store, `issues.jsonl`, and
 `config.json` are tracked in git.
@@ -1346,8 +1351,13 @@ later updates replaced. JSON emits one envelope with `issue_id`, `schema_version
 `entries`. A duplicate close that the reducer treated as inert is labeled as redundant
 instead of rendering as an empty change row.
 
-Use `--lost-notes` to report notes snapshots whose nonblank text no longer appears in
-the current notes. With no positional ID it scans the whole store; with an ID it checks
+`--lost-notes` is a historical repair for stores that predate the append-only note log:
+it reports notes snapshots whose nonblank text no longer appears in the current notes,
+the pattern only the old whole-field `sase bead update --notes` replacement could
+produce. Since notes are structured, append-only records now — appending, editing, and
+retracting each keep their own event and never overwrite another record's bytes — new
+data cannot lose a note this way; the check exists to find and fix damage already done
+to older stores. With no positional ID it scans the whole store; with an ID it checks
 only that bead. Findings are sorted by bead ID. Add `--restore` to preview
 provenance-tagged appends, prompt once, and restore every finding through the same
 atomic append mutation used by `sase bead note`. Restoration is idempotent: restored
@@ -1477,17 +1487,35 @@ flags bound bead creation time, unlike ACE's `since:` and `until:` filter tokens
 bound last activity. A bead with no usable creation timestamp is omitted whenever a
 creation-date bound is present.
 
-### `sase bead note <id> <text>`
+### `sase bead note <id> [<text>]`
 
-Append one timestamped, attributed entry to an issue's notes. The mutation records a
-`note_appended` event containing only the entry text; the reducer renders
-`[<timestamp> · <author>] <text>` from event metadata and separates it from existing
-notes by a blank line. The mutation runs atomically in the Rust bead store, and
-concurrent note writers merge as separate events rather than replacing each other.
+Append, edit, or retract one entry in an issue's note log. A bead's notes are a list of
+records, not one free-text field: each record carries its own `timestamp`, `author`,
+`text`, and (once edited) `edited_at`/`edited_by`. `sase bead show` renders one dated,
+attributed block per record, addressed by a 1-based ordinal (`#1`, `#2`, …) that shifts
+whenever an earlier record is removed — re-read `show` after any edit or removal before
+addressing another one by ordinal.
 
-| Flag           | Description                                                               |
-| -------------- | ------------------------------------------------------------------------- |
-| `-a, --author` | Author recorded on the entry; defaults to current agent, then store owner |
+With no `--edit`/`--remove`, `text` is required and the mutation records a
+`note_appended` event containing only the new entry text; the reducer builds the
+timestamped, attributed record from the event's own metadata. The mutation runs
+atomically in the Rust bead store, and concurrent note writers merge as separate records
+rather than replacing each other. `--edit N` rewrites record `#N`'s text and stamps
+`edited_at`/`edited_by`, keeping the original `timestamp`/`author`; `sase bead show`
+renders the edit marker alongside the record. `--remove N` retracts record `#N`; the
+rendered log drops it, but `sase bead history` still replays the original. `--edit` and
+`--remove` resolve the ordinal to the record's stable ID before writing any event,
+reject an out-of-range ordinal without writing, and are mutually exclusive; `--edit`
+requires `text`, `--remove` forbids it.
+
+For the flattened text projection every legacy consumer expects (search indexes, bead
+pages, `--field notes`), see `notes_text` under [`sase bead show`](#sase-bead-show-id).
+
+| Flag           | Description                                                                            |
+| -------------- | -------------------------------------------------------------------------------------- |
+| `-a, --author` | Author recorded on a new entry; defaults to current agent, then store owner            |
+| `-e, --edit`   | Rewrite note `#N` (mutually exclusive with `--remove`); `N` is the ordinal from `show` |
+| `-x, --remove` | Retract note `#N` (mutually exclusive with `--edit`); `sase bead history` keeps it     |
 
 ### `sase bead onboard`
 
@@ -1639,8 +1667,17 @@ Each `artifact_links` row includes both stored endpoints, the stored and
 perspective-aware relations, direction (`outgoing`, `incoming`, or `symmetric`),
 counterpart ref, reason, origin, actor, timestamp, and uses. The existing `issue.links`
 outbound storage projection remains unchanged by default. `--no-links` omits both human
-link sections, the top-level `artifact_links` array, and `issue.links`. The `issue.size`
-key is always present and is `null` for a bead with no stored size. The
+link sections, the top-level `artifact_links` array, and `issue.links`.
+
+`issue.notes` is a breaking change from earlier releases: it is the list of structured
+note records (`id`, `timestamp`, `author`, `text`, `edited_at`, `edited_by`), not a
+single string. `issue.notes_text` is new and carries the flattened
+`[<timestamp> · <author>] <text>` projection every prior consumer of `issue.notes`
+actually wanted; a caller that parsed the old string field should switch to
+`notes_text`. `sase bead search --format json` reports the same flattened text under its
+own per-result `notes` key in `matched_fields`, unrelated to this detail-envelope shape.
+
+The `issue.size` key is always present and is `null` for a bead with no stored size. The
 `issue.external_ref` key is always present and is an empty string for a bead with no
 external reference set. `sase bead list --format json` and
 `sase bead search --format json` include the same `external_ref` key on every issue.
@@ -1772,7 +1809,7 @@ unaffected — same syntax, output line, and commit message as before.
 | `-s, --status`             | Change status                                                                                                                                                |
 | `-t, --title`              | Change title                                                                                                                                                 |
 | `-d, --description`        | Change description                                                                                                                                           |
-| `-n, --notes`              | Replace notes                                                                                                                                                |
+| `-n, --note`               | Append this attributed note to each listed issue. A value of `@<path>` is read from that file.                                                               |
 | `-D, --design`             | Change plan path                                                                                                                                             |
 | `-a, --assignee`           | Change assignee                                                                                                                                              |
 | `-x, --external-ref`       | Set the external issue identity (mutually exclusive with `-X`); see [`sase bead create`](#sase-bead-create) for accepted forms. Must be unique across beads. |
@@ -1785,8 +1822,13 @@ unaffected — same syntax, output line, and commit message as before.
 `task_type` is immutable: `sase bead update` has no `--task-type`. An attempt is
 rejected with a message pointing at close-and-recreate.
 
-Use `sase bead update --notes` for an explicit field replacement. Use `sase bead note`
-when recording progress that should accumulate with earlier notes.
+`sase bead update --notes` was removed: it used to replace the whole note field,
+destroying every earlier note. Notes are append-only now, and `--note` appends the same
+attributed record to every named bead inside the same mutation — a batch form of
+`sase bead note`. `--notes` still parses (hidden from `--help`) so passing it exits
+non-zero with a message pointing at `sase bead note` (single bead) or
+`sase bead update --note` (batch) instead of failing as an unrecognized argument. Use
+`sase bead note --edit`/`--remove` to correct or retract an individual record.
 
 Beads whose requested fields already hold the requested values are quiet no-ops: they
 are reported as `Unchanged`, excluded from the commit, and an all-no-op batch writes

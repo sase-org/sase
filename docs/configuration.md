@@ -4786,7 +4786,7 @@ With no subcommand, `sase bead task-type` defaults to `sase bead task-type list`
 | `-s, --status`      | `open`, `claimed`, `ready`, `in_progress`, `closed` | -          | Change status; `ready` is task-only      |
 | `-t, --title`       | string                                              | -          | Change title                             |
 | `-d, --description` | string                                              | -          | Change description                       |
-| `-n, --notes`       | string                                              | -          | Change notes                             |
+| `-n, --note`        | string                                              | -          | Append an attributed note to each issue  |
 | `-D, --design`      | path                                                | -          | Change design path; all types accepted   |
 | `-a, --assignee`    | string                                              | -          | Change assignee                          |
 | `-m, --model`       | string                                              | -          | Change launch model                      |
