@@ -63,12 +63,19 @@ class Dependency:
 
 @dataclass(frozen=True)
 class BeadLink:
-    """One outbound typed link stored on a bead."""
+    """One typed link stored on a bead.
+
+    ``target_ref`` always names the *other* endpoint. ``direction`` says
+    whether this bead is that row's source (``"out"``, the historical and
+    default shape) or target (``"in"``).
+    """
 
     target_ref: str
     relation: str
     description: str
     origin: str = "manual"
+    direction: str = "out"
+    uses: int = 1
 
 
 @dataclass(frozen=True)

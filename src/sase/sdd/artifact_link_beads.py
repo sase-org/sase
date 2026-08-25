@@ -1,8 +1,11 @@
 """Bead-store truth for typed artifact links.
 
-Sidecar ``links/`` JSON never owns ``bead:`` rows. Outbound edges live in
-``LinkAdded`` / ``LinkRemoved`` events; inbound edges are computed from other
-beads and from document JSON.
+Sidecar ``links/`` JSON never owns ``bead:`` rows. Every bead endpoint of a
+row gets its own ``LinkAdded`` / ``LinkRemoved`` event on its own stream:
+``direction="out"`` when the bead is the row's source, ``direction="in"``
+when it is the target. A row with a bead in both positions is stored on
+both beads; the duplicate canonical row that produces collapses under
+``unique_rows``.
 """
 
 from __future__ import annotations
@@ -42,9 +45,19 @@ def add_bead_endpoint_link(
     relation: str,
     description: str,
     origin: str,
+    direction: str = "out",
+    uses: int = 1,
     now: str | None = None,
 ) -> dict[str, Any]:
-    """Write one LinkAdded event."""
+    """Write one LinkAdded event.
+
+    *direction* is ``"out"`` when *issue_id* is the row's source (the
+    historical shape) and ``"in"`` when it is the row's target. *target_ref*
+    always names the other endpoint regardless of direction. *uses* seeds a
+    brand-new stored link; a rewrite of an existing one ignores it and
+    increments the existing count instead, mirroring the aggregate's own
+    upsert semantics.
+    """
     from sase.core import bead_mutation_facade as rust_beads
 
     _issue, outcome = rust_beads.add_link(
@@ -54,6 +67,8 @@ def add_bead_endpoint_link(
         relation,
         description,
         origin=origin,
+        direction=direction,
+        uses=uses,
         now=now,
     )
     return outcome
@@ -65,6 +80,7 @@ def remove_bead_endpoint_link(
     issue_id: str,
     target_ref: str,
     relation: str | None,
+    direction: str = "out",
     now: str | None = None,
 ) -> dict[str, Any]:
     """Write LinkRemoved events."""
@@ -75,6 +91,7 @@ def remove_bead_endpoint_link(
         issue_id,
         target_ref,
         relation=relation,
+        direction=direction,
         now=now,
     )
     return outcome
@@ -86,17 +103,23 @@ def rows_from_bead_issues(
     created_by: str = "bead-store",
     created_at: str = "1970-01-01T00:00:00Z",
 ) -> tuple[dict[str, Any], ...]:
-    """Project stored outbound bead links into v2 aggregate rows."""
+    """Project stored bead links into v2 aggregate rows.
+
+    A link stored with ``direction="in"`` has the owning bead in the
+    target position, so it projects back into canonical order: the stored
+    ``target_ref`` (the other endpoint) becomes the row's ``source_ref``,
+    and the owning bead becomes the row's ``target_ref``.
+    """
 
     rows: list[dict[str, Any]] = []
     for issue in issues:
-        source_ref = bead_source_ref(issue.id)
+        own_ref = bead_source_ref(issue.id)
         stamp = issue.updated_at or issue.created_at or created_at
         actor = issue.owner or issue.created_by or created_by
         for link in issue.links:
             rows.append(
                 _row_from_bead_link(
-                    source_ref=source_ref,
+                    own_ref=own_ref,
                     link=link,
                     created_by=actor,
                     created_at=stamp,
@@ -128,21 +151,25 @@ def rows_touching_bead(
 
 def _row_from_bead_link(
     *,
-    source_ref: str,
+    own_ref: str,
     link: BeadLink,
     created_by: str,
     created_at: str,
 ) -> dict[str, Any]:
+    if link.direction == "in":
+        source_ref, target_ref = link.target_ref, own_ref
+    else:
+        source_ref, target_ref = own_ref, link.target_ref
     return {
         "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
         "source_ref": source_ref,
         "relation": link.relation,
-        "target_ref": link.target_ref,
+        "target_ref": target_ref,
         "description": link.description,
         "origin": link.origin,
         "created_by": created_by or "bead-store",
         "created_at": created_at or "1970-01-01T00:00:00Z",
-        "uses": 1,
+        "uses": link.uses,
     }
 
 

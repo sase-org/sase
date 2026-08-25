@@ -180,12 +180,18 @@ def _links_from_data(value: object) -> list[BeadLink]:
         description = str(item.get("description") or "")
         if not target_ref or not relation:
             continue
+        try:
+            uses = int(item.get("uses", 1))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            uses = 1
         links.append(
             BeadLink(
                 target_ref=target_ref,
                 relation=relation,
                 description=description,
                 origin=str(item.get("origin") or "manual"),
+                direction=str(item.get("direction") or "out"),
+                uses=uses if uses > 0 else 1,
             )
         )
     return links

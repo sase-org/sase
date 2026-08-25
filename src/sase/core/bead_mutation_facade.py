@@ -390,6 +390,8 @@ def add_link(
     description: str,
     *,
     origin: str = "manual",
+    direction: str = "out",
+    uses: int = 1,
     now: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
     _guard_bead_store_write(beads_dir, "add_link")
@@ -402,6 +404,8 @@ def add_link(
         relation,
         description,
         origin,
+        direction,
+        uses,
         now,
     )
     return _issue_payload(payload), payload
@@ -413,12 +417,19 @@ def remove_link(
     target_ref: str,
     *,
     relation: str | None = None,
+    direction: str = "out",
     now: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
     _guard_bead_store_write(beads_dir, "remove_link")
     binding = require_rust_binding("bead_remove_link")
     payload = _call_issue_operation(
-        binding, str(beads_dir), issue_id, target_ref, relation, now
+        binding,
+        str(beads_dir),
+        issue_id,
+        target_ref,
+        relation,
+        direction,
+        now,
     )
     return _issue_payload(payload), payload
 

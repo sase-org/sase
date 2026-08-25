@@ -107,13 +107,19 @@ class ArtifactLinkStore:
             and self.sidecar_root_for(target) is None
         )
 
-    def _source_is_bead_authoritative(self, row: Mapping[str, Any]) -> bool:
-        """Return whether this workspace has bead truth for the row source."""
+    def _bead_endpoint_is_authoritative(self, row: Mapping[str, Any]) -> bool:
+        """Return whether this workspace has bead truth for either endpoint.
+
+        A bead re-derives both its outbound and inbound link events from
+        its own event stream, so a bead in either endpoint position is
+        proof this workspace can confirm a prior row's deletion.
+        """
 
         if self.beads_dir is None:
             return False
         source = str(row.get("source_ref") or "")
-        return kind_of_ref(source) == BEAD_KIND
+        target = str(row.get("target_ref") or "")
+        return kind_of_ref(source) == BEAD_KIND or kind_of_ref(target) == BEAD_KIND
 
     def _sidecar_truth_was_consulted(self, row: Mapping[str, Any]) -> bool:
         """Return whether a visible companion index can prove row deletion."""
@@ -127,7 +133,7 @@ class ArtifactLinkStore:
     def _authoritative_source_was_consulted(self, row: Mapping[str, Any]) -> bool:
         """Return whether a missing prior row is proven deleted here."""
 
-        return self._source_is_bead_authoritative(row) or (
+        return self._bead_endpoint_is_authoritative(row) or (
             self._sidecar_truth_was_consulted(row)
         )
 
@@ -312,6 +318,37 @@ class ArtifactLinkStore:
         self._write_aggregate(document)
         return document
 
+    def backfill_bead_endpoint_links(self) -> dict[str, int]:
+        """Write the inbound event a one-sided write never produced.
+
+        Scans every aggregate and sidecar row with a bead in the target
+        position and writes that bead's ``direction="in"`` endpoint event
+        when it does not already exist. Idempotent: a second run writes
+        nothing. Returns candidate and written counts for reporting.
+        """
+
+        if self.beads_dir is None:
+            return {"candidates": 0, "written": 0}
+        candidates: dict[tuple[str, str, str], dict[str, Any]] = {}
+        for row in (
+            *self.load_aggregate().get("rows", ()),
+            *self._iter_sidecar_rows(),
+        ):
+            target = str(row.get("target_ref") or "")
+            if kind_of_ref(target) != BEAD_KIND:
+                continue
+            source = str(row.get("source_ref") or "")
+            relation = str(row.get("relation") or "")
+            candidates[(source, relation, target)] = dict(row)
+        written = 0
+        for row in candidates.values():
+            result = self._upsert_bead(row)
+            if result is not None and str(result.get("kind") or "") == "added":
+                written += 1
+        if candidates:
+            self.rebuild_aggregate()
+        return {"candidates": len(candidates), "written": written}
+
     def _upsert_sidecar(
         self, artifact_ref: str, incoming: Mapping[str, Any]
     ) -> dict[str, Any] | None:
@@ -432,23 +469,56 @@ class ArtifactLinkStore:
             bead_id_from_ref,
         )
 
-        issue_id = bead_id_from_ref(str(incoming["source_ref"]))
-        if issue_id is None:
-            return None
+        source_ref = str(incoming["source_ref"])
+        target_ref = str(incoming["target_ref"])
+        relation = str(incoming["relation"])
+        description = str(incoming["description"])
+        origin = str(incoming.get("origin") or "manual")
         created_at = str(incoming.get("created_at") or "").strip() or None
-        payload = add_bead_endpoint_link(
-            self.beads_dir,
-            issue_id=issue_id,
-            target_ref=str(incoming["target_ref"]),
-            relation=str(incoming["relation"]),
-            description=str(incoming["description"]),
-            origin=str(incoming.get("origin") or "manual"),
-            now=created_at,
-        )
+        try:
+            uses = int(incoming.get("uses", 1))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            uses = 1
+        uses = uses if uses > 0 else 1
+
+        writes: list[dict[str, Any]] = []
+        source_issue_id = bead_id_from_ref(source_ref)
+        if source_issue_id is not None:
+            writes.append(
+                add_bead_endpoint_link(
+                    self.beads_dir,
+                    issue_id=source_issue_id,
+                    target_ref=target_ref,
+                    relation=relation,
+                    description=description,
+                    origin=origin,
+                    direction="out",
+                    uses=uses,
+                    now=created_at,
+                )
+            )
+        target_issue_id = bead_id_from_ref(target_ref)
+        if target_issue_id is not None and target_issue_id != source_issue_id:
+            writes.append(
+                add_bead_endpoint_link(
+                    self.beads_dir,
+                    issue_id=target_issue_id,
+                    target_ref=source_ref,
+                    relation=relation,
+                    description=description,
+                    origin=origin,
+                    direction="in",
+                    uses=uses,
+                    now=created_at,
+                )
+            )
+        if not writes:
+            return None
+        changed = any(bool(payload.get("changed")) for payload in writes)
         return {
-            "kind": "added" if payload.get("changed") else "unchanged",
+            "kind": "added" if changed else "unchanged",
             "row": dict(incoming),
-            "rows": [dict(row) for row in payload.get("rows", [])],
+            "rows": [],
         }
 
     def _remove_bead_rows(
@@ -472,18 +542,28 @@ class ArtifactLinkStore:
         ]
         if not before:
             return []
-        seen_ids: set[str] = set()
+        # A stored link's direction depends on which of source/target this
+        # bead occupied when it was written, which this removal call cannot
+        # know in advance (an undirected ``related`` edge, in particular,
+        # may have landed as either). Try both directions per candidate
+        # bead; a direction the bead does not actually hold is a no-op.
+        seen: set[tuple[str, str]] = set()
         for ref, other in ((source, target), (target, source)):
             issue_id = bead_id_from_ref(ref)
-            if issue_id is None or issue_id in seen_ids:
+            if issue_id is None:
                 continue
-            seen_ids.add(issue_id)
-            remove_bead_endpoint_link(
-                self.beads_dir,
-                issue_id=issue_id,
-                target_ref=other,
-                relation=relation,
-            )
+            for direction in ("out", "in"):
+                key = (issue_id, direction)
+                if key in seen:
+                    continue
+                seen.add(key)
+                remove_bead_endpoint_link(
+                    self.beads_dir,
+                    issue_id=issue_id,
+                    target_ref=other,
+                    relation=relation,
+                    direction=direction,
+                )
         return before
 
     def _load_bead_rows(self, artifact_ref: str) -> tuple[dict[str, Any], ...]:

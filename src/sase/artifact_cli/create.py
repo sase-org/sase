@@ -121,12 +121,54 @@ def _bead_exists(bead_id: str) -> bool:
 
 
 def _attach_reference_to_bead(bead_id: str, reference: str) -> int:
-    """Attach *reference* through the same write path ``sase bead ref`` uses."""
+    """Attach *reference* to *bead_id* as a typed ``related`` artifact link.
 
-    from sase.main.bead_fast_path import execute_bead_cli
+    ``reference_added`` (``sase bead ref add``) is a legacy, untyped
+    vocabulary; this writes through the same typed-link store path
+    ``sase artifact link add`` uses instead of adding to it.
+    """
 
-    exit_code = execute_bead_cli(["ref", "add", bead_id, reference], materialize=True)
-    return 1 if exit_code is None else exit_code
+    from datetime import UTC, datetime
+
+    from sase.agent.identity import discover_agent_identity
+    from sase.sdd._artifact_link_commit import (
+        ArtifactLinkPersistError,
+        persist_artifact_link_graph_mutation,
+    )
+    from sase.sdd.artifact_link_store import (
+        ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+        resolve_artifact_link_store,
+    )
+
+    identity = discover_agent_identity()
+    created_by = (
+        identity.name if identity is not None else (os.environ.get("USER") or "unknown")
+    )
+    row = {
+        "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+        "source_ref": reference,
+        "relation": "related",
+        "target_ref": f"bead:{bead_id}",
+        "description": "attached via sase artifact create --bead",
+        "origin": "manual",
+        "created_by": created_by,
+        "created_at": datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "uses": 1,
+    }
+    try:
+        store = resolve_artifact_link_store()
+        outcome = store.upsert_row(row)
+        persist_artifact_link_graph_mutation(
+            store,
+            changed_indexes=tuple(
+                Path(path) for path in outcome.get("changed_indexes") or ()
+            ),
+            beads_changed=bool(outcome.get("beads_changed")),
+        )
+    except (RuntimeError, TypeError, ValueError, ArtifactLinkPersistError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    return 0
 
 
 def _error(message: str) -> int:

@@ -34,6 +34,7 @@ def agent_workspace(
     workspace.mkdir()
     with BeadProject.init(workspace) as project:
         bead = project.create("Cited work", IssueType.PLAN)
+    beads_dir = project.beads_dir
 
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
@@ -45,12 +46,34 @@ def agent_workspace(
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
     monkeypatch.delenv(SASE_BEAD_ID_ENV, raising=False)
     monkeypatch.chdir(workspace)
+
+    # This fixture is a bare bead store, not a registered SASE project, so
+    # the full checkout-anchor resolution `resolve_artifact_link_store` uses
+    # in a real agent workspace has nothing to find. Point it at this test's
+    # own store directly instead of registering a whole project.
+    import sase.sdd.artifact_link_store as artifact_link_store_module
+    from sase.sdd.artifact_link_store import ArtifactLinkStore
+
+    monkeypatch.setattr(
+        artifact_link_store_module,
+        "resolve_artifact_link_store",
+        lambda: ArtifactLinkStore(
+            project_key="test-project", sidecar_roots={}, beads_dir=beads_dir
+        ),
+    )
     return source, bead.id
 
 
-def _stored_refs(workspace: Path, bead_id: str) -> list[str]:
+def _stored_links(workspace: Path, bead_id: str) -> list[str]:
     with BeadProject(workspace) as project:
-        return list(project.show(bead_id).refs)
+        issue = project.show(bead_id)
+        # The bead is the target of the ``related`` row this call writes
+        # (the artifact is the source), so it is stored inbound.
+        return [
+            link.target_ref
+            for link in issue.links
+            if link.relation == "related" and link.direction == "in"
+        ]
 
 
 def test_an_explicit_bead_id_receives_the_minted_reference(
@@ -68,7 +91,7 @@ def test_an_explicit_bead_id_receives_the_minted_reference(
         if line.startswith("ref: ")
     )
     assert f"bead: {bead_id}" in output
-    assert _stored_refs(Path.cwd(), bead_id) == [reference]
+    assert _stored_links(Path.cwd(), bead_id) == [reference]
 
 
 def test_a_bare_flag_attaches_to_the_agents_own_bead(
@@ -83,7 +106,7 @@ def test_a_bare_flag_attaches_to_the_agents_own_bead(
 
     output = capsys.readouterr().out
     assert f"bead: {bead_id}" in output
-    stored = _stored_refs(Path.cwd(), bead_id)
+    stored = _stored_links(Path.cwd(), bead_id)
     assert len(stored) == 1
     assert stored[0].startswith("file:explicit:")
 
@@ -126,4 +149,4 @@ def test_omitting_the_flag_leaves_every_bead_untouched(
     output = capsys.readouterr().out
     assert "ref: file:explicit:" in output
     assert "bead:" not in output
-    assert _stored_refs(Path.cwd(), bead_id) == []
+    assert _stored_links(Path.cwd(), bead_id) == []
