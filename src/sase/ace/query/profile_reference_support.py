@@ -127,6 +127,8 @@ def _parse_date_bound_value(key: str, value: str, *, position: int) -> int:
             return int(start.timestamp())
         days = calendar.monthrange(start.year, start.month)[1]
         return int((start + timedelta(days=days)).timestamp()) - 1
+    if _INTEGER_RE.fullmatch(value):
+        return int(value)
     try:
         return parse_time_bound(value).resolve(
             now=now,

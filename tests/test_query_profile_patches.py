@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+from sase.ace.query import canonical_query_for_profile
 from sase.ace.query.types import to_canonical_string
 from sase.ace.query_profile import compile_query_profile, patches_query_schema
 from sase.core.query_facade import parse_query
@@ -83,3 +86,35 @@ def test_patches_profile_predicates_match_the_zero_arg_shorthands() -> None:
         to_canonical_string(expr)
     star_expr = parse_query("*")
     assert to_canonical_string(star_expr) == "!!! OR @@@ OR $$$"
+
+
+def test_patches_profile_dotted_name_canonical_round_trip_is_parseable() -> None:
+    profile = compile_query_profile(patches_query_schema())
+
+    canonical = canonical_query_for_profile('name:"sase-r8.9"', profile)
+    assert canonical == "name:sase-r8.9"
+    assert canonical_query_for_profile(canonical, profile) == canonical
+
+
+@pytest.mark.parametrize(
+    ("source", "canonical"),
+    [
+        ('"feature"', '"feature"'),
+        ("%w", "status:WIP"),
+        ("+sase", "project:sase"),
+        ("^grand", "ancestor:grand"),
+        ("~kid", "sibling:kid"),
+        ("&kid__1", "name:kid__1"),
+        ("!!!", "!!!"),
+        ("@@@", "@@@"),
+        ("$$$", "$$$"),
+        ("+sase AND (%w OR %y)", "project:sase AND (status:WIP OR status:READY)"),
+    ],
+)
+def test_patches_profile_existing_boolean_queries_keep_canonical_form(
+    source: str, canonical: str
+) -> None:
+    profile = compile_query_profile(patches_query_schema())
+
+    assert canonical_query_for_profile(source, profile) == canonical
+    assert canonical_query_for_profile(canonical, profile) == canonical

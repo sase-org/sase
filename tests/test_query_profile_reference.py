@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from sase.ace.query.profile_reference import (
@@ -21,6 +23,24 @@ from sase.ace.query_profile.profiles import (
     provider_query_schema,
     stitches_query_schema,
 )
+
+
+def _boolean_value_profile():
+    return compile_query_profile(
+        ArtifactQuerySchema(
+            pane_id="values",
+            boolean=True,
+            fields=(
+                QueryFieldSpec(key="name", exact_match=True, searchable=True),
+                QueryFieldSpec(key="family", exact_match=True),
+                QueryFieldSpec(key="since", value_kind="date"),
+                QueryFieldSpec(key="until", value_kind="date"),
+                QueryFieldSpec(key="min", value_kind="int"),
+                QueryFieldSpec(key="attempt", value_kind="int"),
+                QueryFieldSpec(key="body", filterable=False, searchable=True),
+            ),
+        )
+    )
 
 
 def test_flat_profile_groups_repeatable_fields_with_or_and_negates() -> None:
@@ -300,12 +320,89 @@ def test_flat_profile_date_and_duration_values_normalize_canonically() -> None:
     assert before_epoch == until_epoch
     assert after_epoch == since_epoch
     assert int(before_epoch) > int(after_epoch)
+    assert canonical_query_for_profile(f"before:{before_epoch}", profile) == (
+        f"before:{before_epoch}"
+    )
+    assert canonical_query_for_profile(f"since:{since_epoch}", profile) == (
+        f"since:{since_epoch}"
+    )
     assert canonical_query_for_profile("min:30s max:2h", profile) == ("max:7200 min:30")
     assert canonical_query_for_profile("min:1d", profile) == "min:86400"
     with pytest.raises(ProfileQueryError, match="composite durations"):
         parse_query_for_profile("min:1h30m", profile)
     with pytest.raises(ProfileQueryError, match="must be an integer"):
         parse_query_for_profile("exit:5m", profile)
+
+
+@pytest.mark.parametrize(
+    ("source", "canonical"),
+    [
+        ("name:sase-r8.9.land", "name:sase-r8.9.land"),
+        ("name:0b4", "name:0b4"),
+        ("name:001--2", "name:001--2"),
+        ("family:research.12", "family:research.12"),
+        ("min:5m", "min:300"),
+        ("attempt:002", "attempt:2"),
+        ("9lives", '"9lives"'),
+        ("build.123", '"build.123"'),
+    ],
+)
+def test_boolean_profile_accepts_widened_bare_value_shapes(
+    source: str, canonical: str
+) -> None:
+    profile = _boolean_value_profile()
+
+    assert canonical_query_for_profile(source, profile) == canonical
+    assert canonical_query_for_profile(canonical, profile) == canonical
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["since:2h", "until:7d", "since:2026-08-01"],
+)
+def test_boolean_profile_accepts_date_values_and_round_trips(source: str) -> None:
+    profile = _boolean_value_profile()
+
+    canonical = canonical_query_for_profile(source, profile)
+    assert re.fullmatch(r"(since|until):\d+", canonical)
+    assert canonical_query_for_profile(canonical, profile) == canonical
+
+
+def test_boolean_profile_widened_values_evaluate_in_reference_engine() -> None:
+    profile = _boolean_value_profile()
+    since_epoch = int(
+        canonical_query_for_profile("since:2026-08-01", profile).removeprefix("since:")
+    )
+    rows = [
+        {
+            "stable_id": "target",
+            "fields": {
+                "name": "sase-r8.9.land",
+                "family": "research.12",
+                "since": since_epoch,
+                "min": 300,
+                "attempt": 2,
+                "body": "9lives",
+            },
+        },
+        {
+            "stable_id": "other",
+            "fields": {
+                "name": "0b4",
+                "family": "research.12",
+                "since": since_epoch - 1,
+                "min": 299,
+                "attempt": 1,
+                "body": "ordinary",
+            },
+        },
+    ]
+
+    query = (
+        "name:sase-r8.9.land AND family:research.12 AND "
+        "since:2026-08-01 AND min:5m AND attempt:2 AND 9lives"
+    )
+    assert evaluate_query_many_for_profile(query, rows, profile) == [True, False]
 
 
 def test_profile_coerces_typed_fields_and_degrades_malformed_rows() -> None:

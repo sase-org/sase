@@ -7,9 +7,9 @@
           "fields": {
             "project": "sase",
             "status": "READY",
-            "name": "alpha",
+            "name": "001--2",
             "ancestor": ["alpha"],
-            "sibling": "alpha",
+            "sibling": "001--2",
             "origin": "unknown"
           },
           "searchable_text": "Alpha feature query work",
@@ -20,9 +20,9 @@
           "fields": {
             "project": "sase-core",
             "status": "WIP",
-            "name": "beta",
+            "name": "sase-r8.9.land",
             "ancestor": ["beta", "alpha"],
-            "sibling": "beta",
+            "sibling": "sase-r8.9.land",
             "origin": "unknown"
           },
           "searchable_text": "Beta feature rust engine",
@@ -33,12 +33,12 @@
           "fields": {
             "project": "sase",
             "status": "DRAFT",
-            "name": "gamma",
+            "name": "0b4",
             "ancestor": ["gamma"],
-            "sibling": "gamma",
+            "sibling": "0b4",
             "origin": "external"
           },
-          "searchable_text": "Gamma migration docs",
+          "searchable_text": "Gamma migration docs 9lives",
           "predicates": ["error_suffix"]
         }
       ],
@@ -54,6 +54,18 @@
         "ancestor:alpha AND NOT status:DRAFT": {
           "canonical": "ancestor:alpha AND NOT status:DRAFT",
           "matches": ["patch-alpha", "patch-beta"]
+        },
+        "name:sase-r8.9.land": {
+          "canonical": "name:sase-r8.9.land",
+          "matches": ["patch-beta"]
+        },
+        "name:0b4 OR name:001--2": {
+          "canonical": "name:0b4 OR name:001--2",
+          "matches": ["patch-alpha", "patch-gamma"]
+        },
+        "9lives": {
+          "canonical": "\"9lives\"",
+          "matches": ["patch-gamma"]
         }
       },
       "errors": {

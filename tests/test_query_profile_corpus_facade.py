@@ -342,6 +342,22 @@ def _bounds_query_schema() -> ArtifactQuerySchema:
     )
 
 
+def _boolean_value_query_schema() -> ArtifactQuerySchema:
+    return ArtifactQuerySchema(
+        pane_id="values",
+        boolean=True,
+        fields=(
+            QueryFieldSpec(key="name", exact_match=True, searchable=True),
+            QueryFieldSpec(key="family", exact_match=True),
+            QueryFieldSpec(key="since", value_kind="date"),
+            QueryFieldSpec(key="until", value_kind="date"),
+            QueryFieldSpec(key="min", value_kind="int"),
+            QueryFieldSpec(key="attempt", value_kind="int"),
+            QueryFieldSpec(key="body", filterable=False, searchable=True),
+        ),
+    )
+
+
 @pytest.mark.parametrize(
     ("schema_builder", "query"),
     [
@@ -382,6 +398,88 @@ def test_flat_duration_pair_canonicalizes_through_rust_like_python() -> None:
     assert _canonicalize_artifact_query(query, profile) == canonical_query_for_profile(
         query, profile
     )
+
+
+@pytest.mark.parametrize(
+    ("query", "canonical"),
+    [
+        ("name:sase-r8.9.land", "name:sase-r8.9.land"),
+        ("name:0b4", "name:0b4"),
+        ("name:001--2", "name:001--2"),
+        ("family:research.12", "family:research.12"),
+        ("min:5m", "min:300"),
+        ("attempt:002", "attempt:2"),
+        ("9lives", '"9lives"'),
+    ],
+)
+def test_boolean_widened_values_parse_and_canonicalize_through_rust_like_python(
+    query: str, canonical: str
+) -> None:
+    profile = compile_query_profile(_boolean_value_query_schema())
+
+    assert canonical_query_for_profile(query, profile) == canonical
+    assert _parse_artifact_query(query, profile) == parse_query_for_profile(
+        query, profile
+    )
+    assert _canonicalize_artifact_query(query, profile) == canonical
+    assert _canonicalize_artifact_query(query, profile) == canonical_query_for_profile(
+        query, profile
+    )
+
+
+def test_boolean_date_values_evaluate_through_python_canonical_rust_route() -> None:
+    profile = compile_query_profile(_boolean_value_query_schema())
+    since_canonical = canonical_query_for_profile("since:2026-08-01", profile)
+    since_epoch = int(since_canonical.removeprefix("since:"))
+    relative_canonical = canonical_query_for_profile("since:2h", profile)
+    relative_epoch = int(relative_canonical.removeprefix("since:"))
+    rows = [
+        {
+            "stable_id": "old",
+            "fields": {
+                "name": "0b4",
+                "since": since_epoch - 1,
+                "min": 299,
+                "attempt": 1,
+            },
+            "searchable_text": "ordinary",
+        },
+        {
+            "stable_id": "target",
+            "fields": {
+                "name": "sase-r8.9.land",
+                "family": "research.12",
+                "since": max(since_epoch, relative_epoch),
+                "min": 300,
+                "attempt": 2,
+            },
+            "searchable_text": "9lives",
+        },
+    ]
+    index = compile_artifact_query_index(
+        pane_id=profile.pane_id, generation=1, profile=profile, entries=rows
+    )
+
+    absolute = evaluate_artifact_query_many("since:2026-08-01", index)
+    assert absolute.cache_key.canonical_query == since_canonical
+    assert absolute.matched_row_ids == ("target",)
+
+    relative = evaluate_artifact_query_many(
+        "since:2h",
+        index,
+        canonical_query=relative_canonical,
+    )
+    assert relative.cache_key.canonical_query == relative_canonical
+    assert relative.matched_row_ids == ("target",)
+
+    combined = evaluate_artifact_query_many(
+        (
+            "name:sase-r8.9.land AND family:research.12 AND "
+            "min:5m AND attempt:2 AND 9lives"
+        ),
+        index,
+    )
+    assert combined.matched_row_ids == ("target",)
 
 
 def test_rust_facade_matches_python_for_bare_flags_and_bound_keys() -> None:

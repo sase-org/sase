@@ -25,7 +25,7 @@ from sase.ace.query.types import (
 )
 from sase.ace.query_profile import CompiledQueryProfile
 
-_PROPERTY_VALUE_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
+_PROPERTY_VALUE_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*")
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,7 +208,7 @@ def _tokenize_boolean_query(
         elif char in {item.sigil for item in profile.sigils}:
             token, pos = _parse_field_sigil(query, pos, profile)
             tokens.append(token)
-        elif char.isalpha() or char == "_":
+        elif _is_bare_word_start_char(char):
             token, pos = _parse_word_or_property(query, pos, profile)
             tokens.append(token)
         else:
@@ -341,7 +341,7 @@ def _parse_word_or_property(
     profile: CompiledQueryProfile,
 ) -> tuple[_ProfileToken, int]:
     start = pos
-    while pos < len(query) and (query[pos].isalnum() or query[pos] in "_-"):
+    while pos < len(query) and _is_bare_word_char(query[pos]):
         pos += 1
     word = query[start:pos]
     word_upper = word.upper()
@@ -411,6 +411,14 @@ def _predicate_expr_for_name(name: str) -> StringMatch:
 
 def _standalone_at(query: str, pos: int) -> bool:
     return pos >= len(query) or query[pos].isspace()
+
+
+def _is_bare_word_start_char(char: str) -> bool:
+    return char.isalnum() or char == "_"
+
+
+def _is_bare_word_char(char: str) -> bool:
+    return char.isalnum() or char in "_.-"
 
 
 __all__ = ["parse_boolean_query"]
