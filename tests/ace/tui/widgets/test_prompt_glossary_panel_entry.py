@@ -50,7 +50,7 @@ async def test_ctrl_g_g_from_normal_posts_glossary_request() -> None:
         assert app.glossary_requests[0].note_identity is None
 
 
-async def test_glossary_request_carries_strand_identity_under_cursor(
+async def test_glossary_request_carries_identity_under_cursor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = GPrefixHintApp("see Agent Hood here")
@@ -67,7 +67,7 @@ async def test_glossary_request_carries_strand_identity_under_cursor(
                 object(),
                 SimpleNamespace(
                     term="Agent Hood",
-                    source={"source_path": "sase/memory/glossary/agent-hood.md"},
+                    source={"source_path": "/repo/sase/memory/glossary/agent-hood.md"},
                 ),
             ),
         )
@@ -79,7 +79,7 @@ async def test_glossary_request_carries_strand_identity_under_cursor(
         assert app.glossary_requests[0].note_identity == "glossary:agent-hood"
 
 
-async def test_glossary_request_is_none_without_a_strand_source_path(
+async def test_glossary_request_is_none_without_a_source_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = GPrefixHintApp("see Agent Hood here")
@@ -93,11 +93,11 @@ async def test_glossary_request_is_none_without_a_strand_source_path(
             lambda *, schedule=False: (
                 object(),
                 object(),
-                SimpleNamespace(term="Agent Hood", source=None),
+                SimpleNamespace(term="Agent Hood", source={}),
             ),
         )
 
-        await pilot.press("escape", "g", "G")
+        bar.request_open_glossary_panel()
         await pilot.pause()
 
         assert len(app.glossary_requests) == 1

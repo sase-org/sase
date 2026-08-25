@@ -150,7 +150,7 @@ async def test_embedded_launch_unchanged_close_does_not_refresh_indicators(
     assert close_calls == [True]
 
 
-async def test_config_hub_strip_thresholds_grow_for_six_labels(
+async def test_config_hub_strip_thresholds_grow_for_the_flags_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_hub_children(monkeypatch)
@@ -160,14 +160,16 @@ async def test_config_hub_strip_thresholds_grow_for_six_labels(
             pilot.app.push_screen(modal)
             await wait_for(pilot, lambda: modal._active_tab == "config")
             hub = modal.query_one("#config", ConfigHubPane)
+            assert len(hub._panel_tabs) == 5
             assert hub._compact_below == 69
-            assert hub._micro_below == 60
+            assert hub._micro_below == 49
     with override_flags(admin_center_flags=True):
         async with _HostApp().run_test() as pilot:
             modal = ConfigCenterModal(initial_tab="config")
             pilot.app.push_screen(modal)
             await wait_for(pilot, lambda: modal._active_tab == "config")
             hub = modal.query_one("#config", ConfigHubPane)
+            assert len(hub._panel_tabs) == 6
             assert hub._compact_below == 82
             assert hub._micro_below == 60
 

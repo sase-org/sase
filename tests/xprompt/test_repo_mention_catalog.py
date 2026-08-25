@@ -73,7 +73,7 @@ def _write_config(workspace: Path, body: str) -> Path:
 
 
 def _write_glossary_web(workspace: Path, *, term: str, slug: str) -> Path:
-    """Write a minimal ``glossary`` memory web claiming *term* and return it."""
+    """Write a minimal ``glossary`` memory web with one strand and return it."""
     descriptor = workspace / "sase" / "memory" / "glossary.md"
     descriptor.parent.mkdir(parents=True, exist_ok=True)
     descriptor.write_text(
@@ -133,10 +133,8 @@ def _setup_project(
     workspace.mkdir()
     if config_body:
         _write_config(workspace, config_body)
-    if glossary_term:
-        _write_glossary_web(
-            workspace, term=glossary_term, slug=glossary_term.casefold()
-        )
+    if glossary_term is not None:
+        _write_glossary_web(workspace, term=glossary_term, slug=glossary_term)
     record = _record("sase", workspace)
     monkeypatch.setattr(
         glossary_catalog, "list_project_records", lambda *_a, **_kw: [record]
@@ -153,7 +151,10 @@ def _load_catalog(
     glossary_term: str | None = None,
 ) -> catalog.EditorRepoMentionCatalogResult:
     _setup_project(
-        tmp_path, monkeypatch, config_body=config_body, glossary_term=glossary_term
+        tmp_path,
+        monkeypatch,
+        config_body=config_body,
+        glossary_term=glossary_term,
     )
     monkeypatch.setattr(
         catalog,

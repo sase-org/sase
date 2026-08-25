@@ -37,13 +37,14 @@ from .config_hub_session import (
 )
 
 _EMPTY_ID = "config-hub-empty"
-# Five-child strip (Flags off): full labels are 68 cells, so compact starts at 69.
+# Five-child strip (Flags off: All/Launch/Memory/Snippets/XPrompts): full
+# labels are 68 cells and compact labels (.../Snip/XP) are 48, so each tier
+# starts one cell above the widest strip it has to render.
 _CONFIG_TABS_COMPACT_BELOW_WIDTH = 69
-# Compact labels (All/Flags/Launch/Memory/Snip/XP) are 59 cells at the widest
-# six-child tier, so micro starts at 60 for both strips.
-_CONFIG_TABS_MICRO_BELOW_WIDTH = 60
-# Six-child strip (Flags on): full labels are 81 cells, so compact starts at 82.
+_CONFIG_TABS_MICRO_BELOW_WIDTH = 49
+# Six-child strip (Flags on): full labels are 81 cells, compact 59.
 _CONFIG_TABS_COMPACT_BELOW_WIDTH_WITH_FLAGS = 82
+_CONFIG_TABS_MICRO_BELOW_WIDTH_WITH_FLAGS = 60
 
 
 def _config_hub_strip_thresholds(tab_count: int) -> tuple[int, int]:
@@ -51,7 +52,7 @@ def _config_hub_strip_thresholds(tab_count: int) -> tuple[int, int]:
     if tab_count >= 6:
         return (
             _CONFIG_TABS_COMPACT_BELOW_WIDTH_WITH_FLAGS,
-            _CONFIG_TABS_MICRO_BELOW_WIDTH,
+            _CONFIG_TABS_MICRO_BELOW_WIDTH_WITH_FLAGS,
         )
     return _CONFIG_TABS_COMPACT_BELOW_WIDTH, _CONFIG_TABS_MICRO_BELOW_WIDTH
 
