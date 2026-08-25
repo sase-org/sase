@@ -7,6 +7,7 @@ import sys
 
 from sase.artifact_cli.link_migrate import handle_link_migrate_notes
 from sase.artifact_cli.link_ops import handle_link_add, handle_link_list, handle_link_rm
+from sase.artifact_cli.link_relations import handle_link_relation
 
 
 def handle_link(args: argparse.Namespace) -> int:
@@ -16,13 +17,14 @@ def handle_link(args: argparse.Namespace) -> int:
         "add": handle_link_add,
         "list": handle_link_list,
         "migrate-notes": handle_link_migrate_notes,
+        "relation": handle_link_relation,
         "rm": handle_link_rm,
     }
     subcommand = getattr(args, "link_subcommand", None)
     handler = handlers.get(subcommand) if isinstance(subcommand, str) else None
     if handler is None:
         print(
-            "Usage: sase artifact link {add,list,migrate-notes,rm}",
+            "Usage: sase artifact link {add,list,migrate-notes,relation,rm}",
             file=sys.stderr,
         )
         return 2

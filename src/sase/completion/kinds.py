@@ -123,6 +123,10 @@ def _build_path_overrides() -> dict[tuple[tuple[str, ...], str], ValueKind]:
         (("agent", "restart"), "name"): ValueKind.AGENT,
         (("agent", "revert"), "name"): ValueKind.AGENT,
         (("agent", "show"), "name"): ValueKind.AGENT,
+        (
+            ("artifact", "link", "relation", "show"),
+            "slug",
+        ): ValueKind.ARTIFACT_RELATION,
         (("memory", "read"), "selectors"): ValueKind.MEMORY,
         (("memory", "show"), "selectors"): ValueKind.MEMORY,
         (("plan", "show"), "target"): ValueKind.PLAN,

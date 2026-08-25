@@ -19,7 +19,7 @@ from sase.sdd.hosted_links import resolve_hosted_branch
 if TYPE_CHECKING:
     from sase.sdd.store import SddStore
 
-_CURATED_ORIGINS = frozenset({"manual", "migrated"})
+_CURATED_ORIGINS = frozenset({"manual", "migrated", "derived"})
 _AUTOMATIC_ORIGINS = frozenset({"prompt_ref", "read"})
 _MAX_RENDERED_ROWS = 50
 

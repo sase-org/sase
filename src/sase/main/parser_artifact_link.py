@@ -10,7 +10,7 @@ from sase.main.parser_bead import nonnegative_int
 def register_artifact_link_parser(
     artifact_subparsers: argparse._SubParsersAction,
 ) -> None:
-    """Register ``sase artifact link`` with add/list/migrate-notes/rm."""
+    """Register ``sase artifact link`` with add/list/migrate-notes/relation/rm."""
 
     link_parser = artifact_subparsers.add_parser(
         "link",
@@ -30,7 +30,8 @@ def register_artifact_link_parser(
             "  sase artifact link list plan:202608/a.md -d both\n"
             "  sase artifact link rm plan:202608/a.md bead:sase-js "
             "-R implements\n"
-            "  sase artifact link migrate-notes"
+            "  sase artifact link migrate-notes\n"
+            "  sase artifact link relation show implements"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -152,6 +153,51 @@ def register_artifact_link_parser(
         "--json",
         action="store_true",
         help="Emit a machine-readable migration plan",
+    )
+
+    relation_parser = link_subparsers.add_parser(
+        "relation",
+        help="Read the closed relation registry",
+        description=(
+            "Read the closed-registry relation vocabulary: direction, worked "
+            "examples, and recommended endpoint kinds. Bare `sase artifact "
+            "link relation` defaults to `list`."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase artifact link relation list\n"
+            "  sase artifact link relation show implements"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    relation_subparsers = relation_parser.add_subparsers(
+        dest="relation_subcommand",
+        help="Relation subcommands",
+    )
+    relation_list_parser = relation_subparsers.add_parser(
+        "list",
+        help="List every relation in the closed registry",
+    )
+    relation_list_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON array (stable schema)",
+    )
+    relation_show_parser = relation_subparsers.add_parser(
+        "show",
+        help="Show one relation's direction, worked examples, and recommended kinds",
+    )
+    relation_show_parser.add_argument(
+        "slug",
+        metavar="SLUG",
+        help="Relation slug (related, supersedes, implements, derives-from, ...)",
+    )
+    relation_show_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON object (stable schema)",
     )
 
     rm_parser = link_subparsers.add_parser(

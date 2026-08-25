@@ -34,6 +34,44 @@ def _linked_pair() -> tuple[View, Issue, Issue]:
     return View((left, right)), left, right
 
 
+def _derived_pair() -> tuple[View, Issue, Issue]:
+    left = Issue(
+        "sase-tw",
+        "Left",
+        issue_type=IssueType.PLAN,
+        status=Status.OPEN,
+        links=[
+            BeadLink(
+                target_ref="bead:sase-ct",
+                relation="related",
+                description="derived from a shared epic",
+                origin="derived",
+            )
+        ],
+    )
+    right = Issue(
+        "sase-ct",
+        "Right",
+        issue_type=IssueType.PLAN,
+        status=Status.OPEN,
+    )
+    return View((left, right)), left, right
+
+
+def test_bead_page_renders_derived_origin_links() -> None:
+    view, left, _right = _derived_pair()
+    rendered = render_bead_page(
+        cast(BeadProject, view),
+        left,
+        BeadAssociationIndex(MappingProxyType({})),
+        link_resolver=ReferenceLinks(),
+    )
+    assert "## Links" in rendered
+    assert "related" in rendered
+    assert "bead:sase-ct" in rendered
+    assert "derived from a shared epic" in rendered
+
+
 def test_bead_page_renders_links_and_second_refresh_does_not_drop_them() -> None:
     view, left, _right = _linked_pair()
     first = render_bead_page(

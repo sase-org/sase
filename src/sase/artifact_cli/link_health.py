@@ -202,7 +202,7 @@ def _curated_peer_keys(
     label = require_rust_binding("artifact_relation_label")
     for row in rows:
         origin = str(row.get("origin") or "")
-        if origin not in {"manual", "migrated"}:
+        if origin not in {"manual", "migrated", "derived"}:
             continue
         source = str(row.get("source_ref") or "")
         target = str(row.get("target_ref") or "")
@@ -297,7 +297,7 @@ def _rebuild_existing_projections(
         table_rows = []
         for row in touching:
             origin = str(row.get("origin") or "")
-            if origin not in {"manual", "migrated"}:
+            if origin not in {"manual", "migrated", "derived"}:
                 continue
             source = str(row.get("source_ref") or "")
             target = str(row.get("target_ref") or "")

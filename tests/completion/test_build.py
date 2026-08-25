@@ -58,6 +58,13 @@ def test_kind_resolution_precedence_on_real_tree() -> None:
     assert id_positional.kind is ValueKind.BEAD
 
 
+def test_relation_show_slug_is_artifact_relation_kinded() -> None:
+    spec = build_spec()
+    show = _by_path(spec.root, ("artifact", "link", "relation", "show"))
+    slug_positional = next(p for p in show.positionals if p.dest == "slug")
+    assert slug_positional.kind is ValueKind.ARTIFACT_RELATION
+
+
 def test_flag_key_positionals_are_flag_kinded() -> None:
     spec = build_spec()
     flag_group = _by_path(spec.root, ("flag",))

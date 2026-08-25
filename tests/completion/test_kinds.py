@@ -98,3 +98,6 @@ def test_path_overrides_cover_shipped_catalog_slots() -> None:
         ValueKind.ARTIFACT
     )
     assert NAME_TABLE["relation"] is ValueKind.ARTIFACT_RELATION
+    assert PATH_OVERRIDES[(("artifact", "link", "relation", "show"), "slug")] is (
+        ValueKind.ARTIFACT_RELATION
+    )
