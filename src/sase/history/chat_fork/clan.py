@@ -14,24 +14,24 @@ from sase.history.chat_resume import (
 )
 from sase.history.chat_storage import format_metadata_model, load_chat_history
 
-from .common import _fork_source_string, _json_string, _load_json_object
+from .common import fork_source_string, json_string, load_json_object
 
 
-def _format_clan_fork_source(
+def format_clan_fork_source(
     source: Mapping[str, object],
     *,
     index: int,
     count: int,
     resolve_resume_to_chat_path: ResolveResumeReference,
 ) -> str:
-    name = _fork_source_string(source, "name")
-    generation = _fork_source_string(source, "generation")
+    name = fork_source_string(source, "name")
+    generation = fork_source_string(source, "generation")
     raw_members = source.get("members")
     if not isinstance(raw_members, list) or not raw_members:
         raise ValueError(f"Clan fork source '{name}' has no members")
     members = sorted(
         (_require_fork_member(member, name) for member in raw_members),
-        key=lambda member: Path(_fork_source_string(member, "artifact_dir")).name,
+        key=lambda member: Path(fork_source_string(member, "artifact_dir")).name,
     )
 
     header_rows = [
@@ -75,20 +75,20 @@ def _format_clan_member(
     count: int,
     resolve_resume_to_chat_path: ResolveResumeReference,
 ) -> str:
-    name = _fork_source_string(member, "name")
-    path = _fork_source_string(member, "path")
-    artifact_dir = Path(_fork_source_string(member, "artifact_dir"))
+    name = fork_source_string(member, "name")
+    path = fork_source_string(member, "path")
+    artifact_dir = Path(fork_source_string(member, "artifact_dir"))
     turns = parse_chat_turns(load_chat_history(path))
     word_count = sum(len(response.split()) for _, response in turns)
     line_count = sum(len(response.splitlines()) for _, response in turns if response)
 
-    meta = _load_json_object(artifact_dir / "agent_meta.json")
-    done = _load_json_object(artifact_dir / "done.json")
-    outcome = _json_string(done, "outcome") or "unknown"
+    meta = load_json_object(artifact_dir / "agent_meta.json")
+    done = load_json_object(artifact_dir / "done.json")
+    outcome = json_string(done, "outcome") or "unknown"
     model = (
         format_metadata_model(
-            _json_string(meta, "llm_provider"),
-            _json_string(meta, "model"),
+            json_string(meta, "llm_provider"),
+            json_string(meta, "model"),
         )
         or "unknown"
     )

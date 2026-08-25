@@ -4,23 +4,23 @@ from collections.abc import Mapping
 
 from .common import (
     LoadChatForResume,
-    _blockquote,
-    _fork_source_optional_string,
-    _fork_source_string,
-    _format_text_fence,
-    _markdown_code_span,
+    blockquote,
+    fork_source_optional_string,
+    fork_source_string,
+    format_text_fence,
+    markdown_code_span,
 )
 
 _MAX_FAILURE_MESSAGE_CHARS = 4000
 _MAX_TRACEBACK_LINES = 20
-_FAILED_PARENT_GUIDANCE = (
+FAILED_PARENT_GUIDANCE = (
     "One or more parent sections are marked FAILED: those transcripts are "
     "incomplete and their work is unverified — check the marked sections before "
     "relying on anything they claim."
 )
 
 
-def _format_failed_agent_section(
+def format_failed_agent_section(
     source: Mapping[str, object],
     name: str,
     failure: Mapping[str, object],
@@ -28,7 +28,7 @@ def _format_failed_agent_section(
     heading: str,
     load_resume_history: LoadChatForResume,
 ) -> str:
-    return f"{heading} (FAILED)\n\n" + _format_failed_agent_body(
+    return f"{heading} (FAILED)\n\n" + format_failed_agent_body(
         source,
         name,
         failure,
@@ -37,7 +37,7 @@ def _format_failed_agent_section(
     )
 
 
-def _format_failed_agent_body(
+def format_failed_agent_body(
     source: Mapping[str, object],
     name: str,
     failure: Mapping[str, object],
@@ -91,7 +91,7 @@ def _format_failure_block(
     if error is None:
         rows.append("_(none recorded)_")
     else:
-        rows.append(_format_text_fence(_truncate_failure_message(error)))
+        rows.append(format_text_fence(_truncate_failure_message(error)))
 
     traceback = _failure_string(failure, "traceback")
     if traceback is not None:
@@ -100,7 +100,7 @@ def _format_failure_block(
                 "",
                 f"**Traceback (last {_MAX_TRACEBACK_LINES} lines):**",
                 "",
-                _format_text_fence(_traceback_tail(traceback)),
+                format_text_fence(_traceback_tail(traceback)),
             ]
         )
     return "\n".join(rows)
@@ -116,7 +116,7 @@ def _format_failed_transcript_section(
 ) -> str:
     heading = f"{'#' * heading_level} Transcript — agent `{name}`"
     if _failure_transcript_available(source, failure):
-        path = _fork_source_string(source, "path")
+        path = fork_source_string(source, "path")
         history = load_resume_history(path)
         return (
             f"{heading}\n\n{history}\n\n{_format_failed_transcript_end(name, failure)}"
@@ -129,7 +129,7 @@ def _format_failed_transcript_section(
     ]
     launch_prompt = _failure_string(failure, "launch_prompt")
     if launch_prompt is not None:
-        rows.extend(["", "**Its launch prompt was:**", "", _blockquote(launch_prompt)])
+        rows.extend(["", "**Its launch prompt was:**", "", blockquote(launch_prompt)])
     return "\n".join(rows)
 
 
@@ -139,8 +139,8 @@ def _failure_transcript_available(
 ) -> bool:
     value = failure.get("transcript_available")
     if isinstance(value, bool):
-        return value and _fork_source_optional_string(source, "path") is not None
-    return _fork_source_optional_string(source, "path") is not None
+        return value and fork_source_optional_string(source, "path") is not None
+    return fork_source_optional_string(source, "path") is not None
 
 
 def _format_failed_transcript_end(
@@ -150,7 +150,7 @@ def _format_failed_transcript_end(
     summary = _failure_summary_line(failure)
     return (
         f"**End of transcript — agent `{name}` failed here: "
-        f"{_markdown_code_span(summary)}.**"
+        f"{markdown_code_span(summary)}.**"
     )
 
 

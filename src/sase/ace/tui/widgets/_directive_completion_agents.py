@@ -21,6 +21,7 @@ def build_agent_arg_completion_candidates(
     *,
     excluded_names: frozenset[str] = frozenset(),
     required_kind: str | None = None,
+    excluded_kinds: frozenset[str] = frozenset(),
 ) -> tuple[list[CompletionCandidate], str]:
     """Build kind-aware target candidates for a wait/fork/identity argument."""
     if "=" in partial:
@@ -32,6 +33,10 @@ def build_agent_arg_completion_candidates(
     if required_kind is not None:
         source_entries = [
             entry for entry in source_entries if entry.kind == required_kind
+        ]
+    if excluded_kinds:
+        source_entries = [
+            entry for entry in source_entries if entry.kind not in excluded_kinds
         ]
     excluded = {name.casefold() for name in excluded_names}
     matching = [

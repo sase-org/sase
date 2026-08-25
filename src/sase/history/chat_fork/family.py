@@ -7,31 +7,31 @@ from sase.history.chat_storage import format_metadata_model
 
 from .common import (
     LoadChatForResume,
-    _fork_source_failure,
-    _fork_source_optional_string,
-    _fork_source_string,
-    _json_string,
-    _load_json_object,
-    _require_proc_info,
+    fork_source_failure,
+    fork_source_optional_string,
+    fork_source_string,
+    json_string,
+    load_json_object,
+    require_proc_info,
 )
-from .failure import _format_failed_agent_body
-from .proc import _format_proc_body
+from .failure import format_failed_agent_body
+from .proc import format_proc_body
 
 
-def _format_family_fork_source(
+def format_family_fork_source(
     source: Mapping[str, object],
     *,
     index: int,
     count: int,
     load_resume_history: LoadChatForResume,
 ) -> str:
-    name = _fork_source_string(source, "name")
+    name = fork_source_string(source, "name")
     raw_members = source.get("members")
     if not isinstance(raw_members, list) or not raw_members:
         raise ValueError(f"Family fork source '{name}' has no members")
     members = sorted(
         (_require_family_member(member, name) for member in raw_members),
-        key=lambda member: Path(_fork_source_string(member, "artifact_dir")).name,
+        key=lambda member: Path(fork_source_string(member, "artifact_dir")).name,
     )
 
     raw_excluded = source.get("excluded", [])
@@ -49,8 +49,8 @@ def _format_family_fork_source(
     ]
     if excluded:
         omitted = ", ".join(
-            f"`{_fork_source_string(member, 'name')}` "
-            f"({_fork_source_string(member, 'status')})"
+            f"`{fork_source_string(member, 'name')}` "
+            f"({fork_source_string(member, 'status')})"
             for member in excluded
         )
         header_rows.append(f"- **Not shown:** {omitted}")
@@ -70,7 +70,7 @@ def _format_family_fork_source(
     visited = {
         str(Path(path).expanduser().resolve(strict=False))
         for member in members
-        if (path := _fork_source_optional_string(member, "path")) is not None
+        if (path := fork_source_optional_string(member, "path")) is not None
     }
     member_blocks = [
         _format_family_member(
@@ -107,21 +107,21 @@ def _format_family_member(
     visited: set[str],
     load_resume_history: LoadChatForResume,
 ) -> str:
-    name = _fork_source_string(member, "name")
+    name = fork_source_string(member, "name")
     if member.get("kind") == "proc":
-        proc = _require_proc_info(member, name)
+        proc = require_proc_info(member, name)
         label = "proc shell (monitor)" if proc.get("is_monitor") else "proc shell"
         suffix = " (FAILED)" if proc.get("failed") else ""
         heading = f"### Member {index} of {count} — {label} `{name}`{suffix}"
-        return f"{heading}\n\n{_format_proc_body(proc, name=name, heading_level=4)}"
+        return f"{heading}\n\n{format_proc_body(proc, name=name, heading_level=4)}"
 
-    failure = _fork_source_failure(member)
+    failure = fork_source_failure(member)
     if failure is not None:
         heading = f"### Member {index} of {count} — agent `{name}` (FAILED)"
         return (
             heading
             + "\n\n"
-            + _format_failed_agent_body(
+            + format_failed_agent_body(
                 member,
                 name,
                 failure,
@@ -130,17 +130,17 @@ def _format_family_member(
             )
         )
 
-    path = _fork_source_string(member, "path")
-    artifact_dir = Path(_fork_source_string(member, "artifact_dir"))
-    meta = _load_json_object(artifact_dir / "agent_meta.json")
-    done = _load_json_object(artifact_dir / "done.json")
+    path = fork_source_string(member, "path")
+    artifact_dir = Path(fork_source_string(member, "artifact_dir"))
+    meta = load_json_object(artifact_dir / "agent_meta.json")
+    done = load_json_object(artifact_dir / "done.json")
     outcome = (
-        _json_string(done, "outcome") or _json_string(member, "outcome") or "unknown"
+        json_string(done, "outcome") or json_string(member, "outcome") or "unknown"
     )
     model = (
         format_metadata_model(
-            _json_string(meta, "llm_provider"),
-            _json_string(meta, "model"),
+            json_string(meta, "llm_provider"),
+            json_string(meta, "model"),
         )
         or "unknown"
     )

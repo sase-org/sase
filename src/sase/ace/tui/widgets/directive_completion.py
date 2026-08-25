@@ -49,6 +49,11 @@ from sase.ace.tui.widgets._directive_completion_types import (
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.xprompt.model_completion import build_model_completion_catalog
 
+# Shell kinds an ordinary ``%wait`` cannot resolve. ``#fork`` accepts a proc
+# shell, but wait dependencies resolve agent artifacts only, so offering a
+# proc row here would complete a dependency that never releases.
+_WAIT_UNSUPPORTED_TARGET_KINDS = frozenset({"proc"})
+
 
 def build_directive_completion_candidates(
     token: str,
@@ -205,6 +210,7 @@ def _build_wait_or_agent_clause_candidates(
         clause.token,
         agent_candidates,
         excluded_names=frozenset(clause.selected_values),
+        excluded_kinds=_WAIT_UNSUPPORTED_TARGET_KINDS,
     )
     candidates = [*keywords, *agents]
     if keywords:

@@ -231,6 +231,11 @@ def resolve_agent_prompt_target_scope(
         return scope, None
 
     if agent.is_proc_shell or agent.is_monitor:
+        # A proc shell is a `#fork` source only. An ordinary `%wait` resolves
+        # agent/family/clan/tribe artifacts and has no proc branch, so offering
+        # one here would hand the user a dependency that can never release.
+        if action != "fork":
+            return None, "A proc shell can be forked but not used as a wait target"
         proc_id = agent.proc_id if agent.is_proc_shell else agent.monitor_id
         if not proc_id:
             return None, "No proc ID found"

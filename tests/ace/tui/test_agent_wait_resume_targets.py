@@ -525,14 +525,30 @@ def test_fork_terminal_monitor_is_still_a_valid_target() -> None:
     assert app.prompt_bar_calls[0]["initial_text"] == "#fork:m-123 "
 
 
-def test_wait_for_proc_shell_uses_exact_proc_id() -> None:
+def test_wait_for_proc_shell_is_rejected() -> None:
+    # `#fork` resolves a proc shell, but an ordinary `%wait` resolves agent
+    # artifacts only, so `%w:<proc_id>` would never release.
     agent = _proc_shell_agent()
     app = FakeResumeActionApp([agent])
 
     app.action_wait_for_agent()
 
-    assert app.notifications == []
-    assert app.prompt_bar_calls[0]["initial_text"] == "%w:abc123def456 "
+    assert app.notifications == [
+        ("A proc shell can be forked but not used as a wait target", "warning")
+    ]
+    assert app.prompt_bar_calls == []
+
+
+def test_wait_for_monitor_is_rejected() -> None:
+    agent = _monitor_agent()
+    app = FakeResumeActionApp([agent])
+
+    app.action_wait_for_agent()
+
+    assert app.notifications == [
+        ("A proc shell can be forked but not used as a wait target", "warning")
+    ]
+    assert app.prompt_bar_calls == []
 
 
 def test_proc_shell_scope_has_no_vcs_members() -> None:

@@ -8,14 +8,14 @@ from pathlib import Path
 LoadChatForResume = Callable[..., str]
 
 
-def _fork_source_kind(source: Mapping[str, object]) -> str:
+def fork_source_kind(source: Mapping[str, object]) -> str:
     value = source.get("kind", "agent")
     if value not in {"agent", "proc", "clan", "family"}:
         raise ValueError(f"Unsupported fork source kind: {value!r}")
     return str(value)
 
 
-def _fork_source_failure(source: Mapping[str, object]) -> Mapping[str, object] | None:
+def fork_source_failure(source: Mapping[str, object]) -> Mapping[str, object] | None:
     value = source.get("failure")
     if value is None:
         return None
@@ -29,7 +29,7 @@ def _fork_source_failure(source: Mapping[str, object]) -> Mapping[str, object] |
 
 def _fork_member_is_failed(member: Mapping[str, object]) -> bool:
     """Return whether one family member (agent or proc kind) is terminal-failed."""
-    if _fork_source_failure(member) is not None:
+    if fork_source_failure(member) is not None:
         return True
     if member.get("kind") != "proc":
         return False
@@ -37,9 +37,9 @@ def _fork_member_is_failed(member: Mapping[str, object]) -> bool:
     return isinstance(proc, Mapping) and bool(proc.get("failed"))
 
 
-def _fork_source_has_failure(source: Mapping[str, object]) -> bool:
+def fork_source_has_failure(source: Mapping[str, object]) -> bool:
     """Return whether one top-level source has a failed agent, proc, or member."""
-    if _fork_source_failure(source) is not None:
+    if fork_source_failure(source) is not None:
         return True
     if source.get("kind") == "proc":
         proc = source.get("proc")
@@ -55,7 +55,7 @@ def _fork_source_has_failure(source: Mapping[str, object]) -> bool:
     )
 
 
-def _fork_source_has_proc_content(source: Mapping[str, object]) -> bool:
+def fork_source_has_proc_content(source: Mapping[str, object]) -> bool:
     """Return whether one top-level source itself is, or contains, a proc shell."""
     if source.get("kind") == "proc":
         return True
@@ -70,21 +70,21 @@ def _fork_source_has_proc_content(source: Mapping[str, object]) -> bool:
     )
 
 
-def _require_proc_info(source: Mapping[str, object], name: str) -> Mapping[str, object]:
+def require_proc_info(source: Mapping[str, object], name: str) -> Mapping[str, object]:
     proc = source.get("proc")
     if not isinstance(proc, Mapping):
         raise ValueError(f"Proc fork source '{name}' is missing proc metadata")
     return proc
 
 
-def _fork_source_string(source: Mapping[str, object], field: str) -> str:
+def fork_source_string(source: Mapping[str, object], field: str) -> str:
     value = source.get(field)
     if not isinstance(value, str) or not value:
         raise ValueError(f"Fork source field '{field}' must be a non-empty string")
     return value
 
 
-def _fork_source_optional_string(
+def fork_source_optional_string(
     source: Mapping[str, object],
     field: str,
 ) -> str | None:
@@ -92,7 +92,7 @@ def _fork_source_optional_string(
     return value if isinstance(value, str) and value else None
 
 
-def _format_text_fence(text: str) -> str:
+def format_text_fence(text: str) -> str:
     max_backticks = max(
         (len(match.group(0)) for match in re.finditer(r"`+", text)), default=0
     )
@@ -100,7 +100,7 @@ def _format_text_fence(text: str) -> str:
     return f"{fence}text\n{text}\n{fence}"
 
 
-def _markdown_code_span(text: str) -> str:
+def markdown_code_span(text: str) -> str:
     max_backticks = max(
         (len(match.group(0)) for match in re.finditer(r"`+", text)), default=0
     )
@@ -109,11 +109,11 @@ def _markdown_code_span(text: str) -> str:
     return f"{fence}{spacer}{text}{spacer}{fence}"
 
 
-def _blockquote(text: str) -> str:
+def blockquote(text: str) -> str:
     return "\n".join(f"> {line}" if line else ">" for line in text.splitlines())
 
 
-def _load_json_object(path: Path) -> Mapping[str, object]:
+def load_json_object(path: Path) -> Mapping[str, object]:
     try:
         with open(path, encoding="utf-8") as f:
             value = json.load(f)
@@ -122,6 +122,6 @@ def _load_json_object(path: Path) -> Mapping[str, object]:
     return value if isinstance(value, dict) else {}
 
 
-def _json_string(data: Mapping[str, object], field: str) -> str | None:
+def json_string(data: Mapping[str, object], field: str) -> str | None:
     value = data.get(field)
     return value if isinstance(value, str) and value else None
