@@ -208,6 +208,12 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
 
+    _derive_links_for_archived_plan(
+        archived_path,
+        created_by=proposed_by or os.environ.get("USER") or "unknown",
+        artifacts_dir=artifacts_dir,
+    )
+
     # Write .sase_plan_pending marker JSON. ``plan_file`` points at the durable
     # archive copy; ``original_file`` is retained for provenance/debugging even
     # though the scratch file no longer exists after the move above.
@@ -241,3 +247,44 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     # spawns Bash-tool subprocesses in an isolated process group; the SIGTERM
     # would never reach `claude` or the agent runner.
     kill_agent_runner_group(artifacts_dir)
+
+
+def _derive_links_for_archived_plan(
+    archived_path: Path, *, created_by: str, artifacts_dir: str
+) -> None:
+    """Best-effort: derive candidate links (e.g. `implements` from `bead:`).
+
+    Proposing a plan terminates the runner mechanically, so this is the only
+    place a handoff can be caught at all -- a finalizer or a later
+    commit-triggered hook never runs for this turn. Never raises: a
+    derivation failure must not block a plan handoff.
+    """
+
+    from sase.artifact_links.derive import artifact_link_derivation_enabled
+
+    if not artifact_link_derivation_enabled():
+        return
+    try:
+        from sase.artifact_links.derive import DerivableDocument
+        from sase.sdd.artifact_link_derivation import derive_and_persist_artifact_links
+        from sase.sdd.artifact_link_store import resolve_artifact_link_store
+        from sase.sdd.plan_refs import canonicalize_plan_reference_from_roots
+
+        link_store = resolve_artifact_link_store()
+        plans_root = link_store.sidecar_roots.get("plan")
+        ref = (
+            None
+            if plans_root is None
+            else canonicalize_plan_reference_from_roots(
+                archived_path, roots=(plans_root,)
+            )
+        )
+        if ref is not None:
+            derive_and_persist_artifact_links(
+                link_store,
+                (DerivableDocument(ref=ref, path=archived_path),),
+                created_by=created_by,
+                artifacts_dir=artifacts_dir,
+            )
+    except Exception:
+        pass

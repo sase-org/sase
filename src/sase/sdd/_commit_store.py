@@ -160,6 +160,12 @@ def commit_sdd_files(
         sidecar_role=sidecar_role,
         cause=cause,
     )
+    _derive_artifact_links_for_commit(
+        sdd_dir,
+        sidecar_role=sidecar_role,
+        cause=cause,
+        changed_files=changed_files,
+    )
     return True
 
 
@@ -196,6 +202,65 @@ def _emit_sdd_file_hooks(
         )
     except Exception:
         _logger.debug("failed to emit SDD file hooks", exc_info=True)
+
+
+_ARTIFACT_LINK_DERIVATION_SIDECAR_ROLES = frozenset({"plans", "research"})
+
+
+def _derive_artifact_links_for_commit(
+    sdd_dir: Path,
+    *,
+    sidecar_role: str | None,
+    cause: str,
+    changed_files: list[str],
+) -> None:
+    """Best-effort host step: derive artifact links for this commit's docs.
+
+    Covers an artifact that lands outside ``sase plan propose`` / ``sase
+    artifact create`` -- a chop, a repair pass, a direct sidecar commit. This
+    is deliberately a direct call, not the user-configurable ``file_hooks``
+    mechanism: a shipped ``file_hooks:`` entry would be silently
+    disable-able project config for host behavior. Excludes the
+    ``artifact_links`` cause so the link-projection commit this same step
+    can produce does not retrigger derivation.
+    """
+    if sidecar_role not in _ARTIFACT_LINK_DERIVATION_SIDECAR_ROLES or not changed_files:
+        return
+    try:
+        from sase.sdd._artifact_link_commit import ARTIFACT_LINK_FILE_HOOK_CAUSE
+
+        if cause == ARTIFACT_LINK_FILE_HOOK_CAUSE:
+            return
+        from sase.artifact_links.derive import artifact_link_derivation_enabled
+
+        if not artifact_link_derivation_enabled():
+            return
+        from sase.artifact_links.derive import DerivableDocument
+        from sase.sdd._artifact_link_store_support import (
+            canonicalize_artifact_link_ref,
+            sidecar_kind_for_role,
+        )
+        from sase.sdd.artifact_link_derivation import derive_and_persist_artifact_links
+        from sase.sdd.artifact_link_store import resolve_artifact_link_store
+        from sase.sdd.referenced_by_index import REFERENCED_BY_LINKS_DIR
+
+        kind = sidecar_kind_for_role(sidecar_role)
+        documents = []
+        for relpath in changed_files:
+            path = Path(relpath)
+            if path.suffix != ".md" or path.parts[:1] == (REFERENCED_BY_LINKS_DIR,):
+                continue
+            absolute = (sdd_dir / path).resolve(strict=False)
+            if not absolute.is_file():
+                continue
+            ref = canonicalize_artifact_link_ref(f"{kind}:{path.as_posix()}")
+            documents.append(DerivableDocument(ref=ref, path=absolute))
+        if not documents:
+            return
+        store = resolve_artifact_link_store(cwd=sdd_dir)
+        derive_and_persist_artifact_links(store, documents, created_by="sase")
+    except Exception:
+        _logger.debug("failed to derive artifact links for commit", exc_info=True)
 
 
 def sdd_commit_targets(

@@ -144,6 +144,24 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
     )
 
 
+def dangling_and_orphaned_artifact_link_refs(
+    store: ArtifactLinkStore,
+) -> tuple[str, ...]:
+    """Return the exact candidate refs ``sase artifact doctor --fix`` repairs.
+
+    A housekeeping sweep that wants the rename-repair job without the rest of
+    ``inspect_artifact_link_health``'s fix pass (which also rewrites Markdown
+    ``## Links`` tables in place with no commit of its own) calls this and
+    :func:`sase.sdd._artifact_link_renames.repair_historical_artifact_renames`
+    directly instead.
+    """
+
+    rows = [dict(row) for row in store.load_aggregate().get("rows", [])]
+    dangling, _unpublished_agents = _dangling_refs(rows, store)
+    orphaned_companions = _orphaned_link_indexes(store)
+    return (*dangling, *orphaned_companions)
+
+
 def _read_row_count(rows: tuple[dict[str, Any], ...]) -> int:
     seen: set[tuple[str, str, str]] = set()
     for row in rows:
@@ -443,4 +461,8 @@ def _has_unmatched_managed_marker(text: str) -> bool:
     ) != text.count(_REFERENCED_BY_END)
 
 
-__all__ = ["ArtifactLinkHealthReport", "inspect_artifact_link_health"]
+__all__ = [
+    "ArtifactLinkHealthReport",
+    "dangling_and_orphaned_artifact_link_refs",
+    "inspect_artifact_link_health",
+]

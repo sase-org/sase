@@ -70,6 +70,10 @@ def handle_create(args: argparse.Namespace) -> int:
     ):
         produce_hook(captured_file_hook_event, artifact_file.path)
 
+    _derive_links_for_created_artifact(
+        reference, artifact_file.path, agent_artifacts_dir
+    )
+
     if bead_id is not None:
         exit_code = _attach_reference_to_bead(bead_id, reference)
         if exit_code != 0:
@@ -120,6 +124,49 @@ def _bead_exists(bead_id: str) -> bool:
     return True
 
 
+def _resolved_created_by() -> str:
+    """Return the acting agent's name, else the OS user, else ``"unknown"``."""
+
+    from sase.agent.identity import discover_agent_identity
+
+    identity = discover_agent_identity()
+    return (
+        identity.name if identity is not None else (os.environ.get("USER") or "unknown")
+    )
+
+
+def _derive_links_for_created_artifact(
+    reference: str, path: str | None, agent_artifacts_dir: str
+) -> None:
+    """Best-effort: derive candidate links for the artifact just created.
+
+    A no-op today for every ``file:`` reference this command produces, since
+    no derivation rule recognizes that kind -- wired anyway so a future rule
+    over created artifacts needs no new call site. Never raises: a derivation
+    failure must not turn a successful artifact creation into a failed one.
+    """
+
+    if not path:
+        return
+    from sase.artifact_links.derive import artifact_link_derivation_enabled
+
+    if not artifact_link_derivation_enabled():
+        return
+    try:
+        from sase.artifact_links.derive import DerivableDocument
+        from sase.sdd.artifact_link_derivation import derive_and_persist_artifact_links
+        from sase.sdd.artifact_link_store import resolve_artifact_link_store
+
+        derive_and_persist_artifact_links(
+            resolve_artifact_link_store(),
+            (DerivableDocument(ref=reference, path=Path(path)),),
+            created_by=_resolved_created_by(),
+            artifacts_dir=agent_artifacts_dir,
+        )
+    except Exception:
+        pass
+
+
 def _attach_reference_to_bead(bead_id: str, reference: str) -> int:
     """Attach *reference* to *bead_id* as a typed ``related`` artifact link.
 
@@ -130,7 +177,6 @@ def _attach_reference_to_bead(bead_id: str, reference: str) -> int:
 
     from datetime import UTC, datetime
 
-    from sase.agent.identity import discover_agent_identity
     from sase.sdd._artifact_link_commit import (
         ArtifactLinkPersistError,
         persist_artifact_link_graph_mutation,
@@ -140,10 +186,7 @@ def _attach_reference_to_bead(bead_id: str, reference: str) -> int:
         resolve_artifact_link_store,
     )
 
-    identity = discover_agent_identity()
-    created_by = (
-        identity.name if identity is not None else (os.environ.get("USER") or "unknown")
-    )
+    created_by = _resolved_created_by()
     row = {
         "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
         "source_ref": reference,

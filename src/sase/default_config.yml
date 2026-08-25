@@ -1039,6 +1039,18 @@ axe:
             carries at most 50 beads, oldest first; a larger backlog is reported in omitted_count and
             offered on later ticks. An unchanged roster leaves the pending gate alone. The gate is
             canceled when the backlog drops below the bar.
+        - name: artifact_link_backfill
+          script: sase_chop_artifact_link_backfill
+          timeout: "3m"
+          description: |-
+            Retroactively derive artifact links, drain the read outbox, reconcile, and repair renames
+
+            Runs four bounded jobs per enabled project: the retroactive derivation sweep over documents
+            that predate the artifact-link derivation epic, the read-outbox drain for agents that have
+            since published, the cross-workspace aggregate reconciliation sweep, and the dangling-ref
+            repair pass driven by git rename history. The derivation sweep is resumable via a per-project
+            checkpoint of already-swept refs, so a large backlog converges over several ticks instead of
+            rescanning every document every hour; it logs how many documents remain for the next tick.
 
 
 llm_provider:
