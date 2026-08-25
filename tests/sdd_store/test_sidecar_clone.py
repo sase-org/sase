@@ -512,7 +512,7 @@ def test_sidecar_clone_retries_transient_transport_failures(
         )
 
     monkeypatch.setattr("sase.sdd._commit.run_sdd_git", flaky_clone)
-    monkeypatch.setattr("sase.sdd._store_link.time.sleep", sleeps.append)
+    monkeypatch.setattr("sase.sdd._store_clone_ops.time.sleep", sleeps.append)
 
     ensure_sidecar_sdd_clone(clone_dir, remote, strict=True)
 

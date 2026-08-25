@@ -6,6 +6,7 @@ import pytest
 
 from sase.ace.query_profile import (
     CompiledQueryProfile,
+    agents_query_schema,
     beads_query_schema,
     compile_query_profile,
     files_query_schema,
@@ -23,6 +24,7 @@ from sase.ace.query_profile import (
         stitches_query_schema,
         beads_query_schema,
         plans_query_schema,
+        agents_query_schema,
         files_query_schema,
         procs_query_schema,
     ],
@@ -42,8 +44,9 @@ def test_every_builtin_profile_has_a_unique_pane_id() -> None:
             stitches_query_schema,
             beads_query_schema,
             plans_query_schema,
+            agents_query_schema,
             files_query_schema,
             procs_query_schema,
         )
     ]
-    assert len(all_ids) == len(set(all_ids)) == 6
+    assert len(all_ids) == len(set(all_ids)) == 7

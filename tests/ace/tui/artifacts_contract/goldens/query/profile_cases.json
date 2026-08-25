@@ -299,6 +299,202 @@
         }
       }
     },
+    "agents": {
+      "rows": [
+        {
+          "stable_id": "agent-dismissed-code",
+          "fields": {
+            "name": "sase-r8.9.land",
+            "kind": ["agent"],
+            "family": "sase-r8.9",
+            "clan": "athena.sase-8t",
+            "tribe": "epic",
+            "role": "code",
+            "workflow": "review",
+            "parent": "20260824100000",
+            "project": "sase",
+            "state": "dismissed",
+            "status": "FAILED",
+            "hidden": false,
+            "dismissed": true,
+            "revivable": true,
+            "attention": true,
+            "retry": true,
+            "attempt": 2,
+            "model": "gpt-5.6-sol",
+            "provider": "codex",
+            "since": 1787580000,
+            "until": 1787580000,
+            "after": 1787580600,
+            "before": 1787580600,
+            "min": 600,
+            "max": 600,
+            "label": "dismissed code agent",
+            "text": "database migration"
+          }
+        },
+        {
+          "stable_id": "agent-family-waiting",
+          "fields": {
+            "name": "0b4",
+            "kind": ["family"],
+            "family": "0b4",
+            "clan": "athena.sase-8t",
+            "tribe": "epic",
+            "project": "sase",
+            "state": "active",
+            "status": "WAITING",
+            "hidden": false,
+            "dismissed": false,
+            "revivable": false,
+            "attention": true,
+            "retry": false,
+            "attempt": 0,
+            "model": "claude-opus-4-7",
+            "provider": "claude",
+            "since": 1787666400,
+            "until": 1787666400,
+            "min": 7200,
+            "max": 7200,
+            "label": "family container",
+            "text": "waiting on input"
+          }
+        },
+        {
+          "stable_id": "agent-workflow-child",
+          "fields": {
+            "name": "001--2",
+            "kind": ["member", "workflow-child"],
+            "family": "001",
+            "role": "mon",
+            "workflow": "cleanup",
+            "project": "other",
+            "state": "done",
+            "status": "COMPLETED",
+            "hidden": true,
+            "dismissed": false,
+            "revivable": false,
+            "attention": false,
+            "retry": true,
+            "attempt": 3,
+            "model": "grok-4.6",
+            "provider": "grok",
+            "since": 1772373600,
+            "until": 1772373600,
+            "after": 1772373720,
+            "before": 1772373720,
+            "min": 120,
+            "max": 120,
+            "label": "hidden workflow child",
+            "text": "9lives cleanup monitor"
+          }
+        },
+        {
+          "stable_id": "agent-workflow-member",
+          "fields": {
+            "name": "research.12.cdx--plan-0",
+            "kind": ["member", "workflow"],
+            "family": "research.12",
+            "clan": "research.12",
+            "tribe": "research",
+            "role": "plan",
+            "workflow": "literature",
+            "parent": "20260820080000",
+            "project": "research",
+            "state": "done",
+            "status": "DONE",
+            "hidden": false,
+            "dismissed": false,
+            "revivable": false,
+            "attention": false,
+            "retry": false,
+            "attempt": 1,
+            "model": "muse-spark-1.2",
+            "provider": "muse",
+            "since": 1787227200,
+            "until": 1787227200,
+            "after": 1787230800,
+            "before": 1787230800,
+            "min": 3600,
+            "max": 3600,
+            "label": "research workflow parent",
+            "text": "literature review synthesis"
+          }
+        }
+      ],
+      "queries": {
+        "revivable:true AND project:sase AND role:code": {
+          "canonical": "revivable:true AND project:sase AND role:code",
+          "matches": ["agent-dismissed-code"]
+        },
+        "provider:codex AND status:failed AND since:7d": {
+          "canonical": "provider:codex AND status:FAILED AND since:1787068800",
+          "matches": ["agent-dismissed-code"]
+        },
+        "family:\"research.12\" AND NOT kind:workflow-child": {
+          "canonical": "family:research.12 AND NOT kind:workflow-child",
+          "matches": ["agent-workflow-member"]
+        },
+        "state:active AND (attention:true OR status:WAITING)": {
+          "canonical": "state:active AND (attention:true OR status:WAITING)",
+          "matches": ["agent-family-waiting"]
+        },
+        "retry:true AND model:\"gpt-5.6-sol\" AND min:5m": {
+          "canonical": "retry:true AND model:gpt-5.6-sol AND min:300",
+          "matches": ["agent-dismissed-code"]
+        },
+        "since:2026-08-01 AND until:2026-08-31": {
+          "canonical": "since:1785556800 AND until:1788235199",
+          "matches": [
+            "agent-dismissed-code",
+            "agent-family-waiting",
+            "agent-workflow-member"
+          ]
+        },
+        "after:2026-08-01 AND before:2026-08-31": {
+          "canonical": "after:1785556800 AND before:1788235199",
+          "matches": ["agent-dismissed-code", "agent-workflow-member"]
+        },
+        "min:5m AND max:2h": {
+          "canonical": "min:300 AND max:7200",
+          "matches": [
+            "agent-dismissed-code",
+            "agent-family-waiting",
+            "agent-workflow-member"
+          ]
+        },
+        "since:5m AND min:5m": {
+          "canonical": "since:1774454400 AND min:300",
+          "matches": [
+            "agent-dismissed-code",
+            "agent-family-waiting",
+            "agent-workflow-member"
+          ]
+        },
+        "name:0b4 OR name:001--2": {
+          "canonical": "name:0b4 OR name:001--2",
+          "matches": ["agent-family-waiting", "agent-workflow-child"]
+        },
+        "9lives": {
+          "canonical": "\"9lives\"",
+          "matches": ["agent-workflow-child"]
+        }
+      },
+      "errors": {
+        "kind:not-real": {
+          "position": 0,
+          "message": "kind: value 'not-real' must be one of agent, member, family, clan, workflow, workflow-child (at position 0)"
+        },
+        "revivable:yes": {
+          "position": 0,
+          "message": "revivable: must be 'true' or 'false' (at position 0)"
+        },
+        "unknown:value": {
+          "position": 0,
+          "message": "Unknown filter key 'unknown' (valid keys: after, attempt, attention, before, clan, dismissed, family, hidden, kind, max, min, model, name, parent, project, provider, retry, revivable, role, since, state, status, tribe, until, workflow) (at position 0)"
+        }
+      }
+    },
     "files": {
       "rows": [
         {

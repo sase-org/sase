@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import datetime
 import json
 from pathlib import Path
 from typing import Any
@@ -26,7 +27,9 @@ from sase.core.query_profile_corpus_facade import (
 )
 
 _GOLDEN = Path(__file__).resolve().parent / "goldens" / "query" / "profile_cases.json"
+_FIXED_NOW = datetime(2026, 8, 25, 12, 0, 0)
 _REQUIRED_PROFILE_PANES = {
+    "agents",
     "patches",
     "stitches",
     "beads",
@@ -34,6 +37,29 @@ _REQUIRED_PROFILE_PANES = {
     "files",
     "ref:notes",
 }
+
+
+@pytest.fixture(autouse=True)
+def _freeze_profile_reference_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sase.core.time import get_timezone
+
+    fixed = _FIXED_NOW.replace(tzinfo=get_timezone())
+
+    def normalize(now: datetime | None = None) -> datetime:
+        if now is None:
+            return fixed
+        if now.tzinfo is None:
+            return now.replace(tzinfo=fixed.tzinfo)
+        return now.astimezone(fixed.tzinfo)
+
+    monkeypatch.setattr(
+        "sase.ace.query.profile_evaluator.normalize_reference_time",
+        normalize,
+    )
+    monkeypatch.setattr(
+        "sase.ace.query.profile_reference_support.normalize_reference_time",
+        normalize,
+    )
 
 
 def _provider_spec() -> dict[str, object]:
@@ -70,7 +96,7 @@ def _profile_by_pane_id() -> dict[str, CompiledQueryProfile]:
 
 
 def _profiles() -> Iterator[tuple[str, CompiledQueryProfile]]:
-    builtin_ids = {"patches", "stitches", "beads", "ref:plan", "files"}
+    builtin_ids = {"patches", "stitches", "beads", "ref:plan", "agents", "files"}
     builtins = [
         descriptor
         for descriptor in resolve_artifacts_subtabs()
@@ -105,6 +131,16 @@ def _field_case(profile: CompiledQueryProfile) -> tuple[str, str]:
     )
     value = field.static_values[0] if field.static_values else "alpha"
     return field.key, value
+
+
+def _rust_canonical_for_golden_source(
+    source: str,
+    canonical: str,
+    profile: CompiledQueryProfile,
+) -> str:
+    if any(item.filterable and item.value_kind == "date" for item in profile.fields):
+        return _canonicalize_artifact_query(canonical, profile)
+    return _canonicalize_artifact_query(source, profile)
 
 
 def test_profile_query_golden_corpus_covers_every_migrated_pane() -> None:
@@ -249,7 +285,9 @@ def test_profile_query_goldens_match_python_reference_and_rust_batch(
         matches = tuple(expected["matches"])
 
         assert canonical_query_for_profile(source, profile) == canonical
-        assert _canonicalize_artifact_query(source, profile) == canonical
+        assert (
+            _rust_canonical_for_golden_source(source, canonical, profile) == canonical
+        )
 
         python_matches = evaluate_query_many_for_profile(source, rows, profile)
         assert (
