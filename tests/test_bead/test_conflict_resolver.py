@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
 import pytest
 
+from sase.bead._stream_integrity import prepare_event_streams_for_commit
 from sase.bead import conflict_resolver
 from sase.bead.conflict_resolver import _git_add, resolve_bead_conflicts
 from sase.bead.model import IssueType
@@ -109,6 +111,7 @@ def _build_stream_conflict(
     bystanders: int = 0,
     bystander_label: str = "Quiet",
     beads_dirname: str = BEADS_DIRNAME,
+    legacy_notes: str | None = None,
 ) -> tuple[str, list[str]]:
     """Diverge one bead event stream, leaving *bystanders* streams untouched."""
     _init_repo(repo)
@@ -123,6 +126,8 @@ def _build_stream_conflict(
             for index in range(bystanders)
         ]
         contested = project.create("Contested", IssueType.PLAN).id
+    if legacy_notes is not None:
+        _inject_legacy_notes(repo, beads_dirname, contested, legacy_notes)
     _git(repo, "add", "-A")
     _git(repo, "commit", "-m", "base")
 
@@ -139,6 +144,31 @@ def _build_stream_conflict(
     _git(repo, "merge", "other", check=False)
     prefix = "" if beads_dirname == BEADS_DIRNAME_ROOT else f"{beads_dirname}/"
     return f"{prefix}events/streams/{contested}.jsonl", quiet
+
+
+def _inject_legacy_notes(
+    repo: Path,
+    beads_dirname: str,
+    issue_id: str,
+    notes: str,
+) -> None:
+    stream = repo / beads_dirname / "events" / "streams" / f"{issue_id}.jsonl"
+    events = [
+        json.loads(line)
+        for line in stream.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(events) == 1
+    issue = events[0]["payload"]["issue"]
+    assert "notes" not in issue
+    issue["notes"] = notes
+    stream.write_text(
+        "".join(
+            json.dumps(event, separators=(",", ":"), ensure_ascii=False) + "\n"
+            for event in events
+        ),
+        encoding="utf-8",
+    )
 
 
 def _build_root_store_conflict(repo: Path, *, conflict_stream: bool) -> str:
@@ -450,6 +480,11 @@ def test_duplicate_top_level_creations_report_typed_relocation(
     assert relocation.new_id == f"{local.id.rsplit('-', 1)[0]}-2"
     assert relocation.kind == "top_level_duplicate"
     assert f"{relocation.old_id} -> {relocation.new_id}" in result.message
+    relocated_stream = (
+        tmp_path / BEADS_DIRNAME / "events" / "streams" / f"{relocation.new_id}.jsonl"
+    ).read_text(encoding="utf-8")
+    assert f'"issue_id":"{relocation.old_id}"' not in relocated_stream
+    assert f'"issue_id":"{relocation.new_id}"' in relocated_stream
     with BeadProject(tmp_path, beads_dirname=BEADS_DIRNAME) as project:
         assert project.show(upstream.id).title == "Upstream wins"
         assert project.show(relocation.new_id).title == "Local relocates"
@@ -480,6 +515,40 @@ def test_resolution_preserves_non_ascii_bytes_in_untouched_streams(
     issues = (tmp_path / BEADS_DIRNAME / "issues.jsonl").read_bytes()
     assert b"Qui\xc3\xa9t" in issues
     assert b"\\u" not in issues
+
+
+@pytest.mark.parametrize(
+    ("legacy_notes", "expected_legacy_note_texts"),
+    [
+        ("", []),
+        ("a pre-existing legacy note", ["a pre-existing legacy note"]),
+    ],
+)
+def test_resolution_preserves_legacy_notes_event_bytes_in_conflicted_stream(
+    tmp_path: Path,
+    legacy_notes: str,
+    expected_legacy_note_texts: list[str],
+) -> None:
+    contested, _quiet = _build_stream_conflict(
+        tmp_path,
+        legacy_notes=legacy_notes,
+    )
+    legacy_line = _git(tmp_path, "show", f":2:{contested}").stdout.splitlines()[0]
+    assert f'"notes":{json.dumps(legacy_notes)}' in legacy_line
+
+    result = resolve_bead_conflicts(tmp_path, beads_dir=tmp_path / BEADS_DIRNAME)
+
+    assert result.ok is True, result.message
+    resolved = (tmp_path / contested).read_text(encoding="utf-8")
+    assert resolved.startswith(f"{legacy_line}\n")
+    assert "from local" in resolved and "from other" in resolved
+    assert prepare_event_streams_for_commit(tmp_path, [contested]).restored_paths == ()
+    with BeadProject(tmp_path, beads_dirname=BEADS_DIRNAME) as project:
+        issue = project.show(Path(contested).stem)
+    assert [note.text for note in issue.notes] == [
+        *expected_legacy_note_texts,
+        "from other",
+    ]
 
 
 def test_failed_stage_read_does_not_silently_drop_one_side(
