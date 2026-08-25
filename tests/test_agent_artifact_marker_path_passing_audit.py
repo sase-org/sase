@@ -99,6 +99,61 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "inspected before consulting an exact dismissed-archive fallback."
         ),
     ),
+    "src/sase/scripts/_agent_chat_from_name_common.py:completed_response_path": (
+        PathPassingReview(
+            exemption=(
+                "Read-only named-agent chat lookup: done.json is inspected only to "
+                "recover response_path, with dismissed-archive fallback metadata "
+                "used only to locate an existing transcript."
+            ),
+        )
+    ),
+    "src/sase/scripts/_agent_chat_from_name_common.py:resolve_done_response_path": (
+        PathPassingReview(
+            exemption=(
+                "Read-only resume lookup: done.json is inspected only to recover "
+                "the terminal response_path for the resolved named agent."
+            ),
+        )
+    ),
+    "src/sase/scripts/_agent_chat_from_name_common.py:resolve_meta_chat_path": (
+        PathPassingReview(
+            exemption=(
+                "Read-only resume fallback: agent_meta.json is inspected only to "
+                "recover the saved chat_path for the resolved named agent."
+            ),
+        )
+    ),
+    (
+        "src/sase/scripts/_agent_chat_from_name_family.py:"
+        "_resolve_agent_family_member_shell"
+    ): PathPassingReview(
+        exemption=(
+            "Read-only family fork classification: agent_meta.json and done.json "
+            "are inspected only to choose the member-owned transcript, failure "
+            "record, or exclusion reason."
+        ),
+    ),
+    (
+        "src/sase/scripts/_agent_chat_from_name_failure.py:"
+        "_resolve_failed_agent_transcript"
+    ): PathPassingReview(
+        exemption=(
+            "Read-only failed-agent transcript recovery: done.json and "
+            "agent_meta.json are inspected only to find the first readable "
+            "transcript candidate before falling back to timestamp lookup."
+        ),
+    ),
+    (
+        "src/sase/scripts/_agent_chat_from_name_resume.py:"
+        "_resolve_family_member_resume_transcript"
+    ): PathPassingReview(
+        exemption=(
+            "Read-only family-member resume lookup: agent_meta.json and done.json "
+            "are inspected only to resolve the member-owned transcript path, "
+            "with archived completion metadata as a read-only fallback."
+        ),
+    ),
     "src/sase/core/wait_dependency_resolution/_index.py:add_many": PathPassingReview(
         exemption=(
             "Read-only dependency-index construction: done.json is batched into "
