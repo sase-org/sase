@@ -22,6 +22,7 @@ class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
     admin_center_flags = "admin_center_flags"
+    artifact_link_derivation = "artifact_link_derivation"
     provider_drain = "provider_drain"
     ref_sync_gesture = "ref_sync_gesture"
     typed_launch_units = "typed_launch_units"
@@ -36,6 +37,16 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "feature-flag control."
         ),
         bead="sase-rx",
+    ),
+    FeatureFlag.artifact_link_derivation: FeatureFlagDefinition(
+        key=FeatureFlag.artifact_link_derivation,
+        kind="beta",
+        description=(
+            "sase plan propose, sase artifact create, the sidecar commit path, "
+            "and the hourly backfill sweep call the derivation module and "
+            "persist its candidate `derived` artifact-link rows."
+        ),
+        bead="sase-tx",
     ),
     FeatureFlag.provider_drain: FeatureFlagDefinition(
         key=FeatureFlag.provider_drain,
