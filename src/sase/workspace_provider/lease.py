@@ -15,10 +15,8 @@ cross-frontend decisions in ``sase_core::workspace_lease``.
 from __future__ import annotations
 
 import os
-import subprocess
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -29,227 +27,30 @@ from sase.running_field import (
     release_workspace,
     transfer_workspace_claim,
 )
-from sase.workspace_provider.marker import write_marker
+from sase.workspace_provider._lease_checkout import materialize_leased_checkout
+from sase.workspace_provider._lease_git import prepare_from_primary_remote
+from sase.workspace_provider._lease_model import (
+    OPERATIONAL_LEASE_POLICY_KIND,
+    OperationalLease,
+    OperationalLeaseError,
+    authorize_operational_lease_workspace,
+    is_operational_lease_contention_error,
+    is_operational_lease_policy,
+)
 from sase.workspace_provider.ownership import (
-    MACHINE_OWNED_MIN_WORKSPACE,
-    OperationContext,
     leased_operational_context,
-    normalize_workspace_num,
 )
 from sase.workspace_provider.reset_replay import (
-    DEFAULT_MAX_ATTEMPTS,
     ReplayConflict,
     ReplayDeferred,
     ResetReplayError,
     ResetReplayResult,
-    reset_and_replay as run_reset_and_replay,
-    reset_leased_checkout_to_upstream,
-)
-from sase.workspace_provider.registry import record_workspace
-from sase.workspace_provider.store import PRIMARY_WORKSPACE_NUM, WorkspaceStore
-from sase.workspace_provider.utils import (
-    ensure_workspace_checkout,
-    get_default_branch,
-    non_interactive_git_env,
-    parse_workspace_dir,
 )
 
-OPERATIONAL_LEASE_POLICY_KIND = "operational_lease"
-_UNIFIED_MAX_WORKSPACE = 999
-
-_LEASE_FAILURE_KINDS = frozenset(
-    {
-        "allocation",
-        "materialization",
-        "preparation",
-        "transfer",
-        "recovery",
-    }
-)
-
-
-class _OperationalLeaseError(RuntimeError):
-    """Resumable failure of one operational-lease step.
-
-    The message names the failed operation and never authorizes using the
-    user's primary checkout.
-    """
-
-    def __init__(
-        self,
-        operation: str,
-        detail: str,
-        *,
-        step: str | None = None,
-        resumable: bool = True,
-    ) -> None:
-        kind = step if step in _LEASE_FAILURE_KINDS else operation
-        if kind not in _LEASE_FAILURE_KINDS:
-            kind = "allocation"
-        if operation in _LEASE_FAILURE_KINDS:
-            named = operation
-        else:
-            named = f"{kind} of {operation}"
-        message = (
-            f"operational workspace lease failed during {named}: {detail}; "
-            "the user-owned primary checkout was left untouched"
-        )
-        super().__init__(message)
-        self.operation = named
-        self.detail = detail
-        self.step = kind
-        self.resumable = resumable
-
-
-OperationalLeaseError = _OperationalLeaseError
-
-
-def is_operational_lease_contention_error(exc: BaseException) -> bool:
-    """Return whether *exc* represents a retryable busy workspace pool."""
-
-    if not isinstance(exc, _OperationalLeaseError) or exc.step != "allocation":
-        return False
-    text = f"{exc.detail} {exc}".lower()
-    if "workspace" not in text:
-        return False
-    return any(
-        token in text
-        for token in (
-            "already claimed",
-            "all axe workspaces",
-            "all workspaces",
-            "busy",
-            "claimed",
-            "no available",
-            "unavailable",
-            "exhausted",
-        )
-    )
-
-
-@dataclass(frozen=True)
-class OperationalLease:
-    """One claimed, materialized, machine-owned operational checkout.
-
-    ``workflow`` is the reserved ``lease(<workflow>)`` label as written to the
-    RUNNING field, so settlement, transfer, and release all match what is on
-    disk. ``holder`` remains the caller's own identity.
-    """
-
-    project: str
-    workflow: str
-    holder: str
-    workspace_num: int
-    checkout_dir: Path
-    project_file: Path
-    claim_pid: int
-    cl_name: str | None
-    context: OperationContext
-
-    @property
-    def operation_context(self) -> OperationContext:
-        """Leased operational context for writable store resolution."""
-
-        return self.context
-
-    def settlement_policy(self) -> dict[str, Any]:
-        """Return the persisted policy that releases this lease once."""
-
-        return _operational_lease_settlement_policy(self)
-
-    def reset_and_replay(
-        self,
-        operation: Callable[[], Any],
-        *,
-        repo_root: str | Path | None = None,
-        max_attempts: int = DEFAULT_MAX_ATTEMPTS,
-        clear_paths: Sequence[str | Path] = (),
-        clock: Callable[[], float] | None = None,
-    ) -> ResetReplayResult:
-        """Reset and replay *operation* inside this lease's checkout.
-
-        Destructive recovery is authorized only for this lease's live
-        operational context. Callers raise :class:`ReplayConflict` or
-        :class:`ReplayDeferred` from *operation*; see
-        :func:`sase.workspace_provider.reset_replay.reset_and_replay`.
-        """
-
-        return run_reset_and_replay(
-            self.context,
-            self.checkout_dir if repo_root is None else repo_root,
-            operation,
-            max_attempts=max_attempts,
-            clear_paths=clear_paths,
-            clock=clock,
-        )
-
-    def reset_to_upstream(
-        self,
-        *,
-        repo_root: str | Path | None = None,
-        clock: Callable[[], float] | None = None,
-    ) -> str | None:
-        """Hard-reset one repository inside this lease to its upstream tip.
-
-        Defaults to the leased checkout. Pass a nested store clone — for
-        example ``<checkout>/sase/repos/plans`` — to reset that repository
-        instead. Authorization is the same as :meth:`reset_and_replay`.
-        """
-
-        return reset_leased_checkout_to_upstream(
-            self.context,
-            self.checkout_dir if repo_root is None else repo_root,
-            clock=clock,
-        )
-
-
-def _authorize_operational_lease_workspace(workspace_num: int) -> int:
-    """Accept a unified-pool workspace number for a machine-owned lease."""
-
-    normalized = normalize_workspace_num(workspace_num)
-    if normalized == PRIMARY_WORKSPACE_NUM:
-        raise _OperationalLeaseError(
-            "allocation",
-            "cannot lease primary workspace #0 "
-            "(legacy #1 normalizes to the user-owned primary checkout)",
-        )
-    if normalized < MACHINE_OWNED_MIN_WORKSPACE:
-        raise _OperationalLeaseError(
-            "allocation",
-            f"cannot lease reserved workspace #{normalized}; "
-            f"machine-owned leases start at #{MACHINE_OWNED_MIN_WORKSPACE}",
-        )
-    if normalized > _UNIFIED_MAX_WORKSPACE:
-        raise _OperationalLeaseError(
-            "allocation",
-            f"cannot lease workspace #{normalized}; "
-            f"the unified claim pool ends at #{_UNIFIED_MAX_WORKSPACE}",
-        )
-    return normalized
-
-
-def is_operational_lease_policy(policy: Mapping[str, Any] | None) -> bool:
-    """Return whether *policy* is a persisted operational-lease settlement."""
-
-    return (
-        isinstance(policy, Mapping)
-        and policy.get("kind") == OPERATIONAL_LEASE_POLICY_KIND
-    )
-
-
-def _operational_lease_settlement_policy(
-    lease: OperationalLease,
-) -> dict[str, Any]:
-    """Return the durable settlement policy for *lease*."""
-
-    return {
-        "cl_name": lease.cl_name,
-        "holder": lease.holder,
-        "kind": OPERATIONAL_LEASE_POLICY_KIND,
-        "project_file": str(lease.project_file),
-        "workflow": lease.workflow,
-        "workspace_num": lease.workspace_num,
-    }
+_OperationalLeaseError = OperationalLeaseError
+_authorize_operational_lease_workspace = authorize_operational_lease_workspace
+_materialize_leased_checkout = materialize_leased_checkout
+_prepare_from_primary_remote = prepare_from_primary_remote
 
 
 def acquire_operational_lease(
@@ -529,138 +330,6 @@ def _claim_pool_workspace(
     except WorkspaceClaimError as exc:
         raise _OperationalLeaseError("allocation", str(exc)) from exc
     return _authorize_operational_lease_workspace(workspace_num)
-
-
-def _materialize_leased_checkout(
-    project_file: Path,
-    project: str,
-    workspace_num: int,
-    *,
-    config: Mapping[str, Any] | None,
-    env: Mapping[str, str] | None,
-) -> Path:
-    _authorize_operational_lease_workspace(workspace_num)
-    primary = parse_workspace_dir(str(project_file))
-    if not primary:
-        raise _OperationalLeaseError(
-            "materialization",
-            f"project {project!r} has no WORKSPACE_DIR; "
-            "refusing to invent a primary checkout path",
-        )
-    primary_dir = str(Path(primary).expanduser().resolve(strict=False))
-    try:
-        checkout = ensure_workspace_checkout(
-            primary_dir,
-            workspace_num,
-            config=config,
-            env=env,
-        )
-    except Exception as exc:
-        raise _OperationalLeaseError("materialization", str(exc)) from exc
-    checkout_path = Path(checkout).expanduser().resolve(strict=False)
-    if checkout_path == Path(primary_dir):
-        raise _OperationalLeaseError(
-            "materialization",
-            "materialization resolved to the primary checkout; "
-            "refusing to lease user-owned workspace #0",
-        )
-    store = WorkspaceStore(primary_dir, config=config, env=env)
-    workspace_path = store.resolve(workspace_num)
-    expected = Path(workspace_path.checkout_dir).expanduser().resolve(strict=False)
-    if checkout_path != expected:
-        raise _OperationalLeaseError(
-            "materialization",
-            f"checkout {checkout_path} does not match store path {expected}",
-        )
-    try:
-        record_workspace(store, workspace_path)
-        marker = write_marker(store, workspace_path)
-    except Exception as exc:
-        raise _OperationalLeaseError("materialization", str(exc)) from exc
-    if marker is None:
-        raise _OperationalLeaseError(
-            "materialization",
-            f"could not write a checkout marker for workspace #{workspace_num}",
-        )
-    return checkout_path
-
-
-def _prepare_from_primary_remote(checkout: Path) -> None:
-    if not (checkout / ".git").exists() and not (checkout / ".git").is_file():
-        raise _OperationalLeaseError(
-            "preparation",
-            f"{checkout} is not a git checkout",
-        )
-    remotes = _git_remotes(checkout)
-    if "origin" in remotes:
-        fetch = _run_git(["fetch", "--quiet", "origin"], checkout)
-        if fetch.returncode != 0:
-            detail = fetch.stderr.strip() or fetch.stdout.strip() or "git fetch failed"
-            raise _OperationalLeaseError("preparation", detail)
-    upstream = _configured_upstream(checkout)
-    if upstream is None:
-        return
-    local_branch = upstream.rsplit("/", 1)[-1]
-    checkout_result = _run_git(
-        ["checkout", "--force", "-B", local_branch, upstream],
-        checkout,
-    )
-    if checkout_result.returncode != 0:
-        detail = (
-            checkout_result.stderr.strip()
-            or checkout_result.stdout.strip()
-            or f"git checkout {upstream} failed"
-        )
-        raise _OperationalLeaseError("preparation", detail)
-
-
-def _configured_upstream(checkout: Path) -> str | None:
-    tracking = _run_git(
-        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
-        checkout,
-    )
-    if tracking.returncode == 0:
-        ref = tracking.stdout.strip()
-        if ref:
-            return ref
-    origin_head = _run_git(
-        ["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
-        checkout,
-    )
-    if origin_head.returncode == 0:
-        ref = origin_head.stdout.strip()
-        if ref.startswith("refs/remotes/"):
-            return ref.removeprefix("refs/remotes/")
-        if ref:
-            return ref
-    default_branch = get_default_branch(str(checkout))
-    if _ref_exists(checkout, f"refs/remotes/{default_branch}"):
-        return default_branch
-    return None
-
-
-def _git_remotes(checkout: Path) -> set[str]:
-    result = _run_git(["remote"], checkout)
-    if result.returncode != 0:
-        return set()
-    return {line.strip() for line in result.stdout.splitlines() if line.strip()}
-
-
-def _ref_exists(checkout: Path, ref: str) -> bool:
-    result = _run_git(["show-ref", "--verify", "--quiet", ref], checkout)
-    return result.returncode == 0
-
-
-def _run_git(args: list[str], checkout: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args],
-        cwd=checkout,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=non_interactive_git_env(),
-        stdin=subprocess.DEVNULL,
-    )
 
 
 def _release_acquired_claim(
