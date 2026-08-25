@@ -41,6 +41,22 @@ The benchmark prints p50/p95/max tables and asserts only structural invariants (
 concrete panes and no fixture-scaled home work), not a flaky wall-clock budget. Compare
 the reported rows from the same machine and checkout.
 
+## Artifacts Sub-Tab First Paint
+
+Measure, per Artifacts sub-tab (Agent, Bead, Plan, File), the split between
+snapshot-load, query-index build, and what a default `limit:100` blank-query view
+actually costs today, over a live-scale synthetic corpus:
+
+```bash
+pytest -s -m slow tests/perf/bench_artifacts_first_paint.py
+```
+
+Prints a p50/p95/max table per pane per phase and asserts only structural invariants (no
+tight wall-clock budgets, per `tests/ace/tui/bench_admin_center_open.py`'s style) —
+including whether each pane's first paint already short-circuits past the full query
+index. Pair with the repaired `bench_agent_catalog.py` (see below) when investigating
+Agent pane regressions, since both fixtures share the same synthetic registry corpus.
+
 ## Agent Artifact Startup
 
 Use this recipe when changing `sase ace` startup loading, dismissed archive queries,

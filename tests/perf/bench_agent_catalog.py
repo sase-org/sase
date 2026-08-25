@@ -2,8 +2,7 @@
 
 Measures :func:`sase.agents.catalog.build_agent_catalog_snapshot` against a
 synthetic registry sized to the epic plan's measured reference point:
-12,525 registry names, ≤400ms end to end (measured baseline 273ms on the
-plan author's machine; ``plan:202608/artifacts_agents_pane.md`` §2.4).
+12,525 registry names (``plan:202608/artifacts_agents_pane.md`` §2.4).
 
 Two of the pipeline's four steps are pre-existing, already-optimized
 infrastructure this phase does not own: :func:`sase.agent.names.load_name_registry`
@@ -20,6 +19,32 @@ both exercised for real. This still measures every line this phase wrote:
 ``_sources.py``'s artifact-index reader, ``_family.py``, ``_derive.py``,
 and ``_build.py``'s join/derivation loop, plus the real registry loader
 whose cost dominates the budget.
+
+``with_real_sources`` (see :func:`build_synthetic_catalog_sources`) controls
+whether claimed-leaf entries carry a real ``source`` plus a real, on-disk
+``artifacts_dir``/``bundle_path`` the way production entries always do.
+Originally this fixture *always* omitted ``source`` and ran under an
+isolated ``SASE_HOME`` with no artifact tree at all, so neither
+:func:`sase.agent.names._registry_entries.entry_owner_missing` nor
+:func:`sase.agent.names._registry_scan.source_signature_paths` had anything
+real to touch. That hid the two costs that dominate the live Agent pane
+load — 905ms of 1,529ms, see
+``plan:202608/artifacts_query_performance.md`` §1.2/§1.4 — behind a fixture
+that measured a 273ms build of a corpus whose real-world equivalent takes
+1,529ms. ``with_real_sources=True`` (the default, and the primary
+parametrization of :func:`test_bench_agent_catalog_budget`) repairs that:
+every claimed-leaf entry gets ``"source": "artifact"`` plus a real artifact
+directory (flat ``ace-run/<suffix>`` layout, written directly with
+``mkdir``/``write_text`` rather than through
+``tests._agent_names_fixtures``'s helpers, since those go through the Rust
+``canonical_agent_artifact_path`` binding once per call — unnecessary
+overhead at 12,525 calls), and roughly 5% of entries instead get
+``"source": "dismissed_bundle"`` plus a real dismissed-bundle JSON file
+under ``<SASE_HOME>/dismissed_bundles/<shard>/<raw_suffix>.json``, matching
+:func:`sase.agent.names._registry_scan_payloads.bundle_owner`'s real shape.
+``with_real_sources=False`` keeps the original fixture behavior byte-for-byte
+as a second parametrization, so the split between raw parse cost and
+revalidation cost stays visible (``plan`` §3).
 
 Run with ``pytest -s -m slow tests/perf/bench_agent_catalog.py`` or
 directly as ``python -m tests.perf.bench_agent_catalog``.
@@ -48,11 +73,30 @@ from sase.agents.catalog import _sources as catalog_sources
 from sase.agents.catalog import build_agent_catalog_snapshot
 from sase.core.agent_scan_facade import default_agent_artifact_index_path
 from sase.core.agent_scan_wire import AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
+from sase.core.paths import sase_projects_dir, sase_subdir
 
 pytestmark = pytest.mark.slow
 
-_BUDGET_MS = 400.0
+# Pre-fix baseline observed against the repaired (``with_real_sources=True``)
+# fixture on the author's machine: median 328ms, max 507ms over 5 runs
+# against 12,525 registry names / ~10,646 real artifact dirs / ~626 real
+# dismissed-bundle files (~11,273 signature-scan paths total) — versus 176ms
+# median for the ``with_real_sources=False`` variant's fast path, so the
+# revalidation cost this repair restores is real and roughly doubles the
+# build. This is deliberately *not* a tight gate: this phase (``bench``) only
+# has to prove the fixture is now honest, not fix the cost it now reveals.
+# The budget below is ~2.75x the observed max to absorb host/CI variance.
+# The ``registry`` phase (sibling bead) implements the freshness memo
+# described in ``plan:202608/artifacts_query_performance.md`` §4 and
+# tightens this budget once `load_name_registry()` stops paying a full
+# revalidation sweep on every call.
+_BUDGET_MS = 900.0
 _REFERENCE_REGISTRY_SIZE = 12525
+# ~1/20 (5%) of entries get a ``dismissed_bundle`` source instead of an
+# ``artifact`` source + real artifacts_dir, matching production's mix of
+# claimed names whose backing artifact directory was reclaimed but whose
+# dismissed-bundle archive still exists.
+_DISMISSED_BUNDLE_SOURCE_BUCKET = 2
 
 _PROJECTS = ("gh_sase-org__sase", "gh_bobs-org__bob-cli", "home")
 _MODELS = ("claude-opus-5", "claude-sonnet-5", "gpt-5.6-sol")
@@ -86,8 +130,45 @@ def _write_synthetic_artifact_index(rows: list[dict[str, Any]]) -> None:
         connection.close()
 
 
+def _write_real_artifact_dir(project: str, raw_suffix: str) -> str:
+    """Write a minimal, real, flat ``ace-run/<suffix>`` artifact directory.
+
+    Deliberately plain ``mkdir``/``write_text`` rather than
+    ``tests._agent_names_fixtures.make_agent`` or
+    ``canonical_agent_artifact_path``: both go through the Rust path-layout
+    binding once per call, which is needless overhead at 12,525 calls for a
+    fixture whose only requirement is that the directory *exists* (for
+    :func:`entry_owner_missing`) and is discoverable by
+    ``iter_agent_artifact_dirs``'s own walk (for
+    :func:`source_signature_paths`) — the flat legacy layout satisfies both
+    with one directory per entry.
+    """
+    artifact_dir = sase_projects_dir() / project / "artifacts" / "ace-run" / raw_suffix
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    (artifact_dir / "agent_meta.json").write_text("{}", encoding="utf-8")
+    return str(artifact_dir)
+
+
+def _write_real_dismissed_bundle_file(raw_suffix: str) -> str:
+    """Write a minimal, real dismissed-bundle JSON file for one raw suffix.
+
+    Matches :func:`sase.agent.names._registry_scan_payloads.bundle_owner`'s
+    on-disk shape (``<SASE_HOME>/dismissed_bundles/<shard>/<suffix>.json``),
+    which both :func:`entry_owner_missing` (``Path(bundle_path).is_file()``)
+    and :func:`source_signature_paths` (its ``dismissed_bundles`` shard walk)
+    need to see for real.
+    """
+    shard = raw_suffix[:6]
+    bundle_path = sase_subdir("dismissed_bundles") / shard / f"{raw_suffix}.json"
+    bundle_path.parent.mkdir(parents=True, exist_ok=True)
+    bundle_path.write_text("{}", encoding="utf-8")
+    return str(bundle_path)
+
+
 def build_synthetic_catalog_sources(
     registry_size: int,
+    *,
+    with_real_sources: bool = True,
 ) -> tuple[
     dict[str, dict[str, Any]], list[dict[str, Any]], list[DismissedBundleSummary]
 ]:
@@ -97,9 +178,18 @@ def build_synthetic_catalog_sources(
     family containers, ~5% clan containers, the rest claimed leaf names
     (half family members, half plain agents), ~65% artifact-index
     enrichment, ~55% of dismissed leaves getting a top-level archive match.
-    Registry entries omit ``source`` so :func:`registry_file_is_stale`'s
-    per-entry existence check never fires — the synthetic ``artifacts_dir``/
-    ``bundle_path`` values do not need to exist on disk.
+
+    When ``with_real_sources`` is true (the default), every claimed-leaf
+    entry gets a real ``source`` the way production entries always do:
+    ~95% ``"artifact"`` with a real, on-disk ``artifacts_dir``, and ~5%
+    ``"dismissed_bundle"`` with a real, on-disk ``bundle_path`` — so
+    :func:`sase.agent.names._registry_entries.entry_owner_missing` and
+    :func:`sase.agent.names._registry_scan.source_signature_paths` do the
+    real filesystem work production pays on every registry load (see module
+    docstring). When false, entries omit ``source`` entirely and
+    ``artifacts_dir``/``bundle_path`` stay synthetic, non-existent paths —
+    the original fixture shape, kept so the split between raw parse cost and
+    revalidation cost stays visible as a second parametrization.
     """
     entries: dict[str, dict[str, Any]] = {}
     index_rows: list[dict[str, Any]] = []
@@ -136,8 +226,22 @@ def build_synthetic_catalog_sources(
         base = f"agent{i:06d}"
         name = f"{base}--code" if bucket % 2 == 0 else base
         raw_suffix = f"{20260101000000 + i}"
-        artifacts_dir = f"/synthetic/{project}/artifacts/ace-run/{raw_suffix}"
         state = ("dismissed", "done", "active")[i % 3]
+        is_dismissed_bundle_only = (
+            with_real_sources and bucket == _DISMISSED_BUNDLE_SOURCE_BUCKET
+        )
+        if is_dismissed_bundle_only:
+            # ~5% of entries: the backing artifact directory was reclaimed,
+            # so only a dismissed-bundle archive still proves ownership.
+            state = "dismissed"
+            artifacts_dir: str | None = None
+            bundle_path = _write_real_dismissed_bundle_file(raw_suffix)
+        elif with_real_sources:
+            artifacts_dir = _write_real_artifact_dir(project, raw_suffix)
+            bundle_path = None
+        else:
+            artifacts_dir = f"/synthetic/{project}/artifacts/ace-run/{raw_suffix}"
+            bundle_path = None
         entries[name] = {
             "name": name,
             "reservation_kind": "claimed",
@@ -145,11 +249,17 @@ def build_synthetic_catalog_sources(
             "project_name": project,
             "canonical_global_name": f"bench.athena.{name}",
             "raw_suffix": raw_suffix,
-            "artifacts_dir": artifacts_dir,
             "collision_owners": [{"name": name}] if i % 37 == 0 else [],
         }
+        if is_dismissed_bundle_only:
+            entries[name]["source"] = "dismissed_bundle"
+            entries[name]["bundle_path"] = bundle_path
+        else:
+            entries[name]["artifacts_dir"] = artifacts_dir
+            if with_real_sources:
+                entries[name]["source"] = "artifact"
 
-        if i % 3 == 0:  # ~65% of leaves get artifact-index enrichment
+        if artifacts_dir is not None and i % 3 == 0:  # ~65% get index enrichment
             index_rows.append(
                 {
                     "artifact_dir": artifacts_dir,
@@ -232,9 +342,10 @@ def run_bench(
     runs: int,
     warmup: int,
     monkeypatch: pytest.MonkeyPatch,
+    with_real_sources: bool = True,
 ) -> dict[str, Any]:
     entries, index_rows, dismissed_summaries = build_synthetic_catalog_sources(
-        registry_size
+        registry_size, with_real_sources=with_real_sources
     )
     _write_synthetic_registry(entries)
     _write_synthetic_artifact_index(index_rows)
@@ -253,6 +364,7 @@ def run_bench(
     snapshot = build_agent_catalog_snapshot()
     return {
         "registry_size": registry_size,
+        "with_real_sources": with_real_sources,
         "artifact_index_rows": len(index_rows),
         "dismissed_top_level_rows": len(dismissed_summaries),
         "row_count": len(snapshot.rows),
@@ -261,25 +373,43 @@ def run_bench(
     }
 
 
-def test_bench_agent_catalog_budget(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Hard gate: a full-scale catalog snapshot must build in ≤400ms."""
+@pytest.mark.parametrize("with_real_sources", [True, False])
+def test_bench_agent_catalog_budget(
+    monkeypatch: pytest.MonkeyPatch,
+    with_real_sources: bool,
+) -> None:
+    """Catalog snapshot builds within the pre-``registry``-fix baseline.
+
+    ``with_real_sources=True`` is the honest measurement this phase exists to
+    restore (see module docstring): it pays the real
+    ``entry_owner_missing``/``source_signature_paths`` revalidation cost, so
+    its budget is generous — it is the number the ``registry`` phase has to
+    beat, not a tight regression gate. ``with_real_sources=False`` keeps the
+    original fast-path fixture (no ``source``, no on-disk artifact tree) so
+    the split between raw parse cost and revalidation cost stays visible: it
+    should stay comfortably under the real-sources timing.
+    """
     report = run_bench(
         registry_size=_REFERENCE_REGISTRY_SIZE,
         runs=5,
         warmup=1,
         monkeypatch=monkeypatch,
+        with_real_sources=with_real_sources,
     )
     print(report)
     median_ms = report["timings_ms"]["median_ms"]
-    assert median_ms <= _BUDGET_MS, (
+    budget = _BUDGET_MS if with_real_sources else 400.0
+    assert median_ms <= budget, (
         f"catalog build took {median_ms:.1f}ms over {_REFERENCE_REGISTRY_SIZE} "
-        f"registry names (budget {_BUDGET_MS:.0f}ms)"
+        f"registry names (budget {budget:.0f}ms, with_real_sources={with_real_sources})"
     )
     assert report["row_count"] == _REFERENCE_REGISTRY_SIZE
-    # A loose sanity check that enrichment actually joined something, not a
-    # fidelity claim against the plan's measured 91.6% live-machine ratio;
-    # tests/test_agent_catalog.py covers per-fixture derivation precisely.
-    assert report["enriched_ratio"] > 0.25
+    if with_real_sources:
+        # A loose sanity check that enrichment actually joined something, not
+        # a fidelity claim against the plan's measured 91.6% live-machine
+        # ratio; tests/test_agent_catalog.py covers per-fixture derivation
+        # precisely.
+        assert report["enriched_ratio"] > 0.25
 
 
 def _argparser() -> argparse.ArgumentParser:
@@ -287,6 +417,13 @@ def _argparser() -> argparse.ArgumentParser:
     parser.add_argument("--registry-size", type=int, default=_REFERENCE_REGISTRY_SIZE)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--warmup", type=int, default=1)
+    parser.add_argument(
+        "--no-real-sources",
+        dest="with_real_sources",
+        action="store_false",
+        default=True,
+        help="use the original fast-path fixture (no source, no artifact tree)",
+    )
     return parser
 
 
@@ -304,11 +441,13 @@ def main(argv: list[str] | None = None) -> int:
             runs=args.runs,
             warmup=args.warmup,
             monkeypatch=monkeypatch,
+            with_real_sources=args.with_real_sources,
         )
     print(report)
     median_ms = report["timings_ms"]["median_ms"]
-    print(f"median={median_ms:.1f}ms budget={_BUDGET_MS:.0f}ms")
-    return 0 if median_ms <= _BUDGET_MS else 1
+    budget = _BUDGET_MS if args.with_real_sources else 400.0
+    print(f"median={median_ms:.1f}ms budget={budget:.0f}ms")
+    return 0 if median_ms <= budget else 1
 
 
 if __name__ == "__main__":
