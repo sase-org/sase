@@ -5,7 +5,12 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from sase.agents.catalog import AgentCatalogRow, build_agent_catalog_snapshot
+from sase.agents.catalog import (
+    AgentCatalogLinkFacets,
+    AgentCatalogRow,
+    build_agent_catalog_link_facets,
+    build_agent_catalog_snapshot,
+)
 
 from ...relations.artifact_links import (
     ArtifactLinksSnapshot,
@@ -32,6 +37,7 @@ class AgentsSnapshot:
     artifact_links: ArtifactLinksSnapshot = field(
         default_factory=empty_artifact_links_snapshot
     )
+    link_facets: Mapping[str, AgentCatalogLinkFacets] = field(default_factory=dict)
     facets: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 
 
@@ -52,12 +58,15 @@ def load_agents_snapshot(
     complete = limit is None or total <= limit
     if limit is not None:
         rows = rows[:limit]
+    artifact_links = load_artifact_links_snapshot(project)
+    link_facets = build_agent_catalog_link_facets(rows, artifact_links.rows)
     return AgentsSnapshot(
         project=project,
         rows=rows,
         total_row_count=total,
         complete=complete,
-        artifact_links=load_artifact_links_snapshot(project),
+        artifact_links=artifact_links,
+        link_facets=link_facets,
         facets=catalog.facets,
     )
 

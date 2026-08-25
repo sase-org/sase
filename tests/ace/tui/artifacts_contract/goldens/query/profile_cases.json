@@ -491,7 +491,7 @@
         },
         "unknown:value": {
           "position": 0,
-          "message": "Unknown filter key 'unknown' (valid keys: after, attempt, attention, before, clan, dismissed, family, hidden, kind, max, min, model, name, parent, project, provider, retry, revivable, role, since, state, status, tribe, until, workflow) (at position 0)"
+          "message": "Unknown filter key 'unknown' (valid keys: after, artifact, attempt, attention, before, clan, dismissed, family, hidden, kind, linked, max, min, model, name, parent, project, provider, relation, retry, revivable, role, since, state, status, tribe, until, workflow) (at position 0)"
         }
       }
     },

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from sase.ace.query.profile_evaluator import (
     ArtifactQueryRow,
@@ -16,6 +18,20 @@ from sase.project_display_names import ProjectRefDisplaySnapshot
 from ._models import AgentCatalogRow, AgentCatalogSnapshot
 
 
+@dataclass(frozen=True, slots=True)
+class AgentCatalogLinkFacets:
+    """Artifact-link facets attached to one agent catalog row."""
+
+    relations: tuple[str, ...] = ()
+    artifacts: tuple[str, ...] = ()
+    count: int = 0
+
+    @property
+    def linked(self) -> bool:
+        """Return whether at least one artifact-link row touches the agent."""
+        return self.count > 0
+
+
 def agent_catalog_stable_id(row: AgentCatalogRow) -> str:
     """Return the stable query identity for one catalog row."""
     return f"agent:{row.name}"
@@ -25,10 +41,13 @@ def agent_catalog_query_entries(
     snapshot: AgentCatalogSnapshot,
     *,
     project_ref_display: ProjectRefDisplaySnapshot | None = None,
+    link_facets: Mapping[str, AgentCatalogLinkFacets] | None = None,
 ) -> tuple[ArtifactQueryRow, ...]:
     """Return profile-driven query entries for every row in *snapshot*."""
     return agent_catalog_rows_query_entries(
-        snapshot.rows, project_ref_display=project_ref_display
+        snapshot.rows,
+        project_ref_display=project_ref_display,
+        link_facets=link_facets,
     )
 
 
@@ -36,11 +55,17 @@ def agent_catalog_rows_query_entries(
     rows: Iterable[AgentCatalogRow],
     *,
     project_ref_display: ProjectRefDisplaySnapshot | None = None,
+    link_facets: Mapping[str, AgentCatalogLinkFacets] | None = None,
 ) -> tuple[ArtifactQueryRow, ...]:
     """Return profile-driven query entries for the provided catalog rows."""
     display = project_ref_display or ProjectRefDisplaySnapshot()
     return tuple(
-        agent_catalog_query_entry(row, project_ref_display=display) for row in rows
+        agent_catalog_query_entry(
+            row,
+            project_ref_display=display,
+            link_facets=link_facets,
+        )
+        for row in rows
     )
 
 
@@ -48,9 +73,11 @@ def agent_catalog_query_entry(
     row: AgentCatalogRow,
     *,
     project_ref_display: ProjectRefDisplaySnapshot | None = None,
+    link_facets: Mapping[str, AgentCatalogLinkFacets] | None = None,
 ) -> ArtifactQueryRow:
     """Return one row shaped for ``compile_artifact_query_index``."""
     display = project_ref_display or ProjectRefDisplaySnapshot()
+    link_facet = (link_facets or {}).get(row.name)
     status = _status(row.status)
     project_values = _project_values(row.project, display)
     label_values = _label_values(row, project_values=project_values, status=status)
@@ -70,6 +97,10 @@ def agent_catalog_query_entry(
     _add_field(fields, "revivable", row.revivable)
     _add_field(fields, "attention", row.attention)
     _add_field(fields, "retry", row.retry)
+    _add_field(fields, "linked", bool(link_facet and link_facet.linked))
+    if link_facet is not None:
+        _add_field(fields, "relation", link_facet.relations)
+        _add_field(fields, "artifact", link_facet.artifacts)
     _add_field(fields, "label", label_values)
     _add_field(fields, "text", text_values)
     _add_if_present(fields, "family", row.family)
@@ -111,6 +142,125 @@ def agent_catalog_runtime_seconds(row: AgentCatalogRow) -> int | None:
         started_at=_runtime_timestamp(row.started_at),
         finished_at=_runtime_timestamp(row.finished_at),
     )
+
+
+def build_agent_catalog_link_facets(
+    rows: Iterable[AgentCatalogRow],
+    link_rows: Iterable[Mapping[str, Any]],
+) -> Mapping[str, AgentCatalogLinkFacets]:
+    """Return artifact-link query facets keyed by agent catalog row name."""
+
+    catalog_rows = tuple(rows)
+    agent_names = _agent_ref_candidate_index(catalog_rows)
+    relations: dict[str, set[str]] = {}
+    artifacts: dict[str, set[str]] = {}
+    counts: dict[str, int] = {}
+
+    for raw in link_rows:
+        source_ref = _normalized_link_ref(raw.get("source_ref"))
+        target_ref = _normalized_link_ref(raw.get("target_ref"))
+        if not source_ref or not target_ref:
+            continue
+        relation = str(raw.get("relation") or "").strip()
+        source_name = _agent_name_for_link_ref(source_ref, agent_names)
+        target_name = _agent_name_for_link_ref(target_ref, agent_names)
+        touched: set[str] = set()
+        if source_name is not None:
+            _record_link_facet(
+                source_name,
+                other_ref=target_ref,
+                relation=relation,
+                relations=relations,
+                artifacts=artifacts,
+            )
+            touched.add(source_name)
+        if target_name is not None:
+            _record_link_facet(
+                target_name,
+                other_ref=source_ref,
+                relation=relation,
+                relations=relations,
+                artifacts=artifacts,
+            )
+            touched.add(target_name)
+        for name in touched:
+            counts[name] = counts.get(name, 0) + 1
+
+    return {
+        name: AgentCatalogLinkFacets(
+            relations=tuple(sorted(relations.get(name, ()))),
+            artifacts=tuple(sorted(artifacts.get(name, ()))),
+            count=count,
+        )
+        for name, count in counts.items()
+    }
+
+
+def _agent_ref_candidate_index(rows: tuple[AgentCatalogRow, ...]) -> dict[str, str]:
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        current_owner_agent_name_lookup_candidates,
+    )
+
+    identity = AgentIdentitySnapshot.current()
+    index: dict[str, str] = {}
+    for row in rows:
+        _remember_agent_ref_candidate(index, row.name, row.name, replace=True)
+        _remember_agent_ref_candidate(
+            index, row.canonical_global_name, row.name, replace=True
+        )
+    for row in rows:
+        for value in (row.name, row.canonical_global_name):
+            if not value:
+                continue
+            for candidate in current_owner_agent_name_lookup_candidates(
+                value, identity
+            ):
+                _remember_agent_ref_candidate(index, candidate, row.name)
+    return index
+
+
+def _remember_agent_ref_candidate(
+    index: dict[str, str],
+    candidate: str | None,
+    row_name: str,
+    *,
+    replace: bool = False,
+) -> None:
+    text = (candidate or "").strip()
+    if not text:
+        return
+    if replace or text not in index:
+        index[text] = row_name
+
+
+def _agent_name_for_link_ref(
+    ref: str,
+    agent_names: Mapping[str, str],
+) -> str | None:
+    kind, sep, payload = ref.partition(":")
+    if sep != ":" or kind != "agent" or not payload:
+        return None
+    return agent_names.get(payload)
+
+
+def _record_link_facet(
+    name: str,
+    *,
+    other_ref: str,
+    relation: str,
+    relations: dict[str, set[str]],
+    artifacts: dict[str, set[str]],
+) -> None:
+    if relation:
+        relations.setdefault(name, set()).add(relation)
+    if other_ref:
+        artifacts.setdefault(name, set()).add(other_ref)
+
+
+def _normalized_link_ref(value: object) -> str:
+    text = str(value or "").strip().removeprefix("@").split("#", 1)[0].strip()
+    return text
 
 
 def _status(value: str | None) -> str | None:
@@ -255,9 +405,11 @@ def _distinct(*values: object) -> tuple[str, ...]:
 
 
 __all__ = [
+    "AgentCatalogLinkFacets",
     "agent_catalog_query_entries",
     "agent_catalog_query_entry",
     "agent_catalog_rows_query_entries",
     "agent_catalog_runtime_seconds",
     "agent_catalog_stable_id",
+    "build_agent_catalog_link_facets",
 ]

@@ -106,6 +106,21 @@ def _escape_string_value(value: str) -> str:
     return result
 
 
+def _is_bare_property_value(value: str) -> bool:
+    if not value:
+        return False
+    first = value[0]
+    if not (first.isalnum() or first == "_"):
+        return False
+    return all(char.isalnum() or char in "_.-" for char in value[1:])
+
+
+def _property_value_to_canonical(value: str) -> str:
+    if _is_bare_property_value(value):
+        return value
+    return f'"{_escape_string_value(value)}"'
+
+
 def to_canonical_string(expr: QueryExpr) -> str:
     """Convert a query expression to its canonical string representation.
 
@@ -142,7 +157,7 @@ def to_canonical_string(expr: QueryExpr) -> str:
         return f'"{escaped}"'
 
     if isinstance(expr, PropertyMatch):
-        return f"{expr.key}:{expr.value}"
+        return f"{expr.key}:{_property_value_to_canonical(expr.value)}"
 
     if isinstance(expr, NotExpr):
         inner = to_canonical_string(expr.operand)

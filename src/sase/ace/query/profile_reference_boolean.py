@@ -354,18 +354,34 @@ def _parse_word_or_property(
     if pos < len(query) and query[pos] == ":":
         key = word.casefold()
         field = require_filterable_field(profile, key, start)
-        value, pos = _parse_property_value(query, pos + 1)
+        value, pos = _parse_property_value(
+            query,
+            pos + 1,
+            extended=key == "artifact",
+        )
         normalized = normalize_query_value(field, value, position=start)
         return (_ProfileToken("property", normalized, start, property_key=key), pos)
     return (_ProfileToken("string", word, start), pos)
 
 
-def _parse_property_value(query: str, pos: int) -> tuple[str, int]:
+def _parse_property_value(
+    query: str,
+    pos: int,
+    *,
+    extended: bool = False,
+) -> tuple[str, int]:
     if pos >= len(query):
         raise ProfileQueryError("Expected property value", pos)
     if query[pos] == '"':
         token, next_pos = _parse_quoted_string(query, pos, case_sensitive=False)
         return token.value, next_pos
+    if extended:
+        start = pos
+        while pos < len(query) and not query[pos].isspace() and query[pos] not in "()":
+            pos += 1
+        if pos == start:
+            raise ProfileQueryError("Expected property value", pos)
+        return query[start:pos], pos
     match = _PROPERTY_VALUE_RE.match(query, pos)
     if match is None:
         raise ProfileQueryError("Expected property value", pos)

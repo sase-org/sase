@@ -27,14 +27,17 @@ from __future__ import annotations
 from ._build import build_agent_catalog_snapshot
 from ._models import AgentCatalogBuildError, AgentCatalogRow, AgentCatalogSnapshot
 from ._query import (
+    AgentCatalogLinkFacets,
     agent_catalog_query_entries,
     agent_catalog_query_entry,
     agent_catalog_rows_query_entries,
     agent_catalog_runtime_seconds,
     agent_catalog_stable_id,
+    build_agent_catalog_link_facets,
 )
 
 __all__ = [
+    "AgentCatalogLinkFacets",
     "AgentCatalogBuildError",
     "AgentCatalogRow",
     "AgentCatalogSnapshot",
@@ -43,5 +46,6 @@ __all__ = [
     "agent_catalog_rows_query_entries",
     "agent_catalog_runtime_seconds",
     "agent_catalog_stable_id",
+    "build_agent_catalog_link_facets",
     "build_agent_catalog_snapshot",
 ]

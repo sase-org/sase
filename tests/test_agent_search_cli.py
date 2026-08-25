@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from datetime import UTC, datetime
 import json
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -113,6 +114,7 @@ def test_agent_search_parser_and_help_are_complete_and_sorted() -> None:
     assert "-p PROJECT" in search_help
     assert "--project PROJECT" in search_help
     assert "revivable:true AND project:sase AND role:code" in search_help
+    assert "linked:true AND relation:read" in search_help
     assert "Nm means months" in search_help
     assert "Nm means minutes" in search_help
 
@@ -277,6 +279,7 @@ def test_agent_catalog_query_entry_emits_stable_rust_wire_shape() -> None:
                 "revivable": [True],
                 "attention": [True],
                 "retry": [True],
+                "linked": [False],
                 "family": ["research.12"],
                 "role": ["code"],
                 "clan": ["athena.sase-tt"],
@@ -355,6 +358,67 @@ def test_agent_search_default_scope_excludes_hidden_and_workflow_children(
     assert [row["name"] for row in payload] == ["visible"]
 
 
+def test_agent_search_filters_artifact_link_facets(
+    monkeypatch: Any,
+    capsys: Any,
+) -> None:
+    snapshot = _snapshot(
+        _row("alpha"),
+        _row("beta"),
+        _row("gamma"),
+    )
+    link_rows = (
+        {
+            "source_ref": "agent:alpha",
+            "relation": "read",
+            "target_ref": "plan:202608/example.md",
+        },
+        {
+            "source_ref": "plan:202608/example.md",
+            "relation": "implements",
+            "target_ref": "agent:bbugyi200.athena.beta",
+        },
+    )
+    _patch_sources(monkeypatch, snapshot, link_rows=link_rows)
+
+    code = handle_agents_search(
+        argparse.Namespace(
+            json=True,
+            limit=0,
+            project=None,
+            query=["relation:read", "AND", "linked:true"],
+        )
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert [row["name"] for row in payload] == ["alpha"]
+
+    code = handle_agents_search(
+        argparse.Namespace(
+            json=True,
+            limit=0,
+            project=None,
+            query=["artifact:plan:202608/example.md"],
+        )
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert {row["name"] for row in payload} == {"alpha", "beta"}
+
+    for query, expected in (
+        (["linked:true"], {"alpha", "beta"}),
+        (["linked:false"], {"gamma"}),
+    ):
+        code = handle_agents_search(
+            argparse.Namespace(json=True, limit=0, project=None, query=query)
+        )
+        assert code == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert {row["name"] for row in payload} == expected
+
+
 def test_agent_search_pretty_output_smoke(monkeypatch: Any, capsys: Any) -> None:
     snapshot = _snapshot(_row("visible", status="RUNNING", model="gpt-5"))
     _patch_sources(monkeypatch, snapshot)
@@ -370,7 +434,12 @@ def test_agent_search_pretty_output_smoke(monkeypatch: Any, capsys: Any) -> None
     assert "RUNNING" in output
 
 
-def _patch_sources(monkeypatch: Any, snapshot: AgentCatalogSnapshot) -> None:
+def _patch_sources(
+    monkeypatch: Any,
+    snapshot: AgentCatalogSnapshot,
+    *,
+    link_rows: tuple[dict[str, object], ...] = (),
+) -> None:
     from sase.agents import cli_search
 
     display = ProjectRefDisplaySnapshot(
@@ -380,6 +449,11 @@ def _patch_sources(monkeypatch: Any, snapshot: AgentCatalogSnapshot) -> None:
     monkeypatch.setattr(cli_search, "build_agent_catalog_snapshot", lambda: snapshot)
     monkeypatch.setattr(
         cli_search, "load_project_ref_display_snapshot", lambda: display
+    )
+    monkeypatch.setattr(
+        cli_search,
+        "load_artifact_links_snapshot",
+        lambda _project: SimpleNamespace(rows=link_rows),
     )
 
 

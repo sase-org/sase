@@ -6,7 +6,7 @@ import argparse
 import json
 import re
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from rich.console import Console
@@ -16,7 +16,13 @@ from rich.text import Text
 
 from sase.ace.query.limit_token import LimitTokenError, apply_limit, extract_limit
 from sase.ace.query.profile_reference_support import ProfileQueryError
-from sase.agents.catalog import AgentCatalogRow, build_agent_catalog_snapshot
+from sase.ace.tui.relations.artifact_links import load_artifact_links_snapshot
+from sase.agents.catalog import (
+    AgentCatalogLinkFacets,
+    AgentCatalogRow,
+    build_agent_catalog_link_facets,
+    build_agent_catalog_snapshot,
+)
 from sase.agents.catalog._query import (
     agent_catalog_rows_query_entries,
     agent_catalog_runtime_seconds,
@@ -50,12 +56,15 @@ def handle_agents_search(args: argparse.Namespace) -> int:
         for row in snapshot.rows
         if _row_matches_project(row, project, project_ref_display)
     )
+    link_snapshot = load_artifact_links_snapshot(project)
+    link_facets = build_agent_catalog_link_facets(rows, link_snapshot.rows)
     try:
         matched_rows, matched_total, cap, truncated = _evaluate_rows(
             query,
             rows,
             limit=limit,
             project_ref_display=project_ref_display,
+            link_facets=link_facets,
         )
     except (LimitTokenError, ProfileQueryError, ValueError) as exc:
         Console(stderr=True).print(f"[bold red]error:[/bold red] {exc}")
@@ -82,6 +91,7 @@ def _evaluate_rows(
     *,
     limit: int | None,
     project_ref_display: ProjectRefDisplaySnapshot,
+    link_facets: Mapping[str, AgentCatalogLinkFacets] | None,
 ) -> tuple[tuple[AgentCatalogRow, ...], int, int | None, bool]:
     profile = _agents_profile()
     remainder, query_cap = extract_limit(query)
@@ -92,7 +102,9 @@ def _evaluate_rows(
         generation=1,
         profile=profile,
         entries=agent_catalog_rows_query_entries(
-            rows, project_ref_display=project_ref_display
+            rows,
+            project_ref_display=project_ref_display,
+            link_facets=link_facets,
         ),
     )
     result = evaluate_artifact_query_many(match_query, index)

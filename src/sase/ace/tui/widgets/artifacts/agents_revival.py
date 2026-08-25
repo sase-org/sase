@@ -196,6 +196,7 @@ def _apply_seed_query(
         complete=snapshot.complete,
         truncated=False,
         artifact_links=snapshot.artifact_links,
+        link_facets=snapshot.link_facets,
         facets=snapshot.facets,
     )
 

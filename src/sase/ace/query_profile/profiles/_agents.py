@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.sdd.artifact_link_store import assembled_artifact_relations
+
 from ..registry import HOST_PREDICATES
 from ..types import ArtifactQuerySchema, QueryFieldSpec
 
@@ -39,6 +41,7 @@ _AGENT_DURATION_HINT = "seconds or Ns/Nm/Nh/Nd; Nm means minutes"
 def agents_query_schema() -> ArtifactQuerySchema:
     """The boolean Artifacts Agent pane dialect. No sigils or macros."""
 
+    relation_values = _agent_relation_values()
     enum_fields = (
         QueryFieldSpec(
             key="kind",
@@ -70,6 +73,12 @@ def agents_query_schema() -> ArtifactQuerySchema:
             static_values=_AGENT_PROVIDER_VALUES,
             hint="LLM provider; static values merge with observed facets",
         ),
+        QueryFieldSpec(
+            key="relation",
+            value_kind="enum",
+            static_values=relation_values,
+            hint="artifact-link relation slug",
+        ),
     )
     exact_string_fields = (
         QueryFieldSpec(
@@ -92,6 +101,11 @@ def agents_query_schema() -> ArtifactQuerySchema:
             key="project",
             exact_match=True,
             hint="project key or display name",
+        ),
+        QueryFieldSpec(
+            key="artifact",
+            exact_match=True,
+            hint="canonical artifact ref linked to the agent",
         ),
     )
     string_fields = (
@@ -126,6 +140,7 @@ def agents_query_schema() -> ArtifactQuerySchema:
             ("revivable", "dismissed and backed by a readable top-level bundle"),
             ("attention", "failed or waiting on input"),
             ("retry", "participates in a retry chain"),
+            ("linked", "true when at least one artifact link touches the agent"),
         )
     )
     date_fields = tuple(
@@ -177,6 +192,14 @@ def agents_query_schema() -> ArtifactQuerySchema:
         predicates=tuple(sorted(HOST_PREDICATES)),
         any_special=True,
         free_text_hint="name, label, text metadata (implicit AND)",
+    )
+
+
+def _agent_relation_values() -> tuple[str, ...]:
+    return tuple(
+        slug
+        for relation in assembled_artifact_relations()
+        if (slug := str(relation.get("slug") or "").strip())
     )
 
 

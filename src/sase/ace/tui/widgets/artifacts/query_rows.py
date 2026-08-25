@@ -9,7 +9,11 @@ import time
 from typing import Any
 
 from sase.ace.query_profile import CompiledQueryProfile
-from sase.agents.catalog import AgentCatalogRow
+from sase.agents.catalog import (
+    AgentCatalogLinkFacets,
+    AgentCatalogRow,
+    build_agent_catalog_link_facets,
+)
 from sase.core.query_profile_corpus_facade import (
     ArtifactQueryIndex,
     compile_artifact_query_index,
@@ -102,12 +106,21 @@ def build_agents_query_index(
 ) -> ArtifactQueryIndex:
     """Build a Rust query index for the full Agent catalog snapshot."""
 
+    link_facets = snapshot.link_facets
+    if not link_facets and snapshot.artifact_links.rows:
+        link_facets = build_agent_catalog_link_facets(
+            snapshot.rows, snapshot.artifact_links.rows
+        )
     return compile_artifact_query_index(
         pane_id=pane_id,
         generation=generation,
         profile=profile,
         entries=(
-            _agent_query_entry(row, project_ref_display=project_ref_display)
+            _agent_query_entry(
+                row,
+                project_ref_display=project_ref_display,
+                link_facets=link_facets,
+            )
             for row in snapshot.rows
         ),
     )
@@ -220,6 +233,7 @@ def _agent_query_entry(
     row: AgentCatalogRow,
     *,
     project_ref_display: ProjectRefDisplaySnapshot,
+    link_facets: Mapping[str, AgentCatalogLinkFacets] | None = None,
 ) -> dict[str, Any]:
     started_at = _epoch_seconds(row.started_at)
     finished_at = _epoch_seconds(row.finished_at)
@@ -232,6 +246,7 @@ def _agent_query_entry(
     family = row.family or (row.name if "family" in row.kind else None)
     project_labels = _project_labels(row.project, project_ref_display)
     provider = _normalized_lower(row.llm_provider)
+    link_facet = (link_facets or {}).get(row.name)
     fields: dict[str, object] = {
         "name": _dedupe_text((row.name, row.canonical_global_name)),
         "kind": row.kind,
@@ -249,10 +264,14 @@ def _agent_query_entry(
         "revivable": row.revivable,
         "attention": row.attention,
         "retry": row.retry,
+        "linked": bool(link_facet and link_facet.linked),
         "attempt": row.retry_attempt,
         "model": row.model,
         "provider": provider,
     }
+    if link_facet is not None:
+        fields["relation"] = link_facet.relations
+        fields["artifact"] = link_facet.artifacts
     if started_at is not None:
         fields["since"] = started_at
         fields["until"] = started_at

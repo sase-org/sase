@@ -8,6 +8,7 @@ from typing import Any
 from sase.ace.query_record import QueryRecord, current_profile_digest
 from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui._artifact_tab_model import PaneCapability
+from sase.ace.tui.relations.artifact_links import ArtifactLinksSnapshot
 from sase.ace.tui.actions.patch._query import PatchQueryMixin
 from sase.ace.tui.widgets.artifacts.agents_data import AgentsSnapshot
 from sase.ace.tui.widgets.artifacts.agents_pane import ArtifactsAgentsPane
@@ -41,8 +42,17 @@ def _row(name: str, **overrides: Any) -> AgentCatalogRow:
     return make_agent_catalog_row(name, **values)
 
 
-def _snapshot(rows: tuple[AgentCatalogRow, ...]) -> AgentsSnapshot:
-    return AgentsSnapshot(project=None, rows=rows, total_row_count=len(rows))
+def _snapshot(
+    rows: tuple[AgentCatalogRow, ...],
+    *,
+    artifact_links: ArtifactLinksSnapshot | None = None,
+) -> AgentsSnapshot:
+    return AgentsSnapshot(
+        project=None,
+        rows=rows,
+        total_row_count=len(rows),
+        artifact_links=artifact_links or ArtifactLinksSnapshot(),
+    )
 
 
 def _project_ref_display() -> ProjectRefDisplaySnapshot:
@@ -99,6 +109,58 @@ def test_agents_query_index_maps_catalog_fields_and_project_display_name() -> No
     )
     assert "sase" in index.facets["project"]
     assert "codex" in index.facets["provider"]
+
+
+def test_agents_query_index_filters_artifact_link_facets() -> None:
+    profile = compiled_profile_for_builtin_pane("agents")
+    assert profile is not None
+    rows = (
+        _row("alpha"),
+        _row("beta"),
+        _row("gamma"),
+    )
+    snapshot = _snapshot(
+        rows,
+        artifact_links=ArtifactLinksSnapshot(
+            rows=(
+                {
+                    "source_ref": "agent:alpha",
+                    "relation": "read",
+                    "target_ref": "plan:202608/example.md",
+                },
+                {
+                    "source_ref": "plan:202608/example.md",
+                    "relation": "implements",
+                    "target_ref": "agent:bbugyi200.athena.beta",
+                },
+            )
+        ),
+    )
+    index = build_agents_query_index(
+        snapshot,
+        pane_id="agents",
+        generation=4,
+        profile=profile,
+        project_ref_display=_project_ref_display(),
+    )
+
+    assert evaluate_artifact_query_many(
+        "relation:read AND linked:true",
+        index,
+    ).matched_row_ids == ("agent:alpha",)
+    assert set(
+        evaluate_artifact_query_many(
+            "artifact:plan:202608/example.md",
+            index,
+        ).matched_row_ids
+    ) == {"agent:alpha", "agent:beta"}
+    linked = evaluate_artifact_query_many("linked:true", index).matched_row_ids
+    unlinked = evaluate_artifact_query_many("linked:false", index).matched_row_ids
+    assert set(linked) == {"agent:alpha", "agent:beta"}
+    assert unlinked == ("agent:gamma",)
+    assert len(linked) + len(unlinked) == len(rows)
+    assert "read" in index.facets["relation"]
+    assert "plan:202608/example.md" in index.facets["artifact"]
 
 
 def test_agents_query_limit_is_applied_after_full_membership() -> None:

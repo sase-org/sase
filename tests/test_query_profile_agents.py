@@ -40,6 +40,9 @@ def test_agents_profile_filterable_fields_are_all_accepted_by_the_parser() -> No
         "attempt": "2",
         "model": "gpt-5.6-sol",
         "provider": "codex",
+        "relation": "read",
+        "artifact": "plan:202608/example.md",
+        "linked": "true",
         "since": "7d",
         "until": "2026-08-01",
         "after": "2h",
@@ -65,7 +68,7 @@ def test_agents_profile_string_field_matching_shapes() -> None:
         for item in profile.fields
         if item.filterable and item.value_kind == "string" and not item.exact_match
     }
-    assert exact == {"name", "family", "clan", "project"}
+    assert exact == {"name", "family", "clan", "project", "artifact"}
     assert substring == {"role", "workflow", "parent", "model"}
     assert profile.field("role").static_values == ("code", "plan", "mon")
 
@@ -99,12 +102,17 @@ def test_agents_profile_enum_fields_pin_static_vocabularies() -> None:
         "opencode",
         "qwen",
     )
+    assert "read" in profile.field("relation").static_values
+    assert "implements" in profile.field("relation").static_values
 
     assert canonical_query_for_profile("status:failed", profile) == "status:FAILED"
+    assert canonical_query_for_profile("relation:read", profile) == "relation:read"
     with pytest.raises(ProfileQueryError):
         parse_query_for_profile("kind:not-real", profile)
     with pytest.raises(ProfileQueryError):
         parse_query_for_profile("provider:not-real", profile)
+    with pytest.raises(ProfileQueryError):
+        parse_query_for_profile("relation:not-real", profile)
 
 
 def test_agents_profile_boolean_fields_require_explicit_values() -> None:
@@ -114,7 +122,14 @@ def test_agents_profile_boolean_fields_require_explicit_values() -> None:
         for item in profile.fields
         if item.filterable and item.value_kind == "bool"
     }
-    assert bool_keys == {"hidden", "dismissed", "revivable", "attention", "retry"}
+    assert bool_keys == {
+        "hidden",
+        "dismissed",
+        "revivable",
+        "attention",
+        "retry",
+        "linked",
+    }
     for key in bool_keys:
         assert canonical_query_for_profile(f"{key}:true", profile) == f"{key}:true"
         assert canonical_query_for_profile(key, profile) == f'"{key}"'
