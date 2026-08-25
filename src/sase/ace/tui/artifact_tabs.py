@@ -68,12 +68,9 @@ def reset_artifacts_subtabs_cache() -> None:
 def resolve_artifacts_subtabs() -> tuple[ArtifactsTabDescriptor, ...]:
     """Return fixed and configured provider tabs in visual order."""
 
-    from sase.feature_flags import FeatureFlag, current_flags
-
     global _ARTIFACTS_TAB_CACHE
-    agents_pane_enabled = current_flags().enabled(FeatureFlag.artifacts_agents_pane)
     token = provider_source_token()
-    cache_token = None if token is None else (agents_pane_enabled, token)
+    cache_token = None if token is None else token
     if (
         cache_token is not None
         and _ARTIFACTS_TAB_CACHE is not None
@@ -89,7 +86,7 @@ def resolve_artifacts_subtabs() -> tuple[ArtifactsTabDescriptor, ...]:
             fixed_descriptor("patches"),
             fixed_descriptor("beads"),
             *providers,
-            *((fixed_descriptor("agents"),) if agents_pane_enabled else ()),
+            fixed_descriptor("agents"),
             fixed_descriptor("files"),
         )
     )

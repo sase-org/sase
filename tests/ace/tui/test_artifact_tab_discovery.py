@@ -120,6 +120,7 @@ def test_discovery_failure_keeps_a_degraded_plan_tab(
         "patches",
         "beads",
         "ref:plan",
+        "agents",
         "files",
     ]
     plan = next(descriptor for descriptor in first if descriptor.id == "ref:plan")

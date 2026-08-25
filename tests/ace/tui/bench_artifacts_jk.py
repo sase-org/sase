@@ -20,6 +20,7 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts import CommitsPane
 from sase.ace.tui.widgets.artifacts.commits_timeline import CommitsTimeline
+from sase.ace.tui.widgets.artifacts.agents_pane import ArtifactsAgentsPane
 from sase.ace.tui.widgets.artifacts.beads_data import BeadsSnapshot, ProjectBead
 from sase.ace.tui.widgets.artifacts.files_data import FilesSnapshot
 from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
@@ -27,6 +28,7 @@ from sase.ace.tui.widgets.artifacts.files_pane import ArtifactsFilesPane
 from sase.ace.tui.widgets.artifacts.plan_filter_bar import PlanFilterBar
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 import sase.ace.tui.widgets.artifacts.commits as commits_module
+from sase.agents.catalog import _build as agent_catalog_build
 from sase.bead.model import Issue, IssueType, PhaseSize, Status
 from sase.plan_search.filter_query import parse_plan_filter_query
 from tests.ace.tui._artifacts_beads_helpers import snapshot as _beads_snapshot
@@ -44,6 +46,12 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+)
+from tests.perf.bench_agent_catalog import (
+    _REFERENCE_REGISTRY_SIZE,
+    _write_synthetic_artifact_index,
+    _write_synthetic_registry,
+    build_synthetic_catalog_sources,
 )
 
 pytestmark = pytest.mark.slow
@@ -153,6 +161,22 @@ async def test_artifacts_subtabs_jk_p95(
     plans = _expanded_plans_snapshot(tmp_path, 200)
     beads = _expanded_beads_snapshot(tmp_path, 200)
     files = _expanded_files_snapshot(200)
+    # Agent pane: full 12,525-row synthetic catalog, the epic's own measured
+    # reference point (plan:202608/artifacts_agents_pane.md §2.4; see
+    # tests/perf/bench_agent_catalog.py). The registry and artifact index are
+    # written for real so load_agents_snapshot()'s real build path runs;
+    # only the dismissed-bundle-archive loaders are dependency-injected.
+    agent_entries, agent_index_rows, agent_dismissed = build_synthetic_catalog_sources(
+        _REFERENCE_REGISTRY_SIZE
+    )
+    _write_synthetic_registry(agent_entries)
+    _write_synthetic_artifact_index(agent_index_rows)
+    monkeypatch.setattr(
+        agent_catalog_build, "load_dismissed_top_level", lambda: agent_dismissed
+    )
+    monkeypatch.setattr(
+        agent_catalog_build, "load_dismissed_child_fallback", lambda _suffixes: {}
+    )
     monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: commits)
     monkeypatch.setattr(
         commits_module,
@@ -242,6 +266,42 @@ async def test_artifacts_subtabs_jk_p95(
         await _press_burst(page, "k")
         await _press_fast_navigation_bursts(page)
 
+    # Agent pane: a separate AcePage using ``startup_policy="real"``.
+    # ``AcePage``'s default "fast" startup policy patches
+    # ``resolve_artifacts_subtabs`` to a fixed stub (see
+    # ``sase.ace.testing._startup._install_fast_startup_overrides``) that
+    # does not know about the "agents" pane, so ``page.artifacts_digit
+    # ("agents")`` would raise under the fast policy used above for every
+    # other sub-tab (see ``tests/ace/tui/test_agents_pane_mount.py`` for the
+    # same "real" policy requirement). A real 12,525-row catalog build
+    # inside a background worker thread, combined with host contention, can
+    # take well beyond the default 5s wait budget, so the initial snapshot
+    # wait below uses a longer timeout; the burst measurements themselves
+    # are unaffected since they only depend on the already-mounted pane.
+    #
+    # NOTE: only the "first"/"last"/"down10"/"up10" (g/G/ctrl+d/ctrl+u)
+    # actions are exercised here. The Agent pane's own ``move_selection()``
+    # already supports single-step navigation, but no ``agents_next`` /
+    # ``agents_prev`` action or "j"/"k" keybinding has been wired up for it
+    # (unlike stitches/beads/ref:plan/files), so pressing "j"/"k" on this
+    # pane is currently a no-op — see the filed bug bead for this gap.
+    async with AcePage(initial_tab="patches", startup_policy="real") as page:
+        await page.press(page.artifacts_digit("agents"))
+        await page.expect_state("artifacts_subtab", "agents")
+        agents_pane = page.query_one_widget(
+            "#artifacts-agents-pane", ArtifactsAgentsPane
+        )
+        await page.wait_for(
+            lambda _state: (
+                agents_pane.snapshot is not None
+                and agents_pane.snapshot.total_row_count == _REFERENCE_REGISTRY_SIZE
+            ),
+            timeout=30.0,
+        )
+        await page.wait_for(lambda _state: len(agents_pane.entry_targets()) > 0)
+        agents_pane.focus_list()
+        await _press_fast_navigation_bursts(page)
+
     samples = _read_samples(perf_path)
     expected_actions = (
         "next",
@@ -270,6 +330,14 @@ async def test_artifacts_subtabs_jk_p95(
         "files.last",
         "files.down10",
         "files.up10",
+        # "agents.next" / "agents.prev" are intentionally absent: no
+        # "agents_next" / "agents_prev" action or "j"/"k" binding exists for
+        # the Agent pane yet (see the module docstring note above and the
+        # filed bug bead), so those keys never produce a paint sample.
+        "agents.first",
+        "agents.last",
+        "agents.down10",
+        "agents.up10",
     )
     print("\nArtifacts j/k key-to-paint")
     print(f"  {'action':<18} {'n':>4} {'p50_ms':>8} {'p95_ms':>8}")

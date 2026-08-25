@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from sase.ace.patch import CommitEntry
-from sase.ace.tui.artifact_tabs import reset_artifacts_subtabs_cache
 from sase.ace.tui.commands import CommandContext, is_command_available
-from sase.feature_flags import override_flags
 from tests._command_availability_helpers import (
     catalog_by_id as _catalog_by_id,
     make_patch as _make_patch,
@@ -107,7 +105,7 @@ def test_saved_query_picker_and_slots_follow_query_pane_capability() -> None:
     slot = catalog["saved_query.3"]
 
     for spec in (picker, slot):
-        for subtab in ("patches", "stitches", "beads", "files"):
+        for subtab in ("patches", "stitches", "beads", "agents", "files"):
             assert is_command_available(
                 spec,
                 CommandContext(
@@ -115,18 +113,6 @@ def test_saved_query_picker_and_slots_follow_query_pane_capability() -> None:
                     artifacts_subtab=subtab,
                 ),  # legacy tab id
             )
-        with override_flags(artifacts_agents_pane=True):
-            reset_artifacts_subtabs_cache()
-            try:
-                assert is_command_available(
-                    spec,
-                    CommandContext(
-                        tab="changespecs",
-                        artifacts_subtab="agents",
-                    ),  # legacy tab id
-                )
-            finally:
-                reset_artifacts_subtabs_cache()
         assert not is_command_available(spec, CommandContext(tab="agents"))
         assert not is_command_available(spec, CommandContext(tab="axe"))
 
@@ -136,7 +122,7 @@ def test_saved_query_slot_mode_command_follows_query_pane_capability() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.start_saved_query_mode"]
 
-    for subtab in ("patches", "stitches", "beads", "files"):
+    for subtab in ("patches", "stitches", "beads", "agents", "files"):
         assert is_command_available(
             spec,
             CommandContext(
@@ -144,18 +130,6 @@ def test_saved_query_slot_mode_command_follows_query_pane_capability() -> None:
                 artifacts_subtab=subtab,
             ),  # legacy tab id
         )
-    with override_flags(artifacts_agents_pane=True):
-        reset_artifacts_subtabs_cache()
-        try:
-            assert is_command_available(
-                spec,
-                CommandContext(
-                    tab="changespecs",
-                    artifacts_subtab="agents",
-                ),  # legacy tab id
-            )
-        finally:
-            reset_artifacts_subtabs_cache()
     assert not is_command_available(spec, CommandContext(tab="agents"))
     assert not is_command_available(spec, CommandContext(tab="axe"))
 

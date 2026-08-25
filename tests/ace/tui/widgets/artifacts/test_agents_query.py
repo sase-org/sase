@@ -51,6 +51,9 @@ def _row(name: str, **overrides: Any) -> AgentCatalogRow:
         "has_collision_history": False,
         "from_artifact_index": True,
         "from_dismissed_archive": False,
+        "retry_of_timestamp": None,
+        "retried_as_timestamp": None,
+        "retry_chain_root_timestamp": None,
     }
     values.update(overrides)
     return AgentCatalogRow(**values)

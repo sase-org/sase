@@ -543,8 +543,8 @@ def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:
     assert FILES_PANE_IDS == {}
     descriptor_ids = tuple(descriptor.id for descriptor in view.descriptors)
     assert descriptor_ids[:3] == ("stitches", "patches", "beads")
-    assert descriptor_ids[-1:] == ("files",)
-    assert all(identifier.startswith("ref:") for identifier in descriptor_ids[3:-1])
+    assert descriptor_ids[-2:] == ("agents", "files")
+    assert all(identifier.startswith("ref:") for identifier in descriptor_ids[3:-2])
     assert [descriptor.digit_shortcut for descriptor in view.descriptors[:3]] == [
         "1",
         "2",

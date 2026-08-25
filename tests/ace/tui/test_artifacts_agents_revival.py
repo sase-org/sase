@@ -145,4 +145,7 @@ def _row(
         has_collision_history=False,
         from_artifact_index=not dismissed,
         from_dismissed_archive=dismissed,
+        retry_of_timestamp=None,
+        retried_as_timestamp=None,
+        retry_chain_root_timestamp=None,
     )
