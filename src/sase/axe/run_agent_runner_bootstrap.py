@@ -80,7 +80,7 @@ def _write_bootstrap_agent_meta(
 
 
 def _capture_commit_finalizer_baseline(artifacts_dir: str) -> None:
-    """Snapshot already-dirty paths before this agent's first turn.
+    """Snapshot pre-existing repository checkouts before this agent's first turn.
 
     A family-attach continuation inherits its parent's baseline instead of
     capturing a fresh one: it runs in the same lane/workspace as its parent,

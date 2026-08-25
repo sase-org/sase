@@ -29,6 +29,7 @@ from sase.llm_provider.commit_finalizer_git import (
     split_pre_existing_changed_files,
 )
 from sase.llm_provider.commit_finalizer_state import collect_dirty_state
+from sase.sdd.store import SDD_STORAGE_SIDECAR_REPOS, SddStore
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
 
 from ._commit_finalizer_sibling_helpers import (
@@ -96,6 +97,15 @@ def _write_finalizer_baseline_records(
     (artifacts_dir / FINALIZER_BASELINE_FILENAME).write_text(
         json.dumps({"schema_version": 1, "repositories": records}),
         encoding="utf-8",
+    )
+
+
+def _sidecar_store(plans: Path, **sidecars: Path) -> SddStore:
+    return SddStore(
+        storage=SDD_STORAGE_SIDECAR_REPOS,
+        sdd_dir=plans,
+        repo_root=plans,
+        sidecar_dirs=sidecars,
     )
 
 
@@ -339,7 +349,8 @@ def test_capture_writes_no_baseline_when_dirty_state_collection_fails(
         raise RuntimeError("boom")
 
     monkeypatch.setattr(
-        "sase.llm_provider.commit_finalizer_state.collect_dirty_state", boom
+        "sase.llm_provider.commit_finalizer_state.collect_baseline_repositories",
+        boom,
     )
     artifacts_dir = tmp_path / "artifacts"
 
@@ -374,6 +385,47 @@ def test_capture_writes_fingerprints_for_dirty_paths(
     assert payload["schema_version"] == 1
     assert payload["repositories"][0]["fingerprints"]["dirty.txt"][0] == "??"
     assert not (artifacts_dir / BASELINE_FILENAME).exists()
+
+
+def test_capture_records_clean_sdd_sidecar_before_late_open(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main = tmp_path / "sase_10"
+    plans = tmp_path / "plans"
+    research = tmp_path / "research"
+    for repo in (main, plans, research):
+        _init_git_repo_with_identity(repo)
+    set_agent_env(monkeypatch, main)
+    _use_git_dirty_details(monkeypatch)
+    monkeypatch.setattr(
+        "sase.sdd.store.resolve_sdd_store",
+        lambda *_args: _sidecar_store(plans, research=research),
+    )
+    artifacts_dir = tmp_path / "artifacts"
+
+    capture_dirty_baseline(str(main), str(artifacts_dir))
+    target = "202608/report.md"
+    (research / "202608").mkdir()
+    (research / target).write_text("agent work\n", encoding="utf-8")
+    assert (
+        capture_opened_repo_dirty_baseline(
+            "linked:research",
+            str(research),
+            kind="linked",
+            name="research",
+            artifacts_dir=str(artifacts_dir),
+        )
+        is None
+    )
+
+    baseline = load_dirty_baseline(artifacts_dir)
+    assert baseline is not None
+    assert baseline[finalizer_git.normalize_path(str(research))] == {}
+    assert _is_protected(artifacts_dir, research, target) is False
+    details = _dirty_details(main, artifacts_dir)
+    assert target in details
+    assert _PRE_EXISTING_HEADER not in details
 
 
 def test_late_open_baseline_capture_first_repo_id_wins(tmp_path: Path) -> None:
@@ -418,6 +470,47 @@ def test_late_open_baseline_capture_first_repo_id_wins(tmp_path: Path) -> None:
             )
         }
     }
+
+
+def test_late_open_baseline_capture_first_path_wins(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "research"
+    _init_git_repo_with_identity(repo)
+    artifacts_dir = tmp_path / "artifacts"
+    _write_finalizer_baseline_records(
+        artifacts_dir,
+        [
+            _finalizer_baseline_record(
+                repo_id="sdd:research",
+                repo_path=repo,
+                kind="sdd",
+                name="research",
+                scope="run_start",
+                fingerprints={},
+                captured_at="2026-08-25T11:00:00+00:00",
+            ),
+        ],
+    )
+    before = (artifacts_dir / FINALIZER_BASELINE_FILENAME).read_bytes()
+    monkeypatch.setattr(
+        "sase.llm_provider.commit_finalizer_baseline.dirty_path_fingerprints",
+        lambda _path: pytest.fail("same-path late open should not fingerprint"),
+    )
+
+    assert (
+        capture_opened_repo_dirty_baseline(
+            "linked:research",
+            str(repo),
+            kind="linked",
+            name="research",
+            artifacts_dir=str(artifacts_dir),
+        )
+        is None
+    )
+
+    assert (artifacts_dir / FINALIZER_BASELINE_FILENAME).read_bytes() == before
 
 
 def test_finalizer_baseline_views_share_scope_and_duplicate_path_contract(

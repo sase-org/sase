@@ -22,6 +22,13 @@ class BeadStateSyncOutcome:
 
 
 @dataclass(frozen=True)
+class BaselineRepo:
+    name: str
+    path: str
+    kind: _DirtyRepoKind
+
+
+@dataclass(frozen=True)
 class DirtyRepo:
     name: str
     path: str

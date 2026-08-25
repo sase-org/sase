@@ -21,10 +21,15 @@ from sase.agent.pending_handoff import (
 )
 from sase.finalizers.declaration import FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME
 from sase.finalizers.plan import resolve_and_persist_finalizer_plan
+from sase.finalizers.commit_validation import protected_baseline_paths
 from sase.llm_provider._invoke import invoke_agent
-from sase.llm_provider.commit_finalizer_baseline import capture_dirty_baseline
+from sase.llm_provider.commit_finalizer_baseline import (
+    capture_dirty_baseline,
+    capture_opened_repo_dirty_baseline,
+)
 from sase.llm_provider.commit_finalizer_git import git_changed_files
 from sase.llm_provider.types import InvokeResult
+from sase.sdd.store import SDD_STORAGE_SIDECAR_REPOS, SddStore
 from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
 
 from .finalizers_live_e2e_test_helpers import (
@@ -42,6 +47,15 @@ from .finalizers_live_e2e_test_helpers import (
     use_config,
     use_real_git_stitch,
 )
+
+
+def _sidecar_store(plans: Path, **sidecars: Path) -> SddStore:
+    return SddStore(
+        storage=SDD_STORAGE_SIDECAR_REPOS,
+        sdd_dir=plans,
+        repo_root=plans,
+        sidecar_dirs=sidecars,
+    )
 
 
 def test_live_clean_completion_has_no_recovery_or_commit(
@@ -111,6 +125,93 @@ def test_live_dirty_commit_excludes_protected_baseline_and_pushes(
     ).stdout.strip()
     assert markers[0]["commit_sha"] == remote_sha
     assert not (artifacts / FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME).exists()
+
+
+def test_live_clean_preexisting_sdd_sidecar_work_written_before_open_commits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    isolate_host_config(monkeypatch, tmp_path)
+    repo = init_live_repo(tmp_path / "repo")
+    plans = init_live_repo(tmp_path / "plans")
+    research = init_live_repo(tmp_path / "research")
+    attach_bare_remote(research, tmp_path / "research.git")
+    artifacts = tmp_path / "artifacts"
+    prepare_live_env(monkeypatch, artifacts, repo)
+    monkeypatch.setattr(
+        "sase.sdd.store.resolve_sdd_store",
+        lambda *_args: _sidecar_store(plans, research=research),
+    )
+    capture_dirty_baseline(str(repo), str(artifacts))
+    target = "202608/report.md"
+    (research / "202608").mkdir()
+    (research / target).write_text("agent report\n", encoding="utf-8")
+    assert (
+        capture_opened_repo_dirty_baseline(
+            "linked:research",
+            str(research),
+            kind="linked",
+            name="research",
+            artifacts_dir=str(artifacts),
+        )
+        is None
+    )
+    use_real_git_stitch(monkeypatch)
+
+    resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
+    assert (
+        protected_baseline_paths(
+            artifacts,
+            str(research),
+            get_changed_files=git_changed_files,
+        )
+        == ()
+    )
+    submit_from_context(artifacts)
+    result = run_controller(artifacts)
+
+    assert result.content == "done"
+    payload = load_result(artifacts)
+    assert payload["status"] == "success"
+    assert git_changed_files(str(research)) == []
+    assert run_git(research, "show", f"HEAD:{target}").stdout == "agent report\n"
+
+
+def test_live_dirty_preexisting_sdd_sidecar_file_stays_protected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    isolate_host_config(monkeypatch, tmp_path)
+    repo = init_live_repo(tmp_path / "repo")
+    plans = init_live_repo(tmp_path / "plans")
+    research = init_live_repo(tmp_path / "research")
+    attach_bare_remote(research, tmp_path / "research.git")
+    artifacts = tmp_path / "artifacts"
+    prepare_live_env(monkeypatch, artifacts, repo)
+    monkeypatch.setattr(
+        "sase.sdd.store.resolve_sdd_store",
+        lambda *_args: _sidecar_store(plans, research=research),
+    )
+    (research / "foreign.txt").write_text("foreign\n", encoding="utf-8")
+    capture_dirty_baseline(str(repo), str(artifacts))
+    (research / "mine.txt").write_text("agent\n", encoding="utf-8")
+    use_real_git_stitch(monkeypatch)
+
+    resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
+    assert protected_baseline_paths(
+        artifacts,
+        str(research),
+        get_changed_files=git_changed_files,
+    ) == ("foreign.txt",)
+    submit_from_context(artifacts)
+    result = run_controller(artifacts)
+
+    assert result.content == "done"
+    payload = load_result(artifacts)
+    assert payload["status"] == "success"
+    assert git_changed_files(str(research)) == ["foreign.txt"]
+    assert run_git(research, "show", "HEAD:mine.txt").stdout == "agent\n"
+    assert run_git(research, "show", "HEAD:foreign.txt", check=False).returncode != 0
 
 
 def test_live_final_none_skips_commit_on_dirty_tree(

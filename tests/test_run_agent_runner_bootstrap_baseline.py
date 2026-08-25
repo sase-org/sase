@@ -18,7 +18,10 @@ from sase.agent.family_attach import FAMILY_ATTACH_ENV, FamilyAttachLaunchPlan
 from sase.axe import run_agent_runner, run_agent_runner_bootstrap
 from sase.axe.run_agent_runner_bootstrap import _capture_commit_finalizer_baseline
 from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
-from sase.llm_provider.commit_finalizer_baseline import BASELINE_FILENAME
+from sase.llm_provider.commit_finalizer_baseline import (
+    BASELINE_FILENAME,
+    FINALIZER_BASELINE_FILENAME,
+)
 
 
 def _runner_args(tmp_path: Path) -> SimpleNamespace:
@@ -94,6 +97,50 @@ def test_capture_commit_finalizer_baseline_inherits_parent_baseline(
 
     capture.assert_not_called()
     assert (artifacts_dir / BASELINE_FILENAME).read_text(
+        encoding="utf-8"
+    ) == baseline_payload
+
+
+def test_capture_commit_finalizer_baseline_inherits_parent_finalizer_baseline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SASE_DISABLE_COMMIT_STOP_HOOK", raising=False)
+    parent_dir = tmp_path / "parent"
+    parent_dir.mkdir()
+    baseline_payload = json.dumps(
+        {
+            "schema_version": 1,
+            "repositories": [
+                {
+                    "repo_id": "sdd:research",
+                    "path": "/repos/research",
+                    "kind": "sdd",
+                    "name": "research",
+                    "scope": "run_start",
+                    "captured_at": "2026-08-25T11:00:00+00:00",
+                    "fingerprints": {},
+                }
+            ],
+        },
+        sort_keys=True,
+    )
+    (parent_dir / FINALIZER_BASELINE_FILENAME).write_text(
+        baseline_payload,
+        encoding="utf-8",
+    )
+    plan = _family_attach_plan(parent_artifacts_dir=str(parent_dir))
+    monkeypatch.setenv(FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    capture = MagicMock()
+    monkeypatch.setattr(
+        "sase.llm_provider.commit_finalizer_baseline.capture_dirty_baseline", capture
+    )
+    artifacts_dir = tmp_path / "artifacts"
+
+    _capture_commit_finalizer_baseline(str(artifacts_dir))
+
+    capture.assert_not_called()
+    assert (artifacts_dir / FINALIZER_BASELINE_FILENAME).read_text(
         encoding="utf-8"
     ) == baseline_payload
 

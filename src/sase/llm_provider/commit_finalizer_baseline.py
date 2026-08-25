@@ -1,4 +1,4 @@
-"""Pre-existing dirty-path baseline capture for commit finalization.
+"""Pre-existing repository baseline capture for commit finalization.
 
 ``finalizer_baseline.json`` records repository dirt that predates work this
 run owns. A ``run_start`` record is captured before the agent's first turn; an
@@ -48,7 +48,7 @@ _BASELINE_SCOPE_PRECEDENCE = {
 
 
 @dataclass(frozen=True)
-class FinalizerBaselineRecord:
+class _FinalizerBaselineRecord:
     """One canonical ``finalizer_baseline.json`` repository record."""
 
     repo_id: str
@@ -61,17 +61,15 @@ class FinalizerBaselineRecord:
 
 
 def capture_dirty_baseline(project_dir: str, artifacts_dir: str) -> None:
-    """Snapshot already-dirty paths before this agent's first turn.
+    """Snapshot pre-existing repository checkouts before this agent's first turn.
 
     Best-effort only: any failure leaves no baseline file on disk, which
     makes the finalizer behave exactly as it did before baselines existed.
     """
     try:
-        from .commit_finalizer_state import collect_dirty_state
+        from .commit_finalizer_state import collect_baseline_repositories
 
-        dirty_state = collect_dirty_state(
-            project_dir, artifact_root=Path(artifacts_dir)
-        )
+        baseline_repos = collect_baseline_repositories(project_dir)
         records = [
             _baseline_record(
                 repo_id=_repo_id(repo.kind, repo.name, repo.path),
@@ -80,7 +78,7 @@ def capture_dirty_baseline(project_dir: str, artifacts_dir: str) -> None:
                 name=repo.name,
                 scope=_BASELINE_SCOPE_RUN_START,
             )
-            for repo in dirty_state.repos
+            for repo in baseline_repos
         ]
         _write_dirty_baseline_records(Path(artifacts_dir), records)
     except Exception:
@@ -108,13 +106,7 @@ def capture_opened_repo_dirty_baseline(
     if not root_value:
         return None
     root = Path(root_value).expanduser().resolve(strict=False)
-    record = _baseline_record(
-        repo_id=repo_id,
-        repo_path=repo_path,
-        kind=kind,
-        name=name,
-        scope=_BASELINE_SCOPE_OPENED_REPO,
-    )
+    normalized_repo_path = normalize_path(repo_path)
     try:
         root.mkdir(parents=True, exist_ok=True)
         lock_path = root / f"{FINALIZER_BASELINE_FILENAME}.lock"
@@ -128,12 +120,24 @@ def capture_opened_repo_dirty_baseline(
             existing = records.get(repo_id)
             if existing is not None:
                 existing_path = normalize_path(str(existing.get("path", "")))
-                if existing_path != record["path"]:
+                if existing_path != normalized_repo_path:
                     return (
                         f"repository baseline {repo_id!r} already points at "
-                        f"{existing_path}; refusing to recapture {record['path']}"
+                        f"{existing_path}; refusing to recapture {normalized_repo_path}"
                     )
                 return None
+            if any(
+                normalize_path(str(existing.get("path", ""))) == normalized_repo_path
+                for existing in records.values()
+            ):
+                return None
+            record = _baseline_record(
+                repo_id=repo_id,
+                repo_path=normalized_repo_path,
+                kind=kind,
+                name=name,
+                scope=_BASELINE_SCOPE_OPENED_REPO,
+            )
             records[repo_id] = record
             _write_finalizer_baseline_payload(root, list(records.values()))
     except Exception as exc:
@@ -162,7 +166,7 @@ def load_dirty_baseline(artifact_root: Path | None) -> DirtyBaseline | None:
 
 def load_finalizer_baseline_records(
     artifact_root: Path | None,
-) -> tuple[FinalizerBaselineRecord, ...] | None:
+) -> tuple[_FinalizerBaselineRecord, ...] | None:
     """Load canonical ``finalizer_baseline.json`` records, if present.
 
     The returned records preserve ``scope`` and contain at most one record per
@@ -186,7 +190,7 @@ def load_finalizer_baseline_records(
     if not isinstance(records, list):
         return None
 
-    parsed: list[FinalizerBaselineRecord] = []
+    parsed: list[_FinalizerBaselineRecord] = []
     for item in records:
         record = _parse_finalizer_baseline_record(item)
         if record is None:
@@ -220,7 +224,7 @@ def _load_legacy_dirty_baseline(artifact_root: Path) -> DirtyBaseline | None:
 
 def _parse_finalizer_baseline_record(
     item: object,
-) -> FinalizerBaselineRecord | None:
+) -> _FinalizerBaselineRecord | None:
     if not isinstance(item, Mapping):
         return None
     repo_id = item.get("repo_id")
@@ -244,7 +248,7 @@ def _parse_finalizer_baseline_record(
     fingerprints = _normalize_fingerprints(raw_fingerprints)
     if fingerprints is None:
         return None
-    return FinalizerBaselineRecord(
+    return _FinalizerBaselineRecord(
         repo_id=repo_id,
         path=normalize_path(repo_path),
         kind=kind,
@@ -273,9 +277,9 @@ def _normalize_fingerprints(
 
 
 def _canonical_baseline_records(
-    records: list[FinalizerBaselineRecord],
-) -> tuple[FinalizerBaselineRecord, ...]:
-    selected: dict[str, FinalizerBaselineRecord] = {}
+    records: list[_FinalizerBaselineRecord],
+) -> tuple[_FinalizerBaselineRecord, ...]:
+    selected: dict[str, _FinalizerBaselineRecord] = {}
     for record in records:
         existing = selected.get(record.path)
         if existing is None:
@@ -292,7 +296,7 @@ def _canonical_baseline_records(
 
 
 def _baseline_record_sort_key(
-    record: FinalizerBaselineRecord,
+    record: _FinalizerBaselineRecord,
 ) -> tuple[int, str, str]:
     return (
         _BASELINE_SCOPE_PRECEDENCE[record.scope],
