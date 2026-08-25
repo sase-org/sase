@@ -113,8 +113,25 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # source-spelling-only lock rewrite is otherwise invisible to scoped
 # selection. The whole 54-entry set measured 26.9 s under the command above
 # on this host, still inside the 30 s serial budget.
-_MANIFEST_ENTRY_BUDGET = 54
-_MEASURED_SERIAL_COST = "26.9 serial seconds across 54 entries"
+#
+# Re-curated to 57 on 2026-08-24 when `test_ratchet_core_window_tool.py` split
+# into `test_ratchet_core_window_tool_core.py` (ceiling policy, target-version
+# selection, PyPI fetch retries), `test_ratchet_core_window_tool_modes.py`
+# (report/check/apply flows), `test_ratchet_core_window_tool_reconciliation.py`
+# (transitive uv.lock reconciliation), and
+# `test_ratchet_core_window_tool_guardrails.py` (unexpected-diff guardrails) to
+# keep every file under 500 lines, the same one-file-in/four-files-out shape as
+# the `test_suite_gate.py` split. Each successor keeps the marker for the
+# reason the original file earned it: `tools/ratchet_core_window` is not a
+# node in the import graph, so scoped selection cannot see a regression in any
+# of the four without it. The whole 57-entry set measured 30.7 s under the
+# command above (median of three runs on this host) -- the first time this set
+# has measured over the plan's nominal 30 s serial budget. Per-file `tool`
+# fixture setup stayed under 0.01 s each, so the increase is collection/import
+# overhead from four modules reloading the same script rather than added test
+# weight. The next candidate should displace an entry rather than add one.
+_MANIFEST_ENTRY_BUDGET = 57
+_MEASURED_SERIAL_COST = "30.7 serial seconds across 57 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

@@ -5,7 +5,7 @@ from types import ModuleType
 
 import pytest
 
-from tests import test_ratchet_core_window_tool as base
+from tests import _ratchet_core_window_tool_helpers as base
 
 
 pytestmark = pytest.mark.contract
@@ -13,7 +13,7 @@ pytestmark = pytest.mark.contract
 
 @pytest.fixture(scope="module")
 def tool() -> ModuleType:
-    return base._load_tool()
+    return base.load_tool()
 
 
 @pytest.mark.parametrize(
@@ -37,7 +37,7 @@ def test_reconciliation_mode_allows_canonical_pypi_registry_spellings(
     before_source: str,
     after_source: str,
 ) -> None:
-    pyproject, uv_lock = base._write_project_with_asttokens(
+    pyproject, uv_lock = base.write_project_with_asttokens(
         tmp_path,
         asttokens_version="3.0.1",
         asttokens_source=before_source,
@@ -45,12 +45,12 @@ def test_reconciliation_mode_allows_canonical_pypi_registry_spellings(
     monkeypatch.setattr(
         tool,
         "fetch_pypi_metadata",
-        lambda: base._metadata("0.21.3", "0.22.0"),
+        lambda: base.metadata("0.21.3", "0.22.0"),
     )
     monkeypatch.setattr(
         tool,
         "_run_uv_lock",
-        base._asttokens_refresh_lock_runner(
+        base.asttokens_refresh_lock_runner(
             tool,
             asttokens_version="3.0.1",
             asttokens_source=after_source,
@@ -130,18 +130,18 @@ def test_reconciliation_mode_rejects_ambiguous_transitive_sources(
     diagnostic: str,
     forbidden: str,
 ) -> None:
-    pyproject, uv_lock = base._write_project_with_asttokens(tmp_path)
+    pyproject, uv_lock = base.write_project_with_asttokens(tmp_path)
     before_pyproject = pyproject.read_text(encoding="utf-8")
     before_uv_lock = uv_lock.read_text(encoding="utf-8")
     monkeypatch.setattr(
         tool,
         "fetch_pypi_metadata",
-        lambda: base._metadata("0.21.3", "0.22.0"),
+        lambda: base.metadata("0.21.3", "0.22.0"),
     )
     monkeypatch.setattr(
         tool,
         "_run_uv_lock",
-        base._asttokens_refresh_lock_runner(tool, asttokens_source=source),
+        base.asttokens_refresh_lock_runner(tool, asttokens_source=source),
     )
 
     code = tool.main(
