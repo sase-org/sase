@@ -225,17 +225,26 @@ def test_missing_derived_row_projection_is_reported_stale(
     plans = tmp_path / "plans"
     plans.mkdir()
     document = plans / "x.md"
-    empty_table = {
+    stale_table = {
         "schema_version": 1,
         "columns": [
             {"key": "relation", "label": "Relation", "numeric": False},
             {"key": "artifact", "label": "Artifact", "numeric": False},
             {"key": "why", "label": "Why", "numeric": False},
         ],
-        "rows": [],
+        "rows": [
+            {
+                "values": {
+                    "relation": "related",
+                    "artifact": "plan:other.md",
+                    "why": "stale projection",
+                },
+                "link_targets": {},
+            }
+        ],
         "omitted": 0,
     }
-    seeded = str(require_rust_binding("links_block_upsert")("# X\n", empty_table))
+    seeded = str(require_rust_binding("links_block_upsert")("# X\n", stale_table))
     document.write_text(seeded, encoding="utf-8")
 
     store = ArtifactLinkStore(

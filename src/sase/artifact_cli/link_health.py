@@ -13,6 +13,7 @@ from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
     resolve_artifact_link_store,
 )
+from sase.sdd.artifact_link_outbox import inspect_artifact_link_outbox
 from sase.sdd.referenced_by_doctor import missing_referenced_by_indexes
 from sase.sdd.referenced_by_index import document_has_referenced_by_block
 
@@ -36,6 +37,8 @@ class ArtifactLinkHealthReport:
     durable_read_rows: int = 0
     durable_sidecar_rows: int = 0
     aggregate_rows: int = 0
+    outbox_entries: int = 0
+    outbox_dropped: int = 0
     rebuilt: bool = False
 
     @property
@@ -81,6 +84,10 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
     except Exception:  # noqa: BLE001 - missing log is not a doctor failure
         read_events = 0
         recorded_read_events = 0
+    try:
+        outbox = inspect_artifact_link_outbox(store.project_key)
+    except Exception:  # noqa: BLE001 - outbox diagnostics should not fail doctor
+        outbox = None
 
     if fix:
         _rebuild_existing_projections(store, rows)
@@ -96,6 +103,8 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         durable_read_rows=_read_row_count((*sidecar_rows, *rows)),
         durable_sidecar_rows=len(sidecar_rows),
         aggregate_rows=len(rows),
+        outbox_entries=0 if outbox is None else outbox.queued,
+        outbox_dropped=0 if outbox is None else outbox.dropped,
         rebuilt=fix,
     )
 

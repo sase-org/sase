@@ -11,11 +11,7 @@ import pytest
 
 from sase.artifact_cli.link_migrate import handle_link_migrate_notes
 from sase.artifact_cli.link_ops import handle_link_add, handle_link_list, handle_link_rm
-from sase.artifact_cli.link_relations import (
-    handle_link_relation,
-    _handle_link_relation_list,
-    _handle_link_relation_show,
-)
+from sase.artifact_cli.link_relations import handle_link_relation
 from sase.main.parser import create_parser
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
@@ -234,9 +230,17 @@ def test_migrate_notes_apply_and_dry_run_succeed(
 def test_relation_show_prints_direction_and_examples(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    assert _handle_link_relation_show(argparse.Namespace(slug="implements")) == 0
+    assert (
+        handle_link_relation(
+            argparse.Namespace(relation_subcommand="show", slug="implements")
+        )
+        == 0
+    )
     output = " ".join(capsys.readouterr().out.split())
+    assert "implements" in output
     assert "implemented-by" in output
+    assert "directed: yes" in output
+    assert "written by: cli" in output
     assert "plan is the source, the bead is the target" in output
     assert "plan:" in output and "implements bead:" in output
     assert "bead:" in output and "implements plan:" in output
@@ -248,30 +252,41 @@ def test_relation_show_json_emits_full_registry_entry(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert (
-        _handle_link_relation_show(argparse.Namespace(slug="implements", json=True))
+        handle_link_relation(
+            argparse.Namespace(
+                relation_subcommand="show",
+                slug="implements",
+                json=True,
+            )
+        )
         == 0
     )
     payload = json.loads(capsys.readouterr().out)
     assert payload["slug"] == "implements"
     assert payload["inverse"] == "implemented-by"
-    assert payload["direction_note"]
-    assert payload["positive_example"]
-    assert payload["negative_example"]
-    assert payload["recommended_source_kinds"] == ["plan"]
-    assert payload["recommended_target_kinds"] == ["bead"]
+    assert payload["directed"] is True
+    assert payload["written_by"] == "cli"
 
 
 def test_relation_show_unknown_slug_errors(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    assert _handle_link_relation_show(argparse.Namespace(slug="bogus")) == 1
+    assert (
+        handle_link_relation(
+            argparse.Namespace(relation_subcommand="show", slug="bogus")
+        )
+        == 1
+    )
     assert "unknown relation" in capsys.readouterr().err
 
 
 def test_relation_list_covers_every_builtin_slug(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    assert _handle_link_relation_list(argparse.Namespace(json=True)) == 0
+    assert (
+        handle_link_relation(argparse.Namespace(relation_subcommand="list", json=True))
+        == 0
+    )
     payload = json.loads(capsys.readouterr().out)
     slugs = {item["slug"] for item in payload}
     assert slugs == {

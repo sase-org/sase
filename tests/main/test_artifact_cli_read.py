@@ -10,6 +10,8 @@ import pytest
 
 from sase.artifact_cli.read import handle_read
 from sase.artifact_read_log import ArtifactReadError, read_artifact_read_events
+from sase.sdd.artifact_link_outbox import _read_artifact_link_outbox_entries
+from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
 from tests.main.artifact_cli_reference_helpers import resolved_reference
 
@@ -126,6 +128,41 @@ def test_read_records_prepared_path_not_resolution_path(
     logged = read_artifact_read_events(log_path=candidates[0])
     assert logged[0].resolved_path == str(prepared)
     assert logged[0].resolved_path != str(stored)
+
+
+def test_agent_read_appends_artifact_link_outbox_entry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "reader")
+    plans = tmp_path / "plans"
+    plans.mkdir()
+    path = plans / "doc.md"
+    path.write_text("# Heading\nbody line\n", encoding="utf-8")
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans},
+    )
+    result = resolved_reference(path, reference="plan:doc.md")
+    monkeypatch.setattr(
+        "sase.artifact_cli.read.resolve_cli_reference",
+        lambda _value: result,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.read.resolve_artifact_link_store",
+        lambda: store,
+    )
+
+    assert handle_read(_read_args()) == 0
+
+    [entry] = _read_artifact_link_outbox_entries("gh_sase-org__sase")
+    assert entry.agent_name == "reader"
+    assert entry.row["source_ref"] == "agent:reader"
+    assert entry.row["relation"] == "read"
+    assert entry.row["target_ref"] == "plan:doc.md"
+    assert entry.row["uses"] == 1
 
 
 def test_read_json_and_line_limit(

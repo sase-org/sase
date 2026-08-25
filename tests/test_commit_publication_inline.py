@@ -331,5 +331,6 @@ def test_tagged_commit_publishes_and_pushes_every_sidecar_before_returning(
     assert cp.completed_steps == [
         "publish_bead_pages",
         "publish_prompt_archive",
+        "drain_artifact_link_outbox",
         "publish_agent_hood",
     ]

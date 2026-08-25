@@ -49,6 +49,7 @@ from sase.sdd.artifact_link_store import (
     canonicalize_artifact_link_ref,
     resolve_artifact_link_store,
 )
+from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_entry
 from sase.sdd.frontmatter import parse_frontmatter
 
 
@@ -256,18 +257,22 @@ def _record_read_link(result: ResolvedArtifactReference, *, reason: str) -> None
         render_artifact_ref(replace(result.parsed, fragment=None))
     )
     source = f"agent:{identity.name}"
-    store.upsert_row(
-        {
-            "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
-            "source_ref": source,
-            "relation": "read",
-            "target_ref": target,
-            "description": reason,
-            "origin": "read",
-            "created_by": identity.name,
-            "created_at": datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "uses": 1,
-        }
+    row = {
+        "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+        "source_ref": source,
+        "relation": "read",
+        "target_ref": target,
+        "description": reason,
+        "origin": "read",
+        "created_by": identity.name,
+        "created_at": datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "uses": 1,
+    }
+    outcome = store.upsert_row(row)
+    append_artifact_link_outbox_entry(
+        project_key=store.project_key,
+        agent_name=identity.name,
+        row=dict(outcome.get("row") or row),
     )
 
 

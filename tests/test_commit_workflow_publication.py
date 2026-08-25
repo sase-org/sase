@@ -72,6 +72,10 @@ def test_commit_publishes_every_sidecar_inline_in_order(
             order.append("agent") or _CommitPublicationOutcome(published=True)
         ),
     )
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_outbox.drain_artifact_link_outbox",
+        lambda **_kwargs: order.append("outbox"),
+    )
 
     assert run_agent_publication_step(
         cp,
@@ -80,10 +84,11 @@ def test_commit_publishes_every_sidecar_inline_in_order(
         get_vcs_provider=lambda _cwd: pytest.fail("revision is already resolved"),
     )
 
-    assert order == ["beads", "prompt", "plan", "agent"]
+    assert order == ["beads", "prompt", "plan", "agent", "outbox"]
     assert cp.completed_steps == [
         "publish_bead_pages",
         "publish_prompt_archive",
+        "drain_artifact_link_outbox",
         "publish_agent_hood",
     ]
 
@@ -125,6 +130,10 @@ def test_fully_tagged_commit_and_resume_publish_each_sidecar_once(
             calls.append("agent") or _CommitPublicationOutcome(published=True)
         ),
     )
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_outbox.drain_artifact_link_outbox",
+        lambda **_kwargs: calls.append("outbox"),
+    )
     message = (
         "feat: publish now\n\nSASE_BEAD=sase-ai.5\nSASE_PLAN=plan:202608/publish_now.md"
     )
@@ -149,6 +158,7 @@ def test_fully_tagged_commit_and_resume_publish_each_sidecar_once(
     assert calls.count("beads") == 1
     assert calls.count("prompt") == 1
     assert calls.count("agent") == 1
+    assert calls.count("outbox") == 1
     assert list_agent_publications("proj") == ()
 
 

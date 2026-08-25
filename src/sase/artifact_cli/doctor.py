@@ -175,6 +175,8 @@ def _print_report(
                 "durable",
             ),
         )
+        table.add_row("Read-link outbox", str(link_report.outbox_entries))
+        table.add_row("Read-link outbox dropped", str(link_report.outbox_dropped))
         if link_report.rebuilt:
             table.add_row("Link aggregate", "[green]rebuilt[/green]")
 

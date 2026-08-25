@@ -7,6 +7,11 @@ from collections.abc import Callable
 from sase.output import print_status
 from sase.workflows.commit.checkpoint import CommitCheckpoint
 
+_ARTIFACT_LINK_OUTBOX_STEP = "drain_artifact_link_outbox"
+_NO_ARTIFACT_LINK_PROJECT_ERROR = (
+    "could not resolve the current project for artifact links"
+)
+
 
 def run_agent_publication_step(
     cp: CommitCheckpoint,
@@ -119,6 +124,10 @@ def run_agent_publication_step(
 
     refresh_committed_plan_header(message, primary_root=cp.cwd)
     if "publish_agent_hood" in cp.completed_steps:
+        _drain_artifact_link_outbox_for_agent(
+            cp,
+            checkpoint_save=checkpoint_save,
+        )
         return True
 
     from sase.agents_sync.commit_publication import publish_committed_agent_hood
@@ -158,9 +167,43 @@ def run_agent_publication_step(
             f"skipped for repository {cp.cwd!r}: {reason}.",
             "warning",
         )
+    _drain_artifact_link_outbox_for_agent(
+        cp,
+        checkpoint_save=checkpoint_save,
+    )
     cp.completed_steps.append("publish_agent_hood")
     checkpoint_save(cp)
     return True
+
+
+def _drain_artifact_link_outbox_for_agent(
+    cp: CommitCheckpoint,
+    *,
+    checkpoint_save: Callable[[CommitCheckpoint], str | None],
+) -> None:
+    if not cp.publication_agent or _ARTIFACT_LINK_OUTBOX_STEP in cp.completed_steps:
+        return
+    try:
+        from sase.sdd.artifact_link_outbox import drain_artifact_link_outbox
+
+        drain_artifact_link_outbox(
+            agent_name=cp.publication_agent,
+            drop_stale_terminal=False,
+            push_after_commit="async",
+        )
+    except RuntimeError as exc:
+        if str(exc) != _NO_ARTIFACT_LINK_PROJECT_ERROR:
+            print_status(
+                f"Could not drain artifact-link read outbox: {exc}",
+                "warning",
+            )
+    except Exception as exc:  # noqa: BLE001 - queued rows remain durable.
+        print_status(
+            f"Could not drain artifact-link read outbox: {exc}",
+            "warning",
+        )
+    cp.completed_steps.append(_ARTIFACT_LINK_OUTBOX_STEP)
+    checkpoint_save(cp)
 
 
 def _agent_publication_deferred_message(outcome: object) -> str:
