@@ -35,6 +35,8 @@ from sase.main.init_memory.glossary import ProjectGlossaryTerms
 from sase.main.init_memory.root_rendering_notes import (
     render_generated_glossary_memory_body,
 )
+from sase.markdown_width import markdown_print_width
+from sase.markdown_wrap import wrap_markdown
 from sase.memory.cli_common import MemoryCliProjectError, resolve_memory_cli_project
 from sase.memory.paths import memory_write_root
 from sase.memory.web.catalog import GLOSSARY_WEB_SLUG, find_memory_web
@@ -415,10 +417,11 @@ def _descriptor_preamble() -> str:
         .read_text(encoding="utf-8")
     )
     preamble = template.split("**GLOSSARY TERMS:**", 1)[0]
-    return preamble.replace(
+    rewritten = preamble.replace(
         "sase glossary read <term>",
         "sase memory read glossary:<term>",
     ).rstrip()
+    return wrap_markdown(rewritten, width=markdown_print_width())
 
 
 def _validate_planned_web(

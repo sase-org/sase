@@ -16,6 +16,7 @@ from sase.main.init_memory.root_rendering_notes import (
     render_generated_glossary_memory_body,
 )
 from sase.main.parser import create_parser
+from sase.markdown_width import markdown_print_width
 from sase.memory.web import (
     END_MARKER,
     START_MARKER,
@@ -279,6 +280,9 @@ def test_web_migrate_writes_strands_descriptor_and_removes_config_glossary(
     assert "sase memory read glossary:<term>" in descriptor
     assert "sase glossary read" not in descriptor
     assert _managed_roster(descriptor) == expected_roster
+
+    for line in descriptor.splitlines():
+        assert len(line) <= markdown_print_width(), line
 
     agent_clan = tmp_path / "sase" / "memory" / "glossary" / "agent-clan.md"
     proc = tmp_path / "sase" / "memory" / "glossary" / "proc.md"
