@@ -303,6 +303,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         CL_ONLY,
         ("copy reference", "copy sha", "copy bug ref"),
     ),
+    (
+        "agents_revive",
+        "Artifacts Agent: revive selected agent",
+        "Proposals & Sync",
+        CL_ONLY,
+        ("revive dismissed agent", "agent pane revive"),
+    ),
     # Folding
     (
         "hooks_or_collapse",

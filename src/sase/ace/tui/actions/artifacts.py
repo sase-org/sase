@@ -21,7 +21,7 @@ from sase.project_display_names import (
 
 from ..tab_order import ARTIFACTS_TAB
 from ..widgets.artifacts import FIXED_ARTIFACTS_SUBTAB_ORDER
-from .artifacts_agents import ArtifactsAgentsActionsMixin
+from .artifacts_agents import AGENTS_ARTIFACT_ACTIONS, ArtifactsAgentsActionsMixin
 from .artifacts_beads import ArtifactsBeadsActionsMixin, BEADS_ARTIFACT_ACTIONS
 from .artifacts_commits import (
     COMMITS_ARTIFACT_ACTIONS,
@@ -48,6 +48,7 @@ log = logging.getLogger(__name__)
 NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
     {
         *COMMITS_ARTIFACT_ACTIONS,
+        *AGENTS_ARTIFACT_ACTIONS,
         *BEADS_ARTIFACT_ACTIONS,
         *PLANS_ARTIFACT_ACTIONS,
         *FILES_ARTIFACT_ACTIONS,
@@ -260,6 +261,7 @@ def _resolve_artifacts_scope_seed(
 class ArtifactsMixin(
     ArtifactsNavigationActionsMixin,
     ArtifactsCommitsActionsMixin,
+    ArtifactsAgentsActionsMixin,
     ArtifactsBeadsActionsMixin,
     ArtifactsPlansActionsMixin,
     ArtifactsFilesActionsMixin,
@@ -504,6 +506,7 @@ class ArtifactsMixin(
 
 __all__ = [
     "ArtifactsMixin",
+    "AGENTS_ARTIFACT_ACTIONS",
     "BEADS_ARTIFACT_ACTIONS",
     "COMMITS_ARTIFACT_ACTIONS",
     "NON_PRS_ARTIFACT_ACTIONS",

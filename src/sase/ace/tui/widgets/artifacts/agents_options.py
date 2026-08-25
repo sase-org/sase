@@ -250,6 +250,7 @@ class AgentsOptionsMixin(_MixinBase):
         parts = (
             (key_display_name(keymap.jump_to_entry), "jump"),
             (key_display_name(keymap.toggle_mark), "mark"),
+            (key_display_name(keymap.agents_revive), "revive"),
             (key_display_name(keymap.artifacts_copy_reference), "copy ref"),
             (key_display_name(keymap.refresh), "refresh"),
         )

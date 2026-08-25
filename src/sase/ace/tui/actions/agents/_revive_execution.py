@@ -7,6 +7,11 @@ from typing import TYPE_CHECKING, Any
 from sase.core.agent_artifact_paths import resolve_agent_artifact_path
 
 from ._revive_artifacts import ArtifactRestorationMixin
+from ._revive_delta import (
+    AgentReviveDelta,
+    revive_failure_for_agent,
+    revive_record_for_agent,
+)
 from ._revive_helpers import (
     is_child_of,
     revived_artifact_dir,
@@ -35,7 +40,7 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         agent: object,
         *,
         selection_scope: object | None = None,
-    ) -> None:
+    ) -> AgentReviveDelta:
         """Revive a dismissed agent by removing it from the dismissed set."""
         from ....dismissed_agents import (
             mark_bundles_revived_by_suffixes,
@@ -49,8 +54,22 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             log_revive_success,
         )
 
+        epoch_before = int(getattr(self, "_dismiss_revive_epoch", 0))
+        dismissed_count_before = len(getattr(self, "_dismissed_agents", ()))
         if not isinstance(agent, Agent):
-            return
+            return AgentReviveDelta(
+                failed=(
+                    revive_failure_for_agent(
+                        None,
+                        stage="input_validation",
+                        message="not an Agent",
+                    ),
+                ),
+                dismiss_revive_epoch_before=epoch_before,
+                dismiss_revive_epoch_after=epoch_before,
+                dismissed_count_before=dismissed_count_before,
+                dismissed_count_after=dismissed_count_before,
+            )
 
         scope = selection_scope if isinstance(selection_scope, SelectionItem) else None
         log_revive_started(agents=[agent], selection_scope=scope)
@@ -72,11 +91,16 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                         revived_suffixes.add(dismissed_agent.raw_suffix)
 
         stage = "artifact_restore"
+        dismissed_index_synced = False
         try:
             # Restore minimal artifact files so load_all_agents() rediscovers
             # the agent.
             self._restore_agent_artifacts(agent)
-            revived_artifact_dirs = [revived_artifact_dir(agent)]
+            agent_artifact_dir = revived_artifact_dir(agent)
+            revived_artifact_dirs = [agent_artifact_dir]
+            revived_records = [
+                revive_record_for_agent(agent, artifact_dir=agent_artifact_dir)
+            ]
 
             # Also restore child step / follow-up artifacts for workflow parents
             parent_artifacts_dir = (
@@ -89,10 +113,15 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                     dismissed_agent,
                     parent_artifacts_dir=parent_artifacts_dir,
                 )
-                revived_artifact_dirs.append(
-                    revived_artifact_dir(
+                child_artifact_dir = revived_artifact_dir(
+                    dismissed_agent,
+                    parent_artifacts_dir=parent_artifacts_dir,
+                )
+                revived_artifact_dirs.append(child_artifact_dir)
+                revived_records.append(
+                    revive_record_for_agent(
                         dismissed_agent,
-                        parent_artifacts_dir=parent_artifacts_dir,
+                        artifact_dir=child_artifact_dir,
                     )
                 )
 
@@ -122,6 +151,7 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                             self._dismissed_agents,
                             added=(),
                         )
+                        dismissed_index_synced = True
                     except Exception:
                         pass
             except Exception:
@@ -144,7 +174,22 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             self.notify(  # type: ignore[attr-defined]
                 f"Failed to revive {agent.display_name}: {exc}", severity="error"
             )
-            return
+            return AgentReviveDelta(
+                failed=(
+                    revive_failure_for_agent(
+                        agent,
+                        stage=stage,
+                        message=str(exc),
+                    ),
+                ),
+                dismiss_revive_epoch_before=epoch_before,
+                dismiss_revive_epoch_after=int(
+                    getattr(self, "_dismiss_revive_epoch", epoch_before)
+                ),
+                dismissed_count_before=dismissed_count_before,
+                dismissed_count_after=len(self._dismissed_agents),
+                dismissed_index_synced=dismissed_index_synced,
+            )
 
         log_revive_success(
             agent=agent,
@@ -155,10 +200,22 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
 
         self.notify(f"Revived agent for {agent.display_name}")  # type: ignore[attr-defined]
 
+        delta = AgentReviveDelta(
+            revived=tuple(revived_records),
+            dismiss_revive_epoch_before=epoch_before,
+            dismiss_revive_epoch_after=int(
+                getattr(self, "_dismiss_revive_epoch", epoch_before)
+            ),
+            dismissed_count_before=dismissed_count_before,
+            dismissed_count_after=len(self._dismissed_agents),
+            dismissed_index_synced=dismissed_index_synced,
+        )
+
         # Patch visible rows from the cached list while the async load
         # reconciles dismissed-set removal off-thread, then run the
         # selection step once the async apply has completed.
-        self._refilter_agents()  # type: ignore[attr-defined]
+        if self.current_tab == "agents":
+            self._refilter_agents()  # type: ignore[attr-defined]
 
         revived_agent = agent
         revived_scope: Any = scope
@@ -185,6 +242,7 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             reason="revive_agent_archive_refresh",
             on_complete=_on_revive_loaded,
         )
+        return delta
 
     def _do_revive_agents(
         self,
@@ -193,7 +251,7 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         selection_scope: object | None = None,
         group_id: str | None = None,
         group_title: str | None = None,
-    ) -> bool:
+    ) -> AgentReviveDelta | bool:
         """Revive multiple dismissed agents in a single batch.
 
         Batches disk operations for efficiency: one save_dismissed_agents()
@@ -211,9 +269,28 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             log_revive_success,
         )
 
+        epoch_before = int(getattr(self, "_dismiss_revive_epoch", 0))
+        dismissed_count_before = len(getattr(self, "_dismissed_agents", ()))
         valid_agents = [a for a in agents if isinstance(a, AgentModel)]
         if not valid_agents:
-            return False
+            invalid_failed_records = tuple(
+                revive_failure_for_agent(
+                    agent if isinstance(agent, AgentModel) else None,
+                    stage="input_validation",
+                    message="not an Agent",
+                )
+                for agent in agents
+                if not isinstance(agent, AgentModel)
+            )
+            if not invalid_failed_records:
+                return False
+            return AgentReviveDelta(
+                failed=invalid_failed_records,
+                dismiss_revive_epoch_before=epoch_before,
+                dismiss_revive_epoch_after=epoch_before,
+                dismissed_count_before=dismissed_count_before,
+                dismissed_count_after=dismissed_count_before,
+            )
 
         scope = selection_scope if isinstance(selection_scope, SelectionItem) else None
         batch_size = len(valid_agents)
@@ -256,11 +333,25 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         succeeded: list[Agent] = []
         succeeded_suffixes: set[str] = set()
         revived_artifact_dirs: list[str | None] = []
+        revived_records: list[Any] = []
+        failed_records = [
+            revive_failure_for_agent(
+                agent if isinstance(agent, AgentModel) else None,
+                stage="input_validation",
+                message="not an Agent",
+            )
+            for agent in agents
+            if not isinstance(agent, AgentModel)
+        ]
         for agent in valid_agents:
             per_stage = "artifact_restore"
             try:
                 self._restore_agent_artifacts(agent)
-                revived_artifact_dirs.append(revived_artifact_dir(agent))
+                agent_artifact_dir = revived_artifact_dir(agent)
+                revived_artifact_dirs.append(agent_artifact_dir)
+                agent_records = [
+                    revive_record_for_agent(agent, artifact_dir=agent_artifact_dir)
+                ]
                 if not agent.is_workflow_child and agent.raw_suffix:
                     parent_artifacts_dir = (
                         str(resolve_agent_artifact_path(agent.artifacts_dir))
@@ -274,9 +365,15 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                                 parent_artifacts_dir=parent_artifacts_dir,
                             )
                             revived_artifact_dirs.append(
-                                revived_artifact_dir(
+                                child_artifact_dir := revived_artifact_dir(
                                     dismissed_agent,
                                     parent_artifacts_dir=parent_artifacts_dir,
+                                )
+                            )
+                            agent_records.append(
+                                revive_record_for_agent(
+                                    dismissed_agent,
+                                    artifact_dir=child_artifact_dir,
                                 )
                             )
             except Exception as exc:
@@ -289,18 +386,35 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                     group_id=group_id,
                     group_title=group_title,
                 )
+                failed_records.append(
+                    revive_failure_for_agent(
+                        agent,
+                        stage=per_stage,
+                        message=str(exc),
+                    )
+                )
                 continue
             succeeded.append(agent)
+            revived_records.extend(agent_records)
             succeeded_suffixes.update(suffixes_map.get(agent.identity, set()))
 
         if not succeeded:
             self.notify(  # type: ignore[attr-defined]
                 f"Failed to revive {batch_size} agents", severity="error"
             )
-            return False
+            return AgentReviveDelta(
+                failed=tuple(failed_records),
+                dismiss_revive_epoch_before=epoch_before,
+                dismiss_revive_epoch_after=int(
+                    getattr(self, "_dismiss_revive_epoch", epoch_before)
+                ),
+                dismissed_count_before=dismissed_count_before,
+                dismissed_count_after=len(self._dismissed_agents),
+            )
 
         stage = "dismissed_set_update"
         original_dismissed_agents = set(self._dismissed_agents)
+        dismissed_index_synced = False
         try:
             for agent in succeeded:
                 for identity in identities_map.get(agent.identity, {agent.identity}):
@@ -322,6 +436,7 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                         self._dismissed_agents,
                         added=(),
                     )
+                    dismissed_index_synced = True
                 except Exception:
                     pass
         except Exception as exc:
@@ -336,10 +451,26 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                     group_id=group_id,
                     group_title=group_title,
                 )
+                failed_records.append(
+                    revive_failure_for_agent(
+                        agent,
+                        stage=stage,
+                        message=str(exc),
+                    )
+                )
             self.notify(  # type: ignore[attr-defined]
                 f"Failed to revive {len(succeeded)} agents: {exc}", severity="error"
             )
-            return False
+            return AgentReviveDelta(
+                failed=tuple(failed_records),
+                dismiss_revive_epoch_before=epoch_before,
+                dismiss_revive_epoch_after=int(
+                    getattr(self, "_dismiss_revive_epoch", epoch_before)
+                ),
+                dismissed_count_before=dismissed_count_before,
+                dismissed_count_after=len(self._dismissed_agents),
+                dismissed_index_synced=dismissed_index_synced,
+            )
 
         upsert_agent_artifact_index_artifacts(revived_artifact_dirs)
 
@@ -362,6 +493,18 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         count = len(succeeded)
         self.notify(f"Revived {count} agent{'s' if count != 1 else ''}")  # type: ignore[attr-defined]
 
+        delta = AgentReviveDelta(
+            revived=tuple(revived_records),
+            failed=tuple(failed_records),
+            dismiss_revive_epoch_before=epoch_before,
+            dismiss_revive_epoch_after=int(
+                getattr(self, "_dismiss_revive_epoch", epoch_before)
+            ),
+            dismissed_count_before=dismissed_count_before,
+            dismissed_count_after=len(self._dismissed_agents),
+            dismissed_index_synced=dismissed_index_synced,
+        )
+
         revive_candidates = [
             agent for agent in succeeded if not agent.is_workflow_child
         ]
@@ -371,7 +514,8 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         # Patch visible rows from the cached list while the async load
         # reconciles dismissed-set removal off-thread, then run the
         # selection step once the async apply has completed.
-        self._refilter_agents()  # type: ignore[attr-defined]
+        if self.current_tab == "agents":
+            self._refilter_agents()  # type: ignore[attr-defined]
 
         def _on_revive_loaded(
             candidates: list[Agent] = revive_candidates,
@@ -391,4 +535,4 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             reason="revive_agents_archive_refresh",
             on_complete=_on_revive_loaded,
         )
-        return True
+        return delta

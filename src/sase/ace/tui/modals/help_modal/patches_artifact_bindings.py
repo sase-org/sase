@@ -177,6 +177,21 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             ],
         ),
         *_document_contract_sections(km, artifact_list_navigation),
+        *(
+            (
+                (
+                    "Agent Pane",
+                    [
+                        (d(a.agents_revive), "Revive selected dismissed catalog row"),
+                        (d(a.artifacts_copy_reference), "Copy @agent: reference"),
+                        (d(a.refresh), "Refresh Agent pane catalog"),
+                        *artifact_list_navigation,
+                    ],
+                ),
+            )
+            if contracts.get("agents") is not None
+            else ()
+        ),
         (
             "File Pane",
             [

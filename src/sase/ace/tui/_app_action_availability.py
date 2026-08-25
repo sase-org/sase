@@ -109,6 +109,7 @@ def check_app_action(
         return False
 
     from .actions.artifacts import (
+        AGENTS_ARTIFACT_ACTIONS,
         BEADS_ARTIFACT_ACTIONS,
         COMMITS_ARTIFACT_ACTIONS,
         FILES_ARTIFACT_ACTIONS,
@@ -133,6 +134,11 @@ def check_app_action(
         return (
             app.current_tab == ARTIFACTS_TAB
             and app.current_artifacts_pane_key == "stitches"
+        )
+    if action in AGENTS_ARTIFACT_ACTIONS:
+        return (
+            app.current_tab == ARTIFACTS_TAB
+            and app.current_artifacts_pane_key == "agents"
         )
     if action in {
         "cycle_artifacts_subtab",

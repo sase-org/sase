@@ -29,6 +29,7 @@ from .agents_data import AgentsSnapshot, load_agents_snapshot
 from .agents_detail_panel import AgentsDetailMixin
 from .agents_navigation import AgentsNavigationMixin, AgentsOptionList
 from .agents_options import AgentsOptionsMixin
+from .agents_revival import AgentsRevivalMixin
 from .group_fold_navigation import ArtifactGroupFoldMixin
 from .relation_panel import RelationPanel, RelationPanelHostMixin
 from .snapshot_pane import ArtifactsSnapshotPane, SnapshotRequest
@@ -43,6 +44,7 @@ class _AgentsSnapshotResult:
 class ArtifactsAgentsPane(
     AgentsDetailMixin,
     AgentsNavigationMixin,
+    AgentsRevivalMixin,
     AgentsOptionsMixin,
     ArtifactGroupFoldMixin,
     RelationPanelHostMixin,
@@ -67,6 +69,7 @@ class ArtifactsAgentsPane(
         self._init_agents_navigation()
         self._init_agents_detail()
         self._init_group_fold()
+        self._init_agents_revival()
 
     def compose(self) -> ComposeResult:
         yield Static(

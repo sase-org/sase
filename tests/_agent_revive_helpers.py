@@ -39,6 +39,7 @@ class FakeReviveApp(AgentRevivalMixin):
         self._agent_panels_grouped = False
         self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
         self._dismissed_agent_objects: list[Agent] = []
+        self._dismiss_revive_epoch = 0
         self._revived_agent_raw_suffixes: set[str] = set()
         self._agents: list[Agent] = []
         self._agents_with_children: list[Agent] = []
@@ -50,6 +51,7 @@ class FakeReviveApp(AgentRevivalMixin):
         self.refresh_calls: list[bool] = []
         self.delta_refresh_count = 0
         self.delta_refreshes: list[tuple[list[str], str]] = []
+        self.refilter_count = 0
 
     def notify(self, message: str, *, severity: str = "information") -> None:
         self.notifications.append((message, severity))
@@ -62,6 +64,10 @@ class FakeReviveApp(AgentRevivalMixin):
 
     def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
         del prior_pos
+        self.refilter_count += 1
+
+    def _bump_dismiss_revive_epoch(self) -> None:
+        self._dismiss_revive_epoch += 1
 
     def _schedule_agents_async_refresh(
         self,

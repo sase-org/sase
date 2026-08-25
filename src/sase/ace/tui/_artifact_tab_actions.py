@@ -51,6 +51,7 @@ CAPABILITY_HOST_ACTIONS: dict[PaneCapability, tuple[str, ...]] = {
     PaneCapability.SAVED_QUERIES: ("start_saved_query_mode",),
     PaneCapability.VERSIONS: ("files_prev_version", "files_next_version"),
     PaneCapability.MUTATION: (
+        "agents_revive",
         "beads_create",
         "beads_close",
         "beads_cycle_status",
@@ -95,6 +96,8 @@ def action_applies_to_contract(contract: ArtifactsPaneContract, action: str) -> 
         return contract.id == "stitches"
     if action.startswith("beads_"):
         return contract.id == "beads"
+    if action.startswith("agents_"):
+        return contract.id == "agents"
     if action.startswith("files_"):
         return contract.id == "files"
     if action in {"plans_approve", "plans_reject", "plans_open_bead"}:

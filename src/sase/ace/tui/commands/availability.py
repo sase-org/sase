@@ -147,6 +147,12 @@ _BEADS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
+_AGENTS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
+    {
+        "app.agents_revive",
+    }
+)
+
 _FILES_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     {
         "app.files_next",
@@ -305,6 +311,8 @@ def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return True
     if spec.id in _BEADS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "beads"
+    if spec.id in _AGENTS_ARTIFACT_COMMANDS:
+        return ctx.artifacts_subtab == "agents"
     if spec.id.startswith("bead_issue."):
         return ctx.artifacts_subtab == "beads"
     if spec.id in _FILES_ARTIFACT_COMMANDS:

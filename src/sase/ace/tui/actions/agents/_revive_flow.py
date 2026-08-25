@@ -145,8 +145,23 @@ class AgentReviveFlowMixin:
         )
 
     def _open_custom_revival_search(self) -> None:
-        """Open the recent dismissed-agent archive for local filtering."""
-        self._show_dismissed_agents_for_custom_search()  # type: ignore[attr-defined]
+        """Open Artifacts -> Agent with the revivable dismissed-agent query."""
+        switch = getattr(self, "_switch_artifacts_subtab", None)
+        if not callable(switch):
+            self.notify(  # type: ignore[attr-defined]
+                "Artifacts Agent pane is not available", severity="warning"
+            )
+            return
+        switch("agents")
+        pane = getattr(self, "_agents_pane", lambda: None)()
+        apply_seed = getattr(pane, "apply_seed_query", None)
+        if callable(apply_seed):
+            apply_seed("state:dismissed AND revivable:true")
+        else:
+            self.notify(  # type: ignore[attr-defined]
+                "Opened Artifacts -> Agent; filter for revivable dismissed agents",
+                severity="information",
+            )
 
     def _revive_saved_agent_group(
         self,
@@ -250,7 +265,7 @@ class AgentReviveFlowMixin:
             group_id=group.group_id,
             group_title=group.title,
         )
-        if revived is False:
+        if revived is False or not getattr(revived, "has_changes", True):
             return
 
         try:

@@ -468,6 +468,8 @@ ace:
       files_filters: "f"
       files_cycle_kind: "z"
       files_copy_path: "Y"
+      # Agents sub-tab
+      agents_revive: "w"
       # PR actions
       patches_filters: "f"
       quit: "q"

@@ -104,6 +104,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("files_filters", "Artifact File Filters", False),
     ("files_cycle_kind", "Cycle Kind Filter", False),
     ("files_copy_path", "Copy Stored Path", False),
+    ("agents_revive", "Revive Agent", False),
     ("patches_filters", "Patch Filters", False),
     ("open_agent_cleanup_panel", "Agent Cleanup", False),
     ("stop_axe_and_quit", "Quit / Restart", False),

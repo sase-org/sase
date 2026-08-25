@@ -97,6 +97,8 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         frozenset({"beads_open_plan", "plans_open_bead"}),
         # Pane-disjoint by construction: Beads vs Files open-externally actions.
         frozenset({"beads_open_bug", "files_open_external"}),
+        frozenset({"agents_revive", "beads_launch_work"}),
+        frozenset({"agents_revive", "reword"}),
         frozenset({"toggle_relation_panel", "toggle_hide_reverted"}),
         frozenset({"open_agent_cleanup_panel", "patches_toggle_reverted"}),
     }

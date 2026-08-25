@@ -67,9 +67,14 @@ def test_do_revive_agent_removes_suffix_aliases() -> None:
             "sase.ace.tui.actions.agents._revive.upsert_agent_artifact_index_artifacts"
         ) as mock_upsert_index,
     ):
-        app._do_revive_agent(parent)
+        delta = app._do_revive_agent(parent)
 
     assert app._dismissed_agents == {(AgentType.WORKFLOW, "keep_me", "20260202101010")}
+    assert delta.revived_identities == (parent.identity, child.identity)
+    assert delta.revived_artifact_dirs == (parent.artifacts_dir, parent.artifacts_dir)
+    assert not delta.failed
+    assert delta.generation_changed
+    assert delta.has_changes
     mock_mark.assert_called_once_with({"20260201101010", "child_suffix_1"})
     mock_sync_index.assert_called_once_with(app._dismissed_agents, added=())
     mock_upsert_index.assert_called_once_with(
@@ -266,6 +271,55 @@ def test_do_revive_agents_batch_uses_artifact_delta_for_known_dirs() -> None:
     assert app.load_count == 1
     assert app.delta_refresh_count == 1
     assert app.last_load_full_history is False
+
+
+def test_do_revive_agent_skips_agents_tab_refilter_from_artifacts_tab() -> None:
+    """Artifacts Agent pane consumes the delta without mutating Agents tab selection."""
+    app = FakeReviveApp()
+    app.current_tab = "artifacts"
+    dismissed = make_agent(cl_name="revived", raw_suffix="revived_suffix")
+    app._dismissed_agent_objects = [dismissed]
+    app._dismissed_agents = {dismissed.identity}
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
+    ):
+        delta = app._do_revive_agent(dismissed)
+
+    assert delta.revived_identities == (dismissed.identity,)
+    assert delta.has_changes
+    assert app.refilter_count == 0
+    assert app.refresh_calls == []
+
+
+def test_do_revive_agents_delta_records_partial_artifact_restore_failure() -> None:
+    app = FakeReviveApp()
+    one = make_agent(cl_name="rev1", raw_suffix="suffix1")
+    two = make_agent(cl_name="rev2", raw_suffix="suffix2")
+    app._dismissed_agent_objects = [one, two]
+    app._dismissed_agents = {one.identity, two.identity}
+
+    def restore(agent: object, *, parent_artifacts_dir: str | None = None) -> None:
+        del parent_artifacts_dir
+        if agent is two:
+            raise RuntimeError("missing bundle")
+        app.restored.append((one.identity, None))
+
+    app._restore_agent_artifacts = restore  # type: ignore[method-assign]
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
+    ):
+        delta = app._do_revive_agents([one, two])
+
+    assert delta is not False
+    assert delta.revived_identities == (one.identity,)
+    assert len(delta.failed) == 1
+    assert delta.failed[0].identity == two.identity
+    assert delta.failed[0].stage == "artifact_restore"
+    assert delta.has_changes
 
 
 def test_do_revive_agent_missing_artifact_dir_falls_back_to_full_history() -> None:
