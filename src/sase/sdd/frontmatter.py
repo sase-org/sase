@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 import yaml  # type: ignore[import-untyped]
@@ -48,4 +48,20 @@ def set_frontmatter_fields(content: str, fields: Mapping[str, Any]) -> str:
     """Set or replace frontmatter fields while preserving existing body text."""
     frontmatter, body, _ = parse_frontmatter(content)
     frontmatter.update(fields)
+    return _serialize_frontmatter(frontmatter, body)
+
+
+def remove_frontmatter_fields(content: str, fields: Iterable[str]) -> str:
+    """Remove frontmatter fields while preserving existing body text."""
+    frontmatter, body, had_frontmatter = parse_frontmatter(content)
+    if not had_frontmatter:
+        return content
+
+    changed = False
+    for field in fields:
+        if field in frontmatter:
+            del frontmatter[field]
+            changed = True
+    if not changed:
+        return content
     return _serialize_frontmatter(frontmatter, body)

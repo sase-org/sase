@@ -353,4 +353,16 @@ def safety_body(text: str) -> str:
     stripped = _strip_managed_link_blocks(text)
     while "\n\n\n" in stripped:
         stripped = stripped.replace("\n\n\n", "\n\n")
-    return stripped
+    return _normalize_frontmatter_body_boundary(stripped)
+
+
+def _normalize_frontmatter_body_boundary(text: str) -> str:
+    """Ignore spacer-only drift where managed blocks sit after frontmatter."""
+
+    if not text.startswith("---\n"):
+        return text
+    boundary = text.find("\n---\n", 4)
+    if boundary < 0:
+        return text
+    boundary += len("\n---\n")
+    return text[:boundary] + text[boundary:].lstrip("\n")

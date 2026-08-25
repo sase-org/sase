@@ -18,7 +18,6 @@ from sase.main.plan_validate_render import (
 )
 from sase.output import console, error_console
 from sase.sdd.plan_validate import (
-    PlanValidationResult,
     plan_frontmatter_schema,
     validate_plan_file,
 )
@@ -73,9 +72,4 @@ def handle_plan_validate_command(args: argparse.Namespace) -> NoReturn:
     sys.exit(0 if validation.ok else 1)
 
 
-def read_and_validate_plan_file(path: Path, *, tier: str) -> PlanValidationResult:
-    """Compatibility facade for propose-time validation callers."""
-    return validate_plan_file(path, tier)
-
-
-__all__ = ["handle_plan_validate_command", "read_and_validate_plan_file"]
+__all__ = ["handle_plan_validate_command"]

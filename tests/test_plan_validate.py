@@ -98,6 +98,7 @@ def test_facade_rehydrates_valid_tale_and_ordered_schema() -> None:
         "goal",
         "size",
         "model",
+        "links",
         "create_time",
         "status",
         "bead",

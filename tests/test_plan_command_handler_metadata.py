@@ -18,6 +18,9 @@ from tests.plan_command_handler_helpers import (
     invoke_plan as _invoke_plan,
     make_artifacts_dir as _make_artifacts_dir,
 )
+from sase.sdd.artifact_link_store import ArtifactLinkStore
+from sase.sdd.frontmatter import parse_frontmatter
+from sase.sdd.store import SddStore
 
 
 @pytest.fixture(autouse=True)
@@ -240,3 +243,112 @@ def test_plan_command_stamps_after_runner_consumes_bead_work_env(
             "parent": "sase/repos/plans/202607/prod-parent.md",
         },
     )
+
+
+def test_plan_command_consumes_links_frontmatter_into_artifact_links(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Proposal archives consume transient ``links:`` into durable rows."""
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    artifacts_dir = _make_artifacts_dir(sase_home)
+    sidecar_root = tmp_path / "plans-sidecar"
+    sidecar_root.mkdir()
+    sdd_store = SddStore("sidecar_repos", sidecar_root, sidecar_root)
+    link_store = ArtifactLinkStore.from_sdd_store(sdd_store, "demo")
+    plan_file = tmp_path / "linked.md"
+    plan_file.write_text(
+        VALID_TALE.replace(
+            "size: small\n",
+            "size: small\n"
+            "links:\n"
+            "  - ref: research:202608/source.md\n"
+            "    relation: derives-from\n"
+            "    description: uses source report\n",
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_AGENT", "agent-x")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    monkeypatch.setenv("USER", "tester")
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_inlet.resolve_artifact_link_store",
+        lambda: link_store,
+    )
+    persisted: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_commit.persist_artifact_link_graph_mutation",
+        lambda _store, **kwargs: persisted.append(kwargs),
+    )
+
+    with (
+        patch(
+            "sase.main.plan_propose_handler.kill_agent_runner_group",
+            side_effect=SystemExit(0),
+        ),
+        patch(
+            "sase.file_references.format_with_prettier",
+            side_effect=lambda raw: raw,
+        ),
+    ):
+        assert _invoke_plan(plan_file) == 0
+
+    marker = json.loads(
+        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
+    )
+    archived = Path(marker["plan_file"])
+    archived_content = archived.read_text(encoding="utf-8")
+    frontmatter, _body, _had_frontmatter = parse_frontmatter(archived_content)
+    archive_relpath = archived.relative_to(sase_home / "plans").as_posix()
+    source_ref = f"plan:{archive_relpath}"
+
+    assert "links" not in frontmatter
+    assert "<!-- sase:links:start -->" in archived_content
+    assert (
+        "| derives-from | research:202608/source.md | uses source report |"
+        in archived_content
+    )
+    index = json.loads(
+        (sidecar_root / "links" / f"{archive_relpath}.json").read_text(encoding="utf-8")
+    )
+    row = index["rows"][0]
+    assert index["artifact_ref"] == source_ref
+    assert row["source_ref"] == source_ref
+    assert row["relation"] == "derives-from"
+    assert row["target_ref"] == "research:202608/source.md"
+    assert row["origin"] == "manual"
+    assert row["created_by"] == "tester"
+    assert persisted
+
+
+def test_plan_command_rejects_unknown_links_relation_without_consuming(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Invalid inlet entries fail before the scratch plan is mutated."""
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    artifacts_dir = _make_artifacts_dir(sase_home)
+    content = VALID_TALE.replace(
+        "size: small\n",
+        "size: small\n"
+        "links:\n"
+        "  - ref: research:202608/source.md\n"
+        "    relation: invented\n"
+        "    description: uses source report\n",
+    )
+    plan_file = tmp_path / "unknown-link.md"
+    plan_file.write_text(content, encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "agent-x")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+
+    with patch("sase.main.plan_propose_handler.kill_agent_runner_group") as kill:
+        assert _invoke_plan(plan_file) == 1
+
+    assert plan_file.read_text(encoding="utf-8") == content
+    assert not (artifacts_dir / ".sase_plan_pending").exists()
+    assert not kill.called
+    error = capsys.readouterr().err
+    assert "links[0].relation" in error
+    assert "unknown relation `invented`" in error

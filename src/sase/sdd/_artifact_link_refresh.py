@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.agents_sync.referenced_by_outbox_models import ReferencedByOutboxItem
 from sase.sdd._artifact_link_projection import (
@@ -30,6 +31,40 @@ from sase.sdd.referenced_by_index import referenced_by_index_path
 
 if TYPE_CHECKING:
     from sase.sdd.store import SddStore
+
+
+def preview_artifact_link_projection_file(
+    asset: Path,
+    *,
+    artifact_id: str,
+    rows: Sequence[Mapping[str, Any]],
+    store: SddStore,
+    resolver: Any | None = None,
+) -> tuple[Path, str, str]:
+    """Return ``(document, current, updated)`` for one artifact projection."""
+
+    if resolver is None:
+        resolver = hosted_link_resolver(store)
+    document = artifact_projection_document(asset)
+    is_companion = document != asset
+    current = (
+        document.read_text(encoding="utf-8")
+        if document.exists()
+        else companion_seed(asset, document)
+    )
+    updated = render_artifact_link_projection(
+        current,
+        artifact_id=artifact_id,
+        rows=rows,
+        store=store,
+        resolver=resolver,
+        companion=is_companion,
+    )
+    if updated != current and safety_body(updated) != safety_body(current):
+        raise RuntimeError(
+            "artifact-link refresh would change text outside managed blocks"
+        )
+    return document, current, updated
 
 
 def refresh_artifact_links_locked(

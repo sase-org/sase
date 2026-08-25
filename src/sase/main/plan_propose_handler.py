@@ -58,6 +58,11 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     if not plan_path.is_file():
         print(f"Error: plan file not found: {plan_file}", file=sys.stderr)
         sys.exit(1)
+    try:
+        original = plan_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        print(f"Error: cannot read plan file: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     # Validate before formatting or making any queue-related mutation.  A
     # pinned tale/epic auto action is the target tier so the core validator
@@ -66,15 +71,26 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
         get_auto_plan_approval_action,
         get_auto_plan_approval_argument,
     )
-    from sase.main.plan_validate_handler import read_and_validate_plan_file
     from sase.main.plan_validate_render import render_validation_human
     from sase.output import error_console
+    from sase.sdd.artifact_link_inlet import (
+        ArtifactLinkFrontmatterInletError,
+        parse_plan_artifact_link_inlet,
+        publish_plan_artifact_link_inlet,
+        validate_plan_artifact_link_inlet,
+    )
     from sase.sdd.plan_tiers import read_plan_tier
-    from sase.sdd.plan_validate import plan_frontmatter_schema
+    from sase.sdd.plan_validate import plan_frontmatter_schema, validate_plan
 
     authored_tier = read_plan_tier(plan_path)
     target_tier = authored_tier or "tale"
-    validation = read_and_validate_plan_file(plan_path, tier=target_tier)
+    try:
+        link_inlet = parse_plan_artifact_link_inlet(original)
+        validate_plan_artifact_link_inlet(link_inlet)
+    except ArtifactLinkFrontmatterInletError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    validation = validate_plan(original, target_tier)
     if not validation.ok:
         render_validation_human(
             validation,
@@ -147,8 +163,7 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     # managed association first so the archived copy is fully formatted.
     from sase.file_references import format_with_prettier
 
-    original = plan_path.read_text(encoding="utf-8")
-    raw = original
+    raw = link_inlet.content_without_inlet
     if stamps:
         from sase.sdd.frontmatter import set_frontmatter_fields
 
@@ -169,6 +184,29 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     from sase.llm_provider._plan_utils import move_plan_to_sase
 
     archived_path = move_plan_to_sase(str(plan_path))
+    if link_inlet.entries:
+        from sase.core.paths import sase_subdir
+        from sase.sdd.plan_refs import canonicalize_plan_reference_from_roots
+
+        source_ref = canonicalize_plan_reference_from_roots(
+            archived_path,
+            roots=(sase_subdir("plans"),),
+        )
+        if source_ref is None:
+            print(
+                f"Error: archived plan has no canonical plan reference: {archived_path}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        try:
+            publish_plan_artifact_link_inlet(
+                archived_path,
+                source_ref=source_ref,
+                inlet=link_inlet,
+            )
+        except ArtifactLinkFrontmatterInletError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
 
     # Write .sase_plan_pending marker JSON. ``plan_file`` points at the durable
     # archive copy; ``original_file`` is retained for provenance/debugging even
