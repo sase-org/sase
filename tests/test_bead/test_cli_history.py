@@ -223,7 +223,16 @@ def test_history_full_makes_overwritten_note_revisions_readable(
         capsys,
     )
 
-    assert "from: [2026-08-24" in output
+    stream_path = project_dir / f"sdd/beads/events/streams/{issue_id}.jsonl"
+    note_event = next(
+        event
+        for event in (
+            json.loads(line)
+            for line in stream_path.read_text(encoding="utf-8").splitlines()
+        )
+        if event["operation"] == "note_appended"
+    )
+    assert f"from: [{note_event['timestamp']}" in output
     assert "unknown] first note" in output
     assert "to: [2026-07-27T00:00:03Z · legacy@example.com] second note" in output
     assert "from: [2026-07-27T00:00:03Z · legacy@example.com] second note" in output
