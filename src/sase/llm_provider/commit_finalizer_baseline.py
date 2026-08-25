@@ -60,9 +60,6 @@ class FinalizerBaselineRecord:
     captured_at: str | None = None
 
 
-FinalizerBaselineRecord = _FinalizerBaselineRecord
-
-
 def capture_dirty_baseline(project_dir: str, artifacts_dir: str) -> None:
     """Snapshot pre-existing repository checkouts before this agent's first turn.
 
