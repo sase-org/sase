@@ -346,28 +346,28 @@ def register_bead_show_parser(
     default_wrap_width = markdown_print_width()
     parser = subparsers.add_parser(
         "show",
-        help="Show issue details",
+        help="Show one or more issues",
         description=(
-            "Show one bead's full detail block: status, type, tier, owner, "
-            "assignee, model, phase size, parent lineage, children, "
-            "dependencies, blockers, typed artifact links, description, notes, "
-            "Patch, and the linked plan. --format compact prints the same "
-            "single row as 'sase bead list' and never expands artifact links; "
-            "--format json adds the resolved parent, child, dependency, "
-            "blocker, plan graph, and artifact_links array as machine-readable "
-            "data. --no-links skips neighborhood resolution and omits both "
-            "human link sections and JSON artifact-link fields. "
-            "--color now applies to --format full as well as compact. "
-            "DESCRIPTION, NOTES, link reasons, and +1 evidence prose wrap at "
-            f"{default_wrap_width} columns by default without breaking "
-            "URLs or inline code spans."
+            "Show every listed bead in argv order. Full or shorthand IDs are "
+            "accepted; duplicate IDs collapse after resolution. A missing ID "
+            "reports on stderr and exits 1 without suppressing beads that did "
+            "resolve. --format compact prints list rows; --format json emits "
+            "today's single envelope for one ID and an array of envelopes for "
+            "two or more IDs. --no-links skips neighborhood resolution and "
+            "omits human and JSON artifact-link fields. Long output on a "
+            "terminal is paged with color intact. DESCRIPTION, NOTES, link "
+            "reasons, and +1 evidence prose wrap at "
+            f"{default_wrap_width} columns by default without breaking URLs "
+            "or inline code spans."
         ),
         epilog=(
             "Examples:\n"
             "  sase bead show sase-64\n"
+            "  sase bead show sase-64 sase-65 sase-at.1\n"
             "  sase bead show sase-64 --format compact\n"
             "  sase bead show sase-64 --format json\n"
             "  sase bead show sase-64 --no-links\n"
+            "  sase bead show sase-64 --pager always\n"
             "  sase bead show sase-64 --style rich --color always\n"
             "  sase bead show sase-64 --wrap auto"
         ),
@@ -398,6 +398,13 @@ def register_bead_show_parser(
         ),
     )
     parser.add_argument(
+        "-p",
+        "--pager",
+        choices=["auto", "always", "never"],
+        default="auto",
+        help="Page long terminal output: auto, always, or never (default: auto)",
+    )
+    parser.add_argument(
         "-s",
         "--style",
         choices=["auto", "plain", "rich"],
@@ -419,7 +426,12 @@ def register_bead_show_parser(
             f"integer >= 20, 'auto', 'none', or 0 (default: {default_wrap_width})"
         ),
     )
-    parser.add_argument("id", help="Full or shorthand issue ID")
+    parser.add_argument(
+        "ids",
+        nargs="+",
+        metavar="ID",
+        help="Full or shorthand issue IDs to show (rendered in the order given)",
+    )
 
 
 def register_bead_stats_parser(

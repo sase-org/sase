@@ -26,6 +26,28 @@ def render_issue_detail_json(
     include_links: bool | None = None,
 ) -> str:
     """Render a stable single-bead JSON envelope."""
+    return (
+        json.dumps(
+            issue_detail_wire_dict(
+                detail,
+                created_by_url=created_by_url,
+                page_url=page_url,
+                include_links=include_links,
+            ),
+            indent=2,
+        )
+        + "\n"
+    )
+
+
+def issue_detail_wire_dict(
+    detail: IssueDetail,
+    *,
+    created_by_url: str | None = None,
+    page_url: str | None = None,
+    include_links: bool | None = None,
+) -> dict[str, object]:
+    """Return the stable single-bead JSON envelope."""
     emit_links = detail.include_links if include_links is None else include_links
     issue_payload = issue_to_wire_dict(detail.issue)
     if not emit_links:
@@ -57,7 +79,7 @@ def render_issue_detail_json(
         envelope["created_by_url"] = created_by_url
     if page_url:
         envelope["page_url"] = page_url
-    return json.dumps(envelope, indent=2) + "\n"
+    return envelope
 
 
 def _artifact_link_to_wire_dict(view: BeadLinkView) -> dict[str, object]:
@@ -228,4 +250,9 @@ def _plan_to_wire_dict(plan: PlanLink | None) -> dict[str, object] | None:
     }
 
 
-__all__ = ["issue_to_wire_dict", "ref_to_wire_dict", "render_issue_detail_json"]
+__all__ = [
+    "issue_detail_wire_dict",
+    "issue_to_wire_dict",
+    "ref_to_wire_dict",
+    "render_issue_detail_json",
+]

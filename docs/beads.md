@@ -1193,8 +1193,8 @@ New beads are attributed to the acting SASE agent (from `SASE_AGENT_NAME` or
 `phase` bead always inherits its creator from its parent epic instead of being
 attributed independently. A `plan` bead prefers the `proposed_by` value
 `sase plan propose` stamps onto the plan file at proposal time, and falls back to the
-acting agent when the plan carries none. See [`sase bead show`](#sase-bead-show-id) for
-how the resolved creator is displayed.
+acting agent when the plan carries none. See [`sase bead show`](#sase-bead-show-id-id2)
+for how the resolved creator is displayed.
 
 ### `sase bead dep`
 
@@ -1509,7 +1509,8 @@ reject an out-of-range ordinal without writing, and are mutually exclusive; `--e
 requires `text`, `--remove` forbids it.
 
 For the flattened text projection every legacy consumer expects (search indexes, bead
-pages, `--field notes`), see `notes_text` under [`sase bead show`](#sase-bead-show-id).
+pages, `--field notes`), see `notes_text` under
+[`sase bead show`](#sase-bead-show-id-id2).
 
 | Flag           | Description                                                                            |
 | -------------- | -------------------------------------------------------------------------------------- |
@@ -1588,32 +1589,46 @@ sase bead search auth --type plan --tier epic
 | `--tier`          | `plan`, `epic`                                                 | Filter by plan-bead tier (repeatable)                                  |
 | `-t, --type`      | `plan`, `phase`, `task`                                        | Filter by issue type (repeatable). Flag beads are tasks; use `-T flag` |
 
-### `sase bead show <id>`
+### `sase bead show <id> [<id2> ...]`
 
-Display complete details for an issue including status, type, task type, tier, parent
-lineage, dependencies, blockers, typed artifact links, description, the rendered
+Display complete details for one or more issues including status, type, task type, tier,
+parent lineage, dependencies, blockers, typed artifact links, description, the rendered
 task-type body block, notes, Patch metadata, model, linked plan path, artifact
 references, external issue reference, creator, and the hosted page URL when one resolves
-locally. A typed task prints a `Task type` row and appends the spec's body template
-below the description. When the type is unknown on this machine, the raw field pairs
-print under a `(not installed on this machine)` header instead. An `EXTERNAL` section
-(`Ref: <value>`) appears only when the bead has an external reference set via
-`-x/--external-ref`. The `CREATED BY` block localizes an agent's durable global name and
-links to its hosted agents-sidecar page when that URL resolves. A human-created bead
-shows the creator's email without a link. `sase bead list --format full` and
+locally. Full IDs and shorthand suffixes are accepted. Multiple IDs render in the order
+given, and duplicates collapse after resolution, so a full ID and its shorthand render
+one block. If one ID in a batch is missing, the beads that resolved still print first;
+after output or the pager exits, stderr gets one `Error: issue not found: <id>` line per
+miss and the command exits 1.
+
+With `--format full`, a multi-bead batch prints one detail block per bead. Each block is
+preceded by a left-aligned ordinal divider such as `── 1/3 ───`, styled with the same
+additive palette as the rest of the detail view. Single-ID output has no divider and
+keeps the same bytes as before. `--format compact` prints one aligned compact table in
+argv order. `--format json` preserves the existing single-bead envelope for one ID; two
+or more IDs emit an array of those envelopes, omitting any misses from the array while
+using exit 1 to report that the array is incomplete.
+
+A typed task prints a `Task type` row and appends the spec's body template below the
+description. When the type is unknown on this machine, the raw field pairs print under a
+`(not installed on this machine)` header instead. An `EXTERNAL` section (`Ref: <value>`)
+appears only when the bead has an external reference set via `-x/--external-ref`. The
+`CREATED BY` block localizes an agent's durable global name and links to its hosted
+agents-sidecar page when that URL resolves. A human-created bead shows the creator's
+email without a link. `sase bead list --format full` and
 `sase bead search --format full` share the same `CREATED BY` block but never resolve or
-print the hosted-agent link — only `sase bead show` does. Compact
-`sase bead list`/`sase bead search` rows never show the creator at all. Closed beads
-include their resolution, close reason, and close timestamp; legacy closures without a
-resolution show `(unrecorded)`. Phase and task detail views always print a size: they
-use the stored value when present and `small (default)` when it is absent. Legacy
-sizeless task launches use the same `@small` fallback. Any bead's children are grouped
-as phases (with status and size) and child epics (with tier and status), including child
-epics owned by a phase bead. Nested beads show their complete lineage back to the root
-plan. A `claimed` bead also prints
-`Claimed by: <assignee> (agent has not started working yet)`. A task bead of type `flag`
-additionally prints a `FLAG` section with the registry key, both `remove_by` thresholds,
-and derived due state, plus the typed body block for the three authored prose fields.
+print the hosted-agent link — only `sase bead show` does. Compact `sase bead list`/
+`sase bead search` rows never show the creator at all. Closed beads include their
+resolution, close reason, and close timestamp; legacy closures without a resolution show
+`(unrecorded)`. Phase and task detail views always print a size: they use the stored
+value when present and `small (default)` when it is absent. Legacy sizeless task
+launches use the same `@small` fallback. Any bead's children are grouped as phases (with
+status and size) and child epics (with tier and status), including child epics owned by
+a phase bead. Nested beads show their complete lineage back to the root plan. A
+`claimed` bead also prints `Claimed by: <assignee> (agent has not started working yet)`.
+A task bead of type `flag` additionally prints a `FLAG` section with the registry key,
+both `remove_by` thresholds, and derived due state, plus the typed body block for the
+three authored prose fields.
 
 Detail resolution — the target issue plus its ancestors, children, dependencies, and
 blockers — comes from a single Rust-side store read instead of the three independent
@@ -1702,6 +1717,29 @@ semantic colors when the color gate is open.
 sase bead show sase-64 --style rich --color always
 ```
 
+`-p/--pager` controls paging for long terminal output:
+
+| `--pager` | Meaning                                                                        |
+| --------- | ------------------------------------------------------------------------------ |
+| `auto`    | Default. Page only on a real terminal when output is taller than the terminal. |
+| `always`  | Page on a real terminal whenever a pager resolves, even when the output fits.  |
+| `never`   | Write directly to stdout.                                                      |
+
+The pager command resolves from `SASE_PAGER`, then `PAGER`, then `less` on `PATH`.
+Setting either environment variable to an empty value disables paging. When the pager is
+`less`, SASE passes ANSI through with `-R` and defaults `LESS` to Git-like values only
+when `LESS` is unset. `auto` also refuses to page when `TERM` is unset or `dumb`, stdout
+is redirected, `SASE_AGENT` is set, or the output fits the terminal. The `SASE_AGENT`
+guard prevents launched agents with a TTY from blocking on an interactive pager. Paging
+preserves color because SASE renders the whole detail string while stdout is still a
+TTY, then sends that string to `less -R`; a shell pipe such as
+`sase bead show <id> | less -R` makes stdout a pipe before rendering, so automatic color
+is disabled before `less` receives anything.
+
+```bash
+sase bead show sase-64 --pager always
+```
+
 `DESCRIPTION`, `NOTES`, and task `+1 EVIDENCE` notes wrap at the configured
 `markdown.print_width` total columns by default (`88` unless you configure otherwise);
 `NOTES` appears only when the bead has notes. The budget includes the rendered indent:
@@ -1724,6 +1762,7 @@ sase bead show sase-64 --wrap auto
 | `-c, --color`    | `auto`, `always`, `never`          | Color mode; now applies to `--format full` too                               |
 | `-f, --format`   | `compact`, `json`, `full`          | Output format; defaults to `full`                                            |
 | `-N, --no-links` | flag                               | Skip artifact-link resolution; omit LINKS, REFERENCED BY, and JSON link data |
+| `-p, --pager`    | `auto`, `always`, `never`          | Page long terminal output; defaults to `auto`                                |
 | `-s, --style`    | `auto`, `plain`, `rich`            | Styling level for `--format full`; defaults to `auto`                        |
 | `-w, --wrap`     | integer >= 20, `auto`, `none`, `0` | Prose wrap width for full output; defaults to `markdown.print_width` (`88`)  |
 

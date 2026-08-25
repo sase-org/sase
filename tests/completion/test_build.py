@@ -54,7 +54,7 @@ def test_mutex_groups_found() -> None:
 def test_kind_resolution_precedence_on_real_tree() -> None:
     spec = build_spec()
     show = _by_path(spec.root, ("bead", "show"))
-    id_positional = next(p for p in show.positionals if p.dest == "id")
+    id_positional = next(p for p in show.positionals if p.dest == "ids")
     assert id_positional.kind is ValueKind.BEAD
 
 

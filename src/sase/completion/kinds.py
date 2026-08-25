@@ -80,7 +80,7 @@ _BEAD_ID_SLOTS: Final[tuple[tuple[tuple[str, ...], str], ...]] = (
     (("bead", "ref", "list"), "id"),
     (("bead", "ref", "rm"), "id"),
     (("bead", "rm"), "ids"),
-    (("bead", "show"), "id"),
+    (("bead", "show"), "ids"),
     (("bead", "snooze"), "ids"),
     (("bead", "update"), "ids"),
 )

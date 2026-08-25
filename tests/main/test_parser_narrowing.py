@@ -57,7 +57,7 @@ def test_parser_for_builds_only_the_requested_command_tree() -> None:
     args = parser.parse_args(["show", "sase-1"])
 
     assert args.bead_subcommand == "show"
-    assert args.id == "sase-1"
+    assert args.ids == ["sase-1"]
 
 
 def test_narrow_parser_registers_only_requested_command() -> None:

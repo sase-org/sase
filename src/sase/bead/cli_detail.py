@@ -13,6 +13,7 @@ from sase.bead.cli_detail_context import (
     resolve_bead_page_url,
 )
 from sase.bead.cli_detail_json import (
+    issue_detail_wire_dict,
     issue_to_wire_dict,
     ref_to_wire_dict,
     render_issue_detail_json,
@@ -64,6 +65,7 @@ __all__ = [
     "IssueRef",
     "artifact_reference_context",
     "design_paths_are_relative",
+    "issue_detail_wire_dict",
     "issue_to_wire_dict",
     "plan_reference_roots",
     "ref_to_wire_dict",

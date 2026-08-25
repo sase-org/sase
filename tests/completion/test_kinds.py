@@ -31,7 +31,7 @@ def test_explicit_override_wins_over_everything() -> None:
 
 
 def test_path_override_wins_over_name_table() -> None:
-    action = _positional_action("id")
+    action = _positional_action("ids")
     assert "id" not in NAME_TABLE
     assert resolve_value_kind(action, ("bead", "show")) is ValueKind.BEAD
 
@@ -78,7 +78,7 @@ def test_ambiguous_bare_names_are_not_in_name_table() -> None:
 
 
 def test_bead_show_id_path_override_present() -> None:
-    assert PATH_OVERRIDES[(("bead", "show"), "id")] is ValueKind.BEAD
+    assert PATH_OVERRIDES[(("bead", "show"), "ids")] is ValueKind.BEAD
 
 
 def test_path_overrides_cover_shipped_catalog_slots() -> None:

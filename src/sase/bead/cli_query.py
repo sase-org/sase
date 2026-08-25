@@ -14,7 +14,6 @@ from sase.bead.cli_detail import (
     design_paths_are_relative,
     plan_reference_roots,
     render_issue_detail,
-    render_issue_detail_json,
     resolve_bead_creator_url,
     resolve_bead_page_url,
     resolve_issue_detail,
@@ -38,6 +37,7 @@ from sase.bead.cli_query_render import (
     row_badges as _row_badges,
     search_field_value as _search_field_value,
 )
+from sase.bead.cli_show_batch import render_show_batch, resolve_show_batch
 from sase.bead.flag_fields import is_flag_bead
 from sase.bead.model import (
     BeadTier,
@@ -51,6 +51,7 @@ from sase.bead_summary_presentation import (
     summarize_bead_rows,
 )
 from sase.main.parser_bead_common import resolve_wrap_width
+from sase.cli_pager import PagerMode, page_or_print, resolve_pager_mode
 from sase.markdown_width import markdown_print_width
 from sase.task_types import issue_matches_task_types
 
@@ -259,75 +260,50 @@ def _issue_created_in_window(
 
 def handle_bead_show(args: argparse.Namespace) -> None:
     include_links = not bool(getattr(args, "no_links", False))
-    with get_read_view() as view:
-        try:
-            detail = None
-            if args.format == "compact":
-                issue = view.show(args.id)
-            else:
-                detail = resolve_issue_detail(
-                    view, args.id, include_links=include_links
-                )
-                issue = detail.issue
-                if include_links:
-                    detail = _with_artifact_link_neighborhood(detail)
-        except KeyError:
-            print(f"Error: issue not found: {args.id}", file=sys.stderr)
-            sys.exit(1)
-        except ValueError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            sys.exit(1)
+    ids = _show_ids(args)
+    style = resolve_detail_style(
+        style=getattr(args, "style", "auto"),
+        color=getattr(args, "color", "auto"),
+    )
+    wrap = resolve_wrap_width(getattr(args, "wrap", markdown_print_width()))
+    pager_mode: PagerMode = resolve_pager_mode(getattr(args, "pager", "auto"))
 
-        style = resolve_detail_style(
-            style=getattr(args, "style", "auto"),
-            color=getattr(args, "color", "auto"),
+    with get_read_view() as view:
+        batch = resolve_show_batch(
+            view,
+            ids,
+            format_name=args.format,
+            include_links=include_links,
+            detail_enricher=_with_artifact_link_neighborhood if include_links else None,
         )
-        wrap = resolve_wrap_width(getattr(args, "wrap", markdown_print_width()))
-        match args.format:
-            case "compact":
-                print(
-                    _render_list_compact(
-                        [issue], use_color=style is not DetailStyle.PLAIN
-                    ),
-                    end="",
-                )
-            case "json":
-                assert detail is not None
-                print(
-                    render_issue_detail_json(
-                        detail,
-                        created_by_url=(
-                            resolve_bead_creator_url(issue.created_by)
-                            if issue.created_by
-                            else None
-                        ),
-                        page_url=resolve_bead_page_url(issue.id),
-                        include_links=include_links,
-                    ),
-                    end="",
-                )
-            case "full":
-                assert detail is not None
-                reference_context = artifact_reference_context() if issue.refs else None
-                print(
-                    render_issue_detail(
-                        detail,
-                        relativize_design=design_paths_are_relative(),
-                        plan_roots=plan_reference_roots(),
-                        reference_context=reference_context,
-                        creator_url=(
-                            resolve_bead_creator_url(issue.created_by)
-                            if issue.created_by
-                            else None
-                        ),
-                        page_url=resolve_bead_page_url(issue.id),
-                        style=style,
-                        wrap=wrap,
-                    ),
-                    end="",
-                )
-            case _:
-                raise AssertionError(f"unknown show format: {args.format}")
+        body = render_show_batch(
+            batch,
+            format_name=args.format,
+            include_links=include_links,
+            style=style,
+            wrap=wrap,
+            relativize_design=(
+                design_paths_are_relative() if args.format == "full" else False
+            ),
+            plan_roots=plan_reference_roots() if args.format == "full" else (),
+            reference_context_factory=artifact_reference_context,
+            creator_url_for=resolve_bead_creator_url,
+            page_url_for=resolve_bead_page_url,
+        )
+
+    if body:
+        page_or_print(body, mode=pager_mode)
+    for failure in batch.failures:
+        print(f"Error: {failure.message}", file=sys.stderr)
+    if batch.failures:
+        sys.exit(1)
+
+
+def _show_ids(args: argparse.Namespace) -> list[str]:
+    ids = getattr(args, "ids", None)
+    if ids is not None:
+        return list(ids)
+    return [str(args.id)]
 
 
 def _with_artifact_link_neighborhood(detail: IssueDetail) -> IssueDetail:

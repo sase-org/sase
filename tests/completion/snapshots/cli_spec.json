@@ -7249,7 +7249,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "50fd2924cb576cdd",
+            "description_digest": "3f3fdb5247b76ade",
             "hidden": false,
             "mutex_groups": [],
             "name": "show",
@@ -7313,6 +7313,22 @@
               {
                 "choices": [
                   "auto",
+                  "always",
+                  "never"
+                ],
+                "dest": "pager",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--pager"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": [
+                  "auto",
                   "plain",
                   "rich"
                 ],
@@ -7346,11 +7362,11 @@
             "positionals": [
               {
                 "choices": null,
-                "dest": "id",
+                "dest": "ids",
                 "is_remainder": false,
                 "kind": "bead",
-                "metavar": "id",
-                "nargs": null
+                "metavar": "ID",
+                "nargs": "+"
               }
             ],
             "subcommands": []
