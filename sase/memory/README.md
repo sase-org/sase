@@ -92,7 +92,7 @@ into `AGENTS.md`, no matter what tier its web renders at.
 - Description: No description set.
 - Parent: `AGENTS.md`
 - Lines: 31
-- Approx. tokens: 347
+- Approx. tokens: 346
 
 ### `sase/memory/gotchas.md`
 
@@ -217,7 +217,7 @@ into `AGENTS.md`, no matter what tier its web renders at.
 - Core notes: 7
 - Reference notes: 9
 - Total lines: 1075
-- Total approx. tokens: 13593
+- Total approx. tokens: 13592
 
 ## Commands
 

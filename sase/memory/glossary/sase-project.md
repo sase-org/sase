@@ -1,7 +1,5 @@
 ---
 keyword: Sase Project
-aliases:
-  - project
 ---
 
 A sase project is a named unit of work registered with SASE. A project is created only

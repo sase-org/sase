@@ -1,7 +1,5 @@
 ---
 keyword: Sase Repo
-aliases:
-  - repo
 ---
 
 A sase repo is any repository SASE knows: a project's primary repo, an artifact sidecar
