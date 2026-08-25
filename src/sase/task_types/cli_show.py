@@ -5,17 +5,21 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Mapping
 from typing import Any
 
 from rich.console import Console
 from rich.text import Text
 
 from ._models import TaskTypeRecord, TaskTypeRegistry
-from .cli_render import record_accent, record_glyph, resolve_console, yes_no
+from .cli_render import resolve_console, yes_no
+from .detail import (
+    TaskTypeDetail,
+    task_type_detail,
+    task_type_detail_to_json,
+    task_type_field_heading,
+    task_type_field_validator_lines,
+)
 from .registry import get_task_type_registry
-
-_SHOW_JSON_SCHEMA_VERSION = 1
 
 
 def handle_task_type_show(
@@ -39,144 +43,57 @@ def handle_task_type_show(
     if bool(getattr(args, "json", False)):
         print(json.dumps(_show_json(record), indent=2, sort_keys=True))
         return 0
-    _render_show(record, console=resolve_console(console))
+    _render_show(task_type_detail(record), console=resolve_console(console))
     return 0
 
 
-def _render_show(record: TaskTypeRecord, *, console: Console) -> None:
-    accent = record_accent(record)
+def _render_show(detail: TaskTypeDetail, *, console: Console) -> None:
+    accent = detail.accent_color or "dim"
     heading = Text()
-    heading.append(f"{record_glyph(record)} ", style=accent)
-    heading.append(
-        str(record.spec.get("label") or record.task_type), style=f"bold {accent}"
-    )
-    heading.append(f"  ({record.task_type})", style="dim")
+    heading.append(f"{detail.glyph} ", style=accent)
+    heading.append(detail.label, style=f"bold {accent}")
+    heading.append(f"  ({detail.task_type})", style="dim")
     console.print(heading)
-    summary = str(record.spec.get("summary") or "")
-    if summary:
-        console.print(summary)
+    if detail.summary:
+        console.print(detail.summary)
     console.print()
     console.print("[bold]WHEN TO USE[/bold]")
-    console.print(f"  {record.spec.get('when_to_use') or ''}")
-    create_refusal = str(record.spec.get("create_refusal") or "").strip()
-    if create_refusal:
+    console.print(f"  {detail.when_to_use}")
+    if detail.create_refusal:
         console.print()
         console.print("[bold]CREATE REFUSAL[/bold]")
-        console.print(f"  {create_refusal}")
+        console.print(f"  {detail.create_refusal}")
     console.print()
     console.print("[bold]FIELDS[/bold]")
-    fields = _spec_fields(record.spec)
-    if not fields:
+    if not detail.fields:
         console.print("  (none)")
-    for field in fields:
-        console.print(f"  {_field_heading(field)}")
-        help_text = field.get("help")
-        if isinstance(help_text, str) and help_text:
-            console.print(f"    {help_text}")
-        for line in _field_validator_lines(field):
+    for field in detail.fields:
+        console.print(f"  {task_type_field_heading(field)}")
+        if field.help:
+            console.print(f"    {field.help}")
+        for line in task_type_field_validator_lines(field):
             console.print(f"    {line}")
     console.print()
     console.print("[bold]BODY TEMPLATE[/bold]")
-    template = record.spec.get("body_template")
-    if isinstance(template, str) and template.strip():
-        for line in template.splitlines() or [""]:
+    if detail.body_template.strip():
+        for line in detail.body_template.splitlines() or [""]:
             console.print(f"  {line}")
     else:
         console.print("  (none)")
     console.print()
     console.print("[bold]TRIAGE[/bold]")
-    console.print(f"  min_plus_ones: {record.min_plus_ones}")
+    console.print(f"  min_plus_ones: {detail.triage.min_plus_ones}")
     console.print()
     console.print("[bold]PROVENANCE[/bold]")
-    console.print(f"  source:       {record.provenance.label}")
-    console.print(f"  package:      {record.provenance.package}")
-    console.print(f"  version:      {record.provenance.version}")
-    console.print(f"  agents:       {yes_no(record.agent_creatable)}")
-    console.print(f"  digest:       {record.digest}")
+    console.print(f"  source:       {detail.provenance.label}")
+    console.print(f"  package:      {detail.provenance.package}")
+    console.print(f"  version:      {detail.provenance.version}")
+    console.print(f"  agents:       {yes_no(detail.agent_creatable)}")
+    console.print(f"  digest:       {detail.digest}")
 
 
 def _show_json(record: TaskTypeRecord) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "accent_color": record.resolved_accent_color,
-        "agent_creatable": record.agent_creatable,
-        "body_template": record.spec.get("body_template") or "",
-        "digest": record.digest,
-        "fields": [_field_json(field) for field in _spec_fields(record.spec)],
-        "glyph": record_glyph(record),
-        "label": record.spec.get("label") or record.task_type,
-        "provenance": {
-            "label": record.provenance.label,
-            "package": record.provenance.package,
-            "source": record.provenance.source,
-            "version": record.provenance.version,
-        },
-        "schema_version": _SHOW_JSON_SCHEMA_VERSION,
-        "summary": record.spec.get("summary") or "",
-        "task_type": record.task_type,
-        "triage": {"min_plus_ones": record.min_plus_ones},
-        "when_to_use": record.spec.get("when_to_use") or "",
-    }
-    create_refusal = str(record.spec.get("create_refusal") or "").strip()
-    if create_refusal:
-        payload["create_refusal"] = create_refusal
-    return payload
-
-
-def _spec_fields(spec: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    raw = spec.get("fields")
-    if not isinstance(raw, list):
-        return []
-    return [item for item in raw if isinstance(item, Mapping)]
-
-
-def _field_heading(field: Mapping[str, Any]) -> str:
-    name = str(field.get("name") or "")
-    field_type = str(field.get("type") or "string")
-    required = "required" if bool(field.get("required")) else "optional"
-    roles = ", ".join(_field_roles(field)) or "data, template"
-    return f"{name}  {field_type}  {required}  {roles}"
-
-
-def _field_roles(field: Mapping[str, Any]) -> tuple[str, ...]:
-    raw = field.get("role")
-    if isinstance(raw, list):
-        return tuple(str(item) for item in raw)
-    return ()
-
-
-def _field_validator_lines(field: Mapping[str, Any]) -> list[str]:
-    lines: list[str] = []
-    pattern = field.get("pattern")
-    if isinstance(pattern, str) and pattern:
-        lines.append(f"pattern: {pattern}")
-    max_length = field.get("max_length")
-    if isinstance(max_length, int):
-        lines.append(f"max_length: {max_length}")
-    values = field.get("values")
-    if isinstance(values, list) and values:
-        lines.append("values: " + ", ".join(str(item) for item in values))
-    minimum = field.get("minimum")
-    if isinstance(minimum, int):
-        lines.append(f"minimum: {minimum}")
-    maximum = field.get("maximum")
-    if isinstance(maximum, int):
-        lines.append(f"maximum: {maximum}")
-    return lines
-
-
-def _field_json(field: Mapping[str, Any]) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "help": field.get("help") or "",
-        "label": field.get("label") or "",
-        "name": field.get("name") or "",
-        "required": bool(field.get("required")),
-        "role": list(_field_roles(field)) or ["data", "template"],
-        "type": field.get("type") or "string",
-    }
-    for key in ("pattern", "max_length", "values", "minimum", "maximum"):
-        if key in field:
-            payload[key] = field[key]
-    return payload
+    return task_type_detail_to_json(task_type_detail(record))
 
 
 __all__ = [

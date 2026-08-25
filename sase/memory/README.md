@@ -124,7 +124,7 @@ into `AGENTS.md`, no matter what tier its web renders at.
 - Description: No description set.
 - Parent: `AGENTS.md`
 - Lines: 49
-- Approx. tokens: 539
+- Approx. tokens: 545
 
 ### `sase/memory/cli_rules.md`
 
@@ -162,7 +162,7 @@ into `AGENTS.md`, no matter what tier its web renders at.
   semantics.
 - Parent: `AGENTS.md`
 - Lines: 142
-- Approx. tokens: 1920
+- Approx. tokens: 1924
 
 ### `sase/memory/sase_flags.md`
 
@@ -217,7 +217,7 @@ into `AGENTS.md`, no matter what tier its web renders at.
 - Core notes: 7
 - Reference notes: 9
 - Total lines: 1075
-- Total approx. tokens: 13583
+- Total approx. tokens: 13593
 
 ## Commands
 

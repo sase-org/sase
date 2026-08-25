@@ -227,6 +227,133 @@ def test_task_type_show_json_payload(capsys: pytest.CaptureFixture[str]) -> None
     assert payload["provenance"]["source"] == "builtin"
 
 
+def test_task_type_show_json_payload_preserves_full_detail_contract(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = parse_sase_args(["bead", "task-type", "show", "review", "-j"])
+    record = _record(
+        _spec(
+            task_type="review",
+            label="Review",
+            summary="Review a completed patch.",
+            when_to_use="File one when review evidence needs tracking.",
+            create_refusal="Use the review workflow instead.",
+            fields=[
+                {
+                    "name": "score",
+                    "label": "Score",
+                    "type": "integer",
+                    "required": True,
+                    "role": ["data"],
+                    "help": "A bounded quality score",
+                    "minimum": 1,
+                    "maximum": 5,
+                },
+                {
+                    "name": "category",
+                    "label": "Category",
+                    "type": "enum",
+                    "required": False,
+                    "role": ["template"],
+                    "help": "Review category",
+                    "values": ["bug", "design"],
+                },
+                {
+                    "name": "evidence",
+                    "label": "Evidence",
+                    "type": "string",
+                    "required": True,
+                    "help": "A short evidence note",
+                    "pattern": r"\S+",
+                    "max_length": 200,
+                },
+            ],
+            body_template="## Review\n\n{{ evidence }}\n",
+            triage={"min_plus_ones": 2},
+        ),
+        source="plugin",
+        package="sase-review",
+        builtin=False,
+        agent_creatable=False,
+    )
+
+    assert handle_task_type_show(args, registry=_registry(record)) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "accent_color": "#00D7D7",
+        "agent_creatable": False,
+        "body_template": "## Review\n\n{{ evidence }}\n",
+        "create_refusal": "Use the review workflow instead.",
+        "digest": "a" * 64,
+        "fields": [
+            {
+                "help": "A bounded quality score",
+                "label": "Score",
+                "maximum": 5,
+                "minimum": 1,
+                "name": "score",
+                "required": True,
+                "role": ["data"],
+                "type": "integer",
+            },
+            {
+                "help": "Review category",
+                "label": "Category",
+                "name": "category",
+                "required": False,
+                "role": ["template"],
+                "type": "enum",
+                "values": ["bug", "design"],
+            },
+            {
+                "help": "A short evidence note",
+                "label": "Evidence",
+                "max_length": 200,
+                "name": "evidence",
+                "pattern": r"\S+",
+                "required": True,
+                "role": ["data", "template"],
+                "type": "string",
+            },
+        ],
+        "glyph": "≈",
+        "label": "Review",
+        "provenance": {
+            "label": "plugin:sase-review",
+            "package": "sase-review",
+            "source": "plugin",
+            "version": "1.0.0",
+        },
+        "schema_version": 1,
+        "summary": "Review a completed patch.",
+        "task_type": "review",
+        "triage": {"min_plus_ones": 2},
+        "when_to_use": "File one when review evidence needs tracking.",
+    }
+
+
+def test_task_type_show_prints_absence_for_missing_fields_and_template() -> None:
+    console, buf = _console()
+    args = parse_sase_args(["bead", "task-type", "show", "empty"])
+    record = _record(
+        _spec(
+            task_type="empty",
+            label="Empty",
+            fields=[],
+            body_template="",
+            triage={},
+        )
+    )
+
+    assert handle_task_type_show(args, console=console, registry=_registry(record)) == 0
+
+    out = buf.getvalue()
+    assert "[none]" not in out
+    assert out.count("(none)") >= 2
+    assert "CREATE REFUSAL" not in out
+
+
 def test_task_type_list_includes_live_builtins(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

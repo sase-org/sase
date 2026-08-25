@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -24,9 +23,17 @@ from sase.memory.web import (
     MemoryWeb,
 )
 from sase.task_types import (
-    build_committed_task_type_snapshot_entries,
+    committed_task_type_records,
     get_task_type_registry,
     render_task_type_snapshot_json,
+    task_type_snapshot_entry,
+)
+from sase.task_types._models import TaskTypeRecord
+from sase.task_types.detail import (
+    TaskTypeDetail,
+    TaskTypeFieldDetail,
+    TaskTypeFieldValidatorDetail,
+    task_type_detail,
 )
 
 from .formatting import format_generated_memory_markdown
@@ -36,6 +43,7 @@ MEMORY_SASE_TASK_TYPES_TEMPLATE_FILENAME = "memory-sase-task-types.template.md"
 _MEMORY_TEMPLATE_PACKAGE = "sase.main.init_memory"
 _TASK_TYPES_NOTE_TITLE_HEADING = "# Task Bead Types"
 _LEGACY_TASK_TYPES_NOTE_TYPES_HEADING = "## Types"
+_GENERATED_TASK_TYPE_STRAND_SIGNATURE = "sase.task_types.generated-strand.v1"
 
 
 def generated_task_types_memory_relative_path() -> Path:
@@ -48,25 +56,6 @@ def generated_task_type_snapshot_path(root: Path) -> Path:
     return resolve_project_layout(root).namespace_root.path / "task_types.json"
 
 
-def _task_type_field_names(
-    spec: Mapping[str, Any],
-) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Return ``(required_names, optional_names)`` for one task-type spec."""
-    raw_fields = spec.get("fields")
-    fields = raw_fields if isinstance(raw_fields, list) else ()
-    required = tuple(
-        str(field["name"])
-        for field in fields
-        if isinstance(field, Mapping) and field.get("required")
-    )
-    optional = tuple(
-        str(field["name"])
-        for field in fields
-        if isinstance(field, Mapping) and not field.get("required")
-    )
-    return required, optional
-
-
 def _task_type_strand_pointer_line(slug: str) -> str:
     return (
         f"Run `sase bead task-type show {slug}` for the full field list, "
@@ -74,53 +63,153 @@ def _task_type_strand_pointer_line(slug: str) -> str:
     )
 
 
-def _render_task_type_strand_body(spec: Mapping[str, Any]) -> str:
-    slug = str(spec.get("task_type", ""))
-    when_to_use = str(spec.get("when_to_use") or "")
-    required, optional = _task_type_field_names(spec)
-    paragraphs = [when_to_use]
-    bullets = []
-    if required:
-        names = ", ".join(f"`{name}`" for name in required)
-        bullets.append(f"- Required fields: {names}")
-    if optional:
-        names = ", ".join(f"`{name}`" for name in optional)
-        bullets.append(f"- Optional fields: {names}")
-    if bullets:
-        paragraphs.append("\n".join(bullets))
-    paragraphs.append(_task_type_strand_pointer_line(slug))
-    return "\n\n".join(paragraphs) + "\n"
+def _yes_no(value: bool) -> str:
+    return "yes" if value else "no"
 
 
-def _render_task_type_strand_content(spec: Mapping[str, Any]) -> str:
-    """Render one generated strand file's full content for *spec*."""
-    label = str(spec.get("label") or spec.get("task_type", ""))
-    summary = collapse_description(str(spec.get("summary") or "")) or label
-    body = format_generated_memory_markdown(_render_task_type_strand_body(spec))
-    return render_frontmatter_block({"keyword": label, "summary": summary}) + body
+def _code(value: object) -> str:
+    return f"`{value}`"
 
 
-def _project_task_type_snapshot_entries() -> tuple[dict[str, Any], ...]:
-    """Return the committed catalog this project's snapshot may document.
+def _code_or_none(value: str) -> str:
+    return _code(value) if value else "(none)"
+
+
+def _roles_markdown(field: TaskTypeFieldDetail) -> str:
+    return ", ".join(_code(role) for role in field.roles) or "(none)"
+
+
+def _validator_value_markdown(validator: TaskTypeFieldValidatorDetail) -> str:
+    if validator.name == "values" and isinstance(validator.value, list):
+        return ", ".join(_code(item) for item in validator.value) or "(none)"
+    return _code(validator.value)
+
+
+def _field_markdown(field: TaskTypeFieldDetail) -> list[str]:
+    lines = [
+        f"**Field `{field.name}`**",
+        "",
+        f"- Name: `{field.name}`",
+        f"- Label: {field.label or '(none)'}",
+        f"- Type: `{field.type}`",
+        f"- Required: {_yes_no(field.required)}",
+        f"- Roles: {_roles_markdown(field)}",
+        f"- Help: {field.help or '(none)'}",
+    ]
+    if field.validators:
+        lines.extend(
+            f"- Validator `{validator.name}`: {_validator_value_markdown(validator)}"
+            for validator in field.validators
+        )
+    else:
+        lines.append("- Validators: (none)")
+    return lines
+
+
+def _body_template_markdown(template: str) -> list[str]:
+    if not template.strip():
+        return ["(none)"]
+    return ["```markdown", template.rstrip("\n"), "```"]
+
+
+def _render_task_type_strand_body(detail: TaskTypeDetail) -> str:
+    lines = [
+        "## Identity",
+        "",
+        f"- Task type: `{detail.task_type}`",
+        f"- Label: {detail.label}",
+        f"- Glyph: {detail.glyph}",
+        f"- Accent color: {_code_or_none(detail.accent_color)}",
+        f"- Agent creatable: {_yes_no(detail.agent_creatable)}",
+        f"- Show schema version: `{detail.schema_version}`",
+        f"- Digest: `{detail.digest}`",
+        "",
+        "## Summary",
+        "",
+        detail.summary or "(none)",
+        "",
+        "## When To Use",
+        "",
+        detail.when_to_use or "(none)",
+    ]
+    if detail.create_refusal:
+        lines.extend(["", "## Create Refusal", "", detail.create_refusal])
+    lines.extend(["", "## Fields", ""])
+    if detail.fields:
+        for index, field in enumerate(detail.fields):
+            if index:
+                lines.append("")
+            lines.extend(_field_markdown(field))
+    else:
+        lines.append("(none)")
+    lines.extend(
+        [
+            "",
+            "## Body Template",
+            "",
+            *_body_template_markdown(detail.body_template),
+            "",
+            "## Triage",
+            "",
+            f"- min_plus_ones: `{detail.triage.min_plus_ones}`",
+            "",
+            "## Provenance",
+            "",
+            f"- Provenance label: `{detail.provenance.label}`",
+            f"- Source: `{detail.provenance.source}`",
+            f"- Package: `{detail.provenance.package}`",
+            f"- Version: `{detail.provenance.version}`",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def _render_task_type_strand_content(record: TaskTypeRecord) -> str:
+    """Render one generated strand file's full content for *record*."""
+    detail = task_type_detail(record)
+    summary = collapse_description(detail.summary) or detail.label
+    frontmatter = render_frontmatter_block(
+        {
+            "keyword": detail.label,
+            "summary": summary,
+            "metadata": {
+                "generated_by": _GENERATED_TASK_TYPE_STRAND_SIGNATURE,
+                "task_type": detail.task_type,
+            },
+        }
+    )
+    body = format_generated_memory_markdown(_render_task_type_strand_body(detail))
+    return frontmatter + body
+
+
+def _project_task_type_records() -> tuple[TaskTypeRecord, ...]:
+    """Return the committed catalog this project's generated files may document.
 
     Builtins, project-config types, and types from ``plugins.required``
     distributions are included. Optional plugin types stay live-only so two
     machines with different optional plugin sets render the same web and
     ``sase/task_types.json``.
     """
-    return build_committed_task_type_snapshot_entries(get_task_type_registry())
+    records = committed_task_type_records(get_task_type_registry())
+    return tuple(sorted(records, key=lambda record: record.task_type))
 
 
-def _agent_creatable_task_type_specs() -> tuple[dict[str, Any], ...]:
-    specs = _project_task_type_snapshot_entries()
-    creatable = tuple(spec for spec in specs if spec.get("agent_creatable", True))
-    return tuple(sorted(creatable, key=lambda spec: str(spec.get("task_type", ""))))
+def _project_task_type_snapshot_entries() -> tuple[dict[str, Any], ...]:
+    return tuple(
+        task_type_snapshot_entry(record) for record in _project_task_type_records()
+    )
+
+
+def _agent_creatable_task_type_records() -> tuple[TaskTypeRecord, ...]:
+    return tuple(
+        record for record in _project_task_type_records() if record.agent_creatable
+    )
 
 
 def current_agent_creatable_task_type_slugs() -> frozenset[str]:
     """Return the committed, agent-creatable task-type slugs SASE now generates."""
     return frozenset(
-        str(spec.get("task_type", "")) for spec in _agent_creatable_task_type_specs()
+        record.task_type for record in _agent_creatable_task_type_records()
     )
 
 
@@ -164,10 +253,10 @@ def _render_generated_task_types_web_sources() -> tuple[
 
     strands = tuple(
         GeneratedStrandSource(
-            slug=str(spec.get("task_type", "")),
-            content=_render_task_type_strand_content(spec),
+            slug=record.task_type,
+            content=_render_task_type_strand_content(record),
         )
-        for spec in _agent_creatable_task_type_specs()
+        for record in _agent_creatable_task_type_records()
     )
     return (
         GeneratedWebSource(
@@ -217,9 +306,12 @@ def is_generated_task_types_memory_content(text: str) -> bool:
 def is_generated_task_type_strand_content(slug: str, text: str) -> bool:
     """Return whether *text* matches a generated task-type strand for *slug*.
 
-    The pointer line is checked against whitespace-collapsed text because
+    New strands carry an explicit frontmatter signature. The legacy pointer
+    line is also checked against whitespace-collapsed text because
     ``format_generated_memory_markdown`` may hard-wrap it across lines.
     """
+    if _GENERATED_TASK_TYPE_STRAND_SIGNATURE in text and f"task_type: {slug}" in text:
+        return True
     normalized = " ".join(text.split())
     return _task_type_strand_pointer_line(slug) in normalized
 

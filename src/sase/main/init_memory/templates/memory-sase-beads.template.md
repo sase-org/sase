@@ -30,7 +30,7 @@ Ambiguous shorthand fails and lists the candidates. Output and stored relationsh
   created. Bare `-T task` is an error that lists the agent-creatable slugs. `task_type` is immutable once set
   (`sase bead update` has no `--task-type`), and a typed task takes repeatable `-f/--field k=v` values for its declared
   fields (`@<path>` reads a value from a file). Read the generated `task_types.md` core note for the current catalog
-  and `sase bead task-type show <slug>` for one type in full.
+  and `sase memory read task_types:<slug> -r "<why>"` for one type in full.
 
 `sase bead work <epic-id|plan.md|task-id>` launches an epic's phase and land agents or one task worker. Epic launches
 normally come from plan approval and task launches from a `TaskTriage` gate, so hand-create beads only for tracker or
