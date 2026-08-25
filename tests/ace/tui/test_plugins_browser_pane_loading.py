@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import threading
 
 import pytest
@@ -20,6 +21,7 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
     _NOW,
     _catalog,
     _core_versions,
+    _entry,
     _not_uv_tool,
     _open_plugins_pane,
     _option_labels,
@@ -41,7 +43,9 @@ async def test_plugins_pane_loads_and_groups(
         assert any("Built-in" in label for label in labels)
         assert any("Community" in label for label in labels)
         assert any("github" in label for label in labels)
-        assert any("acme" in label for label in labels)
+        assert any("acme-corp/sase-acme" in label for label in labels)
+        github_row = next(label for label in labels if "github" in label)
+        assert "sase-org/sase-github" not in github_row
         # The status placeholder is hidden and the list is visible.
         assert pane.query_one("#plugins-list").display is True
         assert pane.query_one("#plugins-status").display is False
@@ -233,6 +237,50 @@ async def test_plugins_pane_filter_narrows_list(
                 e.name == "telegram" for _, _, lst in pane._grouped for e in lst
             )
         )
+
+
+async def test_plugins_pane_filter_matches_visible_community_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane.action_focus_filter()
+        await page.pause()
+        await page.press("c", "o", "r", "p")
+        await page.wait_for(
+            lambda _s: (
+                [e.name for _, _, e_list in pane._grouped for e in e_list] == ["acme"]
+            )
+        )
+        labels = _option_labels(pane)
+        assert any("acme-corp/sase-acme" in label for label in labels)
+        assert not any("github" in label for label in labels)
+
+
+async def test_plugins_pane_community_label_fallback_keeps_short_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    acme = replace(_entry("acme", owner="acme-corp"), full_name="")
+    catalog = PluginCatalog(
+        fetched_at=_NOW,
+        entries=(acme,),
+        from_cache=True,
+        stale=False,
+    )
+    _patch_catalog(monkeypatch, catalog=catalog)
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        labels = _option_labels(pane)
+        assert any("acme-corp/sase-acme" in label for label in labels)
+
+        option_list = pane.query_one("#plugins-list", OptionList)
+        assert option_list.highlighted is not None
+        highlighted = option_list.get_option_at_index(option_list.highlighted)
+        assert highlighted.id == "plugin__acme"
+        assert pane._highlighted_name() == "acme"
 
 
 async def test_updates_filter_forwards_brackets_and_tab_switches_main_tab(

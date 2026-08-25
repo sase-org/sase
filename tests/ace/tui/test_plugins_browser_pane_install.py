@@ -222,6 +222,11 @@ async def test_plugins_pane_install_marked_set_takes_batch_path(
         )
         pane._marked_install.update({"nvim", "acme"})
         _highlight(pane, "github")  # marks take precedence over the cursor
+        acme_entry = pane._entry_by_name("acme")
+        assert acme_entry is not None
+        acme_row = pane._row_text(acme_entry).plain
+        assert "[✓]" in acme_row
+        assert "acme-corp/sase-acme" in acme_row
 
         pane.action_install()
         await page.expect_modal("PluginActionConfirmModal")

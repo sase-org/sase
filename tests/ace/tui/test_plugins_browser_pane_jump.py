@@ -58,6 +58,7 @@ async def test_updates_plugins_apostrophe_paints_hints_skipping_headers(
         hinted = [label for label in labels if label.startswith("[")]
         assert len(hinted) == pane._jump_target_count() == 4
         assert [label[:3] for label in hinted] == ["[0]", "[1]", "[2]", "[3]"]
+        assert any("acme-corp/sase-acme" in label for label in hinted)
         # Disabled group headers never receive a hint.
         headers = [label for label in labels if "──" in label]
         assert headers and all(not header.startswith("[") for header in headers)

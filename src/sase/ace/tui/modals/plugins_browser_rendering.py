@@ -163,7 +163,15 @@ class PluginsBrowserRenderingMixin:
     def _plugin_haystack(entry: PluginCatalogEntry) -> str:
         return "\n".join(
             part
-            for part in (entry.name, entry.repo, entry.description, *entry.topics)
+            for part in (
+                entry.name,
+                entry.repo,
+                entry.owner,
+                entry.full_name,
+                PluginsBrowserRenderingMixin._plugin_display_label(entry),
+                entry.description,
+                *entry.topics,
+            )
             if part
         ).casefold()
 
@@ -284,7 +292,7 @@ class PluginsBrowserRenderingMixin:
         else:
             text.append(_AVAILABLE_GLYPH, style="dim")
         text.append(" ")
-        text.append(entry.name, style="bold")
+        text.append(self._plugin_display_label(entry), style="bold")
         version = self._version_label(entry)
         if version:
             text.append("  ")
@@ -299,6 +307,18 @@ class PluginsBrowserRenderingMixin:
                 text.append("  ")
                 text.append(entry.updated_at, style="dim")
         return text
+
+    @staticmethod
+    def _plugin_display_label(entry: PluginCatalogEntry) -> str:
+        if entry.is_builtin:
+            return entry.name
+        if entry.full_name:
+            return entry.full_name
+        if entry.owner and entry.repo:
+            return f"{entry.owner}/{entry.repo}"
+        if entry.owner and entry.name:
+            return f"{entry.owner}/{entry.name}"
+        return entry.name or entry.repo or entry.owner or "unknown plugin"
 
     @staticmethod
     def _version_label(entry: PluginCatalogEntry) -> str:

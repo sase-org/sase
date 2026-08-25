@@ -315,6 +315,9 @@ async def test_plugins_pane_verbose_toggle_adds_columns(
         github_row = next(label for label in labels if "github" in label)
         assert "★" in github_row
         assert "2026-06-01" in github_row
+        acme_row = next(label for label in labels if "acme-corp/sase-acme" in label)
+        assert "★" in acme_row
+        assert "2026-06-01" in acme_row
 
 
 async def test_plugins_pane_refresh_forces_reload(
