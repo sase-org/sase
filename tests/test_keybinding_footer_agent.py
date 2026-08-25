@@ -84,7 +84,7 @@ def test_keybinding_footer_agent_bindings_running_proc_shell() -> None:
 
     assert ("x", "kill proc") in bindings
     assert ("r", "retry") not in bindings
-    assert (_edit_hooks_key(footer), "fork") not in bindings
+    assert (_edit_hooks_key(footer), "fork") in bindings
     assert (_edit_hooks_key(footer), "fork tribe") not in bindings
     assert ("W", "wait for tribe") not in bindings
 
@@ -100,7 +100,7 @@ def test_keybinding_footer_agent_bindings_terminal_proc_shell() -> None:
     assert ("x", "dismiss proc") in bindings
     assert ("x", "dismiss") not in bindings
     assert ("r", "retry") not in bindings
-    assert (_edit_hooks_key(footer), "fork") not in bindings
+    assert (_edit_hooks_key(footer), "fork") in bindings
 
 
 def test_keybinding_footer_agent_bindings_starting_agent() -> None:
@@ -500,6 +500,7 @@ def test_keybinding_footer_running_monitor_advertises_stop_monitor() -> None:
 
     assert ("x", "stop monitor") in bindings
     assert ("0-9", "shell") not in bindings
+    assert (_edit_hooks_key(footer), "fork") in bindings
 
 
 def test_keybinding_footer_running_family_monitor_advertises_shell_digits() -> None:
@@ -526,9 +527,10 @@ def test_keybinding_footer_terminal_monitor_omits_stop_monitor() -> None:
 
     assert ("x", "dismiss") in bindings
     assert ("x", "stop monitor") not in bindings
+    assert (_edit_hooks_key(footer), "fork") in bindings
     labels = [label for _key, label in bindings]
-    assert "retry" in labels
-    assert "name" in labels
+    assert "retry" not in labels
+    assert "name" not in labels
 
 
 def test_keybinding_footer_monitor_starter_advertises_normal_agent_bindings() -> None:

@@ -40,12 +40,13 @@ class AgentCompletionCandidate:
     plan_preview: AgentFamilyPlanPreview | None = None
     prompt_snippet: str = ""
     search_aliases: tuple[str, ...] = ()
-    kind: Literal["agent", "family", "clan", "tribe"] = "agent"
+    kind: Literal["agent", "family", "clan", "tribe", "proc"] = "agent"
     member_count: int | None = None
     aggregate_status: str | None = None
     member_names: tuple[str, ...] = ()
     agent_count: int | None = None
     clan_count: int | None = None
+    proc_id: str | None = None
 
     @property
     def wait_name(self) -> str:

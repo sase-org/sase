@@ -175,10 +175,13 @@ _STITCHES_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
 )
 
 # Agent actions that require a focused agent (not a group banner).
+# ``app.edit_hooks`` (fork) is deliberately excluded: unlike the rest of this
+# set it also applies to proc-shell/monitor rows, which the generic
+# ``is_proc_shell`` guard below would otherwise block. Its own predicate
+# branch handles every row kind, including ``agent is None``.
 _REQUIRES_AGENT: frozenset[str] = frozenset(
     {
         "app.edit_spec",
-        "app.edit_hooks",
         "app.run_workflow",
         "app.edit_agent_tribe",
         "app.rename_cl",
@@ -505,6 +508,10 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             return False
         if getattr(agent, "is_clan_container", False):
             return bool(getattr(agent, "agent_clan", None))
+        if getattr(agent, "is_proc_shell", False):
+            return bool(getattr(agent, "proc_id", None))
+        if getattr(agent, "is_monitor", False):
+            return bool(getattr(agent, "monitor_id", None))
         if is_failed_agent_status(agent.status):
             return agent_prompt_name(agent) is not None
         if agent.status not in DISMISSABLE_STATUSES:

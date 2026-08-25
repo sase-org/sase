@@ -10,11 +10,41 @@ import pytest
 from sase.ace.tui.actions.agents._wait_helpers import (
     resolve_agent_prompt_target_scope as _resolve_agent_prompt_target_scope,
 )
+from sase.ace.tui.models.agent import Agent, AgentType
 from tests.ace.tui._agent_wait_resume_helpers import (
     FakeResumeActionApp,
     make_clan_fixture,
     make_waiting_agent,
 )
+
+
+def _proc_shell_agent(**overrides: object) -> Agent:
+    defaults: dict[str, object] = {
+        "agent_type": AgentType.PROC_SHELL,
+        "cl_name": "sase",
+        "project_file": "",
+        "status": "RUNNING",
+        "raw_suffix": "abc123def456",
+        "agent_name": "build-docs",
+        "proc_id": "abc123def456",
+        "proc_status": "running",
+    }
+    defaults.update(overrides)
+    return make_waiting_agent(**defaults)
+
+
+def _monitor_agent(**overrides: object) -> Agent:
+    defaults: dict[str, object] = {
+        "agent_name": "alpha--mon",
+        "agent_family": "alpha",
+        "agent_family_role": "monitor",
+        "role_suffix": "--mon",
+        "status": "MONITORING",
+        "monitor_id": "m-123",
+        "monitor_state": "running",
+    }
+    defaults.update(overrides)
+    return make_waiting_agent(**defaults)
 
 
 def test_fork_agent_tale_done_family_root_uses_family_name() -> None:
@@ -431,3 +461,87 @@ def test_wait_prompt_scheduling_failure_is_user_visible() -> None:
 
     assert app.notifications == [("Unable to prepare wait prompt", "error")]
     assert app.prompt_bar_calls == []
+
+
+def test_fork_proc_shell_uses_exact_proc_id_with_friendly_label() -> None:
+    agent = _proc_shell_agent()
+    app = FakeResumeActionApp([agent])
+
+    app.action_fork_agent()
+
+    assert app.notifications == []
+    assert app.prompt_bar_calls == [
+        {
+            "initial_text": "#fork:abc123def456 ",
+            "display_name": "fork(build-docs)",
+            "history_sort_key": "sase",
+        }
+    ]
+
+
+def test_fork_settled_proc_shell_is_still_a_valid_target() -> None:
+    agent = _proc_shell_agent(status="DONE", proc_status="success")
+    app = FakeResumeActionApp([agent])
+
+    app.action_fork_agent()
+
+    assert app.notifications == []
+    assert app.prompt_bar_calls[0]["initial_text"] == "#fork:abc123def456 "
+
+
+def test_fork_proc_shell_without_proc_id_warns() -> None:
+    agent = _proc_shell_agent(proc_id=None)
+    app = FakeResumeActionApp([agent])
+
+    app.action_fork_agent()
+
+    assert app.notifications == [("No proc ID found", "warning")]
+    assert app.prompt_bar_calls == []
+
+
+def test_fork_monitor_uses_exact_monitor_id_with_friendly_label() -> None:
+    agent = _monitor_agent()
+    app = FakeResumeActionApp([agent])
+
+    app.action_fork_agent()
+
+    assert app.notifications == []
+    assert app.prompt_bar_calls == [
+        {
+            "initial_text": "#fork:m-123 ",
+            "display_name": "fork(alpha--mon)",
+            "history_sort_key": "test_cl",
+        }
+    ]
+
+
+def test_fork_terminal_monitor_is_still_a_valid_target() -> None:
+    agent = _monitor_agent(status="MONITORED", monitor_state="completed")
+    app = FakeResumeActionApp([agent])
+
+    app.action_fork_agent()
+
+    assert app.notifications == []
+    assert app.prompt_bar_calls[0]["initial_text"] == "#fork:m-123 "
+
+
+def test_wait_for_proc_shell_uses_exact_proc_id() -> None:
+    agent = _proc_shell_agent()
+    app = FakeResumeActionApp([agent])
+
+    app.action_wait_for_agent()
+
+    assert app.notifications == []
+    assert app.prompt_bar_calls[0]["initial_text"] == "%w:abc123def456 "
+
+
+def test_proc_shell_scope_has_no_vcs_members() -> None:
+    agent = _proc_shell_agent()
+    app = FakeResumeActionApp([agent])
+
+    scope, warning = _resolve_agent_prompt_target_scope(app, action="fork")
+
+    assert warning is None
+    assert scope is not None
+    assert scope.kind == "proc"
+    assert scope.vcs_members == ()

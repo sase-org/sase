@@ -267,6 +267,54 @@ def test_edit_hooks_fork_allows_only_named_tribe_panel_focus() -> None:
     )
 
 
+def test_edit_hooks_fork_allows_proc_shell_with_proc_id() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.edit_hooks"]
+    with_id = Agent(
+        agent_type=AgentType.PROC_SHELL,
+        cl_name="sase",
+        project_file="",
+        status="RUNNING",
+        start_time=None,
+        raw_suffix="abc123def456",
+        proc_id="abc123def456",
+        proc_status="running",
+    )
+    without_id = Agent(
+        agent_type=AgentType.PROC_SHELL,
+        cl_name="sase",
+        project_file="",
+        status="RUNNING",
+        start_time=None,
+        raw_suffix="abc123def456",
+        proc_id=None,
+        proc_status="running",
+    )
+
+    assert is_command_available(spec, CommandContext(tab="agents", agent=with_id))
+    assert not is_command_available(
+        spec, CommandContext(tab="agents", agent=without_id)
+    )
+
+
+def test_edit_hooks_fork_allows_monitor_with_monitor_id() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.edit_hooks"]
+    with_id = _make_agent(status="MONITORING")
+    with_id.agent_family_role = "monitor"
+    with_id.role_suffix = "--mon"
+    with_id.monitor_id = "m-123"
+    without_id = _make_agent(status="MONITORING")
+    without_id.agent_family_role = "monitor"
+    without_id.role_suffix = "--mon"
+    without_id.monitor_id = None
+
+    assert is_command_available(spec, CommandContext(tab="agents", agent=with_id))
+    assert not is_command_available(
+        spec, CommandContext(tab="agents", agent=without_id)
+    )
+
+
 def test_wait_command_allows_agent_family_clan_tribe_and_marks() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.add_tag"]

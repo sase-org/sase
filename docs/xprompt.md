@@ -1339,31 +1339,31 @@ definition. They're at the built-in end of the [discovery order](#discovery-orde
 any project, user, or config xprompt with the same name overrides the packaged defaults.
 Common entries include:
 
-| Reference             | Body summary                                                                                      |
-| --------------------- | ------------------------------------------------------------------------------------------------- |
-| `#git`                | Check out a git ref in an isolated workspace and show resulting changes                           |
-| `#commit`             | Create a normal commit from completed agent changes                                               |
-| `#propose`            | Create a proposal from completed agent changes                                                    |
-| `#file`               | Require the agent to write its response to a named markdown artifact                              |
-| `#fork`               | Resume context from an agent, a complete clan, or the next completed entity in a tribe            |
-| `#fork_by_chat`       | Resume context from a specific chat transcript path                                               |
-| `#mentor`             | Run a structured mentor review against a PR                                                       |
-| `#split_file`         | Ask an agent to split one large Python file into import-safe smaller files                        |
-| `#summarize`          | Summarize a file in a short phrase for a specified use                                            |
-| `#tribe`              | Assign an auto-named agent to a user-managed tribe                                                |
-| `#json`               | Require the agent response to satisfy a JSON schema                                               |
-| `#!sync`              | Sync the current workspace and launch conflict-resolution help if needed                          |
-| `#plan`               | Asks the agent to think the work through and use its `/sase_plan` skill before any file changes   |
-| `#epic`               | Marks the request as a multi-phase epic and chains `#plan`                                        |
-| `#review`             | Asks the agent to fix bugs and apply only clear-win improvements                                  |
-| `#prompt/approve`     | Boilerplate "I've edited the previous reply with my decisions; implement this" preamble + `#plan` |
-| `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                  |
-| `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                 |
-| `#bd/work_phase_bead` | Per-phase agent prompt used by `sase bead work`; uses the default queue priority                  |
-| `#bd/work_task`       | Task-agent prompt used by `sase bead work`; completes assigned task beads                         |
-| `#bd/land_epic`       | Final lander; reviews all bead notes and routes distinct follow-ups through `/sase_new_task`      |
-| `#bd/review/plan`     | Plan-review helper for an epic plan                                                               |
-| `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                             |
+| Reference             | Body summary                                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `#git`                | Check out a git ref in an isolated workspace and show resulting changes                                     |
+| `#commit`             | Create a normal commit from completed agent changes                                                         |
+| `#propose`            | Create a proposal from completed agent changes                                                              |
+| `#file`               | Require the agent to write its response to a named markdown artifact                                        |
+| `#fork`               | Resume context from an agent, proc shell, monitor, a complete clan, or the next completed entity in a tribe |
+| `#fork_by_chat`       | Resume context from a specific chat transcript path                                                         |
+| `#mentor`             | Run a structured mentor review against a PR                                                                 |
+| `#split_file`         | Ask an agent to split one large Python file into import-safe smaller files                                  |
+| `#summarize`          | Summarize a file in a short phrase for a specified use                                                      |
+| `#tribe`              | Assign an auto-named agent to a user-managed tribe                                                          |
+| `#json`               | Require the agent response to satisfy a JSON schema                                                         |
+| `#!sync`              | Sync the current workspace and launch conflict-resolution help if needed                                    |
+| `#plan`               | Asks the agent to think the work through and use its `/sase_plan` skill before any file changes             |
+| `#epic`               | Marks the request as a multi-phase epic and chains `#plan`                                                  |
+| `#review`             | Asks the agent to fix bugs and apply only clear-win improvements                                            |
+| `#prompt/approve`     | Boilerplate "I've edited the previous reply with my decisions; implement this" preamble + `#plan`           |
+| `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                            |
+| `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                           |
+| `#bd/work_phase_bead` | Per-phase agent prompt used by `sase bead work`; uses the default queue priority                            |
+| `#bd/work_task`       | Task-agent prompt used by `sase bead work`; completes assigned task beads                                   |
+| `#bd/land_epic`       | Final lander; reviews all bead notes and routes distinct follow-ups through `/sase_new_task`                |
+| `#bd/review/plan`     | Plan-review helper for an epic plan                                                                         |
+| `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                                       |
 
 When `#fork` / `#fork_by_chat` injects a `# Previous Conversation` block, the prior
 **user prompts** in that block are sanitized first: sase directives (`%id`, `%wait`,
@@ -1389,6 +1389,19 @@ tail when available, and treats the transcript as incomplete context to verify r
 than successful work to trust. Because an already-failed parent can never satisfy a
 wait, SASE skips the normally implied `%wait:<agent>` for that fork target; an explicit
 `%wait:<agent>` you typed is still preserved.
+
+`#fork` also resolves a stand-alone proc shell (by its reusable shell name or its exact
+proc ID) and a monitor family member (by its `--mon`/`--mon-N` shell name or exact proc
+ID). Both are execution records, never a prior conversation: the injected block states
+the shell kind, command or safe code preview, cwd/project, timestamps, exit/timeout
+status, and a bounded, explicitly untrusted tail of program output, plus the full log
+path and exact `sase proc show <id> --all-lines` (or `sase monitor show`) command when
+more output is available. A reusable proc/monitor shell name is bound to one exact
+durable proc ID when the fork directive is extracted, so a later proc reusing that name
+never redirects an already-queued fork. An exact proc ID is always the unambiguous
+choice when a proc name collides with an agent name. Like an agent source, an implicit
+`%wait` for a proc or monitor target releases on that shell's terminal success or
+failure, not only on success.
 
 To see the exact body of any built-in inline xprompt, run
 `sase xprompt expand --trace '#<name>'` or browse the catalog with

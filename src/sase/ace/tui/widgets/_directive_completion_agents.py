@@ -12,7 +12,7 @@ from sase.ace.tui.widgets._directive_completion_candidates import shared_extensi
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
 IDENTITY_ROLES = frozenset({"clan", "family", "tribe"})
-_TARGET_KIND_ORDER = ("tribe", "clan", "family", "agent")
+_TARGET_KIND_ORDER = ("tribe", "clan", "family", "agent", "proc")
 
 
 def build_agent_arg_completion_candidates(

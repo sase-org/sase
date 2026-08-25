@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from ...models.agent import Agent, AgentType
 
 type AgentIdentity = tuple["AgentType", str, str | None]
-type PromptTargetKind = Literal["agent", "clan", "tribe"]
+type PromptTargetKind = Literal["agent", "clan", "tribe", "proc"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,6 +163,30 @@ def tribe_prompt_target_scope(
         history_sort_key=reference,
         vcs_members=vcs_members,
         member_identities=tuple(member.agent.identity for member in vcs_members),
+    )
+
+
+def proc_prompt_target_scope(
+    agent: Agent,
+    proc_id: str,
+    *,
+    label: str,
+    history_fallback: str = "fork",
+) -> AgentPromptTargetScope:
+    """Build a stand-alone proc-shell or monitor prompt target scope.
+
+    The reference is the exact durable proc ID so name reuse can never drift
+    the eventual fork/wait target; the label stays the friendly shell name.
+    A proc shell has no launch xprompt, so it never contributes to VCS
+    consensus (``vcs_members`` stays empty).
+    """
+    return AgentPromptTargetScope(
+        kind="proc",
+        prompt_reference=proc_id,
+        label=label,
+        history_sort_key=agent.cl_name or history_fallback,
+        vcs_members=(),
+        member_identities=(agent.identity,),
     )
 
 
@@ -329,6 +353,7 @@ __all__ = [
     "AgentPromptTargetScope",
     "agent_prompt_target_scope",
     "clan_prompt_target_scope",
+    "proc_prompt_target_scope",
     "resolve_prompt_target_scope_vcs_tag",
     "resolve_vcs_tag",
     "same_prompt_target_scope",

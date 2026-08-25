@@ -323,14 +323,16 @@ target and waits for successors that appear after the wait begins. An exact `--<
 name targets one member. A member attached to an agent already inside a clan inherits
 that clan membership.
 
-`#fork:<family>` contributes every readable transcript from a successful family member
-in chain order, oldest first. The injected context labels each member and lists every
-omitted member: one that is still running or ended unsuccessfully, or a successful
-member whose transcript is missing or unreadable. Shared inherited history is
-de-duplicated across the included transcripts. At least one successful readable
-transcript is required. Use `#fork:<family>--<suffix>` when only one member should be a
-parent. A family container can also be combined with independent agent, family, clan, or
-tribe parents in one multi-parent fork.
+`#fork:<family>` contributes every known concrete shell — agent shells and monitor
+shells alike — in chain order, oldest first, including shells that ended unsuccessfully
+with their recorded failure context. Only a shell that is still running, or whose
+transcript or log is missing or unreadable, is listed as not shown rather than injected.
+Shared inherited history is de-duplicated across the included agent-shell transcripts.
+At least one shown member is required. Use `#fork:<family>--<suffix>` when only one
+member should be a parent — this also accepts a monitor's `--mon`/`--mon-N` suffix, and
+a monitor's exact durable proc ID is always the unambiguous choice if its reusable shell
+name is ever reused. A family container can also be combined with independent agent,
+proc/monitor, family, clan, or tribe parents in one multi-parent fork.
 
 ### Family detail folding
 
@@ -631,7 +633,7 @@ waits and forks use neutral auto-names rather than derived `.w*` or `.f*` names 
 the eventual parent is unknown at launch planning time.
 
 ACE can insert these group references directly. Select a clan's synthetic container row
-and press `f` for `#fork:<clan>`, or press `W` for `%wait:<clan>`. For a tribe, give its
+and press `F` for `#fork:<clan>`, or press `W` for `%wait:<clan>`. For a tribe, give its
 named panel whole-panel focus—expanded or collapsed—and use the same keys for
 `#fork:@<tribe>` or `%wait:@<tribe>`. The reserved `@default` panel and grouping banners
 are not group targets, and marked rows take precedence over the focused clan or tribe

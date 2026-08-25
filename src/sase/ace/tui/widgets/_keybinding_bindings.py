@@ -277,17 +277,32 @@ class KeybindingBindingsMixin:
                 )
             return bindings
 
-        if getattr(agent, "is_monitor", False) and agent.monitor_state == "running":
-            # A monitor has no LLM process to kill; ``x`` only does anything
-            # while its supervised command is still running.
+        if getattr(agent, "is_monitor", False):
+            # A monitor has no LLM process to kill; ``x`` only stops the
+            # supervised command while it is still running, and otherwise
+            # dismisses the settled row. Retry/edit-chat/name are agent-chat
+            # controls a monitor never supports, so they are omitted here
+            # rather than inherited from the fallthrough agent bindings below.
             if marked_count == 0 and not panel_focused and not group_focused:
-                bindings.append((x, "stop monitor"))
+                if agent.monitor_state == "running":
+                    bindings.append((x, "stop monitor"))
+                else:
+                    bindings.append((x, "dismiss"))
+                if agent.monitor_id:
+                    bindings.append((self._kd("edit_hooks"), "fork"))
             if (
                 not panel_focused
                 and not group_focused
                 and family_roster_container(agent) is not None
             ):
                 bindings.append(("0-9", "shell"))
+            if completed_count > 0:
+                bindings.append(
+                    (
+                        self._kd("open_agent_cleanup_panel"),
+                        f"cleanup ({completed_count} done)",
+                    )
+                )
             return bindings
 
         if getattr(agent, "is_proc_shell", False):
@@ -296,6 +311,8 @@ class KeybindingBindingsMixin:
                     bindings.append((x, "kill proc"))
                 else:
                     bindings.append((x, "dismiss proc"))
+                if agent.proc_id:
+                    bindings.append((self._kd("edit_hooks"), "fork"))
             if completed_count > 0:
                 bindings.append(
                     (

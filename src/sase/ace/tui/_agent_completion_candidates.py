@@ -59,8 +59,12 @@ def build_agent_completion_candidates(
         all_agents,
         exclude_identity=exclude_identity,
     )
+    procs = _build_proc_completion_candidates(
+        all_agents,
+        exclude_identity=exclude_identity,
+    )
     tribes = _build_tribe_completion_candidates(all_agents, clan_groups)
-    return _dedupe_completion_candidates([*tribes, *clans, *families, *agents])
+    return _dedupe_completion_candidates([*tribes, *clans, *families, *agents, *procs])
 
 
 def _dedupe_completion_candidates(
@@ -89,6 +93,8 @@ def _build_plain_agent_completion_candidates(
             agent.is_clan_container
             or agent.is_synthetic_planner
             or agent.is_family_root_entry
+            or agent.is_proc_shell
+            or agent.is_monitor
             or (exclude_identity is not None and agent.identity == exclude_identity)
         ):
             continue
@@ -97,6 +103,56 @@ def _build_plain_agent_completion_candidates(
             continue
         seen_names.add(name)
         candidates.append(_candidate_from_agent(agent, name, all_agents))
+    return candidates
+
+
+def _build_proc_completion_candidates(
+    all_agents: Sequence[Agent],
+    *,
+    exclude_identity: object | None,
+) -> list[AgentCompletionCandidate]:
+    """Return stand-alone proc-shell and monitor rows as ``proc``-kind candidates.
+
+    The insertion reference is the exact durable proc ID (never the reusable
+    friendly shell name) so ``#fork``/``%wait`` completion can never drift
+    onto a different proc if the name is reused later.
+    """
+    from sase.procs import short_proc_id
+
+    candidates: list[AgentCompletionCandidate] = []
+    seen_ids: set[str] = set()
+    for agent in all_agents:
+        if not (agent.is_proc_shell or agent.is_monitor):
+            continue
+        if exclude_identity is not None and agent.identity == exclude_identity:
+            continue
+        proc_id = agent.proc_id if agent.is_proc_shell else agent.monitor_id
+        if not proc_id or proc_id in seen_ids:
+            continue
+        seen_ids.add(proc_id)
+        shell_name = agent_prompt_name(agent) or short_proc_id(proc_id)
+        preview = agent.proc_safe_preview or agent.monitor_command or ""
+        candidates.append(
+            AgentCompletionCandidate(
+                name=proc_id,
+                label=shell_name,
+                status=agent.status,
+                kind="proc",
+                proc_id=proc_id,
+                runtime=agent.duration_display,
+                start_time=agent.start_time_short,
+                duration=agent.duration_display,
+                role="monitor" if agent.is_monitor else "proc",
+                prompt_snippet=prompt_snippet(preview, humanize=False),
+                search_aliases=tuple(
+                    dict.fromkeys(
+                        alias
+                        for alias in (shell_name, short_proc_id(proc_id))
+                        if alias and alias != proc_id
+                    )
+                ),
+            )
+        )
     return candidates
 
 
@@ -248,7 +304,7 @@ def _build_family_completion_candidates(
     *,
     exclude_identity: object | None,
 ) -> list[AgentCompletionCandidate]:
-    from sase.ace.tui.models.agent_family_members import concrete_family_member_rows
+    from sase.ace.tui.models.agent_family_members import concrete_family_shell_rows
 
     candidates: list[AgentCompletionCandidate] = []
     seen_names: set[str] = set()
@@ -258,7 +314,7 @@ def _build_family_completion_candidates(
         name = agent_prompt_name(agent)
         if not name or name in seen_names:
             continue
-        members = _dedupe_real_member_rows(concrete_family_member_rows(agent))
+        members = _dedupe_real_member_rows(concrete_family_shell_rows(agent))
         if not members or (
             exclude_identity is not None
             and any(member.identity == exclude_identity for member in members)
@@ -303,7 +359,7 @@ def _build_tribe_completion_candidates(
     clan_groups: Sequence[_ClanCompletionGroup],
 ) -> list[AgentCompletionCandidate]:
     """Build canonical ``@tribe`` targets from already-loaded rows and clans."""
-    from sase.ace.tui.models.agent_family_members import concrete_family_member_rows
+    from sase.ace.tui.models.agent_family_members import concrete_family_shell_rows
 
     clan_group_by_key = {(group.name, group.generation): group for group in clan_groups}
     encountered_clans: set[tuple[str, str | None]] = set()
@@ -347,7 +403,7 @@ def _build_tribe_completion_candidates(
             continue
         members: Iterable[Agent]
         if agent.is_family_root_entry:
-            members = concrete_family_member_rows(agent)
+            members = concrete_family_shell_rows(agent)
         else:
             members = (agent,)
         add(agent.tribe, members, agent_carrier=agent.identity)

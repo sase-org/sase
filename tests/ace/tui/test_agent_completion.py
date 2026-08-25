@@ -409,6 +409,79 @@ def test_build_agent_completion_candidates_derives_ordered_groups(
     assert by_name["review.old"].kind == "agent"
 
 
+def test_proc_shell_completion_candidate_uses_exact_proc_id(tmp_path: Path) -> None:
+    proc_shell = _agent(
+        tmp_path,
+        agent_type=AgentType.PROC_SHELL,
+        agent_name="build-docs",
+        raw_suffix="abc123def456",
+        proc_id="abc123def456",
+        proc_status="running",
+        proc_safe_preview="just docs-build --release",
+    )
+
+    candidates = build_agent_completion_candidates([proc_shell])
+
+    assert [candidate.name for candidate in candidates] == ["abc123def456"]
+    candidate = candidates[0]
+    assert candidate.kind == "proc"
+    assert candidate.label == "build-docs"
+    assert candidate.proc_id == "abc123def456"
+    assert "build-docs" in candidate.search_aliases
+    assert candidate.prompt_snippet == "just docs-build --release"
+
+
+def test_proc_shell_is_not_also_offered_as_a_plain_agent_candidate(
+    tmp_path: Path,
+) -> None:
+    proc_shell = _agent(
+        tmp_path,
+        agent_type=AgentType.PROC_SHELL,
+        agent_name="build-docs",
+        raw_suffix="abc123def456",
+        proc_id="abc123def456",
+        proc_status="running",
+    )
+
+    candidates = build_agent_completion_candidates([proc_shell])
+
+    assert [candidate.kind for candidate in candidates] == ["proc"]
+
+
+def test_family_completion_candidate_counts_monitor_shell_member(
+    tmp_path: Path,
+) -> None:
+    family = _agent(
+        tmp_path,
+        agent_name="alpha--plan",
+        raw_suffix="20260718110000",
+        agent_family="alpha",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    monitor = _agent(
+        tmp_path,
+        agent_name="alpha--mon",
+        raw_suffix="20260718110001",
+        agent_family="alpha",
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        parent_timestamp=family.raw_suffix,
+        status="MONITORED",
+        status_bucket="Done",
+    )
+    monitor.monitor_id = "m-123"
+    monitor.monitor_state = "completed"
+    family.followup_agents.append(monitor)
+
+    candidates = build_agent_completion_candidates([family, monitor])
+    candidate = next(candidate for candidate in candidates if candidate.name == "alpha")
+
+    assert candidate.kind == "family"
+    assert candidate.member_count == 2
+    assert "alpha--mon" in candidate.member_names
+
+
 def test_build_agent_completion_candidates_omits_empty_clan(tmp_path: Path) -> None:
     empty = _agent(
         tmp_path,

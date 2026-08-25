@@ -387,6 +387,17 @@ that defaults to **Keep running**, and confirming runs the same `stop_monitor` p
 behaves like an ordinary dismiss. See [Agent Row Glyphs](ace.md#agent-row-glyphs) and
 [Sequential Agent Families](agent_families.md#sequential-agent-families).
 
+A monitor row is also a fork target, active or settled: `F` opens a prompt prefilled
+with `#fork:<id>`, where `<id>` is the monitor's exact durable proc ID (not the reusable
+`<family>--mon` shell name), so a later monitor that reuses the same shell name can
+never hijack an already-queued fork. The footer and prompt label still show the friendly
+shell name. Because a monitor has no chat, retry, edit-chat, and rename are never
+offered for it. The injected fork content is the same command execution record described
+above (`Command`, `Status`/`State`, timeout/elapsed, and the captured `OUTPUT`),
+explicitly labeled as untrusted program output rather than a prior conversation. An
+implicit `%wait` on a monitor fork target releases on that monitor's terminal state —
+completed, failed, timed out, stopped, or lost — not only on a clean completion.
+
 ## Visibility
 
 A stalled monitor handoff — a supervisor that never reported a real outcome, or a

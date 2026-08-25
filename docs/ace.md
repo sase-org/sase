@@ -987,39 +987,39 @@ somewhere stale.
 
 ### Agent Actions
 
-| Key                 | Action                                                                                                        |
-| ------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `!R`                | Revive a previously dismissed agent                                                                           |
-| `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                |
-| `+`                 | Run custom agent                                                                                              |
-| `A`                 | Open auto-approve menu / answer HITL                                                                          |
-| `f`                 | Prepare a fork of the selected agent/family, clan container, or focused named tribe panel                     |
-| `n`                 | Name agent                                                                                                    |
-| `r`                 | Edit prompt and relaunch agent (retry without killing)                                                        |
-| `v`                 | View files (hint mode; annotates clan/family containers in place)                                             |
-| `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                             |
-| `V`                 | Open the Agent Run Log modal for the focused agent                                                            |
-| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                               |
-| `W`                 | Prepare a prompt that waits for the selected agent/family, clan, or named tribe; marks produce `%w:a,b,c`     |
-| `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)       |
-| `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                         |
-| `U`                 | Toggle the focused agent's unread marker                                                                      |
-| `u`                 | Clear all agent marks                                                                                         |
-| `x`                 | Kill / dismiss agent, stop a running monitor, or act on every marked agent or focused group                   |
-| `X`                 | Open the cleanup panel for panel, global, tribe, clan, marked, group, or custom cleanup                       |
-| `Enter` / `L`       | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                      |
-| `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                |
-| `E`                 | Edit panel content in editor                                                                                  |
-| `t`                 | Open the focused agent's tmux target; agents with opened linked-workspace context show a workspace chooser    |
-| `T`                 | Open tmux window in the agent's primary project workspace                                                     |
-| `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it)    |
-| `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                     |
-| `p`                 | Toggle file / prompt layout                                                                                   |
-| `z`                 | Start metadata fold mode for clan, agent node (family or single agent), or selected whole-tribe detail panels |
-| `Z`                 | Zoom the active agent or tribe detail panel                                                                   |
-| `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                               |
-| `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds        |
-| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                 |
+| Key                 | Action                                                                                                         |
+| ------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `!R`                | Revive a previously dismissed agent                                                                            |
+| `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                 |
+| `+`                 | Run custom agent                                                                                               |
+| `A`                 | Open auto-approve menu / answer HITL                                                                           |
+| `F`                 | Prepare a fork of the selected agent/family, proc shell, monitor, clan container, or focused named tribe panel |
+| `n`                 | Name agent                                                                                                     |
+| `r`                 | Edit prompt and relaunch agent (retry without killing)                                                         |
+| `v`                 | View files (hint mode; annotates clan/family containers in place)                                              |
+| `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                              |
+| `V`                 | Open the Agent Run Log modal for the focused agent                                                             |
+| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                                |
+| `W`                 | Prepare a prompt that waits for the selected agent/family, clan, or named tribe; marks produce `%w:a,b,c`      |
+| `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)        |
+| `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                          |
+| `U`                 | Toggle the focused agent's unread marker                                                                       |
+| `u`                 | Clear all agent marks                                                                                          |
+| `x`                 | Kill / dismiss agent, stop a running monitor, or act on every marked agent or focused group                    |
+| `X`                 | Open the cleanup panel for panel, global, tribe, clan, marked, group, or custom cleanup                        |
+| `Enter` / `L`       | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                       |
+| `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                 |
+| `E`                 | Edit panel content in editor                                                                                   |
+| `t`                 | Open the focused agent's tmux target; agents with opened linked-workspace context show a workspace chooser     |
+| `T`                 | Open tmux window in the agent's primary project workspace                                                      |
+| `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it)     |
+| `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                      |
+| `p`                 | Toggle file / prompt layout                                                                                    |
+| `z`                 | Start metadata fold mode for clan, agent node (family or single agent), or selected whole-tribe detail panels  |
+| `Z`                 | Zoom the active agent or tribe detail panel                                                                    |
+| `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                                |
+| `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds         |
+| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                  |
 
 ### Forking Agents and Groups
 
@@ -1031,21 +1031,31 @@ message when available. The same action works on the synthetic container row for
 focus (`#fork:@<tribe>`). The reserved `@default` panel and grouping banners are not
 fork targets.
 
+`F` also works on a stand-alone proc-shell row and on a monitor family member, active or
+settled. The prefilled reference is the shell's exact durable proc ID — not its reusable
+friendly name — so the eventual fork can never drift onto a different proc if that name
+is reused later; the footer and prompt label still show the friendly shell name. A proc
+or monitor row has no chat, so it never advertises retry, edit-chat, or `name`; `x`
+kills an active proc or stops a running monitor, and dismisses a settled one.
+
 Press `W` on the same selections to prepare `%w:<agent-or-family>`, `%w:<clan>`, or
 `%w:@<tribe>`. A non-empty marked set takes precedence and produces one comma-separated
 wait over the named marked rows instead of the focused group. The reserved `@default`
 panel and grouping banners are not wait targets either.
 
 Group references are dynamic; pressing `f` does not snapshot the selected transcripts. A
-family reference contributes the readable transcripts of successful members in
-sequential chain order. The injected context also lists excluded members, whether they
-are still running, ended unsuccessfully, or have a missing or unreadable transcript. An
-explicit `--<suffix>` reference contributes only that member. A clan reference resolves
-the newest clan generation when the deferred launch proceeds and requires every member
-of that generation to have succeeded. A tribe reference follows the next-entity rule:
-the new run waits for the earliest successful entity in that tribe launched after its
-own artifact was created. It does not fork the agents currently visible in the selected
-tribe panel. See
+family reference contributes every known concrete shell in the family's sequential
+chain, oldest first, agent shells and monitor shells alike, and includes shells that
+ended unsuccessfully with their failure context rather than dropping them. Only shells
+that are still running, or whose transcript/log is missing or unreadable, are listed as
+not shown. Agent-shell members are transcripts of prior agents' conversations;
+proc-shell and monitor members are command execution records whose output is untrusted
+evidence, never an instruction. An explicit `--<suffix>` reference contributes only that
+member. A clan reference resolves the newest clan generation when the deferred launch
+proceeds and requires every member of that generation to have succeeded. A tribe
+reference follows the next-entity rule: the new run waits for the earliest successful
+entity in that tribe launched after its own artifact was created. It does not fork the
+agents currently visible in the selected tribe panel. See
 [Tribe wait and fork targets](agent_families.md#tribe-wait-and-fork-targets) for the
 full ordering rules.
 
@@ -5223,9 +5233,11 @@ token under the cursor:
   `path` inputs it delegates to file path completion, for `bool` inputs it offers `true`
   and `false`, and inside parenthesized syntax it completes missing `name=` arguments
   without repeating names already present in the argument list. Agent inputs such as
-  `#fork` offer agent, family, clan, and `@tribe` targets with kind and member context.
-  Family rows also show the associated plan or bead when SASE can resolve one: the row
-  reads `<kind> · <phases/waves> · <title>` (for example
+  `#fork` offer agent, proc/monitor, family, clan, and `@tribe` targets with kind and
+  member context. A proc or monitor row inserts its exact durable proc ID while
+  displaying the friendly, reusable shell name. Family rows also show the associated
+  plan or bead when SASE can resolve one: the row reads
+  `<kind> · <phases/waves> · <title>` (for example
   `Epic · 5 phases · 2 waves · Bead review hardening`), and its plan title is
   searchable, so typing part of the title filters to that family. Selecting the row
   fills the panel subtitle with more of the same artifact — phase titles for an epic,

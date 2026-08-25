@@ -19,6 +19,7 @@ from ._fork_scope import (
     AgentPromptTargetScope,
     agent_prompt_target_scope,
     clan_prompt_target_scope,
+    proc_prompt_target_scope,
     resolve_vcs_tag,
     tribe_prompt_target_scope,
 )
@@ -228,6 +229,21 @@ def resolve_agent_prompt_target_scope(
             label = agent.agent_clan or agent.display_name
             return None, f"Clan '{label}' has no agents"
         return scope, None
+
+    if agent.is_proc_shell or agent.is_monitor:
+        proc_id = agent.proc_id if agent.is_proc_shell else agent.monitor_id
+        if not proc_id:
+            return None, "No proc ID found"
+        label = action_agent_prompt_name(agent) or proc_id
+        return (
+            proc_prompt_target_scope(
+                agent,
+                proc_id,
+                label=label,
+                history_fallback=action,
+            ),
+            None,
+        )
 
     if not agent.is_agent_entry or agent.is_synthetic_planner:
         return None, "No agent, clan, or tribe selected"
