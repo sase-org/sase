@@ -12,6 +12,7 @@ from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
 import os
 from pathlib import Path
+import time
 from typing import Any, NoReturn
 
 from sase.agent.names import _registry_mutations, _registry_queries
@@ -27,6 +28,7 @@ from sase.agent.names._registry_mutations import (
     RegistryMutationOperations,
 )
 from sase.agent.names.registry_freshness import (
+    agent_name_registry_freshness_token,
     invalidate_agent_name_registry_freshness,
 )
 from sase.agent.names._registry_scan import (
@@ -62,6 +64,18 @@ _LOAD_SESSION_ACTIVE: ContextVar[bool] = ContextVar(
     "agent_name_registry_load_session_active",
     default=False,
 )
+
+# A cache hit's own file signature is cheap to check; the expensive part is
+# proving the artifact/dismissed-bundle sources it was built from have not
+# moved (``_registry_file_is_stale``). Memoize a "proved not stale" result
+# against the in-process freshness generation plus a short TTL, so a burst of
+# loads inside one paint or launch flow pays that proof at most once. Any
+# registry mutation bumps the generation (via
+# ``invalidate_agent_name_registry_freshness``), which invalidates the memo
+# immediately regardless of the TTL.
+_STALE_PROOF_TTL_SECONDS = 2.0
+_STALE_PROOF_GENERATION: int | None = None
+_STALE_PROOF_MONOTONIC: float | None = None
 
 
 def _registry_path() -> Path:
@@ -388,6 +402,7 @@ def load_name_registry() -> dict[str, Any]:
         return rebuild_name_registry()
 
     _set_cache(path, data)
+    _record_stale_proof_memo()
     return data
 
 
@@ -429,6 +444,7 @@ def reset_name_registry_caches_for_tests() -> None:
     _CACHE_PATH = None
     _CACHE_SIGNATURE = None
     _CACHE_DATA = None
+    _clear_stale_proof_memo()
     _reset_registry_scan_caches()
     invalidate_agent_name_registry_freshness()
     from sase.config.core import clear_config_cache
@@ -453,9 +469,33 @@ def _cached_registry(path: Path) -> dict[str, Any] | None:
         return None
     if _LOAD_SESSION_ACTIVE.get():
         return _CACHE_DATA
+    if _stale_proof_memo_valid():
+        return _CACHE_DATA
     if _registry_file_is_stale(_CACHE_DATA):
         return None
+    _record_stale_proof_memo()
     return _CACHE_DATA
+
+
+def _stale_proof_memo_valid() -> bool:
+    """Return whether the last full staleness proof is still trustworthy."""
+    if _STALE_PROOF_GENERATION is None or _STALE_PROOF_MONOTONIC is None:
+        return False
+    if _STALE_PROOF_GENERATION != agent_name_registry_freshness_token():
+        return False
+    return (time.monotonic() - _STALE_PROOF_MONOTONIC) < _STALE_PROOF_TTL_SECONDS
+
+
+def _record_stale_proof_memo() -> None:
+    global _STALE_PROOF_GENERATION, _STALE_PROOF_MONOTONIC
+    _STALE_PROOF_GENERATION = agent_name_registry_freshness_token()
+    _STALE_PROOF_MONOTONIC = time.monotonic()
+
+
+def _clear_stale_proof_memo() -> None:
+    global _STALE_PROOF_GENERATION, _STALE_PROOF_MONOTONIC
+    _STALE_PROOF_GENERATION = None
+    _STALE_PROOF_MONOTONIC = None
 
 
 def _set_cache(path: Path, data: dict[str, Any]) -> None:

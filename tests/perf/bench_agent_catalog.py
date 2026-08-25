@@ -85,12 +85,13 @@ pytestmark = pytest.mark.slow
 # revalidation cost this repair restores is real and roughly doubles the
 # build. This is deliberately *not* a tight gate: this phase (``bench``) only
 # has to prove the fixture is now honest, not fix the cost it now reveals.
-# The budget below is ~2.75x the observed max to absorb host/CI variance.
-# The ``registry`` phase (sibling bead) implements the freshness memo
-# described in ``plan:202608/artifacts_query_performance.md`` §4 and
-# tightens this budget once `load_name_registry()` stops paying a full
-# revalidation sweep on every call.
-_BUDGET_MS = 900.0
+# Post-fix baseline (``registry`` phase's freshness memo from
+# ``plan:202608/artifacts_query_performance.md`` §4, which lets
+# ``load_name_registry()`` skip the full revalidation sweep on repeated
+# calls): median 158-169ms, max 202ms over two 5-run samples on the author's
+# machine. The budget below is ~2.75x the observed max to absorb host/CI
+# variance, matching the pre-fix budget's margin.
+_BUDGET_MS = 550.0
 _REFERENCE_REGISTRY_SIZE = 12525
 # ~1/20 (5%) of entries get a ``dismissed_bundle`` source instead of an
 # ``artifact`` source + real artifacts_dir, matching production's mix of

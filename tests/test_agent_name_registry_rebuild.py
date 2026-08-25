@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.names import (
+    claim_registered_name,
     get_reserved_agent_names,
     load_name_registry,
     lookup_registered_name,
@@ -467,3 +468,71 @@ def test_registry_load_session_memoizes_source_signature(tmp_path: Path) -> None
 
     assert second == first
     assert signature_paths.call_count == 1
+
+
+def test_stale_proof_memo_reused_across_repeated_loads(tmp_path: Path) -> None:
+    """A burst of loads outside a load session pays the full proof once."""
+    _make_agent(tmp_path, "proj", "run1", "foo")
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        with patch.object(
+            _registry,
+            "_registry_file_is_stale",
+            wraps=_registry._registry_file_is_stale,
+        ) as is_stale:
+            for _ in range(20):
+                assert "foo" in load_name_registry()["entries"]
+
+    assert is_stale.call_count == 1
+
+
+def test_stale_proof_memo_invalidated_by_mutation(tmp_path: Path) -> None:
+    artifacts_root = tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run"
+    (artifacts_root / "run1").mkdir(parents=True)
+    with patch.object(Path, "home", return_value=tmp_path):
+        load_name_registry()  # arm the memo
+        with patch.object(
+            _registry,
+            "_registry_file_is_stale",
+            wraps=_registry._registry_file_is_stale,
+        ) as is_stale:
+            claim_registered_name("foo", artifacts_root / "run1")
+            data = load_name_registry()
+
+    assert "foo" in data["entries"]
+    assert is_stale.call_count == 1
+
+
+def test_stale_proof_memo_expires_after_ttl(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _make_agent(tmp_path, "proj", "run1", "foo")
+    monkeypatch.setattr(_registry, "_STALE_PROOF_TTL_SECONDS", 0.01)
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        load_name_registry()  # arm the memo
+        time.sleep(0.02)  # sase-test-wait: expires the TTL memo
+        with patch.object(
+            _registry,
+            "_registry_file_is_stale",
+            wraps=_registry._registry_file_is_stale,
+        ) as is_stale:
+            load_name_registry()
+
+    assert is_stale.call_count == 1
+
+
+def test_stale_proof_memo_still_detects_deleted_owner_after_ttl(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A memo that masks a deletion within its TTL must not mask it forever."""
+    artifact_dir = _make_agent(tmp_path, "proj", "run1", "foo")
+    monkeypatch.setattr(_registry, "_STALE_PROOF_TTL_SECONDS", 0.01)
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        load_name_registry()  # arm the memo
+        shutil.rmtree(artifact_dir)
+        time.sleep(0.02)  # sase-test-wait: expires the TTL memo
+        data = load_name_registry()
+
+    assert "foo" not in data["entries"]

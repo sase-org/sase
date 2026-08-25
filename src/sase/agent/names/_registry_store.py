@@ -127,7 +127,13 @@ def _source_signature() -> dict[str, int | str]:
     for path in paths:
         digest.update(os.fsencode(path))
         digest.update(b"\0")
-        if not path.is_file():
+        # Every file source_signature_paths() returns is a dismissed-bundle
+        # record or dismissed_agents.json, and both always carry a ``.json``
+        # suffix; everything else is an artifact directory, whose path name
+        # (already hashed above) is its whole signature contribution. Reading
+        # the suffix instead of calling ``is_file()`` skips a stat syscall per
+        # artifact directory, which is most of the paths here.
+        if path.suffix != ".json":
             continue
         try:
             stat = path.stat()
