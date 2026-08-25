@@ -64,6 +64,10 @@ class _Agent:
     def get_raw_xprompt_content(self) -> str | None:
         return self.raw_prompt
 
+    @property
+    def display_name(self) -> str:
+        return self.agent_name or self.cl_name
+
 
 class _App(EntryPointsMixin):
     def __init__(self, agent: _Agent) -> None:
@@ -88,6 +92,7 @@ class _App(EntryPointsMixin):
 
     def _dismiss_done_agent(
         self, agent: _Agent, *, on_settled: Callable[[], None] | None = None
-    ) -> None:
+    ) -> bool:
         if on_settled is not None:
             on_settled()
+        return True

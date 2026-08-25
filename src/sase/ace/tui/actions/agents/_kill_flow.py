@@ -35,13 +35,14 @@ class AgentKillFlowMixin:
         cleanup_plan: AgentCleanupPlanWire | None = None,
         *,
         on_settled: Callable[[], None] | None = None,
-    ) -> None:
+    ) -> bool:
         """Perform the actual agent kill after confirmation.
 
         *on_settled*, when given, runs once the kill's durable persistence
         proc has settled (or immediately, if submission itself is rejected)
-        so a caller composing a kill-and-edit relaunch can defer mounting
-        the prompt bar until it is safe to do so.
+        so a caller composing a kill-and-edit relaunch can defer an action
+        until it is safe to do so. Returns whether a kill was actually
+        initiated (and therefore whether *on_settled* will fire).
         """
         started = time.perf_counter()
         kind: KillKind | None = self._classify_kill_kind(agent)  # type: ignore[attr-defined]
@@ -64,7 +65,7 @@ class AgentKillFlowMixin:
             )
             if on_settled is not None:
                 on_settled()
-            return
+            return False
 
         agents_with_children_snapshot = list(self._agents_with_children)
         by_identity = {
@@ -109,7 +110,7 @@ class AgentKillFlowMixin:
         if signal_failed:
             if on_settled is not None:
                 on_settled()
-            return
+            return False
         self._notify_killed_agent(agent, kind)  # type: ignore[attr-defined]
 
         immediate_identities = self._collect_planned_kill_identities(  # type: ignore[attr-defined]
@@ -138,6 +139,7 @@ class AgentKillFlowMixin:
             agent.identity,
             time.perf_counter() - started,
         )
+        return True
 
     def _do_bulk_kill_agents(
         self,
@@ -145,14 +147,15 @@ class AgentKillFlowMixin:
         dismissable: list[Agent] | None = None,
         *,
         on_settled: Callable[[], None] | None = None,
-    ) -> None:
+    ) -> bool:
         """Kill/dismiss marked agents as one optimistic UI transaction.
 
         *on_settled*, when given, runs once the bulk kill/dismiss's durable
         persistence proc has settled (or immediately, if nothing was
         submitted or submission itself is rejected) so a caller composing a
-        marked kill-and-edit relaunch can defer mounting the prompt stack
-        until it is safe to do so.
+        marked kill-and-edit relaunch can defer an action until it is safe
+        to do so. Returns whether any kill/dismiss was actually initiated
+        (and therefore whether *on_settled* will fire).
         """
         from . import _killing as killing_compat
 
@@ -256,3 +259,4 @@ class AgentKillFlowMixin:
             dismissed_count,
             time.perf_counter() - started,
         )
+        return bool(kill_items or dismiss_candidates)

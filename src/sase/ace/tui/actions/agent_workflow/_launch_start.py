@@ -220,7 +220,24 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
         keep_bar: bool = False,
         extra_payload: dict[str, object] | None = None,
     ) -> None:
-        """Unmount (unless *keep_bar*) and submit the durable ``sase run``."""
+        """Unmount (unless *keep_bar*) and submit the durable ``sase run``.
+
+        Refuses to submit while a relaunch cleanup barrier is still open (a
+        ``,x`` kill/dismiss persistence proc that has not yet settled): the
+        submit is parked and replayed once every open barrier settles, so no
+        durable ``sase run`` can race a late bundle write that would
+        resurrect the name it is about to reuse. See ``_relaunch_barrier``.
+        """
+        from ._relaunch_barrier import hold_launch_for_relaunch_cleanup
+
+        if hold_launch_for_relaunch_cleanup(
+            self,
+            lambda: self._submit_resolved_launch(
+                prompt, keep_bar=keep_bar, extra_payload=extra_payload
+            ),
+        ):
+            return
+
         if self._prompt_context is None:
             self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
             return

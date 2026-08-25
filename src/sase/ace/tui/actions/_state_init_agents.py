@@ -316,6 +316,11 @@ def init_agent_state(self: Any) -> None:
     self._dismiss_persistence_inflight = set()
     self._kill_persistence_inflight = set()
 
+    # Ordering barrier between a ``,x`` cleanup proc and the replacement
+    # launch it must precede; see agent_workflow/_relaunch_barrier.py.
+    self._relaunch_cleanup_barriers = []
+    self._relaunch_cleanup_launch_waiters = []
+
     # Plan feedback context (set when user presses 'f' in plan approval modal)
     from .agents._types import PlanFeedbackContext
 

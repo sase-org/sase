@@ -52,19 +52,21 @@ class _FamilyRelaunchApp(EntryRelaunchMixin, App[None]):
 
     def _dismiss_done_agent(
         self, agent: Agent, *, on_settled: Callable[[], None] | None = None
-    ) -> None:
+    ) -> bool:
         self.dismissed.append(agent)
         self._remove(agent)
         if on_settled is not None:
             on_settled()
+        return True
 
     def _do_kill_agent(
         self, agent: Agent, *, on_settled: Callable[[], None] | None = None
-    ) -> None:
+    ) -> bool:
         self.killed.append(agent)
         self._remove(agent)
         if on_settled is not None:
             on_settled()
+        return True
 
 
 def _prompt_bar_ready(app: _FamilyRelaunchApp) -> bool:

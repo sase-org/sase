@@ -87,7 +87,7 @@ class _FakeBulkEditApp(AgentMarkingMixin):
         dismissable: list[Any] | None = None,
         *,
         on_settled: Callable[[], None] | None = None,
-    ) -> None:
+    ) -> bool:
         dismissable = dismissable or []
         self.bulk_kill_calls.append((list(killable), list(dismissable)))
         ids = {a.identity for a in killable} | {a.identity for a in dismissable}
@@ -98,6 +98,7 @@ class _FakeBulkEditApp(AgentMarkingMixin):
         self._reset_marked_agents()
         if on_settled is not None:
             on_settled()
+        return True
 
     def _edit_and_relaunch_agents_bulk(
         self,
@@ -144,11 +145,12 @@ class _MountedBulkEditApp(AgentMarkingMixin, EntryRelaunchMixin, App[None]):
         dismissable: list[Agent] | None = None,
         *,
         on_settled: Callable[[], None] | None = None,
-    ) -> None:
+    ) -> bool:
         self.bulk_kill_calls.append((list(killable), list(dismissable or [])))
         self._reset_marked_agents()
         if on_settled is not None:
             on_settled()
+        return True
 
 
 def _mark_in_order(app: _FakeBulkEditApp, *agents: _FakeAgent) -> None:

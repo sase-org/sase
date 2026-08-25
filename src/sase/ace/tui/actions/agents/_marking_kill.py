@@ -40,6 +40,12 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
         front (with the same forced-name-reuse rule as the focused-row path)
         and, on confirmation, seeded into its own prompt pane so the panes
         match the marks one-for-one and follow mark order, not row order.
+
+        The prompt stack mounts immediately after the optimistic kill/dismiss
+        rather than waiting for its durable persistence proc to settle. A
+        relaunch cleanup barrier holds the eventual launch instead, so a late
+        bundle write from the old cleanup still cannot resurrect a name the
+        replacement agents are about to reuse.
         """
         if not self._marked_agents:
             self.notify("No agents marked", severity="warning")  # type: ignore[attr-defined]
@@ -130,9 +136,21 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                         first.is_project_agent,
                     )
 
-                self._do_bulk_kill_agents(  # type: ignore[attr-defined]
-                    killable, dismissable, on_settled=mount_prompt_stack
+                from ..agent_workflow._relaunch_barrier import (
+                    open_relaunch_cleanup_barrier,
+                    settle_relaunch_cleanup_barrier,
                 )
+
+                barrier = open_relaunch_cleanup_barrier(
+                    self, f"bulk kill-and-edit {len(exact_agents)} agent(s)"
+                )
+                settle = lambda: settle_relaunch_cleanup_barrier(self, barrier)  # noqa: E731
+                if not self._do_bulk_kill_agents(  # type: ignore[attr-defined]
+                    killable, dismissable, on_settled=settle
+                ):
+                    settle()
+                    return
+                mount_prompt_stack()
 
             self._present_bulk_kill_modal(present_agents, on_confirm=on_confirm)
 

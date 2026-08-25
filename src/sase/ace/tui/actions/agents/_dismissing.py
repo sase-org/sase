@@ -268,17 +268,18 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         agent: Agent,
         *,
         on_settled: Callable[[], None] | None = None,
-    ) -> None:
+    ) -> bool:
         """Dismiss a DONE or completed workflow agent.
 
         *on_settled*, when given, runs once the dismissal's durable
         persistence proc has settled (or immediately, if submission itself
         is rejected) so a caller composing a kill-and-edit relaunch can defer
-        mounting the prompt bar until it is safe to do so.
+        an action until it is safe to do so. Returns whether a dismissal was
+        actually initiated (and therefore whether *on_settled* will fire).
         """
         if agent.raw_suffix is None:
             self.notify("Cannot dismiss agent: no timestamp", severity="error")  # type: ignore[attr-defined]
-            return
+            return False
 
         agents_with_children_snapshot = list(self._agents_with_children)
         cleanup_plan = plan_dismissal_side_effects(
@@ -291,6 +292,7 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
             agents_with_children_snapshot,
             on_settled=on_settled,
         )
+        return True
 
     def _dismiss_planned_agent(
         self,

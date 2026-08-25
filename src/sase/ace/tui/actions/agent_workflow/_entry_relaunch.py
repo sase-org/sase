@@ -276,13 +276,19 @@ class EntryRelaunchMixin:
     ) -> None:
         """Apply a resolved relaunch prompt to a still-current row.
 
-        The prompt is captured up front, the kill/dismiss is applied
-        optimistically in memory, and the prompt bar mounts only once that
-        cleanup's durable persistence proc has settled. This keeps the
-        already-prepared prompt from being stranded while still ensuring a
-        late bundle write from the old cleanup cannot resurrect the name a
-        replacement agent is about to reuse.
+        The prompt is captured up front and the kill/dismiss is applied
+        optimistically in memory; the prompt bar mounts immediately after
+        rather than waiting for that cleanup's durable persistence proc to
+        settle. A relaunch cleanup barrier opened here instead holds the
+        eventual launch (at ``_submit_resolved_launch``) until the proc
+        settles, so a late bundle write from the old cleanup still cannot
+        resurrect the name a replacement agent is about to reuse.
         """
+        from ._relaunch_barrier import (
+            open_relaunch_cleanup_barrier,
+            settle_relaunch_cleanup_barrier,
+        )
+
         # Capture agent info before killing (agent is removed from _agents on kill)
         agent_project_file = agent.project_file
         agent_cl_name = agent.cl_name
@@ -296,9 +302,17 @@ class EntryRelaunchMixin:
         from ..agents._core import DISMISSABLE_STATUSES
 
         if agent.status in DISMISSABLE_STATUSES or agent.pid is None:
-            # No confirmation needed - dismiss, then show the prompt bar once
-            # the dismiss persistence proc has settled.
-            self._dismiss_done_agent(agent, on_settled=mount_prompt_bar)  # type: ignore[attr-defined]
+            # No confirmation needed - dismiss optimistically, mount the
+            # prompt bar right away, and let the barrier hold the eventual
+            # launch until the dismiss persistence proc settles.
+            barrier = open_relaunch_cleanup_barrier(
+                self, f"kill-and-edit {agent.display_name}"
+            )
+            settle = lambda: settle_relaunch_cleanup_barrier(self, barrier)  # noqa: E731
+            if not self._dismiss_done_agent(agent, on_settled=settle):  # type: ignore[attr-defined]
+                settle()
+                return
+            mount_prompt_bar()
             return
 
         # Build description for confirmation dialog.
@@ -332,6 +346,7 @@ class EntryRelaunchMixin:
 
         def on_dismiss(confirmed: bool | None) -> None:
             if not confirmed:
+                # A cancelled kill leaves no barrier; nothing was opened yet.
                 return
             current = resolve_agent_identity(self, identity)
             if current is None:
@@ -340,7 +355,14 @@ class EntryRelaunchMixin:
                     severity="warning",
                 )
                 return
-            self._do_kill_agent(current, on_settled=mount_prompt_bar)  # type: ignore[attr-defined]
+            barrier = open_relaunch_cleanup_barrier(
+                self, f"kill-and-edit {current.display_name}"
+            )
+            settle = lambda: settle_relaunch_cleanup_barrier(self, barrier)  # noqa: E731
+            if not self._do_kill_agent(current, on_settled=settle):  # type: ignore[attr-defined]
+                settle()
+                return
+            mount_prompt_bar()
 
         self.push_screen(ConfirmKillModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
 
