@@ -71,9 +71,9 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     assert "The following memories contain core (always loaded) context:" in agents
     # Short memory is inlined (no ``@sase/memory/...`` imports) under H3 headers.
     assert "### 1.1 SASE = Structured Agentic Software Engineering (sase)" in agents
-    assert "### 1.2 Artifact Relation Registry (artifact_relations)" in agents
-    assert "### 1.3 Extra (extra)" in agents
-    assert "#### 1.3.1 Section" in agents
+    assert "#### 1.1.1 SASE Memory" in agents
+    assert "### 1.2 Extra (extra)" in agents
+    assert "#### 1.2.1 Section" in agents
     assert "@sase/memory/extra.md" not in agents
     assert "@sase/memory/sase.md" not in agents
     assert "## Tier 2 (dynamic) Memory" not in agents

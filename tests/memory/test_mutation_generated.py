@@ -33,7 +33,6 @@ def test_generated_memory_note_relative_paths_match_private_helpers() -> None:
     ) == (
         "sase/memory/sase.md",
         "sase/memory/task_types.md",
-        "sase/memory/artifact_relations.md",
         "sase/memory/sase_artifacts.md",
         "sase/memory/sase_beads.md",
         "sase/memory/sase_sizes.md",
@@ -50,10 +49,7 @@ def test_generated_paths_cover_every_note_sase_memory_init_generates() -> None:
     long_contents, error = render_generated_project_long_memory_contents()
     assert error is None
     written = {
-        *generated_short_notes(
-            "generated sase body",
-            "generated artifact relations body",
-        ),
+        *generated_short_notes("generated sase body"),
         *long_contents,
     }
     contract = {

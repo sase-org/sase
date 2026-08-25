@@ -2,7 +2,9 @@
 type: reference
 parent: AGENTS.md
 description:
-  Read before adding, deferring, or removing a SASE feature flag or flag bead.
+  Read before adding, deferring, or removing a SASE feature flag or flag bead, and
+  before deprecating user-reaching behavior or landing code whose old branch must stay
+  reachable for backward compatibility.
 ---
 
 # SASE Feature Flags
@@ -11,11 +13,23 @@ A SASE feature flag is a temporary boolean route for behavior that reaches users
 it is ready to become unconditional. Flags are a `sase`-project concern only. A flag
 bead is a task bead of type `flag`, not a fourth issue type.
 
+Put a feature flag on user-reaching behavior before it is ready: a disabled beta, an
+early landed path, or a deprecation whose old branch must stay reachable. A flag is also
+mandatory for deprecated or backward-compatible branches while callers migrate. Do not
+flag anything users are meant to choose forever; that is a config field.
+
 Kinds and their derived defaults:
 
 - `beta`: default **off**. The behavior is unproven; a user opts in.
 - `sunset`: default **on**. The behavior is already the default; the flag keeps the old
   branch reachable while callers migrate.
+
+Use `sunset` for deprecation and backward compatibility. Unless the user asks for one,
+an agent creates a `beta` flag only for an epic plan, and only when a landed phase would
+otherwise expose part of an unfinished feature to the user. Such a flag is epic
+scaffolding: the epic removes it before it lands by deleting the Off branch, making the
+On branch unconditional, and closing the flag bead rather than waiting for its
+`remove_by` thresholds.
 
 One removal rule covers both kinds: **removing a flag deletes the disabled (Off) branch
 and makes the enabled (On) branch unconditional.** If users are meant to choose the

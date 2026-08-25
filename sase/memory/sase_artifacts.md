@@ -78,10 +78,21 @@ sase artifact link add plan:202608/example.md implements bead:sase-a1 "lands the
 sase artifact link add plan:202608/example.md derives-from research:202608/source.md "uses its measurements"
 ```
 
-Manual `link add` writes only `related`, `supersedes`, `implements`, and `derives-from`.
-`cites` is written by prompt expansion and `read` by audited reads. The generated Tier 1
-artifact relation registry owns relation definitions and reserved slugs; scheduling
-relationships remain `sase bead dep`, never artifact links.
+Typed links use a closed relation registry:
+
+- `cites`: inverse `cited-by`, directed yes, written by `prompt_ref`.
+- `read`: inverse `read-by`, directed yes, written by `read`.
+- `related`: inverse `related`, directed no, written by `cli`.
+- `supersedes`: inverse `superseded-by`, directed yes, written by `cli`.
+- `implements`: inverse `implemented-by`, directed yes, written by `cli`.
+- `derives-from`: inverse `derived-into`, directed yes, written by `cli`.
+
+Manual `link add` writes only the `cli` relations; `cites` is written by prompt-ref
+expansion and `read` by audited reads. These slugs are scheduling concepts, not artifact
+links, and remain `sase bead dep`:
+
+- `blocks`: use `sase bead dep` instead.
+- `depends-on`: use `sase bead dep` instead.
 
 ## Retention
 

@@ -30,17 +30,11 @@ def _assert_derived_managed_agents(agents: str) -> None:
     # collapsed whitespace rather than pinning where the line breaks land.
     expected = (
         "# project - Agent Instructions "
-        "IMPORTANT: You should not modify any of these memory files without "
-        "approval from the user. However, when the user explicitly asks you to "
-        "update a SASE memory file, that request already carries the required "
-        "approval for the full workflow: make the requested edit to the "
-        "canonical note under `sase/memory/`, then you MUST run "
-        "`sase memory init` to regenerate `AGENTS.md`, the provider instruction "
-        "shims, and the memory README. Do NOT ask for separate permission to "
-        "initialize sase memory in that case. "
         "## 1. Tier 1 (core) Memory "
         "The following memories contain core (always loaded) context: "
-        "### 1.1 SASE = Structured Agentic Software Engineering (sase)"
+        "### 1.1 SASE = Structured Agentic Software Engineering (sase) "
+        "#### 1.1.1 SASE Memory SASE memory is this project's durable agent "
+        "context"
     )
     assert " ".join(agents.split()).startswith(expected)
     assert "@sase/memory/sase.md" not in agents

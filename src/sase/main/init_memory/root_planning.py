@@ -42,10 +42,13 @@ from .root_planning_files import (
 from .root_rendering import (
     generated_long_notes,
     generated_short_notes,
-    render_generated_artifact_relations_memory_body,
     render_generated_project_long_memory_contents,
     render_generated_sase_memory_body,
     render_expected_memory_files,
+)
+from .root_rendering_artifact_relations import (
+    ARTIFACT_RELATIONS_MEMORY_RELATIVE_PATH,
+    is_generated_artifact_relations_memory_content,
 )
 from .root_rendering_task_types import (
     TASK_TYPES_WEB_SLUG,
@@ -128,6 +131,20 @@ def _retired_task_types_note_path(
     except (OSError, UnicodeDecodeError):
         return ()
     if not is_generated_task_types_memory_content(current):
+        return ()
+    return (path,)
+
+
+def _retired_artifact_relations_note_path(root: Path) -> tuple[Path, ...]:
+    """Return the retired generated artifact-relations note, if present."""
+    path = root / ARTIFACT_RELATIONS_MEMORY_RELATIVE_PATH
+    if not path.exists():
+        return ()
+    try:
+        current = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ()
+    if not is_generated_artifact_relations_memory_content(current):
         return ()
     return (path,)
 
@@ -300,6 +317,7 @@ def memory_root_context(
 
     retired_note_paths = (
         *_retired_note_paths(root, include_project_memory=include_project_memory),
+        *_retired_artifact_relations_note_path(root),
         *_retired_task_types_note_path(
             root, include_project_memory=include_project_memory
         ),
@@ -342,26 +360,6 @@ def memory_root_context(
                 sase_render_error or "failed to render sase/memory/sase.md template",
             ),
         )
-    generated_artifact_relations_body: str | None = None
-    if include_project_memory:
-        generated_artifact_relations_body, artifact_relations_render_error = (
-            render_generated_artifact_relations_memory_body()
-        )
-        if (
-            artifact_relations_render_error is not None
-            or generated_artifact_relations_body is None
-        ):
-            return _MemoryRootContext(
-                amd_sync=None,
-                expected_files=(),
-                shim_plan=ProviderShimPlan(writes=(), deletes=()),
-                additional_shim_plans=(),
-                source_memory_root=migration.source_memory_root,
-                blockers=(
-                    artifact_relations_render_error
-                    or "failed to render sase/memory/artifact_relations.md template",
-                ),
-            )
     generated_project_long_contents: dict[str, str] = {}
     if include_project_memory:
         generated_project_long_contents, generated_long_error = (
@@ -376,10 +374,7 @@ def memory_root_context(
                 source_memory_root=migration.source_memory_root,
                 blockers=(generated_long_error,),
             )
-    generated_short_note_bodies = generated_short_notes(
-        generated_sase_body,
-        generated_artifact_relations_body,
-    )
+    generated_short_note_bodies = generated_short_notes(generated_sase_body)
     if memory_web_plan.core_note_bodies is not None:
         generated_short_note_bodies = {
             **generated_short_note_bodies,
@@ -400,7 +395,6 @@ def memory_root_context(
         project_name=project_name,
         amd_sync=amd_sync,
         generated_sase_body=generated_sase_body,
-        generated_artifact_relations_body=generated_artifact_relations_body,
         generated_project_long_contents=generated_project_long_contents,
         source_memory_root=migration.source_memory_root,
         include_project_memory=include_project_memory,

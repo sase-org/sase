@@ -153,8 +153,8 @@ def test_init_memory_renders_data_driven_readme_and_asset(
     assert f"- Approx. tokens: {extra_stats.approx_token_count}" in readme
     assert f"- Lines: {reference_stats.line_count}" in readme
     assert f"- Approx. tokens: {reference_stats.approx_token_count}" in readme
-    assert "- Total notes: 8" in readme
-    assert "- Core notes: 4" in readme
+    assert "- Total notes: 7" in readme
+    assert "- Core notes: 3" in readme
     assert "- Reference notes: 4" in readme
 
     asset_path = (

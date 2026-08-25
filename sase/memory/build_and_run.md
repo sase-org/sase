@@ -21,8 +21,7 @@ just test-cov      # pytest with coverage + 50% gate (used by CI); also
 ## IMPORTANT: Two-Speed Verification — Run `just check` if you Made File Changes
 
 If you made file changes in this repo (the sase repo), make sure to run the `just check`
-command before terminating / replying to the user. See the below subsection for
-exceptions to this rule.
+command before terminating / replying to the user.
 
 `just check` runs every whole-repo lint gate plus a diff-scoped test lane
 (`just test-scoped`) that selects tests via a static import-graph closure. The scoped
@@ -35,25 +34,15 @@ Run `just check-full` instead — every lint gate plus the full test suite — b
 landing an epic's combined tree, when the change touches the broadening set, or any time
 `just check`'s scoped run escalated or reported an unusual selection.
 
-`just check-full` routinely outruns a single agent turn, so run it **only** through
-`/sase_monitor`, never inline:
-
-```bash
-sase monitor start --command 'just check-full' \
-  --start-status TESTING --stop-status TESTED --next '...'
-```
-
-`-s/--start-status` and `-S/--stop-status` are required on every monitor. `TESTING` /
-`TESTED` is the pair for `just check` and `just check-full`; a different kind of wait
-should pick its own present/past pair (max 20 characters). Hand a `--next` action so the
-follow-up agent acts on the result. `just check` may be run inline, but hand it to a
-monitor too whenever it is taking a long time — same `--next` rule and the same
-`TESTING` / `TESTED` pair apply.
+`just check-full` routinely outruns a single agent turn, so run it **only** through your
+`/sase_monitor` skill, never inline, using the `TESTING` / `TESTED` status pair.
+`just check` may be run inline, but hand it to a monitor the same way whenever it is
+taking a long time.
 
 **IMPORTANT**: One consequence of sase's ephemeral workspace directories (see the
-sase.md file in this directory) is that you need to run `just install` before running
-other commands like `just check` (since it is possible we haven't used this workspace
-directory in a long time and package dependencies may have changed).
+sase.md file in this directory) is that you MAY need to run `just install` before
+running other commands like `just check` (since it is possible we haven't used this
+workspace directory in a long time and package dependencies may have changed).
 
 ## PNG Snapshot Tests
 

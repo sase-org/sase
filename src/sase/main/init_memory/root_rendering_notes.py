@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,7 +24,8 @@ from sase.memory.paths import (
 from .formatting import format_generated_memory_markdown
 from .models import LinkedRepoMemoryEntry, MemoryExpectedFile
 from .root_rendering_artifact_relations import (
-    generated_artifact_relations_memory_relative_path,
+    ARTIFACT_RELATION_REGISTRY_TEMPLATE_VARS,
+    artifact_relation_registry_template_context,
 )
 from .root_rendering_task_types import generated_task_types_memory_relative_path
 
@@ -43,6 +44,8 @@ class _GeneratedLongMemorySpec:
     relative_path: Path
     parent: str
     detail: str
+    required_variables: frozenset[str] = frozenset()
+    context: Callable[[], tuple[Mapping[str, object] | None, str | None]] | None = None
 
 
 def _linked_repo_list_item(entry: LinkedRepoMemoryEntry) -> str:
@@ -111,6 +114,8 @@ _GENERATED_ARTIFACTS_MEMORY_SPEC = _GeneratedLongMemorySpec(
     relative_path=_generated_artifacts_memory_relative_path(),
     parent=AGENTS_PARENT,
     detail="generated SASE artifact memory",
+    required_variables=ARTIFACT_RELATION_REGISTRY_TEMPLATE_VARS,
+    context=artifact_relation_registry_template_context,
 )
 _GENERATED_BEADS_MEMORY_SPEC = _GeneratedLongMemorySpec(
     template_filename=MEMORY_SASE_BEADS_TEMPLATE_FILENAME,
@@ -157,17 +162,16 @@ def generated_memory_note_relative_paths(
     """Return the generated memory-note paths for one memory root.
 
     Shared notes are always included. Project-only notes
-    (``task_types.md``, ``artifact_relations.md``, ``sase_artifacts.md``,
-    ``sase_beads.md``, and ``sase_sizes.md``) are added when
-    *include_project_memory* is true. ``glossary.md`` is user-owned web
-    descriptor content and is never reserved as a generated note.
+    (``task_types.md``, ``sase_artifacts.md``, ``sase_beads.md``, and
+    ``sase_sizes.md``) are added when *include_project_memory* is true.
+    ``glossary.md`` is user-owned web descriptor content and is never reserved
+    as a generated note.
     """
     paths = (generated_sase_memory_relative_path(),)
     if include_project_memory:
         return (
             *paths,
             generated_task_types_memory_relative_path(),
-            generated_artifact_relations_memory_relative_path(),
             _generated_artifacts_memory_relative_path(),
             _generated_beads_memory_relative_path(),
             _generated_sizes_memory_relative_path(),
@@ -180,13 +184,25 @@ def _render_generated_long_memory_content(
     template_filename: str,
     relative_path: Path,
     parent: str,
+    required_variables: frozenset[str] = frozenset(),
+    context: Callable[[], tuple[Mapping[str, object] | None, str | None]] | None = None,
 ) -> tuple[str | None, str | None]:
     """Render a packaged generated reference memory note."""
+    render_context: Mapping[str, object] = {}
+    if context is not None:
+        context_values, context_error = context()
+        if context_error is not None or context_values is None:
+            return (
+                None,
+                context_error
+                or f"failed to build context for {relative_path.as_posix()} template",
+            )
+        render_context = context_values
     rendered, render_error = render_markdown_template(
         package=_MEMORY_TEMPLATE_PACKAGE,
         filename=f"templates/{template_filename}",
-        required_variables=frozenset(),
-        context={},
+        required_variables=required_variables,
+        context=render_context,
     )
     if render_error is not None or rendered is None:
         return (
@@ -228,6 +244,8 @@ def _render_generated_project_long_memory_content(
         template_filename=spec.template_filename,
         relative_path=spec.relative_path,
         parent=spec.parent,
+        required_variables=spec.required_variables,
+        context=spec.context,
     )
 
 
@@ -266,7 +284,6 @@ def generated_project_long_expected_files(
 
 def generated_short_notes(
     generated_sase_body: str,
-    generated_artifact_relations_body: str | None = None,
 ) -> dict[str, GeneratedShortMemoryNote]:
     """Return freshly generated core notes keyed by relative path.
 
@@ -274,17 +291,12 @@ def generated_short_notes(
     so its body flows through ``_memory_web_root_plan``'s core-note-body
     overlay instead of this function.
     """
-    notes = {
+    return {
         generated_sase_memory_relative_path().as_posix(): GeneratedShortMemoryNote(
             body=generated_sase_body,
             priority=GENERATED_SASE_MEMORY_PRIORITY,
         ),
     }
-    if generated_artifact_relations_body is not None:
-        notes[generated_artifact_relations_memory_relative_path().as_posix()] = (
-            GeneratedShortMemoryNote(generated_artifact_relations_body)
-        )
-    return notes
 
 
 def generated_long_notes(
