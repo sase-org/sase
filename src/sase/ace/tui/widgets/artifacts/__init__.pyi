@@ -7,6 +7,7 @@ from .types import FIXED_ARTIFACTS_SUBTAB_ORDER as FIXED_ARTIFACTS_SUBTAB_ORDER
 from .entry_navigation import ArtifactEntryNavigator as ArtifactEntryNavigator
 from .entry_navigation import ArtifactEntryTarget as ArtifactEntryTarget
 from .panes import ArtifactPlaceholderPane as ArtifactPlaceholderPane
+from .agents_pane import ArtifactsAgentsPane as ArtifactsAgentsPane
 from .beads_pane import ArtifactsBeadsPane as ArtifactsBeadsPane
 from .plans_pane import ArtifactsDocumentsPane as ArtifactsDocumentsPane
 from .files_pane import ArtifactsFilesPane as ArtifactsFilesPane

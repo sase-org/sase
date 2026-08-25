@@ -337,6 +337,49 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
             body="No beads match the current project scope and filters.",
         ),
     ),
+    "agents": _BuiltinAdapter(
+        adapter="agents",
+        pane_id="agents",
+        ref_kind=None,
+        target_prefix="agent",
+        has_inventory=True,
+        # False: FILTER_SESSION/QUERY_HISTORY/SAVED_QUERIES need
+        # ``AgentFilterBar`` and an ``action_edit_query`` branch for this
+        # pane, which is the ``query`` phase's job (sase-tj.5). Flipping
+        # this before that lands would declare a capability whose key
+        # silently no-ops, the same anti-pattern the ``beads`` grouping
+        # comment above documents.
+        has_fields=False,
+        has_stable_identity=True,
+        has_revisions=False,
+        can_mutate=True,
+        is_plan_adapter=False,
+        project_scoped=True,
+        has_detail=True,
+        # Empty: relations (family, clan, retry_chain, parent) and grouping
+        # (by_family, by_state, by_project) are the ``detail`` phase's job
+        # (sase-tj.6). Declaring them here without that implementation is
+        # the "claims a feature its data cannot support" case the contract
+        # rules exist to prevent (sase-m6.9), mirrored from the ``beads``
+        # entry's grouping precedent above.
+        relations=(),
+        grouping=PaneGroupingDecl(),
+        status_counters=(PaneStatusCounter(name="status", field="status"),),
+        copy_group="artifacts_agents",
+        # Empty: the ``detail`` phase (sase-tj.6) registers the
+        # ``artifacts_agents`` copy group's targets (reference, name, link,
+        # path, chat, prompt, json, handoff, snapshot). Declaring targets
+        # before their implementation exists would fail
+        # ``check_declared_copy_targets_are_registered``.
+        copy_targets=(),
+        copy_keymap_group="artifacts_agents",
+        detail_fields=(),
+        detail_scroll_id="agents-detail-scroll",
+        empty_state=PaneEmptyState(
+            title="No agents",
+            body="No agents match the current project scope and filters.",
+        ),
+    ),
     "files": _BuiltinAdapter(
         adapter="files",
         pane_id="files",

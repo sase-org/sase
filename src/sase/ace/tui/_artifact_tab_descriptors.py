@@ -68,6 +68,7 @@ def fixed_descriptor(subtab: ArtifactsSubTab) -> ArtifactsTabDescriptor:
         "patches": "Patch",
         "stitches": "Stitch",
         "beads": "Bead",
+        "agents": "Agent",
         "files": "File",
     }
     label = labels[subtab]

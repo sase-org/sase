@@ -12,6 +12,7 @@ from .alias_overrides_indicator import (
     AliasOverridesIndicator as AliasOverridesIndicator,
 )
 from .artifacts.panes import ArtifactPlaceholderPane as ArtifactPlaceholderPane
+from .artifacts.agents_pane import ArtifactsAgentsPane as ArtifactsAgentsPane
 from .artifacts.beads_pane import ArtifactsBeadsPane as ArtifactsBeadsPane
 from .artifacts.plans_pane import ArtifactsDocumentsPane as ArtifactsDocumentsPane
 from .artifacts.files_pane import ArtifactsFilesPane as ArtifactsFilesPane

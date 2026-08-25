@@ -615,6 +615,18 @@ MarkdownBlock > .code_inline {
     text-overflow: ellipsis;
 }
 
+#agents-panels {
+    width: 100%;
+    height: 1fr;
+}
+
+#agents-list-panel {
+    width: 50%;
+    min-width: 44;
+    height: 100%;
+    border: round #0062FF;
+}
+
 #files-panels {
     width: 100%;
     height: 1fr;
@@ -686,6 +698,78 @@ ArtifactsView.-split-even #files-list-panel {
 ArtifactsView.-split-wide #files-list-panel {
     width: 70%;
     min-width: 56;
+}
+
+ArtifactsView.-split-narrow #agents-list-panel {
+    width: 30%;
+    min-width: 34;
+}
+
+ArtifactsView.-split-even #agents-list-panel {
+    width: 50%;
+    min-width: 44;
+}
+
+ArtifactsView.-split-wide #agents-list-panel {
+    width: 70%;
+    min-width: 56;
+}
+
+#agents-status {
+    width: 100%;
+    height: 2;
+    max-height: 2;
+    padding: 0 1;
+    background: $surface;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+#agents-list {
+    width: 100%;
+    height: 1fr;
+    scrollbar-gutter: stable;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+#agents-list > .option-list--option-highlighted {
+    background: #0062FF 30%;
+}
+
+#agents-empty {
+    width: 100%;
+    height: 1fr;
+    color: $text-muted;
+    content-align: center middle;
+    text-align: center;
+}
+
+#agents-detail-panel {
+    width: 1fr;
+    height: 100%;
+    border: round #5F5F87;
+}
+
+#agents-detail-scroll {
+    width: 100%;
+    height: 1fr;
+}
+
+#agents-detail {
+    width: 100%;
+    height: auto;
+    padding: 1 2;
+}
+
+#agents-hints {
+    width: 100%;
+    height: 1;
+    max-height: 1;
+    background: $surface;
+    text-align: center;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 #files-status {

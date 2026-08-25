@@ -22,6 +22,7 @@ class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
     admin_center_flags = "admin_center_flags"
+    artifacts_agents_pane = "artifacts_agents_pane"
     provider_drain = "provider_drain"
     ref_sync_gesture = "ref_sync_gesture"
     typed_launch_units = "typed_launch_units"
@@ -36,6 +37,16 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "feature-flag control."
         ),
         bead="sase-rx",
+    ),
+    FeatureFlag.artifacts_agents_pane: FeatureFlagDefinition(
+        key=FeatureFlag.artifacts_agents_pane,
+        kind="beta",
+        description=(
+            "The Artifacts tab shows a new 'Agent' pane immediately before "
+            "Files, backed by the Textual-free agent catalog snapshot and "
+            "the agents query profile."
+        ),
+        bead="sase-tm",
     ),
     FeatureFlag.provider_drain: FeatureFlagDefinition(
         key=FeatureFlag.provider_drain,

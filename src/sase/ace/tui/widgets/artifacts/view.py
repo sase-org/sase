@@ -21,6 +21,7 @@ from ...artifacts_split import (
 from ...keymaps import KeymapRegistry
 from ...tab_order import ARTIFACTS_TAB
 from ..panel_tab_strip import PanelTab, PanelTabStrip
+from .agents_pane import ArtifactsAgentsPane
 from .beads_pane import ArtifactsBeadsPane
 from .commits import CommitsPane
 from .entry_navigation import ArtifactEntryNavigator
@@ -185,6 +186,11 @@ class ArtifactsView(Vertical):
                 contract=descriptor.contract,
                 id=descriptor.pane_id,
             )
+        elif descriptor.id == "agents":
+            yield ArtifactsAgentsPane(
+                contract=descriptor.contract,
+                id=descriptor.pane_id,
+            )
         elif descriptor.id == "files":
             yield ArtifactsFilesPane(
                 contract=descriptor.contract,
@@ -286,6 +292,7 @@ class ArtifactsView(Vertical):
         for pane in self.query(ArtifactPlaceholderPane):
             pane.set_keymap_registry(registry)
         for pane_type in (
+            ArtifactsAgentsPane,
             ArtifactsBeadsPane,
             ArtifactsFilesPane,
             ArtifactsDocumentsPane,
@@ -313,6 +320,7 @@ class ArtifactsView(Vertical):
         for pane in self.query(ArtifactPlaceholderPane):
             pane.set_project_scope(project, display_name=display_name)
         for pane_type in (
+            ArtifactsAgentsPane,
             ArtifactsBeadsPane,
             ArtifactsFilesPane,
             ArtifactsDocumentsPane,

@@ -33,6 +33,7 @@ FIXED_ARTIFACTS_PANE_IDS: dict[ArtifactsSubTab, str] = {
     "patches": "artifacts-patches-pane",
     "stitches": "artifacts-stitches-pane",
     "beads": "artifacts-beads-pane",
+    "agents": "artifacts-agents-pane",
     "files": "artifacts-files-pane",
 }
 
@@ -51,6 +52,7 @@ ARTIFACTS_ACCENTS: dict[str, str] = {
     "patches": "#00D7AF",
     "stitches": "#FFD700",
     "beads": "#D787FF",
+    "agents": "#0062FF",
     "files": "#FFAF5F",
     "ref:plan": "#AF87FF",
     # Compatibility aliases for older modules/tests while the provider pane
@@ -62,6 +64,7 @@ ARTIFACTS_ICONS: dict[str, str] = {
     "stitches": "◉",
     "patches": "⎇",
     "beads": "◈",
+    "agents": "⬡",
     "files": "▤",
 }
 
