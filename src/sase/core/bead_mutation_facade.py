@@ -142,6 +142,39 @@ def append_note(
     return _issue_payload(payload), payload
 
 
+def edit_note(
+    beads_dir: Path | str,
+    issue_id: str,
+    note_id: str,
+    text: str,
+    *,
+    author: str | None = None,
+    now: str | None = None,
+) -> tuple[Issue, dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "edit_note")
+    binding = require_rust_binding("bead_note_edit")
+    payload = _call_issue_operation(
+        binding, str(beads_dir), issue_id, note_id, text, author, now
+    )
+    return _issue_payload(payload), payload
+
+
+def remove_note(
+    beads_dir: Path | str,
+    issue_id: str,
+    note_id: str,
+    *,
+    author: str | None = None,
+    now: str | None = None,
+) -> tuple[Issue, dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "remove_note")
+    binding = require_rust_binding("bead_note_remove")
+    payload = _call_issue_operation(
+        binding, str(beads_dir), issue_id, note_id, author, now
+    )
+    return _issue_payload(payload), payload
+
+
 def plus_one(
     beads_dir: Path | str,
     issue_id: str,
@@ -479,6 +512,9 @@ def _call_issue_operation(binding: Any, *args: Any) -> dict[str, Any]:
         return dict(binding(*args))
     except ValueError as exc:
         message = str(exc)
+        if "Note not found:" in message:
+            note_id = message.rsplit("Note not found:", 1)[-1].strip()
+            raise KeyError(f"Note not found: {note_id}") from exc
         if "not_found:" in message or "Issue not found:" in message:
             issue_id = message.rsplit("Issue not found:", 1)[-1].strip()
             raise KeyError(f"Issue not found: {issue_id}") from exc

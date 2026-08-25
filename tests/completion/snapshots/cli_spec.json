@@ -6339,9 +6339,14 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "1059e2d9e222e78a",
+            "description_digest": "205b1e7999420def",
             "hidden": false,
-            "mutex_groups": [],
+            "mutex_groups": [
+              [
+                "edit",
+                "remove"
+              ]
+            ],
             "name": "note",
             "options": [
               {
@@ -6367,6 +6372,30 @@
                   "--author"
                 ],
                 "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "edit",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-e",
+                  "--edit"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "remove",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-x",
+                  "--remove"
+                ],
+                "takes_value": true
               }
             ],
             "path": [
@@ -6388,7 +6417,7 @@
                 "is_remainder": false,
                 "kind": null,
                 "metavar": "text",
-                "nargs": "+"
+                "nargs": "*"
               }
             ],
             "subcommands": []

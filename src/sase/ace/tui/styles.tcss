@@ -881,7 +881,6 @@ BeadCloseModal {
 }
 
 #bead-editor-description,
-#bead-editor-notes,
 #bead-create-description,
 #bead-close-note,
 #bead-note-text {

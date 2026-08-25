@@ -108,8 +108,21 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
 
 
 def handle_bead_note(args: argparse.Namespace) -> None:
+    edit_ordinal = getattr(args, "edit", None)
+    remove_ordinal = getattr(args, "remove", None)
     text = args.text
-    if isinstance(text, list):
+
+    if edit_ordinal is not None and not text:
+        print("Error: --edit requires note text", file=sys.stderr)
+        sys.exit(1)
+    if remove_ordinal is not None and text:
+        print("Error: --remove does not take note text", file=sys.stderr)
+        sys.exit(1)
+    if edit_ordinal is None and remove_ordinal is None and not text:
+        print("Error: note text is required", file=sys.stderr)
+        sys.exit(1)
+
+    if isinstance(text, list) and text:
         try:
             text = (
                 read_at_path_value(text[0], target="note text")
@@ -119,17 +132,36 @@ def handle_bead_note(args: argparse.Namespace) -> None:
         except CliFileValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
+
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         try:
             author = args.author
             if author is None:
                 author = resolve_mutation_author(mutation.project)
-            issue = mutation.project.append_note(args.id, str(text), author=author)
+            if edit_ordinal is not None:
+                issue = mutation.project.edit_note(
+                    args.id, edit_ordinal, str(text), author=author
+                )
+                operation = "note_edit"
+            elif remove_ordinal is not None:
+                issue = mutation.project.remove_note(
+                    args.id, remove_ordinal, author=author
+                )
+                operation = "note_remove"
+            else:
+                issue = mutation.project.append_note(args.id, str(text), author=author)
+                operation = "note"
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        mutation.commit(require_mutation_commit_message("note", [issue.id]))
-    print(f"Noted: {issue.id} — {issue.title}")
+        mutation.commit(require_mutation_commit_message(operation, [issue.id]))
+
+    if edit_ordinal is not None:
+        print(f"Note #{edit_ordinal} edited: {issue.id} — {issue.title}")
+    elif remove_ordinal is not None:
+        print(f"Note #{remove_ordinal} removed: {issue.id} — {issue.title}")
+    else:
+        print(f"Noted: {issue.id} — {issue.title}")

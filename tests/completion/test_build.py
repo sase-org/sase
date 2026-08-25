@@ -48,7 +48,7 @@ def test_hidden_subcommands_are_absent() -> None:
 def test_mutex_groups_found() -> None:
     spec = build_spec()
     total = sum(len(command.mutex_groups) for command in _all_commands(spec.root))
-    assert total == 14
+    assert total == 15
 
 
 def test_kind_resolution_precedence_on_real_tree() -> None:

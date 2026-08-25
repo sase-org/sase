@@ -23,7 +23,6 @@ class BeadEditorResult:
 
     title: str
     description: str
-    notes: str
     status: str
     assignee: str
     owner: str
@@ -38,7 +37,6 @@ class BeadEditorResult:
         *,
         title: str,
         description: str,
-        notes: str,
         status: str,
         assignee: str,
         owner: str,
@@ -52,7 +50,6 @@ class BeadEditorResult:
     ) -> None:
         object.__setattr__(self, "title", title)
         object.__setattr__(self, "description", description)
-        object.__setattr__(self, "notes", notes)
         object.__setattr__(self, "status", status)
         object.__setattr__(self, "assignee", assignee)
         object.__setattr__(self, "owner", owner)
@@ -75,7 +72,6 @@ class BeadEditorResult:
         candidates: dict[str, str | None] = {
             "title": self.title,
             "description": self.description,
-            "notes": self.notes,
             "status": self.status,
             "assignee": self.assignee,
             "owner": self.owner,
@@ -85,7 +81,6 @@ class BeadEditorResult:
         current: dict[str, str | None] = {
             "title": issue.title,
             "description": issue.description,
-            "notes": issue.notes_text,
             "status": issue.status.value,
             "assignee": issue.assignee,
             "owner": issue.owner,
@@ -126,8 +121,6 @@ class BeadEditorModal(ModalScreen[BeadEditorResult | None]):
                 yield from self._text_field("Title", "title", issue.title)
                 yield Label("Description", classes="bead-modal-label")
                 yield TextArea(issue.description, id="bead-editor-description")
-                yield Label("Notes", classes="bead-modal-label")
-                yield TextArea(issue.notes_text, id="bead-editor-notes")
                 statuses = [Status.OPEN, Status.IN_PROGRESS, Status.CLOSED]
                 if issue.issue_type is IssueType.TASK:
                     statuses.insert(1, Status.READY)
@@ -219,7 +212,6 @@ class BeadEditorModal(ModalScreen[BeadEditorResult | None]):
             BeadEditorResult(
                 title=title,
                 description=self.query_one("#bead-editor-description", TextArea).text,
-                notes=self.query_one("#bead-editor-notes", TextArea).text,
                 status=str(self.query_one("#bead-editor-status", Select).value),
                 assignee=self._input("assignee"),
                 owner=self._input("owner"),

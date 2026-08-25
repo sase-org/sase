@@ -260,15 +260,18 @@ def register_bead_note_parser(
     subparsers: argparse._SubParsersAction,
 ) -> None:
     """Register ``sase bead note``."""
-    parser = subparsers.add_parser("note", help="Append an attributed note entry")
+    parser = subparsers.add_parser(
+        "note", help="Append, edit, or retract an attributed note entry"
+    )
     parser.add_argument("id", help="Full or shorthand issue ID")
     parser.add_argument(
         "text",
-        nargs="+",
+        nargs="*",
         help=(
             f"Note text to append; a single-token {AT_PATH_PREFIX}<path> is "
             f"read from that file, {AT_PATH_PREFIX * 2} escapes a literal "
-            f"leading {AT_PATH_PREFIX}"
+            f"leading {AT_PATH_PREFIX}. Required to append or with --edit; "
+            "omit with --remove"
         ),
     )
     parser.add_argument(
@@ -276,6 +279,27 @@ def register_bead_note_parser(
         "--author",
         metavar="NAME",
         help="Author recorded on the entry (default: current agent, else store owner)",
+    )
+    edit_group = parser.add_mutually_exclusive_group()
+    edit_group.add_argument(
+        "-e",
+        "--edit",
+        type=int,
+        metavar="N",
+        help=(
+            "Rewrite note #N (the ordinal shown by `sase bead show`); "
+            "re-read `show` after any edit or removal, since ordinals shift"
+        ),
+    )
+    edit_group.add_argument(
+        "-x",
+        "--remove",
+        type=int,
+        metavar="N",
+        help=(
+            "Retract note #N (the ordinal shown by `sase bead show`); "
+            "`sase bead history` keeps the retracted record"
+        ),
     )
 
 

@@ -47,6 +47,54 @@ class BeadProjectMutationEvidenceMixin:
         self._refresh_db_from_jsonl()
         return issue
 
+    def edit_note(
+        self,
+        issue_id: str,
+        ordinal: int,
+        text: str,
+        *,
+        author: str | None = None,
+    ) -> Issue:
+        """Rewrite note ``#ordinal`` (1-based, per `sase bead show`) with new text."""
+        from sase.core import bead_mutation_facade as rust_beads
+
+        issue_id = self.resolve_id(issue_id)
+        note_id = _resolve_note_ordinal(self.show(issue_id), ordinal)
+        issue, outcome = rust_beads.edit_note(
+            self.beads_dir,
+            issue_id,
+            note_id,
+            text,
+            author=author,
+            now=self._current_time(),
+        )
+        self._record_mutation_outcome(outcome)
+        self._refresh_db_from_jsonl()
+        return issue
+
+    def remove_note(
+        self,
+        issue_id: str,
+        ordinal: int,
+        *,
+        author: str | None = None,
+    ) -> Issue:
+        """Retract note ``#ordinal`` (1-based, per `sase bead show`)."""
+        from sase.core import bead_mutation_facade as rust_beads
+
+        issue_id = self.resolve_id(issue_id)
+        note_id = _resolve_note_ordinal(self.show(issue_id), ordinal)
+        issue, outcome = rust_beads.remove_note(
+            self.beads_dir,
+            issue_id,
+            note_id,
+            author=author,
+            now=self._current_time(),
+        )
+        self._record_mutation_outcome(outcome)
+        self._refresh_db_from_jsonl()
+        return issue
+
     def append_note_many(
         self,
         issue_ids: list[str],
@@ -102,3 +150,14 @@ class BeadProjectMutationEvidenceMixin:
         self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return issue, bool(outcome["changed"])
+
+
+def _resolve_note_ordinal(issue: Issue, ordinal: int) -> str:
+    """Resolve a 1-based note ordinal (as shown by `sase bead show`) to its note id."""
+    if ordinal < 1 or ordinal > len(issue.notes):
+        count = len(issue.notes)
+        noun = "note" if count == 1 else "notes"
+        raise ValueError(
+            f"note #{ordinal} does not exist on {issue.id} ({count} {noun} present)"
+        )
+    return issue.notes[ordinal - 1].id

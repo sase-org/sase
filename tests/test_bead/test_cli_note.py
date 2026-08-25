@@ -54,6 +54,27 @@ def test_note_parser_contract() -> None:
     assert args.id == "sase-1"
     assert args.author == "alice"
     assert args.text == ["done", "with", "tests"]
+    assert args.edit is None
+    assert args.remove is None
+
+
+def test_note_parser_accepts_edit_and_remove_flags() -> None:
+    edit_args = create_parser().parse_args(
+        ["bead", "note", "sase-1", "-e", "2", "corrected"]
+    )
+    assert edit_args.edit == 2
+    assert edit_args.text == ["corrected"]
+
+    remove_args = create_parser().parse_args(["bead", "note", "sase-1", "-x", "1"])
+    assert remove_args.remove == 1
+    assert remove_args.text == []
+
+
+def test_note_parser_rejects_edit_and_remove_together() -> None:
+    with pytest.raises(SystemExit):
+        create_parser().parse_args(
+            ["bead", "note", "sase-1", "-e", "1", "-x", "2", "text"]
+        )
 
 
 def test_note_appends_to_empty_notes_with_explicit_author(
@@ -199,6 +220,172 @@ def test_handle_bead_note_auto_commit_message(project_dir: Path) -> None:
 
     auto_commit.assert_called_once_with(
         f"chore(beads): note {issue_id}",
+        push_after_commit=False,
+        already_locked=False,
+    )
+
+
+def test_note_edit_rewrites_text_and_preserves_original_authorship(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue_id = _create_issue(project_dir)
+    monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:01:00Z")
+    _run_note([issue_id, "--author", "alice", "first draft"], capsys)
+    monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:02:00Z")
+
+    output = _run_note([issue_id, "--author", "bob", "-e", "1", "corrected"], capsys)
+
+    assert f"Note #1 edited: {issue_id}" in output
+    with BeadProject(project_dir) as project:
+        issue = project.show(issue_id)
+    assert len(issue.notes) == 1
+    note = issue.notes[0]
+    assert note.text == "corrected"
+    assert note.timestamp == "2026-01-01T00:01:00Z"
+    assert note.author == "alice"
+    assert note.edited_at == "2026-01-01T00:02:00Z"
+    assert note.edited_by == "bob"
+
+    stream_path = project_dir / f"sdd/beads/events/streams/{issue_id}.jsonl"
+    operations = [
+        json.loads(line)["operation"]
+        for line in stream_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert operations == ["issue_created", "note_appended", "note_edited"]
+
+    history = _run_history([issue_id, "--field", "notes", "--format", "full"], capsys)
+    assert "from: [2026-01-01T00:01:00Z · alice] first draft" in history
+    assert "to: [2026-01-01T00:01:00Z · alice] corrected" in history
+
+
+def test_note_edit_rejects_out_of_range_ordinal_without_writing(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue_id = _create_issue(project_dir)
+    monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:01:00Z")
+    _run_note([issue_id, "--author", "alice", "only note"], capsys)
+
+    with patch("sase.bead.cli_crud_evidence.auto_commit_bead_store") as auto_commit:
+        with pytest.raises(SystemExit) as excinfo:
+            _run_note([issue_id, "-e", "2", "too far"], capsys)
+
+    assert excinfo.value.code == 1
+    assert "note #2 does not exist" in capsys.readouterr().err
+    auto_commit.assert_not_called()
+    with BeadProject(project_dir) as project:
+        assert project.show(issue_id).notes_text == (
+            "[2026-01-01T00:01:00Z · alice] only note"
+        )
+
+
+def test_note_edit_requires_text(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue_id = _create_issue(project_dir)
+
+    with pytest.raises(SystemExit) as excinfo:
+        _run_note([issue_id, "-e", "1"], capsys)
+
+    assert excinfo.value.code == 1
+    assert "--edit requires note text" in capsys.readouterr().err
+
+
+def test_note_remove_retracts_the_record_and_history_keeps_it(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue_id = _create_issue(project_dir)
+    monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:01:00Z")
+    _run_note([issue_id, "--author", "alice", "retract me"], capsys)
+    monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:02:00Z")
+
+    output = _run_note([issue_id, "--author", "bob", "-x", "1"], capsys)
+
+    assert f"Note #1 removed: {issue_id}" in output
+    with BeadProject(project_dir) as project:
+        issue = project.show(issue_id)
+    assert issue.notes == []
+    assert issue.notes_text == ""
+
+    stream_path = project_dir / f"sdd/beads/events/streams/{issue_id}.jsonl"
+    operations = [
+        json.loads(line)["operation"]
+        for line in stream_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert operations == ["issue_created", "note_appended", "note_removed"]
+
+    history = _run_history([issue_id, "--field", "notes", "--format", "full"], capsys)
+    assert "from: [2026-01-01T00:01:00Z · alice] retract me" in history
+
+
+def test_note_remove_rejects_out_of_range_ordinal_without_writing(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue_id = _create_issue(project_dir)
+
+    with patch("sase.bead.cli_crud_evidence.auto_commit_bead_store") as auto_commit:
+        with pytest.raises(SystemExit) as excinfo:
+            _run_note([issue_id, "-x", "1"], capsys)
+
+    assert excinfo.value.code == 1
+    assert "note #1 does not exist" in capsys.readouterr().err
+    auto_commit.assert_not_called()
+
+
+def test_note_remove_forbids_text(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue_id = _create_issue(project_dir)
+    monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:01:00Z")
+    _run_note([issue_id, "--author", "alice", "note text"], capsys)
+
+    with pytest.raises(SystemExit) as excinfo:
+        _run_note([issue_id, "-x", "1", "stray", "text"], capsys)
+
+    assert excinfo.value.code == 1
+    assert "--remove does not take note text" in capsys.readouterr().err
+
+
+def test_handle_bead_note_edit_and_remove_auto_commit_messages(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue_id = _create_issue(project_dir)
+    monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:01:00Z")
+    _run_note([issue_id, "--author", "alice", "first draft"], capsys)
+
+    with patch("sase.bead.cli_crud_evidence.auto_commit_bead_store") as auto_commit:
+        bead_cli.handle_bead_note(
+            create_parser().parse_args(
+                ["bead", "note", issue_id, "--author", "alice", "-e", "1", "fixed"]
+            )
+        )
+    auto_commit.assert_called_once_with(
+        f"chore(beads): edit note {issue_id}",
+        push_after_commit=False,
+        already_locked=False,
+    )
+
+    with patch("sase.bead.cli_crud_evidence.auto_commit_bead_store") as auto_commit:
+        bead_cli.handle_bead_note(
+            create_parser().parse_args(
+                ["bead", "note", issue_id, "--author", "alice", "-x", "1"]
+            )
+        )
+    auto_commit.assert_called_once_with(
+        f"chore(beads): remove note {issue_id}",
         push_after_commit=False,
         already_locked=False,
     )
