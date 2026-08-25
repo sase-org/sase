@@ -156,6 +156,7 @@ def materialize_linked_repo_workspace(
 
     if expected_remote_url:
         checkout_dir = _materialize_remote_identified_sidecar(
+            primary_dir=primary_dir,
             workspace_dir=workspace_dir,
             workspace_num=workspace_num,
             expected_remote_url=expected_remote_url,
@@ -236,6 +237,7 @@ def refresh_clean_linked_checkout(checkout_dir: str) -> str | None:
 
 def _materialize_remote_identified_sidecar(
     *,
+    primary_dir: str,
     workspace_dir: str,
     workspace_num: int,
     expected_remote_url: str,
@@ -274,7 +276,12 @@ def _materialize_remote_identified_sidecar(
 
     from sase.sdd._store_link import ensure_sidecar_sdd_clone
 
-    ensure_sidecar_sdd_clone(target, expected_remote_url, strict=True)
+    ensure_sidecar_sdd_clone(
+        target,
+        expected_remote_url,
+        reference_repo=Path(primary_dir),
+        strict=True,
+    )
     return str(target)
 
 

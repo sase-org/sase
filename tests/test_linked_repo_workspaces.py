@@ -170,7 +170,7 @@ def test_materialize_creates_fresh_linked_clone(
 
 
 def test_sidecar_materialization_uses_remote_not_divergent_primary(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     remote = tmp_path / "research.git"
     primary = tmp_path / "primary-research"
@@ -199,6 +199,17 @@ def test_sidecar_materialization_uses_remote_not_divergent_primary(
     git(["remote", "add", "origin", str(wrong_remote)], target)
     (target / "stale.txt").write_text("wrong clone\n", encoding="utf-8")
     commit_all(target, "Commit stale workspace content")
+    clone_commands: list[list[str]] = []
+    from sase.sdd import _commit
+
+    original_run_sdd_git = _commit.run_sdd_git
+
+    def record_git(args: list[str], **kwargs):
+        if args and args[0] == "clone":
+            clone_commands.append(args)
+        return original_run_sdd_git(args, **kwargs)
+
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", record_git)
 
     result = materialize_linked_repo_workspace(
         primary_dir=str(primary),
@@ -219,7 +230,18 @@ def test_sidecar_materialization_uses_remote_not_divergent_primary(
     assert git(["status", "--porcelain"], target).stdout == ""
     assert not (target / ".git" / "rebase-merge").exists()
     assert not (target / ".git" / "rebase-apply").exists()
+    assert not (target / ".git" / "objects" / "info" / "alternates").exists()
     assert git(["remote", "get-url", "origin"], target).stdout.strip() == str(remote)
+    assert clone_commands == [
+        [
+            "clone",
+            "--reference-if-able",
+            str(primary),
+            "--dissociate",
+            str(remote),
+            str(target),
+        ]
+    ]
 
 
 def _behind_linked_core_checkout(tmp_path: Path) -> tuple[Path, Path, str, str]:

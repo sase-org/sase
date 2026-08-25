@@ -30,6 +30,22 @@ _logger = logging.getLogger(__name__)
 PrimaryWorkspaceResolver = Callable[[str, int], str]
 StoreResolver = Callable[[str | Path, int], SddStore]
 
+_REMOTE_CLONE_RETRY_DELAYS = (0.25, 1.0, 2.0)
+_TRANSIENT_REMOTE_CLONE_ERRORS = (
+    "broken pipe",
+    "closed by remote host",
+    "connection refused",
+    "connection reset",
+    "connection timed out",
+    "could not resolve hostname",
+    "early eof",
+    "invalid index-pack output",
+    "network is unreachable",
+    "no route to host",
+    "remote end hung up unexpectedly",
+    "unexpected disconnect",
+)
+
 if TYPE_CHECKING:
     from sase.sdd._repository_recovery_markers import FailedIntegrationCooldown
 
@@ -38,6 +54,7 @@ def ensure_sidecar_sdd_clone(
     clone_dir: Path,
     remote_url: str,
     *,
+    reference_repo: Path | None = None,
     strict: bool = False,
     fresh: bool = False,
 ) -> None:
@@ -75,7 +92,12 @@ def ensure_sidecar_sdd_clone(
             _pull_sdd_clone(clone_dir, strict=strict, fresh=fresh)
             return
 
-        cloned = _clone_sdd_store(remote_url, clone_dir, strict=strict)
+        cloned = _clone_sdd_store(
+            remote_url,
+            clone_dir,
+            reference_repo=reference_repo,
+            strict=strict,
+        )
         if not cloned and strict:
             raise SddMaterializationError(
                 f"could not create SDD sidecar clone at {clone_dir}"
@@ -493,6 +515,7 @@ def _clone_sdd_store(
     remote_url: str,
     workspace_sdd: Path,
     *,
+    reference_repo: Path | None = None,
     strict: bool = False,
 ) -> bool:
     if is_http_git_remote(remote_url):
@@ -510,55 +533,100 @@ def _clone_sdd_store(
         run_sdd_git,
     )
 
-    try:
-        clone_env = os.environ.copy()
-        clone_env["GIT_TERMINAL_PROMPT"] = "0"
-        # Clone builds a fresh checkout with no existing index.lock to recover.
-        result = run_sdd_git(
-            ["clone", remote_url, str(workspace_sdd)],
-            cwd=workspace_sdd.parent,
-            op="sdd.clone.remote",
-            timeout=network_git_timeout(),
-            check=False,
-            capture_output=True,
-            text=True,
-            env=clone_env,
-        )
-    except SddGitCommandTimeout as exc:
-        return _handle_failed_sdd_clone(
+    clone_env = os.environ.copy()
+    clone_env["GIT_TERMINAL_PROMPT"] = "0"
+    clone_args = ["clone"]
+    reference = _matching_clone_reference(reference_repo, remote_url)
+    if reference is not None:
+        # Borrow matching local objects to reduce the remote transfer, then
+        # dissociate so numbered workspaces never depend on the reference
+        # clone remaining at the same path. Refs still come from the recorded
+        # remote, so unpublished commits in the reference cannot leak in.
+        clone_args.extend(["--reference-if-able", str(reference), "--dissociate"])
+    clone_args.extend([remote_url, str(workspace_sdd)])
+
+    for attempt in range(len(_REMOTE_CLONE_RETRY_DELAYS) + 1):
+        try:
+            # Clone builds a fresh checkout with no existing index.lock to recover.
+            result = run_sdd_git(
+                clone_args,
+                cwd=workspace_sdd.parent,
+                op="sdd.clone.remote",
+                timeout=network_git_timeout(),
+                check=False,
+                capture_output=True,
+                text=True,
+                env=clone_env,
+            )
+        except SddGitCommandTimeout as exc:
+            return _handle_failed_sdd_clone(
+                workspace_sdd,
+                f"timed out cloning SDD store {remote_url} into {workspace_sdd}",
+                strict=strict,
+                cause=exc,
+            )
+        except Exception as exc:
+            return _handle_failed_sdd_clone(
+                workspace_sdd,
+                f"failed to clone SDD store {remote_url} into {workspace_sdd}: "
+                f"{str(exc) or type(exc).__name__}",
+                strict=strict,
+                cause=exc,
+            )
+        if result.returncode == 0:
+            return True
+
+        detail = (result.stderr or result.stdout or "").strip()
+        if not _is_transient_remote_clone_failure(detail) or attempt >= len(
+            _REMOTE_CLONE_RETRY_DELAYS
+        ):
+            return _handle_failed_sdd_clone(
+                workspace_sdd,
+                f"failed to clone SDD store {remote_url} into {workspace_sdd}: "
+                f"{detail or f'git clone exited {result.returncode}'}",
+                strict=strict,
+            )
+
+        _remove_partial_sdd_clone(workspace_sdd)
+        delay = _REMOTE_CLONE_RETRY_DELAYS[attempt]
+        _logger.warning(
+            "Transient failure cloning SDD store %s into %s; retrying in "
+            "%.2fs (attempt %d/%d): %s",
+            remote_url,
             workspace_sdd,
-            f"timed out cloning SDD store {remote_url} into {workspace_sdd}",
-            strict=strict,
-            cause=exc,
+            delay,
+            attempt + 2,
+            len(_REMOTE_CLONE_RETRY_DELAYS) + 1,
+            detail,
         )
-    except Exception as exc:
-        return _handle_failed_sdd_clone(
-            workspace_sdd,
-            f"failed to clone SDD store {remote_url} into {workspace_sdd}: "
-            f"{str(exc) or type(exc).__name__}",
-            strict=strict,
-            cause=exc,
-        )
-    if result.returncode == 0:
-        return True
-    detail = (result.stderr or result.stdout or "").strip()
-    return _handle_failed_sdd_clone(
-        workspace_sdd,
-        f"failed to clone SDD store {remote_url} into {workspace_sdd}: "
-        f"{detail or f'git clone exited {result.returncode}'}",
-        strict=strict,
-    )
+        time.sleep(delay)
+
+    raise AssertionError("remote clone retry loop did not return")
 
 
-def _handle_failed_sdd_clone(
-    workspace_sdd: Path,
-    message: str,
-    *,
-    strict: bool,
-    cause: Exception | None = None,
-) -> bool:
-    """Remove partial clone output and optionally fail the setup transaction."""
+def _matching_clone_reference(
+    reference_repo: Path | None,
+    remote_url: str,
+) -> Path | None:
+    """Return a valid matching object reference without trusting its refs."""
 
+    if reference_repo is None:
+        return None
+    reference = reference_repo.expanduser()
+    if not (reference / ".git").is_dir():
+        return None
+    reference_remote = _git_remote_url(reference)
+    if reference_remote is None or not _same_git_remote(reference_remote, remote_url):
+        return None
+    return reference
+
+
+def _is_transient_remote_clone_failure(detail: str) -> bool:
+    normalized = detail.casefold()
+    return any(marker in normalized for marker in _TRANSIENT_REMOTE_CLONE_ERRORS)
+
+
+def _remove_partial_sdd_clone(workspace_sdd: Path) -> None:
     try:
         if workspace_sdd.is_dir() and not workspace_sdd.is_symlink():
             shutil.rmtree(workspace_sdd)
@@ -570,6 +638,18 @@ def _handle_failed_sdd_clone(
             workspace_sdd,
             exc_info=True,
         )
+
+
+def _handle_failed_sdd_clone(
+    workspace_sdd: Path,
+    message: str,
+    *,
+    strict: bool,
+    cause: Exception | None = None,
+) -> bool:
+    """Remove partial clone output and optionally fail the setup transaction."""
+
+    _remove_partial_sdd_clone(workspace_sdd)
     if strict:
         error = SddMaterializationError(message)
         if cause is not None:

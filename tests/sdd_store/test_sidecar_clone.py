@@ -452,8 +452,11 @@ def test_sidecar_clone_failure_removes_partial_target_and_surfaces_diagnostic(
 ) -> None:
     remote = "git@example.test:private/plans.git"
     clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
+    attempts = 0
 
     def failed_clone(*_args, **_kwargs):
+        nonlocal attempts
+        attempts += 1
         clone_dir.mkdir(parents=True)
         (clone_dir / "partial").write_text("incomplete", encoding="utf-8")
         return subprocess.CompletedProcess(
@@ -475,6 +478,47 @@ def test_sidecar_clone_failure_removes_partial_target_and_surfaces_diagnostic(
         ensure_sidecar_sdd_clone(clone_dir, remote, strict=True)
 
     assert not clone_dir.exists()
+    assert attempts == 1
+
+
+def test_sidecar_clone_retries_transient_transport_failures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote = "git@example.test:private/plans.git"
+    clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
+    attempts = 0
+    sleeps: list[float] = []
+
+    def flaky_clone(*_args, **_kwargs):
+        nonlocal attempts
+        attempts += 1
+        clone_dir.mkdir(parents=True)
+        if attempts < 3:
+            (clone_dir / "partial").write_text("incomplete", encoding="utf-8")
+            return subprocess.CompletedProcess(
+                args=["git", "clone"],
+                returncode=128,
+                stdout="",
+                stderr=(
+                    "Connection to ssh.example.test closed by remote host.\n"
+                    "fetch-pack: unexpected disconnect while reading sideband packet\n"
+                    "fatal: early EOF\n"
+                    "fatal: fetch-pack: invalid index-pack output"
+                ),
+            )
+        (clone_dir / ".git").mkdir()
+        return subprocess.CompletedProcess(
+            args=["git", "clone"], returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", flaky_clone)
+    monkeypatch.setattr("sase.sdd._store_link.time.sleep", sleeps.append)
+
+    ensure_sidecar_sdd_clone(clone_dir, remote, strict=True)
+
+    assert attempts == 3
+    assert sleeps == [0.25, 1.0]
+    assert not (clone_dir / "partial").exists()
 
 
 def _build_unrebasable_sidecar(tmp_path: Path) -> tuple[Path, Path, Path]:
