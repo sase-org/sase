@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 from sase.plugins._required_gate_preview import (
@@ -55,6 +56,9 @@ def test_preview_lists_each_requirement_and_notes_axe_restart() -> None:
     assert "sase-research-artifacts" in preview
     assert "not installed" in preview
     assert "installed version does not match" in preview
+    assert "one combined install" in preview
+    assert "bounded public-index probe" in preview
+    assert "definitive-404 git source resolution" in preview
     assert "`sase plugin install sase-github`" in preview
     assert "successful install restarts axe" in preview
     assert "fail closed" in preview
@@ -76,3 +80,35 @@ def test_presentation_note_singular_for_one_plugin() -> None:
     assert plugins_required_presentation_note(_payload()) == (
         "1 required plugin to install · sase"
     )
+
+
+def test_checked_in_plugins_required_docs_use_batch_wording() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    expected = (
+        "one combined install",
+        "bounded public-index probe",
+        "definitive 404",
+    )
+    for relpath in (
+        "src/sase/default_config.yml",
+        "docs/configuration.md",
+        "docs/axe.md",
+        "docs/notifications.md",
+    ):
+        text = (repo_root / relpath).read_text(encoding="utf-8")
+        for phrase in expected:
+            assert phrase in text
+
+    stale_phrases = (
+        "Install runs sase plugin install for each",
+        "runs `sase plugin install <name>` for each missing",
+    )
+    for relpath in (
+        "src/sase/default_config.yml",
+        "docs/configuration.md",
+        "docs/axe.md",
+        "docs/notifications.md",
+    ):
+        text = (repo_root / relpath).read_text(encoding="utf-8")
+        for phrase in stale_phrases:
+            assert phrase not in text

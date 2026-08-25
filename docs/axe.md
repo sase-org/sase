@@ -330,15 +330,17 @@ The `plugins_required` chop is the human install offer that agent and non-intera
 contexts deliberately do not get. It scans enabled non-home projects, compares each
 project's `plugins.required` list against installed distributions, and raises at most
 one `PluginsRequired` gate per project per distinct missing or version-mismatched set.
-**Install** runs `sase plugin install <name>` for each missing requirement from the
-answering surface; when sase is not a `uv tool` install, that command fails with the
-same actionable message `sase plugin install` already prints and the gate stays pending.
-A successful install restarts axe. **Dismiss** records the decision so the same missing
-set is not re-offered until it changes. The chop cancels the gate when the set becomes
-satisfied. Lane state holds the pending request, a generation counter, and a fingerprint
-over the missing set, so a re-run does not duplicate a notification. Run
-`sase axe chop run plugins_required` to raise or refresh those gates without waiting for
-the next five-minute checks tick.
+**Install** performs one combined install for every missing requirement from the
+answering surface. The combined planner shares a bounded public-index probe, resolves
+each plugin from the index unless public PyPI returns a definitive 404, and uses git
+only for those definitive misses; when planning or the `uv` mutation fails, including
+when sase is not a `uv tool` install, the gate stays pending with the same actionable
+message `sase plugin install` already prints where applicable. A successful install
+restarts axe. **Dismiss** records the decision so the same missing set is not re-offered
+until it changes. The chop cancels the gate when the set becomes satisfied. Lane state
+holds the pending request, a generation counter, and a fingerprint over the missing set,
+so a re-run does not duplicate a notification. Run `sase axe chop run plugins_required`
+to raise or refresh those gates without waiting for the next five-minute checks tick.
 
 ### external_mirror (15-minute interval)
 

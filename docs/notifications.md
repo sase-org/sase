@@ -452,10 +452,11 @@ lists each unsatisfied requirement and notes that a successful install restarts 
 
 The gate offers two branches:
 
-- **Install** is the primary path. It runs `sase plugin install <name>` for each missing
-  requirement. When sase is not a `uv tool` install, the command fails with the same
-  actionable message `sase plugin install` already prints and the gate stays pending
-  rather than reporting a phantom success.
+- **Install** is the primary path. It performs one combined install for every missing
+  requirement, sharing a bounded public-index probe and resolving each plugin from the
+  index unless public PyPI returns a definitive 404, in which case that plugin uses git.
+  When planning or the `uv` mutation fails, including when sase is not a `uv tool`
+  install, the gate stays pending rather than reporting a phantom success.
 - **Dismiss** records the decision so the same missing set is not re-offered until it
   changes.
 

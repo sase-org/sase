@@ -16205,7 +16205,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "bf7c26605e5864fa",
+            "description_digest": "10e240ff34f8bbf6",
             "hidden": false,
             "mutex_groups": [],
             "name": "install",

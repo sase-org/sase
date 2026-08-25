@@ -920,12 +920,13 @@ axe:
 
             Scans enabled projects every five minutes and compares each project's plugins.required list against
             installed distributions. A project with a missing or version-mismatched required set gets exactly one
-            pending PluginsRequired gate offering Install and Dismiss. Install runs sase plugin install for each
-            missing name from the answering surface and keeps the gate pending when that command fails, including
-            when sase is not a uv tool install. Dismiss records the decision so the same missing set is not
-            re-offered until it changes. The chop cancels the gate when the set becomes satisfied. Deterministic
-            generations in lane state prevent duplicate notifications. Agent and non-interactive contexts still
-            fail closed and never auto-install.
+            pending PluginsRequired gate offering Install and Dismiss. Install performs one combined install for
+            all missing names from the answering surface, sharing a bounded public-index probe and resolving each
+            plugin from the index unless public PyPI returns a definitive 404, in which case that plugin uses git.
+            The gate stays pending when planning or the uv mutation fails, including when sase is not a uv tool
+            install. Dismiss records the decision so the same missing set is not re-offered until it changes. The
+            chop cancels the gate when the set becomes satisfied. Deterministic generations in lane state prevent
+            duplicate notifications. Agent and non-interactive contexts still fail closed and never auto-install.
         - name: pr_submitted_checks
           script: sase_chop_pr_submitted_checks
           description: |-

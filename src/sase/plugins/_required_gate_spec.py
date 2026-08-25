@@ -234,16 +234,16 @@ def execute_plugins_required_gate_command(
     option_id: str,
     requirements: Sequence[str] | None = None,
     *,
-    plan_install_fn: Any | None = None,
-    execute_install_fn: Any | None = None,
+    plan_install_many_fn: Any | None = None,
+    execute_install_many_fn: Any | None = None,
 ) -> int:
     """Validate command input and run Install, or emit the Dismiss result.
 
-    Install preflights and executes ``sase plugin install`` for each baked
-    name before emitting a result, so a not-``uv tool`` environment (or any
-    other install failure) leaves the gate pending instead of reporting a
-    phantom success. AXE restart is left to the host effect after the
-    response is persisted.
+    Install preflights the baked names through one bounded batch planner and
+    executes at most one reconstructed ``uv`` install before emitting a result,
+    so a not-``uv tool`` environment (or any other install failure) leaves the
+    gate pending instead of reporting a phantom success. AXE restart is left to
+    the host effect after the response is persisted.
     """
     try:
         raw_input = json.load(sys.stdin)
@@ -269,85 +269,111 @@ def execute_plugins_required_gate_command(
         return 2
     return _execute_install(
         names,
-        plan_install_fn=plan_install_fn,
-        execute_install_fn=execute_install_fn,
+        plan_install_many_fn=plan_install_many_fn,
+        execute_install_many_fn=execute_install_many_fn,
     )
 
 
 def _execute_install(
     names: Sequence[str],
     *,
-    plan_install_fn: Any | None,
-    execute_install_fn: Any | None,
+    plan_install_many_fn: Any | None,
+    execute_install_many_fn: Any | None,
 ) -> int:
     from sase.plugins.operations import (
-        AlreadyInstalled,
-        InstallNotFound,
-        InstallReady,
+        InstallManyNothing,
+        InstallManyReady,
         NotUvTool,
-        execute_install,
-        plan_install,
+        execute_install_many,
+        plan_install_many,
     )
     from sase.uv_tool.errors import UvToolError
+
+    plan_fn = (
+        plan_install_many if plan_install_many_fn is None else plan_install_many_fn
+    )
+    run_fn = (
+        execute_install_many
+        if execute_install_many_fn is None
+        else execute_install_many_fn
+    )
+    planned_names = tuple(names)
+    try:
+        plan = plan_fn(planned_names)
+    except Exception as exc:  # noqa: BLE001 - keep the gate pending.
+        print(str(exc), file=sys.stderr)
+        return 2
+    if isinstance(plan, NotUvTool):
+        print(str(plan.error), file=sys.stderr)
+        return 2
+    if isinstance(plan, InstallManyNothing):
+        if not plan.skipped or not _only_already_installed_skips(plan.skipped):
+            _print_skipped_install_error(plan.skipped[0] if plan.skipped else None)
+            return 2
+        _print_install_result(planned_names, changed=False)
+        return 0
+    if not isinstance(plan, InstallManyReady):
+        print("unable to plan required plugin install", file=sys.stderr)
+        return 2
+    if not _only_already_installed_skips(plan.skipped):
+        _print_skipped_install_error(plan.skipped[0] if plan.skipped else None)
+        return 2
+
+    try:
+        outcome = run_fn(plan)
+    except UvToolError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    except Exception as exc:  # noqa: BLE001 - keep the gate pending.
+        print(str(exc), file=sys.stderr)
+        return 2
+    _print_install_result(planned_names, changed=_install_outcome_changed(outcome))
+    return 0
+
+
+def _only_already_installed_skips(skipped: Sequence[Any]) -> bool:
+    return all(getattr(item, "reason", "") == "already installed" for item in skipped)
+
+
+def _print_skipped_install_error(skipped: Any | None) -> None:
+    if skipped is None:
+        print("unable to plan required plugin install", file=sys.stderr)
+        return
+    query = str(getattr(skipped, "query", "") or "plugin")
+    reason = str(getattr(skipped, "reason", "") or "skipped")
+    if reason == "not found":
+        print(
+            f"plugin {query!r} was not found in the catalog; "
+            f"run `sase plugin install {query}`",
+            file=sys.stderr,
+        )
+        return
+    print(f"unable to plan install for {query!r}: {reason}", file=sys.stderr)
+
+
+def _install_outcome_changed(outcome: Any) -> bool:
     from sase.uv_tool.runner import ChangeKind
 
-    plan_fn = plan_install if plan_install_fn is None else plan_install_fn
-    run_fn = execute_install if execute_install_fn is None else execute_install_fn
-    plans: list[Any] = []
-    for name in names:
-        try:
-            plan = plan_fn(name)
-        except Exception as exc:  # noqa: BLE001 - keep the gate pending.
-            print(str(exc), file=sys.stderr)
-            return 2
-        if isinstance(plan, NotUvTool):
-            print(str(plan.error), file=sys.stderr)
-            return 2
-        if isinstance(plan, InstallNotFound):
-            print(
-                f"plugin {name!r} was not found in the catalog; "
-                f"run `sase plugin install {name}`",
-                file=sys.stderr,
-            )
-            return 2
-        if not isinstance(plan, (AlreadyInstalled, InstallReady)):
-            print(f"unable to plan install for {name!r}", file=sys.stderr)
-            return 2
-        plans.append(plan)
+    change_set = getattr(outcome, "change_set", None)
+    if change_set is None:
+        return True
+    return any(
+        getattr(change, "kind", None) is not ChangeKind.UNCHANGED
+        for change in getattr(change_set, "changes", ())
+    )
 
-    installed: list[str] = []
-    changed = False
-    for plan in plans:
-        if isinstance(plan, AlreadyInstalled):
-            installed.append(plan.spec.requirement.name)
-            continue
-        try:
-            outcome = run_fn(plan)
-        except UvToolError as exc:
-            print(str(exc), file=sys.stderr)
-            return 2
-        except Exception as exc:  # noqa: BLE001 - keep the gate pending.
-            print(str(exc), file=sys.stderr)
-            return 2
-        installed.append(plan.spec.requirement.name)
-        change_set = getattr(outcome, "change_set", None)
-        if change_set is not None and any(
-            change.kind is not ChangeKind.UNCHANGED for change in change_set.changes
-        ):
-            changed = True
-        elif change_set is None:
-            changed = True
+
+def _print_install_result(installed: Sequence[str], *, changed: bool) -> None:
     print(
         json.dumps(
             {
                 "action": PLUGINS_REQUIRED_INSTALL_OPTION_ID,
-                "installed": installed,
+                "installed": list(installed),
                 "changed": changed,
             },
             sort_keys=True,
         )
     )
-    return 0
 
 
 def _attr(item: Any, name: str) -> Any:
