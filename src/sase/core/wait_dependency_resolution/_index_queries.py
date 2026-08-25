@@ -1,16 +1,16 @@
-"""Candidate queries for the wait-dependency artifact index."""
+"""Name and aggregate queries for the wait-dependency artifact index."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
 from sase.plan_chain import planner_row_name
 
 from ._artifact_state import same_artifact_dir
+from ._index_entities import WaitDependencyEntityQueries
+from ._index_fork_queries import WaitDependencyForkQueries
+from ._index_identity_queries import WaitDependencyIdentityQueries
 from ._tribe_binding import TribeMemberRow, resolve_tribe_wait_binding
 from ._types import (
     ArtifactCandidate,
@@ -18,163 +18,21 @@ from ._types import (
     TribeCandidate,
     WAIT_SUCCESS_OUTCOMES,
     WaitCandidate,
-    WaitDependencyStatus,
 )
 
 
-@dataclass(frozen=True)
-class _WaitEntity:
-    timestamp: str
-    is_resolved: bool
-    is_done: bool
-    members: tuple[ArtifactCandidate, ...] = ()
-
-
-class WaitDependencyIndexQueries:
+class WaitDependencyIndexQueries(
+    WaitDependencyForkQueries,
+    WaitDependencyIdentityQueries,
+    WaitDependencyEntityQueries,
+):
     """Read-side operations shared by :class:`WaitDependencyIndex`."""
 
-    named: dict[str, WaitCandidate]
-    workflows: dict[str, list[ArtifactCandidate]]
-    families: dict[str, list[ArtifactCandidate]]
     clans: dict[str, dict[str, list[ArtifactCandidate]]]
     tribes: dict[str, list[ArtifactCandidate]]
     effective_clan_tribes: dict[tuple[str, str], str]
-    artifacts: dict[tuple[str, str], ArtifactCandidate]
+    named: dict[str, WaitCandidate]
     artifacts_by_dir: dict[str, ArtifactCandidate]
-
-    def _clan_entity(
-        self,
-        name: str,
-        *,
-        exclude_artifact_dir: str | Path | None = None,
-    ) -> _WaitEntity | None:
-        generations = self.clans.get(name)
-        if not generations:
-            return None
-        generation = max(generations)
-        members = tuple(
-            self._aggregate_candidates(
-                generations[generation],
-                exclude_artifact_dir=exclude_artifact_dir,
-                exclude_queued=False,
-            )
-        )
-        if not members:
-            return None
-        return _WaitEntity(
-            timestamp=max(member.timestamp for member in members),
-            is_resolved=all(member.is_resolved for member in members),
-            is_done=all(member.is_done for member in members),
-            members=members,
-        )
-
-    def _family_entity(
-        self,
-        name: str,
-        *,
-        exclude_artifact_dir: str | Path | None = None,
-    ) -> _WaitEntity | None:
-        family_agents = self._aggregate_candidates(
-            self.families.get(name),
-            exclude_artifact_dir=exclude_artifact_dir,
-            exclude_queued=False,
-        )
-        if not family_agents:
-            return None
-
-        roots = [
-            candidate for candidate in family_agents if not candidate.parent_timestamp
-        ]
-        if roots:
-            root = max(roots, key=lambda candidate: candidate.timestamp)
-            generation = tuple(self._family_generation(family_agents, root))
-            effective_generation = self._family_members_after_monitor_handoffs(
-                generation
-            )
-            handoffs_present = self._family_monitor_handoffs_have_successors(generation)
-            newest_timestamp = max(
-                (candidate.timestamp for candidate in generation),
-                default=root.timestamp,
-            )
-            return _WaitEntity(
-                timestamp=newest_timestamp,
-                is_resolved=(
-                    handoffs_present
-                    and all(candidate.is_resolved for candidate in effective_generation)
-                ),
-                is_done=any(candidate.is_done for candidate in effective_generation),
-                members=effective_generation,
-            )
-
-        effective_family_agents = self._family_members_after_monitor_handoffs(
-            tuple(family_agents)
-        )
-        handoffs_present = self._family_monitor_handoffs_have_successors(
-            tuple(family_agents)
-        )
-        return _WaitEntity(
-            timestamp=max(candidate.timestamp for candidate in family_agents),
-            is_resolved=(
-                handoffs_present
-                and all(candidate.is_resolved for candidate in effective_family_agents)
-            ),
-            is_done=any(candidate.is_done for candidate in effective_family_agents),
-            members=effective_family_agents,
-        )
-
-    def _workflow_entity(
-        self,
-        name: str,
-        *,
-        exclude_artifact_dir: str | Path | None = None,
-    ) -> _WaitEntity | None:
-        workflow_agents = self._aggregate_candidates(
-            self.workflows.get(name),
-            exclude_artifact_dir=exclude_artifact_dir,
-        )
-        if not workflow_agents:
-            return None
-
-        roots = [
-            candidate for candidate in workflow_agents if not candidate.parent_timestamp
-        ]
-        if not roots:
-            latest = max(workflow_agents, key=lambda candidate: candidate.timestamp)
-            return _WaitEntity(
-                timestamp=latest.timestamp,
-                is_resolved=latest.is_resolved,
-                is_done=latest.is_done,
-                members=(latest,),
-            )
-
-        root = max(roots, key=lambda candidate: candidate.timestamp)
-        generation = (
-            root,
-            *[
-                child
-                for child in workflow_agents
-                if child.parent_timestamp == root.timestamp
-            ],
-        )
-        return _WaitEntity(
-            timestamp=root.timestamp,
-            is_resolved=all(candidate.is_resolved for candidate in generation),
-            is_done=any(candidate.is_done for candidate in generation),
-            members=generation,
-        )
-
-    def _named_entity(self, name: str) -> _WaitEntity | None:
-        candidate = self.named.get(name)
-        if candidate is None:
-            return None
-        member = self.artifacts_by_dir.get(candidate.artifact_dir)
-        members = (member,) if member is not None else ()
-        return _WaitEntity(
-            timestamp=candidate.timestamp,
-            is_resolved=candidate.is_resolved,
-            is_done=candidate.is_done,
-            members=members,
-        )
 
     def tribe_candidate(
         self,
@@ -372,68 +230,6 @@ class WaitDependencyIndexQueries:
             is_done=entity.is_done,
         )
 
-    @staticmethod
-    def _family_generation(
-        candidates: list[ArtifactCandidate],
-        root: ArtifactCandidate,
-    ) -> list[ArtifactCandidate]:
-        """Return every descendant in the root's sequential family chain."""
-        generation = [root]
-        timestamps = {root.timestamp}
-        remaining = [candidate for candidate in candidates if candidate is not root]
-        while remaining:
-            attached = [
-                candidate
-                for candidate in remaining
-                if candidate.parent_timestamp in timestamps
-            ]
-            if not attached:
-                break
-            generation.extend(attached)
-            timestamps.update(candidate.timestamp for candidate in attached)
-            remaining = [
-                candidate for candidate in remaining if candidate not in attached
-            ]
-        return generation
-
-    @staticmethod
-    def _family_members_after_monitor_handoffs(
-        candidates: tuple[ArtifactCandidate, ...],
-    ) -> tuple[ArtifactCandidate, ...]:
-        names_in_generation = {candidate.name for candidate in candidates}
-        return tuple(
-            candidate
-            for candidate in candidates
-            if candidate.monitor_followup_agent not in names_in_generation
-        )
-
-    @staticmethod
-    def _family_monitor_handoffs_have_successors(
-        candidates: tuple[ArtifactCandidate, ...],
-    ) -> bool:
-        names_in_generation = {candidate.name for candidate in candidates}
-        return all(
-            candidate.monitor_followup_agent is None
-            or candidate.monitor_followup_agent in names_in_generation
-            for candidate in candidates
-        )
-
-    @staticmethod
-    def _aggregate_candidates(
-        candidates: list[ArtifactCandidate] | None,
-        *,
-        exclude_artifact_dir: str | Path | None,
-        exclude_queued: bool = True,
-    ) -> list[ArtifactCandidate]:
-        if not candidates:
-            return []
-        return [
-            candidate
-            for candidate in candidates
-            if (not exclude_queued or not candidate.is_queued)
-            and not same_artifact_dir(candidate.artifact_dir, exclude_artifact_dir)
-        ]
-
     def _planner_row_candidate(self, name: str) -> WaitCandidate | None:
         """Return a submitted-planner-row candidate for a legacy-spelled wait.
 
@@ -526,215 +322,3 @@ class WaitDependencyIndexQueries:
             and member.outcome is not None
             and member.outcome not in WAIT_SUCCESS_OUTCOMES
         )
-
-    def fork_source_status(
-        self,
-        dependency: Mapping[str, Any],
-        *,
-        exclude_artifact_dir: str | Path | None = None,
-    ) -> WaitDependencyStatus:
-        """Resolve the terminal-aware dependency implied by one ``#fork`` source."""
-        kind = _mapping_string(dependency, "kind")
-        name = _mapping_string(dependency, "name")
-        if kind == "agent":
-            candidate = self._identity_candidate(dependency)
-            if candidate is not None:
-                return _fork_status(_candidate_terminal_for_fork(candidate))
-            return self._fork_name_fallback_status(
-                name,
-                exclude_artifact_dir=exclude_artifact_dir,
-            )
-        if kind == "family":
-            candidate = self._identity_candidate(dependency)
-            if candidate is not None:
-                family = self.family_candidate_for_root(
-                    candidate,
-                    exclude_artifact_dir=exclude_artifact_dir,
-                )
-                if family is not None:
-                    return _fork_status(
-                        (family.is_resolved and family.is_done) or family.is_failed
-                    )
-            return self._fork_family_name_status(
-                name,
-                exclude_artifact_dir=exclude_artifact_dir,
-            )
-        if kind == "clan":
-            return self._fork_clan_status(
-                name,
-                _mapping_string(dependency, "generation"),
-                exclude_artifact_dir=exclude_artifact_dir,
-            )
-        if kind == "proc":
-            return _fork_status(_proc_source_is_terminal(dependency))
-        return self._fork_name_fallback_status(
-            name,
-            exclude_artifact_dir=exclude_artifact_dir,
-        )
-
-    def _fork_family_name_status(
-        self,
-        name: str | None,
-        *,
-        exclude_artifact_dir: str | Path | None,
-    ) -> WaitDependencyStatus:
-        if not name:
-            return WaitDependencyStatus("waiting")
-        entity = self._family_entity(name, exclude_artifact_dir=exclude_artifact_dir)
-        if entity is None:
-            return self._fork_name_fallback_status(
-                name,
-                exclude_artifact_dir=exclude_artifact_dir,
-            )
-        return _fork_status(_entity_terminal_for_fork(entity))
-
-    def _fork_clan_status(
-        self,
-        name: str | None,
-        generation: str | None,
-        *,
-        exclude_artifact_dir: str | Path | None,
-    ) -> WaitDependencyStatus:
-        if not name:
-            return WaitDependencyStatus("waiting")
-        if generation:
-            members = tuple(
-                self._aggregate_candidates(
-                    self.clans.get(name, {}).get(generation),
-                    exclude_artifact_dir=exclude_artifact_dir,
-                    exclude_queued=False,
-                )
-            )
-            if not members:
-                return WaitDependencyStatus("waiting")
-            return _fork_status(
-                all(_candidate_terminal_for_fork(member) for member in members)
-            )
-        entity = self._clan_entity(name, exclude_artifact_dir=exclude_artifact_dir)
-        if entity is None:
-            return WaitDependencyStatus("waiting")
-        return _fork_status(_entity_terminal_for_fork(entity))
-
-    def _fork_name_fallback_status(
-        self,
-        name: str | None,
-        *,
-        exclude_artifact_dir: str | Path | None,
-    ) -> WaitDependencyStatus:
-        if not name:
-            return WaitDependencyStatus("waiting")
-        if self.is_resolved(name, exclude_artifact_dir=exclude_artifact_dir):
-            return WaitDependencyStatus("resolved")
-        if self.terminal_blocking_artifacts_for_name(
-            name,
-            exclude_artifact_dir=exclude_artifact_dir,
-        ):
-            return WaitDependencyStatus("resolved")
-        return WaitDependencyStatus("waiting")
-
-    def identity_status(
-        self,
-        dependency: Mapping[str, Any],
-        *,
-        exclude_artifact_dir: str | Path | None = None,
-    ) -> WaitDependencyStatus:
-        candidate = self._identity_candidate(dependency)
-        if candidate is None:
-            return self._identity_name_fallback_status(
-                dependency,
-                exclude_artifact_dir=exclude_artifact_dir,
-            )
-
-        family_candidate = self.family_candidate_for_root(
-            candidate,
-            exclude_artifact_dir=exclude_artifact_dir,
-        )
-        if family_candidate is not None:
-            if family_candidate.is_failed:
-                return self._identity_name_fallback_status(
-                    dependency,
-                    exclude_artifact_dir=exclude_artifact_dir,
-                    newer_than=family_candidate.timestamp,
-                )
-            if family_candidate.is_resolved and family_candidate.is_identity_success:
-                return WaitDependencyStatus("resolved")
-            return WaitDependencyStatus("waiting")
-
-        if candidate.is_failed:
-            return self._identity_name_fallback_status(
-                dependency,
-                exclude_artifact_dir=exclude_artifact_dir,
-                newer_than=candidate.timestamp,
-            )
-        if candidate.is_identity_success:
-            return WaitDependencyStatus("resolved")
-        return WaitDependencyStatus("waiting")
-
-    def _identity_name_fallback_status(
-        self,
-        dependency: Mapping[str, Any],
-        *,
-        exclude_artifact_dir: str | Path | None,
-        newer_than: str | None = None,
-    ) -> WaitDependencyStatus:
-        name = dependency.get("name")
-        if (
-            isinstance(name, str)
-            and name
-            and self.is_resolved(
-                name,
-                exclude_artifact_dir=exclude_artifact_dir,
-                newer_than=newer_than,
-            )
-        ):
-            return WaitDependencyStatus("resolved")
-        return WaitDependencyStatus("waiting")
-
-    def _identity_candidate(
-        self,
-        dependency: Mapping[str, Any],
-    ) -> ArtifactCandidate | None:
-        artifact_dir = dependency.get("artifact_dir")
-        if isinstance(artifact_dir, str) and artifact_dir:
-            candidate = self.artifacts_by_dir.get(artifact_dir)
-            if candidate is not None:
-                return candidate
-
-        project_name = dependency.get("project_name")
-        timestamp = dependency.get("timestamp")
-        if isinstance(project_name, str) and isinstance(timestamp, str):
-            return self.artifacts.get((project_name, timestamp))
-        return None
-
-
-def _mapping_string(data: Mapping[str, Any], key: str) -> str | None:
-    value = data.get(key)
-    return value if isinstance(value, str) and value else None
-
-
-def _fork_status(resolved: bool) -> WaitDependencyStatus:
-    return WaitDependencyStatus("resolved" if resolved else "waiting")
-
-
-def _candidate_terminal_for_fork(candidate: ArtifactCandidate) -> bool:
-    return candidate.is_done or candidate.is_failed
-
-
-def _entity_terminal_for_fork(entity: _WaitEntity) -> bool:
-    return bool(entity.members) and all(
-        _candidate_terminal_for_fork(member) for member in entity.members
-    )
-
-
-def _proc_source_is_terminal(dependency: Mapping[str, Any]) -> bool:
-    proc_id = _mapping_string(dependency, "proc_id")
-    if proc_id is None:
-        return False
-    try:
-        from sase.procs.models import TERMINAL_PROC_STATUSES
-        from sase.procs.store import get_proc
-
-        proc = get_proc(proc_id)
-    except Exception:
-        return False
-    return bool(proc is not None and proc.status in TERMINAL_PROC_STATUSES)
