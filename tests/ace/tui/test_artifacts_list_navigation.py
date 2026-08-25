@@ -13,12 +13,16 @@ from textual.widgets import OptionList, Static
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts import CommitsPane
 from sase.ace.tui.widgets.artifacts import files_pane as files_pane_module
+from sase.ace.tui.widgets.artifacts import agents_pane as agents_pane_module
+from sase.ace.tui.widgets.artifacts.agents_data import AgentsSnapshot
+from sase.ace.tui.widgets.artifacts.agents_pane import ArtifactsAgentsPane
 from sase.ace.tui.widgets.artifacts.files_pane import ArtifactsFilesPane
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.ace.tui.widgets.artifacts.plans_data import PlansSnapshot
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.core.vcs_log_wire import AggregatedCommitWire, VcsCommitWire
 from sase.vcs_log.models import LogRepo, VcsLogResult
+from tests._agent_catalog_helpers import make_agent_catalog_row
 from tests.ace.tui._artifacts_plans_helpers import (
     _choices,
     _snapshot as _plans_snapshot,
@@ -374,3 +378,36 @@ async def test_configured_navigation_actions_route_to_non_pr_list(
         assert pane.selected_entry_target() == pane.entry_targets()[0]
         await page.press("f7")
         assert pane.selected_entry_target() == pane.entry_targets()[-1]
+
+
+async def test_agents_implements_next_prev_navigation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = tuple(
+        make_agent_catalog_row(
+            f"agent-{index:02d}",
+            started_at=f"2026-07-24T{23 - index // 3:02d}:{index % 60:02d}:00-04:00",
+        )
+        for index in range(20)
+    )
+    snapshot = AgentsSnapshot(project=None, rows=rows, total_row_count=len(rows))
+    monkeypatch.setattr(
+        agents_pane_module, "load_agents_snapshot", lambda _project: snapshot
+    )
+
+    # The fast startup stub does not yet know about the "agents" pane
+    # (sase-tj.10.3 adds it), so this needs the live resolver.
+    async with AcePage(initial_tab="patches", startup_policy="real") as page:
+        await page.press(page.artifacts_digit("agents"))
+        pane = page.query_one_widget("#artifacts-agents-pane", ArtifactsAgentsPane)
+        await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        targets = pane.entry_targets()
+        assert len(targets) == 20
+        assert pane.selected_entry_target() == targets[0]
+
+        await page.press("j")
+        assert pane.selected_entry_target() == targets[1]
+        await page.press("j")
+        assert pane.selected_entry_target() == targets[2]
+        await page.press("k")
+        assert pane.selected_entry_target() == targets[1]

@@ -18,7 +18,9 @@ from sase.agents.catalog import AgentCatalogRow
 
 from ..tab_order import ARTIFACTS_TAB
 
-AGENTS_ARTIFACT_ACTIONS: frozenset[str] = frozenset({"agents_revive"})
+AGENTS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
+    {"agents_next", "agents_prev", "agents_revive"}
+)
 
 
 class ArtifactsAgentsActionsMixin:
@@ -32,6 +34,26 @@ class ArtifactsAgentsActionsMixin:
             )
         except Exception:
             return None
+
+    def action_agents_next(self) -> None:
+        pane = self._agents_pane()
+        if pane is None:
+            return
+        self._begin_artifacts_navigation("next")  # type: ignore[attr-defined]
+        try:
+            pane.move_selection(1)
+        finally:
+            self._finish_artifacts_navigation()  # type: ignore[attr-defined]
+
+    def action_agents_prev(self) -> None:
+        pane = self._agents_pane()
+        if pane is None:
+            return
+        self._begin_artifacts_navigation("prev")  # type: ignore[attr-defined]
+        try:
+            pane.move_selection(-1)
+        finally:
+            self._finish_artifacts_navigation()  # type: ignore[attr-defined]
 
     def action_agents_revive(self) -> None:
         """Revive the selected or marked Artifacts Agent pane row(s)."""

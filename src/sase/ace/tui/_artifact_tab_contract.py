@@ -94,7 +94,7 @@ def compile_builtin_contract(
         relations=relations,
         grouping=adapter.grouping,
         status_counters=adapter.status_counters,
-        suppressions={},
+        suppressions=dict(adapter.suppressions),
     )
     query_profile = compiled_profile_for_builtin_pane(adapter.pane_id)
     assert query_profile is not None, (

@@ -100,6 +100,51 @@ _PRESENTATION_ONLY_CAPABILITIES = frozenset(
     {PaneCapability.STATUS_COUNTERS, PaneCapability.SHELL}
 )
 
+# Pre-existing gap surfaced while writing this guard (sase-tj.10.2): the
+# Patch pane declares ``entry_open`` (from ``has_inventory``) but "Enter"
+# there commits the persistent filter query, not a per-row open, and no
+# ``patches_view_selected``-style action was ever registered for
+# ``PaneCapability.ENTRY_OPEN``. Fixing the Patch pane's contract is out of
+# scope for the Agent pane navigation phase that added this check; recorded
+# as a proposed follow-up on sase-tj.10.2 for the epic's land agent to triage.
+_KNOWN_UNREACHABLE_CAPABILITIES: frozenset[tuple[str, PaneCapability]] = frozenset(
+    {("patches", PaneCapability.ENTRY_OPEN)}
+)
+
+
+def check_declared_capabilities_are_reachable(
+    descriptor: ArtifactsTabDescriptor,
+) -> None:
+    """Every ON capability must serve at least one action reachable here.
+
+    ``check_declared_keys_resolve_to_named_actions`` only walks actions that
+    already survive ``action_applies_to_contract`` for this pane, so a pane
+    that declares a capability contributing zero applicable actions never
+    enters that loop and the check stays silent. That was the Agent pane's
+    ``entry_navigation``/``entry_open`` bug: both ON, no action for either
+    ever bound a key. This check asserts a serving, reachable action exists
+    for every ON capability instead of assuming the declaration is honest.
+    """
+    contract = descriptor.resolved_contract
+    if descriptor.is_degraded:
+        return
+    app = _ActionAvailabilityApp(contract)
+    for capability in contract.capabilities:
+        if capability in _PRESENTATION_ONLY_CAPABILITIES:
+            continue
+        if (contract.id, capability) in _KNOWN_UNREACHABLE_CAPABILITIES:
+            continue
+        actions = CAPABILITY_HOST_ACTIONS[capability]
+        reachable = any(
+            action_applies_to_contract(contract, action)
+            and check_app_action(app, action, (), lambda _a, _p: True) is not False
+            for action in actions
+        )
+        assert reachable, (
+            f"{contract.id}: {capability.value} is ON but no action in "
+            f"{actions} applies and is reachable"
+        )
+
 
 def check_declared_actions_are_registered(descriptor: ArtifactsTabDescriptor) -> None:
     """Every ON capability maps to a registered host action or is presentation-only."""
@@ -357,6 +402,10 @@ PANE_CONFORMANCE_CHECKS: tuple[tuple[str, ConformanceCheck], ...] = (
     ("degraded_tab_carries_error", check_degraded_tab_carries_error),
     ("descriptor_owns_contract", check_descriptor_owns_contract),
     ("declared_actions_are_registered", check_declared_actions_are_registered),
+    (
+        "declared_capabilities_are_reachable",
+        check_declared_capabilities_are_reachable,
+    ),
     ("declared_relation_edges_resolve", check_declared_relation_edges_resolve),
     (
         "declared_grouping_banners_are_navigable",

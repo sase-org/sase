@@ -85,6 +85,8 @@ class AppKeymaps:
     files_cycle_kind: str
     files_copy_path: str
     # Agents sub-tab
+    agents_next: str
+    agents_prev: str
     agents_revive: str
     # Patch actions
     patches_filters: str

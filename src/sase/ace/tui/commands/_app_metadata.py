@@ -219,6 +219,9 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         (),
     ),
     ("files_copy_path", "Files: copy stored path", "Display", CL_ONLY, ()),
+    # Agents sub-tab
+    ("agents_next", "Agents: next row", "Navigation", CL_ONLY, ("agent down",)),
+    ("agents_prev", "Agents: previous row", "Navigation", CL_ONLY, ("agent up",)),
     # Patch actions
     ("quit", "Quit ace", "Misc", ALL_TABS, ("exit",)),
     ("change_status", "Change Patch status", "Patch Actions", CL_ONLY, ()),

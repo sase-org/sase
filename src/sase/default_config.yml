@@ -469,6 +469,8 @@ ace:
       files_cycle_kind: "z"
       files_copy_path: "Y"
       # Agents sub-tab
+      agents_next: "j"
+      agents_prev: "k"
       agents_revive: "w"
       # PR actions
       patches_filters: "f"

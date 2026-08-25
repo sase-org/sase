@@ -178,6 +178,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("Y", "files_copy_path", "Copy Stored Path", show=False),
     Binding("R", "files_refresh", "Refresh Artifact Files", show=False),
     # Agents sub-tab actions.
+    Binding("j", "agents_next", "Next Agent", show=False),
+    Binding("k", "agents_prev", "Previous Agent", show=False),
     Binding("w", "agents_revive", "Revive Agent", show=False),
     # Agent cleanup on Agents; clear output on AXE.
     Binding("X", "open_agent_cleanup_panel", "Agent Cleanup", show=False),

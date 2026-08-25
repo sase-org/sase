@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 
 from ._artifact_tab_model import (
     PaneEmptyState,
@@ -75,6 +76,7 @@ class _BuiltinAdapter:
     detail_fields: tuple[str, ...]
     detail_scroll_id: str | None
     empty_state: PaneEmptyState
+    suppressions: Mapping[str, str] = field(default_factory=dict)
 
 
 BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
@@ -432,6 +434,17 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
             title="No agents",
             body="No agents match the current project scope and filters.",
         ),
+        # Selecting a row already renders its full detail in the split
+        # panel (identity, lifecycle, provenance, prompt preview); unlike
+        # beads/plans/files/stitches there is no separate linked document
+        # an "open" action would reveal, so entry_open would otherwise
+        # assert a capability with no key to serve it (sase-tj.10.2).
+        suppressions={
+            "entry_open": (
+                "row detail already renders inline in the split panel; "
+                "no separate document to open"
+            ),
+        },
     ),
     "files": _BuiltinAdapter(
         adapter="files",

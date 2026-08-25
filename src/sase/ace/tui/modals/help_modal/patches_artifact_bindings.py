@@ -182,6 +182,10 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 (
                     "Agent Pane",
                     [
+                        (
+                            f"{d(a.agents_next)} / {d(a.agents_prev)}",
+                            "Next / previous agent",
+                        ),
                         (d(a.agents_revive), "Revive selected dismissed catalog row"),
                         (d(a.artifacts_copy_reference), "Copy @agent: reference"),
                         (d(a.refresh), "Refresh Agent pane catalog"),

@@ -152,6 +152,8 @@ _BEADS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
 
 _AGENTS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     {
+        "app.agents_next",
+        "app.agents_prev",
         "app.agents_revive",
     }
 )

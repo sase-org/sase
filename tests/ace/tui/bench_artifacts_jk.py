@@ -278,13 +278,6 @@ async def test_artifacts_subtabs_jk_p95(
     # take well beyond the default 5s wait budget, so the initial snapshot
     # wait below uses a longer timeout; the burst measurements themselves
     # are unaffected since they only depend on the already-mounted pane.
-    #
-    # NOTE: only the "first"/"last"/"down10"/"up10" (g/G/ctrl+d/ctrl+u)
-    # actions are exercised here. The Agent pane's own ``move_selection()``
-    # already supports single-step navigation, but no ``agents_next`` /
-    # ``agents_prev`` action or "j"/"k" keybinding has been wired up for it
-    # (unlike stitches/beads/ref:plan/files), so pressing "j"/"k" on this
-    # pane is currently a no-op — see the filed bug bead for this gap.
     async with AcePage(initial_tab="patches", startup_policy="real") as page:
         await page.press(page.artifacts_digit("agents"))
         await page.expect_state("artifacts_subtab", "agents")
@@ -300,6 +293,8 @@ async def test_artifacts_subtabs_jk_p95(
         )
         await page.wait_for(lambda _state: len(agents_pane.entry_targets()) > 0)
         agents_pane.focus_list()
+        await _press_burst(page, "j")
+        await _press_burst(page, "k")
         await _press_fast_navigation_bursts(page)
 
     samples = _read_samples(perf_path)
@@ -330,10 +325,8 @@ async def test_artifacts_subtabs_jk_p95(
         "files.last",
         "files.down10",
         "files.up10",
-        # "agents.next" / "agents.prev" are intentionally absent: no
-        # "agents_next" / "agents_prev" action or "j"/"k" binding exists for
-        # the Agent pane yet (see the module docstring note above and the
-        # filed bug bead), so those keys never produce a paint sample.
+        "agents.next",
+        "agents.prev",
         "agents.first",
         "agents.last",
         "agents.down10",

@@ -18,6 +18,8 @@ CAPABILITY_HOST_ACTIONS: dict[PaneCapability, tuple[str, ...]] = {
     PaneCapability.ENTRY_NAVIGATION: (
         "next_patch",
         "prev_patch",
+        "agents_next",
+        "agents_prev",
         "plans_next",
         "plans_prev",
         "beads_next",
