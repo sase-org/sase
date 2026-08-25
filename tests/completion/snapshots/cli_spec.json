@@ -12674,6 +12674,68 @@
               {
                 "aliases": [],
                 "default_child": null,
+                "description_digest": "9cf3bdf2fdbbaa1e",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "migrate",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "dry_run",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-n",
+                      "--dry-run"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "project",
+                    "hidden": false,
+                    "kind": "project",
+                    "repeatable": false,
+                    "strings": [
+                      "-p",
+                      "--project"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "memory",
+                  "web",
+                  "migrate"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "web",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "WEB",
+                    "nargs": null
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
                 "description_digest": "63ea6629eb8372ec",
                 "hidden": false,
                 "mutex_groups": [],

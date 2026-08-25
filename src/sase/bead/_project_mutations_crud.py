@@ -7,7 +7,6 @@ from pathlib import Path
 import re
 from typing import TYPE_CHECKING, Any
 
-from sase.bead._project_mutations_shared import _combine_mutation_outcomes
 from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize
 
 if TYPE_CHECKING:
@@ -197,6 +196,34 @@ class BeadProjectMutationCrudMixin:
         self._record_mutation_outcome(_combine_mutation_outcomes("update", outcomes))
         self._refresh_db_from_jsonl()
         return issues
+
+
+def _combine_mutation_outcomes(
+    operation: str,
+    outcomes: list[dict[str, object]],
+) -> dict[str, object]:
+    if not outcomes:
+        return {"operation": operation, "issue_ids": []}
+    issue_ids: list[str] = []
+    reopened_ancestor_ids: list[str] = []
+    for outcome in outcomes:
+        _extend_unique(issue_ids, outcome.get("issue_ids"))
+        _extend_unique(reopened_ancestor_ids, outcome.get("reopened_ancestor_ids"))
+    combined = outcomes[-1].copy()
+    combined["operation"] = operation
+    combined["issue_ids"] = issue_ids
+    if reopened_ancestor_ids:
+        combined["reopened_ancestor_ids"] = reopened_ancestor_ids
+    return combined
+
+
+def _extend_unique(target: list[str], raw: object) -> None:
+    if not isinstance(raw, list):
+        return
+    for item in raw:
+        if not isinstance(item, str) or item in target:
+            continue
+        target.append(item)
 
 
 def _normalize_notes_text(value: object) -> str:

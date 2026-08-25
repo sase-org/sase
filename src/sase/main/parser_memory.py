@@ -439,6 +439,7 @@ def _register_memory_web_parser(
         epilog=(
             "examples:\n"
             "  sase memory web list\n"
+            "  sase memory web migrate glossary -n\n"
             "  sase memory web show glossary\n"
             "  sase memory web show glossary stitch -b"
         ),
@@ -466,6 +467,34 @@ def _register_memory_web_parser(
         help="Output format (default: table)",
     )
     _add_web_project_option(list_parser)
+
+    migrate_parser = web_subparsers.add_parser(
+        "migrate",
+        help="Migrate a config-backed memory web into strand files",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Migrate a supported config-backed memory web into a descriptor "
+            "and strand files. In this release, only `glossary` is accepted."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase memory web migrate glossary\n"
+            "  sase memory web migrate glossary -n\n"
+            "  sase memory web migrate glossary -p sase"
+        ),
+    )
+    migrate_parser.add_argument(
+        "web",
+        metavar="WEB",
+        help="Memory web to migrate; only 'glossary' is supported",
+    )
+    migrate_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Print the migration report without writing files",
+    )
+    _add_web_project_option(migrate_parser)
 
     show_parser = web_subparsers.add_parser(
         "show",
