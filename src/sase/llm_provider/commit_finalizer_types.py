@@ -7,6 +7,17 @@ from typing import Literal
 
 _DirtyRepoKind = Literal["main", "sibling", "external", "sdd"]
 
+# Precedence when the same repo path is reached through more than one
+# discovery source (e.g. a configured sibling that is also an SDD sidecar
+# target): the more specific kind wins, since the machine auto-commit and
+# prompt-rendering paths key off ``kind``.
+DIRTY_REPO_KIND_PRIORITY: dict[str, int] = {
+    "main": 0,
+    "sdd": 1,
+    "external": 2,
+    "sibling": 3,
+}
+
 
 @dataclass(frozen=True)
 class BeadStateSyncOutcome:
