@@ -336,13 +336,13 @@ The names you'll keep bumping into, in one place:
   [ACE](ace.md).
 - **[Beads](beads.md)** — dependency-aware, git-portable plan, phase, and standalone
   task work units.
-- **[Glossary](memory.md#glossary)** — per-project definitions of the terms your team
-  keeps reusing, authored in `sase/sase.yml`. Agents fetch one on demand with
-  `sase glossary read <term> -r "<why>"` instead of carrying every definition in memory
-  (`-r` is required — a read is never printed unless it is recorded). In ACE, both
-  shortcuts are prompt-bar keys: from a prompt pane in NORMAL mode, `K` previews the
-  term under the cursor and `gG` opens the browse-and-edit
-  [Glossary panel](ace.md#glossary-panel). `gT` opens the
+- **[Memory Webs / Glossary](memory.md#memory-webs)** — per-project definitions of the
+  terms your team keeps reusing, authored as strand files under `sase/memory/glossary/`.
+  Agents fetch one on demand with `sase memory read glossary:<term> -r "<why>"` instead
+  of carrying every definition in memory (`-r` is required — a read is never printed
+  unless it is recorded). In ACE, both shortcuts are prompt-bar keys: from a prompt pane
+  in NORMAL mode, `K` previews the term under the cursor and `gG` opens the
+  browse-and-edit [Memory panel](ace.md#memory-panel) seeded on it. `gT` opens the
   [Snippets panel](ace.md#snippets-panel).
 - **[XPrompts](xprompt.md)** — reusable prompt templates and YAML workflows with typed
   inputs and multi-agent fan-out. See also [workflow specs](workflow_spec.md).

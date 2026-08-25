@@ -2568,12 +2568,12 @@ removal bead, and removal horizon; it does not edit portable configuration files
 With the default-on `admin_center_flags` sunset flag, Config's nested catalog is:
 
 ```text
-01 All · 02 Flags · 03 Glossary · 04 Launch · 05 Memory · 06 Snippets · 07 XPrompts
+01 All · 02 Flags · 03 Launch · 04 Memory · 05 Snippets · 06 XPrompts
 ```
 
-Disable `admin_center_flags` to restore the six-child catalog numbered `01` Glossary
-through `06` XPrompts. `sase flag enable` and `sase flag disable` remain available
-either way; they are the recovery and automation surface when the pane is off.
+Disable `admin_center_flags` to restore the five-child catalog numbered `01` All through
+`05` XPrompts. `sase flag enable` and `sase flag disable` remain available either way;
+they are the recovery and automation surface when the pane is off.
 
 The pane uses the Admin Center list/detail layout: a header with registered/on/saved
 counts, a flag rail, a scrollable detail card, a hidden inline filter, and a one-line
@@ -2589,7 +2589,7 @@ is removed.
 | `j` / `k`        | Move the rail; arrows, Home/End, and mouse clicks work the same way                           |
 | `Enter`/`Space`  | Open a cancel-first confirmation (`OFF -> ON` or `ON -> OFF`)                                 |
 | `r`              | Reload the catalog                                                                            |
-| `0` then `1`–`7` | Jump to a numbered Config child while Flags is visible (`1`–`6` when the rollout flag is off) |
+| `0` then `1`–`6` | Jump to a numbered Config child while Flags is visible (`1`–`5` when the rollout flag is off) |
 
 Confirmation is cancel-first. It names the flag, the current-to-target state, the saved
 state path, any shadowing source, and that **ACE and AXE restart after active procs
@@ -2656,12 +2656,12 @@ a hint character moves the selection there, `'` again returns to the previous po
 own keybindings table names its jump targets; two are deliberate exceptions. The
 Statistics tab has no row cursor, so `'` there arms the same numbered-view selection the
 `0` prefix already arms, using the visible strip numbers as hints. Config's nested
-catalog is alphabetized as **01 All · 02 Flags · 03 Glossary · 04 Launch · 05 Memory ·
-06 Snippets · 07 XPrompts** when `admin_center_flags` is on, or **01 All** through **06
-XPrompts** when it is off; `0` then the matching digits selects those children, while
-bare digits continue to belong to the active child or the Admin Center's top-level tabs.
-The Updates tab's Core sub-tab has no list at all, so `'` is a silent no-op there while
-Plugins and Agent CLIs jump normally.
+catalog is alphabetized as **01 All · 02 Flags · 03 Launch · 04 Memory · 05 Snippets ·
+06 XPrompts** when `admin_center_flags` is on, or **01 All** through **05 XPrompts**
+when it is off; `0` then the matching digits selects those children, while bare digits
+continue to belong to the active child or the Admin Center's top-level tabs. The Updates
+tab's Core sub-tab has no list at all, so `'` is a silent no-op there while Plugins and
+Agent CLIs jump normally.
 
 ### Quit / Restart Menu
 
@@ -3748,7 +3748,7 @@ can filter by project seed from the current project instead of starting at all p
 - the shared Artifacts project scope (Stitches, Beads, Plans, Files, Patches)
 - the Statistics project filter
 - the Repos / Workspaces inventory filters
-- the Glossary project ring
+- the Memory panel's scope ring
 - the highlight in the `+` launch picker
 
 The seed never overrides an explicit `project:` / `+name` term, a pick you already made
@@ -4185,16 +4185,21 @@ pinned attempt view resets the cursor.
   `GLOSSARY`, `SKILLS`, then `WORKSPACES`, with absent lanes omitted once they resolve
   and still-resolving lanes holding their slot with a dim `resolving…` row.
 - **SASE CONTEXT / GLOSSARY**: Shown directly after `MEMORY` whenever the selected agent
-  or family has at least one audited `sase glossary read`. The lane header counts reads
-  and distinct requested terms, adding the agent count for a multi-agent family. Each
-  row shows the read's requested terms (truncated the same way `MEMORY` truncates
-  paths), with a `+N related` suffix when the closure expanded past the requested terms,
-  and the recorded reason on its own indented line. A numbered hint pages a generated
-  report of that read's output — the reproduced command line, recorded metadata, and the
-  resolved term closure. `@` opens the report and `%` copies its path; the report names
-  the recorded `sase/sase.yml` source. Loading, attribution, and the mtime/size snapshot
-  cache mirror `MEMORY`'s reference implementation; the lane is skipped rather than
-  rendered empty when there are no reads to show.
+  or family has at least one audited event under the retired, pre-web
+  `sase glossary read` command's legacy log. Current
+  `sase memory read glossary:<keyword>` reads are not legacy events, so they surface in
+  the `MEMORY` lane like any other memory read; this lane is purely historical (see
+  [Memory Webs](memory.md#memory-webs)). The lane header counts reads and distinct
+  requested terms, adding the agent count for a multi-agent family. Each row shows the
+  read's requested terms (truncated the same way `MEMORY` truncates paths), with a
+  `+N related` suffix when the closure expanded past the requested terms, and the
+  recorded reason on its own indented line. A numbered hint pages a generated report of
+  that read's output — the reproduced command line, recorded metadata, and the resolved
+  term closure. `@` opens the report and `%` copies its path; the report names the
+  recorded `sase/sase.yml` source, since that legacy format predates the strand
+  migration. Loading, attribution, and the mtime/size snapshot cache mirror `MEMORY`'s
+  reference implementation; the lane is skipped rather than rendered empty when there
+  are no reads to show.
 - **SASE CONTEXT / ARTIFACTS**: The plan-adjacent lane groups `Reads`, `Commits`,
   `Deltas`, and `Files` as compact fields, preserves that internal order, and summarizes
   only the present fields in its header. `Reads` is the input side of the lane: each
@@ -4582,7 +4587,7 @@ one or more prior attempts.
 ## Custom Keymaps
 
 All TUI keybindings are configurable via the `ace.keymaps` section in `sase.yml`. You
-can remap app-level, gate-modal, Glossary-panel, and focused Statistics-pane keys and
+can remap app-level, gate-modal, Memory-panel, and focused Statistics-pane keys and
 define entirely new prefix-key modes.
 
 ### Remapping Built-in Keys
@@ -4679,30 +4684,6 @@ fields and buttons; they are inactive on the gate modal itself. Confirming the p
 submits the branch; cancelling it returns to the gate without answering. The retired
 `activate_control` setting is accepted as a deprecated alias for `submit_primary`.
 
-### Remapping Glossary Panel Keys
-
-Override [Glossary panel](#glossary-panel) bindings under `ace.keymaps.glossary`. A
-value may list more than one key, separated by commas:
-
-```yaml
-ace:
-  keymaps:
-    glossary:
-      follow_relation: "enter,l"
-      travel_back: "backspace,h"
-      filter_terms: "slash"
-      toggle_definition_filter: "greater_than_sign"
-      add_term: "a"
-      delete_term: "d"
-```
-
-These bindings dispatch only while the panel is open. The full action list and defaults
-are in the [`ace.keymaps` configuration reference](configuration.md#acekeymaps). `.`
-(`full_stop`) is reserved for the fixed `.` then `1`–`9` numbered-chip prefix; a config
-that assigns it to a Glossary action is warned and reverted to that action's default.
-`>` (`greater_than_sign`) remains a valid configurable key and is the default for
-`toggle_definition_filter`.
-
 ### Remapping Memory Panel Keys
 
 Override [Memory panel](#memory-panel) bindings under `ace.keymaps.memory`. A value may
@@ -4716,6 +4697,9 @@ ace:
       travel_back: "backspace,h"
       filter_notes: "slash"
       toggle_body_filter: "greater_than_sign"
+      toggle_web: "space"
+      next_strand: "s"
+      prev_strand: "S"
       add_note: "a"
       edit_note: "e"
       delete_note: "d"
@@ -4728,6 +4712,14 @@ are in the [`ace.keymaps` configuration reference](configuration.md#acekeymaps).
 that assigns it to a Memory action is warned and reverted to that action's default. `>`
 (`greater_than_sign`) remains a valid configurable key and is the default for
 `toggle_body_filter`.
+
+The retired Glossary panel's bindings folded into these Memory panel actions:
+`add_note`/`delete_note` branch on the selected row (a web row adds a strand, a strand
+row deletes one), and `next_link`/`prev_link`/`follow_link` follow a glossary strand's
+mention-relation chips the same way they follow a note's `PARENT`/`CHILDREN` chips.
+`ace.keymaps.glossary` is still accepted in config for one release, but it is inert: no
+defaults ship for it and it builds no bindings. `sase doctor` warns when a loaded config
+layer sets it explicitly and points at `ace.keymaps.memory` instead.
 
 ### Remapping Snippets Panel Keys
 
@@ -4838,7 +4830,7 @@ separator cannot fit both the readout and the `agent N` label.
 | `Ctrl+G j/k`                 | Focus the next / previous pane and leave the target pane in INSERT mode                                                                  |
 | `Ctrl+G J/K`                 | Move the active pane down / up and leave it in INSERT mode                                                                               |
 | `Ctrl+G -`                   | Add an empty bottom pane                                                                                                                 |
-| `Ctrl+G G`                   | Open the Glossary panel; seeds from the glossary term under the cursor when there is one                                                 |
+| `Ctrl+G G`                   | Open the Memory panel; seeds from the glossary term under the cursor when there is one                                                   |
 | `Ctrl+G m`                   | Open the Memory panel; seeds from the `#memory/<stem>` reference under the cursor when there is one                                      |
 | `Ctrl+G d`                   | Edit the xprompt definition under the cursor in the prompt bar                                                                           |
 | `Ctrl+G f`                   | Reformat the active prompt pane's Markdown with Prettier                                                                                 |
@@ -5046,7 +5038,7 @@ prefix actions currently available.
 | `gj` / `gk` | Focus the next / previous pane in NORMAL mode; inside the panel, jump to the top / bottom prompt pane                                    |
 | `gJ` / `gK` | Move the active pane down / up in NORMAL mode; reorder cycles at the stack edges                                                         |
 | `g-`        | Add an empty bottom pane in NORMAL mode and switch it to INSERT mode                                                                     |
-| `gG`        | Open the Glossary panel; seeds from the glossary term under the cursor when there is one                                                 |
+| `gG`        | Open the Memory panel; seeds from the glossary term under the cursor when there is one                                                   |
 | `gm`        | Open the Memory panel; seeds from the `#memory/<stem>` reference under the cursor when there is one                                      |
 | `gT`        | Open the Snippets panel; seeds from a bare trigger or `#[trigger]` under the cursor when one can be resolved without I/O                 |
 | `g=`        | Show/focus the xprompt frontmatter panel; in panel rows mode, return to the originating prompt pane                                      |
@@ -5451,15 +5443,16 @@ project when the prompt does not select one.
 
 #### Glossary terms
 
-Project glossary entries are authored in `sase/sase.yml`; see
-[glossary configuration](configuration.md#memoryglossary). ACE highlights matched
-glossary phrases in the prompt after the catalog is warm, rendering them bold,
-underlined, and in a muted blue so they read apart from the lavender repo-name highlight
-— the same "you can preview this with `K` or jump to it with `Ctrl+]`" affordance, a
-different hue. Matching skips inline code and fenced code and uses the shared
-longest-match rules from the xprompt LSP. Loading, validation, and matcher compilation
-run off the render path and are cached per project/config signature. Config edits,
-project changes, and watched `sase.yml` changes invalidate the cache.
+Project glossary entries are authored as strand files under `sase/memory/glossary/`, one
+term per strand file, described by the `sase/memory/glossary.md` web descriptor; see
+[Memory Webs](memory.md#memory-webs). ACE highlights matched glossary phrases in the
+prompt after the catalog is warm, rendering them bold, underlined, and in a muted blue
+so they read apart from the lavender repo-name highlight — the same "you can preview
+this with `K` or jump to it with `Ctrl+]`" affordance, a different hue. Matching skips
+inline code and fenced code and uses the shared longest-match rules from the xprompt
+LSP. Loading, validation, and matcher compilation run off the render path and are cached
+per project/source signature. Strand edits, project changes, and watched memory changes
+invalidate the cache.
 
 `K` on a glossary phrase opens a compact definition card. The title shows the canonical
 term and discloses the matched phrase only when you opened an alias. The body renders
@@ -5467,98 +5460,32 @@ the definition as prose, followed by display-alias chips, numbered `SEE ALSO` ch
 glossary terms mentioned by the definition, and a property grid for project, source, and
 match count. Press `1`-`9` to follow a `SEE ALSO` term in place and `Backspace` to walk
 back through the card history. `y` copies the definition, while `Y`, `o`, and `Z` copy
-the source path, open the owning `sase.yml` definition line in `$EDITOR`, or hand the
+the source path, open the owning strand file's definition line in `$EDITOR`, or hand the
 file to the artifact viewer when a source path is available. `Ctrl+]` opens the
-project-local `sase/sase.yml` definition range through the normal editor/tmux jump flow.
+project-local strand file's definition range through the normal editor/tmux jump flow.
 If the catalog is still loading, ACE schedules a warm and asks you to retry rather than
 falling through to word lookup or an unrelated jump target.
 
 The card's `SEE ALSO` chips are the depth-1 case of the same closure resolver behind
-`sase glossary show`/`read` (see [Glossary](memory.md#glossary)): both walk outgoing
-reference spans from the shared `sase.glossary.resolution` module, so the preview card
-and the CLI can never disagree about which terms a definition references.
-
-<a id="glossary-panel"></a>
-
-#### Glossary panel
-
-`K` previews one highlighted phrase. The **Glossary panel** is the browse-and-edit
-surface for a whole project's terms. From a prompt pane, press `gG` in NORMAL mode or
-`Ctrl+G G` in INSERT or NORMAL. The which-key hint row lists `glossary…` on both
-prefixes. If the cursor sits inside a highlighted glossary term, that term is selected;
-otherwise the panel opens on the first term. Closing with `Esc` or `q` restores the
-prompt pane and the vim mode you left.
-
-The header reads `GLOSSARY · <project> · N terms · project i/N` and always uses the
-configured `PROJECT_NAME:`, never a `ProjectSpec` key. A single-project setup still
-shows `project 1/1`.
-
-Two navigation axes stay synchronized:
-
-- **Alphabetical.** `j`/`k` (or the `↑`/`↓` arrows) move the term-list cursor; the
-  definition card follows. `g`/`G` jump to the first and last term. `/` filters terms
-  and aliases with the same predicate as `sase glossary list`; `>` extends the match
-  into definition bodies, matching `--definitions`. `Esc` closes the filter and keeps
-  the selection when it is still visible. An empty result reads
-  `no terms matched: <pattern>`.
-- **Relational.** The definition card carries numbered `SEE ALSO` chips (outbound
-  references from this definition) and `REFERENCED BY` chips (inbound terms that mention
-  this one). Numbering is continuous across both rows so `.1`–`.9` is never ambiguous.
-  `Tab` / `Shift+Tab` move a chip cursor, and `l` follows the focused chip — or chip ①
-  when none is focused. `.` then `1`–`9` jumps straight to a numbered chip without
-  moving the chip cursor first. Following moves the term-list cursor to the target,
-  pushes the previous term onto a trail bounded at 32 entries, and clears an active
-  filter when the target is hidden. `h` or `Backspace` walks back. A non-empty trail
-  renders as `TRAIL  A › B › C` above the footer. On the embedded Admin Center Config
-  sub-tab, bare `1`–`9` remain top-level Admin Center tab selectors.
-
-`follow_relation` ships as `enter,l`, but only `l` currently follows a chip: the term
-list holds focus and consumes `Enter` for its own selection action, so `Enter` does
-nothing in this panel. Use `l` or `.1`–`.9`.
-
-`p` and `P` cycle the enabled-project ring. The ring is every enabled project that has a
-glossary configured, plus the project you opened from even when it has none — so `a` can
-add that project's first term. Order is by display name. Precedence for the starting
-index is the prompt's launch-workspace project, then the
-[current project](#current-project) when it appears in the ring, then the alphabetically
-first project. Switching projects clears the trail and the filter and restores that
-project's last-selected term for the life of the panel.
-
-`a` opens an add form (term, optional comma-separated aliases, definition) with live
-validation against the Rust glossary validator. `d` confirms a delete and shows the
-inbound blast radius before anything is written. Both writes use the same engine as
-`sase glossary add` and `sase glossary del` (see [Glossary](memory.md#glossary)), run as
-tracked procs, refresh the panel, invalidate prompt highlighting, and offer a config
-commit for the written `sase.yml`. A delete toasts the exact restore command. The panel
-does not run `sase memory init`; the success toast names that follow-up.
-
-A project with no glossary shows a centered invitation that names the project and points
-at `a`. A project whose glossary failed to load shows the diagnostics and the config
-path. `?` opens a panel-scoped help overlay. `y` copies the definition, `Y` copies the
-source path, `o` opens the definition line in `$EDITOR`, `Z` hands the file to the
-artifact viewer, and `r` re-reads the current project.
-
-The panel footer lists only conditional keys: `d` when a term is selected, relation keys
-when chips exist, `p`/`P` when the ring has more than one project, and back when a trail
-exists. Always-available keys live in `?` and in this guide.
-
-Most keys named above are remappable under
-[`ace.keymaps.glossary`](configuration.md#acekeymaps); see
-[Remapping Glossary Panel Keys](#remapping-glossary-panel-keys). Three sets are fixed
-and are not part of that scope: `Esc` and `q` (close), the `.` then `1`–`9`
-relation-chip shortcuts, and the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys
-the underlying list widget supplies alongside the configurable `j`/`k`/`g`/`G`.
+`sase memory show`/`read glossary:<keyword>` (see [Memory Webs](memory.md#memory-webs)):
+both walk outgoing reference spans from the shared `sase.memory.web.resolution` module,
+so the preview card and the CLI can never disagree about which terms a definition
+references.
 
 <a id="memory-panel"></a>
 
 #### Memory panel
 
-The **Memory panel** is the browse-and-edit surface for SASE memory notes -- the
-Markdown files under a content root's `sase/memory/` (see [Memory](memory.md)). From a
-prompt pane, press `gm` in NORMAL mode or `Ctrl+G m` in INSERT or NORMAL. The which-key
-hint row lists `memory…` on both prefixes. If the cursor sits on a `#memory/<stem>`
-xprompt reference, that note is selected; otherwise the panel opens on the first note.
-Closing with `Esc` or `q` restores the prompt pane and the vim mode you left.
+The **Memory panel** is the browse-and-edit surface for SASE memory notes, webs, and
+strands -- the Markdown files under a content root's `sase/memory/` (see
+[Memory](memory.md)). From a prompt pane, press `gm` in NORMAL mode or `Ctrl+G m` in
+INSERT or NORMAL. `K` previews one highlighted glossary phrase in place (see
+[Glossary terms](#glossary-terms)); `gG` in NORMAL mode or `Ctrl+G G` in INSERT or
+NORMAL opens this same panel seeded on the glossary strand under the cursor, or on the
+`glossary` web when the cursor is not on a highlighted term. The which-key hint row
+lists `memory…` on both prefixes. If the cursor sits on a `#memory/<stem>` xprompt
+reference, that note is selected; otherwise the panel opens on the first note. Closing
+with `Esc` or `q` restores the prompt pane and the vim mode you left.
 
 The header reads `MEMORY · <scope> · N notes · scope i/N`, always using the configured
 `PROJECT_NAME:` for a project scope, never a `ProjectSpec` key, plus a right-aligned
@@ -5568,25 +5495,32 @@ below).
 The note rail is a tree, not a flat list, so the `parent` edge is visible before you
 follow any link: Tier 1 (`short`) notes sort first, then Tier 2 (`long`) root notes
 alphabetically, each immediately followed by its children indented one level under a
-`└ ` mark. Each row shows `●` for a Tier 1 note or `○` for Tier 2, then `⚙` for a
-generated note and `⚠` for a note with an invalid `type` or `parent`, then the stem and
-a dim description snippet.
+`└ ` mark. A memory web (such as `glossary`) is a Tier 2 root row like any other note;
+`toggle_web` (`space`) expands or collapses it in place, nesting its strands one level
+deeper the same way note children nest. Each row shows `●` for a Tier 1 note or `○` for
+Tier 2, then `⚙` for a generated note and `⚠` for a note with an invalid `type` or
+`parent`, then the stem and a dim description snippet.
 
 Two navigation axes stay synchronized:
 
 - **Tree.** `j`/`k` move the note rail cursor; the note card follows. `g`/`G` jump to
-  the first and last note. `/` filters notes by stem and description; `>` extends the
-  match into note bodies. `Esc` closes the filter and keeps the selection when it is
-  still visible. An empty result reads `no notes matched: <pattern>`.
-- **Relational.** The note card carries a numbered `PARENT` chip (omitted when the
-  parent is `AGENTS.md` rather than another memory note) and numbered `CHILDREN` chips,
-  numbered continuously so `.1`–`.9` is never ambiguous. `Tab` / `Shift+Tab` move a chip
-  cursor, and `l` follows the focused chip -- or chip ① when none is focused. `.` then
-  `1`–`9` jumps straight to a numbered chip. Following pushes the previous note onto a
-  trail bounded at 32 entries and clears an active filter when the target is hidden. `h`
-  or `Backspace` walks back. A non-empty trail renders as `TRAIL  a › b › c` above the
-  footer. On the embedded Admin Center Config sub-tab, bare `1`–`9` remain top-level
-  Admin Center tab selectors.
+  the first and last note. `next_strand`/`prev_strand` (`s`/`S`) jump the cursor
+  directly between an expanded web's strands without walking every intervening row. `/`
+  filters notes by stem and description; `>` extends the match into note bodies. `Esc`
+  closes the filter and keeps the selection when it is still visible. An empty result
+  reads `no notes matched: <pattern>`.
+- **Relational.** An ordinary note's card carries a numbered `PARENT` chip (omitted when
+  the parent is `AGENTS.md` rather than another memory note) and numbered `CHILDREN`
+  chips. A strand's card carries the same chip row labeled `SEE ALSO` (outbound) and
+  `REFERENCED BY` (inbound) instead, when its web sets `closure: mentions` — the same
+  mention-closure graph `sase memory read`'s depth-limited resolution walks (see
+  [Memory Webs](memory.md#memory-webs)). Numbering is continuous across both rows so
+  `.1`–`.9` is never ambiguous. `Tab` / `Shift+Tab` move a chip cursor, and `l` follows
+  the focused chip -- or chip ① when none is focused. `.` then `1`–`9` jumps straight to
+  a numbered chip. Following pushes the previous note onto a trail bounded at 32 entries
+  and clears an active filter when the target is hidden. `h` or `Backspace` walks back.
+  A non-empty trail renders as `TRAIL  a › b › c` above the footer. On the embedded
+  Admin Center Config sub-tab, bare `1`–`9` remain top-level Admin Center tab selectors.
 
 `follow_link` ships as `enter,l`, but only `l` currently follows a chip: the note rail
 holds focus and consumes `Enter` for its own selection action. Use `l` or `.1`–`.9`.
@@ -5595,7 +5529,12 @@ The note card also shows a badge row (`TIER 1 · always loaded` / `TIER 2`, plus
 `GENERATED`, `SHADOWS HOME`, `ORPHANED`, and `INVALID` when they apply), the
 description, the rendered Markdown body, and a property grid: type, parent, child count,
 size (lines and approximate tokens), last modified, last audited read, and the on-disk
-source path.
+source path. A web row instead shows `WEB` plus `EXPANDED`/`COLLAPSED`, and its property
+grid names rendering type, strand count, and scope. A strand row shows `STRAND`, plus
+`AUDITED`, `AUDITING`, or `AUDIT FAILED` once the panel has recorded (or tried to
+record) an audited read for it: selecting a strand's card records an audited read the
+same way `sase memory read <web>:<keyword>` does, so previewing a strand in the panel is
+itself an attributable access, not a silent peek.
 
 `p` and `P` cycle the scope ring -- every enabled project with a memory root, the
 project you opened from even when it has none (so `a` can bootstrap it), and one `Home`
@@ -5608,20 +5547,28 @@ the filter and restores that scope's last-selected note for the life of the pane
 count, for reaching a scope with many registered projects without cycling through all of
 them.
 
-`a` opens an add form (stem, tier, parent, and description) with live validation; the
-parent list offers `AGENTS.md` plus every `long` note in the scope, illegal stems,
-tiers, parents, and parent cycles are rejected before any write, and a successful create
-offers to open the new note's body in `$EDITOR`. `e` opens the same form pre-filled to
-retype, reparent, or redescribe the selected note; the note body itself is not edited in
-the panel -- press `o` to open it in `$EDITOR` instead. `d` confirms and deletes the
-selected note; deleting a note that still has children is refused with an explanation of
-which children must be reparented first, and deleting a `short` note warns that
-always-loaded agent context is being removed. Every delete leaves a timestamped backup
-and the success toast names it. A generated note (`sase/memory/sase.md` and the
-project-only `task_types.md` / `glossary.md` / `sase_artifacts.md` / `sase_beads.md` /
-`sase_sizes.md`) renders its `GENERATED` badge and refuses edit or delete with an
-explanation. A concurrent external edit is caught as a conflict: the write is refused,
-the panel toasts, and the scope reloads instead of silently overwriting the change.
+`a` and `d` branch on the selected row. On an ordinary note row, `a` opens an add form
+(stem, tier, parent, and description) with live validation; the parent list offers
+`AGENTS.md` plus every `long` note in the scope, illegal stems, tiers, parents, and
+parent cycles are rejected before any write, and a successful create offers to open the
+new note's body in `$EDITOR`. `e` opens the same form pre-filled to retype, reparent, or
+redescribe the selected note; the note body itself is not edited in the panel -- press
+`o` to open it in `$EDITOR` instead. `d` confirms and deletes the selected note;
+deleting a note that still has children is refused with an explanation of which children
+must be reparented first, and deleting a `short` note warns that always-loaded agent
+context is being removed. On a web row, `a` opens an add-strand form (keyword, optional
+comma-separated aliases, optional summary, body) with the same live-validation shape,
+against the same mutation engine described in [Memory Webs](memory.md#memory-webs). On a
+strand row, `d` confirms and deletes that strand, showing its relative path, keyword,
+aliases, the first line of its body, and any inbound `Referenced by` strands before
+anything is written; there is no strand edit form -- press `o` to open the strand file
+in `$EDITOR` instead. Every delete leaves a timestamped backup and the success toast
+names it. A generated note (`sase/memory/sase.md` and the project-only `task_types.md` /
+`sase_artifacts.md` / `sase_beads.md` / `sase_sizes.md`) renders its `GENERATED` badge
+and refuses edit or delete with an explanation; `sase/memory/glossary.md` and every
+other web descriptor are ordinary user-owned notes, not generated ones. A concurrent
+external edit is caught as a conflict: the write is refused, the panel toasts, and the
+scope reloads instead of silently overwriting the change.
 
 Every successful write marks its scope `UNPUBLISHED`, because the write is not visible
 to agents until `sase memory init` regenerates `AGENTS.md`, the provider shims, and the

@@ -14,7 +14,6 @@ sections, environment variables, and CLI flags.
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
   - [memory.h1_title](#memoryh1_title)
-  - [memory.glossary](#memoryglossary)
   - [generated templates](#generated-templates)
   - [is_sase_managed](#is_sase_managed)
   - [id](#id)
@@ -159,11 +158,11 @@ Press `#` in the `sase ace` TUI to open **SASE Admin Center**. The first press a
 starts on its lightweight home page, where the working sections—**Config**, **Logs**,
 **Procs**, **Projects**, **Statistics**, and **Updates**—are introduced without loading
 their data. Config's nested catalog is alphabetized. With the default-on
-`admin_center_flags` sunset flag it is **All**, **Flags**, **Glossary**, **Launch**,
-**Memory**, **Snippets**, and **XPrompts**, labeled `01` through `07`. Disabling that
-flag omits Flags and numbers the remaining six children `01` through `06`. While home is
-visible, press `#` again to resume the last section that was successfully active in this
-ACE process. Before the first section visit, the repeated key leaves home unchanged and
+`admin_center_flags` sunset flag it is **All**, **Flags**, **Launch**, **Memory**,
+**Snippets**, and **XPrompts**, labeled `01` through `06`. Disabling that flag omits
+Flags and numbers the remaining five children `01` through `05`. While home is visible,
+press `#` again to resume the last section that was successfully active in this ACE
+process. Before the first section visit, the repeated key leaves home unchanged and
 constructs no pane. Press `1`–`6` or click the numbered tab strip to enter a section.
 From home, `Tab` enters Config and `Shift+Tab` enters Updates; within a working section
 they wrap across the same tabs. Pane-local `[` / `]` keys switch sub-tabs or views where
@@ -194,11 +193,11 @@ The Config tab answers four questions for every field — what value is effectiv
 (its provenance), where an edit will go, and whether it validates:
 
 The nested Config catalog is alphabetized. When `admin_center_flags` is on (the
-default), it is **01 All**, **02 Flags**, **03 Glossary**, **04 Launch**, **05 Memory**,
-**06 Snippets**, and **07 XPrompts**. With the bundled prefix, press `0` and then
-`1`-`7` to open those children. When the flag is off, the catalog is **01 All** through
-**06 XPrompts**, and `0` then `1`-`6` selects them. Remap the prefix with
-`ace.keymaps.config.select_subtab` without changing the visible default badges.
+default), it is **01 All**, **02 Flags**, **03 Launch**, **04 Memory**, **05 Snippets**,
+and **06 XPrompts**. With the bundled prefix, press `0` and then `1`-`6` to open those
+children. When the flag is off, the catalog is **01 All** through **05 XPrompts**, and
+`0` then `1`-`5` selects them. Remap the prefix with `ace.keymaps.config.select_subtab`
+without changing the visible default badges.
 
 **Flags** is a keyboard-first control surface for every code-owned SASE feature flag. It
 does not edit `~/.config/sase/sase.yml`, overlays, project-local `sase.yml`, or chezmoi
@@ -555,68 +554,6 @@ them in the corresponding source-side `dot_config/sase/` directory. See
 deployment behavior.
 
 Source: `src/sase/amd/_template.py`, `src/sase/main/init_memory/root_rendering.py`
-
-### memory.glossary
-
-Defines project-local domain terms in the repository's canonical `sase/sase.yml`.
-Defaults, plugin config, user config, and overlays cannot provide glossary entries; the
-config inventory reports those scopes as invalid so a global glossary cannot leak into
-another project.
-
-```yaml
-memory:
-  glossary:
-    Agent Clan:
-      definition: >-
-        A named, rootless container for agents that run in parallel.
-```
-
-| Field             | Type              | Default | Description                                                                                                 |
-| ----------------- | ----------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
-| `memory.glossary` | object \| omitted | omitted | Mapping from canonical displayed term to one glossary entry.                                                |
-| `definition`      | string            | n/a     | Required nonblank Markdown definition, generated into project memory.                                       |
-| `aliases`         | string[]          | `[]`    | Optional single-line aliases matched after the canonical term itself; derivable plurals need not be listed. |
-
-The legacy top-level `glossary` key has been removed; it is now reported as an
-unsupported key by `sase config layers` instead of being silently ignored. Run
-`sase memory init` after editing glossary entries. A nonempty glossary generates a core
-`sase/memory/glossary.md` note (frontmatter `sase_generated: glossary`) that is inlined
-into Tier 1 of `AGENTS.md` and the provider instruction copies as
-`Glossary Terms (glossary)`. The note ends with a single semicolon-separated
-`**GLOSSARY TERMS:**` paragraph that names every displayed term and alias and points
-agents at `sase glossary read <term> [<term> ...] -r "<why>"` — see
-[Glossary](memory.md#glossary) — to fetch those definitions plus the terms they depend
-on in one command, instead of loading every definition into every agent's context. The
-plural of the term and of each alias is matched automatically; derivable plurals are
-omitted from the rendered term list, and an empty glossary writes no note.
-`sase memory init --check` verifies the note is current. A previously generated
-`sase/memory/glossary.md` (marked `sase_generated: glossary`) is overwritten when terms
-are configured and deleted when they are not; an unmarked, hand-authored
-`sase/memory/glossary.md` plus configured terms is a blocker.
-
-The canonical term is always the first effective alias, followed by configured aliases
-and accepted derived plurals. Matching is case-insensitive, Unicode-aware, bounded by
-word-like edges, and separates words in multiword phrases with horizontal whitespace
-runs or one line break plus its surrounding indentation. A blank line or any
-non-whitespace continuation prefix, such as a list marker, blockquote marker, heading,
-or separator, ends the phrase. Inline and fenced code are skipped. Overlapping phrases
-are allowed; the longest match wins, with authored order breaking ties. Blank terms,
-blank definitions, multiline aliases, duplicate normalized terms, and one alias claimed
-by more than one term fail validation consistently for config loading, memory
-generation, ACE, and the xprompt LSP.
-
-ACE highlights warm glossary matches in prompt text as bold, theme-accent, underlined
-terms you can preview with `K` or jump to with `Ctrl+]`; wrapped matches are underlined
-per line with continuation indentation excluded. In NORMAL mode, `K` previews the
-matching project's definition after xprompt, skill, and file targets; `Ctrl+]` jumps to
-the entry's `definition` range in that project's `sase/sase.yml`. The xprompt LSP uses
-the same project selection and matcher for semantic tokens, hover Markdown, and
-go-to-definition. A leading VCS workflow reference selects the glossary project;
-otherwise the active workspace project is used. Unknown, disabled, home, or unreadable
-project contexts produce no glossary semantics.
-
-Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`,
-`src/sase/main/init_memory/glossary.py`, `src/sase/xprompt/glossary_catalog.py`
 
 ### is_sase_managed
 
@@ -1085,79 +1022,52 @@ focused. The available actions are:
 Statistics keys may overlap app-level bindings because they are registered on the
 focused pane, not globally.
 
-**`glossary`** — Bindings active only inside the
-[Glossary panel](ace.md#glossary-panel), the browse-and-edit surface opened from a
-prompt pane with `gG` or `Ctrl+G G`. A value may list more than one key, separated by
-commas:
-
-| Field                      | Default             | Description                                                      |
-| -------------------------- | ------------------- | ---------------------------------------------------------------- |
-| `next_term`                | `j`                 | Move the term-list cursor to the next term.                      |
-| `prev_term`                | `k`                 | Move the term-list cursor to the previous term.                  |
-| `first_term`               | `g`                 | Jump to the first term.                                          |
-| `last_term`                | `G`                 | Jump to the last term.                                           |
-| `scroll_definition_down`   | `ctrl+d`            | Scroll the definition card down by half a page.                  |
-| `scroll_definition_up`     | `ctrl+u`            | Scroll the definition card up by half a page.                    |
-| `filter_terms`             | `slash`             | Filter terms and aliases.                                        |
-| `toggle_definition_filter` | `greater_than_sign` | Extend the active filter into definition bodies.                 |
-| `next_relation`            | `tab`               | Focus the next `SEE ALSO` / `REFERENCED BY` chip.                |
-| `prev_relation`            | `shift+tab`         | Focus the previous relation chip.                                |
-| `follow_relation`          | `enter,l`           | Travel to the focused chip's term (or chip ① when none focused). |
-| `travel_back`              | `backspace,h`       | Walk back one step along the travel trail.                       |
-| `next_project`             | `p`                 | Cycle forward through the enabled-project ring.                  |
-| `prev_project`             | `P`                 | Cycle backward through the enabled-project ring.                 |
-| `add_term`                 | `a`                 | Open the add-term form.                                          |
-| `delete_term`              | `d`                 | Confirm and delete the selected term.                            |
-| `open_source`              | `o`                 | Open the definition's source line in `$EDITOR`.                  |
-| `open_viewer`              | `Z`                 | Hand the source file to the artifact viewer.                     |
-| `copy_definition`          | `y`                 | Copy the definition to the clipboard.                            |
-| `copy_source_path`         | `Y`                 | Copy the source path to the clipboard.                           |
-| `refresh`                  | `r`                 | Re-read the current project's glossary.                          |
-| `help`                     | `question_mark`     | Open the panel-scoped help overlay.                              |
-
-Like gate and statistics keys, glossary keys are scoped to the panel and may overlap
-app-level bindings. `.` then `1`–`9` follows a numbered relation chip; that prefix is a
-fixed pane key, not a configurable `ace.keymaps.glossary` field, and `full_stop` is
-reserved so a user override cannot silently shadow it. `greater_than_sign` (`>`) remains
-a valid configurable key. On the embedded Admin Center Config sub-tab, bare digits
-remain top-level Admin Center tab selectors. The compact glossary preview still uses
-bare `1`–`9`.
+**`glossary`** — Deprecated legacy bindings for the retired standalone Glossary panel,
+accepted for one release for config-compatibility and always ignored: no defaults ship
+for this scope and it builds no bindings. `sase doctor` warns when a loaded config layer
+sets it explicitly. Move any customization to `ace.keymaps.memory` below — the Glossary
+panel's browsing, relation-chip, and add/delete actions now live in the Memory panel,
+opened the same way (`gG` / `Ctrl+G G`, seeded on the glossary term under the cursor).
 
 **`memory`** — Bindings active only inside the [Memory panel](ace.md#memory-panel), the
-browse-and-edit surface opened from a prompt pane with `gm` or `Ctrl+G m`. A value may
-list more than one key, separated by commas:
+browse-and-edit surface for notes, webs, and strands opened from a prompt pane with
+`gm`, `Ctrl+G m`, `gG`, or `Ctrl+G G`. A value may list more than one key, separated by
+commas:
 
-| Field                | Default             | Description                                                         |
-| -------------------- | ------------------- | ------------------------------------------------------------------- |
-| `next_note`          | `j`                 | Move the note rail cursor to the next note.                         |
-| `prev_note`          | `k`                 | Move the note rail cursor to the previous note.                     |
-| `first_note`         | `g`                 | Jump to the first note.                                             |
-| `last_note`          | `G`                 | Jump to the last note.                                              |
-| `scroll_body_down`   | `ctrl+d`            | Scroll the note card down by half a page.                           |
-| `scroll_body_up`     | `ctrl+u`            | Scroll the note card up by half a page.                             |
-| `filter_notes`       | `slash`             | Filter notes by stem and description.                               |
-| `toggle_body_filter` | `greater_than_sign` | Extend the active filter into note bodies.                          |
-| `next_link`          | `tab`               | Focus the next `PARENT` / `CHILDREN` chip.                          |
-| `prev_link`          | `shift+tab`         | Focus the previous link chip.                                       |
-| `follow_link`        | `enter,l`           | Travel to the focused chip's note (or chip ① when none focused).    |
-| `travel_back`        | `backspace,h`       | Walk back one step along the travel trail.                          |
-| `next_scope`         | `p`                 | Cycle forward through the memory scope ring.                        |
-| `prev_scope`         | `P`                 | Cycle backward through the memory scope ring.                       |
-| `pick_scope`         | `ctrl+p`            | Open the filterable scope picker.                                   |
-| `add_note`           | `a`                 | Open the add-note form.                                             |
-| `edit_note`          | `e`                 | Open the edit form for the selected note's type/parent/description. |
-| `delete_note`        | `d`                 | Confirm and delete the selected note.                               |
-| `publish`            | `I`                 | Open the publish confirmation (`sase memory init`).                 |
-| `open_source`        | `o`                 | Open the note body in `$EDITOR`.                                    |
-| `open_viewer`        | `Z`                 | Hand the source file to the artifact viewer.                        |
-| `copy_body`          | `y`                 | Copy the note body to the clipboard.                                |
-| `copy_source_path`   | `Y`                 | Copy the source path to the clipboard.                              |
-| `refresh`            | `r`                 | Re-read the current scope.                                          |
-| `help`               | `question_mark`     | Open the panel-scoped help overlay.                                 |
+| Field                | Default             | Description                                                                                  |
+| -------------------- | ------------------- | -------------------------------------------------------------------------------------------- |
+| `next_note`          | `j`                 | Move the note rail cursor to the next note.                                                  |
+| `prev_note`          | `k`                 | Move the note rail cursor to the previous note.                                              |
+| `first_note`         | `g`                 | Jump to the first note.                                                                      |
+| `last_note`          | `G`                 | Jump to the last note.                                                                       |
+| `toggle_web`         | `space`             | Expand or collapse the selected memory web.                                                  |
+| `next_strand`        | `s`                 | Jump to the next strand in the selected memory web.                                          |
+| `prev_strand`        | `S`                 | Jump to the previous strand in the selected memory web.                                      |
+| `scroll_body_down`   | `ctrl+d`            | Scroll the note card down by half a page.                                                    |
+| `scroll_body_up`     | `ctrl+u`            | Scroll the note card up by half a page.                                                      |
+| `filter_notes`       | `slash`             | Filter notes by stem and description.                                                        |
+| `toggle_body_filter` | `greater_than_sign` | Extend the active filter into note bodies.                                                   |
+| `next_link`          | `tab`               | Focus the next `PARENT`/`CHILDREN` (or `SEE ALSO`/`REFERENCED BY` on a mention strand) chip. |
+| `prev_link`          | `shift+tab`         | Focus the previous link chip.                                                                |
+| `follow_link`        | `enter,l`           | Travel to the focused chip's note or strand (or chip ① when none focused).                   |
+| `travel_back`        | `backspace,h`       | Walk back one step along the travel trail.                                                   |
+| `next_scope`         | `p`                 | Cycle forward through the memory scope ring.                                                 |
+| `prev_scope`         | `P`                 | Cycle backward through the memory scope ring.                                                |
+| `pick_scope`         | `ctrl+p`            | Open the filterable scope picker.                                                            |
+| `add_note`           | `a`                 | Open the add-note form, or the add-strand form on a web row.                                 |
+| `edit_note`          | `e`                 | Open the edit form for the selected note's type/parent/description.                          |
+| `delete_note`        | `d`                 | Confirm and delete the selected note, or the selected strand.                                |
+| `publish`            | `I`                 | Open the publish confirmation (`sase memory init`).                                          |
+| `open_source`        | `o`                 | Open the note or strand body in `$EDITOR`.                                                   |
+| `open_viewer`        | `Z`                 | Hand the source file to the artifact viewer.                                                 |
+| `copy_body`          | `y`                 | Copy the note or strand body to the clipboard.                                               |
+| `copy_source_path`   | `Y`                 | Copy the source path to the clipboard.                                                       |
+| `refresh`            | `r`                 | Re-read the current scope.                                                                   |
+| `help`               | `question_mark`     | Open the panel-scoped help overlay.                                                          |
 
-Like gate, statistics, and glossary keys, memory keys are scoped to the panel and may
-overlap app-level bindings. `.` then `1`–`9` follows a numbered parent or child chip;
-that prefix is a fixed pane key, not a configurable `ace.keymaps.memory` field, and
+Like gate and statistics keys, memory keys are scoped to the panel and may overlap
+app-level bindings. `.` then `1`–`9` follows a numbered link or relation chip; that
+prefix is a fixed pane key, not a configurable `ace.keymaps.memory` field, and
 `full_stop` is reserved so a user override cannot silently shadow it.
 `greater_than_sign` (`>`) remains a valid configurable key. On the embedded Admin Center
 Config sub-tab, bare digits remain top-level Admin Center tab selectors.
@@ -1193,9 +1103,9 @@ commas:
 | `refresh`              | `r`             | Re-read the current project's snippets.                             |
 | `help`                 | `question_mark` | Open the panel-scoped help overlay.                                 |
 
-Like gate, statistics, glossary, and memory keys, snippets keys are scoped to the panel
-and may overlap app-level bindings. Snippets still uses bare `1`–`9` for numbered chips
-and keeps `.` (`full_stop`) as the default body-filter toggle.
+Like gate, statistics, and memory keys, snippets keys are scoped to the panel and may
+overlap app-level bindings. Snippets still uses bare `1`–`9` for numbered chips and
+keeps `.` (`full_stop`) as the default body-filter toggle.
 
 **`projects`** — Bindings active on all three Admin Center
 [Projects-tab](ace.md#projects-tab) sub-tabs (Projects, Repos, Workspaces), so
@@ -1227,8 +1137,8 @@ value may list more than one key, separated by commas:
 | `clear_project_filter`       | `escape`               | Clear an inventory project filter.                                 |
 | `set_current_project`        | `c`                    | Make the highlighted project [current](ace.md#current-project).    |
 
-Like gate, statistics, and glossary keys, Projects-tab keys are scoped to the pane and
-may overlap app-level bindings.
+Like gate, statistics, and memory keys, Projects-tab keys are scoped to the pane and may
+overlap app-level bindings.
 
 **`app`** — App-level keybindings. Each key is an action name mapped to a key string.
 See `src/sase/default_config.yml` for the full list of configurable actions and their
@@ -4672,10 +4582,13 @@ tries to commit, rebase-pull, and push generated project-side files. `sase init 
 is a compatibility alias for this command. Generated repository memory requires agents
 to use `/sase_repo` before reading or modifying any repo outside their own workspace
 checkout. The rule covers linked repos, sidecars, different SASE projects, and unlinked
-GitHub repos even when no linked repositories are configured. When a managed project has
-a nonempty `memory.glossary` section, the same run also refreshes the generated
-`sase/memory/glossary.md` note and its Tier 1 inlining; `sase memory init --check`
-reports drift if the note or its inlined section is stale.
+GitHub repos even when no linked repositories are configured. The same run also
+refreshes each core memory web's inline strand roster — for example the `glossary` web's
+`**GLOSSARY TERMS:**` line in `sase/memory/glossary.md` — from its current strand files;
+`sase memory init --check` reports drift if a web's rendered roster or its Tier 1
+inlining is stale. Unlike the generated notes above, `sase/memory/glossary.md` and every
+other web descriptor are user-owned content: memory init rewrites only the roster it
+renders, never the rest of the descriptor body.
 
 | Flag                          | Values | Default | Description                                                                                             |
 | ----------------------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |

@@ -59,10 +59,11 @@ xprompt reference: `sase/memory/sase_artifacts.md` expands with
 `#memory/sase_beads`. The `memory/` prefix is required — there is no bare `#<stem>`
 alias, and an ordinary xprompt cannot claim the `memory/` namespace. A selected
 project's note shadows a same-stem home note using the same first-wins precedence
-described in [Audited Reads](#audited-reads) below. A nonempty project glossary
-generates the core note `sase/memory/glossary.md`, so `#memory/glossary` is a valid
-xprompt reference and the note appears in `sase memory list`. Full definitions still
-come from `sase glossary read`, covered in [Glossary](#glossary) below;
+described in [Audited Reads](#audited-reads) below. The bundled `glossary` memory web's
+descriptor renders as the core note `sase/memory/glossary.md`, so `#memory/glossary` is
+a valid xprompt reference and the note appears in `sase memory list`. That expansion is
+the descriptor body only — strand bodies never inline. Full definitions still come from
+`sase memory read glossary:<term>`, covered in [Memory Webs](#memory-webs) below;
 `sase memory read glossary.md` still fails because `read` rejects core notes as
 already-loaded context.
 
@@ -153,112 +154,104 @@ Pass `--include proposals` to include memory proposal and review ledger events i
 same audit dashboard. Path and agent filters also apply to proposal target paths and
 proposal/review actors.
 
-## Glossary
+## Memory Webs
 
-Project glossary entries authored under `memory.glossary` in `sase/sase.yml` (see
-[glossary configuration](configuration.md#memoryglossary)) generate a core
-`sase/memory/glossary.md` note. `sase memory init` inlines that note into Tier 1 of
-`AGENTS.md` as `Glossary Terms (glossary)`: a compact instruction paragraph plus a
-single `**GLOSSARY TERMS:**` roster naming every term, semicolon-separated, with aliases
-in parentheses. The note is listed by `sase memory list` and is available as
-`#memory/glossary`; `sase memory read glossary.md` still fails because `read` rejects
-core notes. Agents fetch a definition on demand with the `sase glossary` command group:
+A memory web is a third kind of memory alongside flat notes: a project- or home-owned
+catalog of small, keyword-addressed entries called strands. Kind (note, web, or strand)
+and rendering (`core` or `reference`) are independent axes. A web's own descriptor
+renders exactly like an ordinary note — a `core` descriptor inlines into Tier 1 of
+`AGENTS.md`, a `reference` descriptor is read on demand — but a strand's body is never
+inlined into `AGENTS.md`, no matter what tier its web renders at.
+
+A web lives as one flat descriptor note plus a sibling strand directory: the descriptor
+`sase/memory/<web>.md` describes the collection, and `sase/memory/<web>/<strand>.md`
+files are its strands. The bundled `glossary` web ships this way:
+`sase/memory/glossary.md` is the core descriptor, and each term is a strand file under
+`sase/memory/glossary/`. `sase memory init` inlines a core web's descriptor body into
+Tier 1 of `AGENTS.md`, plus — for a web that opts into an inline roster, as `glossary`
+does — a single semicolon-separated `**GLOSSARY TERMS:**` line naming every strand
+keyword and alias. The descriptor note is listed by `sase memory list` and is available
+as `#memory/glossary`; `sase memory read glossary.md` still fails because `read` rejects
+core notes as already-loaded context.
+
+### Inspecting webs
 
 ```bash
-sase glossary list
-sase glossary list hood -f names
-sase glossary all
-sase glossary all -f markdown
-sase glossary show Stitch Patch "Agent Hood"
-sase glossary show "Agent Hood"
-sase glossary show Stitch -d 0 -f markdown
-sase glossary read Stitch Patch "Agent Hood" -r "Need the patch/stitch vocabulary"
-sase glossary read "Agent Hood" -r "Need the hood/agent distinction"
-sase glossary log
-sase glossary log -t Stitch -a agent-a
-sase glossary add "Test Term" "A test term that references Agent Hood." -a tt
-sase glossary del "Test Term"
-sase glossary del tt -n
+sase memory web list
+sase memory web list -f json
+sase memory web show glossary
+sase memory web show glossary stitch
+sase memory web show glossary -b -f json
 ```
 
-`sase glossary` with no subcommand defaults to `sase glossary list`. Every subcommand
-accepts `-p/--project REF` (a project key, display name, or alias) before or after the
-subcommand name.
+`sase memory web list` prints every discovered web: slug, rendering type
+(`core`/`reference`), scope (`project`/`home`), strand count, and description.
+`-f/--format` selects `table` (the default), `names`, or `json`.
 
-Without `-p`, the project is inferred from the current directory the same way
-`sase repo`, `sase workspace`, and `sase memory` do: a path inside the project's
-ProjectSpec workspace (the primary checkout), a numbered managed workspace whose
-`.sase/checkout.json` marker identifies an enabled project, or the workspace-provider
-and sibling-workspace backstops. If none of those match an enabled project, the command
-exits 1 with `no enabled project matched the active workspace; pass -p/--project`.
+`sase memory web show WEB [PATTERN]` prints one web's filterable strand _index_ —
+keyword, slug, aliases, mention-reference count, and a one-line summary — never a
+strand's body. `PATTERN` is an optional case-insensitive substring match against
+keywords and aliases; `-b/--bodies` extends the match into strand bodies. `-f/--format`
+selects `table` (the default), `names`, or `json`. Both subcommands accept
+`-p/--project REF` the same way `sase repo`, `sase workspace`, and `sase memory` infer a
+project from the current directory when `-p` is omitted.
 
-`sase glossary list [PATTERN]` prints the terms configured for a project. `PATTERN` is
-an optional case-insensitive substring match against each term and its display aliases;
-`-d/--definitions` extends the match into definition bodies. `-f/--format` selects
-`table` (the default, with term, aliases, reference count, and a summary), `names` (one
-canonical term per line, pipe-friendly), or `json` (full records including aliases,
-definition, reference terms, and source location).
+### Reading strands
 
-`sase glossary all` prints every configured term in full, alphabetically, in
-letter-sectioned blocks. Each entry shows aliases, the full definition with cross-term
-mentions highlighted, and a `referenced by` line for inbound backlinks. `-f/--format`
-selects `rich` (the default), `markdown`, or `json`. The JSON payload is a catalog of
-terms with `reference_terms` (outbound, the same field as `list -f json`) and
-`referenced_by` (inbound). This is not an audited read; agents must use
-`sase glossary read`.
+`sase memory read` and `sase memory show` accept three selector shapes in one variadic
+batch, and the whole batch resolves before anything is printed or logged:
 
-`sase glossary show TERM [TERM ...]` resolves one or more terms — by canonical term,
-alias, or an unambiguous prefix — and prints each definition plus the recursive closure
-of terms those definitions depend on. Pass every term you need in one command: shared
-related terms are printed once, and a batch that names an unknown term reports every
-unresolved reference at once, prints nothing, and exits 1. Every related term shows why
-it appeared: which requesting term's definition mentioned it, and the exact matched
-phrase. `-d/--depth N` caps the recursion (`-d 0` prints only the requested terms; the
-default is unlimited). `-f/--format` selects `rich` (the default terminal rendering),
-`markdown` (plain Markdown for pasting into a prompt), or `json` (the closure with full
-provenance).
+- a flat note name, e.g. `generated_skills.md`
+- a bare web name, e.g. `glossary`, which reads every strand in that web
+- a `web:keyword` strand reference, e.g. `glossary:stitch`, resolved by canonical
+  keyword, alias, or an unambiguous prefix
 
-`sase glossary read TERM [TERM ...] -r/--reason TEXT` is identical to `show` in every
-other respect, except it requires a non-empty reason and records one audited read before
-printing — the same audited-read discipline as [`sase memory read`](#audited-reads).
-Agents should always use `read`, not `show`, when consulting the glossary to accomplish
-a task, and should pass every needed term in that one command. Nothing is printed unless
-the read was recorded. Reads are attributed the same way as memory reads
-(`SASE_AGENT_NAME`, `SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json`), and each
-event records the requested terms, every related term the closure added, the depth
-limit, and the total bytes of definition served. The read also appears in the `GLOSSARY`
-lane of the agent metadata panel in [ACE](ace.md#agents-tab-metadata-panel); selecting
-that lane's numbered hint pages a generated report of the read's output.
+```bash
+sase memory read glossary:stitch -r "Need the stitch/patch vocabulary"
+sase memory read glossary:stitch glossary:patch "Agent Hood" -r "Need the patch/stitch/hood vocabulary"
+sase memory read glossary -r "Need the whole glossary"
+sase memory show glossary:stitch
+sase memory show glossary:stitch -d 0 -f markdown
+```
 
-`sase glossary log` summarizes recorded reads: with no selector, a dashboard shows
-totals plus by-term and by-agent breakdowns and recent events. `-t/--term` and
-`-a/--agent` filter the event set, and both are echoed in the dashboard header so a
-filtered view is never mistaken for the whole log. `-i/--id READ_ID` selects one event
-by id or unambiguous prefix and prints its full detail. `-f/--format json` emits
-deterministic JSON for both the summary and the single-event view.
+`web:keyword` is an explicit read-time addressing alias, not a runtime trigger: nothing
+scans a prompt for glossary phrases at read time, and nothing auto-injects context. Pass
+every strand you need in one command: shared related strands print once, and a batch
+that names an unknown strand reports every unresolved reference at once, prints nothing,
+and exits 1.
 
-`sase glossary add TERM DEFINITION [-a ALIAS]...` writes a new entry into the project's
-`sase/sase.yml` after the same Rust validation that rejects duplicate terms and
-colliding aliases. Required values are positionals; `-a/--alias` may be repeated. The
-term is inserted so the glossary map stays sorted. On success the command prints the
-project display name, the term, its aliases, and the config path written.
-`-f/--format json` emits a stable object with the same fields plus `created_section`.
+A web whose descriptor sets `closure: mentions` — `glossary` is one — additionally walks
+the recursive closure of strands each requested strand's body mentions. Every related
+strand shows why it appeared: which requesting strand's body mentioned it, and the exact
+matched phrase. `-d/--depth N` caps the recursion (`-d 0` prints only the requested
+strands; the default is unlimited). `-f/--format` selects `markdown` (the default for
+`read`/`show`), `rich` (a styled terminal view), or `json` (the closure with full
+provenance). This is not an audited read when used with `show`; agents must use `read`.
 
-`sase glossary del TERM` resolves `TERM` through the same alias, slug, and unique-prefix
-lookup as `show` and `read`, then removes that entry. It is non-interactive: instead of
-a prompt it prints the exact `sase glossary add …` restore command, the inbound
-reference count, and the written config path. `-n/--dry-run` prints that same block and
-exits without writing. Copy-pasting the restore command is the undo.
+Every audited read requires a non-empty reason via `-r`/`--reason` and agent attribution
+the same way as [Audited Reads](#audited-reads) above, and the event records the
+requested selectors, every related strand the closure added, the depth limit, and the
+total bytes served. A `glossary:<keyword>` read also appears in the `GLOSSARY` lane of
+the agent metadata panel in [ACE](ace.md#agents-tab-metadata-panel) alongside any legacy
+pre-migration events; selecting that lane's numbered hint pages a generated report of
+the read's output.
 
-Both write commands regenerate the project's agent instruction files in-process after a
-successful write (`AGENTS.md` and the provider shims) so the new or removed term is
-visible to agents. `-I/--no-init` skips that step. A regeneration failure is reported as
-a warning and does not roll back the config write; run `sase memory init` by hand if
-that happens.
+`sase memory log --include glossary` folds in audit events recorded under the retired
+pre-web `sase glossary read` command, so historical reads stay visible; that legacy
+parsing lives under `sase.memory`, not a `sase.glossary` package, which no longer
+exists.
 
-ACE's Glossary panel uses the same add/delete engine. From a prompt, press `gG` or
-`Ctrl+G G` to browse terms, follow relations, cycle projects, and add or delete entries;
-see [Glossary panel](ace.md#glossary-panel).
+### Browsing and editing strands
+
+ACE's [Memory panel](ace.md#memory-panel) is the browse-and-edit surface for webs and
+strands alongside flat notes: expand a web row to walk its strands, follow
+mention-closure relation chips the same way `read`'s closure does, and use `a`/`d` to
+add or delete a strand — `a` on a web row opens an add-strand form, `d` on a strand row
+confirms a delete after showing its aliases, body, source path, and reverse mention
+references. There is no CLI write path for strand content; every write goes through the
+panel's tracked mutation engine, which validates frontmatter, checks catalog ambiguity
+for digest conflicts, and refreshes the descriptor roster through the normal
+`sase memory init` publish path described in [Memory panel](ace.md#memory-panel).
 
 ## Propose Memory
 

@@ -1,15 +1,5 @@
 memory:
   h1_title: null
-  # Project-local only: define domain terms in a repository's canonical
-  # sase/sase.yml. The canonical term is the map key; it is always the first
-  # effective alias.
-  # glossary:
-  #   Agent Clan:
-  #     aliases:
-  #       - agent clans
-  #       - clan
-  #     definition: >-
-  #       A named, rootless container for agents that run in parallel.
   agents_template: null
   agents_minimal_template: null
   sase_template: null

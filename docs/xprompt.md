@@ -231,20 +231,20 @@ The Rust server also has a native fallback for simple xprompt snippets and
 fallback intentionally skips xprompts that require complex Jinja or composition it
 cannot mirror exactly; when the helper is available, its response is preferred.
 
-The LSP also consumes the project glossary configured in `sase/sase.yml`; see
-[glossary configuration](configuration.md#memoryglossary). A leading VCS workflow
-reference selects the glossary project for the document, otherwise the active workspace
-project is used. Glossary phrases are emitted as standard `type` semantic tokens, with
-the same case-insensitive, code-literal-skipping, longest-match scanner ACE uses. A
-phrase wrapped across one line break is emitted as one semantic token per line. Derived
-plurals of terms and aliases are matched like configured aliases. `sase-nvim` underlines
-those tokens by default through an overridable `SaseGlossaryTerm` highlight group. Hover
-returns Markdown for the canonical term, aliases, project, and source context, and
-go-to-definition targets the glossary entry's `definition` range in the project-local
-config. Explicit xprompt and artifact references keep precedence over glossary matches.
-When the selected project is disabled, unknown, home, unreadable, or has an invalid
-glossary, the server suppresses glossary semantics for that context instead of falling
-back to another project's terms.
+The LSP also consumes the project's `glossary` memory web, authored as strand files
+under `sase/memory/glossary/`; see [Memory Webs](memory.md#memory-webs). A leading VCS
+workflow reference selects the glossary project for the document, otherwise the active
+workspace project is used. Glossary phrases are emitted as standard `type` semantic
+tokens, with the same case-insensitive, code-literal-skipping, longest-match scanner ACE
+uses. A phrase wrapped across one line break is emitted as one semantic token per line.
+Derived plurals of terms and aliases are matched like configured aliases. `sase-nvim`
+underlines those tokens by default through an overridable `SaseGlossaryTerm` highlight
+group. Hover returns Markdown for the canonical term, aliases, project, and source
+context, and go-to-definition targets the glossary strand file's definition range.
+Explicit xprompt and artifact references keep precedence over glossary matches. When the
+selected project is disabled, unknown, home, unreadable, or has an invalid glossary, the
+server suppresses glossary semantics for that context instead of falling back to another
+project's terms.
 
 See the [editor integration guide](editor.md) for setup, feature coverage, helper bridge
 usage, and troubleshooting.
@@ -1291,9 +1291,10 @@ Every valid, flat, non-README [SASE memory note](memory.md) that declares `type:
 or `type: reference` frontmatter is automatically an xprompt — no opt-in field is
 required. A note's filename remains its identity: `sase/memory/sase_beads.md` (or the
 home equivalent) is invoked as `#memory/sase_beads`. Nested files such as
-`sase/memory/assets/**` and `README.md` are never catalog entries. A nonempty project
-glossary generates `sase/memory/glossary.md`, so `#memory/glossary` is a valid
-reference; full definitions still come from `sase glossary read`.
+`sase/memory/assets/**` and `README.md` are never catalog entries. The bundled
+`glossary` memory web's descriptor is `sase/memory/glossary.md`, so `#memory/glossary`
+is a valid reference; full definitions still come from
+`sase memory read glossary:<keyword>` (see [Memory Webs](memory.md#memory-webs)).
 
 The `memory/` reference segment is reserved. There is no bare `#sase_beads` alias for
 `#memory/sase_beads`, no `#memory/long/sase_beads` compatibility form, and an ordinary

@@ -203,22 +203,16 @@ Home roots use convention-based template files in the SASE user-config directory
 chezmoi source counterpart). Template variables and validation rules are listed in the
 [generated templates configuration](configuration.md#generated-templates).
 
-A SASE-managed project's `memory.glossary` section in `sase/sase.yml` is also validated
-during memory initialization. A nonempty glossary generates a core
-`sase/memory/glossary.md` note (frontmatter `sase_generated: glossary`) that
-`sase memory init` inlines into Tier 1 of `AGENTS.md` and the provider instruction files
-as `Glossary Terms (glossary)`. The note is a compact instruction paragraph plus one
-semicolon-separated `**GLOSSARY TERMS:**` roster, with aliases in parentheses, and
-points agents at `sase glossary read <term> [<term> ...] -r "<why>"` to fetch those
-definitions plus the terms they depend on. Pass every term you need in one command. An
-empty or absent glossary writes no note and deletes a leftover marked
-`sase/memory/glossary.md`. A marked leftover (including a stale `type: reference` copy)
-is overwritten in place when terms are configured. An unmarked, hand-authored
-`sase/memory/glossary.md` plus configured terms is a blocker — migrate its content into
-`memory.glossary` entries in `sase.yml` or remove it before initializing. Without
-configured terms the unmarked note stays an ordinary hand-authored note. See
-[glossary configuration](configuration.md#memoryglossary) for the schema and matching
-behavior, and [Glossary](memory.md#glossary) for the `sase glossary` command group.
+`sase/memory/glossary.md` is not a generated note — it is a user-owned memory-web
+descriptor, exactly like any other `sase/memory/<web>.md` file, with the project's terms
+authored as sibling strand files under `sase/memory/glossary/`. Memory initialization
+inlines its (core) descriptor body into Tier 1 of `AGENTS.md` and the provider
+instruction files, plus the descriptor's inline `**GLOSSARY TERMS:**` roster naming
+every strand keyword and alias, semicolon-separated. Strand bodies never inline into
+`AGENTS.md`; agents fetch a definition on demand with
+`sase memory read glossary:<keyword> -r "<why>"`, passing every keyword needed in one
+command. See [Memory Webs](memory.md#memory-webs) for the full read, browse, and edit
+workflow.
 
 For a SASE-managed project, `sase memory init` inlines each core note into Tier 1 and
 numbers every heading in the generated document, renders Tier 2 as one numbered H3
