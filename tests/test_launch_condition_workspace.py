@@ -12,6 +12,7 @@ import pytest
 from sase.agent.launch_admission import dispatch_typed_launch_request
 from sase.agent.launch_condition_workspace import (
     CONDITION_WORKSPACE_MARKER,
+    ConditionWorkspaceError,
     ConditionWorkspaceUnavailable,
     acquire_condition_workspace,
     settle_condition_workspace,
@@ -148,6 +149,60 @@ def test_condition_workspace_contention_is_retryable(
             logical_id="unit-1",
             work_dir=tmp_path / "work",
         )
+
+
+def test_condition_workspace_marker_write_failure_releases_acquired_lease(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    released: list[dict[str, Any]] = []
+
+    def fake_acquire(
+        project: str,
+        *,
+        workflow: str,
+        holder: str,
+        **_kwargs: object,
+    ) -> Any:
+        return fake_operational_lease(
+            checkout,
+            project=project,
+            workflow=f"lease({workflow})",
+            holder=holder,
+        )
+
+    def fail_marker_write(*_args: object, **_kwargs: object) -> None:
+        raise OSError("marker fsync failed")
+
+    monkeypatch.setattr(
+        "sase.agent.launch_condition_workspace.acquire_operational_lease",
+        fake_acquire,
+    )
+    monkeypatch.setattr(
+        "sase.agent.launch_condition_workspace.release_operational_lease",
+        lambda policy: released.append(dict(policy)),
+    )
+    monkeypatch.setattr(
+        "sase.agent.launch_condition_workspace.write_json_marker_atomic",
+        fail_marker_write,
+    )
+
+    work_dir = tmp_path / "work"
+    with pytest.raises(ConditionWorkspaceError) as excinfo:
+        acquire_condition_workspace(
+            project="sase",
+            request_id="req",
+            plan_digest="d" * 64,
+            logical_id="unit-1",
+            work_dir=work_dir,
+        )
+
+    assert isinstance(excinfo.value.__cause__, OSError)
+    assert "marker persistence failed" in str(excinfo.value)
+    assert len(released) == 1
+    assert released[0]["workflow"].startswith("lease(launch-if:")
+    assert not (work_dir / CONDITION_WORKSPACE_MARKER).exists()
 
 
 def test_project_condition_runs_in_leased_checkout_and_releases(
@@ -364,6 +419,75 @@ def test_workspace_preparation_failure_fails_closed(
     )
     assert receipt["units"][0]["outcome"] == "condition_error"
     assert "preparation" in receipt["units"][0]["message"]
+
+
+def test_marker_write_failure_fails_closed_without_evaluating_condition(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    released: list[dict[str, Any]] = []
+    evaluated = False
+
+    def fake_acquire(
+        project: str,
+        *,
+        workflow: str,
+        holder: str,
+        **_kwargs: object,
+    ) -> Any:
+        return fake_operational_lease(
+            checkout,
+            project=project,
+            workflow=f"lease({workflow})",
+            holder=holder,
+        )
+
+    def fail_marker_write(*_args: object, **_kwargs: object) -> None:
+        raise OSError("marker fsync failed")
+
+    def fake_supervise(*_args: object, **_kwargs: object) -> tuple[str, str | None]:
+        nonlocal evaluated
+        evaluated = True
+        return "eligible", None
+
+    monkeypatch.setattr(
+        "sase.agent.launch_condition_workspace.acquire_operational_lease",
+        fake_acquire,
+    )
+    monkeypatch.setattr(
+        "sase.agent.launch_condition_workspace.release_operational_lease",
+        lambda policy: released.append(dict(policy)),
+    )
+    monkeypatch.setattr(
+        "sase.agent.launch_condition_workspace.write_json_marker_atomic",
+        fail_marker_write,
+    )
+    monkeypatch.setattr(
+        "sase.agent.launch_condition_runtime._supervise_request",
+        fake_supervise,
+    )
+
+    progress, response_dir = _run_plan(tmp_path)
+
+    assert progress.admission_complete
+    assert progress.summary is not None
+    assert progress.summary.condition_errors == 1
+    assert evaluated is False
+    assert len(released) == 1
+    work_dir = response_dir / "launch_admission" / "units" / "unit-1"
+    assert not (work_dir / CONDITION_WORKSPACE_MARKER).exists()
+    journal = (response_dir / "launch_admission" / "journal.jsonl").read_text(
+        encoding="utf-8"
+    )
+    assert '"phase": "checking"' not in journal
+    assert '"phase": "condition_error"' in journal
+    receipt = json.loads(
+        (response_dir / "launch_admission" / "receipt.json").read_text(encoding="utf-8")
+    )
+    assert receipt["units"][0]["outcome"] == "condition_error"
+    assert "marker persistence failed" in receipt["units"][0]["message"]
 
 
 def test_evaluator_exception_releases_condition_lease(

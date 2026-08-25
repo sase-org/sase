@@ -94,7 +94,21 @@ def acquire_condition_workspace(
         logical_id=logical_id,
         settled=False,
     )
-    write_json_marker_atomic(_marker_path(root), marker)
+    try:
+        write_json_marker_atomic(_marker_path(root), marker)
+    except Exception as exc:
+        policy = lease.settlement_policy()
+        try:
+            release_operational_lease(policy)
+        except Exception as release_exc:
+            raise ConditionWorkspaceError(
+                "condition workspace marker persistence failed after lease "
+                f"acquisition; release failed: {release_exc}"
+            ) from exc
+        raise ConditionWorkspaceError(
+            "condition workspace marker persistence failed after lease "
+            f"acquisition: {exc}"
+        ) from exc
     return _ConditionWorkspaceLease(
         logical_id=logical_id,
         request_id=request_id,
