@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from sase.agent.identity import AgentIdentity, discover_agent_identity
+from sase.agent.identity import AgentIdentity, resolve_audit_identity
 from sase.core.paths import sase_projects_dir
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.locks import locked_file
@@ -85,15 +85,7 @@ def build_artifact_read_event(
     import os
 
     current_env = os.environ if env is None else env
-    identity = agent or discover_agent_identity(current_env)
-    if identity is None:
-        agent_name = _interactive_user(current_env)
-        agent_source = "interactive"
-        artifacts_dir = _optional_text(current_env.get("SASE_ARTIFACTS_DIR"))
-    else:
-        agent_name = identity.name
-        agent_source = identity.source
-        artifacts_dir = identity.artifacts_dir
+    identity = agent or resolve_audit_identity(current_env)
 
     cwd_path = (cwd or Path.cwd()).resolve(strict=False)
     project_name = project or project_memory_name(cwd_path)
@@ -109,9 +101,9 @@ def build_artifact_read_event(
         cwd=str(cwd_path),
         ref=canonical_ref,
         reason=_normalize_read_reason(reason),
-        agent_name=agent_name,
-        agent_source=agent_source,
-        artifacts_dir=artifacts_dir,
+        agent_name=identity.name,
+        agent_source=identity.source,
+        artifacts_dir=identity.artifacts_dir,
         recorded_link=recorded_link,
         resolved_path=_optional_text(
             None if resolved_path is None else str(resolved_path)
@@ -220,16 +212,6 @@ def _event_from_mapping(data: Mapping[str, Any]) -> ArtifactReadEvent | None:
         recorded_link=recorded_link,
         resolved_path=_optional_text(resolved_path),
     )
-
-
-def _interactive_user(env: Mapping[str, str]) -> str:
-    import getpass
-
-    try:
-        discovered = _optional_text(getpass.getuser())
-    except (KeyError, OSError):
-        discovered = None
-    return discovered or _optional_text(env.get("USER")) or "unknown"
 
 
 def _optional_text(value: str | None) -> str | None:

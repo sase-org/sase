@@ -232,3 +232,46 @@ def test_record_strand_read_uses_memory_read_audit_path(
     assert events[0].resolved_targets == ("decisions:alpha",)
     assert events[0].included_targets == ()
     assert events[0].agent_name == "agent-a"
+
+
+def test_record_strand_read_falls_back_to_interactive_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    memory_root = tmp_path / "sase" / "memory"
+    memory_root.mkdir(parents=True)
+    (memory_root / "decisions.md").write_text(
+        "---\ntype: core\nweb: true\n---\nDescriptor.\n",
+        encoding="utf-8",
+    )
+    strand_dir = memory_root / "decisions"
+    strand_dir.mkdir()
+    (strand_dir / "alpha.md").write_text(
+        "---\nkeyword: Alpha\nsummary: Alpha summary.\n---\nAlpha body.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+    monkeypatch.chdir(tmp_path)
+    scope = MemoryScopeRef(
+        kind="project",
+        key="gh_demo__demo",
+        display_name="Demo",
+        content_root=str(tmp_path),
+        memory_read_root=str(memory_root),
+        has_memory=True,
+    )
+
+    result = mpl.record_memory_panel_strand_read(
+        scope,
+        web_slug="decisions",
+        strand_slug="alpha",
+    )
+
+    assert result.identity == "decisions:alpha"
+    events = read_memory_read_events(log_path=memory_read_log_path(cwd=tmp_path))
+    assert len(events) == 1
+    assert events[0].kind == "strand"
+    assert events[0].selectors == ("decisions:alpha",)
+    assert events[0].resolved_targets == ("decisions:alpha",)
+    assert events[0].included_targets == ()
+    assert events[0].agent_source == "interactive"

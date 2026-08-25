@@ -213,6 +213,64 @@ async def test_web_expands_and_strand_preview_waits_for_audit(
         assert "status: accepted" in meta
 
 
+async def test_failing_strand_read_worker_does_not_crash_the_pane(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = scope_ref("sase", "sase", content_root=str(tmp_path))
+    descriptor = memory_note(
+        "decisions",
+        note_type="core",
+        description="Decision index.",
+        body="Descriptor body.",
+    )
+    web = _web_with_one_strand(tmp_path)
+    install_fixed_load(
+        monkeypatch,
+        (ref,),
+        {"sase": scope_snapshot(ref, (descriptor,), webs=(web,))},
+    )
+
+    def failing_record(
+        _scope: object, *, web_slug: str, strand_slug: str
+    ) -> MemoryPanelStrandRead:
+        del web_slug, strand_slug
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        memory_pane_module, "record_memory_panel_strand_read", failing_record
+    )
+
+    panel = MemoryPane()
+    app = MemoryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.press("space")
+        await wait_for(
+            pilot,
+            lambda: (
+                [row.identity for row in panel._rows]
+                == [
+                    "sase/memory/decisions.md",
+                    "decisions:alpha",
+                ]
+            ),
+        )
+        await pilot.press("s")
+        await wait_for(pilot, lambda: panel._current_note == "decisions:alpha")
+        await wait_for(
+            pilot,
+            lambda: (panel._strand_read_status.get("decisions:alpha") or "").startswith(
+                "error:"
+            ),
+        )
+
+        assert app.is_running
+        assert "boom" in panel._strand_read_status["decisions:alpha"]
+        assert "Could not record audited read" in panel._body_preview_for_node(
+            panel._selected_row()
+        )
+
+
 async def test_seed_filters_setting_reaches_initial_load(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

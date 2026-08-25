@@ -6,14 +6,13 @@ from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 import fcntl
-import getpass
 import json
 import os
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from sase.agent.identity import AgentIdentity, discover_agent_identity
+from sase.agent.identity import AgentIdentity, resolve_audit_identity
 from sase.core.paths import sase_projects_dir
 from sase.memory.locks import locked_file
 from sase.project_aliases import resolve_project_alias_ref
@@ -84,15 +83,7 @@ def build_repo_open_event(
     """Build an attributable event, falling back to an interactive identity."""
 
     current_env = os.environ if env is None else env
-    identity = agent or discover_agent_identity(current_env)
-    if identity is None:
-        agent_name = _interactive_user(current_env, login_user=login_user)
-        agent_source = "interactive"
-        artifacts_dir = _optional_text(current_env.get("SASE_ARTIFACTS_DIR"))
-    else:
-        agent_name = identity.name
-        agent_source = identity.source
-        artifacts_dir = identity.artifacts_dir
+    identity = agent or resolve_audit_identity(current_env, login_user=login_user)
 
     normalized_reason = reason.strip()
     if not normalized_reason:
@@ -109,9 +100,9 @@ def build_repo_open_event(
         repo_kind=repo_kind,
         workspace_num=workspace_num,
         path=path,
-        agent_name=agent_name,
-        agent_source=agent_source,
-        artifacts_dir=artifacts_dir,
+        agent_name=identity.name,
+        agent_source=identity.source,
+        artifacts_dir=identity.artifacts_dir,
         reason=normalized_reason,
         cwd=str(cwd_path),
     )
@@ -245,24 +236,6 @@ def summarize_repo_opens_by_agent(
             )
         )
     return tuple(sorted(summaries, key=lambda summary: summary.agent_name))
-
-
-def _interactive_user(env: Mapping[str, str], *, login_user: str | None = None) -> str:
-    explicit = _optional_text(login_user)
-    if explicit is not None:
-        return explicit
-    try:
-        discovered = _optional_text(getpass.getuser())
-    except (KeyError, OSError):
-        discovered = None
-    return discovered or _optional_text(env.get("USER")) or "unknown"
-
-
-def _optional_text(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = value.strip()
-    return normalized or None
 
 
 def _event_timestamp(now: datetime) -> str:

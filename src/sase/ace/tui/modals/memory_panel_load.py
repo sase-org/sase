@@ -25,7 +25,7 @@ from sase.memory.read_log import (
     MemoryReadEvent,
     append_memory_read_event,
     normalize_read_reason,
-    require_agent_identity,
+    resolve_audit_identity,
 )
 from sase.memory.selector import resolve_memory_selector_batch
 
@@ -168,7 +168,7 @@ def record_memory_panel_strand_read(
     """
     identity = f"{web_slug}:{strand_slug}"
     reason = normalize_read_reason(f"ACE MemoryPane previewed {identity}")
-    agent = require_agent_identity()
+    agent = resolve_audit_identity()
     root = Path(scope.content_root)
     view = resolve_memory_selector_batch(
         [identity],

@@ -6,14 +6,13 @@ from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 import fcntl
-import getpass
 import json
 import os
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
-from sase.agent.identity import AgentIdentity, discover_agent_identity
+from sase.agent.identity import AgentIdentity, resolve_audit_identity
 from sase.core.artifact_file_helpers import artifact_file_mime_type
 from sase.core.artifact_file_types import (
     artifact_file_association_from_dir,
@@ -91,21 +90,13 @@ def build_artifact_consumption_event(
     """Build an attributable consumption event."""
 
     current_env = os.environ if env is None else env
-    identity = agent or discover_agent_identity(current_env)
-    if identity is None:
-        agent_name = _interactive_user(current_env, login_user=login_user)
-        agent_source = "interactive"
-        artifacts_dir = _optional_text(current_env.get("SASE_ARTIFACTS_DIR"))
-    else:
-        agent_name = identity.name
-        agent_source = identity.source
-        artifacts_dir = identity.artifacts_dir
+    identity = agent or resolve_audit_identity(current_env, login_user=login_user)
 
     project = None
-    if artifacts_dir is not None:
+    if identity.artifacts_dir is not None:
         project = artifact_file_association_from_dir(
-            artifacts_dir,
-            agent_name=agent_name,
+            identity.artifacts_dir,
+            agent_name=identity.name,
         ).project
 
     timestamp = _event_timestamp(now or datetime.now(tz=UTC))
@@ -119,9 +110,9 @@ def build_artifact_consumption_event(
         artifact_id=artifact_id,
         resolved_path=None if resolved_path is None else str(resolved_path),
         resolution_status=resolution_status,
-        agent_name=agent_name,
-        agent_source=agent_source,
-        artifacts_dir=artifacts_dir,
+        agent_name=identity.name,
+        agent_source=identity.source,
+        artifacts_dir=identity.artifacts_dir,
         project=project,
     )
 
@@ -152,24 +143,6 @@ def append_artifact_consumption_events(
                 )
                 output_file.write("\n")
             output_file.flush()
-
-
-def _interactive_user(env: Mapping[str, str], *, login_user: str | None) -> str:
-    explicit = _optional_text(login_user)
-    if explicit is not None:
-        return explicit
-    try:
-        discovered = _optional_text(getpass.getuser())
-    except (KeyError, OSError):
-        discovered = None
-    return discovered or _optional_text(env.get("USER")) or "unknown"
-
-
-def _optional_text(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = value.strip()
-    return normalized or None
 
 
 def _event_timestamp(now: datetime) -> str:

@@ -17,6 +17,7 @@ from sase.agent.identity import (
     AgentIdentitySource,
     agent_name_from_meta,
     discover_agent_identity,
+    resolve_audit_identity,
 )
 from sase.agent.identity import (
     require_agent_identity as _require_agent_identity,

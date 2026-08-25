@@ -334,7 +334,11 @@ class MemoryPane(
             )
 
         self._load_worker = self.run_worker(
-            task, thread=True, exclusive=True, group="memory-panel-load"
+            task,
+            thread=True,
+            exclusive=True,
+            group="memory-panel-load",
+            exit_on_error=False,
         )
 
     def _start_scope_load(self) -> None:
@@ -348,7 +352,11 @@ class MemoryPane(
             return load_memory_scope_snapshot(ref)
 
         self._scope_worker = self.run_worker(
-            task, thread=True, exclusive=True, group="memory-panel-scope"
+            task,
+            thread=True,
+            exclusive=True,
+            group="memory-panel-scope",
+            exit_on_error=False,
         )
 
     def _start_scope_picker_load(self) -> None:
@@ -360,7 +368,11 @@ class MemoryPane(
             return load_memory_scope_choices(ring)
 
         self._picker_worker = self.run_worker(
-            task, thread=True, exclusive=True, group="memory-panel-scope-picker"
+            task,
+            thread=True,
+            exclusive=True,
+            group="memory-panel-scope-picker",
+            exit_on_error=False,
         )
 
     def _start_restat(self, note: MemoryNote) -> None:
@@ -377,7 +389,11 @@ class MemoryPane(
             return note_digest_changed(scope, note, previous)
 
         self._restat_worker = self.run_worker(
-            task, thread=True, exclusive=True, group="memory-panel-restat"
+            task,
+            thread=True,
+            exclusive=True,
+            group="memory-panel-restat",
+            exit_on_error=False,
         )
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
@@ -529,7 +545,11 @@ class MemoryPane(
             )
 
         self._strand_read_worker = self.run_worker(
-            task, thread=True, exclusive=True, group="memory-panel-strand-read"
+            task,
+            thread=True,
+            exclusive=True,
+            group="memory-panel-strand-read",
+            exit_on_error=False,
         )
 
     def _on_strand_read_state_changed(self, event: Worker.StateChanged) -> None:

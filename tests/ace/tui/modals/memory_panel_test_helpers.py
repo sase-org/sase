@@ -239,8 +239,10 @@ def install_fixed_load(
 def install_fake_strand_read(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     """Patch the panel's audited strand-read recorder with an instant fake.
 
-    Selecting a strand row otherwise requires real agent-identity env, since
-    it reuses ``sase memory read``'s event-building path.
+    The real recorder resolves an interactive identity and does real disk
+    I/O when no agent env is present, so this fake exists purely for test
+    speed and determinism, not because selecting a strand row requires
+    agent-identity env.
     """
     reads: list[str] = []
 

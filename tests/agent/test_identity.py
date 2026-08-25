@@ -121,3 +121,63 @@ def test_human_environment_without_agent_identity_uses_current_instant(
     assert (
         identity.resolve_observation_window_start({}) == "2026-08-10T00:00:00.000000Z"
     )
+
+
+def test_resolve_audit_identity_prefers_agent_env() -> None:
+    env = {"SASE_AGENT_NAME": "worker.agent", "SASE_ARTIFACTS_DIR": "/artifacts"}
+
+    result = identity.resolve_audit_identity(env)
+
+    assert result == identity.discover_agent_identity(env)
+    assert result.source == "SASE_AGENT_NAME"
+
+
+def test_resolve_audit_identity_falls_back_to_interactive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(identity.getpass, "getuser", lambda: "bryan")
+
+    result = identity.resolve_audit_identity({})
+
+    assert result.source == "interactive"
+    assert result.name == "bryan"
+    assert result.artifacts_dir is None
+
+
+def test_resolve_audit_identity_interactive_falls_back_to_user_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _raise() -> str:
+        raise OSError("no such user")
+
+    monkeypatch.setattr(identity.getpass, "getuser", _raise)
+
+    result = identity.resolve_audit_identity({"USER": "bugyi"})
+
+    assert result.source == "interactive"
+    assert result.name == "bugyi"
+
+
+def test_resolve_audit_identity_interactive_defaults_to_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _raise() -> str:
+        raise OSError("no such user")
+
+    monkeypatch.setattr(identity.getpass, "getuser", _raise)
+
+    result = identity.resolve_audit_identity({})
+
+    assert result.source == "interactive"
+    assert result.name == "unknown"
+
+
+def test_resolve_audit_identity_does_not_widen_agent_only_gates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(identity.getpass, "getuser", lambda: "bryan")
+    env: dict[str, str] = {}
+
+    assert identity.discover_agent_identity(env) is None
+    with pytest.raises(identity.AgentIdentityError):
+        identity.require_agent_identity(env)

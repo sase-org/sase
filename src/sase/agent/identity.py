@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+import getpass
 import json
 import logging
 import os
@@ -13,7 +14,7 @@ from typing import Literal
 
 _logger = logging.getLogger(__name__)
 
-AgentIdentitySource = Literal["SASE_AGENT_NAME", "agent_meta"]
+AgentIdentitySource = Literal["SASE_AGENT_NAME", "agent_meta", "interactive"]
 
 
 class AgentIdentityError(ValueError):
@@ -67,6 +68,42 @@ def require_agent_identity(
             "or provide SASE_ARTIFACTS_DIR/agent_meta.json with a name"
         )
     return identity
+
+
+def _interactive_user_name(
+    env: Mapping[str, str] | None = None, *, login_user: str | None = None
+) -> str:
+    """Best-effort local username for an interactive (non-agent) identity."""
+    current_env = env if env is not None else os.environ
+    explicit = _clean_value(login_user)
+    if explicit is not None:
+        return explicit
+    try:
+        discovered = _clean_value(getpass.getuser())
+    except (KeyError, OSError):
+        discovered = None
+    return discovered or _clean_value(current_env.get("USER")) or "unknown"
+
+
+def resolve_audit_identity(
+    env: Mapping[str, str] | None = None, *, login_user: str | None = None
+) -> AgentIdentity:
+    """Return the current agent identity, falling back to an interactive one.
+
+    Unlike :func:`require_agent_identity`, this never raises: a human shell
+    with no agent attribution resolves to an ``"interactive"`` identity
+    stamped with the local username, matching the convention already used by
+    the artifact-read, repo-open, and artifact-consumption audit logs.
+    """
+    current_env = env if env is not None else os.environ
+    identity = discover_agent_identity(current_env)
+    if identity is not None:
+        return identity
+    return AgentIdentity(
+        name=_interactive_user_name(current_env, login_user=login_user),
+        source="interactive",
+        artifacts_dir=_clean_value(current_env.get("SASE_ARTIFACTS_DIR")),
+    )
 
 
 def resolve_local_agent_name(env: Mapping[str, str] | None = None) -> str | None:
@@ -226,6 +263,7 @@ __all__ = [
     "discover_agent_identity",
     "discover_agent_runtime",
     "require_agent_identity",
+    "resolve_audit_identity",
     "resolve_local_agent_name",
     "resolve_observation_window_start",
 ]
