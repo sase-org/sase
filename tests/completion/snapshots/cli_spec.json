@@ -2085,6 +2085,79 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "f75a3fcb2bbd4075",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "search",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "limit",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-l",
+                  "--limit"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "agent",
+              "search"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "query",
+                "is_remainder": true,
+                "kind": null,
+                "metavar": "QUERY",
+                "nargs": "..."
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "8de8ff8e8dbb85a3",
             "hidden": false,
             "mutex_groups": [],

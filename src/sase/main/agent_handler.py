@@ -98,6 +98,11 @@ def handle_agent_command(args: argparse.Namespace) -> None:
 
         sys.exit(handle_agents_restart(args))
 
+    if sub == "search":
+        from sase.agents.cli_search import handle_agents_search
+
+        sys.exit(handle_agents_search(args))
+
     if sub == "revert":
         from sase.ops.commands.agent import handle_agent_operation
 
@@ -112,6 +117,6 @@ def handle_agent_command(args: argparse.Namespace) -> None:
         "Usage: sase agent "
         "{archive,artifacts,drain,index,kill,list,names,persist-cleanup,"
         "persist-directive,prompts,restart,"
-        "retire-v1,revert,show,sync,tribe,wait}"
+        "retire-v1,revert,search,show,sync,tribe,wait}"
     )
     sys.exit(1)
