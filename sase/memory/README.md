@@ -177,8 +177,8 @@ into `AGENTS.md`, no matter what tier its web renders at.
   phase-bead description prefixes, and non-cascading close, resolution, and note
   semantics.
 - Parent: `AGENTS.md`
-- Lines: 139
-- Approx. tokens: 1848
+- Lines: 142
+- Approx. tokens: 1920
 
 ### `sase/memory/sase_flags.md`
 
@@ -231,8 +231,8 @@ into `AGENTS.md`, no matter what tier its web renders at.
 - Total notes: 18
 - Core notes: 9
 - Reference notes: 9
-- Total lines: 1097
-- Total approx. tokens: 13636
+- Total lines: 1100
+- Total approx. tokens: 13708
 
 ## Commands
 

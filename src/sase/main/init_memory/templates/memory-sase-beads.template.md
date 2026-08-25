@@ -105,10 +105,13 @@ else `canceled` or `superseded` through `-R`) plus free-text `--reason`.
 
 ## Notes And History
 
-`sase bead note <id> "<text>"` appends an attributed entry atomically, while `update --notes` replaces the whole field,
-so use `note` for progress, verification, and handoff state. `sase bead history <id>` replays the event stream field by
-field (`--format full` recovers a value a later write replaced), and `sase bead history --lost-notes [--restore]` finds
-and re-appends notes text that went missing.
+Notes are a timestamped, attributed, append-only log. `sase bead note <id> "<text>"` and
+`sase bead update --note <text>` both append an entry; `update --notes` is a removed tombstone that now errors and
+names `sase bead note` instead. `sase bead note --edit <n>` rewrites note `<n>` (the ordinal `sase bead show` renders)
+and `--remove <n>` retracts it; re-read `show` after either, since ordinals shift. `sase bead history <id>` replays the
+event stream field by field (`--format full` recovers a value a later write replaced), and
+`sase bead history --lost-notes [--restore]` is a historical repair that finds and re-appends notes text that went
+missing from a store that predates the log.
 
 ## Reading And Repairing
 

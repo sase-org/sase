@@ -382,8 +382,8 @@ class GitCommitDispatchMixin(CommandRunner):
         """Fold any post-commit bead-store changes into the commit.
 
         This intentionally does not write the commit SHA into bead notes: the SHA
-        would become stale after the amend or rebase, and ``--notes`` overwrites
-        existing notes rather than appending to them.
+        would become stale after the amend or rebase, and the note log is append-only,
+        so a stale SHA record could not be taken back.
         """
         bead_id = payload.get("bead_id")
         if not bead_id:
