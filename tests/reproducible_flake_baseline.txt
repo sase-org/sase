@@ -254,3 +254,14 @@ tests/test_models_panel_runner_limit.py::test_title_footer_and_chooser_show_effe
 # full parallel lane and passes serial/isolated reruns; ready flake task has
 # independent corroboration from this check-full monitor.
 tests/test_plan_approval_launch_reliability_integration.py::test_archive_publication_order_survives_inverted_scheduling[host_first-2]
+#
+# sase-tt / sase-tt.2: the 2s stale-proof registry memo landed in fe663948f
+# "perf(agent-names): memoize registry staleness checks" made reservation-facing
+# name queries blind to artifact directories created after the memo was armed,
+# and shipped a mutation test whose "arm the memo" line never armed it. The
+# sase-tt land commit routes every reservation read through
+# _load_registry_for_reservations() (full staleness proof, memo bypassed) and
+# repairs the mutation test's premise; both nodes pass on this tree. This
+# retires the pre-fix evidence that epic recorded.
+# fixed-at: 2026-08-25T23:47:42Z tests/test_agent_name_registry_rebuild.py::test_stale_proof_memo_invalidated_by_mutation
+# fixed-at: 2026-08-25T23:47:42Z tests/test_agent_names_auto_name.py::TestGetNextAutoName::test_dotted_suffix_reserves_prefix

@@ -490,7 +490,9 @@ def test_stale_proof_memo_invalidated_by_mutation(tmp_path: Path) -> None:
     artifacts_root = tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run"
     (artifacts_root / "run1").mkdir(parents=True)
     with patch.object(Path, "home", return_value=tmp_path):
-        load_name_registry()  # arm the memo
+        load_name_registry()  # rebuild the absent registry
+        load_name_registry()  # prove the rebuilt file fresh, arming the memo
+        assert _registry._stale_proof_memo_valid()
         with patch.object(
             _registry,
             "_registry_file_is_stale",
@@ -501,6 +503,21 @@ def test_stale_proof_memo_invalidated_by_mutation(tmp_path: Path) -> None:
 
     assert "foo" in data["entries"]
     assert is_stale.call_count == 1
+
+
+def test_reservation_reads_skip_the_stale_proof_memo(tmp_path: Path) -> None:
+    """A name-reservation answer sees a directory the memo would still hide."""
+    _make_agent(tmp_path, "proj", "run1", "foo")
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        load_name_registry()  # arm the memo
+        assert _registry._stale_proof_memo_valid()
+        _make_agent(tmp_path, "proj", "run2", "bar")
+
+        # The display read is allowed to miss ``bar`` until the memo expires.
+        assert "bar" not in load_name_registry()["entries"]
+        # Allocation must not be, or it would hand ``bar`` out a second time.
+        assert "bar" in get_reserved_agent_names()
 
 
 def test_stale_proof_memo_expires_after_ttl(

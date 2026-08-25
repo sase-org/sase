@@ -73,6 +73,13 @@ _LOAD_SESSION_ACTIVE: ContextVar[bool] = ContextVar(
 # registry mutation bumps the generation (via
 # ``invalidate_agent_name_registry_freshness``), which invalidates the memo
 # immediately regardless of the TTL.
+#
+# What the memo trades away is visibility of artifact directories that appear
+# or vanish without a registry write -- another process's launch, a manual
+# wipe -- for up to one TTL. Reads that only display registry state can absorb
+# that; reads that decide whether a name is free cannot, because a stale
+# "free" answer hands out a name someone else already owns. Reservation reads
+# therefore go through ``_load_registry_for_reservations`` and skip the memo.
 _STALE_PROOF_TTL_SECONDS = 2.0
 _STALE_PROOF_GENERATION: int | None = None
 _STALE_PROOF_MONOTONIC: float | None = None
@@ -86,41 +93,49 @@ def _registry_path() -> Path:
 def lookup_registered_name(name: str) -> dict[str, Any] | None:
     """Return registry owner metadata for *name*, if reserved."""
     return _registry_queries.lookup_registered_name(
-        name, load_registry=load_name_registry
+        name, load_registry=_load_registry_for_reservations
     )
 
 
 def is_name_reserved(name: str) -> bool:
     """Return whether *name* is reserved by an existing agent."""
-    return _registry_queries.is_name_reserved(name, load_registry=load_name_registry)
+    return _registry_queries.is_name_reserved(
+        name, load_registry=_load_registry_for_reservations
+    )
 
 
 def get_reserved_agent_names() -> set[str]:
     """Return every name currently reserved by the registry."""
-    return _registry_queries.get_reserved_agent_names(load_registry=load_name_registry)
+    return _registry_queries.get_reserved_agent_names(
+        load_registry=_load_registry_for_reservations
+    )
 
 
 def get_reserved_clan_names() -> set[str]:
     """Return every name owned by a clan container."""
-    return _registry_queries.get_reserved_clan_names(load_registry=load_name_registry)
+    return _registry_queries.get_reserved_clan_names(
+        load_registry=_load_registry_for_reservations
+    )
 
 
 def get_reserved_family_names() -> set[str]:
     """Return every name owned by a sequential family container."""
-    return _registry_queries.get_reserved_family_names(load_registry=load_name_registry)
+    return _registry_queries.get_reserved_family_names(
+        load_registry=_load_registry_for_reservations
+    )
 
 
 def get_reserved_agent_name_map() -> dict[str, str]:
     """Return ``{name: owner_path}`` for registered names with a known owner path."""
     return _registry_queries.get_reserved_agent_name_map(
-        load_registry=load_name_registry
+        load_registry=_load_registry_for_reservations
     )
 
 
 def lowest_name_suggestion(base: str) -> str:
     """Return the lowest available ``<base><N>`` suggestion."""
     return _registry_queries.lowest_name_suggestion(
-        base, load_registry=load_name_registry
+        base, load_registry=_load_registry_for_reservations
     )
 
 
@@ -390,10 +405,14 @@ def _raise_container_name_collision(name: str, entry: dict[str, Any]) -> NoRetur
     )
 
 
-def load_name_registry() -> dict[str, Any]:
-    """Load the name registry, rebuilding once when absent or stale."""
+def load_name_registry(*, trust_stale_proof_memo: bool = True) -> dict[str, Any]:
+    """Load the name registry, rebuilding once when absent or stale.
+
+    Pass ``trust_stale_proof_memo=False`` to force the full staleness proof
+    even when a recent one is memoized; see ``_load_registry_for_reservations``.
+    """
     path = _registry_path()
-    cached = _cached_registry(path)
+    cached = _cached_registry(path, trust_stale_proof_memo=trust_stale_proof_memo)
     if cached is not None:
         return cached
 
@@ -458,7 +477,9 @@ def _registry_mutation_lock() -> AbstractContextManager[None]:
     return agent_name_allocation_lock()
 
 
-def _cached_registry(path: Path) -> dict[str, Any] | None:
+def _cached_registry(
+    path: Path, *, trust_stale_proof_memo: bool = True
+) -> dict[str, Any] | None:
     if _CACHE_PATH != path or _CACHE_DATA is None:
         return None
     try:
@@ -469,12 +490,22 @@ def _cached_registry(path: Path) -> dict[str, Any] | None:
         return None
     if _LOAD_SESSION_ACTIVE.get():
         return _CACHE_DATA
-    if _stale_proof_memo_valid():
+    if trust_stale_proof_memo and _stale_proof_memo_valid():
         return _CACHE_DATA
     if _registry_file_is_stale(_CACHE_DATA):
         return None
     _record_stale_proof_memo()
     return _CACHE_DATA
+
+
+def _load_registry_for_reservations() -> dict[str, Any]:
+    """Load the registry for an answer that gates name allocation.
+
+    Name reservation answers must observe an artifact directory that appeared
+    or vanished since the last staleness proof, so they pay the full proof
+    instead of reusing the memo a display read would accept.
+    """
+    return load_name_registry(trust_stale_proof_memo=False)
 
 
 def _stale_proof_memo_valid() -> bool:

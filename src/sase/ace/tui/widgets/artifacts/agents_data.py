@@ -65,6 +65,14 @@ def load_agents_snapshot(
         rows=rows,
         total_row_count=total,
         complete=complete,
+        # The bounded head-slice pass populates artifact_links too, rather than
+        # leaving it empty until the extension pass. The aggregate is
+        # project-scoped, not row-scoped, so slicing rows would not shrink it,
+        # and the detail panel reads it for whichever row is highlighted first.
+        # It is cheap enough to keep on first paint today -- 185 rows, ~6ms
+        # cold and process-cached after (see tests/perf/README.md) -- but it is
+        # a growing cost, not a constant. Move it to the extension pass if it
+        # ever stops fitting inside the Agent pane's first-paint budget.
         artifact_links=artifact_links,
         link_facets=link_facets,
         facets=catalog.facets,
