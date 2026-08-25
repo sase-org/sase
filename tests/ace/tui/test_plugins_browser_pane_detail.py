@@ -219,8 +219,14 @@ async def test_plugins_pane_lazy_fetches_highlighted_latest(
     monkeypatch.setattr(pbp, "_enrich_entry_latest", _fake_enrich)
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        await page.wait_for(lambda _s: bool(calls))
+        await page.wait_for(
+            lambda _s: (
+                (entry := pane._entry_by_name("nvim")) is not None
+                and entry.latest.version == "2.0.0"
+            )
+        )
         entry = pane._entry_by_name("nvim")
+        assert calls == ["nvim"]
         assert entry is not None
         assert entry.latest.version == "2.0.0"
         text = _render(pane._detail_renderable(entry))
