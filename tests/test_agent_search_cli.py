@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 import json
 from typing import Any
 
+import pytest
+
 from sase.agents.catalog import AgentCatalogRow, AgentCatalogSnapshot
 from sase.agents.cli_search import handle_agents_search
 from sase.main.parser import create_parser
@@ -110,6 +112,72 @@ def test_agent_search_parser_and_help_are_complete_and_sorted() -> None:
     assert "revivable:true AND project:sase AND role:code" in search_help
     assert "Nm means months" in search_help
     assert "Nm means minutes" in search_help
+
+
+def test_agent_search_parser_accepts_options_before_and_after_query() -> None:
+    parser = create_parser(only="agent")
+    before = parser.parse_args(
+        ["agent", "search", "-j", "-l", "5", "-p", "sase", "kind:family"]
+    )
+    after = parser.parse_args(
+        ["agent", "search", "kind:family", "-j", "-l", "5", "-p", "sase"]
+    )
+    interleaved = parser.parse_args(
+        ["agent", "search", "kind:family", "-l", "5", "-p", "sase", "-j"]
+    )
+
+    for args in (before, after, interleaved):
+        assert args.json is True
+        assert args.limit == 5
+        assert args.project == "sase"
+        assert args.query == ["kind:family"]
+
+
+def test_agent_search_boolean_dialect_has_no_leading_dash_spelling() -> None:
+    """The boolean dialect negates with ``NOT``, never a leading ``-``, so
+    ``nargs="*"`` swallowing a lone ``-foo`` token as an unrecognized option is
+    expected: there is no real query a user would need ``--`` to escape."""
+    parser = create_parser(only="agent")
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["agent", "search", "-foo"])
+
+
+def test_agent_search_handles_options_parsed_after_the_query(
+    monkeypatch: Any,
+    capsys: Any,
+) -> None:
+    snapshot = _snapshot(_row("visible", kind=("family",)))
+    _patch_sources(monkeypatch, snapshot)
+    parser = create_parser(only="agent")
+
+    args = parser.parse_args(
+        ["agent", "search", "kind:family", "-j", "-l", "5", "-p", "sase"]
+    )
+    code = handle_agents_search(args)
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert [row["name"] for row in payload] == ["visible"]
+
+
+def test_agent_search_query_followed_by_limit_flag_does_not_hit_tokenizer_error(
+    monkeypatch: Any,
+    capsys: Any,
+) -> None:
+    """Regression test for a REMAINDER-nargs bug: ``-l 3`` after the query used to
+    be swallowed into the query text and reach the tokenizer as literal characters."""
+    snapshot = _snapshot(_row("visible", kind=("family",)))
+    _patch_sources(monkeypatch, snapshot)
+    parser = create_parser(only="agent")
+
+    args = parser.parse_args(["agent", "search", "kind:family", "-l", "3"])
+    code = handle_agents_search(args)
+
+    assert code == 0
+    output = capsys.readouterr().out
+    assert "error" not in output.lower()
+    assert "visible" in output
 
 
 def test_agent_search_json_filters_with_shared_profile(

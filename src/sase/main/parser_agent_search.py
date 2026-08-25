@@ -67,7 +67,7 @@ def register_agent_search_parser(agents_sub: argparse._SubParsersAction) -> None
     search_parser.add_argument(
         "query",
         metavar="QUERY",
-        nargs=argparse.REMAINDER,
+        nargs="*",
         help="Boolean agent-catalog query; may include a limit: token",
     )
 
