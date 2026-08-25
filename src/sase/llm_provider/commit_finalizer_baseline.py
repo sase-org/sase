@@ -48,7 +48,7 @@ _BASELINE_SCOPE_PRECEDENCE = {
 
 
 @dataclass(frozen=True)
-class _FinalizerBaselineRecord:
+class FinalizerBaselineRecord:
     """One canonical ``finalizer_baseline.json`` repository record."""
 
     repo_id: str
@@ -166,7 +166,7 @@ def load_dirty_baseline(artifact_root: Path | None) -> DirtyBaseline | None:
 
 def load_finalizer_baseline_records(
     artifact_root: Path | None,
-) -> tuple[_FinalizerBaselineRecord, ...] | None:
+) -> tuple[FinalizerBaselineRecord, ...] | None:
     """Load canonical ``finalizer_baseline.json`` records, if present.
 
     The returned records preserve ``scope`` and contain at most one record per
@@ -190,7 +190,7 @@ def load_finalizer_baseline_records(
     if not isinstance(records, list):
         return None
 
-    parsed: list[_FinalizerBaselineRecord] = []
+    parsed: list[FinalizerBaselineRecord] = []
     for item in records:
         record = _parse_finalizer_baseline_record(item)
         if record is None:
@@ -224,7 +224,7 @@ def _load_legacy_dirty_baseline(artifact_root: Path) -> DirtyBaseline | None:
 
 def _parse_finalizer_baseline_record(
     item: object,
-) -> _FinalizerBaselineRecord | None:
+) -> FinalizerBaselineRecord | None:
     if not isinstance(item, Mapping):
         return None
     repo_id = item.get("repo_id")
@@ -248,7 +248,7 @@ def _parse_finalizer_baseline_record(
     fingerprints = _normalize_fingerprints(raw_fingerprints)
     if fingerprints is None:
         return None
-    return _FinalizerBaselineRecord(
+    return FinalizerBaselineRecord(
         repo_id=repo_id,
         path=normalize_path(repo_path),
         kind=kind,
@@ -277,9 +277,9 @@ def _normalize_fingerprints(
 
 
 def _canonical_baseline_records(
-    records: list[_FinalizerBaselineRecord],
-) -> tuple[_FinalizerBaselineRecord, ...]:
-    selected: dict[str, _FinalizerBaselineRecord] = {}
+    records: list[FinalizerBaselineRecord],
+) -> tuple[FinalizerBaselineRecord, ...]:
+    selected: dict[str, FinalizerBaselineRecord] = {}
     for record in records:
         existing = selected.get(record.path)
         if existing is None:
@@ -296,7 +296,7 @@ def _canonical_baseline_records(
 
 
 def _baseline_record_sort_key(
-    record: _FinalizerBaselineRecord,
+    record: FinalizerBaselineRecord,
 ) -> tuple[int, str, str]:
     return (
         _BASELINE_SCOPE_PRECEDENCE[record.scope],
