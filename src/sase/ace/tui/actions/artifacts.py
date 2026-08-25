@@ -261,7 +261,6 @@ def _resolve_artifacts_scope_seed(
 class ArtifactsMixin(
     ArtifactsNavigationActionsMixin,
     ArtifactsCommitsActionsMixin,
-    ArtifactsAgentsActionsMixin,
     ArtifactsBeadsActionsMixin,
     ArtifactsPlansActionsMixin,
     ArtifactsFilesActionsMixin,
