@@ -18,6 +18,7 @@ from sase.memory.web import (
     discover_memory_webs,
     render_web_body_with_roster,
     render_web_descriptor_with_roster,
+    strip_managed_roster_markers,
     validate_memory_webs,
 )
 
@@ -250,7 +251,7 @@ def _memory_web_root_plan(
         note_overlay[web.path] = content
         if web.rendering_type == "core":
             core_note_bodies[web.relative_path] = GeneratedShortMemoryNote(
-                body=body,
+                body=strip_managed_roster_markers(body),
                 priority=web.priority,
             )
         if content != web.raw_text:

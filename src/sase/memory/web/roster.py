@@ -26,6 +26,35 @@ def roster_region_error(body: str) -> str | None:
     return None
 
 
+def strip_managed_roster_markers(body: str) -> str:
+    """Return *body* with roster marker lines and their preceding blanks removed.
+
+    Marker detection intentionally does not track Markdown code fences:
+    ``roster_region_error`` already treats exact marker lines anywhere in the
+    body as the managed roster region, fenced or not.
+    """
+
+    has_final_newline = body.endswith(("\n", "\r"))
+    lines = body.splitlines(keepends=True)
+    if not any(line.strip() in {START_MARKER, END_MARKER} for line in lines):
+        return body
+
+    output: list[str] = []
+    for line in lines:
+        if line.strip() in {START_MARKER, END_MARKER}:
+            while output and not output[-1].strip():
+                output.pop()
+            continue
+        output.append(line)
+    stripped = "".join(output)
+    if not has_final_newline:
+        if stripped.endswith("\r\n"):
+            return stripped[:-2]
+        if stripped.endswith(("\n", "\r")):
+            return stripped[:-1]
+    return stripped
+
+
 def _inline_entry(keyword: str, display_aliases: tuple[str, ...]) -> str:
     escaped_keyword = md_escape(keyword)
     if not display_aliases:
@@ -101,4 +130,5 @@ __all__ = [
     "render_web_body_with_roster",
     "render_web_descriptor_with_roster",
     "roster_region_error",
+    "strip_managed_roster_markers",
 ]

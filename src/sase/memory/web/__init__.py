@@ -56,6 +56,7 @@ from .roster import (
     render_strand_roster,
     render_web_body_with_roster,
     render_web_descriptor_with_roster,
+    strip_managed_roster_markers,
 )
 from .scope import cross_scope_keyword_warnings, merge_memory_web_scopes
 from .validation import (
@@ -111,6 +112,7 @@ __all__ = [
     "resolve_memory_strand",
     "resolve_strand_closure",
     "slug_to_keyword",
+    "strip_managed_roster_markers",
     "validate_memory_strand_draft",
     "validate_memory_web_root",
     "validate_memory_webs",

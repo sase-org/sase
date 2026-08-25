@@ -14,8 +14,10 @@ from sase.memory.web import (
     cross_scope_keyword_warnings,
     discover_memory_webs,
     merge_memory_web_scopes,
+    render_web_body_with_roster,
     render_web_descriptor_with_roster,
     resolve_memory_strand,
+    strip_managed_roster_markers,
     validate_memory_webs,
 )
 
@@ -89,6 +91,48 @@ def test_roster_renders_inline_and_replaces_single_region(tmp_path: Path) -> Non
     assert content is not None
     assert "**TERMS:** Alpha Term (alpha)" in content
     assert "old" not in content
+
+
+def test_strip_managed_roster_markers_keeps_roster_payload_shape(
+    tmp_path: Path,
+) -> None:
+    body = f"Intro.\n\n{START_MARKER}\nold\n{END_MARKER}\n\n## Next Heading\n"
+    _write(tmp_path / "sase" / "memory" / "terms.md", _descriptor(body=body))
+    _write(tmp_path / "sase" / "memory" / "terms" / "alpha.md", _strand())
+
+    (web,) = discover_memory_webs(tmp_path).webs
+    content, error = render_web_body_with_roster(web)
+
+    assert error is None
+    assert content is not None
+    assert strip_managed_roster_markers(content) == (
+        "Intro.\n\n**TERMS:** Alpha Term (alpha)\n\n## Next Heading\n"
+    )
+
+
+def test_strip_managed_roster_markers_handles_marker_at_start() -> None:
+    body = f"{START_MARKER}\n\nPayload.\n\n{END_MARKER}\n"
+
+    assert strip_managed_roster_markers(body) == "\nPayload.\n"
+
+
+def test_strip_managed_roster_markers_returns_unmarked_body_unchanged() -> None:
+    body = "Intro.\n\nPayload.\n"
+
+    assert strip_managed_roster_markers(body) == body
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (f"{START_MARKER}\nPayload.\n{END_MARKER}\n", "Payload.\n"),
+        (f"{START_MARKER}\nPayload.\n{END_MARKER}", "Payload."),
+    ],
+)
+def test_strip_managed_roster_markers_preserves_trailing_newline_shape(
+    body: str, expected: str
+) -> None:
+    assert strip_managed_roster_markers(body) == expected
 
 
 def test_roster_inline_uses_rust_display_aliases(tmp_path: Path) -> None:

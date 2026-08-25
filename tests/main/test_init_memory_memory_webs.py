@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from sase.amd._agents_doc import parse_amd_agents_document
+from sase.memory.web import END_MARKER, START_MARKER
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
@@ -64,7 +65,11 @@ def test_memory_web_updates_roster_without_inlining_strand_bodies(
     updated_descriptor = str(action_by_path[descriptor].new_content)
     agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
     assert "**TERMS:** Alpha Term (alpha)" in updated_descriptor
+    assert START_MARKER in updated_descriptor
+    assert END_MARKER in updated_descriptor
     assert "**TERMS:** Alpha Term (alpha)" in agents
+    assert START_MARKER not in agents
+    assert END_MARKER not in agents
     assert "Hidden strand body." not in agents
 
 
