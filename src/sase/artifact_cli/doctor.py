@@ -157,6 +157,24 @@ def _print_report(
             link_report.missing_head_indexes,
         )
         table.add_row("Recorded reads", str(link_report.read_events))
+        table.add_row(
+            "Sidecar vs aggregate links",
+            _counter_pair(
+                link_report.durable_sidecar_rows,
+                "durable",
+                link_report.aggregate_rows,
+                "aggregate",
+            ),
+        )
+        table.add_row(
+            "Read events vs durable rows",
+            _counter_pair(
+                link_report.recorded_read_events,
+                "recorded",
+                link_report.durable_read_rows,
+                "durable",
+            ),
+        )
         if link_report.rebuilt:
             table.add_row("Link aggregate", "[green]rebuilt[/green]")
 
@@ -194,6 +212,10 @@ def _add_values(
 def _count_markup(value: int, *, healthy: bool) -> str:
     style = "green" if healthy else "red"
     return f"[{style}]{value}[/{style}]"
+
+
+def _counter_pair(left: int, left_label: str, right: int, right_label: str) -> str:
+    return f"{left} {left_label} / {right} {right_label} (delta {right - left:+d})"
 
 
 __all__ = ["handle_doctor"]

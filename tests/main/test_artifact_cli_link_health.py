@@ -71,6 +71,77 @@ def test_inspect_treats_existing_bead_refs_as_live(
     assert report.healthy is True
 
 
+def test_inspect_fix_reconciles_aggregate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    class Store:
+        project_key = "gh_sase-org__sase"
+        sidecar_roots: dict[str, Path] = {}
+        beads_dir = None
+
+        def reconcile_aggregate(self) -> dict[str, object]:
+            calls.append("reconcile")
+            return {"schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION, "rows": []}
+
+        def load_aggregate(self) -> dict[str, object]:
+            return {"schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION, "rows": []}
+
+        def durable_sidecar_rows(self) -> tuple[dict[str, object], ...]:
+            return ()
+
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.resolve_artifact_link_store",
+        lambda: Store(),
+    )
+
+    report = inspect_artifact_link_health(fix=True)
+
+    assert calls == ["reconcile"]
+    assert report.rebuilt is True
+    assert report.healthy is True
+
+
+def test_doctor_reports_link_divergence_counters(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        "sase.artifact_cli.doctor.inspect_artifact_file_index",
+        lambda: ArtifactFileIndexInspection(
+            total_rows=0,
+            supported_rows=0,
+            vcs_reference_rows=0,
+            missing_enrichment_ids=(),
+            missing_stored_path_ids=(),
+            missing_source_path_ids=(),
+            vcs_provenance_incomplete_ids=(),
+            duplicate_ids=(),
+            unrecognized_schema_versions=(),
+            malformed_rows=0,
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.doctor.inspect_artifact_link_health",
+        lambda *, fix=False: ArtifactLinkHealthReport(
+            skipped=False,
+            read_events=3,
+            recorded_read_events=2,
+            durable_read_rows=1,
+            durable_sidecar_rows=4,
+            aggregate_rows=5,
+        ),
+    )
+
+    assert handle_doctor(argparse.Namespace(fix=False, verify=False)) == 0
+    output = capsys.readouterr().out
+    assert "Sidecar vs aggregate links" in output
+    assert "4 durable / 5 aggregate" in output
+    assert "Read events vs durable rows" in output
+    assert "2 recorded / 1 durable" in output
+
+
 def test_doctor_reports_skipped_link_checks_for_missing_store(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

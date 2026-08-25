@@ -174,6 +174,130 @@ def test_upsert_writes_both_sidecars_and_rebuilds_aggregate(
     )
 
 
+def test_rebuild_carries_forward_rows_from_invisible_sidecar_clone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    plans_a = tmp_path / "clone-a" / "plans"
+    plans_b = tmp_path / "clone-b" / "plans"
+    plans_a.mkdir(parents=True)
+    plans_b.mkdir(parents=True)
+    store_a = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans_a},
+    )
+    store_b = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans_b},
+    )
+    store_a.upsert_row(_row())
+
+    rebuilt = store_b.rebuild_aggregate()
+
+    assert len(rebuilt["rows"]) == 1
+    assert rebuilt["rows"][0]["source_ref"] == "plan:202608/a.md"
+
+
+def test_rebuild_drops_rows_deleted_from_visible_sidecar_companion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    store.upsert_row(_row())
+    for path in (_plan_index(tmp_path, "a.md"), _plan_index(tmp_path, "b.md")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["rows"] = []
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+    rebuilt = store.rebuild_aggregate()
+
+    assert rebuilt["rows"] == []
+    assert store.load_aggregate()["rows"] == []
+
+
+def test_remove_rows_prunes_aggregate_even_when_sidecar_is_invisible(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    plans_a = tmp_path / "clone-a" / "plans"
+    plans_b = tmp_path / "clone-b" / "plans"
+    plans_a.mkdir(parents=True)
+    plans_b.mkdir(parents=True)
+    store_a = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans_a},
+    )
+    store_b = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans_b},
+    )
+    store_a.upsert_row(_row())
+
+    removed = store_b.remove_rows("plan:202608/a.md", "plan:202608/b.md")
+
+    assert [row["relation"] for row in removed] == ["implements"]
+    assert store_b.load_aggregate()["rows"] == []
+
+
+def test_reconcile_aggregate_collects_sidecar_rows_from_known_workspace_stores(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    plans_a = tmp_path / "clone-a" / "plans"
+    plans_b = tmp_path / "clone-b" / "plans"
+    plans_a.mkdir(parents=True)
+    plans_b.mkdir(parents=True)
+    store_a = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans_a},
+    )
+    store_b = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans_b},
+    )
+    store_a.upsert_row(_row(source="plan:202608/a.md", target="plan:202608/b.md"))
+    store_b.upsert_row(_row(source="plan:202608/c.md", target="plan:202608/d.md"))
+    aggregate = artifact_link_aggregate_path("gh_sase-org__sase")
+    aggregate.write_text(
+        json.dumps({"schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION, "rows": []}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        ArtifactLinkStore,
+        "_iter_reconciliation_stores",
+        lambda _self: iter((store_a, store_b)),
+    )
+
+    reconciled = store_a.reconcile_aggregate()
+
+    assert {(row["source_ref"], row["target_ref"]) for row in reconciled["rows"]} == {
+        ("plan:202608/a.md", "plan:202608/b.md"),
+        ("plan:202608/c.md", "plan:202608/d.md"),
+    }
+
+
+def test_reconcile_aggregate_skips_unpublished_agent_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    store.upsert_row(
+        _row(
+            source="agent:pending.athena.worker",
+            relation="cites",
+            target="plan:202608/a.md",
+            origin="prompt_ref",
+            description="prompt citation",
+        )
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.references.resolve_cli_reference",
+        lambda _ref: SimpleNamespace(resolution=SimpleNamespace(status="missing")),
+    )
+
+    reconciled = store.reconcile_aggregate()
+
+    assert reconciled["rows"] == []
+
+
 def test_bead_endpoint_is_not_written_to_sidecar_json(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

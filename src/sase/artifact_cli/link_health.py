@@ -32,6 +32,10 @@ class ArtifactLinkHealthReport:
     missing_head_indexes: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
     read_events: int = 0
+    recorded_read_events: int = 0
+    durable_read_rows: int = 0
+    durable_sidecar_rows: int = 0
+    aggregate_rows: int = 0
     rebuilt: bool = False
 
     @property
@@ -59,8 +63,9 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
 
     try:
         if fix:
-            store.rebuild_aggregate()
+            store.reconcile_aggregate()
         rows = [dict(row) for row in store.load_aggregate().get("rows", [])]
+        sidecar_rows = store.durable_sidecar_rows()
     except Exception as exc:  # noqa: BLE001 - surface unsupported v1/schema errors
         return ArtifactLinkHealthReport(skipped=False, errors=(str(exc),))
     dangling = _dangling_refs(rows, store)
@@ -68,10 +73,14 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
     missing_companions = _missing_companions(rows)
     missing_head = _missing_head_indexes(store)
     read_events = 0
+    recorded_read_events = 0
     try:
-        read_events = len(read_artifact_read_events(project=store.project_key))
+        events = read_artifact_read_events(project=store.project_key)
+        read_events = len(events)
+        recorded_read_events = sum(1 for event in events if event.recorded_link)
     except Exception:  # noqa: BLE001 - missing log is not a doctor failure
         read_events = 0
+        recorded_read_events = 0
 
     if fix:
         _rebuild_existing_projections(store, rows)
@@ -83,8 +92,27 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         missing_companions=tuple(missing_companions),
         missing_head_indexes=tuple(missing_head),
         read_events=read_events,
+        recorded_read_events=recorded_read_events,
+        durable_read_rows=_read_row_count((*sidecar_rows, *rows)),
+        durable_sidecar_rows=len(sidecar_rows),
+        aggregate_rows=len(rows),
         rebuilt=fix,
     )
+
+
+def _read_row_count(rows: tuple[dict[str, Any], ...]) -> int:
+    seen: set[tuple[str, str, str]] = set()
+    for row in rows:
+        if str(row.get("relation") or "") != "read":
+            continue
+        seen.add(
+            (
+                str(row.get("source_ref") or ""),
+                "read",
+                str(row.get("target_ref") or ""),
+            )
+        )
+    return len(seen)
 
 
 def _dangling_refs(rows: list[dict[str, Any]], store: ArtifactLinkStore) -> list[str]:
