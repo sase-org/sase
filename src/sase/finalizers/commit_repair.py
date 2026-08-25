@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, replace
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -28,7 +30,11 @@ from sase.finalizers.commit_types import (
 )
 from sase.finalizers.executor import FinalizerExecutionContext
 from sase.llm_provider.commit_finalizer_artifacts import artifact_root
-from sase.llm_provider.commit_finalizer_git import normalize_path
+from sase.llm_provider.commit_finalizer_git import (
+    dirty_path_fingerprints,
+    normalize_path,
+)
+from sase.llm_provider.commit_finalizer_git_status import git_head_commit_id
 from sase.llm_provider.commit_finalizer_prompting import append_response, merge_usage
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
@@ -37,6 +43,7 @@ from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
 _CONFLICT_PROMPT_FILENAME = "conflict_repair_prompt.md"
 _CONFLICT_RESPONSE_FILENAME = "conflict_repair_response.md"
 _ARTIFACT_LABEL_RE = re.compile(r"[^A-Za-z0-9._-]+")
+_MAX_STREAM_CHARS = 4000
 
 
 def run_stitch_create(
@@ -59,7 +66,8 @@ def run_stitch_create(
     ]
     for path in excludes:
         argv.extend(["-x", path])
-    return _run_stitch_argv(argv, repo, context)
+    result = _run_stitch_argv(argv, repo, context)
+    return replace(result, argv=tuple(argv), message_file=str(message_file))
 
 
 def run_stitch_resume(
@@ -69,7 +77,8 @@ def run_stitch_resume(
     """Resume the checkpointed stitch for one repository."""
 
     argv = [sys.executable, "-m", "sase", "stitch", "create", "--resume"]
-    return _run_stitch_argv(argv, repo, context)
+    result = _run_stitch_argv(argv, repo, context)
+    return replace(result, argv=tuple(argv))
 
 
 def resolve_commit_conflict(
@@ -236,6 +245,7 @@ def record_stitch_artifacts(
     result: StitchCommandResult,
     *,
     label: str = "stitch",
+    inputs: Mapping[str, Any] | None = None,
 ) -> None:
     artifact_dir = instance_artifact_dir(context.artifacts_dir, instance_id)
     if artifact_dir is None:
@@ -253,6 +263,17 @@ def record_stitch_artifacts(
             result.stderr,
             exclusive=True,
         )
+        if inputs is not None:
+            payload = {
+                **inputs,
+                "argv": list(result.argv),
+                "message_file": result.message_file,
+            }
+            write_text_artifact(
+                artifact_dir / f"{prefix}.inputs.json",
+                json.dumps(payload, indent=2, sort_keys=True),
+                exclusive=True,
+            )
     except FileExistsError as exc:
         raise BuiltinCommitFinalizerError(
             str(exc),
@@ -265,10 +286,119 @@ def record_stitch_artifacts(
 
 
 def stitch_failure_message(repo: DirtyRepo, result: StitchCommandResult) -> str:
-    detail = (result.stderr or result.stdout).strip()
-    if detail:
-        return f"sase stitch create failed for {repo.name}: {detail}"
-    return f"sase stitch create failed for {repo.name} with exit {result.returncode}"
+    """Render the VCS provider's real reason, whichever stream carried it.
+
+    ``sase stitch create`` sometimes writes the actual failure reason to
+    stdout while stderr carries only boilerplate (or the reverse); returning
+    only one stream silently discarded the reason a past incident needed.
+    """
+    parts = []
+    stdout = result.stdout.strip()
+    stderr = result.stderr.strip()
+    if stdout:
+        parts.append(f"stdout: {_bound_stream(stdout)}")
+    if stderr:
+        parts.append(f"stderr: {_bound_stream(stderr)}")
+    if not parts:
+        return (
+            f"sase stitch create failed for {repo.name} with exit {result.returncode}"
+        )
+    return f"sase stitch create failed for {repo.name}: " + " | ".join(parts)
+
+
+def _bound_stream(text: str) -> str:
+    if len(text) <= _MAX_STREAM_CHARS:
+        return text
+    omitted = len(text) - _MAX_STREAM_CHARS
+    return f"{text[:_MAX_STREAM_CHARS]}... [{omitted} more chars truncated]"
+
+
+def stitch_attempt_input_fields(
+    repo: DirtyRepo,
+    message: str,
+    excludes: Sequence[str],
+) -> dict[str, Any]:
+    """Capture everything that determines whether a stitch attempt can succeed.
+
+    Two attempts whose fields are identical are guaranteed to fail the same
+    way, so :func:`stitch_attempt_fingerprint` of these fields is what the
+    host uses to refuse to waste a second mutating attempt on a foregone
+    conclusion.
+    """
+    return {
+        "repo_path": normalize_path(repo.path),
+        "head": git_head_commit_id(repo.path),
+        "dirty_fingerprints": sorted(dirty_path_fingerprints(repo.path).items()),
+        "excludes": sorted(excludes),
+        "message_digest": hashlib.sha256(message.encode("utf-8")).hexdigest(),
+    }
+
+
+def stitch_attempt_fingerprint(fields: Mapping[str, Any]) -> str:
+    """Hash *fields* (from :func:`stitch_attempt_input_fields`) into one token."""
+
+    canonical = json.dumps(fields, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
+@dataclass(frozen=True)
+class _PriorStitchAttempt:
+    """One earlier stitch attempt's recorded inputs and captured output."""
+
+    attempt: int
+    inputs: Mapping[str, Any]
+    stdout: str
+    stderr: str
+
+
+def load_latest_stitch_attempt(
+    context: FinalizerExecutionContext,
+    instance_id: str,
+    label: str,
+) -> _PriorStitchAttempt | None:
+    """Return the most recently recorded stitch attempt for *label*, if any."""
+
+    artifact_dir = instance_artifact_dir(context.artifacts_dir, instance_id)
+    if artifact_dir is None:
+        return None
+    safe_label = _ARTIFACT_LABEL_RE.sub("_", label).strip("._") or "stitch"
+    pattern = re.compile(rf"^attempt-(\d+)\.{re.escape(safe_label)}\.inputs\.json$")
+    best_attempt = -1
+    best_path: Path | None = None
+    try:
+        entries = list(artifact_dir.iterdir())
+    except OSError:
+        return None
+    for entry in entries:
+        match = pattern.match(entry.name)
+        if not match:
+            continue
+        attempt_num = int(match.group(1))
+        if attempt_num > best_attempt:
+            best_attempt = attempt_num
+            best_path = entry
+    if best_path is None:
+        return None
+    try:
+        inputs = json.loads(best_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(inputs, dict):
+        return None
+    prefix = f"attempt-{best_attempt}.{safe_label}"
+    return _PriorStitchAttempt(
+        attempt=best_attempt,
+        inputs=inputs,
+        stdout=_read_optional_artifact(artifact_dir / f"{prefix}.stdout"),
+        stderr=_read_optional_artifact(artifact_dir / f"{prefix}.stderr"),
+    )
+
+
+def _read_optional_artifact(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
 
 
 def _run_stitch_argv(
@@ -372,6 +502,7 @@ def _marker_key(marker: Mapping[str, Any]) -> tuple[Any, ...]:
 
 __all__ = [
     "load_commit_results",
+    "load_latest_stitch_attempt",
     "marker_evidence",
     "marker_matches_repo",
     "new_commit_markers",
@@ -379,5 +510,7 @@ __all__ = [
     "resolve_commit_conflict",
     "run_stitch_create",
     "run_stitch_resume",
+    "stitch_attempt_fingerprint",
+    "stitch_attempt_input_fields",
     "stitch_failure_message",
 ]

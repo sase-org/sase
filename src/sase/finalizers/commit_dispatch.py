@@ -15,16 +15,20 @@ from sase.core.finalizer_wire import (
 from sase.finalizers.commit_declaration import repository_decision_id
 from sase.finalizers.commit_repair import (
     load_commit_results,
+    load_latest_stitch_attempt,
     marker_evidence,
     marker_matches_repo,
     new_commit_markers,
     record_stitch_artifacts,
     resolve_commit_conflict,
+    stitch_attempt_fingerprint,
+    stitch_attempt_input_fields,
     stitch_failure_message,
 )
 from sase.finalizers.commit_types import (
     BuiltinCommitFinalizerError,
     ResumeRunner,
+    StitchCommandResult,
     StitchRunner,
     failed_result,
 )
@@ -108,6 +112,35 @@ def dispatch_commit_decisions(
     deferred: list[_DeferredRepoOutcome] = []
     current_result = invoke_result
 
+    def _consume_attempt() -> int:
+        try:
+            return (
+                (
+                    ledger.consume_before_execute()
+                    if needs_commit
+                    else ledger.allocate_attempt()
+                )
+                if ledger is not None
+                else 1
+            )
+        except FinalizerBudgetError as exc:
+            raise BuiltinCommitFinalizerError(
+                str(exc),
+                result=failed_result(
+                    instance_id,
+                    "attempt_budget_exhausted",
+                    str(exc),
+                    attempts=[
+                        FinalizerAttemptWire(
+                            attempt=preflight_attempt(ledger),
+                            status="failed",
+                            diagnostic_code="attempt_budget_exhausted",
+                        )
+                    ],
+                ),
+                invoke_result=current_result,
+            ) from exc
+
     for repo in ordered_repos:
         decision = decisions[repository_decision_id(repo)]
         action = str(decision.get("action"))
@@ -169,37 +202,10 @@ def dispatch_commit_decisions(
                     invoke_result=current_result,
                 )
 
-        if attempt_id is None:
-            try:
-                attempt_id = (
-                    (
-                        ledger.consume_before_execute()
-                        if needs_commit
-                        else ledger.allocate_attempt()
-                    )
-                    if ledger is not None
-                    else 1
-                )
-            except FinalizerBudgetError as exc:
-                raise BuiltinCommitFinalizerError(
-                    str(exc),
-                    result=failed_result(
-                        instance_id,
-                        "attempt_budget_exhausted",
-                        str(exc),
-                        attempts=[
-                            FinalizerAttemptWire(
-                                attempt=preflight_attempt(ledger),
-                                status="failed",
-                                diagnostic_code="attempt_budget_exhausted",
-                            )
-                        ],
-                    ),
-                    invoke_result=current_result,
-                ) from exc
-            attempts = [FinalizerAttemptWire(attempt=attempt_id, status="failed")]
-
         if deferral is not None:
+            if attempt_id is None:
+                attempt_id = _consume_attempt()
+                attempts = [FinalizerAttemptWire(attempt=attempt_id, status="failed")]
             deferred.append(_DeferredRepoOutcome(repo=repo, deferral=deferral))
             evidence.append(
                 FinalizerOutcomeEvidenceWire(
@@ -210,9 +216,53 @@ def dispatch_commit_decisions(
                 )
             )
             continue
-        consumed_attempt = attempt_id
 
         message = str(decision.get("message", "")).strip()
+        attempt_fields = stitch_attempt_input_fields(repo, message, protected)
+        attempt_fingerprint = stitch_attempt_fingerprint(attempt_fields)
+        prior_attempt = load_latest_stitch_attempt(context, instance_id, repo.name)
+        if (
+            prior_attempt is not None
+            and prior_attempt.inputs.get("fingerprint") == attempt_fingerprint
+        ):
+            reason = stitch_failure_message(
+                repo,
+                StitchCommandResult(
+                    returncode=1,
+                    stdout=prior_attempt.stdout,
+                    stderr=prior_attempt.stderr,
+                ),
+            )
+            message_text = (
+                f"sase stitch create for {repo.name} was not retried: attempt "
+                f"{prior_attempt.attempt}'s inputs -- repo HEAD, dirty-path "
+                "fingerprints, exclude set, and message digest -- are "
+                f"unchanged, so a retry is guaranteed to fail identically. "
+                f"{reason}"
+            )
+            raise BuiltinCommitFinalizerError(
+                message_text,
+                result=failed_result(
+                    instance_id,
+                    "stitch_retry_skipped_identical_inputs",
+                    message_text,
+                    attempts=[
+                        FinalizerAttemptWire(
+                            attempt=preflight_attempt(ledger),
+                            status="failed",
+                            diagnostic_code="stitch_retry_skipped_identical_inputs",
+                        )
+                    ],
+                    evidence=evidence,
+                ),
+                invoke_result=current_result,
+            )
+
+        if attempt_id is None:
+            attempt_id = _consume_attempt()
+            attempts = [FinalizerAttemptWire(attempt=attempt_id, status="failed")]
+        consumed_attempt = attempt_id
+
         before_markers = load_commit_results(artifacts)
         stitch = stitch_runner(repo, message, protected, context)
         record_stitch_artifacts(
@@ -221,6 +271,7 @@ def dispatch_commit_decisions(
             consumed_attempt,
             stitch,
             label=repo.name,
+            inputs={**attempt_fields, "fingerprint": attempt_fingerprint},
         )
         if stitch.timed_out or stitch.stdout_truncated or stitch.stderr_truncated:
             code = "stitch_timeout" if stitch.timed_out else "stitch_output_cap"

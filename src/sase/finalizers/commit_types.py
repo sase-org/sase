@@ -57,6 +57,8 @@ class StitchCommandResult:
     timed_out: bool = False
     stdout_truncated: bool = False
     stderr_truncated: bool = False
+    argv: tuple[str, ...] = ()
+    message_file: str | None = None
 
 
 StitchRunner = Callable[

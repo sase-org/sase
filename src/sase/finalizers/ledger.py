@@ -119,16 +119,26 @@ class InstanceLedger:
 
 
 def is_retryable_result(result: FinalizerInstanceResultWire) -> bool:
-    """Return whether the host retry policy treats *result* as retryable."""
+    """Return whether the host retry policy treats *result* as retryable.
+
+    Scoped to the latest attempt: an earlier attempt's retryable diagnostic
+    (e.g. ``stitch_failed``) must not keep outliving it in ``ledger.diagnostics``
+    and make a later, deliberately terminal attempt look retryable too.
+    """
 
     if result.status != "failed":
         return False
+    latest_attempt = result.attempts[-1].attempt if result.attempts else None
     codes: list[str] = []
     if result.attempts:
         code = result.attempts[-1].diagnostic_code
         if code:
             codes.append(code)
-    codes.extend(diagnostic.code for diagnostic in result.diagnostics)
+    codes.extend(
+        diagnostic.code
+        for diagnostic in result.diagnostics
+        if latest_attempt is None or diagnostic.attempt == latest_attempt
+    )
     return any(code in RETRYABLE_DIAGNOSTIC_CODES for code in codes)
 
 

@@ -96,6 +96,7 @@ def submit_commit(
     *,
     action: str = "commit",
     reverse_repositories: bool = False,
+    message: str = "fix(final): reconcile commit declaration",
 ) -> None:
     resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
     publication = publish_final_context(artifacts_dir=str(artifacts))
@@ -106,7 +107,7 @@ def submit_commit(
     for decision in repositories:
         decision["action"] = action
         if action == "commit":
-            decision["message"] = "fix(final): reconcile commit declaration"
+            decision["message"] = message
         else:
             decision.pop("message", None)
             decision["reason"] = "not mine"
