@@ -86,6 +86,7 @@ def adjudicate_commit_deferrals(
 
     accepted: list[_AcceptedCommitDeferral] = []
     for instance_id, payload in _commit_payloads(envelope, commit_instances):
+        deferred_repo_ids: set[str] = set()
         for decision in commit_deferral_decisions_for_payload(context, payload):
             record = host_by_id.get(decision.repo_id)
             if record is None:
@@ -107,7 +108,69 @@ def adjudicate_commit_deferrals(
                     written_paths=written_paths,
                 )
             )
+            deferred_repo_ids.add(decision.repo_id)
+        _reject_exhausted_commit_protection(
+            payload,
+            deferred_repo_ids,
+            context=context,
+            host_by_id=host_by_id,
+            display_by_id=display_by_id,
+            root=root,
+        )
     return tuple(accepted)
+
+
+def _reject_exhausted_commit_protection(
+    payload: Mapping[str, Any],
+    deferred_repo_ids: set[str],
+    *,
+    context: FinalizerContextWire,
+    host_by_id: Mapping[str, HostRepositoryRecord],
+    display_by_id: Mapping[str, str],
+    root: Path,
+) -> None:
+    """Refuse a commit decision the host already knows it cannot honor.
+
+    ``final_context.json`` knows both the obligation paths and the protected
+    paths; a repository whose every obligation path is protected can never
+    produce a successful stitch, so the declaration flow says so at submit
+    time instead of accepting a ``commit`` decision it cannot honor.
+    """
+    repositories = payload.get("repositories")
+    if not isinstance(repositories, list):
+        return
+    obligation_paths_by_id = {
+        obligation.obligation_id: tuple(obligation.paths)
+        for obligation in context.obligations
+        if obligation.kind == "repository"
+    }
+    for decision in repositories:
+        if not isinstance(decision, Mapping):
+            continue
+        repo_id = decision.get("repo_id")
+        if not isinstance(repo_id, str) or repo_id in deferred_repo_ids:
+            continue
+        record = host_by_id.get(repo_id)
+        paths = obligation_paths_by_id.get(repo_id)
+        if record is None or not paths:
+            continue
+        protected = set(
+            protected_baseline_paths(
+                root,
+                record.path,
+                get_changed_files=git_changed_files,
+            )
+        )
+        if not set(paths) <= protected:
+            continue
+        display_name = display_by_id.get(repo_id, repo_id)
+        raise FinalizerDeclarationError(
+            f"commit declaration for {display_name} accepts a commit, but "
+            f"protection already excludes every changed path ({_path_list(paths)}); "
+            "the host cannot honor this decision. Submit a deferral with reason "
+            "'protected_paths' for this repository instead.",
+            code="protected_paths_exhausted",
+        )
 
 
 def _adjudicate_decision_with_telemetry(

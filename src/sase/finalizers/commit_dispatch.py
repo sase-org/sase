@@ -28,10 +28,14 @@ from sase.finalizers.commit_types import (
     StitchRunner,
     failed_result,
 )
-from sase.finalizers.commit_validation import reconcile_commit_file_hooks
+from sase.finalizers.commit_validation import (
+    protection_exhausted_message,
+    reconcile_commit_file_hooks,
+)
 from sase.finalizers.executor import FinalizerExecutionContext
 from sase.finalizers.ledger import FinalizerBudgetError, InstanceLedger
 from sase.finalizers.reconciliation import PreparedCommitDirtyState
+from sase.llm_provider.commit_finalizer_baseline import FinalizerBaselineRecord
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
 from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
@@ -39,6 +43,7 @@ from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
 PrepareDirtyState = Callable[[str, Path | None], PreparedCommitDirtyState]
 ProtectedPathResolver = Callable[[Path | None, str], Sequence[str]]
 UnexpectedPathResolver = Callable[[str, Sequence[str]], list[str]]
+BaselineRecordResolver = Callable[[Path | None, str], FinalizerBaselineRecord | None]
 
 
 @dataclass(frozen=True)
@@ -82,6 +87,7 @@ def dispatch_commit_decisions(
     prepare_dirty_state: PrepareDirtyState,
     protected_path_resolver: ProtectedPathResolver,
     unexpected_path_resolver: UnexpectedPathResolver,
+    baseline_record_resolver: BaselineRecordResolver,
     accepted_deferrals: Mapping[str, FinalizerDeferralWire] = {},
 ) -> _CommitDispatchResult:
     """Execute accepted commit decisions in host context order.
@@ -127,6 +133,42 @@ def dispatch_commit_decisions(
                 result=result,
                 invoke_result=current_result,
             )
+
+        deferral = accepted_deferrals.get(repository_decision_id(repo))
+        protected: Sequence[str] = ()
+        if deferral is None:
+            protected = protected_path_resolver(artifacts, repo.path)
+            remaining_before_stitch = unexpected_path_resolver(repo.path, protected)
+            if protected and not remaining_before_stitch:
+                record = baseline_record_resolver(artifacts, repo.path)
+                message_text = protection_exhausted_message(repo, protected, record)
+                if attempt_id is not None:
+                    attempts[0] = FinalizerAttemptWire(
+                        attempt=attempt_id,
+                        status="failed",
+                        diagnostic_code="protected_paths_exhausted",
+                    )
+                    failure_attempts = attempts
+                else:
+                    failure_attempts = [
+                        FinalizerAttemptWire(
+                            attempt=preflight_attempt(ledger),
+                            status="failed",
+                            diagnostic_code="protected_paths_exhausted",
+                        )
+                    ]
+                raise BuiltinCommitFinalizerError(
+                    message_text,
+                    result=failed_result(
+                        instance_id,
+                        "protected_paths_exhausted",
+                        message_text,
+                        attempts=failure_attempts,
+                        evidence=evidence,
+                    ),
+                    invoke_result=current_result,
+                )
+
         if attempt_id is None:
             try:
                 attempt_id = (
@@ -157,7 +199,6 @@ def dispatch_commit_decisions(
                 ) from exc
             attempts = [FinalizerAttemptWire(attempt=attempt_id, status="failed")]
 
-        deferral = accepted_deferrals.get(repository_decision_id(repo))
         if deferral is not None:
             deferred.append(_DeferredRepoOutcome(repo=repo, deferral=deferral))
             evidence.append(
@@ -172,7 +213,6 @@ def dispatch_commit_decisions(
         consumed_attempt = attempt_id
 
         message = str(decision.get("message", "")).strip()
-        protected = protected_path_resolver(artifacts, repo.path)
         before_markers = load_commit_results(artifacts)
         stitch = stitch_runner(repo, message, protected, context)
         record_stitch_artifacts(

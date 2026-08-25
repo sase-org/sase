@@ -29,6 +29,7 @@ from sase.finalizers.commit_types import (
 from sase.finalizers.reconciliation import PreparedCommitDirtyState
 from sase.llm_provider.commit_finalizer_baseline import (
     BASELINE_FILENAME,
+    FinalizerBaselineRecord,
     load_finalizer_baseline_records,
 )
 from sase.llm_provider.commit_finalizer_git import (
@@ -108,11 +109,63 @@ def _load_baseline_fingerprints(
     records = load_finalizer_baseline_records(artifacts)
     if records is None:
         return _read_legacy_baseline(artifacts, normalized_repo)
+    record = _record_for_path(records, normalized_repo)
+    return dict(record.fingerprints) if record is not None else {}
+
+
+def protected_baseline_record(
+    artifacts: Path | None,
+    repo_path: str,
+) -> FinalizerBaselineRecord | None:
+    """Return the canonical baseline record protecting *repo_path*, if any.
+
+    Used to explain, not just enforce, protection: a refused dispatch names
+    the record's ``scope``, ``repo_id``, and ``captured_at`` so an operator
+    does not have to reconstruct the exclude from source.
+    """
+    if artifacts is None:
+        return None
+    records = load_finalizer_baseline_records(artifacts)
+    if records is None:
+        return None
+    return _record_for_path(records, normalize_path(repo_path))
+
+
+def _record_for_path(
+    records: Sequence[FinalizerBaselineRecord],
+    normalized_repo: str,
+) -> FinalizerBaselineRecord | None:
     for record in records:
-        if record.path != normalized_repo:
-            continue
-        return dict(record.fingerprints)
-    return {}
+        if record.path == normalized_repo:
+            return record
+    return None
+
+
+def protection_exhausted_message(
+    repo: DirtyRepo,
+    protected: Sequence[str],
+    record: FinalizerBaselineRecord | None,
+) -> str:
+    """Explain why every changed path in *repo* is already protected."""
+    lines = [
+        f"sase stitch create was not run for {repo.name}: protection already "
+        "excludes every changed path in this repository, so the commit is "
+        "guaranteed to fail with nothing staged.",
+        f"protected paths: {', '.join(sorted(protected))}",
+    ]
+    if record is not None:
+        lines.append(
+            "protected by baseline record "
+            f"repo_id={record.repo_id!r} scope={record.scope!r} "
+            f"captured_at={record.captured_at or 'unknown'}"
+        )
+    else:
+        lines.append("no baseline record could be located to explain the protection")
+    lines.append(
+        "Submit a deferral with reason 'protected_paths' for this repository "
+        "instead of a commit action."
+    )
+    return "\n".join(lines)
 
 
 def _read_legacy_baseline(

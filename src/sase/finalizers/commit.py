@@ -44,6 +44,7 @@ from sase.finalizers.commit_types import (
 )
 from sase.finalizers.commit_validation import (
     protected_baseline_paths,
+    protected_baseline_record,
     raise_if_unpublished_machine_state as _raise_if_unpublished_machine_state,
     reject_discarded_dirty_work as _reject_discarded_dirty_work,
     unexpected_remaining_paths,
@@ -57,6 +58,7 @@ from sase.finalizers.reconciliation import (
     reject_unproven_reconciliation_transition,
 )
 from sase.llm_provider.commit_finalizer_artifacts import artifact_root
+from sase.llm_provider.commit_finalizer_baseline import FinalizerBaselineRecord
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
 from sase.llm_provider.commit_finalizer_git import git_changed_files
 from sase.llm_provider.commit_finalizer_prompting import failure_message
@@ -268,6 +270,7 @@ def execute_commit_finalizer(
         prepare_dirty_state=prepare_commit_dirty_state,
         protected_path_resolver=_protected_baseline_paths,
         unexpected_path_resolver=_unexpected_remaining_paths,
+        baseline_record_resolver=_protected_baseline_record,
         accepted_deferrals=accepted_deferrals,
     )
     current_result = dispatched.invoke_result
@@ -374,6 +377,12 @@ def _unexpected_remaining_paths(repo_path: str, protected: Sequence[str]) -> lis
         protected,
         get_changed_files=git_changed_files,
     )
+
+
+def _protected_baseline_record(
+    artifacts: Path | None, repo_path: str
+) -> FinalizerBaselineRecord | None:
+    return protected_baseline_record(artifacts, repo_path)
 
 
 __all__ = [
