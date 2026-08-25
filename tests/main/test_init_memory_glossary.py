@@ -128,7 +128,6 @@ memory:
     assert note_path in action_by_path
     note = str(action_by_path[note_path].new_content)
     assert note.startswith("---\ntype: core\nparent: AGENTS.md\n")
-    assert "sase_generated: glossary" in note
     assert "# Glossary Terms" in note
     agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
     tier1 = _tier1_memory(agents)
@@ -317,7 +316,6 @@ memory:
     assert "GLOSSARY TERMS" not in _tier2_memory(agents)
     assert "**GLOSSARY TERMS:** Workspace" in _normalized(_tier1_memory(agents))
     assert "type: core" in note
-    assert "sase_generated: glossary" in note
     for filename in PROVIDER_SHIM_FILES:
         assert (project_root / filename).read_text(encoding="utf-8") == agents
 
@@ -325,7 +323,7 @@ memory:
     assert plan_memory().actions == ()
 
 
-def test_memory_init_overwrites_marked_glossary_note_when_terms_are_configured(
+def test_memory_init_overwrites_existing_glossary_note_when_terms_are_configured(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -346,7 +344,6 @@ memory:
 
     note = _glossary_note_path(project_root).read_text(encoding="utf-8")
     assert "type: core" in note
-    assert "sase_generated: glossary" in note
     assert "A stale generated definition" not in note
     assert "**GLOSSARY TERMS:** Workspace" in _normalized(note)
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
@@ -356,7 +353,7 @@ memory:
     assert run_memory(check=True) == 0
 
 
-def test_memory_init_migrates_marked_long_glossary_note_to_short(
+def test_memory_init_migrates_long_glossary_note_to_short(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -379,34 +376,9 @@ memory:
 
     note = _glossary_note_path(project_root).read_text(encoding="utf-8")
     assert note.startswith("---\ntype: core\n")
-    assert "sase_generated: glossary" in note
     assert "type: reference" not in note
     assert "A stale generated definition" not in note
     assert run_memory(check=True) == 0
-
-
-def test_memory_init_deletes_stale_generated_glossary_note_without_configured_terms(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root, _, _ = _setup_project(
-        tmp_path,
-        monkeypatch,
-        project_config="is_sase_managed: true\n",
-    )
-    write(_glossary_note_path(project_root), _marked_glossary_note())
-
-    plan = plan_memory()
-
-    assert ("delete", _glossary_note_path(project_root)) in {
-        (action.operation, action.path) for action in plan.actions
-    }
-
-    assert run_memory() == 0
-    assert not _glossary_note_path(project_root).exists()
-    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "GLOSSARY TERMS" not in agents
-    assert "Glossary Terms" not in agents
 
 
 def test_memory_plan_blocks_invalid_project_glossary(
@@ -440,7 +412,7 @@ memory:
     )
 
 
-def test_memory_plan_blocks_unmarked_glossary_note_when_terms_are_configured(
+def test_memory_plan_overwrites_hand_authored_glossary_note_when_terms_are_configured(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -459,14 +431,11 @@ memory:
 
     plan = plan_memory()
 
-    assert any(
-        "refusing to overwrite unmarked glossary memory note" in blocker
-        and "glossary.md" in blocker
-        for blocker in plan.blockers
-    )
-    assert _glossary_note_path(project_root) not in {
-        action.path for action in plan.actions
-    }
+    assert plan.blockers == ()
+    action_by_path = {action.path: action for action in plan.actions}
+    note_action = action_by_path[_glossary_note_path(project_root)]
+    assert "**GLOSSARY TERMS:** Workspace" in _normalized(str(note_action.new_content))
+    assert "Human note." not in str(note_action.new_content)
 
 
 def test_memory_plan_preserves_unmarked_glossary_note_without_configured_terms(
@@ -494,6 +463,38 @@ def test_memory_plan_preserves_unmarked_glossary_note_without_configured_terms(
     assert "`sase/memory/glossary.md`" in tier2
     assert "GLOSSARY TERMS" not in agents
     assert "Glossary Terms (glossary)" not in agents
+
+
+def test_memory_plan_blocks_dual_glossary_sources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _, _ = _setup_project(
+        tmp_path,
+        monkeypatch,
+        project_config="""
+is_sase_managed: true
+memory:
+  glossary:
+    Workspace:
+      definition: A numbered project checkout.
+""",
+    )
+    write(
+        project_root / "sase" / "memory" / "glossary.md",
+        "---\ntype: core\nparent: AGENTS.md\nweb: true\nroster: inline\n"
+        "roster_label: GLOSSARY TERMS\n---\n\nGlossary descriptor.\n",
+    )
+    write(
+        project_root / "sase" / "memory" / "glossary" / "workspace.md",
+        "---\nkeyword: Workspace\n---\n\nA numbered project checkout.\n",
+    )
+
+    plan = plan_memory()
+
+    assert plan.actions == ()
+    assert len(plan.blockers) == 1
+    assert "sase memory web migrate glossary" in plan.blockers[0]
 
 
 def test_memory_init_ignores_home_glossary_config(

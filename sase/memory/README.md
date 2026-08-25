@@ -99,8 +99,8 @@ memory.
 - Type: `core`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 24
-- Approx. tokens: 322
+- Lines: 23
+- Approx. tokens: 316
 
 ### `sase/memory/gotchas.md`
 
@@ -224,7 +224,7 @@ memory.
 - Core notes: 9
 - Reference notes: 9
 - Total lines: 1089
-- Total approx. tokens: 13608
+- Total approx. tokens: 13605
 
 ## Commands
 

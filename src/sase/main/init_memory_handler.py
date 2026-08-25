@@ -159,7 +159,7 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
                 project_name=project_name,
             )
             project_glossary_terms, glossary_errors = _load_project_glossary_terms(
-                project_config
+                project_config, project_root
             )
         else:
             project_entries = ()

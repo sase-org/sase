@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.xprompt._glossary_catalog_projects import select_project
-from sase.xprompt.glossary_catalog import enabled_project_records
 
 
 class MemoryCliProjectError(RuntimeError):
@@ -40,6 +39,10 @@ def resolve_memory_cli_project(
     """
     if not project_ref:
         return None
+
+    # Lazy import to avoid a circular dependency: glossary_catalog imports
+    # sase.memory.web.catalog, whose package __init__ imports this module.
+    from sase.xprompt.glossary_catalog import enabled_project_records
 
     records = enabled_project_records(None)
     project = select_project(project_ref, records, launch_workspace=None)

@@ -95,6 +95,30 @@ def _write_config(workspace: Path, body: str) -> Path:
     return config_path
 
 
+def _write_glossary_web(workspace: Path) -> Path:
+    """Write a minimal ``glossary`` memory web with one strand and return it."""
+    descriptor = workspace / "sase" / "memory" / "glossary.md"
+    descriptor.parent.mkdir(parents=True, exist_ok=True)
+    descriptor.write_text(
+        "---\n"
+        "type: core\n"
+        "parent: AGENTS.md\n"
+        "web: true\n"
+        "roster: inline\n"
+        "roster_label: GLOSSARY TERMS\n"
+        "---\n\n"
+        "Glossary descriptor.\n",
+        encoding="utf-8",
+    )
+    strand_path = descriptor.parent / "glossary" / "agent-clan.md"
+    strand_path.parent.mkdir(parents=True, exist_ok=True)
+    strand_path.write_text(
+        "---\nkeyword: Agent Clan\naliases: [clan]\n---\n\nA named container.\n",
+        encoding="utf-8",
+    )
+    return strand_path
+
+
 def _write_marker(
     checkout: Path,
     *,
@@ -219,6 +243,50 @@ def test_catalog_for_project_uses_project_alias_and_source_ranges(
             "end": {"line": 4, "character": 14},
         },
     }
+
+
+def test_catalog_for_project_prefers_strand_backed_glossary_web(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "sase-workspace"
+    workspace.mkdir()
+    strand_path = _write_glossary_web(workspace)
+    record = _record("sase", workspace)
+    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
+
+    result = catalog.editor_glossary_catalog_for_project("sase")
+
+    assert result.ok
+    assert result.catalog is not None
+    assert result.catalog.config_path == strand_path.parent
+    assert result.catalog.config_signature.path == str(strand_path.parent)
+
+    entry = result.catalog.entries[0]
+    assert entry.term == "Agent Clan"
+    assert entry.display_aliases == ("clan",)
+    assert entry.source is not None
+    assert entry.source["source_path"] == str(strand_path)
+    assert entry.source["key_path"] == []
+    assert entry.source["keyword_range"]["start"] == {"line": 1, "character": 9}
+
+
+def test_catalog_for_project_blocks_dual_glossary_sources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "sase-workspace"
+    workspace.mkdir()
+    _write_glossary_web(workspace)
+    _write_config(workspace, _ONE_TERM)
+    record = _record("sase", workspace)
+    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
+
+    result = catalog.editor_glossary_catalog_for_project("sase")
+
+    assert result.catalog is None
+    assert len(result.diagnostics) == 1
+    assert "sase memory web migrate glossary" in result.diagnostics[0]
 
 
 def test_catalog_without_ref_uses_launch_workspace_and_never_falls_back_from_bad_ref(

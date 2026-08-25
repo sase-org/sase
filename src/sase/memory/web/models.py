@@ -30,6 +30,7 @@ class MemoryStrand:
     metadata: dict[str, Any]
     body: str
     raw_text: str
+    body_start: int
     frontmatter: dict[str, Any]
 
 

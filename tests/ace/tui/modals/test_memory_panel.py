@@ -69,6 +69,7 @@ def _web_with_one_strand(root: Path) -> MemoryWeb:
         metadata={"status": "accepted"},
         body="Alpha body.",
         raw_text="---\nsummary: Alpha summary.\n---\nAlpha body.",
+        body_start=len("---\nsummary: Alpha summary.\n---\n"),
         frontmatter={"summary": "Alpha summary."},
     )
     return MemoryWeb(

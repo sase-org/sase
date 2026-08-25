@@ -20,6 +20,11 @@ from sase.core.glossary_facade import GlossaryEntry
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
 from sase.glossary.relations import glossary_reverse_references
 from sase.glossary_config import resolve_glossary_config
+from sase.memory.web.catalog import (
+    GLOSSARY_WEB_SLUG,
+    find_memory_web,
+    memory_web_source_signature,
+)
 from sase.xprompt.glossary_catalog import (
     EditorGlossaryCatalog,
     editor_glossary_catalog_for_project,
@@ -188,6 +193,10 @@ def _resolve_config_path(project_key: str, workspace_dir: str) -> Path | None:
 def _config_stat(ref: GlossaryProjectRef) -> tuple[int, int]:
     if not ref.workspace_dir:
         return (0, 0)
+    web = find_memory_web(Path(ref.workspace_dir), GLOSSARY_WEB_SLUG)
+    if web is not None:
+        signature = memory_web_source_signature(web)
+        return (signature.mtime_ns, signature.size)
     config_path = _resolve_config_path(ref.key, ref.workspace_dir)
     if config_path is None:
         return (0, 0)

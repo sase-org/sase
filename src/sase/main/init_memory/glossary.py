@@ -13,11 +13,12 @@ from sase.core.glossary_facade import (
     validate_glossary_entries,
 )
 from sase.glossary_config import GLOSSARY_CONFIG_KEY, resolve_glossary_config
-from sase.memory.notes import parse_memory_note_text
+from sase.memory.web.catalog import (
+    GLOSSARY_WEB_SLUG,
+    find_memory_web,
+    glossary_dual_source_diagnostic,
+)
 from sase.project_management import load_local_config
-
-GENERATED_GLOSSARY_MARKER_KEY = "sase_generated"
-GENERATED_GLOSSARY_MARKER_VALUE = "glossary"
 
 
 @dataclass(frozen=True)
@@ -27,25 +28,33 @@ class ProjectGlossaryTerms:
     terms: tuple[tuple[str, tuple[str, ...]], ...]
 
 
-def is_generated_glossary_memory_content(content: str) -> bool:
-    """Return whether *content* carries the managed glossary marker."""
-    note = parse_memory_note_text(content, "sase/memory/glossary.md")
-    return (
-        note.frontmatter.get(GENERATED_GLOSSARY_MARKER_KEY)
-        == GENERATED_GLOSSARY_MARKER_VALUE
-    )
-
-
 def load_project_glossary_terms(
-    config_path: Path,
+    config_path: Path, root: Path
 ) -> tuple[ProjectGlossaryTerms | None, tuple[str, ...]]:
-    """Load, validate, and return the project-local glossary's terms."""
+    """Load, validate, and return the project-local glossary's terms.
+
+    Returns ``(None, ())`` when a ``glossary`` memory web owns the glossary
+    for *root* instead: the web's own roster region already renders through
+    the memory-web root plan, so the generated note must not also be
+    produced.
+    """
     loaded = load_local_config(config_path)
     if not loaded.valid:
         return None, (loaded.error or f"{config_path}: invalid configuration",)
     resolution = resolve_glossary_config(loaded.config)
     if resolution.error is not None:
         return None, (f"{config_path}: {resolution.error}",)
+
+    glossary_web = find_memory_web(root, GLOSSARY_WEB_SLUG)
+    dual_source = glossary_dual_source_diagnostic(
+        has_web=glossary_web is not None,
+        config_declared=resolution.declared,
+    )
+    if dual_source is not None:
+        return None, (f"{config_path}: {dual_source}",)
+    if glossary_web is not None:
+        return None, ()
+
     if not resolution.declared or resolution.node is None:
         return None, ()
     entries, shape_errors = _glossary_entries(

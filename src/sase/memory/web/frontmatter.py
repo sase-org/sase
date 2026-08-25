@@ -314,6 +314,7 @@ def parse_memory_strand(
             metadata=metadata,
             body=parsed.body,
             raw_text=text,
+            body_start=parsed.body_start,
             frontmatter=dict(parsed.frontmatter),
         ),
         None,

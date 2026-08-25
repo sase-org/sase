@@ -23,11 +23,7 @@ from sase.memory.paths import (
 )
 
 from .formatting import format_generated_memory_markdown
-from .glossary import (
-    GENERATED_GLOSSARY_MARKER_KEY,
-    GENERATED_GLOSSARY_MARKER_VALUE,
-    ProjectGlossaryTerms,
-)
+from .glossary import ProjectGlossaryTerms
 from .models import LinkedRepoMemoryEntry, MemoryExpectedFile
 from .root_rendering_artifact_relations import (
     generated_artifact_relations_memory_relative_path,
@@ -237,7 +233,6 @@ def generated_glossary_memory_content(generated_glossary_body: str) -> str:
         generated_glossary_body,
         note_type="core",
         parent=AGENTS_PARENT,
-        extra={GENERATED_GLOSSARY_MARKER_KEY: GENERATED_GLOSSARY_MARKER_VALUE},
     )
 
 

@@ -7,8 +7,8 @@ from sase.markdown_width import markdown_print_width
 from sase.markdown_wrap import wrap_markdown
 
 from .frontmatter import replace_web_body
-from .lookup import normalize_memory_web_reference, strand_glossary_catalog
-from .models import MemoryStrand, MemoryWeb
+from .lookup import ordered_web_strands, strand_glossary_catalog
+from .models import MemoryWeb
 
 START_MARKER = "<!-- sase:strands -->"
 END_MARKER = "<!-- /sase:strands -->"
@@ -26,18 +26,6 @@ def roster_region_error(body: str) -> str | None:
     return None
 
 
-def _ordered_strands(web: MemoryWeb) -> tuple[MemoryStrand, ...]:
-    return tuple(
-        sorted(
-            web.strands,
-            key=lambda strand: (
-                normalize_memory_web_reference(strand.keyword),
-                strand.slug,
-            ),
-        )
-    )
-
-
 def _inline_entry(keyword: str, display_aliases: tuple[str, ...]) -> str:
     escaped_keyword = md_escape(keyword)
     if not display_aliases:
@@ -49,7 +37,7 @@ def _inline_entry(keyword: str, display_aliases: tuple[str, ...]) -> str:
 def render_strand_roster(web: MemoryWeb) -> str:
     """Render the managed roster payload for *web*."""
 
-    strands = _ordered_strands(web)
+    strands = ordered_web_strands(web)
     if web.roster == "inline":
         catalog = strand_glossary_catalog(strands)
         entries = "; ".join(

@@ -24,7 +24,10 @@ def test_resolve_memory_cli_project_returns_none_without_a_ref() -> None:
 def test_resolve_memory_cli_project_returns_workspace_for_known_ref(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(cli_common, "enabled_project_records", lambda *_a, **_kw: ())
+    monkeypatch.setattr(
+        "sase.xprompt.glossary_catalog.enabled_project_records",
+        lambda *_a, **_kw: (),
+    )
     monkeypatch.setattr(
         cli_common, "select_project", lambda *_a, **_kw: _project(name="Sase")
     )
@@ -39,7 +42,10 @@ def test_resolve_memory_cli_project_returns_workspace_for_known_ref(
 def test_resolve_memory_cli_project_raises_when_unresolved(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(cli_common, "enabled_project_records", lambda *_a, **_kw: ())
+    monkeypatch.setattr(
+        "sase.xprompt.glossary_catalog.enabled_project_records",
+        lambda *_a, **_kw: (),
+    )
     monkeypatch.setattr(cli_common, "select_project", lambda *_a, **_kw: None)
 
     with pytest.raises(cli_common.MemoryCliProjectError, match="did not resolve"):

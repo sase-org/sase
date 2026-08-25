@@ -1,7 +1,6 @@
 ---
 type: core
 parent: AGENTS.md
-sase_generated: glossary
 ---
 
 # Glossary Terms

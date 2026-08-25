@@ -24,6 +24,20 @@ def normalize_memory_web_reference(value: str) -> str:
     return normalize_glossary_reference(value)
 
 
+def ordered_web_strands(web: MemoryWeb) -> tuple[MemoryStrand, ...]:
+    """Return *web*'s strands sorted by normalized keyword, then slug."""
+
+    return tuple(
+        sorted(
+            web.strands,
+            key=lambda strand: (
+                normalize_memory_web_reference(strand.keyword),
+                strand.slug,
+            ),
+        )
+    )
+
+
 def strand_glossary_catalog(strands: tuple[MemoryStrand, ...]) -> GlossaryCatalog:
     """Return the Rust-derived glossary catalog for *strands*, in order."""
 

@@ -21,10 +21,7 @@ from sase.memory.web import (
     validate_memory_webs,
 )
 
-from .glossary import (
-    ProjectGlossaryTerms,
-    is_generated_glossary_memory_content,
-)
+from .glossary import ProjectGlossaryTerms
 from .inventory import memory_parent_blockers, unreferenced_memory_files
 from .models import (
     LinkedRepoMemoryEntry,
@@ -44,7 +41,6 @@ from .root_planning_files import (
     validation_overlay_for_expected_files,
 )
 from .root_rendering import (
-    generated_glossary_memory_relative_path,
     generated_long_notes,
     generated_short_notes,
     render_generated_artifact_relations_memory_body,
@@ -115,29 +111,6 @@ def _retired_note_paths(
     return tuple(retired)
 
 
-def _retired_glossary_note_paths(
-    root: Path, *, glossary_terms: ProjectGlossaryTerms | None
-) -> tuple[Path, ...]:
-    """Return a generated glossary memory note this root no longer manages.
-
-    When *glossary_terms* has entries the path is generated, not retired. With
-    no configured terms, a marked leftover from an earlier ``sase memory init``
-    is deleted; an unmarked (hand-authored) note at the same path is left alone.
-    """
-    if glossary_terms is not None and glossary_terms.terms:
-        return ()
-    path = root / generated_glossary_memory_relative_path()
-    if not path.exists():
-        return ()
-    try:
-        current = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return ()
-    if not is_generated_glossary_memory_content(current):
-        return ()
-    return (path,)
-
-
 def _retired_task_types_note_path(
     root: Path, *, include_project_memory: bool
 ) -> tuple[Path, ...]:
@@ -194,28 +167,6 @@ def _retired_task_types_strand_paths(
             continue
         retired.append(path)
     return tuple(retired)
-
-
-def _glossary_collision_blocker(
-    root: Path, *, glossary_terms: ProjectGlossaryTerms | None
-) -> str | None:
-    """Return a blocker when generated glossary output would overwrite a user note."""
-    if glossary_terms is None or not glossary_terms.terms:
-        return None
-    path = root / generated_glossary_memory_relative_path()
-    if not path.exists():
-        return None
-    try:
-        current = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        return f"{path}: failed to inspect existing glossary memory note: {exc}"
-    if is_generated_glossary_memory_content(current):
-        return None
-    return (
-        f"{path}: refusing to overwrite unmarked glossary memory note; migrate "
-        "its content into glossary entries in sase.yml or remove it before "
-        "rerunning `sase memory init`"
-    )
 
 
 def _amd_sync_plan(
@@ -350,22 +301,8 @@ def memory_root_context(
             blockers=migration.blockers,
         )
 
-    glossary_collision = _glossary_collision_blocker(
-        root, glossary_terms=glossary_terms
-    )
-    if glossary_collision is not None:
-        return _MemoryRootContext(
-            amd_sync=None,
-            expected_files=(),
-            shim_plan=ProviderShimPlan(writes=(), deletes=()),
-            additional_shim_plans=(),
-            source_memory_root=migration.source_memory_root,
-            blockers=(glossary_collision,),
-        )
-
     retired_note_paths = (
         *_retired_note_paths(root, include_project_memory=include_project_memory),
-        *_retired_glossary_note_paths(root, glossary_terms=glossary_terms),
         *_retired_task_types_note_path(
             root, include_project_memory=include_project_memory
         ),
