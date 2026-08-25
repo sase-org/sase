@@ -12,6 +12,10 @@ from sase.memory.legacy_glossary_read_report import (
     GlossaryReadReportSpec,
     write_glossary_read_report,
 )
+from sase.memory.memory_read_report import (
+    MemoryReadReportSpec,
+    write_memory_read_report,
+)
 
 from ....hint_types import EditHooksResult, ViewFilesResult
 from ....hints import (
@@ -27,7 +31,9 @@ from ...widgets.prompt_panel._agent_display_state import CommitViewSpec
 from ..clipboard import schedule_copy_delivery
 from ._types import HintMixinBase
 
-type _HintReportSpec = SlowToolCallReportSpec | GlossaryReadReportSpec
+type _HintReportSpec = (
+    SlowToolCallReportSpec | GlossaryReadReportSpec | MemoryReadReportSpec
+)
 
 
 @dataclass(frozen=True)
@@ -67,7 +73,9 @@ def _write_selected_hint_reports(
         if spec is None:
             materialized.append(file_path)
             continue
-        if isinstance(spec, GlossaryReadReportSpec):
+        if isinstance(spec, MemoryReadReportSpec):
+            report_path = write_memory_read_report(spec)
+        elif isinstance(spec, GlossaryReadReportSpec):
             report_path = write_glossary_read_report(spec)
         else:
             report_path = write_tool_call_report(spec)
@@ -277,7 +285,14 @@ class InputProcessingMixin(HintMixinBase):
         glossary_reports: dict[str, GlossaryReadReportSpec] = getattr(
             self, "_hint_glossary_reports", {}
         )
-        reports: dict[str, _HintReportSpec] = {**tool_reports, **glossary_reports}
+        memory_reports: dict[str, MemoryReadReportSpec] = getattr(
+            self, "_hint_memory_reports", {}
+        )
+        reports: dict[str, _HintReportSpec] = {
+            **tool_reports,
+            **glossary_reports,
+            **memory_reports,
+        }
         selected_reports = tuple(
             (file_path, reports[file_path])
             for file_path in request.files

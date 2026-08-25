@@ -16,6 +16,8 @@ from sase.memory.legacy_glossary_read_log import (
     GlossaryReadEvent,
 )
 from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
+from sase.memory.memory_read_report import MemoryReadReportSpec
+from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 
 
 class _SuspendRecorder:
@@ -36,6 +38,7 @@ class _ViewApp(InputProcessingMixin, FileViewingMixin):
         self._hint_mappings = hint_mappings
         self._hint_tool_call_reports = {}
         self._hint_glossary_reports = {}
+        self._hint_memory_reports = {}
         self._hint_commit_views = {}
         self._hint_patch_name = "cs"
         self.notify = MagicMock()
@@ -124,6 +127,32 @@ def _glossary_spec(
             depth_limit=None,
             definition_bytes=64,
             source_path="/tmp/sase/sase/sase.yml",
+        ),
+        agent_label=None,
+        report_path=report_path,
+    )
+
+
+def _memory_spec(report_path: str) -> MemoryReadReportSpec:
+    return MemoryReadReportSpec(
+        event=MemoryReadEvent(
+            schema_version=READ_LOG_SCHEMA_VERSION,
+            id="memory-read-alpha",
+            timestamp="2026-08-01T12:00:00+00:00",
+            project="sase",
+            cwd="/tmp/sase",
+            canonical_path="decisions:corpus-before-mechanism",
+            resolved_path="",
+            agent_name="athena",
+            agent_source="SASE_AGENT_NAME",
+            artifacts_dir=None,
+            reason="needed the decision context",
+            byte_count=64,
+            frontmatter_stripped=False,
+            kind="strand",
+            selectors=("decisions:corpus-before-mechanism",),
+            resolved_targets=("decisions:corpus-before-mechanism",),
+            depth=0,
         ),
         agent_label=None,
         report_path=report_path,

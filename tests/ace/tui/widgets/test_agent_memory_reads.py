@@ -18,6 +18,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_memory_reads import (
     append_agent_memory_reads_section,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
+from sase.memory.memory_read_report import memory_read_report_path
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 
 
@@ -37,6 +38,12 @@ def _event(
     reason: str = "needed it",
     frontmatter_stripped: bool = False,
     read_id: str | None = None,
+    resolved_path: str | None = None,
+    kind: str = "note",
+    selectors: tuple[str, ...] = (),
+    resolved_targets: tuple[str, ...] = (),
+    included_targets: tuple[str, ...] = (),
+    depth: int | None = None,
 ) -> MemoryReadEvent:
     return MemoryReadEvent(
         schema_version=READ_LOG_SCHEMA_VERSION,
@@ -45,13 +52,22 @@ def _event(
         project="test",
         cwd="/tmp/test",
         canonical_path=canonical_path,
-        resolved_path=f"/tmp/test/memory/{canonical_path}",
+        resolved_path=(
+            f"/tmp/test/memory/{canonical_path}"
+            if resolved_path is None
+            else resolved_path
+        ),
         agent_name="alpha",
         agent_source="SASE_AGENT_NAME",
         artifacts_dir="/tmp/test/artifacts",
         reason=reason,
         byte_count=64,
         frontmatter_stripped=frontmatter_stripped,
+        kind=kind,  # type: ignore[arg-type]
+        selectors=selectors,
+        resolved_targets=resolved_targets,
+        included_targets=included_targets,
+        depth=depth,
     )
 
 
@@ -128,6 +144,7 @@ def test_hint_state_maps_each_visible_event_and_aligns_reason() -> None:
         4: first.resolved_path,
         5: second.resolved_path,
     }
+    assert state.memory_reports == {}
     assert state.hint_counter == 6
     lines = text.plain.splitlines()
     first_row = next(line for line in lines if "[4] tui_perf.md" in line)
@@ -141,6 +158,69 @@ def test_hint_state_maps_each_visible_event_and_aligns_reason() -> None:
         if span.start <= marker_start and span.end >= marker_start + len("[4] ")
     ]
     assert marker_styles == ["bold #ffff00"]
+
+
+def test_pathless_strand_event_maps_to_deferred_report() -> None:
+    event = _event(
+        canonical_path="decisions:corpus-before-mechanism",
+        timestamp="2026-05-24T14:22:08+00:00",
+        read_id="strand-read",
+        resolved_path="",
+        kind="strand",
+        selectors=("decisions:corpus-before-mechanism",),
+        resolved_targets=("decisions:corpus-before-mechanism",),
+        depth=0,
+    )
+    state = _hint_state()
+    text = Text()
+
+    append_agent_memory_reads_section(
+        text, events=(_display(event, "coder"),), hint_state=state
+    )
+
+    report_path = memory_read_report_path(event)
+    assert state.hint_mappings == {1: report_path}
+    assert list(state.memory_reports) == [report_path]
+    assert state.memory_reports[report_path].event is event
+    assert state.memory_reports[report_path].agent_label == "coder"
+    assert "◇ [1] decisions:corpus-before-mechanism" in text.plain
+
+
+def test_pathless_batch_event_displays_original_selectors() -> None:
+    event = _event(
+        canonical_path="decisions:corpus-before-mechanism",
+        timestamp="2026-05-24T14:22:08+00:00",
+        read_id="batch-read",
+        resolved_path="",
+        kind="strand",
+        selectors=("decisions:corpus-before-mechanism", "tui_perf.md"),
+        resolved_targets=("decisions:corpus-before-mechanism", "tui_perf.md"),
+    )
+    state = _hint_state()
+    text = Text()
+
+    append_agent_memory_reads_section(text, events=(_display(event),), hint_state=state)
+
+    assert "decisions:corpus-before-mechanism, tui_perf.md" in text.plain
+    assert state.hint_mappings == {1: memory_read_report_path(event)}
+
+
+def test_pathless_event_without_selectors_gets_no_hint() -> None:
+    event = _event(
+        canonical_path="",
+        timestamp="2026-05-24T14:22:08+00:00",
+        read_id="empty-pathless",
+        resolved_path="",
+        selectors=(),
+    )
+    state = _hint_state()
+    text = Text()
+
+    append_agent_memory_reads_section(text, events=(_display(event),), hint_state=state)
+
+    assert state.hint_mappings == {}
+    assert state.memory_reports == {}
+    assert "[1]" not in text.plain
 
 
 def test_overflow_renders_truncation_footer() -> None:

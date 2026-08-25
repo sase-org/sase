@@ -12,6 +12,7 @@ import pytest
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
 from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
+from sase.memory.memory_read_report import MemoryReadReportSpec
 from sase.xprompt._glossary_catalog_projects import EditorGlossaryProject
 from sase.xprompt.glossary_catalog import (
     EDITOR_GLOSSARY_CATALOG_SCHEMA_VERSION,
@@ -19,7 +20,12 @@ from sase.xprompt.glossary_catalog import (
     EditorGlossaryCatalogResult,
 )
 
-from ._view_files_helpers import _glossary_spec, _make_app, _report_spec
+from ._view_files_helpers import (
+    _glossary_spec,
+    _make_app,
+    _memory_spec,
+    _report_spec,
+)
 
 
 class _Signature:
@@ -271,4 +277,150 @@ async def test_mixed_glossary_tool_call_and_file_selection_preserves_order(
 
     app._view_files_with_pager.assert_called_once_with(
         [tool_path, str(notes), glossary_path]
+    )
+
+
+async def test_memory_report_hint_is_materialized_for_pager(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report_path = str(tmp_path / ".sase" / "memory_read_reports" / "memory.md")
+    app = _make_app(report_path)
+    app._hint_memory_reports = {report_path: _memory_spec(report_path)}
+    app._view_files_with_pager = MagicMock()  # type: ignore[method-assign]
+
+    def write_report(_spec: MemoryReadReportSpec) -> str:
+        Path(report_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(report_path).write_text("memory report", encoding="utf-8")
+        return report_path
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.write_memory_read_report",
+        write_report,
+    )
+
+    await app._process_view_input("1")
+
+    assert Path(report_path).read_text(encoding="utf-8") == "memory report"
+    app._view_files_with_pager.assert_called_once_with([report_path])
+
+
+async def test_memory_report_materialization_runs_off_event_loop_thread(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report_path = str(tmp_path / "memory-report.md")
+    app = _make_app(report_path)
+    app._hint_memory_reports = {report_path: _memory_spec(report_path)}
+    app._view_files_with_pager = MagicMock()  # type: ignore[method-assign]
+    event_loop_thread = threading.get_ident()
+    writer_threads: list[int] = []
+
+    def write_report(_spec: MemoryReadReportSpec) -> str:
+        writer_threads.append(threading.get_ident())
+        return report_path
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.write_memory_read_report",
+        write_report,
+    )
+
+    await app._process_view_input("1")
+
+    assert writer_threads
+    assert all(thread_id != event_loop_thread for thread_id in writer_threads)
+    app._view_files_with_pager.assert_called_once_with([report_path])
+
+
+async def test_memory_report_hint_is_materialized_for_editor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report_path = str(tmp_path / "memory-report.md")
+    app = _make_app(report_path)
+    app._hint_memory_reports = {report_path: _memory_spec(report_path)}
+    app._open_files_in_editor = MagicMock()  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.write_memory_read_report",
+        lambda _spec: report_path,
+    )
+
+    await app._process_view_input("1@")
+
+    result = app._open_files_in_editor.call_args.args[0]
+    assert result.files == [report_path]
+    assert result.open_in_editor is True
+
+
+async def test_memory_report_hint_is_materialized_for_clipboard(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report_path = str(tmp_path / "memory-report.md")
+    app = _make_app(report_path)
+    app._hint_memory_reports = {report_path: _memory_spec(report_path)}
+    app._copy_files_to_clipboard = MagicMock()  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.write_memory_read_report",
+        lambda _spec: report_path,
+    )
+
+    await app._process_view_input("1%")
+
+    app._copy_files_to_clipboard.assert_called_once_with([report_path])
+
+
+async def test_mixed_memory_glossary_tool_call_and_file_selection_preserves_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    notes = tmp_path / "notes.md"
+    notes.write_text("notes", encoding="utf-8")
+    memory_path = str(tmp_path / "memory.md")
+    glossary_path = str(tmp_path / "glossary.md")
+    tool_path = str(tmp_path / "tool.md")
+    app = _make_app(str(notes), memory_path, glossary_path, tool_path)
+    app._hint_memory_reports = {memory_path: _memory_spec(memory_path)}
+    app._hint_glossary_reports = {glossary_path: _glossary_spec(glossary_path)}
+    app._hint_tool_call_reports = {tool_path: _report_spec(tool_path)}
+    app._view_files_with_pager = MagicMock()  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.write_memory_read_report",
+        lambda _spec: memory_path,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.write_glossary_read_report",
+        lambda _spec: glossary_path,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.write_tool_call_report",
+        lambda _spec: tool_path,
+    )
+
+    await app._process_view_input("4 2 1 3")
+
+    app._view_files_with_pager.assert_called_once_with(
+        [tool_path, memory_path, str(notes), glossary_path]
+    )
+
+
+async def test_memory_report_materialization_failure_drops_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report_path = str(tmp_path / "memory-report.md")
+    app = _make_app(report_path)
+    app._hint_memory_reports = {report_path: _memory_spec(report_path)}
+    app._view_files_with_pager = MagicMock()  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.write_memory_read_report",
+        lambda _spec: None,
+    )
+
+    await app._process_view_input("1")
+
+    app._view_files_with_pager.assert_not_called()
+    app.notify.assert_any_call(
+        f"Failed to build hint report: {report_path}",
+        severity="error",
     )

@@ -19,7 +19,12 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.cli_show_palette import PATH_COLOR, SECTION_COLOR
-from sase.memory.render import MemoryShowFormat, ResolvedMemoryNote, render_memory_note
+from sase.memory.render import (
+    MemoryShowFormat,
+    ResolvedMemoryNote,
+    memory_note_markdown,
+    render_memory_note,
+)
 from sase.memory.selector import (
     MemoryWebReadNode,
     MemoryWebReadSection,
@@ -47,7 +52,7 @@ def render_memory_selector_batch(
         return
 
     if output_format == "markdown":
-        sys.stdout.write(_batch_markdown(batch))
+        sys.stdout.write(memory_selector_batch_markdown(batch))
         return
 
     target = console or Console()
@@ -112,10 +117,17 @@ def _node_json(node: MemoryWebReadNode) -> dict[str, object]:
 # --- markdown -----------------------------------------------------------
 
 
+def memory_selector_batch_markdown(batch: ResolvedMemorySelectorBatch) -> str:
+    """Return the Markdown ``sase memory show`` prints for a selector batch."""
+    if batch.is_single_note:
+        return memory_note_markdown(batch.notes[0])
+    return _batch_markdown(batch)
+
+
 def _batch_markdown(batch: ResolvedMemorySelectorBatch) -> str:
     pieces: list[str] = []
     for note in batch.notes:
-        pieces.append(note.content.body)
+        pieces.append(memory_note_markdown(note))
     for section in batch.web_sections:
         pieces.append(_web_section_markdown(section))
     return "\n".join(piece.rstrip("\n") for piece in pieces) + "\n"
@@ -232,4 +244,4 @@ def _node_blocks(node: MemoryWebReadNode) -> list[RenderableType]:
     ]
 
 
-__all__ = ["render_memory_selector_batch"]
+__all__ = ["memory_selector_batch_markdown", "render_memory_selector_batch"]

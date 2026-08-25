@@ -135,6 +135,7 @@ class AgentHintsDisplayMixin(AgentHintRenderMixin):
             extra["hints"] = len(render.file_hints)
             extra["commit_views"] = len(render.commit_views)
             extra["tool_call_reports"] = len(render.tool_call_reports)
+            extra["memory_reports"] = len(render.memory_reports)
             extra["header_summary"] = (
                 "cold" if render.header_enrichment_pending else "warm"
             )

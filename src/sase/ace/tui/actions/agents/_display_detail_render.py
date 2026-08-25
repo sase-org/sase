@@ -15,6 +15,7 @@ from ._display_helpers import TabName
 
 if TYPE_CHECKING:
     from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
+    from sase.memory.memory_read_report import MemoryReadReportSpec
 
     from ...models import Agent
     from ...tools.report import SlowToolCallReportSpec
@@ -37,6 +38,7 @@ class AgentDetailRenderMixin:
     _hint_commit_views: dict[int, CommitViewSpec]
     _hint_tool_call_reports: dict[str, SlowToolCallReportSpec]
     _hint_glossary_reports: dict[str, GlossaryReadReportSpec]
+    _hint_memory_reports: dict[str, MemoryReadReportSpec]
 
     if TYPE_CHECKING:
 
@@ -307,6 +309,7 @@ class AgentDetailRenderMixin:
             self._hint_commit_views = hint_render.commit_views
             self._hint_tool_call_reports = hint_render.tool_call_reports
             self._hint_glossary_reports = hint_render.glossary_reports
+            self._hint_memory_reports = hint_render.memory_reports
 
     def on_agent_detail_header_enriched(
         self,

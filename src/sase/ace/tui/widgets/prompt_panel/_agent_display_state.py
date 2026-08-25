@@ -14,6 +14,7 @@ from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.tools import SlowToolSource
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
 from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
+from sase.memory.memory_read_report import MemoryReadReportSpec
 from sase.plan_documents import PlanWorkspace
 from sase.repo_inventory import RepoKind
 
@@ -60,6 +61,7 @@ class HeaderHintState:
     tool_call_reports: dict[str, SlowToolCallReportSpec]
     commit_views: dict[int, CommitViewSpec] = field(default_factory=dict)
     glossary_reports: dict[str, GlossaryReadReportSpec] = field(default_factory=dict)
+    memory_reports: dict[str, MemoryReadReportSpec] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -70,6 +72,7 @@ class AgentHintRender:
     tool_call_reports: dict[str, SlowToolCallReportSpec]
     commit_views: dict[int, CommitViewSpec] = field(default_factory=dict)
     glossary_reports: dict[str, GlossaryReadReportSpec] = field(default_factory=dict)
+    memory_reports: dict[str, MemoryReadReportSpec] = field(default_factory=dict)
     header_enrichment_pending: bool = False
 
 

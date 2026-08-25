@@ -5,6 +5,10 @@ from __future__ import annotations
 from rich.text import Text
 
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
+from sase.memory.memory_read_report import (
+    MemoryReadReportSpec,
+    memory_read_report_path,
+)
 
 from ._agent_display_state import HeaderHintState
 from ._agent_context_common import (
@@ -37,8 +41,39 @@ __all__ = [
     "format_local_hhmm",
     "format_local_hhmmss",
     "normalize_context_display",
+    "register_memory_read_report_hint",
     "truncate_display",
 ]
+
+
+def register_memory_read_report_hint(
+    item: MemoryReadDisplayEvent,
+    *,
+    hint_state: HeaderHintState | None,
+) -> str | None:
+    """Register a raw memory path or deferred read report and return the marker."""
+    event = item.event
+    if hint_state is None:
+        return None
+    if event.resolved_path:
+        target_path = event.resolved_path
+        report_spec = None
+    elif event.schema_version >= 2 and event.selectors:
+        target_path = memory_read_report_path(event)
+        report_spec = MemoryReadReportSpec(
+            event=event,
+            agent_label=item.agent_label,
+            report_path=target_path,
+        )
+    else:
+        return None
+
+    hint_number = hint_state.hint_counter
+    hint_state.hint_counter += 1
+    hint_state.hint_mappings[hint_number] = target_path
+    if report_spec is not None:
+        hint_state.memory_reports[target_path] = report_spec
+    return f"[{hint_number}]"
 
 
 def append_agent_memory_reads_section(
@@ -79,17 +114,15 @@ def append_agent_memory_reads_section(
     for item in visible:
         event = item.event
         hint_label = None
-        if hint_state is not None:
-            hint_number = hint_state.hint_counter
-            hint_state.hint_mappings[hint_number] = event.resolved_path
-            hint_state.hint_counter += 1
-            hint_label = Text(f"[{hint_number}] ", style="bold #FFFF00")
+        marker = register_memory_read_report_hint(item, hint_state=hint_state)
+        if marker is not None:
+            hint_label = Text(f"{marker} ", style="bold #FFFF00")
         reason_indent = append_lane_row(
             text,
             timestamp=event.timestamp,
             glyph=MEMORY_GLYPH,
             glyph_style=COLOR_MEMORY_GLYPH,
-            primary=truncate_display(event.canonical_path, PATH_LIMIT),
+            primary=truncate_display(_display_selector(event), PATH_LIMIT),
             primary_style=COLOR_MEMORY_PRIMARY,
             role_label=item.agent_label,
             show_role_column=show_role_column,
@@ -107,3 +140,12 @@ def append_agent_memory_reads_section(
             f"  + {overflow} more · {format_local_hhmm(earliest.timestamp)} earliest\n",
             style=COLOR_TRUNCATION,
         )
+
+
+def _display_selector(event: object) -> str:
+    selectors = getattr(event, "selectors", ())
+    resolved_path = getattr(event, "resolved_path", "")
+    if not resolved_path and selectors:
+        return ", ".join(selectors)
+    canonical_path = getattr(event, "canonical_path", "")
+    return str(canonical_path) if canonical_path else "(unknown)"

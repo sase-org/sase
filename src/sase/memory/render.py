@@ -88,6 +88,11 @@ def _memory_note_markdown(view: ResolvedMemoryNote) -> str:
     return body + children_section
 
 
+def memory_note_markdown(view: ResolvedMemoryNote) -> str:
+    """Return the Markdown ``sase memory show`` prints for one note view."""
+    return _memory_note_markdown(view)
+
+
 # --- json -----------------------------------------------------------------
 
 
@@ -168,5 +173,6 @@ def _build_children_block(children: tuple[MemoryNote, ...]) -> RenderableType:
 __all__ = [
     "MemoryShowFormat",
     "ResolvedMemoryNote",
+    "memory_note_markdown",
     "render_memory_note",
 ]

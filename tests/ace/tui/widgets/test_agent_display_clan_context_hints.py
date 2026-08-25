@@ -36,6 +36,7 @@ from sase.memory.legacy_glossary_read_log import (
     GlossaryReadEvent,
 )
 from sase.memory.legacy_glossary_read_report import glossary_read_report_path
+from sase.memory.memory_read_report import memory_read_report_path
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from tests.ace.tui.widgets._agent_display_clan_helpers import rich_clan_snapshot
 from tests.ace.tui.widgets._agent_display_plan_helpers import plan_summary
@@ -82,6 +83,30 @@ def _memory_read(resolved_path: str) -> MemoryReadDisplayEvent:
             reason="test",
             byte_count=10,
             frontmatter_stripped=False,
+        )
+    )
+
+
+def _pathless_memory_read() -> MemoryReadDisplayEvent:
+    return MemoryReadDisplayEvent(
+        event=MemoryReadEvent(
+            schema_version=READ_LOG_SCHEMA_VERSION,
+            id="read-pathless",
+            timestamp="2026-08-01T12:00:00+00:00",
+            project="sase",
+            cwd="/tmp",
+            canonical_path="decisions:corpus-before-mechanism",
+            resolved_path="",
+            agent_name="research.one",
+            agent_source="test",
+            artifacts_dir=None,
+            reason="test",
+            byte_count=10,
+            frontmatter_stripped=False,
+            kind="strand",
+            selectors=("decisions:corpus-before-mechanism",),
+            resolved_targets=("decisions:corpus-before-mechanism",),
+            depth=0,
         )
     )
 
@@ -332,6 +357,42 @@ def test_glossary_term_rows_from_one_read_share_a_report_path(
     assert list(state.glossary_reports) == [report_path]
     assert "• [1] Agent Hood" in text.plain
     assert "• [2] Sase Agent" in text.plain
+
+
+def test_pathless_memory_context_entry_registers_deferred_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    display = _pathless_memory_read()
+    report_path = memory_read_report_path(display.event)
+    lanes = (
+        ClanContextLane(
+            "MEMORY",
+            (
+                ClanContextEntry(
+                    key="decisions:corpus-before-mechanism",
+                    label="decisions:corpus-before-mechanism",
+                    member_labels=(".one",),
+                    values=(display,),
+                ),
+            ),
+        ),
+    )
+    text = Text()
+    state = HeaderHintState(1, {}, None, {})
+
+    append_context_section(
+        text,
+        lanes,
+        level=FoldLevel.FULLY_EXPANDED,
+        count_known=True,
+        hint_state=state,
+    )
+
+    assert state.hint_mappings == {1: report_path}
+    assert list(state.memory_reports) == [report_path]
+    assert state.memory_reports[report_path].event is display.event
+    assert "• [1] decisions:corpus-before-mechanism" in text.plain
 
 
 def test_expanded_context_digest_does_not_register_hints(tmp_path: Path) -> None:

@@ -77,7 +77,7 @@ def _typed_context_value_path(
         return None
 
     if lane_label == "MEMORY" and isinstance(value, MemoryReadDisplayEvent):
-        return value.event.resolved_path
+        return value.event.resolved_path or None
     return None
 
 
