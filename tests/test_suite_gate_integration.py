@@ -99,6 +99,7 @@ def _build_scoped_repo(root: Path) -> None:
         "_test_cost.py",
         "_test_cost_budgets.py",
         "_test_cost_plugin.py",
+        "_test_cost_plugin_patches.py",
         "_test_cost_records.py",
         "_test_cost_report.py",
         "_test_selection.py",
