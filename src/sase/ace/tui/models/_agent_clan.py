@@ -126,33 +126,32 @@ def clan_members(agent: Agent) -> tuple[Agent, ...]:
     )
 
 
-def clan_current_lane_rows(agent: Agent) -> tuple[Agent, ...]:
-    """Return one representative in-flight row per running lane of a clan.
+def clan_running_lane_rows(agent: Agent) -> tuple[Agent, ...]:
+    """Return the clan's own in-flight member rows, one per running lane.
 
-    A sequential family lane resolves to the same row the family row shows
-    on the left of its own ``current-shell / total`` runtime suffix. Any
-    other lane represents itself, but only while it is actually in flight.
-    A lane with nothing executing contributes nothing. Nested clan
-    containers are not clan members (matching :func:`clan_members` and
+    Each row is a direct clan member, never a shell nested inside one of the
+    clan's sequential families: a family lane is represented by the family
+    row itself so it contributes the family total rather than the runtime of
+    whichever shell is currently executing. A family lane counts as in
+    flight while any of its shells is executing, which outlives the family
+    root row's own status and ``stop_time``. Nested clan containers are not
+    clan members (matching :func:`clan_members` and
     ``_lane_summary_projections``), so they are not walked.
     """
     if not agent.is_clan_container:
         return ()
-    representatives: list[Agent] = []
+    rows: list[Agent] = []
     seen: set[tuple[AgentType, str, str | None]] = set()
     for member in clan_members(agent):
-        if not is_agents_tab_agent_node(member):
+        if current_family_shell_row(member) is None and not agent_row_is_in_flight(
+            member
+        ):
             continue
-        representative = current_family_shell_row(member)
-        if representative is None:
-            if not agent_row_is_in_flight(member):
-                continue
-            representative = member
-        if representative.identity in seen:
+        if member.identity in seen:
             continue
-        seen.add(representative.identity)
-        representatives.append(representative)
-    return tuple(representatives)
+        seen.add(member.identity)
+        rows.append(member)
+    return tuple(rows)
 
 
 def clan_member_counts(
@@ -399,7 +398,7 @@ __all__ = [
     "agent_status_projections",
     "agent_summary_status_counts",
     "aggregate_clan_status",
-    "clan_current_lane_rows",
+    "clan_running_lane_rows",
     "clan_member_status_priority",
     "clan_member_counts",
     "clan_members",

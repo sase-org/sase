@@ -40,8 +40,13 @@ def assert_page_svg_contains(page: AcePage, text: str) -> None:
     assert text in svg_plain
 
 
-def assert_page_svg_styled_text_contains(page: AcePage, text: str) -> None:
-    """Assert text across adjacent SVG elements with different Rich styles."""
+def _page_svg_compact_styled_text(page: AcePage) -> str:
+    """Return the page's SVG text content with styling boundaries collapsed.
+
+    Rich represents spaces between differently styled SVG runs as
+    x-offsets, not text nodes, so the caller compares against a compacted
+    token stream with all spaces removed.
+    """
     svg = page.export_svg(title="ACE visual assertion")
     root = ElementTree.fromstring(svg)
     svg_plain = "".join(
@@ -49,7 +54,20 @@ def assert_page_svg_styled_text_contains(page: AcePage, text: str) -> None:
         for element in root.iter()
         if element.tag.rsplit("}", 1)[-1] == "text"
     ).replace("\xa0", " ")
-    # Rich represents spaces between differently styled SVG runs as x-offsets,
-    # not text nodes, so compare the compacted token stream.
+    return svg_plain.replace(" ", "")
+
+
+def assert_page_svg_styled_text_contains(page: AcePage, text: str) -> None:
+    """Assert text across adjacent SVG elements with different Rich styles."""
     compact_text = text.replace(" ", "")
+    svg_plain = _page_svg_compact_styled_text(page)
     assert compact_text in svg_plain, f"styled SVG text did not contain {text!r}"
+
+
+def assert_page_svg_styled_text_absent(page: AcePage, text: str) -> None:
+    """Assert text is absent across adjacent SVG elements with different styles."""
+    compact_text = text.replace(" ", "")
+    svg_plain = _page_svg_compact_styled_text(page)
+    assert compact_text not in svg_plain, (
+        f"styled SVG text unexpectedly contained {text!r}"
+    )

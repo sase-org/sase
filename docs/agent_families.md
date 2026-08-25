@@ -196,7 +196,8 @@ family container row shows `🏃‍♂️ <current-shell-runtime> / <family-tota
 active shell duration is visible without opening the family. A clan container's live
 suffix collapses its parallel lanes with a minimum instead, since more than one lane can
 be live at once: `<lowest-running-lane-runtime> / <clan-total-runtime>`, where a
-sequential-family lane contributes its own currently executing shell.
+sequential-family lane contributes its own total runtime -- the same value its own row
+shows to the right of its suffix.
 
 ### Clan summary folding
 

@@ -521,15 +521,22 @@ def compute_lowest_row_runtime(
     rows: Sequence["Agent"],
     now: datetime | None = None,
 ) -> str | None:
-    """Return the smallest still-active elapsed duration among *rows*."""
+    """Return the smallest still-active total duration among *rows*.
+
+    Each row contributes the same total its own row displays -- the aggregate
+    across its descendants -- so a family row contributes the family total,
+    not the runtime of the shell currently executing inside it. A row whose
+    aggregate is not live falls back to its own interval, so a live row is
+    never dropped just because its descendants have not started.
+    """
     reference = now if now is not None else local_now()
     lowest: float | None = None
     for row in rows:
         if not should_display_runtime_suffix(row):
             continue
-        interval = _leaf_runtime_interval(row, reference)
+        interval = _runtime_interval(row, reference)
         if interval is None or not interval.active:
-            interval = _runtime_interval(row, reference)
+            interval = _leaf_runtime_interval(row, reference)
         if (
             interval is None
             or not interval.active

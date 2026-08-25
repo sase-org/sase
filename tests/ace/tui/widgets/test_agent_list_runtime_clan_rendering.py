@@ -6,11 +6,16 @@ from datetime import datetime
 
 import pytest
 
-from sase.ace.tui.models.agent import Agent
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.agent_list import AgentList
 
-from .agent_list_runtime_helpers import AgentListHarness, agent, agent_row_index
+from .agent_list_runtime_helpers import (
+    AgentListHarness,
+    agent,
+    agent_row_index,
+    workflow_child,
+)
 
 
 def _clan_container(*, clan: str = "research", generation: str = "gen-1") -> Agent:
@@ -87,9 +92,7 @@ def test_format_agent_option_active_clan_orders_lanes_by_seconds_not_string() ->
     assert suffix.plain == "🏃‍♂️ 45m / 1h05m"
 
 
-def test_format_agent_option_clan_single_family_lane_matches_family_current_shell() -> (
-    None
-):
+def test_format_agent_option_clan_single_family_lane_matches_family_total() -> None:
     root = agent(
         status="RUNNING",
         start=datetime(2026, 7, 19, 9, 0, 0),
@@ -124,7 +127,116 @@ def test_format_agent_option_clan_single_family_lane_matches_family_current_shel
     _, clan_suffix, _ = format_agent_option(clan, 0, is_selected=False, now=now)
 
     assert family_suffix.plain == "🏃‍♂️ 3m05s / 3m05s"
-    assert clan_suffix.plain.split(" / ")[0] == "🏃‍♂️ 3m05s"
+    assert (
+        clan_suffix.plain.split(" / ")[0]
+        == "🏃‍♂️ " + family_suffix.plain.split(" / ")[1]
+    )
+
+
+def test_format_agent_option_clan_family_lane_contributes_family_total() -> None:
+    root = agent(
+        agent_type=AgentType.WORKFLOW,
+        status="WORKING TALE",
+        start=datetime(2026, 7, 19, 9, 0, 0),
+        run_start=datetime(2026, 7, 19, 9, 0, 0),
+        raw_suffix="root",
+        cl_name="family-workflow",
+    )
+    root.agent_name = "family--plan"
+    root.agent_family = "family"
+    root.agent_family_role = "root"
+    root.plan_chain_root = True
+    planner = workflow_child(
+        step_type="agent",
+        status="DONE",
+        start=datetime(2026, 7, 19, 9, 0, 0),
+        run_start=datetime(2026, 7, 19, 9, 0, 0),
+        plan_times=[datetime(2026, 7, 19, 9, 2, 0)],
+        raw_suffix="planner",
+        cl_name="plan",
+    )
+    coder = agent(
+        status="RUNNING",
+        start=datetime(2026, 7, 19, 9, 4, 0),
+        run_start=datetime(2026, 7, 19, 9, 4, 0),
+        raw_suffix="coder",
+        cl_name="family--code",
+    )
+    coder.parent_timestamp = root.raw_suffix
+    coder.agent_family = "family"
+    coder.agent_family_role = "code"
+    coder.role_suffix = "--code"
+    root.runtime_children = [planner, coder]
+    root.followup_agents = [coder]
+    root.agent_clan = "research"
+    root.agent_clan_generation = "gen-1"
+
+    solo = agent(
+        status="RUNNING",
+        start=datetime(2026, 7, 19, 9, 0, 0),
+        run_start=datetime(2026, 7, 19, 9, 0, 0),
+        raw_suffix="solo",
+        cl_name="research.solo",
+    )
+    solo.agent_clan = "research"
+    solo.agent_clan_generation = "gen-1"
+
+    clan = _clan_container()
+    clan.runtime_children = [root, solo]
+
+    now = datetime(2026, 7, 19, 9, 5, 5)
+    _, family_suffix, _ = format_agent_option(root, 0, is_selected=False, now=now)
+    _, clan_suffix, _ = format_agent_option(clan, 0, is_selected=False, now=now)
+
+    assert family_suffix.plain == "🏃‍♂️ 1m05s / 3m05s"
+    assert clan_suffix.plain == "🏃‍♂️ 3m05s / 5m05s"
+    assert "1m05s" not in clan_suffix.plain  # the coder shell's own runtime
+
+
+def test_format_agent_option_clan_family_lane_falls_back_when_total_is_not_live() -> (
+    None
+):
+    # The family aggregate collapses to an inactive "0s" while a queued-only
+    # child sits in runtime_children -- see plan Follow-up 1 ("a family
+    # total can collapse to 0s"), tracked as a pre-existing bug in
+    # `_aggregate_runtime()`. Re-evaluate this test once that bug is fixed:
+    # the family row's own "0s" total pinned below should no longer occur.
+    root = agent(
+        status="RUNNING",
+        start=datetime(2026, 7, 19, 9, 0, 0),
+        run_start=datetime(2026, 7, 19, 9, 0, 0),
+        raw_suffix="root",
+        cl_name="family",
+    )
+    root.agent_name = "family--0"
+    root.agent_family = "family"
+    root.agent_family_role = "root"
+    queued_child = agent(
+        status="WAITING",
+        start=datetime(2026, 7, 19, 9, 1, 0),
+        run_start=None,
+        raw_suffix="queued",
+        cl_name="family--review",
+    )
+    queued_child.parent_timestamp = root.raw_suffix
+    queued_child.agent_family = "family"
+    queued_child.agent_family_role = "review"
+    queued_child.role_suffix = "--review"
+    root.runtime_children = [queued_child]
+    root.followup_agents = [queued_child]
+    root.agent_clan = "research"
+    root.agent_clan_generation = "gen-1"
+
+    clan = _clan_container()
+    clan.runtime_children = [root]
+
+    now = datetime(2026, 7, 19, 9, 3, 5)
+    _, family_suffix, _ = format_agent_option(root, 0, is_selected=False, now=now)
+    _, clan_suffix, _ = format_agent_option(clan, 0, is_selected=False, now=now)
+
+    assert family_suffix.plain == "🏃‍♂️ 3m05s / 0s"
+    assert " / " in clan_suffix.plain  # never an empty left value
+    assert clan_suffix.plain.split(" / ")[0] == "🏃‍♂️ 3m05s"  # never 0s
 
 
 def test_format_agent_option_clan_ticking_lane_with_no_active_interval_has_no_slash() -> (

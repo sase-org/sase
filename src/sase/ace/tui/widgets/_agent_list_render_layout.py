@@ -13,7 +13,7 @@ from textual.widgets.option_list import Option
 from sase.agent.status_buckets import agent_is_asking, agent_status_bucket
 
 from ..models import agent_time as agent_time_model
-from ..models._agent_clan import clan_current_lane_rows
+from ..models._agent_clan import clan_running_lane_rows
 from ..models.agent import (
     Agent,
     AttemptRecord,
@@ -91,19 +91,17 @@ def build_runtime_suffix(
     ts_pair, elapsed = compute_row_runtime(agent, now=reference)
     suffix = Text()
     is_ticking = agent_time_model.runtime_suffix_ticks(agent)
-    current_shell_elapsed: str | None = None
+    leading_elapsed: str | None = None
     if elapsed is not None and is_ticking:
         current_shell = current_family_shell_row(agent)
         if current_shell is not None:
-            _shell_ts_pair, current_shell_elapsed = (
-                agent_time_model.compute_leaf_row_runtime(
-                    current_shell,
-                    now=reference,
-                )
+            _shell_ts_pair, leading_elapsed = agent_time_model.compute_leaf_row_runtime(
+                current_shell,
+                now=reference,
             )
         elif agent.is_clan_container:
-            current_shell_elapsed = agent_time_model.compute_lowest_row_runtime(
-                clan_current_lane_rows(agent), now=reference
+            leading_elapsed = agent_time_model.compute_lowest_row_runtime(
+                clan_running_lane_rows(agent), now=reference
             )
     show_unread_marker = is_unread and not is_ticking
     show_user_paused_marker = (
@@ -142,8 +140,8 @@ def build_runtime_suffix(
                 _RUNTIME_USER_PAUSED_MARKER,
                 style=_RUNTIME_USER_PAUSED_MARKER_STYLE,
             )
-        if current_shell_elapsed is not None:
-            suffix.append(current_shell_elapsed, style=_RUNTIME_ELAPSED_STYLE)
+        if leading_elapsed is not None:
+            suffix.append(leading_elapsed, style=_RUNTIME_ELAPSED_STYLE)
             suffix.append(" / ")
         suffix.append(elapsed, style=_RUNTIME_ELAPSED_STYLE)
     elif show_unread_marker:

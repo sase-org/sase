@@ -121,9 +121,14 @@ def clan_tree_agents(*, clan_summary: str | None = None) -> list[Agent]:
 def running_clan_runtime_agents() -> list[Agent]:
     """Return a clan with two running lanes -- one a family -- and one settled.
 
-    ``solo`` and the family's ``family_coder`` lane are both live at snapshot
-    time with different run starts, so the clan's live suffix carries the
-    lower of the two; ``settled`` is finished and contributes nothing.
+    ``solo`` and the family lane are both live at snapshot time with
+    different run starts, so the clan's live suffix carries the lower of
+    the two. The family lane has a settled ``family_review`` shell in
+    addition to the running ``family_coder`` shell, so the family's total
+    runtime diverges from the coder's own runtime -- this is what makes the
+    clan lane's contribution (the family *total*) distinguishable from the
+    bug this fixture regression-tests (the coder's own runtime).
+    ``settled`` is finished and contributes nothing.
     """
     generation = "20260719090000"
     solo = Agent(
@@ -157,6 +162,25 @@ def running_clan_runtime_agents() -> list[Agent]:
         agent_clan="runtime-clan",
         agent_clan_generation=generation,
         tribe="epic",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    family_review = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-runtime-clan-family-review",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 19, 9, 6, 0),
+        run_start_time=datetime(2026, 7, 19, 9, 6, 0),
+        stop_time=datetime(2026, 7, 19, 9, 9, 0),
+        raw_suffix="20260719090600-family-review",
+        parent_timestamp=family_root.raw_suffix,
+        role_suffix="--review",
+        agent_name="runtime-clan.family--review",
+        agent_family="runtime-clan.family",
+        agent_family_role="review",
+        agent_clan="runtime-clan",
+        agent_clan_generation=generation,
         llm_provider="codex",
         model="gpt-5",
     )
@@ -195,7 +219,7 @@ def running_clan_runtime_agents() -> list[Agent]:
         model="gemini-pro",
     )
     return sort_and_reorder(
-        [solo, family_root, family_coder, settled],
+        [solo, family_root, family_review, family_coder, settled],
         [],
     )
 

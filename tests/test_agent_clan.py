@@ -8,9 +8,9 @@ from sase.ace.tui.actions.agents._clan_cleanup import clan_members_for_container
 from sase.ace.tui.models._agent_clan import (
     ClanStatusCounts,
     aggregate_clan_status,
-    clan_current_lane_rows,
     clan_member_counts,
     clan_members,
+    clan_running_lane_rows,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 
@@ -116,16 +116,16 @@ def test_clan_member_counts_ignores_slot_queued_leaf() -> None:
     assert clan_member_counts(leaf) == ClanStatusCounts()
 
 
-def test_clan_current_lane_rows_single_shell_lane_represents_itself() -> None:
+def test_clan_running_lane_rows_single_shell_lane_represents_itself() -> None:
     container = _agent("research", "RUNNING", suffix=None)
     container.is_clan_container = True
     running = _agent("research.one", "RUNNING", suffix="one")
     container.runtime_children = [running]
 
-    assert clan_current_lane_rows(container) == (running,)
+    assert clan_running_lane_rows(container) == (running,)
 
 
-def test_clan_current_lane_rows_family_lane_resolves_to_current_shell() -> None:
+def test_clan_running_lane_rows_family_lane_represents_the_family() -> None:
     container = _agent("research", "RUNNING", suffix=None)
     container.is_clan_container = True
     root = _agent("research.family", "DONE", suffix="root")
@@ -142,10 +142,10 @@ def test_clan_current_lane_rows_family_lane_resolves_to_current_shell() -> None:
     root.followup_agents = [coder]
     container.runtime_children = [root]
 
-    assert clan_current_lane_rows(container) == (coder,)
+    assert clan_running_lane_rows(container) == (root,)
 
 
-def test_clan_current_lane_rows_family_lane_resolves_to_running_monitor() -> None:
+def test_clan_running_lane_rows_family_lane_counts_a_running_monitor_shell() -> None:
     container = _agent("research", "RUNNING", suffix=None)
     container.is_clan_container = True
     root = _agent("research.family", "DONE", suffix="root")
@@ -173,10 +173,33 @@ def test_clan_current_lane_rows_family_lane_resolves_to_running_monitor() -> Non
     coder.followup_agents = [monitor]
     container.runtime_children = [root]
 
-    assert clan_current_lane_rows(container) == (monitor,)
+    assert clan_running_lane_rows(container) == (root,)
 
 
-def test_clan_current_lane_rows_skips_settled_waiting_failed_lanes() -> None:
+def test_clan_running_lane_rows_skips_a_family_lane_whose_shells_have_all_settled() -> (
+    None
+):
+    container = _agent("research", "RUNNING", suffix=None)
+    container.is_clan_container = True
+    root = _agent("research.family", "DONE", suffix="root")
+    root.agent_name = "family--0"
+    root.agent_family = "family"
+    root.agent_family_role = "root"
+    root.stop_time = datetime(2026, 7, 19, 9, 1, 0)
+    coder = _agent("research.family.code", "DONE", suffix="coder")
+    coder.agent_name = "family--code"
+    coder.parent_timestamp = root.raw_suffix
+    coder.agent_family = "family"
+    coder.agent_family_role = "code"
+    coder.stop_time = datetime(2026, 7, 19, 9, 2, 0)
+    root.runtime_children = [coder]
+    root.followup_agents = [coder]
+    container.runtime_children = [root]
+
+    assert clan_running_lane_rows(container) == ()
+
+
+def test_clan_running_lane_rows_skips_settled_waiting_failed_lanes() -> None:
     container = _agent("research", "RUNNING", suffix=None)
     container.is_clan_container = True
     done = _agent("research.done", "DONE", suffix="done")
@@ -184,10 +207,10 @@ def test_clan_current_lane_rows_skips_settled_waiting_failed_lanes() -> None:
     failed = _agent("research.failed", "FAILED", suffix="failed")
     container.runtime_children = [done, waiting, failed]
 
-    assert clan_current_lane_rows(container) == ()
+    assert clan_running_lane_rows(container) == ()
 
 
-def test_clan_current_lane_rows_excludes_other_clan_and_generation() -> None:
+def test_clan_running_lane_rows_excludes_other_clan_and_generation() -> None:
     container = _agent("research", "RUNNING", suffix=None)
     container.is_clan_container = True
     running = _agent("research.one", "RUNNING", suffix="one")
@@ -197,13 +220,13 @@ def test_clan_current_lane_rows_excludes_other_clan_and_generation() -> None:
     wrong_generation.agent_clan_generation = "old-generation"
     container.runtime_children = [running, other_clan, wrong_generation]
 
-    assert clan_current_lane_rows(container) == (running,)
+    assert clan_running_lane_rows(container) == (running,)
 
 
-def test_clan_current_lane_rows_returns_empty_for_non_clan_row() -> None:
+def test_clan_running_lane_rows_returns_empty_for_non_clan_row() -> None:
     leaf = _agent("solo", "RUNNING", suffix="solo")
 
-    assert clan_current_lane_rows(leaf) == ()
+    assert clan_running_lane_rows(leaf) == ()
 
 
 def test_cleanup_cascades_from_container_but_not_from_member() -> None:

@@ -2010,9 +2010,10 @@ agent or monitor shell currently executing, and the right value is the aggregate
 interval. On an active clan container the live suffix is
 `<lowest-running-lane-runtime> / <clan-total-runtime>` (same marker), where the left
 value is the smallest current runtime among the clan's running lanes (a sequential
-family lane contributes its currently executing shell) and the right value is the
-aggregate clan interval. For finished agents, the start-timestamp half is rendered as a
-humanized `(date_prefix, time)` pair sized to fit the existing 15-cell slot:
+family lane contributes its total runtime, the same value its own row shows on the right
+of its suffix) and the right value is the aggregate clan interval. For finished agents,
+the start-timestamp half is rendered as a humanized `(date_prefix, time)` pair sized to
+fit the existing 15-cell slot:
 
 - **Same day**: `HH:MM:SS`
 - **Prior day, same year**: `Mon DD HH:MM` (drops seconds — they're noise once a row

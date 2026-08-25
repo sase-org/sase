@@ -19,6 +19,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_clan_fixtures import (
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    assert_page_svg_styled_text_absent,
     assert_page_svg_styled_text_contains,
     pin_agents_visual_now,
 )
@@ -94,8 +95,15 @@ async def test_running_clan_runtime_png_snapshots(
 
         assert page.app._agents[0].is_clan_container is True
         assert_page_svg_contains(page, "runtime-clan")
-        assert_page_svg_contains(page, "35m")
+        assert_page_svg_contains(page, "38m")
         assert_page_svg_contains(page, "45m")
+        # The collapsed clan lane must show the family's total (38m), never
+        # the running coder shell's own runtime (35m) -- that single
+        # absence is what fails loudly if the clan lane regresses. Scoped to
+        # the live-marker-prefixed form so it doesn't false-positive on the
+        # family roster detail panel, which legitimately lists the coder
+        # shell's own 35m runtime alongside the clan row.
+        assert_page_svg_styled_text_absent(page, "🏃‍♂️ 35m")
         ace_png_visual.assert_page_png(
             page,
             "agents_running_clan_runtime_collapsed_120x40",
@@ -108,6 +116,7 @@ async def test_running_clan_runtime_png_snapshots(
 
         assert_page_svg_contains(page, "runtime-clan.family")
         assert_page_svg_contains(page, "35m")
+        assert_page_svg_contains(page, "38m")
         assert_page_svg_contains(page, "45m")
         ace_png_visual.assert_page_png(
             page,
