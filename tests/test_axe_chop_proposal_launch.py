@@ -23,6 +23,7 @@ from sase.xprompt import extract_vcs_workflow_tag
 from tests._axe_chop_proposal_launch_helpers import (
     config,
     known_project_resolver,
+    patch_condition_workspace_lease,
     result_script,
 )
 
@@ -62,6 +63,7 @@ def test_typed_chop_proposal_uses_durable_admission_and_chop_env(
         "sase.agent.launch_cwd_common.resolve_known_project_vcs_launch_ref",
         lambda _prompt: known_project_resolver(repo),
     )
+    patch_condition_workspace_lease(monkeypatch, repo)
     calls: list[tuple[str, dict[str, str]]] = []
 
     def _launch(prompt: str, *, extra_env: dict[str, str]) -> list[SimpleNamespace]:
@@ -214,6 +216,7 @@ def test_runner_all_skipped_typed_admission_succeeds_without_agent(
         "sase.agent.launch_cwd_common.resolve_known_project_vcs_launch_ref",
         lambda _prompt: known_project_resolver(repo),
     )
+    patch_condition_workspace_lease(monkeypatch, repo)
 
     with (
         override_flags(typed_launch_units=True),

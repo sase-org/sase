@@ -108,14 +108,21 @@ def _query_for_plans(plans: Sequence[PlannedChopProposal]) -> str:
     return "\n---\n".join(plan.prompt.rstrip() for plan in plans) + "\n"
 
 
+def _str_or_none(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    return text if text else None
+
+
 def _resolve_typed_batch_project(
     plans: Sequence[PlannedChopProposal],
-) -> tuple[str, str]:
+) -> tuple[str, str, str | None]:
     """Resolve the only project/source cwd allowed for one typed chop batch."""
     from sase.agent.launch_cwd_common import resolve_known_project_vcs_launch_ref
     from sase.agent.launch_request_types import LaunchRequestError
 
-    resolved: list[tuple[str, str, int, str]] = []
+    resolved: list[tuple[str, str, str | None, int, str]] = []
     for plan in plans:
         ref = resolve_known_project_vcs_launch_ref(plan.prompt)
         if ref is None:
@@ -132,22 +139,27 @@ def _resolve_typed_batch_project(
             (
                 str(ref.ref),
                 str(ref.workspace_dir),
+                _str_or_none(getattr(ref, "project_file", None)),
                 plan.proposal.index,
                 plan.proposal.workspace,
             )
         )
-    unique = {(project, cwd) for project, cwd, _index, _workspace in resolved}
+    unique = {
+        (project, cwd, project_file)
+        for project, cwd, project_file, _index, _workspace in resolved
+    }
     if len(unique) != 1:
         details = ", ".join(
-            f"{workspace!r}->{project}" for project, _cwd, _index, workspace in resolved
+            f"{workspace!r}->{project}"
+            for project, _cwd, _project_file, _index, workspace in resolved
         )
         raise LaunchRequestError(
             "invalid_request",
             "workspace",
             f"typed AXE chop proposal batch spans multiple projects: {details}",
         )
-    selected_project, source_cwd = next(iter(unique))
-    return selected_project, source_cwd
+    selected_project, source_cwd, project_file = next(iter(unique))
+    return selected_project, source_cwd, project_file
 
 
 def _wait_names_by_proposal_index(
@@ -358,7 +370,7 @@ def _maybe_dispatch_typed_chop_proposals(
             TYPED_LAUNCH_UNITS_DISABLED_MESSAGE,
         )
 
-    selected_project, source_cwd = _resolve_typed_batch_project(plans)
+    selected_project, source_cwd, project_file = _resolve_typed_batch_project(plans)
     typed_plan_dict = prepare_typed_launch_plan(
         expanded_prompt,
         selected_project=selected_project,
@@ -379,6 +391,7 @@ def _maybe_dispatch_typed_chop_proposals(
         source_cwd=source_cwd,
         source_surface=AXE_CHOP_SOURCE_SURFACE,
         selected_project=selected_project,
+        project_file=project_file,
         unit_dispatch_metadata=metadata,
         request_id=f"axe-chop-{run_id}",
     )

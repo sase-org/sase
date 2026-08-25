@@ -21,6 +21,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 )
 from tests.ace.tui.visual._ace_png_snapshot_waits import _disable_cursor_blink
 
+pytestmark = pytest.mark.visual
+
 
 class _Worker:
     name = "delayed-paint"

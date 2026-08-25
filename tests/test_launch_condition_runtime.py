@@ -42,11 +42,13 @@ def _agent_result(tmp_path: Path, name: str = "reviewer") -> AgentLaunchResult:
     )
 
 
-def _plan(*units: LaunchUnitWire) -> LaunchPlanWire:
+def _plan(
+    *units: LaunchUnitWire, selected_project: str | None = None
+) -> LaunchPlanWire:
     return LaunchPlanWire(
         schema_version=1,
         launch_kind="multi_prompt",
-        selected_project="sase",
+        selected_project=selected_project,
         content_digest="d" * 64,
         units=list(units),
         approval_preview=["LaunchPlan v1"],

@@ -21,6 +21,12 @@ from sase.agent.launch_admission_runtime import (
     resolve_external_wait_facts,
     stop_proc_identity,
 )
+from sase.agent.launch_condition_workspace import (
+    ConditionWorkspaceError,
+    ConditionWorkspaceUnavailable,
+    acquire_condition_workspace,
+    settle_condition_workspace,
+)
 from sase.agent.launch_admission_store import (
     POLL_SECONDS,
     RECEIPT_FILENAME,
@@ -74,6 +80,7 @@ class AdmissionEngine:
     agent_dispatcher: UnitDispatcher | None = None
     proc_dispatcher: UnitDispatcher | None = None
     poll_seconds: float = POLL_SECONDS
+    project_file: str | None = None
     source_cwd: str | None = None
     safe_inputs: dict[str, Any] = field(default_factory=dict)
     results: list[AgentLaunchResult] = field(default_factory=list)
@@ -103,7 +110,14 @@ class AdmissionEngine:
                 if self.cancelled():
                     self._cancel_open_units()
                     return self._progress(complete=True)
-                self._apply_action(action)
+                outcome = self._apply_action(action)
+                if outcome == "blocked":
+                    if until_blocked:
+                        return self._progress(complete=False)
+                    self.sleep(self.poll_seconds)
+                    break
+                if outcome == "replan":
+                    break
 
     def _states(self) -> dict[str, dict[str, Any]]:
         states = reconcile_admission_journal(read_journal(self.admission_dir))
@@ -139,40 +153,25 @@ class AdmissionEngine:
             waiting_since=self._waiting_since,
         )
 
-    def _apply_action(self, action: Mapping[str, Any]) -> None:
+    def _apply_action(self, action: Mapping[str, Any]) -> str | None:
         kind = str(action.get("kind") or "")
         logical_id = str(action.get("logical_id") or "")
         if kind == "reserve":
             self._journal(logical_id, "reserved")
-            return
+            return None
         if kind == "wait":
             self._waiting_since.setdefault(logical_id, self.clock())
             self._journal(logical_id, "waiting")
-            return
+            return None
         if kind == "check":
-            waited = list(action.get("waited_outcomes") or [])
-            self._journal(logical_id, "checking", waited_outcomes=waited)
-            unit = _unit(self.plan, logical_id)
-            verdict, message = self._evaluate_condition(unit, waited)
-            phase = {
-                "eligible": "eligible",
-                "skipped": "skipped",
-                "condition_error": "condition_error",
-            }.get(verdict, "condition_error")
-            self._journal(
-                logical_id,
-                phase,
-                waited_outcomes=waited,
-                message=message or verdict,
-            )
-            return
+            return self._apply_check(action)
         if kind == "eligible":
             self._journal(
                 logical_id,
                 "eligible",
                 waited_outcomes=list(action.get("waited_outcomes") or []),
             )
-            return
+            return None
         if kind == "dispatch":
             fingerprint = str(action.get("fingerprint") or "")
             self._journal(logical_id, "dispatching", fingerprint=fingerprint)
@@ -209,14 +208,14 @@ class AdmissionEngine:
                     identity=identity or logical_id,
                     message=message,
                 )
-                return
+                return None
             self._journal(
                 logical_id,
                 "launch_error",
                 fingerprint=fingerprint,
                 message=message or "launch_error",
             )
-            return
+            return None
         if kind == "fail_check":
             recovered = self._recover_condition(logical_id)
             if recovered is not None:
@@ -227,39 +226,99 @@ class AdmissionEngine:
                     "condition_error": "condition_error",
                 }.get(verdict, "condition_error")
                 self._journal(logical_id, phase, message=message or verdict)
-                return
+                return "replan"
             self._journal(
                 logical_id,
                 "condition_error",
                 message=str(action.get("message") or "check_interrupted"),
             )
-            return
+            return "replan"
         if kind == "fail_dispatch":
             self._journal(
                 logical_id,
                 "launch_error",
                 message=str(action.get("message") or "dispatch_interrupted"),
             )
-            return
+            return None
         if kind == "record_launched":
             identity = str(action.get("identity") or logical_id)
             self._journal(logical_id, "launched", identity=identity)
+        return None
+
+    def _apply_check(self, action: Mapping[str, Any]) -> str:
+        logical_id = str(action.get("logical_id") or "")
+        waited = list(action.get("waited_outcomes") or [])
+        unit = _unit(self.plan, logical_id)
+        context = self._condition_context(unit.logical_id, waited)
+        work_dir = Path(str(context["work_dir"]))
+        lease_acquired = False
+        if self._uses_condition_workspace(unit):
+            try:
+                lease = acquire_condition_workspace(
+                    project=str(self.plan.selected_project),
+                    request_id=self.request_id,
+                    plan_digest=self.plan.content_digest,
+                    logical_id=unit.logical_id,
+                    work_dir=work_dir,
+                    project_file=self.project_file,
+                )
+            except ConditionWorkspaceUnavailable:
+                return "blocked"
+            except ConditionWorkspaceError as exc:
+                self._journal(
+                    logical_id,
+                    "condition_error",
+                    waited_outcomes=waited,
+                    message=str(exc),
+                )
+                return "replan"
+            lease_acquired = True
+            context.update(lease.context_payload())
+        self._journal(logical_id, "checking", waited_outcomes=waited)
+        try:
+            verdict, message = self._evaluate_condition(unit, waited, context)
+        except Exception as exc:
+            verdict, message = "condition_error", f"condition evaluator failed: {exc}"
+        finally:
+            if lease_acquired:
+                settle_condition_workspace(work_dir)
+        phase = {
+            "eligible": "eligible",
+            "skipped": "skipped",
+            "condition_error": "condition_error",
+        }.get(verdict, "condition_error")
+        self._journal(
+            logical_id,
+            phase,
+            waited_outcomes=waited,
+            message=message or verdict,
+        )
+        return "replan"
 
     def _evaluate_condition(
         self,
         unit: LaunchUnitWire,
         waited: list[dict[str, Any]],
+        context: Mapping[str, Any] | None = None,
     ) -> tuple[str, str | None]:
         evaluator = self.condition_evaluator or evaluate_launch_condition
-        return evaluator(unit, waited, self._condition_context(unit.logical_id, waited))
+        return evaluator(
+            unit,
+            waited,
+            context or self._condition_context(unit.logical_id, waited),
+        )
 
     def _recover_condition(self, logical_id: str) -> tuple[str, str | None] | None:
         from sase.agent.launch_condition_runtime import recover_launch_condition
 
-        return recover_launch_condition(
-            self.admission_dir / UNITS_DIRNAME / logical_id,
-            cancelled=self.cancelled,
-        )
+        work_dir = self.admission_dir / UNITS_DIRNAME / logical_id
+        try:
+            return recover_launch_condition(
+                work_dir,
+                cancelled=self.cancelled,
+            )
+        finally:
+            settle_condition_workspace(work_dir)
 
     def _condition_context(
         self,
@@ -268,6 +327,9 @@ class AdmissionEngine:
     ) -> dict[str, Any]:
         return {
             "logical_unit": logical_id,
+            "request_id": self.request_id,
+            "plan_digest": self.plan.content_digest,
+            "project_file": self.project_file,
             "selected_project": self.plan.selected_project,
             "waited_outcomes": waited,
             "safe_inputs": dict(self.safe_inputs),
@@ -314,6 +376,8 @@ class AdmissionEngine:
                 )
                 cancel_path.parent.mkdir(parents=True, exist_ok=True)
                 cancel_path.write_text("1\n", encoding="utf-8")
+                if phase == "checking":
+                    self._recover_condition(unit.logical_id)
             identity = state.get("identity")
             if phase == "dispatching" and isinstance(identity, str) and identity:
                 stop_proc_identity(identity)
@@ -325,6 +389,14 @@ class AdmissionEngine:
                 fingerprint=(fingerprint if isinstance(fingerprint, str) else None),
                 message="cancelled",
             )
+
+    def _uses_condition_workspace(self, unit: LaunchUnitWire) -> bool:
+        if self.condition_evaluator is not None:
+            return False
+        if unit.condition is None:
+            return False
+        project = self.plan.selected_project
+        return isinstance(project, str) and bool(project.strip())
 
     def _journal(
         self,
@@ -407,6 +479,11 @@ def request_source_cwd(data: Mapping[str, Any]) -> str | None:
         return None
     cwd = dispatch.get("cwd")
     return None if cwd is None else str(cwd)
+
+
+def request_project_file(data: Mapping[str, Any]) -> str | None:
+    raw = data.get("project_file")
+    return str(raw) if raw else None
 
 
 def request_safe_inputs(data: Mapping[str, Any]) -> dict[str, Any]:

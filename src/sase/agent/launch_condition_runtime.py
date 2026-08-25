@@ -3,8 +3,8 @@
 The coordinator journals ``checking``, then this module materializes a private
 script and ``SASE_CONDITION_CONTEXT`` JSON file, supervises a process group,
 and settles exit 0 as eligible, exit 1 as skipped, and every other result as a
-condition error. False and error outcomes never allocate a runner, workspace,
-agent, or proc identity.
+condition error. Project admission may supply a temporary condition workspace
+cwd; false and error outcomes never allocate a runner, agent, or proc identity.
 """
 
 from __future__ import annotations
@@ -139,7 +139,17 @@ def _request_from_unit(
         safe_inputs=_safe_inputs(context),
         share_workspace=False,
     )
-    cwd = condition.cwd or context.get("source_cwd")
+    condition_workspace_cwd = context.get("condition_workspace_cwd")
+    source_cwd = context.get("source_cwd")
+    cwd: str | None
+    if selected_project is not None and condition_workspace_cwd:
+        cwd = str(condition_workspace_cwd)
+    elif condition.cwd:
+        cwd = condition.cwd
+    elif source_cwd is not None:
+        cwd = str(source_cwd)
+    else:
+        cwd = None
     timeout = context.get("timeout_seconds")
     output_cap = context.get("output_cap_bytes")
     python_executable = str(context.get("python_executable") or sys.executable)

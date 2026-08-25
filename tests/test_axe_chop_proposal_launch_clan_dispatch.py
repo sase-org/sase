@@ -21,6 +21,7 @@ from sase.core.agent_launch_wire import AgentUnitWire, LaunchUnitWire
 from sase.feature_flags import override_flags
 from sase.xprompt import extract_vcs_workflow_tag
 from sase.xprompt.directives import extract_prompt_directives
+from tests._axe_chop_proposal_launch_helpers import patch_condition_workspace_lease
 
 pytest_plugins = ["tests.axe_chop_runner_fixtures"]
 
@@ -661,6 +662,7 @@ def test_typed_clan_batch_promotes_first_surviving_member_end_to_end(
         "sase.agent.launch_cwd_common.resolve_known_project_vcs_launch_ref",
         _gh_project_resolver,
     )
+    patch_condition_workspace_lease(monkeypatch, repo)
     calls: list[tuple[str, dict[str, str]]] = []
 
     def _launch(prompt: str, *, extra_env: dict[str, str]) -> list[SimpleNamespace]:
@@ -760,6 +762,7 @@ def test_typed_clan_batch_restores_sequential_member_waits_end_to_end(
         "sase.agent.launch_cwd_common.resolve_known_project_vcs_launch_ref",
         _gh_project_resolver,
     )
+    patch_condition_workspace_lease(monkeypatch, repo)
     calls: list[tuple[str, dict[str, str]]] = []
 
     def _launch(prompt: str, *, extra_env: dict[str, str]) -> list[SimpleNamespace]:

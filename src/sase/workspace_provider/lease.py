@@ -101,6 +101,32 @@ class _OperationalLeaseError(RuntimeError):
         self.resumable = resumable
 
 
+OperationalLeaseError = _OperationalLeaseError
+
+
+def is_operational_lease_contention_error(exc: BaseException) -> bool:
+    """Return whether *exc* represents a retryable busy workspace pool."""
+
+    if not isinstance(exc, _OperationalLeaseError) or exc.step != "allocation":
+        return False
+    text = f"{exc.detail} {exc}".lower()
+    if "workspace" not in text:
+        return False
+    return any(
+        token in text
+        for token in (
+            "already claimed",
+            "all axe workspaces",
+            "all workspaces",
+            "busy",
+            "claimed",
+            "no available",
+            "unavailable",
+            "exhausted",
+        )
+    )
+
+
 @dataclass(frozen=True)
 class OperationalLease:
     """One claimed, materialized, machine-owned operational checkout.
@@ -683,12 +709,14 @@ def _supervisor_pid(proc: Any) -> int | None:
 __all__ = [
     "OPERATIONAL_LEASE_POLICY_KIND",
     "OperationalLease",
+    "OperationalLeaseError",
     "ReplayConflict",
     "ReplayDeferred",
     "ResetReplayError",
     "ResetReplayResult",
     "acquire_operational_lease",
     "is_operational_lease_policy",
+    "is_operational_lease_contention_error",
     "operational_workspace_lease",
     "release_operational_lease",
     "submit_via_lease",

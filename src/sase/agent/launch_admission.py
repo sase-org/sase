@@ -25,6 +25,7 @@ from sase.agent.launch_admission_engine import (
     AdmissionEngine,
     AdmissionProgress,
     request_safe_inputs,
+    request_project_file,
     request_source_cwd,
     typed_plan_from_request,
 )
@@ -95,6 +96,7 @@ def dispatch_typed_launch_request(
                 agent_dispatcher=agent_dispatcher,
                 proc_dispatcher=proc_dispatcher,
                 cancelled=cancelled or (lambda: False),
+                project_file=request_project_file(data),
                 source_cwd=request_source_cwd(data),
                 safe_inputs=request_safe_inputs(data),
             )
@@ -145,6 +147,7 @@ def run_coordinator_in_bundle(
                 request_id=str(data.get("request_id") or ""),
                 cancelled=stop,
                 agent_dispatcher=agent_dispatcher,
+                project_file=request_project_file(data),
                 source_cwd=request_source_cwd(data),
                 safe_inputs=request_safe_inputs(data),
             )

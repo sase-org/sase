@@ -40,6 +40,7 @@ def _write_direct_typed_launch_bundle(
     source_cwd: str,
     source_surface: str,
     selected_project: str | None,
+    project_file: str | None = None,
     safe_inputs: Mapping[str, Any] | None = None,
     unit_dispatch_metadata: Mapping[str, Any] | None = None,
     request_id: str | None = None,
@@ -71,6 +72,8 @@ def _write_direct_typed_launch_bundle(
         display = typed_launch_project_display_name(selected_project)
         if display:
             payload["selected_project_display"] = display
+    if project_file:
+        payload["project_file"] = project_file
     envelope: dict[str, object] = {
         "kind": DIRECT_TYPED_LAUNCH_KIND,
         "request_id": request_id,
@@ -90,6 +93,7 @@ def write_typed_launch_bundle(
     source_cwd: str,
     source_surface: str,
     selected_project: str | None,
+    project_file: str | None = None,
     safe_inputs: Mapping[str, Any] | None = None,
     unit_dispatch_metadata: Mapping[str, Any] | None = None,
     request_id: str | None = None,
@@ -102,6 +106,7 @@ def write_typed_launch_bundle(
         source_cwd=source_cwd,
         source_surface=source_surface,
         selected_project=selected_project,
+        project_file=project_file,
         safe_inputs=safe_inputs,
         unit_dispatch_metadata=unit_dispatch_metadata,
         request_id=request_id,
