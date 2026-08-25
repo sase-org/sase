@@ -1,12 +1,12 @@
 """Cross-kind mixed Agent/Proc launch-matrix coverage for Phase 8 verification.
 
-Existing coordinator tests in ``test_launch_admission.py`` exercise each admission
-behavior (skip propagation, condition errors, crash recovery, cancellation, proc
-dispatch) in isolation, one unit kind at a time. These tests combine Agent and Proc
-units in a single plan — skipped predecessors, condition errors, forward waits,
-external time waits, partial launch failure, and documented prompt forms — and assert
-that the coordinator summary, per-unit results, persisted receipt, and notification
-text agree on outcomes and counts.
+Existing launch-admission coordinator tests exercise each admission behavior (skip
+propagation, condition errors, crash recovery, cancellation, proc dispatch) in
+isolation, one unit kind at a time. These tests combine Agent and Proc units in a
+single plan — skipped predecessors, condition errors, forward waits, external time
+waits, partial launch failure, and documented prompt forms — and assert that the
+coordinator summary, per-unit results, persisted receipt, and notification text agree
+on outcomes and counts.
 """
 
 from __future__ import annotations
