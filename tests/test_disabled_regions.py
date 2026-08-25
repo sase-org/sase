@@ -199,6 +199,51 @@ class TestProcessXpromptReferencesDisabledRegions:
         assert idx == 0 or result[idx - 1] == "\n"
 
 
+class TestEmbeddedWorkflowExpansionDisabledRegions:
+    """Integration: expand_embedded_workflows_in_query skips disabled regions.
+
+    Regression test for the sase-t8.1--1 launch failure: the expander used to
+    compute its skip set with ``code_literal_ranges`` (fenced/inline code
+    only), so a workflow name mentioned as prose inside a
+    ``%xprompts_enabled:false`` region was wrongly treated as a live
+    reference and expanded.
+    """
+
+    @patch("sase.xprompt.loader.get_all_workflows")
+    def test_prose_mention_inside_disabled_region_is_not_expanded(
+        self,
+        mock_get_workflows: MagicMock,
+    ) -> None:
+        from sase.main.query_handler._embedded_workflows import (
+            expand_embedded_workflows_in_query,
+        )
+        from sase.xprompt.workflow_models import Workflow, WorkflowStep
+
+        workflow = Workflow(
+            name="fork",
+            steps=[WorkflowStep(name="main", prompt_part="EXPANDED CONTENT")],
+        )
+        mock_get_workflows.return_value = {"fork": workflow}
+
+        prompt = (
+            "#fork real call\n"
+            "%xprompts_enabled:false\n"
+            "typed proc/monitor #fork sources in `agent_chat_from_name.py`\n"
+            "%xprompts_enabled:true\n"
+            "after\n"
+        )
+
+        expanded, _ = expand_embedded_workflows_in_query(prompt)
+
+        assert "EXPANDED CONTENT" in expanded
+        assert (
+            "typed proc/monitor #fork sources in `agent_chat_from_name.py`" in expanded
+        )
+        # Only the real, top-level reference expanded -- the prose mention
+        # is not replaced with a second copy of the prompt_part content.
+        assert expanded.count("EXPANDED CONTENT") == 1
+
+
 class TestPreprocessPromptLateDisabledRegions:
     """Integration: preprocess_prompt_late strips markers and protects content."""
 

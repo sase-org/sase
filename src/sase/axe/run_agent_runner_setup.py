@@ -364,6 +364,18 @@ def expand_deferred_launch_xprompts(
     introduces a fork.  Embedded workflow expansion is then restricted to the
     launch-deferred set so VCS and completion workflows keep their established
     execution timing inside the agent workflow.
+
+    ``SASE_ARTIFACTS_DIR`` is set to *artifacts_dir* for the duration of this
+    call and restored afterward (this run's own value is not published by
+    ``publish_phase_env()`` until later in ``run_execution_loop()``). A bare
+    ``#fork`` resolves its parent through
+    ``_resolve_default_agent_name(exclude_artifacts_dir=...)``, which reads
+    ``SASE_ARTIFACTS_DIR`` to exclude the run being launched from its own
+    resolution; without this scoping that self-exclusion silently no-ops and
+    a named run can resolve `#fork` to itself. The restore is scoped narrowly
+    here rather than calling ``publish_phase_env()`` early, which also sets
+    ``SASE_AGENT_TIMESTAMP`` and would change the unset/inherited snapshot
+    that ``run_execution_loop()`` takes of that variable before publishing it.
     """
     from sase.main.query_handler import expand_embedded_workflows_in_query
     from sase.xprompt.processor import (
@@ -375,12 +387,22 @@ def expand_deferred_launch_xprompts(
         prompt,
         extra_xprompts=extra_xprompts,
     )
-    prompt, embedded_workflows = expand_embedded_workflows_in_query(
-        prompt,
-        artifacts_dir,
-        only_workflow_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
-        preserve_existing_xprompt_metadata=True,
-    )
+
+    previous_artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
+    try:
+        prompt, embedded_workflows = expand_embedded_workflows_in_query(
+            prompt,
+            artifacts_dir,
+            only_workflow_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+            preserve_existing_xprompt_metadata=True,
+        )
+    finally:
+        if previous_artifacts_dir is None:
+            os.environ.pop("SASE_ARTIFACTS_DIR", None)
+        else:
+            os.environ["SASE_ARTIFACTS_DIR"] = previous_artifacts_dir
+
     workflows_with_post_steps = [
         result.workflow_name for result in embedded_workflows if result.post_steps
     ]

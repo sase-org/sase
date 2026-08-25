@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -349,6 +350,111 @@ def test_deferred_launch_xprompts_preserve_original_usage_metadata(
         "beau",
         "plan",
     ]
+
+
+def _load_fork_workflow():
+    from sase.xprompt.loader import get_sase_package_xprompts_dir
+    from sase.xprompt.workflow_loader import _load_workflow_from_file
+
+    workflow = _load_workflow_from_file(get_sase_package_xprompts_dir() / "fork.yml")
+    assert workflow is not None
+    return workflow
+
+
+def _write_named_agent(
+    home: Path,
+    suffix: str,
+    name: str,
+    *,
+    response_path: Path | None = None,
+) -> Path:
+    artifacts_dir = (
+        home / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / suffix
+    )
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"name": name}),
+        encoding="utf-8",
+    )
+    if response_path is not None:
+        (artifacts_dir / "done.json").write_text(
+            json.dumps({"outcome": "completed", "response_path": str(response_path)}),
+            encoding="utf-8",
+        )
+    return artifacts_dir
+
+
+class TestBareForkSelfExclusion:
+    """Regression tests for defect B: bare #fork must not resolve to itself.
+
+    ``_resolve_default_agent_name()`` excludes the caller's own
+    ``SASE_ARTIFACTS_DIR`` so a bare ``#fork`` cannot select the run being
+    launched. That exclusion only works if ``expand_deferred_launch_xprompts``
+    publishes the run's own artifacts dir before expansion runs.
+    """
+
+    def test_bare_fork_resolves_older_agent_not_the_launching_run(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+
+        chat_path = tmp_path / "older-chat.md"
+        chat_path.write_text(
+            "## Prompt\n\nOld question\n\n## Response\n\nOLDER AGENT REPLY\n",
+            encoding="utf-8",
+        )
+        _write_named_agent(
+            tmp_path, "20260504010101", "builder", response_path=chat_path
+        )
+        # The run being launched: a later timestamp (so it would win as
+        # "most recent" if not excluded) with agent_meta.json already
+        # written but no chat history yet.
+        artifacts_dir = _write_named_agent(tmp_path, "20260504020202", "current_run")
+
+        with patch(
+            "sase.xprompt.loader.get_all_workflows",
+            return_value={"fork": _load_fork_workflow()},
+        ):
+            expanded = expand_deferred_launch_xprompts(
+                "#fork\nContinue", str(artifacts_dir)
+            )
+
+        assert "OLDER AGENT REPLY" in expanded
+        assert os.environ.get("SASE_ARTIFACTS_DIR") is None
+
+    def test_restores_inherited_artifacts_dir_after_expansion(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """An inherited SASE_ARTIFACTS_DIR is restored, not left as this run's."""
+        monkeypatch.setenv("HOME", str(tmp_path))
+        unrelated_dir = str(tmp_path / "unrelated-parent-artifacts")
+        monkeypatch.setenv("SASE_ARTIFACTS_DIR", unrelated_dir)
+
+        chat_path = tmp_path / "older-chat.md"
+        chat_path.write_text(
+            "## Prompt\n\nOld question\n\n## Response\n\nOLDER AGENT REPLY\n",
+            encoding="utf-8",
+        )
+        _write_named_agent(
+            tmp_path, "20260504010101", "builder", response_path=chat_path
+        )
+        artifacts_dir = _write_named_agent(tmp_path, "20260504020202", "current_run")
+
+        with patch(
+            "sase.xprompt.loader.get_all_workflows",
+            return_value={"fork": _load_fork_workflow()},
+        ):
+            expanded = expand_deferred_launch_xprompts(
+                "#fork\nContinue", str(artifacts_dir)
+            )
+
+        assert "OLDER AGENT REPLY" in expanded
+        assert os.environ.get("SASE_ARTIFACTS_DIR") == unrelated_dir
 
 
 def test_setup_artifacts_directory_updates_artifact_index(tmp_path: Path) -> None:

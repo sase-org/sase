@@ -265,6 +265,51 @@ def test_find_vcs_workflow_tag_span_returns_none_when_only_fenced() -> None:
         assert find_vcs_workflow_tag_span(prompt) is None
 
 
+def test_find_vcs_workflow_tag_span_skips_disabled_region() -> None:
+    """Tags written as prose inside a disabled region are inert, not workflow refs."""
+    prompt = (
+        "before\n"
+        "%xprompts_enabled:false\n"
+        "mentions #gh:sase as an example\n"
+        "%xprompts_enabled:true\n"
+        "then #git:foo go"
+    )
+    with _patch_embedded_vcs_pattern():
+        start = prompt.index("#git:foo")
+        assert find_vcs_workflow_tag_span(prompt) == (
+            start,
+            start + len("#git:foo"),
+        )
+
+
+def test_find_vcs_workflow_tag_span_returns_none_when_only_in_disabled_region() -> None:
+    """A prompt whose only tag-like text sits in a disabled region has no tag."""
+    prompt = (
+        "before\n%xprompts_enabled:false\n#gh:sase example\n%xprompts_enabled:true\n"
+    )
+    with _patch_embedded_vcs_pattern():
+        assert find_vcs_workflow_tag_span(prompt) is None
+
+
+def test_parsing_vcs_tags_find_vcs_workflow_tag_span_skips_disabled_region() -> None:
+    """The ``_parsing_vcs_tags`` copy of the span finder is disabled-region aware too."""
+    from sase.xprompt._parsing_vcs_tags import find_vcs_workflow_tag_span as impl_span
+
+    prompt = (
+        "before\n"
+        "%xprompts_enabled:false\n"
+        "mentions #gh:sase as an example\n"
+        "%xprompts_enabled:true\n"
+        "then #git:foo go"
+    )
+    with patch(
+        "sase.xprompt._parsing_vcs_tags._get_embedded_vcs_tag_pattern",
+        return_value=_TEST_EMBEDDED_VCS_PATTERN,
+    ):
+        start = prompt.index("#git:foo")
+        assert impl_span(prompt) == (start, start + len("#git:foo"))
+
+
 def test_prepend_offset_preserves_frontmatter_directives() -> None:
     prompt = "---\nxprompts: {}\n---\n  %i:a %wait Fix it"
     assert find_vcs_workflow_tag_prepend_offset(prompt) == len(

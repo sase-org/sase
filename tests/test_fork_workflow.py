@@ -380,6 +380,62 @@ def test_inline_deferred_fork_survives_workspace_removal_and_late_preprocessing(
     assert new_query.strip() == "Continue the work"
 
 
+def test_deferred_launch_ignores_bare_fork_prose_inside_disabled_region(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reproduces the sase-t8.1--1 launch failure end to end.
+
+    A monitor follow-up whose prompt begins with a real ``#fork:<parent>``
+    directive, and whose body is wrapped in a disabled region that
+    incidentally mentions bare ``#fork`` as prose, must resolve exactly one
+    fork parent -- the named one -- instead of also resolving the inert
+    prose mention.
+    """
+    monkeypatch.setenv("HOME", str(tmp_path))
+    chat_path = tmp_path / "previous-chat.md"
+    chat_path.write_text(
+        "## Prompt\n\nOld question\n\n## Response\n\nOld answer\n",
+        encoding="utf-8",
+    )
+    _write_completed_agent(
+        tmp_path,
+        "20260824010101",
+        "sase-t8.1--plan",
+        response_path=chat_path,
+    )
+
+    artifacts_dir = tmp_path / "runner-artifacts"
+    artifacts_dir.mkdir()
+    prompt = (
+        "#fork:sase-t8.1--plan\n"
+        "%xprompts_enabled:false\n"
+        "typed proc/monitor #fork sources in "
+        "`src/sase/scripts/agent_chat_from_name.py`\n"
+        "%xprompts_enabled:true\n"
+        "Continue the work"
+    )
+
+    with patch(
+        "sase.xprompt.loader.get_all_workflows",
+        return_value={"fork": _load_fork_workflow()},
+    ):
+        expanded = expand_deferred_launch_xprompts(prompt, str(artifacts_dir))
+
+    # Exactly one parent resolved -- the named one -- not a second envelope
+    # for the inert prose mention.
+    assert expanded.count("# Previous Conversation") == 1
+    assert expanded.count("Old answer") == 1
+    # The disabled-region prose survives verbatim, untouched by expansion.
+    assert (
+        "typed proc/monitor #fork sources in "
+        "`src/sase/scripts/agent_chat_from_name.py`" in expanded
+    )
+    assert expanded.count("%xprompts_enabled:false") == 2
+    assert expanded.count("%xprompts_enabled:true") == 2
+    assert expanded.endswith("Continue the work")
+
+
 def test_embedded_family_fork_injects_each_completed_member_reply_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
