@@ -157,9 +157,10 @@ def _feature_spec() -> dict[str, Any]:
         ),
         "create_refusal": (
             "Agents never create this type with `sase bead create` or "
-            "`/sase_new_task` when it is not agent-creatable. That is the "
-            "machine-global override outside the SASE project. File a feature "
-            "bead only in SASE, or use an in-scope type here."
+            "`/sase_new_task` where it is not agent-creatable. Do not refile "
+            "the idea under another type: record it as a `PROPOSED FOLLOW-UP:` "
+            "note on the bead you are working, or raise it with the project "
+            "owner."
         ),
         "glyph": "✦",
         "accent_color": "#5FD75F",

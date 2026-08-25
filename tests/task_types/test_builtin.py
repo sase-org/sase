@@ -115,5 +115,8 @@ def test_feature_create_refusal_is_not_the_when_to_use_invitation() -> None:
     lowered = create_refusal.lower()
     assert "never create" in lowered
     assert "cannot be created" in lowered or "not agent-creatable" in lowered
+    for banned in ("machine-global", "~/.config", "only in sase", "sase project"):
+        assert banned not in lowered
+    assert "PROPOSED FOLLOW-UP:" in create_refusal
     assert "File one when you discovered" not in create_refusal
     assert spec["when_to_use"].startswith("File one when you discovered")

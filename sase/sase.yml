@@ -61,10 +61,6 @@ plugins:
 
 bead:
   task_types:
-    # Re-enable the builtin `feature` type, which ~/.config/sase/sase.yml turns off for
-    # every project. Product ideas discovered while working on SASE belong here.
-    - use: builtin@feature
-      agent_creatable: true
     - schema_version: 1
       task_type: flag
       label: Feature flag
