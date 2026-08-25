@@ -28,7 +28,7 @@ from ...models.fold_state import FoldLevel
 from ...agent_count_chip import format_agent_count_chip
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from ._fold_language import append_fold_glyph, fold_count_style
-from ._helpers import append_section_heading
+from ._helpers import append_fold_anchor, append_section_heading
 
 type MemberIdentity = tuple[AgentType, str, str | None]
 type MemberJumpContainerIdentity = MemberIdentity | tuple[Literal["panel"], PanelKey]
@@ -375,7 +375,7 @@ def _append_numbered_entry(
         is_unread=entry.is_unread,
         is_dismissed=entry.is_dismissed,
     )
-    append_section_heading(text, line, section_id=anchor_id)
+    append_fold_anchor(text, line, section_id=anchor_id)
 
     if children_from_level is not None and not _level_at_least(
         level,

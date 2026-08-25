@@ -36,7 +36,11 @@ from ._agent_opened_workspaces import append_agent_opened_workspaces_section
 from ._agent_plan_section import ResponsivePlanSection
 from ._agent_skill_uses import append_agent_skills_section
 from ._agent_display_state import DetailContextLane, HeaderHintState
-from ._helpers import append_major_section_divider, append_section_heading
+from ._helpers import (
+    append_fold_anchor,
+    append_major_section_divider,
+    append_section_heading,
+)
 
 _COLOR_HEADER = "bold #D7AF5F underline"
 # The authored plan is the agent's stated intent; keep the bead context directly
@@ -192,8 +196,10 @@ def append_agent_context_section(
         )
         from ._fold_language import append_fold_glyph
 
-        text.append("SASE CONTEXT", style=_COLOR_HEADER)
-        text.append(f" · {len(rendered_lanes)}\n", style="dim")
+        heading = Text()
+        heading.append("SASE CONTEXT", style=_COLOR_HEADER)
+        heading.append(f" · {len(rendered_lanes)}", style="dim")
+        append_section_heading(text, heading, section_id="sase-context")
         lane_ids = {
             "BEAD": BEAD_SECTION_ID,
             "PLAN": "plan",
@@ -233,7 +239,7 @@ def append_agent_context_section(
                 "SKILLS": "skill-uses",
                 "WORKSPACES": "opened-workspaces",
             }[label]
-            append_section_heading(text, heading, section_id=section_id)
+            append_fold_anchor(text, heading, section_id=section_id)
             if lane_level != FoldLevel.COLLAPSED and line_end < len(lane):
                 text.append_text(lane[line_end + 1 :])
             continue

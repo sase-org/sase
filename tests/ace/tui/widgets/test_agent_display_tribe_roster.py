@@ -21,6 +21,7 @@ from sase.ace.tui.widgets.prompt_panel._member_roster import (
     MEMBER_ROSTER_LIMIT,
 )
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
+    SECTION_FOLD_ONLY_META_KEY,
     SECTION_MARKER_META_KEY,
 )
 from tests.ace.tui.widgets._agent_display_tribe_helpers import (
@@ -313,6 +314,13 @@ def test_tribe_section_overrides_are_scoped_and_publish_anchors() -> None:
         "tribe:output-variables",
         "tribe:workflow-variables",
     ]
+    fold_only_anchors = [
+        span.style.meta[SECTION_MARKER_META_KEY]
+        for span in detail.spans
+        if getattr(span.style, "meta", None)
+        and span.style.meta.get(SECTION_FOLD_ONLY_META_KEY)
+    ]
+    assert fold_only_anchors == ["tribe:member:build", "tribe:member:failed"]
 
 
 def test_cheap_tribe_paint_is_header_only() -> None:

@@ -25,6 +25,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
     ResponsivePlanSection,
 )
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
+    SECTION_FOLD_ONLY_META_KEY,
     SECTION_MARKER_META_KEY,
 )
 from sase.memory.legacy_glossary_read_log import (
@@ -198,6 +199,20 @@ def section_marker_ids(text: Text) -> list[str]:
         identity
         for span in text.spans
         if isinstance(span.style, RichStyle)
+        and isinstance(
+            identity := span.style.meta.get(SECTION_MARKER_META_KEY),
+            str,
+        )
+    ]
+
+
+def fold_only_section_marker_ids(text: Text) -> list[str]:
+    """Return marked section ids whose anchor is fold-only, not a title."""
+    return [
+        identity
+        for span in text.spans
+        if isinstance(span.style, RichStyle)
+        and span.style.meta.get(SECTION_FOLD_ONLY_META_KEY)
         and isinstance(
             identity := span.style.meta.get(SECTION_MARKER_META_KEY),
             str,

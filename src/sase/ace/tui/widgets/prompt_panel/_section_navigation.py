@@ -19,6 +19,14 @@ if TYPE_CHECKING:
 
 
 SECTION_MARKER_META_KEY = "sase_prompt_panel_section"
+SECTION_FOLD_ONLY_META_KEY = "sase_prompt_panel_section_fold_only"
+
+
+class PromptPanelSectionRole(Enum):
+    """Whether a marked span is a navigable title or only a fold anchor."""
+
+    TITLE = auto()
+    FOLD_ONLY = auto()
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +35,7 @@ class PromptPanelSectionAnchor:
 
     identity: str
     row: int
+    role: PromptPanelSectionRole = PromptPanelSectionRole.TITLE
 
 
 class PromptPanelSectionTargetKind(Enum):
@@ -83,10 +92,13 @@ class SectionTrackingVisual(Visual):
         seen: set[str] = set()
         for row, strip in enumerate(strips):
             for segment in strip:
-                identity = _segment_section_identity(segment)
-                if identity is not None and identity not in seen:
+                resolved = _segment_section_identity(segment)
+                if resolved is None:
+                    continue
+                identity, role = resolved
+                if identity not in seen:
                     seen.add(identity)
-                    anchors.append(PromptPanelSectionAnchor(identity, row))
+                    anchors.append(PromptPanelSectionAnchor(identity, row, role))
 
         self._publish(width=width, anchors=tuple(anchors))
         return strips
@@ -111,10 +123,12 @@ class SectionTrackingVisual(Visual):
         seen: set[str] = set()
         row = 0
         for segment in segments:
-            identity = _segment_section_identity(segment)
-            if identity is not None and identity not in seen:
-                seen.add(identity)
-                anchors.append(PromptPanelSectionAnchor(identity, row))
+            resolved = _segment_section_identity(segment)
+            if resolved is not None:
+                identity, role = resolved
+                if identity not in seen:
+                    seen.add(identity)
+                    anchors.append(PromptPanelSectionAnchor(identity, row, role))
             row += segment.text.count("\n")
         self._publish(width=width, anchors=tuple(anchors))
         return row
@@ -135,18 +149,30 @@ class SectionTrackingVisual(Visual):
             )
 
 
-def _segment_section_identity(segment: Segment) -> str | None:
+def _segment_section_identity(
+    segment: Segment,
+) -> tuple[str, PromptPanelSectionRole] | None:
     style = segment.style
-    if style is None or not style.meta:
+    meta = style.meta if style is not None else None
+    if not meta:
         return None
-    identity = style.meta.get(SECTION_MARKER_META_KEY)
-    return identity if isinstance(identity, str) and identity else None
+    identity = meta.get(SECTION_MARKER_META_KEY)
+    if not isinstance(identity, str) or not identity:
+        return None
+    role = (
+        PromptPanelSectionRole.FOLD_ONLY
+        if meta.get(SECTION_FOLD_ONLY_META_KEY)
+        else PromptPanelSectionRole.TITLE
+    )
+    return identity, role
 
 
 __all__ = [
     "PromptPanelSectionAnchor",
+    "PromptPanelSectionRole",
     "PromptPanelSectionTarget",
     "PromptPanelSectionTargetKind",
+    "SECTION_FOLD_ONLY_META_KEY",
     "SECTION_MARKER_META_KEY",
     "SectionTrackingVisual",
 ]

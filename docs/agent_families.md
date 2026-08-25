@@ -210,7 +210,9 @@ at most ten entries, or `00`–`99` for the first 100 entries in a larger roster
 Additional members appear only in an unnumbered remainder count. Press a number while
 the clan is selected to expand only that member's ancestor chain and jump to its row;
 `Esc` cancels a pending first digit. Use `Ctrl+J` and `Ctrl+K` to move between the
-visible section headings.
+visible section headings; the numbered member rows themselves are not headings, so they
+never steal a `Ctrl+J`/`Ctrl+K` stop, though `za`/`zA` still reach a row that owns the
+viewport's top line.
 
 The summary has three session-only fold levels:
 

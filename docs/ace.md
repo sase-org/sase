@@ -1130,15 +1130,15 @@ re-annotated when the deferred sections land.
 
 The default fold chords are:
 
-| Key       | Action                                                                                  |
-| --------- | --------------------------------------------------------------------------------------- |
-| `zz`      | Cycle the whole metadata panel forward through its active scale                         |
-| `zZ`      | Open every fold to the active maximum; at that maximum, close every fold to the minimum |
-| `za`      | Cycle the foldable section or numbered member at the top of the metadata viewport       |
-| `zA`      | Toggle that foldable section or member between collapsed and fully expanded             |
-| `z1`-`z2` | Set a family directly to level 1 or 2                                                   |
-| `z1`-`z3` | Set a clan or regular-agent session scope directly to level 1-3                         |
-| `z1`-`z4` | Set a selected whole tribe panel directly to level 1-4                                  |
+| Key       | Action                                                                                                         |
+| --------- | -------------------------------------------------------------------------------------------------------------- |
+| `zz`      | Cycle the whole metadata panel forward through its active scale                                                |
+| `zZ`      | Open every fold to the active maximum; at that maximum, close every fold to the minimum                        |
+| `za`      | Cycle the foldable section, numbered member, or family `SASE CONTEXT` lane at the top of the metadata viewport |
+| `zA`      | Toggle that foldable section or member between collapsed and fully expanded                                    |
+| `z1`-`z2` | Set a family directly to level 1 or 2                                                                          |
+| `z1`-`z3` | Set a clan or regular-agent session scope directly to level 1-3                                                |
+| `z1`-`z4` | Set a selected whole tribe panel directly to level 1-4                                                         |
 
 The `Fold: N/M` header field reports the position within the active scale, while glyphs
 on foldable headings show their effective per-section levels. Only family panels print
@@ -4103,10 +4103,15 @@ document top and another press selects the first title; from the first title, `C
 jumps to the document top and another press selects the final title. Both directions
 share one cursor. Each selected title is aligned with the first visible metadata row,
 including a short final section, while the top waypoint reveals any ordinary header
-fields before the first title. Only rendered section titles participate; matching text
-inside prompts or replies does not. The shortcuts continue to target the metadata pane
-when a file or tools pane is also visible, and changing agents or entering/leaving a
-pinned attempt view resets the cursor.
+fields before the first title. Only rendered ALL-CAPS underlined section titles
+participate; matching text inside prompts or replies does not. Numbered roster rows
+(`FAMILY SHELLS`, clan/tribe `MEMBERS`, `NEIGHBORS`) and, within a family container's
+`SASE CONTEXT` region, its lane sub-headings (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`,
+`GLOSSARY`, `SKILLS`, `WORKSPACES`) are fold anchors, not titles — `za`/`zA` still reach
+them when they own the viewport's top row, but they are never `Ctrl+J`/`Ctrl+K` stops.
+The shortcuts continue to target the metadata pane when a file or tools pane is also
+visible, and changing agents or entering/leaving a pinned attempt view resets the
+cursor.
 
 - **Agent details**: Name, status, model, provider, Patch association, and
   chronologically sorted timestamps:
@@ -4136,7 +4141,10 @@ pinned attempt view resets the cursor.
 - **FAMILY**: Shown when a real multi-member family root is selected. The cyan heading
   and cyan `Name:` value match the family row's identity block. The line is header
   chrome, not a `Ctrl+J` title; the first navigable section remains `FAMILY SHELLS` (or
-  the next rendered title if that roster is absent).
+  the next rendered title if that roster is absent). On a family container, its
+  `SASE CONTEXT` heading is the navigable title for that region; its per-lane
+  sub-headings (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`, `SKILLS`,
+  `WORKSPACES`) stay fold anchors only, same as `FAMILY SHELLS` roster rows.
 - **AGENT SHELL**: Shown when a standalone sase agent or family member row is selected.
   The gold heading and gold `Name:` value match the list-row name annotation. The line
   is header chrome, not a `Ctrl+J` title. Monitor members and workflow step children

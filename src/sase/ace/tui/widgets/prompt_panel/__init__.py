@@ -19,6 +19,7 @@ from ._helpers import (
 )
 from ._section_navigation import (
     PromptPanelSectionAnchor,
+    PromptPanelSectionRole,
     PromptPanelSectionTarget,
     PromptPanelSectionTargetKind,
     SectionTrackingVisual,
@@ -104,12 +105,15 @@ class AgentPromptPanel(
             else ()
         )
         reserve = 0
+        title_anchors = [
+            anchor for anchor in anchors if anchor.role is PromptPanelSectionRole.TITLE
+        ]
         if (
             getattr(self, "_section_layout_reserve_enabled", False)
             and getattr(self, "id", None) == "agent-prompt-panel"
-            and anchors
+            and title_anchors
         ):
-            reserve = max(0, anchors[-1].row + container.height - real_height)
+            reserve = max(0, title_anchors[-1].row + container.height - real_height)
         self._section_layout_reserve = reserve
         return real_height + reserve
 
@@ -140,7 +144,11 @@ class AgentPromptPanel(
         if (
             active is not None
             and generation != self._preserve_missing_section_generation
-            and all(anchor.identity != active for anchor in anchors)
+            and all(
+                anchor.identity != active
+                for anchor in anchors
+                if anchor.role is PromptPanelSectionRole.TITLE
+            )
         ):
             self._active_section_identity = None
 
@@ -164,8 +172,13 @@ class AgentPromptPanel(
         if not ready:
             return PromptPanelSectionTarget(PromptPanelSectionTargetKind.NOT_READY)
 
-        anchors: tuple[PromptPanelSectionAnchor, ...] = getattr(
+        all_anchors: tuple[PromptPanelSectionAnchor, ...] = getattr(
             self, "_section_anchors", ()
+        )
+        anchors = tuple(
+            anchor
+            for anchor in all_anchors
+            if anchor.role is PromptPanelSectionRole.TITLE
         )
         if not anchors:
             return PromptPanelSectionTarget(PromptPanelSectionTargetKind.EMPTY)

@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 from rich.text import Text
+from textual.containers import VerticalScroll
+from textual.geometry import Region
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
@@ -233,10 +235,32 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
         assert panel.active_section_identity is None
         await page.press("ctrl+j")
         assert panel.active_section_identity == "members"
-        await page.press("ctrl+j")
-        assert panel.active_section_identity == f"member:{_FAMILY_NAME}--plan"
-        await page.press("ctrl+j")
-        assert panel.active_section_identity == f"member:{_FAMILY_NAME}--code"
+
+        # Numbered roster rows are fold anchors, not Ctrl+J titles, so the
+        # next press would jump straight past both member rows. Reach the
+        # member row's own fold override by scrolling it to the viewport
+        # top instead, the same way `za` reaches it in the real product.
+        member_anchor = next(
+            candidate
+            for candidate in getattr(panel, "_section_anchors", ())
+            if candidate.identity == f"member:{_FAMILY_NAME}--code"
+        )
+        scroll = page.query_one_widget("#agent-prompt-scroll", VerticalScroll)
+        panel_region = panel.virtual_region
+        scroll.scroll_to_region(
+            Region(
+                panel_region.x,
+                panel_region.y + member_anchor.row,
+                max(1, panel_region.width),
+                1,
+            ),
+            top=True,
+            animate=False,
+            x_axis=False,
+            y_axis=True,
+            immediate=True,
+        )
+        await wait_for_visual_idle(page)
         await page.press("z", "a")
         assert (
             page.app._panel_fold_overrides.get_override(f"member:{_FAMILY_NAME}--code")

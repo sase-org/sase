@@ -5,6 +5,9 @@ from pathlib import Path
 
 import pytest
 
+from textual.containers import VerticalScroll
+from textual.geometry import Region
+
 from sase.ace.testing import AcePage
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -123,13 +126,36 @@ async def test_mounted_clan_fold_chords_zoom_and_patch_isolation(
         await wait_for_visual_idle(page)
         assert panel.active_section_identity == "members"
 
-        await page.press("ctrl+j")
-        await page.pause()
-        assert panel.active_section_identity == "member:sase-mounted.phase"
-
-        await page.press("ctrl+j")
-        await page.pause()
-        assert panel.active_section_identity == "member:sase-mounted.land"
+        # Numbered roster rows are fold anchors, not Ctrl+J titles, so the
+        # cursor now moves straight from "members" to "errors". Reach a
+        # roster row's own fold override by scrolling it to the viewport
+        # top instead, the same way `za` reaches it in the real product.
+        member_anchor = next(
+            candidate
+            for candidate in getattr(panel, "_section_anchors", ())
+            if candidate.identity == "member:sase-mounted.phase"
+        )
+        scroll = page.query_one_widget("#agent-prompt-scroll", VerticalScroll)
+        panel_region = panel.virtual_region
+        scroll.scroll_to_region(
+            Region(
+                panel_region.x,
+                panel_region.y + member_anchor.row,
+                max(1, panel_region.width),
+                1,
+            ),
+            top=True,
+            animate=False,
+            x_axis=False,
+            y_axis=True,
+            immediate=True,
+        )
+        await wait_for_visual_idle(page)
+        await page.press("z", "a")
+        assert (
+            page.app._panel_fold_overrides.get_override("member:sase-mounted.phase")
+            is FoldLevel.EXPANDED
+        )
 
         await page.press("ctrl+j")
         await page.pause()

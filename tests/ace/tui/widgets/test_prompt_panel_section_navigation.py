@@ -17,9 +17,11 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.css.styles import RulesMap
+from textual.geometry import Size
 from textual.strip import Strip
 from textual.style import Style
 from textual.visual import RenderOptions, Visual
+from textual.widgets import Static
 
 from sase.ace.testing.wait import wait_for
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
@@ -32,9 +34,17 @@ from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
-from sase.ace.tui.widgets.prompt_panel._helpers import append_section_heading
+from sase.ace.tui.widgets.prompt_panel._agent_display_tribe import (
+    build_tribe_detail_text,
+)
+from sase.ace.tui.widgets.prompt_panel._helpers import (
+    append_fold_anchor,
+    append_section_heading,
+)
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
+    SECTION_FOLD_ONLY_META_KEY,
     SECTION_MARKER_META_KEY,
+    PromptPanelSectionRole,
     PromptPanelSectionTargetKind,
     SectionTrackingVisual,
 )
@@ -47,11 +57,19 @@ from tests.ace.tui.widgets._agent_display_helpers import (
     FakePromptPanel,
     make_artifact_agent,
 )
+from tests.ace.tui.widgets._agent_display_tribe_helpers import make_tribe_snapshot
 
 
 def _section(label: str, body: str, *, section_id: str | None = None) -> Text:
     text = Text()
     append_section_heading(text, label, section_id=section_id)
+    text.append(body)
+    return text
+
+
+def _fold_anchor_section(label: str, body: str, *, section_id: str) -> Text:
+    text = Text()
+    append_fold_anchor(text, Text(label), section_id=section_id)
     text.append(body)
     return text
 
@@ -206,6 +224,79 @@ def test_clan_members_section_is_a_navigation_target() -> None:
     assert target.anchor is not None
     assert target.anchor.identity == "members"
 
+    next_target = panel.resolve_section_target(1, width=80)
+    assert next_target.kind is PromptPanelSectionTargetKind.ANCHOR
+    assert next_target.anchor is not None
+    assert next_target.anchor.identity == "errors"
+
+
+def test_resolve_section_target_skips_fold_only_anchors() -> None:
+    def document() -> Group:
+        return Group(
+            _section("ONE", "1\n"),
+            _fold_anchor_section("roster-row", "row\n", section_id="row-1"),
+            _section("TWO", "2\n"),
+        )
+
+    panel = _render_panel(document(), width=40)
+
+    forward_first = panel.resolve_section_target(1, width=40)
+    assert forward_first.kind is PromptPanelSectionTargetKind.ANCHOR
+    assert forward_first.anchor is not None
+    assert forward_first.anchor.identity == "one"
+
+    forward_second = panel.resolve_section_target(1, width=40)
+    assert forward_second.kind is PromptPanelSectionTargetKind.ANCHOR
+    assert forward_second.anchor is not None
+    assert forward_second.anchor.identity == "two"
+
+    panel.prepare_section_document("reverse")
+    panel.update(document())
+    _track_renderable(panel, cast(RenderableType, panel.content), width=40)
+
+    reverse_first = panel.resolve_section_target(-1, width=40)
+    assert reverse_first.kind is PromptPanelSectionTargetKind.ANCHOR
+    assert reverse_first.anchor is not None
+    assert reverse_first.anchor.identity == "two"
+
+    reverse_second = panel.resolve_section_target(-1, width=40)
+    assert reverse_second.kind is PromptPanelSectionTargetKind.ANCHOR
+    assert reverse_second.anchor is not None
+    assert reverse_second.anchor.identity == "one"
+
+
+def test_resolve_section_target_all_fold_only_anchors_is_empty() -> None:
+    panel = _render_panel(
+        Group(
+            _fold_anchor_section("roster-row-0", "row0\n", section_id="row-0"),
+            _fold_anchor_section("roster-row-1", "row1\n", section_id="row-1"),
+        ),
+        width=40,
+    )
+
+    target = panel.resolve_section_target(1, width=40)
+
+    assert target.kind is PromptPanelSectionTargetKind.EMPTY
+
+
+def test_resolve_section_at_row_still_resolves_fold_only_anchor() -> None:
+    panel = _render_panel(
+        Group(
+            _section("ONE", "1\n"),
+            _fold_anchor_section("roster-row", "row\n", section_id="row-1"),
+            _section("TWO", "2\n"),
+        ),
+        width=40,
+    )
+    one, row, two = panel._section_anchors  # noqa: SLF001
+    assert one.role is PromptPanelSectionRole.TITLE
+    assert row.role is PromptPanelSectionRole.FOLD_ONLY
+    assert two.role is PromptPanelSectionRole.TITLE
+
+    assert panel.resolve_section_at_row(row.row, width=40) == "row-1"
+    assert panel.resolve_section_at_row(two.row - 1, width=40) == "row-1"
+    assert panel.resolve_section_at_row(two.row, width=40) == "two"
+
 
 def test_render_pass_collects_width_aware_anchors_without_navigation_render() -> None:
     first = _section("FIRST", "short\n")
@@ -264,6 +355,46 @@ def test_resolve_section_at_row_uses_current_render_anchor_cache() -> None:
     assert panel.resolve_section_at_row(first.row, width=40) == "one"
     assert panel.resolve_section_at_row(second.row - 1, width=40) == "one"
     assert panel.resolve_section_at_row(second.row, width=40) == "two"
+
+
+def test_get_content_height_reserve_uses_last_title_not_trailing_roster_row() -> None:
+    content = Group(
+        _section("ONE", "one\n"),
+        Group(
+            *(
+                _fold_anchor_section(f"row {index}", "", section_id=f"row-{index}")
+                for index in range(5)
+            )
+        ),
+    )
+    panel = AgentPromptPanel(id="agent-prompt-panel")
+    panel.prepare_section_document("reserve-test")
+    panel.update(content)
+    _track_renderable(panel, cast(RenderableType, content), width=40)
+    panel._section_layout_reserve_enabled = True  # noqa: SLF001
+
+    anchors = {
+        anchor.identity: anchor
+        for anchor in panel._section_anchors  # noqa: SLF001
+    }
+    last_title = anchors["one"]
+    last_anchor = anchors["row-4"]
+    assert last_title.role is PromptPanelSectionRole.TITLE
+    assert last_anchor.role is PromptPanelSectionRole.FOLD_ONLY
+    assert last_anchor.row > last_title.row
+
+    container = Size(40, 20)
+    real_height = 12
+    with patch.object(Static, "get_content_height", return_value=real_height):
+        height = panel.get_content_height(container, Size(40, 20), 40)
+
+    expected_reserve = max(0, last_title.row + container.height - real_height)
+    buggy_reserve_from_trailing_anchor = max(
+        0, last_anchor.row + container.height - real_height
+    )
+    assert expected_reserve < buggy_reserve_from_trailing_anchor
+    assert panel._section_layout_reserve == expected_reserve  # noqa: SLF001
+    assert height == real_height + expected_reserve
 
 
 def test_resolve_section_at_row_noops_during_layout_invalidation() -> None:
@@ -445,6 +576,152 @@ def test_regular_agent_and_workflow_render_paths_mark_real_sections(
         "workflow-steps",
         "agent-prompt",
     ]
+
+
+def _resolve_span_style(style: object) -> RichStyle | None:
+    if isinstance(style, str):
+        return RichStyle.parse(style)
+    return style if isinstance(style, RichStyle) else None
+
+
+def _marked_spans(renderable: object) -> list[tuple[str, bool, str]]:
+    """Return ``(identity, fold_only, underlined_text)`` for every marked span.
+
+    Walks ``Text.spans`` directly rather than through Console rendering, so a
+    title's underlined text is never fragmented by line wrapping at some
+    particular render width. The marked span for a heading built from several
+    ``Text.append`` calls (a fold glyph, the label, a dim `` · N`` suffix) may
+    legitimately include non-underlined text on either side of the
+    underlined label, so this scopes the extracted text to the underlined
+    sub-spans only.
+    """
+    results: list[tuple[str, bool, str]] = []
+
+    def visit(node: object) -> None:
+        if isinstance(node, Text):
+            marker_spans: list[tuple[int, int, str, bool]] = []
+            for span in node.spans:
+                style = _resolve_span_style(span.style)
+                if style is None or not style.meta:
+                    continue
+                identity = style.meta.get(SECTION_MARKER_META_KEY)
+                if isinstance(identity, str) and identity:
+                    fold_only = bool(style.meta.get(SECTION_FOLD_ONLY_META_KEY))
+                    marker_spans.append((span.start, span.end, identity, fold_only))
+            for start, end, identity, fold_only in marker_spans:
+                underlined = ""
+                for span in node.spans:
+                    style = _resolve_span_style(span.style)
+                    if style is None or not style.underline:
+                        continue
+                    ustart, uend = max(span.start, start), min(span.end, end)
+                    if ustart < uend:
+                        underlined += node.plain[ustart:uend]
+                results.append((identity, fold_only, underlined))
+        elif isinstance(node, Group):
+            for child in node.renderables:
+                visit(child)
+
+    visit(renderable)
+    return results
+
+
+def test_only_title_anchors_carry_nonempty_all_caps_underlined_text(
+    tmp_path: Path,
+) -> None:
+    family, _child = make_family(tmp_path)
+    family_header, _ = build_header_text(
+        family, cheap=True, lane_fold_level=FoldLevel.EXPANDED
+    )
+
+    clan_container = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="research",
+        project_file="/tmp/demo.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 16, 12, 0, 0),
+        agent_clan="research",
+        agent_clan_generation="20260716120000",
+        is_clan_container=True,
+    )
+    clan_container.runtime_children = [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="research.member",
+            project_file="/tmp/demo.sase",
+            status="WAITING",
+            start_time=datetime(2026, 7, 16, 12, 1, 0),
+            raw_suffix="20260716120100",
+            agent_name="research.member",
+            agent_clan="research",
+            agent_clan_generation="20260716120000",
+        )
+    ]
+    clan_snapshot = ClanSectionSnapshot(
+        in_memory=aggregate_clan_in_memory(clan_container)
+    )
+    clan_header, _ = build_header_text(
+        clan_container,
+        cheap=True,
+        clan_snapshot=clan_snapshot,
+        clan_fold_level=FoldLevel.EXPANDED,
+    )
+
+    tribe_detail = build_tribe_detail_text(
+        make_tribe_snapshot(),
+        fold_level=FoldLevel.FULLY_EXPANDED,
+    )
+
+    regular = make_artifact_agent(tmp_path, status="DONE")
+    panel = AgentPromptPanel.__new__(AgentPromptPanel)
+    with patch.object(panel, "update") as update:
+        panel._update_display_impl(regular)  # noqa: SLF001
+    regular_renderable = update.call_args.args[0]
+
+    workflow = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="demo",
+        project_file="/tmp/demo.sase",
+        status="FAILED",
+        start_time=datetime(2026, 7, 16, 12, 0, 0),
+        workflow="demo_workflow",
+        error_message="boom",
+    )
+    workflow_snapshot = WorkflowDetailSnapshot(
+        artifacts_path=None,
+        workflow_state=None,
+        inputs={"target": "tests"},
+        meta_raw=None,
+        meta_fields=[("Result", "failed")],
+        steps=[],
+        error=None,
+        traceback=None,
+        prompt_content="Run the workflow",
+        embedded_markers={},
+        embedded_meta={},
+    )
+    workflow_renderable = build_workflow_detail_renderable(workflow, workflow_snapshot)
+
+    documents = [
+        family_header,
+        clan_header,
+        tribe_detail,
+        regular_renderable,
+        workflow_renderable,
+    ]
+
+    saw_fold_only = False
+    for document in documents:
+        for identity, fold_only, underlined in _marked_spans(document):
+            if fold_only:
+                saw_fold_only = True
+                continue
+            stripped = underlined.strip()
+            assert stripped, f"title {identity!r} has no underlined text"
+            assert stripped == stripped.upper(), (
+                f"title {identity!r} underlined text is not upper: {stripped!r}"
+            )
+    assert saw_fold_only, "expected at least one fold-only anchor (a roster row)"
 
 
 def test_family_conversation_headings_remain_navigation_targets(

@@ -22,6 +22,7 @@ from sase.ace.tui.widgets.prompt_panel._member_roster import (
     merged_member_jump_map,
 )
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
+    SECTION_FOLD_ONLY_META_KEY,
     SECTION_MARKER_META_KEY,
 )
 
@@ -74,6 +75,21 @@ def _section_ids(text: Text) -> list[str]:
         if isinstance(section_id, str) and section_id not in section_ids:
             section_ids.append(section_id)
     return section_ids
+
+
+def _fold_only_ids(text: Text) -> list[str]:
+    """Return marked section ids whose anchor is fold-only, not a title."""
+    fold_only_ids: list[str] = []
+    for span in text.spans:
+        style = span.style
+        if not isinstance(style, RichStyle) or not style.meta:
+            continue
+        if not style.meta.get(SECTION_FOLD_ONLY_META_KEY):
+            continue
+        section_id = style.meta.get(SECTION_MARKER_META_KEY)
+        if isinstance(section_id, str) and section_id not in fold_only_ids:
+            fold_only_ids.append(section_id)
+    return fold_only_ids
 
 
 @pytest.mark.parametrize(
@@ -231,6 +247,10 @@ def test_roster_and_each_numbered_entry_publish_section_anchors() -> None:
         "member:research.member-0",
         "member:research.member-1",
     ]
+    assert _fold_only_ids(text) == [
+        "member:research.member-0",
+        "member:research.member-1",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -326,6 +346,12 @@ def test_group_labels_render_once_per_run_without_section_markers() -> None:
     assert text.plain.count("  research hood\n") == 1
     assert _section_ids(text) == [
         "members",
+        "member:research.member-0",
+        "member:research.member-1",
+        "member:research.member-2",
+        "member:research.member-3",
+    ]
+    assert _fold_only_ids(text) == [
         "member:research.member-0",
         "member:research.member-1",
         "member:research.member-2",

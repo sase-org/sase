@@ -13,7 +13,7 @@ from rich.text import Text
 from sase.llm_provider.model_label import append_model_field as append_model_field
 
 from ...models.agent import Agent
-from ._section_navigation import SECTION_MARKER_META_KEY
+from ._section_navigation import SECTION_FOLD_ONLY_META_KEY, SECTION_MARKER_META_KEY
 
 # Shared prose measure for prompt-panel lanes: the strict total rendered-cell
 # budget for a wrapped line, including any leading indentation or prefix.
@@ -115,12 +115,60 @@ def append_section_heading(
     style: StyleType = PROMPT_PANEL_SECTION_HEADING_STYLE,
     section_id: str | None = None,
 ) -> None:
-    """Append one prompt-panel heading followed by exactly one line ending.
+    """Append one ALL-CAPS underlined section title, a ``Ctrl+J``/``Ctrl+K`` stop.
+
+    Only call this for a rendered section title. A foldable line that is not a
+    title (a numbered roster row, a ``SASE CONTEXT`` lane sub-heading) must use
+    :func:`append_fold_anchor` instead, so it stays reachable by ``za``/``zA``
+    without stealing a ``Ctrl+J``/``Ctrl+K`` stop.
 
     ``Text`` renderables add their ``end`` value when Rich renders them inside a
     ``Group``.  Standalone heading chunks already contain the explicit newline
     appended here, so suppress that implicit ending to keep the first content
     row directly beneath the heading.
+    """
+    _append_marked_line(
+        text, heading, style=style, section_id=section_id, fold_only=False
+    )
+
+
+def append_fold_anchor(text: Any, line: Text, *, section_id: str) -> None:
+    """Append one foldable, non-navigable line and mark its fold anchor.
+
+    Roster rows and ``SASE CONTEXT`` lane sub-headings are foldable by
+    ``za``/``zA`` at the viewport top but are not section titles, so they
+    never become ``Ctrl+J``/``Ctrl+K`` stops.
+    """
+    _append_marked_line(text, line, section_id=section_id, fold_only=True)
+
+
+def append_kind_header(text: Text, label: str, color: str) -> None:
+    """Append a kind identity line that is header chrome, not a section title.
+
+    The underline is one span, including any spaces in ``label``. Do not route
+    kind labels through :func:`append_section_heading`; that would steal the
+    first ``Ctrl+J`` jump from the first real section. Kind identity lines
+    (``FAMILY``, ``CLAN``, ``TRIBE``, ``AGENT SHELL``) stay unmarked chrome
+    entirely — unlike roster rows and lane sub-headings, they are not even fold
+    anchors via :func:`append_fold_anchor`. Only real section titles are
+    navigable.
+    """
+    text.append(f"{label}\n", style=f"bold {color} underline")
+
+
+def _append_marked_line(
+    text: Any,
+    heading: str | Text,
+    *,
+    style: StyleType = PROMPT_PANEL_SECTION_HEADING_STYLE,
+    section_id: str | None,
+    fold_only: bool,
+) -> None:
+    """Append one marked line followed by exactly one line ending.
+
+    Shared body for :func:`append_section_heading` and
+    :func:`append_fold_anchor`; see their docstrings for the title vs.
+    fold-only distinction.
     """
     heading_plain = heading.plain if isinstance(heading, Text) else heading
     start = len(text.plain)
@@ -133,19 +181,10 @@ def append_section_heading(
         section_id or _default_section_id(heading_plain),
         start=start,
         end=start + len(heading_plain),
+        fold_only=fold_only,
     )
     text.append("\n")
     text.end = ""
-
-
-def append_kind_header(text: Text, label: str, color: str) -> None:
-    """Append a kind identity line that is header chrome, not a section title.
-
-    The underline is one span, including any spaces in ``label``. Do not route
-    kind labels through :func:`append_section_heading`; that would steal the
-    first ``Ctrl+J`` jump from the first real section.
-    """
-    text.append(f"{label}\n", style=f"bold {color} underline")
 
 
 def _mark_section_heading(
@@ -154,12 +193,16 @@ def _mark_section_heading(
     *,
     start: int,
     end: int,
+    fold_only: bool = False,
 ) -> None:
     """Attach a non-visual semantic identity to a rendered title span."""
     if start >= end:
         return
+    meta: dict[str, Any] = {SECTION_MARKER_META_KEY: section_id}
+    if fold_only:
+        meta[SECTION_FOLD_ONLY_META_KEY] = True
     text.stylize(
-        Style(meta={SECTION_MARKER_META_KEY: section_id}),
+        Style(meta=meta),
         start,
         end,
     )

@@ -6,6 +6,8 @@ import pytest
 from rich.text import Text
 
 from sase.ace.patch.models import DeltaEntry, DeltaLineStats
+from sase.ace.tui.models.fold_state import FoldLevel
+from sase.ace.tui.widgets.prompt_panel._agent_bead_section import BEAD_SECTION_ID
 from sase.ace.tui.widgets.prompt_panel._agent_context import (
     append_agent_context_section,
 )
@@ -18,6 +20,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_context_common import (
 from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
 from tests.ace.tui.widgets._agent_context_helpers import (
     bead_section,
+    fold_only_section_marker_ids,
     memory_event,
     pin_context_timezone,
     plan_section,
@@ -207,6 +210,34 @@ def test_artifacts_lane_groups_output_fields_and_counts() -> None:
     assert "  Deltas:\n    ~ src/output.py  ~2\n" in plain
     assert "  Files:\n    • reports/result.md\n" in plain
     assert section_marker_ids(text) == ["sase-context"]
+
+
+def test_family_context_marks_heading_title_and_lanes_fold_only() -> None:
+    text = Text()
+
+    append_agent_context_section(
+        text,
+        bead_section=bead_section(),
+        plan_section=plan_section(),
+        fold_level=FoldLevel.EXPANDED,
+        section_fold_overrides={},
+    )
+
+    assert "SASE CONTEXT · 2\n" in text.plain
+    ids = section_marker_ids(text)
+    assert ids[0] == "sase-context"
+    assert set(ids[1:]) == {"plan", BEAD_SECTION_ID}
+    assert fold_only_section_marker_ids(text) == ids[1:]
+    assert "sase-context" not in fold_only_section_marker_ids(text)
+
+
+def test_non_family_context_still_marks_only_sase_context() -> None:
+    text = Text()
+
+    append_agent_context_section(text, plan_section=plan_section())
+
+    assert section_marker_ids(text) == ["sase-context"]
+    assert fold_only_section_marker_ids(text) == []
 
 
 def test_artifacts_lane_chrome_uses_its_palette_and_shared_path_idiom() -> None:
