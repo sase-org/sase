@@ -184,6 +184,16 @@ async def test_config_center_procs_tab_filtered_png_snapshot(
         await wait_for_visual_idle(page)
 
         option_list = pane.query_one("#procs-list", OptionList)
+        await page.wait_for(
+            lambda _state: (
+                option_list.option_count > 0
+                and all(
+                    MONITOR_GLYPH in _option_plain(option_list, index)
+                    for index in range(option_list.option_count)
+                )
+                and "shown" in pane._title_text().plain
+            )
+        )
         title = pane._title_text().plain
         assert all(
             MONITOR_GLYPH in _option_plain(option_list, index)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -41,7 +40,6 @@ pytestmark = pytest.mark.visual
 
 _NOW = datetime(2026, 7, 28, 12, 10, tzinfo=UTC)
 _SLOW_TOOLS_VISUAL_IDLE_TIMEOUT = 60.0
-_ACTIVE_TOOLS_FOOTER_RE = re.compile(r">●</text><text[^>]*>\s*tools</text>")
 
 
 class _FixedDateTime(datetime):
@@ -183,14 +181,14 @@ async def _focus_slow_tool_section(page: AcePage) -> AgentPromptPanel:
         if panel.active_section_identity == "slow-tool-calls":
             await wait_for_state(
                 page,
-                lambda: _slow_tool_section_and_footer_ready(page, panel),
-                description="slow-tool section with loaded tools footer",
+                lambda: _slow_tool_section_ready(panel),
+                description="active slow-tool section",
             )
             await wait_for_visual_idle(
                 page,
                 timeout=_SLOW_TOOLS_VISUAL_IDLE_TIMEOUT,
             )
-            if _slow_tool_section_and_footer_ready(page, panel):
+            if _slow_tool_section_ready(panel):
                 if await _slow_tool_section_top_aligned(page, panel):
                     return panel
                 continue
@@ -250,19 +248,8 @@ def _metadata_viewport_top_section(
     return panel.resolve_section_at_row(document_row, width=panel.size.width)
 
 
-def _active_tools_footer_visible(page: AcePage) -> bool:
-    svg = page.export_svg(title="ACE active tools footer probe").replace("&#160;", " ")
-    return _ACTIVE_TOOLS_FOOTER_RE.search(svg) is not None
-
-
-def _slow_tool_section_and_footer_ready(
-    page: AcePage,
-    panel: AgentPromptPanel,
-) -> bool:
-    return (
-        panel.active_section_identity == "slow-tool-calls"
-        and _active_tools_footer_visible(page)
-    )
+def _slow_tool_section_ready(panel: AgentPromptPanel) -> bool:
+    return panel.active_section_identity == "slow-tool-calls"
 
 
 async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
@@ -310,8 +297,8 @@ async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
         await _focus_slow_tool_section(page)
         await wait_for_state(
             page,
-            lambda: _slow_tool_section_and_footer_ready(page, panel),
-            description="active slow-tool section and populated footer",
+            lambda: _slow_tool_section_ready(panel),
+            description="active slow-tool section",
         )
         await wait_for_visual_idle(page, timeout=_SLOW_TOOLS_VISUAL_IDLE_TIMEOUT)
 
@@ -327,8 +314,8 @@ async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
         await wait_for_svg_contains(page, "validation complete")
         await wait_for_state(
             page,
-            lambda: _slow_tool_section_and_footer_ready(page, panel),
-            description="expanded slow-tool section and populated footer",
+            lambda: _slow_tool_section_ready(panel),
+            description="expanded slow-tool section",
         )
         await wait_for_visual_idle(page)
         assert await _slow_tool_section_top_aligned(page, panel)
