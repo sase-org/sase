@@ -75,13 +75,13 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "to classify the terminal outcome of a registry-linked agent."
         ),
     ),
-    "src/sase/history/chat_fork.py:_format_clan_member": PathPassingReview(
+    "src/sase/history/chat_fork/clan.py:_format_clan_member": PathPassingReview(
         exemption=(
             "Read-only clan fork context assembly: agent_meta.json and done.json "
             "are inspected only to report member model and outcome metadata."
         ),
     ),
-    "src/sase/history/chat_fork.py:_format_family_member": PathPassingReview(
+    "src/sase/history/chat_fork/family.py:_format_family_member": PathPassingReview(
         exemption=(
             "Read-only family fork context assembly: agent_meta.json and done.json "
             "are inspected only to report member model and outcome metadata."
