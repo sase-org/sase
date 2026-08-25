@@ -95,7 +95,12 @@ The finalizer uses the shared instruction helpers in `sase.commit_instructions`,
 bead and method wording stays consistent between main-workspace and linked-repository
 commit guidance. `finalizers.instances.commit.max_attempts` controls how many commit
 executor attempts may run before SASE fails the invocation with a clear error and, when
-an artifacts directory is available, a `finalizer_result.json` artifact.
+an artifacts directory is available, a `finalizer_result.json` artifact. A retry has to
+earn its attempt: each dispatch records its inputs (repo path, `HEAD`, dirty-path
+fingerprints, exclude set, and message digest) as an `attempt-<n>.<repo>.inputs.json`
+artifact, and a `stitch_failed` whose fingerprint is unchanged from the previous attempt
+is reported as `stitch_retry_skipped_identical_inputs` instead of spending a second
+mutating attempt on a guaranteed-identical failure.
 
 ### CLI Arguments
 
@@ -667,7 +672,11 @@ Final declarations have three distinct boundaries:
    `/sase_repo`.
 5. Preserve protected pre-existing dirt using `finalizer_baseline.json`, then dispatch
    accepted commit decisions through `sase stitch create` in context order. The first
-   conflict blocks later repositories until repair/resume succeeds.
+   conflict blocks later repositories until repair/resume succeeds. A repository whose
+   every changed path is already protected can never stage anything, so the dispatcher
+   refuses before running the stitch and fails with the non-retryable
+   `protected_paths_exhausted` diagnostic, which names the protected paths and the
+   baseline record (`repo_id`, `scope`, `captured_at`) that protects them.
 6. Verify each mutation with stitch evidence in `commit_results.json`, publication
    checks for sidecar SDD/bead state, and discarded-work classification for shared
    clones.
