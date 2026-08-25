@@ -250,7 +250,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "dedicated beads sidecar becomes authoritative, not agent artifacts."
         ),
     ),
-    "src/sase/sdd/_store_link.py:_remove_partial_sdd_clone": DirOpReview(
+    "src/sase/sdd/_store_clone_ops.py:_remove_partial_sdd_clone": DirOpReview(
         exemption=(
             "Removes only partial output between or after failed sidecar git clone "
             "attempts at the workspace-local repository target, not an agent "
