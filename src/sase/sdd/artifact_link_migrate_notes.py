@@ -12,12 +12,14 @@ from sase.bead.project import BeadProject
 from sase.sdd.artifact_link_beads import bead_source_ref
 
 _RELATED_LINE_RE = re.compile(r"^RELATED:\s*(?P<targets>.+?)\s*[—–]\s*(?P<why>.+)\s*$")
+_MIGRATED_LINE_RE = re.compile(r"^MIGRATED:\s*linked as (?P<marker>\S+)\s*$")
 _BEAD_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*$")
 _SHA_RE = re.compile(r"\b([0-9a-fA-F]{40})\b")
 _STITCH_RE = re.compile(
     r"\b(?:stitch|commit):(?P<repo>[A-Za-z0-9._-]+)@(?P<sha>[0-9a-fA-F]{7,40})\b",
     re.IGNORECASE,
 )
+_MAX_LINK_DESCRIPTION_LENGTH = 240
 
 
 @dataclass(frozen=True)
@@ -57,9 +59,25 @@ def plan_related_note_migration(issues: Sequence[Issue]) -> RelatedNoteMigration
     scanned_notes = 0
     known_ids = {issue.id for issue in issues}
     for issue in issues:
+        migrated_markers = _migrated_markers(issue.notes_text)
         for line in _related_lines(issue.notes_text):
             scanned_notes += 1
             conversion, work_item = _classify_related_line(issue.id, line, known_ids)
+            if conversion is not None:
+                remaining_targets = tuple(
+                    target
+                    for target in conversion.targets
+                    if _migrated_marker(target) not in migrated_markers
+                )
+                if not remaining_targets:
+                    continue
+                if remaining_targets != conversion.targets:
+                    conversion = RelatedNoteConversion(
+                        issue_id=conversion.issue_id,
+                        line=conversion.line,
+                        targets=remaining_targets,
+                        why=conversion.why,
+                    )
             if conversion is not None:
                 conversions.append(conversion)
             if work_item is not None:
@@ -121,7 +139,7 @@ def _classify_related_line(
             line=line,
             reason="does not match RELATED: <id>[, <id>] — <why>",
         )
-    why = match.group("why").strip()
+    why = _trim_description(match.group("why").strip())
     if not why:
         return None, RelatedNoteWorkItem(
             issue_id=issue_id, line=line, reason="empty rationale"
@@ -174,6 +192,31 @@ def _resolve_related_target(raw: str, known_ids: set[str]) -> str | None:
     if _BEAD_ID_RE.match(token):
         return f"bead:{token}"
     return None
+
+
+def _migrated_markers(notes: str) -> frozenset[str]:
+    markers: set[str] = set()
+    for raw in notes.splitlines():
+        line = raw.strip()
+        marker = line.find("MIGRATED:")
+        if marker < 0:
+            continue
+        match = _MIGRATED_LINE_RE.match(line[marker:])
+        if match is not None:
+            markers.add(match.group("marker"))
+    return frozenset(markers)
+
+
+def _migrated_marker(target_ref: str) -> str:
+    if target_ref.startswith("bead:"):
+        target_ref = target_ref.removeprefix("bead:")
+    return f"related/{target_ref}"
+
+
+def _trim_description(value: str) -> str:
+    if len(value) <= _MAX_LINK_DESCRIPTION_LENGTH:
+        return value
+    return value[: _MAX_LINK_DESCRIPTION_LENGTH - 3].rstrip() + "..."
 
 
 __all__ = [

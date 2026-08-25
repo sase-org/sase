@@ -65,13 +65,17 @@ def test_parser_defaults_bare_link_group_to_list_with_notice() -> None:
 def test_parser_registers_link_migrate_notes() -> None:
     parser = create_parser()
     args = parser.parse_args(["artifact", "link", "migrate-notes", "-a", "-j"])
-    help_text = _artifact_parser(parser).format_help()
+    link_subcommands = _subparser_action(
+        _subparser_action(_artifact_parser(parser)).choices["link"]
+    )
+    help_text = link_subcommands.choices["migrate-notes"].format_help()
 
     assert args.artifact_subcommand == "link"
     assert args.link_subcommand == "migrate-notes"
     assert args.apply is True
     assert args.json is True
-    assert "link" in help_text
+    assert "`--apply` writes bead link events" in help_text
+    assert "mutation path lands with the beads phase" not in help_text
 
 
 def test_parser_defaults_bare_group_to_list_with_notice() -> None:

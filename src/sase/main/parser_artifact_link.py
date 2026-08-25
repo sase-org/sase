@@ -137,8 +137,8 @@ def register_artifact_link_parser(
         description=(
             "Scan bead notes matching `RELATED: <id> — <why>` and plan "
             "`related` edges with origin `migrated`. Dry-run by default. "
-            "`--apply` writes bead events and appends `MIGRATED:` notes; "
-            "that mutation path lands with the beads phase."
+            "`--apply` writes bead link events and appends `MIGRATED:` "
+            "notes immediately."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

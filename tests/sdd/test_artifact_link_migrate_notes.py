@@ -49,12 +49,34 @@ def test_migrate_notes_apply_writes_events_and_migrated_notes(
         )
         plan = plan_related_note_migration(project.list_issues())
         applied = apply_related_note_migration(project, plan)
+        second_plan = plan_related_note_migration(project.list_issues())
+        second_applied = apply_related_note_migration(project, second_plan)
         reloaded = project.show(left.id)
     assert applied["converted"] == 1
+    assert len(second_plan.conversions) == 0
+    assert second_applied["converted"] == 0
     assert "MIGRATED: linked as related/" in reloaded.notes_text
     assert "RELATED:" in reloaded.notes_text
+    assert reloaded.notes_text.count("MIGRATED: linked as related/") == 1
     assert reloaded.links[0].origin == "migrated"
     assert reloaded.links[0].target_ref == f"bead:{right.id}"
+
+
+def test_migrate_notes_trims_link_descriptions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    with BeadProject.init(tmp_path) as project:
+        left = project.create("Left", IssueType.PLAN)
+        right = project.create("Right", IssueType.PLAN)
+        why = "x" * 260
+        project.append_note(left.id, f"RELATED: {right.id} — {why}")
+        plan = plan_related_note_migration(project.list_issues())
+        applied = apply_related_note_migration(project, plan)
+        reloaded = project.show(left.id)
+    assert applied["converted"] == 1
+    assert len(plan.conversions[0].why) == 240
+    assert reloaded.links[0].description == plan.conversions[0].why
 
 
 def test_migrate_notes_apply_is_available_without_feature_override(
