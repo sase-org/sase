@@ -31,6 +31,7 @@ AGENT_INFO = AgentInfo(
     bead_id=None,
     wait_names=[],
     wait_identity_deps=[],
+    wait_fork_sources=[],
     wait_beads=[],
     wait_duration=None,
     wait_until=None,

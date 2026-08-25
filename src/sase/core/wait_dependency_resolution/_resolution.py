@@ -17,6 +17,7 @@ def dependency_resolution_status(
     wait_identity_deps: Iterable[object] = (),
     resolved_deps: Iterable[object] = (),
     *,
+    wait_fork_sources: Iterable[object] = (),
     wait_beads: Iterable[object] = (),
     closed_bead_ids: Collection[str] | None = None,
     self_artifact_dir: str | Path | None = None,
@@ -43,11 +44,29 @@ def dependency_resolution_status(
         if not status.resolved:
             _append_blocked_dependency(blocked_on, _dependency_label(dependency))
 
+    fork_source_names: set[str] = set()
+    for dependency in wait_fork_sources:
+        if not isinstance(dependency, Mapping):
+            _append_blocked_dependency(blocked_on, _dependency_label(dependency))
+            continue
+        dependency_name = dependency.get("name")
+        if isinstance(dependency_name, str) and dependency_name:
+            fork_source_names.add(dependency_name)
+        label = _dependency_label(dependency)
+        if label in resolved_dep_items:
+            continue
+        status = index.fork_source_status(
+            dependency,
+            exclude_artifact_dir=self_artifact_dir,
+        )
+        if not status.resolved:
+            _append_blocked_dependency(blocked_on, label)
+
     for name in wait_names:
         if not isinstance(name, str):
             _append_blocked_dependency(blocked_on, _dependency_label(name))
             continue
-        if name in identity_names:
+        if name in identity_names or name in fork_source_names:
             continue
         if name in resolved_dep_items:
             continue

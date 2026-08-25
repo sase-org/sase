@@ -70,6 +70,7 @@ def wait_for_dependencies(
     *,
     project_name: str | None = None,
     wait_identity_deps: list[dict[str, str]] | None = None,
+    wait_fork_sources: list[dict[str, str]] | None = None,
     wait_beads: list[str] | None = None,
     duration: float | None = None,
     wait_until: str | None = None,
@@ -112,12 +113,16 @@ def wait_for_dependencies(
 
     blocked = False
     wait_identity_deps = list(wait_identity_deps or [])
+    wait_fork_sources = list(wait_fork_sources or [])
     wait_beads = list(wait_beads or [])
-    has_dependencies = bool(wait_names or wait_identity_deps or wait_beads)
+    has_dependencies = bool(
+        wait_names or wait_identity_deps or wait_fork_sources or wait_beads
+    )
     dependencies_already_resolved = (
         initial_dependencies_resolved(
             wait_names,
             wait_identity_deps,
+            wait_fork_sources=wait_fork_sources,
             wait_beads=wait_beads,
             project_name=project_name,
             artifacts_dir=artifacts_dir,
@@ -147,6 +152,8 @@ def wait_for_dependencies(
         }
         if wait_identity_deps:
             waiting_data["wait_for_artifacts"] = wait_identity_deps
+        if wait_fork_sources:
+            waiting_data["wait_for_fork_sources"] = wait_fork_sources
         if wait_beads:
             waiting_data["wait_for_beads"] = wait_beads
         if duration is not None:

@@ -4,8 +4,33 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+from sase.procs import Proc, append_proc
 from tests._agent_chat_from_name_helpers import write_agent
 from tests._agent_names_extract_fixtures import run_extract
+
+
+def _write_proc(
+    proc_id: str,
+    *,
+    status: str = "running",
+    shell_name: str = "build-docs",
+) -> None:
+    append_proc(
+        Proc(
+            proc_id=proc_id,
+            label="Build docs",
+            kind="command",
+            status=status,
+            command=["just", "docs"],
+            cwd="/tmp/work",
+            origin="xprompt-proc",
+            created_at="2026-07-25T12:00:00Z",
+            log_path="/tmp/proc.log",
+            project="proj",
+            shell_name=shell_name,
+        )
+    )
 
 
 class TestExtractDirectivesNaming:
@@ -228,16 +253,20 @@ class TestExtractDirectivesImplicitForkWait:
                 raw_resolved_prompt="#fork:foo do stuff",
             )
         assert result["meta"].get("wait_for") == ["foo"]
+        assert result["meta"].get("wait_for_fork_sources") == [
+            {"kind": "name", "name": "foo"}
+        ]
         assert result["info"].wait_names == ["foo"]
+        assert result["info"].wait_fork_sources == [{"kind": "name", "name": "foo"}]
         # Fork-derived naming still wins over the implicit wait.
         assert result["info"].name == "foo.f0"
         assert result["meta"].get("name") == "foo.f0"
 
-    def test_failed_fork_target_skips_implied_wait(
+    def test_failed_fork_target_records_terminal_aware_dependency(
         self, tmp_path: Path, monkeypatch
     ) -> None:
         monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-        write_agent(
+        parent_dir = write_agent(
             tmp_path,
             "20260504010101",
             "failed-parent",
@@ -252,8 +281,17 @@ class TestExtractDirectivesImplicitForkWait:
                 raw_resolved_prompt="#fork:failed-parent do stuff",
             )
 
-        assert "wait_for" not in result["meta"]
-        assert result["info"].wait_names == []
+        expected_source = {
+            "kind": "agent",
+            "name": "failed-parent",
+            "artifact_dir": str(parent_dir),
+            "timestamp": parent_dir.name,
+            "project_name": "proj",
+        }
+        assert result["meta"].get("wait_for") == ["failed-parent"]
+        assert result["meta"].get("wait_for_fork_sources") == [expected_source]
+        assert result["info"].wait_names == ["failed-parent"]
+        assert result["info"].wait_fork_sources == [expected_source]
         assert result["info"].name == "failed-parent.f0"
 
     def test_explicit_wait_for_failed_fork_target_is_preserved(
@@ -356,8 +394,123 @@ class TestExtractDirectivesImplicitForkWait:
                 raw_resolved_prompt="#fork:foo %wait:foo do stuff",
             )
         assert result["meta"].get("wait_for") == ["foo"]
+        assert "wait_for_fork_sources" not in result["meta"]
         assert result["info"].wait_names == ["foo"]
+        assert result["info"].wait_fork_sources == []
         assert result["info"].name == "foo.f0"
+
+    def test_normalized_explicit_duplicate_wait_is_not_repeated(
+        self, tmp_path: Path
+    ) -> None:
+        identity = AgentIdentitySnapshot(
+            AgentOwnerIdentity(username="alice", machine_name="athena"),
+            ("athena",),
+        )
+        with (
+            patch.object(Path, "home", return_value=tmp_path),
+            patch(
+                "sase.core.agent_identity_facade.AgentIdentitySnapshot.current",
+                return_value=identity,
+            ),
+        ):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="%wait:athena.foo expanded prompt",
+                raw_resolved_prompt="#fork:foo %wait:athena.foo do stuff",
+            )
+        assert result["meta"].get("wait_for") == ["foo"]
+        assert "wait_for_fork_sources" not in result["meta"]
+        assert result["info"].wait_names == ["foo"]
+        assert result["info"].wait_fork_sources == []
+        assert result["info"].name == "foo.f0"
+
+    def test_proc_fork_records_exact_proc_identity(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+        _write_proc("proc0123456789ab", shell_name="build-docs")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="expanded prompt",
+                raw_resolved_prompt="#fork:build-docs do stuff",
+            )
+
+        assert result["info"].wait_names == ["build-docs"]
+        assert result["info"].wait_fork_sources == [
+            {
+                "kind": "proc",
+                "name": "build-docs",
+                "proc_id": "proc0123456789ab",
+            }
+        ]
+        assert result["meta"]["wait_for_fork_sources"] == (
+            result["info"].wait_fork_sources
+        )
+
+    def test_family_fork_records_root_identity(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+        root = write_agent(
+            tmp_path,
+            "20260801010101",
+            "cx--plan",
+            meta={"agent_family": "cx", "workflow_name": "cx"},
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="expanded prompt",
+                raw_resolved_prompt="#fork:cx do stuff",
+            )
+
+        assert result["info"].wait_names == ["cx"]
+        assert result["info"].wait_fork_sources == [
+            {
+                "kind": "family",
+                "name": "cx",
+                "artifact_dir": str(root),
+                "timestamp": root.name,
+                "project_name": "proj",
+            }
+        ]
+
+    def test_clan_fork_records_generation_identity(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+        write_agent(
+            tmp_path,
+            "20260801010101",
+            "review.alpha",
+            meta={
+                "agent_clan": "review",
+                "agent_clan_generation": "20260801010000",
+            },
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="expanded prompt",
+                raw_resolved_prompt="#fork:review do stuff",
+            )
+
+        assert result["info"].wait_names == ["review"]
+        assert result["info"].wait_fork_sources == [
+            {
+                "kind": "clan",
+                "name": "review",
+                "generation": "20260801010000",
+            }
+        ]
 
     def test_multi_parent_fork_deduplicates_explicit_waits(
         self, tmp_path: Path

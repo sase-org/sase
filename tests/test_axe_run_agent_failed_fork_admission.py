@@ -1,15 +1,15 @@
-"""Composition regression: launch preflight -> directive extraction ->
+"""Composition regression: launch preflight -> typed fork wait ->
 runner admission when a `#fork` parent is already terminally failed.
 
 Reproduces the `sase-sq.7.1.2.f0` / `sase-sq.7.1.2.f0.f0` shape from plan
 ``202608/repair_failed_agent_fork_launch.md``: a `#fork:<name>` parent dies
 before writing a transcript. Launch preflight's cheap, lexical
 ``has_deferred_start_directive()`` scan cannot see that, so it still
-classifies the launch as deferred. Directive extraction runs later with
-access to real agent state, and ``fork_parent_wait_is_unreachable()``
-correctly drops the now-moot implicit wait. Both must hold at once, and the
-runner must still admit the run and claim a real workspace rather than
-crashing in bootstrap or bypassing an unrelated user-authored wait.
+classifies the launch as deferred. Directive extraction binds the failed
+source as a terminal-aware fork dependency; the wait barrier resolves it
+immediately, and the runner must still admit the run and claim a real
+workspace rather than crashing in bootstrap or bypassing an unrelated
+user-authored wait.
 """
 
 from pathlib import Path
@@ -17,6 +17,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from sase.axe.run_agent_phases import extract_directives_and_write_meta
+from sase.axe.run_agent_wait_deps import initial_dependencies_resolved
 from sase.core.dismissed_agent_completion import FAILURE_OUTCOME
 from sase.linked_repos import LinkedRepoResolution
 from sase.xprompt.directives import has_deferred_start_directive
@@ -59,9 +60,9 @@ class TestFailedForkParentAdmission:
     def test_preflight_and_extraction_agree_on_a_failed_fork_parent(
         self, tmp_path: Path
     ) -> None:
-        """No-transcript failed parent: preflight defers, extraction drops
-        the implicit wait since the parent is unreachable."""
-        _make_agent(
+        """No-transcript failed parent: preflight defers, extraction records
+        a terminal-aware fork dependency that is already resolved."""
+        parent_dir = _make_agent(
             tmp_path,
             "proj",
             "run1",
@@ -75,19 +76,36 @@ class TestFailedForkParentAdmission:
 
         with patch.object(Path, "home", return_value=tmp_path):
             info = _extract_for_fork_parent(tmp_path, "parent-agent", prompt="Do work")
+            resolved = initial_dependencies_resolved(
+                info.wait_names,
+                info.wait_identity_deps,
+                wait_fork_sources=info.wait_fork_sources,
+                project_name="proj",
+                artifacts_dir=str(tmp_path / "child-artifacts"),
+            )
 
-        assert info.wait_names == []
+        assert info.wait_names == ["parent-agent"]
+        assert info.wait_fork_sources == [
+            {
+                "kind": "agent",
+                "name": "parent-agent",
+                "artifact_dir": str(parent_dir),
+                "timestamp": "run1",
+                "project_name": "proj",
+            }
+        ]
         assert info.wait_beads == []
         assert info.wait_duration is None
         assert info.wait_until is None
         assert info.wait_runners is None
         assert info.wait_priority is None
+        assert resolved
 
     def test_explicit_wait_on_failed_fork_parent_is_not_dropped(
         self, tmp_path: Path
     ) -> None:
-        """A user-authored `%wait:<name>` survives even though the same
-        name is also an implicit `#fork` wait that gets suppressed."""
+        """A user-authored `%wait:<name>` survives with success-only
+        semantics even though the same name is also an implicit `#fork` wait."""
         _make_agent(
             tmp_path,
             "proj",
@@ -103,6 +121,7 @@ class TestFailedForkParentAdmission:
             )
 
         assert "parent-agent" in info.wait_names
+        assert info.wait_fork_sources == []
 
     def test_runner_admits_and_claims_real_workspace_for_failed_fork_parent(
         self, tmp_path: Path
@@ -120,7 +139,7 @@ class TestFailedForkParentAdmission:
         )
         with patch.object(Path, "home", return_value=tmp_path):
             info = _extract_for_fork_parent(tmp_path, "parent-agent", prompt="Do work")
-        assert info.wait_names == []  # sanity: reproduces the moot-wait shape
+        assert info.wait_fork_sources  # sanity: reproduces typed terminal wait shape
 
         artifacts_dir = str(tmp_path / "run-artifacts")
         placeholder_ws = tmp_path / "placeholder"
@@ -133,7 +152,9 @@ class TestFailedForkParentAdmission:
         patches[f"{BOOTSTRAP}.extract_directives_and_write_meta"] = MagicMock(
             return_value=info
         )
-        wait_for_dependencies = MagicMock()
+        wait_for_dependencies = MagicMock(
+            side_effect=lambda *_args, **_kwargs: events.append("wait") or False
+        )
         write_error = MagicMock()
 
         def claim_deferred(*_args: Any, **_kwargs: Any) -> tuple[int, str]:
@@ -168,6 +189,6 @@ class TestFailedForkParentAdmission:
             env={"SASE_AGENT_DEFERRED_WORKSPACE": "1"},
         )
 
-        assert events == ["claim", "run"]
-        wait_for_dependencies.assert_not_called()
+        assert events == ["wait", "claim", "run"]
+        wait_for_dependencies.assert_called_once()
         write_error.assert_not_called()

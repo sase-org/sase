@@ -118,6 +118,7 @@ def test_child_identity_persists_and_publishes_one_local_machine_hood(
         bead_id=None,
         wait_names=[],
         wait_identity_deps=[],
+        wait_fork_sources=[],
         wait_beads=[],
         model=None,
         llm_provider=None,

@@ -175,6 +175,7 @@ def _wait_flags(info: AgentInfo) -> tuple[bool, bool]:
     has_dependency_wait = (
         bool(info.wait_names)
         or bool(info.wait_identity_deps)
+        or bool(info.wait_fork_sources)
         or bool(info.wait_beads)
         or info.wait_duration is not None
         or info.wait_until is not None
@@ -328,16 +329,13 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
     )
 
     has_dependency_wait, has_wait = _wait_flags(info)
-    # Launch preflight is conservative: an explicit `#fork:<name>` is treated
-    # as deferred even when its parent has already gone terminal between
-    # preflight and this extraction, in which case directive extraction
-    # (`fork_parent_wait_is_unreachable()`) correctly drops the now-moot
-    # implicit wait. That leaves `deferred_workspace=True` with `has_wait=False`
-    # as a legitimate state, not a bug: the run below simply skips dependency
-    # waiting and proceeds through runner-slot admission, and the launch
-    # phase's `_prepare_workspace_and_repos()` claims a real workspace before
-    # `launch_agent_run()` ever executes the model. Do not resurrect the old
-    # fatal assertion here; it crashed on exactly this valid state.
+    # Launch preflight is conservative: a deferred launch can still reach this
+    # point with no extracted wait metadata after preprocessing or compatibility
+    # normalization drops a no-op wait. That is a legitimate state, not a bug:
+    # the run below skips dependency waiting, proceeds through runner-slot
+    # admission, and the launch phase's `_prepare_workspace_and_repos()` claims
+    # a real workspace before `launch_agent_run()` ever executes the model. Do
+    # not resurrect the old fatal assertion here.
     if has_wait:
         _claim_bead_before_wait(
             state,

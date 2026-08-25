@@ -527,6 +527,111 @@ class WaitDependencyIndexQueries:
             and member.outcome not in WAIT_SUCCESS_OUTCOMES
         )
 
+    def fork_source_status(
+        self,
+        dependency: Mapping[str, Any],
+        *,
+        exclude_artifact_dir: str | Path | None = None,
+    ) -> WaitDependencyStatus:
+        """Resolve the terminal-aware dependency implied by one ``#fork`` source."""
+        kind = _mapping_string(dependency, "kind")
+        name = _mapping_string(dependency, "name")
+        if kind == "agent":
+            candidate = self._identity_candidate(dependency)
+            if candidate is not None:
+                return _fork_status(_candidate_terminal_for_fork(candidate))
+            return self._fork_name_fallback_status(
+                name,
+                exclude_artifact_dir=exclude_artifact_dir,
+            )
+        if kind == "family":
+            candidate = self._identity_candidate(dependency)
+            if candidate is not None:
+                family = self.family_candidate_for_root(
+                    candidate,
+                    exclude_artifact_dir=exclude_artifact_dir,
+                )
+                if family is not None:
+                    return _fork_status(
+                        (family.is_resolved and family.is_done) or family.is_failed
+                    )
+            return self._fork_family_name_status(
+                name,
+                exclude_artifact_dir=exclude_artifact_dir,
+            )
+        if kind == "clan":
+            return self._fork_clan_status(
+                name,
+                _mapping_string(dependency, "generation"),
+                exclude_artifact_dir=exclude_artifact_dir,
+            )
+        if kind == "proc":
+            return _fork_status(_proc_source_is_terminal(dependency))
+        return self._fork_name_fallback_status(
+            name,
+            exclude_artifact_dir=exclude_artifact_dir,
+        )
+
+    def _fork_family_name_status(
+        self,
+        name: str | None,
+        *,
+        exclude_artifact_dir: str | Path | None,
+    ) -> WaitDependencyStatus:
+        if not name:
+            return WaitDependencyStatus("waiting")
+        entity = self._family_entity(name, exclude_artifact_dir=exclude_artifact_dir)
+        if entity is None:
+            return self._fork_name_fallback_status(
+                name,
+                exclude_artifact_dir=exclude_artifact_dir,
+            )
+        return _fork_status(_entity_terminal_for_fork(entity))
+
+    def _fork_clan_status(
+        self,
+        name: str | None,
+        generation: str | None,
+        *,
+        exclude_artifact_dir: str | Path | None,
+    ) -> WaitDependencyStatus:
+        if not name:
+            return WaitDependencyStatus("waiting")
+        if generation:
+            members = tuple(
+                self._aggregate_candidates(
+                    self.clans.get(name, {}).get(generation),
+                    exclude_artifact_dir=exclude_artifact_dir,
+                    exclude_queued=False,
+                )
+            )
+            if not members:
+                return WaitDependencyStatus("waiting")
+            return _fork_status(
+                all(_candidate_terminal_for_fork(member) for member in members)
+            )
+        entity = self._clan_entity(name, exclude_artifact_dir=exclude_artifact_dir)
+        if entity is None:
+            return WaitDependencyStatus("waiting")
+        return _fork_status(_entity_terminal_for_fork(entity))
+
+    def _fork_name_fallback_status(
+        self,
+        name: str | None,
+        *,
+        exclude_artifact_dir: str | Path | None,
+    ) -> WaitDependencyStatus:
+        if not name:
+            return WaitDependencyStatus("waiting")
+        if self.is_resolved(name, exclude_artifact_dir=exclude_artifact_dir):
+            return WaitDependencyStatus("resolved")
+        if self.terminal_blocking_artifacts_for_name(
+            name,
+            exclude_artifact_dir=exclude_artifact_dir,
+        ):
+            return WaitDependencyStatus("resolved")
+        return WaitDependencyStatus("waiting")
+
     def identity_status(
         self,
         dependency: Mapping[str, Any],
@@ -600,3 +705,36 @@ class WaitDependencyIndexQueries:
         if isinstance(project_name, str) and isinstance(timestamp, str):
             return self.artifacts.get((project_name, timestamp))
         return None
+
+
+def _mapping_string(data: Mapping[str, Any], key: str) -> str | None:
+    value = data.get(key)
+    return value if isinstance(value, str) and value else None
+
+
+def _fork_status(resolved: bool) -> WaitDependencyStatus:
+    return WaitDependencyStatus("resolved" if resolved else "waiting")
+
+
+def _candidate_terminal_for_fork(candidate: ArtifactCandidate) -> bool:
+    return candidate.is_done or candidate.is_failed
+
+
+def _entity_terminal_for_fork(entity: _WaitEntity) -> bool:
+    return bool(entity.members) and all(
+        _candidate_terminal_for_fork(member) for member in entity.members
+    )
+
+
+def _proc_source_is_terminal(dependency: Mapping[str, Any]) -> bool:
+    proc_id = _mapping_string(dependency, "proc_id")
+    if proc_id is None:
+        return False
+    try:
+        from sase.procs.models import TERMINAL_PROC_STATUSES
+        from sase.procs.store import get_proc
+
+        proc = get_proc(proc_id)
+    except Exception:
+        return False
+    return bool(proc is not None and proc.status in TERMINAL_PROC_STATUSES)

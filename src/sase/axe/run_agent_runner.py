@@ -122,6 +122,7 @@ def _wait_for_dependencies_phase(
         bootstrap.agent_meta,
         project_name=state.project_name,
         wait_identity_deps=info.wait_identity_deps,
+        wait_fork_sources=info.wait_fork_sources,
         wait_beads=info.wait_beads,
         duration=info.wait_duration,
         wait_until=info.wait_until,

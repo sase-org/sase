@@ -94,18 +94,16 @@ class TestDeferredWorkspaceOutcomes:
     def test_deferred_workspace_without_extracted_wait_still_claims_real_workspace(
         self, tmp_path: Path
     ) -> None:
-        """A failed-fork-parent `#fork` reaches the run loop, not a crash.
+        """A conservative deferred launch without wait metadata still runs.
 
         Regression for the composition bug from plan
         ``202608/repair_failed_agent_fork_launch.md``: launch preflight
-        conservatively marks an explicit ``#fork:<name>`` as deferred, but
-        directive extraction can legitimately drop the implicit wait when the
-        named parent has already gone terminal
-        (``fork_parent_wait_is_unreachable()``). That combination -
-        ``deferred_workspace=True`` with no extracted wait metadata at all -
-        must not be treated as a bootstrap failure: it must skip dependency
-        wait machinery entirely and still claim a real, nonzero workspace
-        before the run loop ever executes.
+        can conservatively mark a launch as deferred even when later
+        preprocessing or compatibility normalization leaves no extracted wait
+        metadata at all. That combination - ``deferred_workspace=True`` with
+        ``has_wait=False`` - must not be treated as a bootstrap failure: it
+        must skip dependency wait machinery entirely and still claim a real,
+        nonzero workspace before the run loop ever executes.
         """
         artifacts_dir = str(tmp_path / "artifacts")
         placeholder_ws = tmp_path / "placeholder"

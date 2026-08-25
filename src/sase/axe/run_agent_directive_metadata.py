@@ -42,6 +42,7 @@ class AgentMetadataInputs:
     bead_id: str | None
     wait_names: list[str]
     wait_identity_deps: list[dict[str, str]]
+    wait_fork_sources: list[dict[str, str]]
     wait_beads: list[str]
     model: str | None
     llm_provider: str | None
@@ -187,6 +188,8 @@ def build_agent_meta(
         agent_meta["wait_for"] = inputs.wait_names
     if inputs.wait_identity_deps:
         agent_meta["wait_for_artifacts"] = inputs.wait_identity_deps
+    if inputs.wait_fork_sources:
+        agent_meta["wait_for_fork_sources"] = inputs.wait_fork_sources
     if inputs.wait_beads:
         agent_meta["wait_for_beads"] = inputs.wait_beads
     if directives.wait_duration is not None:

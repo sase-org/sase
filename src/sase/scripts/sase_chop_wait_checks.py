@@ -122,16 +122,22 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
 
         waiting_for = data.get("waiting_for", [])
         wait_for_artifacts = data.get("wait_for_artifacts", [])
+        wait_for_fork_sources = data.get("wait_for_fork_sources", [])
         wait_for_beads = data.get("wait_for_beads", [])
         resolved_deps = data.get("resolved_deps", [])
         if not isinstance(wait_for_artifacts, list):
             wait_for_artifacts = []
+        if not isinstance(wait_for_fork_sources, list):
+            wait_for_fork_sources = []
         if not isinstance(wait_for_beads, list):
             wait_for_beads = []
         if not isinstance(resolved_deps, list):
             resolved_deps = []
         if not isinstance(waiting_for, list) or (
-            not waiting_for and not wait_for_artifacts and not wait_for_beads
+            not waiting_for
+            and not wait_for_artifacts
+            and not wait_for_fork_sources
+            and not wait_for_beads
         ):
             skipped_invalid += 1
             continue
@@ -150,6 +156,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             waiting_for,
             wait_for_artifacts,
             resolved_deps,
+            wait_fork_sources=wait_for_fork_sources,
             wait_beads=wait_for_beads,
             closed_bead_ids=closed_bead_ids,
             self_artifact_dir=waiting_marker.waiting_path.parent,

@@ -49,6 +49,7 @@ def _agent_info(*, bead_id: str | None = None) -> SimpleNamespace:
                 "name": "foo",
             }
         ],
+        wait_fork_sources=[],
         wait_beads=["sase-87.2"],
         wait_duration=None,
         wait_until=None,

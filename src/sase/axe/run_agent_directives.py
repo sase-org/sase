@@ -36,6 +36,7 @@ class AgentInfo(NamedTuple):
     bead_id: str | None
     wait_names: list[str]
     wait_identity_deps: list[dict[str, str]]
+    wait_fork_sources: list[dict[str, str]]
     wait_beads: list[str]
     wait_duration: float | None
     wait_until: str | None
@@ -195,10 +196,11 @@ def extract_directives_and_write_meta(
     # Top-level `#fork:<name,...>` parents imply `%wait:<name,...>`. Bare
     # `#fork` and `#fork_by_chat` resolve their targets dynamically and are
     # excluded, while explicit waits are not duplicated.
-    from sase.agent.names import fork_agent_names, fork_parent_wait_is_unreachable
+    from sase.agent.names import fork_agent_names
 
     wait_names = list(directives.wait)
     wait_identity_deps: list[dict[str, str]] = []
+    wait_fork_sources: list[dict[str, str]] = []
     wait_beads = list(directives.wait_beads)
     from sase.core.agent_tribe import (
         is_reserved_tribe_name,
@@ -206,6 +208,7 @@ def extract_directives_and_write_meta(
         reserved_tribe_target_reason,
     )
 
+    implicit_fork_wait_targets: list[str] = []
     for fork_wait_target in fork_agent_names(fork_reference_prompt):
         fork_tribe = parse_tribe_reference(fork_wait_target)
         if fork_tribe is not None and is_reserved_tribe_name(fork_tribe):
@@ -215,9 +218,9 @@ def extract_directives_and_write_meta(
             )
         if fork_wait_target in wait_names:
             continue
-        if fork_parent_wait_is_unreachable(fork_wait_target):
-            continue
         wait_names.append(fork_wait_target)
+        if fork_tribe is None:
+            implicit_fork_wait_targets.append(fork_wait_target)
     if family_attach_plan and family_attach_plan.parent_is_running:
         if family_attach_plan.parent_name not in wait_names:
             wait_names.append(family_attach_plan.parent_name)
@@ -236,12 +239,22 @@ def extract_directives_and_write_meta(
     )
 
     machine_identity = AgentIdentitySnapshot.current()
-    wait_names = [
-        name
-        if parse_tribe_reference(name) is not None
-        else normalize_owned_agent_name(name, machine_identity)
-        for name in wait_names
-    ]
+
+    def normalized_wait_name(name: str) -> str:
+        if parse_tribe_reference(name) is not None:
+            return name
+        return normalize_owned_agent_name(name, machine_identity)
+
+    explicit_wait_names = {normalized_wait_name(name) for name in directives.wait}
+    wait_names = list(dict.fromkeys(normalized_wait_name(name) for name in wait_names))
+    if implicit_fork_wait_targets:
+        from sase.agent.fork_waits import fork_wait_dependency
+
+        wait_fork_sources = [
+            fork_wait_dependency(normalized_wait_name(name))
+            for name in implicit_fork_wait_targets
+            if normalized_wait_name(name) not in explicit_wait_names
+        ]
 
     auto_dismiss = os.environ.get("SASE_AGENT_AUTO_DISMISS")
     name_request = prepare_agent_name_request(
@@ -354,6 +367,7 @@ def extract_directives_and_write_meta(
         bead_id=bead_id,
         wait_names=wait_names,
         wait_identity_deps=wait_identity_deps,
+        wait_fork_sources=wait_fork_sources,
         wait_beads=wait_beads,
         model=agent_model,
         llm_provider=agent_llm_provider,
@@ -442,6 +456,7 @@ def extract_directives_and_write_meta(
         bead_id=bead_id,
         wait_names=wait_names,
         wait_identity_deps=wait_identity_deps,
+        wait_fork_sources=wait_fork_sources,
         wait_beads=wait_beads,
         wait_duration=directives.wait_duration,
         wait_until=directives.wait_until,

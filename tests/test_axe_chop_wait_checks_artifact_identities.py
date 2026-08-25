@@ -128,6 +128,37 @@ def test_identity_wait_failed_parent_keeps_waiting(
     assert not (waiter_dir / "ready.json").exists()
 
 
+def test_implicit_fork_wait_failed_parent_writes_ready(
+    tmp_path: Path, monkeypatch
+) -> None:
+    parent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="failed",
+    )
+    waiter_dir = make_waiting_agent(
+        tmp_path,
+        "foo",
+        wait_for_fork_sources=[
+            {
+                "kind": "agent",
+                "name": "foo",
+                "project_name": "proj",
+                "timestamp": parent_dir.name,
+                "artifact_dir": str(parent_dir),
+            }
+        ],
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["foo"]}
+
+
 def test_identity_wait_repeat_stopped_parent_keeps_waiting(
     tmp_path: Path, monkeypatch
 ) -> None:
