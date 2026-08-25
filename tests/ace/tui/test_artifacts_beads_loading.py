@@ -382,6 +382,58 @@ def test_snapshot_builds_external_issue_cache_and_links(
     assert stale_link.issue is None
 
 
+def test_snapshot_can_skip_external_issue_cache_for_first_paint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    beads_dir = tmp_path / "beads"
+    task = Issue(
+        "alpha-ready",
+        "Ready for triage",
+        issue_type=IssueType.TASK,
+        external_ref="42",
+    )
+
+    monkeypatch.setattr(
+        beads_data,
+        "_resolve_projects",
+        lambda _project: (
+            SimpleNamespace(
+                project="alpha",
+                display_name="Alpha",
+                workspace_dir=str(tmp_path / "workspace"),
+            ),
+        ),
+    )
+    monkeypatch.setattr(beads_data, "_project_beads_dir", lambda _project: beads_dir)
+    monkeypatch.setattr(beads_data, "_project_document_roots", lambda _project: {})
+    monkeypatch.setattr(beads_data, "_store_mtime_key", lambda _path: ())
+    monkeypatch.setattr(beads_data, "_notifications_mtime_key", lambda: ())
+    monkeypatch.setattr(
+        beads_data,
+        "_load_project_beads",
+        lambda _path: ([task], frozenset(), frozenset()),
+    )
+    monkeypatch.setattr(beads_data, "_load_pending_triage", lambda: {})
+    monkeypatch.setattr(
+        beads_data,
+        "resolve_issue_tracker_scope",
+        lambda _project: pytest.fail("first paint must not resolve issue trackers"),
+    )
+    monkeypatch.setattr(
+        beads_data,
+        "list_project_issues",
+        lambda *_args, **_kwargs: pytest.fail("first paint must not list issues"),
+    )
+
+    result = load_beads_snapshot("alpha", force=True, include_external=False)
+
+    assert [item.issue.id for item in result.tasks] == ["alpha-ready"]
+    assert result.external_projects == {}
+    assert result.external_links == {}
+    assert result.external_unmirrored_counts == {}
+
+
 def test_triage_gate_matches_request_payload_not_request_id(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

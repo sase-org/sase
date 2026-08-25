@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
@@ -14,6 +15,10 @@ from textual.worker import Worker
 from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.ace.tui.util.pump_tasks import (
+    cancel_pump_free_tasks,
+    spawn_pump_free_task,
+)
 from sase.bead.filter_query import to_query_string
 from sase.core.query_profile_corpus_facade import (
     ArtifactQueryIndex,
@@ -27,7 +32,11 @@ from ..._artifact_tab_model import ArtifactsPaneContract
 from ...relations import build_beads_relation_index
 from ...relations._support import relation_index_if_enabled
 from .bead_filter_bar import BeadFilterBar
-from .beads_data import BeadsSnapshot, load_beads_snapshot
+from .beads_data import (
+    BeadsSnapshot,
+    load_beads_snapshot,
+    snapshot_needs_external_issue_refresh,
+)
 from .beads_data_models import ExternalIssueLink, ExternalIssueProjectCache
 from .beads_filtering import BeadFilterIndex
 from .beads_filter_session import BeadsFilterSessionMixin
@@ -85,6 +94,7 @@ class ArtifactsBeadsPane(
             group="artifacts-beads-query",
             on_current_result=lambda _result: self._refresh_options(),
         )
+        self._external_refresh_generation = 0
         self.project_scope: str | None = None
         self._project_display_name: str | None = None
         self._registry = load_keymap_registry({})
@@ -118,8 +128,10 @@ class ArtifactsBeadsPane(
         self._refresh_options()
 
     def on_unmount(self) -> None:
+        self._external_refresh_generation += 1
         if self._detail_debouncer is not None:
             self._detail_debouncer.cancel()
+        cancel_pump_free_tasks(self)
         self._query_session.clear()
         self._cancel_snapshot_worker()
 
@@ -156,6 +168,7 @@ class ArtifactsBeadsPane(
         if not changed:
             return
         self.clear_pending_entry_target()
+        self._external_refresh_generation += 1
         self._load_error = None
         if self.artifacts_active:
             self._request_load(force=False)
@@ -200,8 +213,8 @@ class ArtifactsBeadsPane(
             return None
         return self._snapshot.external_projects.get(project)
 
-    def _request_load(self, *, force: bool) -> None:
-        self._request_snapshot(force=force)
+    def _request_load(self, *, force: bool, full: bool = False) -> None:
+        self._request_snapshot(force=force, full=full)
 
     def _on_snapshot_started(self, request: SnapshotRequest) -> None:
         del request
@@ -213,6 +226,7 @@ class ArtifactsBeadsPane(
             previous=self._snapshot,
             force=request.force,
             patches=tuple(getattr(self.app, "patches", ())),
+            include_external=request.full,
         )
         filter_index, query_index = build_beads_query_index(
             snapshot,
@@ -247,7 +261,6 @@ class ArtifactsBeadsPane(
         )
 
     def _apply_snapshot(self, result: Any, request: SnapshotRequest) -> None:
-        del request
         preferred = self._selected_option_id()
         cancel_jump = getattr(
             self.app, "_cancel_artifacts_jump_mode_for_model_change", None
@@ -266,6 +279,8 @@ class ArtifactsBeadsPane(
         if self._filter_session_open:
             self._set_filter_completion_sources()
         self._refresh_options(preferred_id=preferred)
+        if not request.full and snapshot_needs_external_issue_refresh(result.snapshot):
+            self._schedule_external_refresh(request.generation)
 
     def _on_snapshot_error(self, error: str, request: SnapshotRequest) -> None:
         del request
@@ -275,6 +290,29 @@ class ArtifactsBeadsPane(
 
     def _handle_auxiliary_worker(self, event: Worker.StateChanged) -> bool:
         return self._query_session.handle_worker_state_changed(event)
+
+    def _schedule_external_refresh(self, generation: int) -> None:
+        """Yield first paint, then enrich bead rows from remote issue caches."""
+
+        self._external_refresh_generation += 1
+        external_generation = self._external_refresh_generation
+
+        async def refresh_external() -> None:
+            await asyncio.sleep(0)
+            if (
+                external_generation != self._external_refresh_generation
+                or generation != self._load_generation
+                or not self.artifacts_active
+            ):
+                return
+            self._request_load(force=False, full=True)
+
+        spawn_pump_free_task(
+            self,
+            refresh_external(),
+            name="sase-artifacts-beads-external-refresh",
+            registry_attr="_beads_external_refresh_tasks",
+        )
 
     @on(OptionList.OptionHighlighted, "#beads-list")
     def _on_option_highlighted(self, _event: OptionList.OptionHighlighted) -> None:

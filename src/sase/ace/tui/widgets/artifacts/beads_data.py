@@ -16,8 +16,8 @@ from sase.ace.tui.external_issues import (
 from sase.ace.tui.relations.artifact_links import load_artifact_links_snapshot
 from sase.bead.flag_fields import flag_fields, is_flag_bead, is_flag_task_bead
 from sase.bead_flag_presentation import FlagDuePresentation, flag_due_presentation
-from sase.bead.model import IssueType
-from sase.bug_links import find_external_ref_links, normalize_external_ref
+from sase.bead.model import Issue, IssueType
+from sase.bug_links import normalize_external_ref
 from sase.core import time as core_time
 from sase.vcs_provider import IssueWire
 
@@ -54,6 +54,7 @@ def load_beads_snapshot(
     previous: BeadsSnapshot | None = None,
     force: bool = False,
     patches: Iterable[Patch] = (),
+    include_external: bool = True,
 ) -> BeadsSnapshot:
     """Load one or all projects; callers must run this on a worker thread."""
     resolved = _resolve_projects(project)
@@ -81,13 +82,13 @@ def load_beads_snapshot(
         today.isoformat(),
         release,
     )
-    if (
-        not force
-        and previous is not None
+    local_source_unchanged = (
+        previous is not None
         and _snapshot_local_source_key(previous) == local_source_key
-        and _external_caches_fresh(previous, project_names, now)
-    ):
-        return previous
+    )
+    if not force and previous is not None and local_source_unchanged:
+        if not include_external or _external_caches_fresh(previous, project_names, now):
+            return previous
 
     tasks: list[ProjectBead] = []
     epics: list[ProjectBead] = []
@@ -175,28 +176,35 @@ def load_beads_snapshot(
         if key[0] in project_names
     }
     patch_snapshot = tuple(patches)
-    external_projects = _load_external_issue_caches(
-        resolved,
-        previous=previous,
-        force=force,
-        now=now,
-    )
-    external_links = _build_external_issue_links(
-        local_beads,
-        patches=patch_snapshot,
-        external_projects=external_projects,
-        display_names={item.project: item.display_name for item in resolved},
-    )
-    external_unmirrored_counts = _external_unmirrored_counts(
-        external_projects,
-        external_links,
-    )
-    external_source_key = _external_source_key(
-        project_names,
-        external_projects,
-        external_links,
-        external_unmirrored_counts,
-    )
+    display_names = {item.project: item.display_name for item in resolved}
+    if include_external:
+        external_projects = _load_external_issue_caches(
+            resolved,
+            previous=previous,
+            force=force,
+            now=now,
+        )
+        external_links = _build_external_issue_links(
+            local_beads,
+            patches=patch_snapshot,
+            external_projects=external_projects,
+            display_names=display_names,
+        )
+        external_unmirrored_counts = _external_unmirrored_counts(
+            external_projects,
+            external_links,
+        )
+        external_source_key = _external_source_key(
+            project_names,
+            external_projects,
+            external_links,
+            external_unmirrored_counts,
+        )
+    else:
+        external_projects = {}
+        external_links = {}
+        external_unmirrored_counts = {}
+        external_source_key = ()
     source_key = (local_source_key, external_source_key)
     if not force and previous is not None and previous.source_key == source_key:
         return previous
@@ -292,6 +300,19 @@ def _external_caches_fresh(
         if now - cache.refreshed_at >= _EXTERNAL_ISSUE_CACHE_TTL_SECONDS:
             return False
     return True
+
+
+def snapshot_needs_external_issue_refresh(
+    snapshot: BeadsSnapshot,
+    *,
+    now: float | None = None,
+) -> bool:
+    """Return whether the snapshot needs a background issue-cache refresh."""
+
+    if not snapshot.projects:
+        return False
+    checked_at = time.monotonic() if now is None else now
+    return not _external_caches_fresh(snapshot, snapshot.projects, checked_at)
 
 
 def _load_external_issue_caches(
@@ -391,20 +412,28 @@ def _build_external_issue_links(
     external_projects: dict[str, ExternalIssueProjectCache],
     display_names: dict[str, str],
 ) -> dict[tuple[str, str], tuple[ExternalIssueLink, ...]]:
-    all_issues = tuple(item.issue for item in beads)
-    links: dict[tuple[str, str], tuple[ExternalIssueLink, ...]] = {}
+    refs_by_item: list[
+        tuple[ProjectBead, tuple[tuple[str, ExternalIssueRelation], ...]]
+    ]
+    refs_by_item = []
+    beads_by_ref: dict[str, list[Issue]] = {}
     for item in beads:
+        refs = _local_external_refs(item)
+        refs_by_item.append((item, refs))
+        for external_ref, _relation in refs:
+            beads_by_ref.setdefault(external_ref, []).append(item.issue)
+
+    projects = tuple(
+        dict.fromkeys((*display_names.keys(), *(item.project for item in beads)))
+    )
+    patches_by_project = _patch_external_ref_indexes(patches, projects=projects)
+    links: dict[tuple[str, str], tuple[ExternalIssueLink, ...]] = {}
+    for item, refs in refs_by_item:
         issue_links: list[ExternalIssueLink] = []
-        for external_ref, relation in _local_external_refs(item):
+        for external_ref, relation in refs:
             ref_project, issue_id = _external_ref_parts(external_ref)
             cache = external_projects.get(ref_project)
             cached_issue = _cached_issue(cache, issue_id)
-            reverse_links = find_external_ref_links(
-                external_ref,
-                all_issues,
-                patches,
-                project=item.project,
-            )
             issue_links.append(
                 ExternalIssueLink(
                     external_ref=external_ref,
@@ -415,13 +444,39 @@ def _build_external_issue_links(
                     issue=cached_issue,
                     stale=cache is not None and cache.complete and cached_issue is None,
                     drift=_issue_drifted(item.issue, cached_issue, relation=relation),
-                    reverse_beads=reverse_links.beads,
-                    reverse_patches=reverse_links.patches,
+                    reverse_beads=tuple(beads_by_ref.get(external_ref, ())),
+                    reverse_patches=tuple(
+                        patches_by_project.get(item.project, {}).get(external_ref, ())
+                    ),
                 )
             )
         if issue_links:
             links[(item.project, item.issue.id)] = tuple(issue_links)
     return links
+
+
+def _patch_external_ref_indexes(
+    patches: tuple[Patch, ...],
+    *,
+    projects: tuple[str, ...],
+) -> dict[str, dict[str, list[Patch]]]:
+    indexes: dict[str, dict[str, list[Patch]]] = {}
+    for project in projects:
+        project_index: dict[str, list[Patch]] = {}
+        for patch in patches:
+            external_ref = normalize_external_ref(
+                patch.bug,
+                project=_patch_project_name(patch) or project,
+            )
+            if external_ref:
+                project_index.setdefault(external_ref, []).append(patch)
+        indexes[project] = project_index
+    return indexes
+
+
+def _patch_project_name(patch: Patch) -> str:
+    project_name = getattr(patch, "project_name", "")
+    return project_name if isinstance(project_name, str) else ""
 
 
 def _local_external_refs(
@@ -497,10 +552,14 @@ def _external_unmirrored_counts(
         if not cache.issues:
             continue
         counts[project] = sum(
-            normalize_external_ref(issue.number, project=project) not in mirrored_refs
+            _external_issue_wire_ref(issue, project=project) not in mirrored_refs
             for issue in cache.issues
         )
     return counts
+
+
+def _external_issue_wire_ref(issue: IssueWire, *, project: str) -> str:
+    return f"bug:{project}#{str(issue.number).casefold()}"
 
 
 def _external_source_key(
@@ -571,4 +630,10 @@ def _external_cache_source_key(
     )
 
 
-__all__ = ["BeadsSnapshot", "PendingTriage", "ProjectBead", "load_beads_snapshot"]
+__all__ = [
+    "BeadsSnapshot",
+    "PendingTriage",
+    "ProjectBead",
+    "load_beads_snapshot",
+    "snapshot_needs_external_issue_refresh",
+]

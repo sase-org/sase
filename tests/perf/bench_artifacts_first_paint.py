@@ -266,11 +266,9 @@ def bench_bead_pane(
     point straight at a real bead store, while leaving
     ``_load_project_beads`` -- the Rust ``bead_read_facade`` reads that are
     the Bead pane's honest floor per the epic plan §1.3 -- untouched and
-    real. The external ``gh``-issue network call
-    (``_load_external_issue_caches``) is a separate, already-documented
-    problem (plan §1.3, fixed by the sibling ``beads`` phase, not this one);
-    it is stubbed to return instantly so this bench measures the Python-side
-    costs cleanly.
+    real. First paint deliberately skips the external ``gh``-issue cache
+    refresh; the mounted pane schedules that enrichment after the local rows
+    render.
     """
 
     beads_dir = sase_home() / "bench_beads_store"
@@ -286,18 +284,16 @@ def bench_bead_pane(
     monkeypatch.setattr(beads_data, "_resolve_projects", lambda _project: resolved)
     monkeypatch.setattr(beads_data, "_project_beads_dir", lambda _project: beads_dir)
     monkeypatch.setattr(beads_data, "_project_document_roots", lambda _project: {})
-    monkeypatch.setattr(
-        beads_data,
-        "_load_external_issue_caches",
-        lambda *_args, **_kwargs: {},
-    )
-
     profile = compiled_profile_for_builtin_pane("beads")
     assert profile is not None
 
     def _sample() -> tuple[float, float, int]:
         start = time.perf_counter()
-        snapshot = load_beads_snapshot("bench", patches=())
+        snapshot = load_beads_snapshot(
+            "bench",
+            patches=(),
+            include_external=False,
+        )
         load_s = time.perf_counter() - start
 
         start = time.perf_counter()
