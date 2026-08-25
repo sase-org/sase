@@ -1,12 +1,16 @@
 # Beads sidecar directory map
 
+**Stale asset**: this spec was updated for the lazy (`auto_clone: false`) beads sidecar,
+but the committed `beads-directory-map.png` still shows the old auto-clone wording. It
+needs a re-render with an image-generation tool; see the task bead filed for this.
+
 ## Target
 
 - Final asset: `src/sase/sdd/assets/beads-directory-map.png`
 - Size: 1600×900 PNG
 - Intended use: generated README for each beads sidecar repository
 - Alt text:
-  `Append-only bead event streams feeding a generated projection and local cache in an isolated, auto-cloned beads sidecar, with separate plans storage and automated commit and push.`
+  `Append-only bead event streams feeding a generated projection and local cache in an isolated beads sidecar materialized on demand, with separate plans storage and automated commit and push.`
 
 ## Final GPT Image Prompt
 
@@ -32,12 +36,12 @@ character. The overlay uses dark slate `#17243a`, secondary slate `#536175`, opa
 white label panels, and light-gray `#d4dbe5` borders.
 
 - Title: `BEADS SIDECAR`
-- Subtitle: `Append-only bead state — isolated, auto-cloned everywhere`
+- Subtitle: `Append-only bead state — isolated, materialized on demand`
 - Repository: `BEADS REPOSITORY`, `sase-org/sase--beads`, `public linked sidecar`
 - Event store: `EVENT STORE`, `events/streams/*.jsonl`, `append-only source of truth`
 - Projection: `PROJECTION`, `issues.jsonl`, `generated`
 - Local cache: `LOCAL CACHE`, `beads.db (gitignored)`
-- Clone behavior: `AUTO-CLONE`, `auto_clone: true`, `EVERY WORKSPACE`,
+- Clone behavior: `ON DEMAND`, `LAZY`, `auto_clone: false`, `sase bead`,
   `under sase/repos/beads`
 - Isolation: `PLANS REPOSITORY`, `sase-org/sase--plans`, `separate repo, separate lock`
 - Persistence rail: `SDD machinery`, `commit`, `push`
@@ -47,12 +51,12 @@ white label panels, and light-gray `#d4dbe5` borders.
 1. Resize the generated base to exactly 1600×900.
 2. Render a transparent 1600×900 SVG overlay using the fonts and labels above. Place the
    title and subtitle at upper left, repository and content labels in the center,
-   auto-clone and workspace labels on the right, isolation labels in the disconnected
+   lazy-clone and workspace labels on the right, isolation labels in the disconnected
    upper-right repository, and commit/push labels along the bottom rail.
 3. Composite the overlay over the resized base and strip metadata. Keep the output 8-bit
    sRGB.
 4. Inspect both the full-size raster and a 900px-wide reduction. Confirm that
-   `auto_clone: true`, `events/streams/*.jsonl`, `issues.jsonl`, and
+   `auto_clone: false`, `events/streams/*.jsonl`, `issues.jsonl`, and
    `sase-org/sase--beads` remain legible.
 
 Equivalent ImageMagick pipeline:

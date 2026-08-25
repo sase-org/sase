@@ -2014,6 +2014,14 @@ visible to users as a `sidecar` row in `sase repo list`, and `sase repo path age
 `~/.sase/projects/<project_key>/repos/agents`. The derived or pinned repository slug is
 also accepted by those commands.
 
+The `beads` role does not default to `auto_clone: true`: the beads sidecar materializes
+on demand, in `sase bead` and in the agent-launch bead claim, instead of during
+workspace preparation. It is unconditionally omitted from generated agent instructions
+regardless of its `auto_clone` setting, the same way `agents` is, because agents reach
+bead state through `sase bead` rather than `/sase_repo`. Unlike `agents`, it otherwise
+behaves like an ordinary reserved sidecar: it appears in `sase repo list` and resolves
+through `sase repo path beads` or `sase repo open beads -r "<reason>"`.
+
 The workspace provider owns sidecar transport. GitHub sidecars use canonical SSH origins
 on the primary repository's GitHub host (`git@host:owner/repo.git`, or
 `ssh://git@host:port/owner/repo.git` when a port is configured). Read-only store
@@ -2026,17 +2034,18 @@ materialization before Git runs. Rerun `sase repo init` to persist the migrated 
 it is not required to make a launch safe.
 
 Managed projects (`is_sase_managed: true`) receive deterministic `<project>--plans`
-(`auto_clone: true`) and `<project>--agents` (`auto_clone: false`, public visibility)
-entries when no matching explicit sidecar is configured. Research is config-declared per
-project and defaults to `<owner>/<project>--research`; `sase repo init` writes the plans
-and research entries. A project-local `agents` entry replaces the implicit entry: use
-`disabled: true` to opt out or `visibility: private` to retain it with a private remote
-policy. Project-local `default_linked_repos: false` suppresses both implicit
-managed-project entries. `sase repo init` can create and seed the agents remote only
-after its separate default-no consent prompt. Successful agent commit/PR workflows
-publish the committing hood, while `sase agent sync` imports shared history and
-reconciles every locally commit-eligible hood through the stable machine-level clone.
-See [Agent Hood Synchronization](agents_sidecar.md) before enabling a public remote.
+(`auto_clone: true`), `<project>--beads` (`auto_clone: false`), and `<project>--agents`
+(`auto_clone: false`, public visibility) entries when no matching explicit sidecar is
+configured. Research is config-declared per project and defaults to
+`<owner>/<project>--research`; `sase repo init` writes the plans and research entries. A
+project-local `agents` entry replaces the implicit entry: use `disabled: true` to opt
+out or `visibility: private` to retain it with a private remote policy. Project-local
+`default_linked_repos: false` suppresses both implicit managed-project entries.
+`sase repo init` can create and seed the agents remote only after its separate
+default-no consent prompt. Successful agent commit/PR workflows publish the committing
+hood, while `sase agent sync` imports shared history and reconciles every locally
+commit-eligible hood through the stable machine-level clone. See
+[Agent Hood Synchronization](agents_sidecar.md) before enabling a public remote.
 
 The deprecated `linked_repos` and `sibling_repos` keys are still accepted as aliases
 during the compatibility window. Canonical `repos.linked` entries take precedence over
@@ -2072,7 +2081,7 @@ repos:
 | Field                                         | Type           | Default                                                            | Description                                                                                  |
 | --------------------------------------------- | -------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
 | `github_orgs`                                 | string or list | -                                                                  | GitHub user/org namespaces available to provider completion and PR workflows.                |
-| `default_linked_repos`                        | boolean        | `true`                                                             | Inject managed-project `--plans` and hidden `--agents` sidecars.                             |
+| `default_linked_repos`                        | boolean        | `true`                                                             | Inject managed-project `--plans`, `--beads`, and hidden `--agents` sidecars.                 |
 | `repos.linked[].auto_clone`                   | boolean        | `false`                                                            | Materialize and prepare the repository automatically before each agent launch.               |
 | `repos.linked[].name`                         | string         | required                                                           | Stable alias used in generated environment variable names and memory summaries.              |
 | `repos.linked[].path`                         | string         | required                                                           | Primary checkout path. Relative paths resolve from the project's primary workspace.          |

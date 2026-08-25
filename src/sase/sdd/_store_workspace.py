@@ -186,10 +186,13 @@ def ensure_beads_sidecar_clone(
         from sase.sdd._store_link import ensure_sidecar_sdd_clone
 
         clone_dir = Path(sidecar_repo_clone_dir(workspace, "beads"))
+        reference_dir = Path(sidecar_repo_clone_dir(primary, "beads"))
+        reference_repo = reference_dir if reference_dir != clone_dir else None
         try:
             ensure_sidecar_sdd_clone(
                 clone_dir,
                 record.beads.remote_url,
+                reference_repo=reference_repo,
                 strict=True,
                 fresh=fresh,
             )

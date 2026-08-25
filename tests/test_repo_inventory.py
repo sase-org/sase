@@ -267,6 +267,47 @@ def test_inventory_gates_beads_auto_clone_on_store_record(
     assert beads.source == "repos.sidecar config"
 
 
+def test_inventory_defaults_beads_lazy_and_plans_eager_without_explicit_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _project_record(tmp_path)
+    primary = Path(project.workspace_dir or "")
+    _set_github_origin(primary)
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 3,
+            "storage": "sidecar_repos",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/plans",
+                    "remote_url": "git@example.test:acme/plans.git",
+                },
+                "beads": {
+                    "repo": "acme/beads",
+                    "remote_url": "git@example.test:acme/beads.git",
+                },
+            },
+        },
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.list_project_records",
+        lambda *_args, **_kwargs: [project],
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.resolution_config",
+        lambda *_args, **_kwargs: {},
+    )
+
+    inventory = collect_repo_inventory(tmp_path / "projects")
+
+    plans = next(record for record in inventory.records if record.name == "plans")
+    beads = next(record for record in inventory.records if record.name == "beads")
+    assert plans.auto_clone is True
+    assert beads.auto_clone is False
+
+
 def test_disabled_configured_sidecar_suppresses_store_record(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

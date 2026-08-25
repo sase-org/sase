@@ -22,6 +22,7 @@ from sase.linked_repos import (
     SIBLING_REPOS_CONFIG_KEY,
 )
 from sase.project_management import load_local_config
+from sase.sdd.store import BEADS_SIDECAR_ROLE
 
 from .constants import COMMAND_LABEL
 from .models import LinkedRepoMemoryEntry
@@ -330,6 +331,11 @@ def linked_entries_from_config(
                 errors.append(f"{prefix} has a blank sidecar role name")
                 continue
             if role in HIDDEN_SIDECAR_ROLES:
+                continue
+            # Bead state is reached through `sase bead`, never `/sase_repo` —
+            # never list the beads sidecar in generated agent instructions,
+            # regardless of its auto_clone setting.
+            if role == BEADS_SIDECAR_ROLE:
                 continue
 
             description = item.get("description")

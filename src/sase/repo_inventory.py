@@ -240,9 +240,7 @@ def _collect_project_repos(
                         project_key=project_key,
                         path=path,
                         exists=Path(path).is_dir(),
-                        auto_clone=bool(
-                            metadata.get("auto_clone", kind in {"plans", "beads"})
-                        ),
+                        auto_clone=bool(metadata.get("auto_clone", kind == "plans")),
                         auto_sync=bool(metadata.get("auto_sync", False)),
                         description=(
                             _optional_text(metadata.get("description"))

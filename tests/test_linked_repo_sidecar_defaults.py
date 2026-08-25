@@ -62,7 +62,7 @@ def test_managed_project_injects_default_plans_and_beads_sidecars(
     assert resolution.warnings == ()
     assert [(repo.name, repo.auto_clone) for repo in resolution.repos] == [
         ("sase--plans", True),
-        ("sase--beads", True),
+        ("sase--beads", False),
     ]
     assert [Path(repo.workspace_dir) for repo in resolution.repos] == [
         tmp_path / "sase_4" / "sase" / "repos" / "plans",

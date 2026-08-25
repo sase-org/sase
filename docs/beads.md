@@ -864,16 +864,16 @@ the same structure. Local storage uses the primary workspace; every sidecar layo
 the active workspace clone and records provider/remote metadata in the primary
 workspace's `.sase/sdd-store.json`.
 
-Split sidecar storage puts bead state in its own auto-cloned `<owner>/<repo>--beads`
-repository, checked out at `<workspace>/sase/repos/beads`. That repository keeps the
-store **at its root** rather than under a `beads/` subdirectory, so `config.json`,
-`metadata.json`, `issues.jsonl`, and `events/` sit beside the generated `README.md`,
-`assets/`, `.gitignore`, and generated `pages/`. A split project that has not been
-migrated yet still keeps bead state at `beads/` in the root of its auto-cloned `--plans`
-repository; the `.sase/sdd-store.json` record decides which, and only a record that
-names a `beads` sidecar (schema version 3) resolves to the dedicated repository. See
-[SDD Storage](sdd_storage.md) for the record format and the adoption transaction that
-performs the move.
+Split sidecar storage puts bead state in its own `<owner>/<repo>--beads` repository,
+materialized on demand and checked out at `<workspace>/sase/repos/beads`. That
+repository keeps the store **at its root** rather than under a `beads/` subdirectory, so
+`config.json`, `metadata.json`, `issues.jsonl`, and `events/` sit beside the generated
+`README.md`, `assets/`, `.gitignore`, and generated `pages/`. A split project that has
+not been migrated yet still keeps bead state at `beads/` in the root of its auto-cloned
+`--plans` repository; the `.sase/sdd-store.json` record decides which, and only a record
+that names a `beads` sidecar (schema version 3) resolves to the dedicated repository.
+See [SDD Storage](sdd_storage.md) for the record format and the adoption transaction
+that performs the move.
 
 Isolating bead state this way gives it its own git history, its own cooperative write
 lock, and its own repository-health preflight, so hot bead writes no longer serialize

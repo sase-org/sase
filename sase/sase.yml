@@ -43,8 +43,11 @@ repos:
         auto_clone: true
         ref:
           use: builtin@plan
+      # No auto_clone: the beads sidecar materializes on demand, in `sase
+      # bead` and in the agent-launch bead claim, so every workspace no
+      # longer pays for a full clone up front.
       beads:
-        auto_clone: true
+        auto_sync: true
       agents:
         description: Hidden sidecar that stores commit-associated sase agent data for this project.
     custom:

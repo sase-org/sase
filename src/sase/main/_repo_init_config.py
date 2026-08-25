@@ -184,7 +184,7 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
             ),
             "beads": (
                 SIDECAR_BUILTIN_CONFIG_KEY,
-                CommentedMap((("auto_clone", True), ("auto_sync", True))),
+                CommentedMap((("auto_sync", True),)),
             ),
             "research": (
                 SIDECAR_CUSTOM_CONFIG_KEY,

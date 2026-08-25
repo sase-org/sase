@@ -368,7 +368,7 @@ repos:
       plans:
         auto_clone: true
       beads:
-        auto_clone: true
+        auto_sync: true
     custom:
       research:
         description: Durable SASE research reports and generated media.

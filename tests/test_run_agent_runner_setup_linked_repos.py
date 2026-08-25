@@ -351,6 +351,32 @@ def test_prepare_linked_repo_workspaces_skips_lazy_entries() -> None:
     prepare.assert_not_called()
 
 
+def test_prepare_linked_repo_workspaces_does_not_materialize_lazy_beads_sidecar() -> (
+    None
+):
+    resolution = _resolution(
+        name="beads",
+        primary_dir="/repos/project/sase/repos/beads",
+        workspace_dir="/repos/project_7/sase/repos/beads",
+        auto_clone=False,
+        kind="sidecar",
+        slug="project--beads",
+        remote_url="git@example.test:owner/project--beads.git",
+    )
+
+    with (
+        patch("sase.linked_repos.materialize_linked_repo_workspace") as materialize,
+        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+    ):
+        prepare_linked_repo_workspaces_if_needed(
+            resolution=resolution,
+            cl_name="feature",
+        )
+
+    materialize.assert_not_called()
+    prepare.assert_not_called()
+
+
 def test_prepare_linked_repo_workspaces_rejects_empty_primary_for_retained_repo() -> (
     None
 ):

@@ -97,25 +97,29 @@ and `sase/repos/beads` is missing or has a mismatched origin, the command clones
 before reading or writing, and reports an error naming the repository and remote if that
 clone cannot be made usable. A project with a schema-2 record clones nothing extra.
 Because a beads sidecar is injected into the default linked-repo set for every managed
-project, but the remote only exists after adoption, the beads role is reported with
-`auto_clone: true` only once the store record actually names it; before that it is
-inventory-visible but never materialized.
+project, but the remote only exists after adoption, the beads role defaults to
+`auto_clone: false` and stays inventory-visible even before adoption, materializing only
+through the on-demand path above. A project that opts a beads entry into
+`auto_clone: true` still respects the pre-adoption gate: SASE reports `auto_clone: true`
+only once the store record actually names a beads sidecar, so an unmigrated project's
+beads role is never auto-cloned even under an explicit override.
 
 Initialization clones, initializes, and pushes every configured sidecar in the workspace
 where it runs. After that, normal numbered-workspace preparation evicts the complete
-`sase/repos/` tree and clones plans—and, for a migrated project, beads—directly from
-their recorded remotes. A newly prepared workspace leaves ordinary document sidecars
-lazy unless `auto_clone: true`; a consumer can materialize one with
-`sase repo path <role> --ensure`. GitHub HTTPS values in legacy records resolve in
-memory to canonical SSH (`git@host:owner/repo.git`, or
-`ssh://git@host:port/owner/repo.git`) before inventory, launch, retained-clone
-synchronization, or on-demand materialization consumes them. Each clone's `origin` is
-that resolved SSH or local remote; a retained matching HTTPS clone is rewritten in place
-without losing local state. Other HTTP(S) values fail before Git executes. This
-read-time normalization does not rewrite `.sase/sdd-store.json`; rerun `sase repo init`
-to persist the migration, but launches are safe without doing so. Pull-with-rebase
-applies when synchronizing a retained existing clone; a sidecar freshly cloned for
-launch is used without a redundant pull or rebase.
+`sase/repos/` tree and clones plans directly from its recorded remote. A newly prepared
+workspace leaves the beads role and ordinary document sidecars lazy unless
+`auto_clone: true`; a consumer can materialize one with
+`sase repo path <role> --ensure`, or let `sase bead` and the agent-launch bead claim
+materialize beads on first use. GitHub HTTPS values in legacy records resolve in memory
+to canonical SSH (`git@host:owner/repo.git`, or `ssh://git@host:port/owner/repo.git`)
+before inventory, launch, retained-clone synchronization, or on-demand materialization
+consumes them. Each clone's `origin` is that resolved SSH or local remote; a retained
+matching HTTPS clone is rewritten in place without losing local state. Other HTTP(S)
+values fail before Git executes. This read-time normalization does not rewrite
+`.sase/sdd-store.json`; rerun `sase repo init` to persist the migration, but launches
+are safe without doing so. Pull-with-rebase applies when synchronizing a retained
+existing clone; a sidecar freshly cloned for launch is used without a redundant pull or
+rebase.
 
 The retired `sdd.storage` and `sdd.version_controlled` configuration keys no longer
 select a mode. SASE ignores and strips them before schema validation, and `sase doctor`
@@ -129,8 +133,8 @@ and `<owner>/<repo>--beads` sidecars by default, writing their project-local
 `repos.sidecar` declarations when absent. Additional sidecars are declared under
 `repos.sidecar`, and any entry can pin `repo:` to override the derived
 `<owner>/<repo>--<name>` convention. Configured sidecars are prepared by initialization
-in the current workspace. In later workspaces, the plans and recorded beads clones are
-automatic, while ordinary document roles materialize according to `auto_clone` or on
+in the current workspace. In later workspaces, only the plans clone is automatic; the
+beads role and ordinary document roles materialize according to `auto_clone` or on
 demand. The provider still supports `<owner>/<repo>--sdd` discovery and `sdd.repo.name`
 overrides for unmigrated legacy stores.
 

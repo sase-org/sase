@@ -51,7 +51,6 @@ def test_repo_init_writes_managed_sidecar_config_local_store_and_gitignore(
         "        ref:\n"
         "          use: builtin@plan\n"
         "      beads:\n"
-        "        auto_clone: true\n"
         "        auto_sync: true\n"
         "      agents:\n"
         f"        description: {DEFAULT_AGENTS_DESCRIPTION}\n"

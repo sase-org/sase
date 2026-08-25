@@ -326,7 +326,7 @@ def inject_default_linked_repos(
     }
     defaults = (
         ("plans", f"{project_name}--plans", DEFAULT_PLANS_DESCRIPTION, True, True),
-        ("beads", f"{project_name}--beads", DEFAULT_BEADS_DESCRIPTION, True, True),
+        ("beads", f"{project_name}--beads", DEFAULT_BEADS_DESCRIPTION, False, True),
     )
     for role, name, description, auto_clone, auto_sync in defaults:
         if name in configured_names or {role, name}.intersection(

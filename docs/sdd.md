@@ -44,8 +44,9 @@ the concrete layout:
   document role in its own sidecar. A schema-3 record stores bead state at the root of
   its dedicated `--beads` clone; a schema-2 compatibility record keeps `beads/` under
   `--plans`. Initialization prepares configured sidecars in its current workspace; later
-  workspaces clone lazy document roles on demand. Monthly directories live directly at
-  document roots; legacy single-root layouts remain readable for compatibility.
+  workspaces clone the beads sidecar and lazy document roles on demand instead of during
+  workspace preparation. Monthly directories live directly at document roots; legacy
+  single-root layouts remain readable for compatibility.
 
 Use `sase repo path plans` or `sase repo path beads` to print those resolved roots, or
 `sase repo path research --ensure` to materialize and print the research root. Launched
@@ -592,8 +593,8 @@ automatically when its resolved store does not have one yet:
 - **Separate-repo mode**: Beads are stored in `.sase/sdd/beads/` inside the sidecar
   checkout.
 - **Split sidecar mode**: Schema-3 projects store beads at the root of the active
-  workspace's auto-cloned `--beads` repository. Schema-2 projects retain `beads/` in the
-  `--plans` clone.
+  workspace's `--beads` repository, materialized on demand. Schema-2 projects retain
+  `beads/` in the `--plans` clone.
 
 Plan-like beads carry a `tier` value:
 
@@ -655,10 +656,11 @@ SDD artifact placement follows provider policy. With `in_tree`, bead commands us
 current checkout's `sdd/beads/` store. With `separate_repo`, commands first require a
 usable provider sidecar and then use the active workspace's `.sase/sdd/` clone. With
 `sidecar_repos`, each workspace auto-clones `--plans` at `sase/repos/plans`; schema-3
-records also auto-clone `--beads` at `sase/repos/beads`, while schema-2 records keep
-bead state under `sase/repos/plans/beads`. Initialization also prepares every configured
-document sidecar at `sase/repos/<role>` in its current workspace; other workspaces clone
-lazy roles when explicitly ensured. Providerless local storage uses the primary
+records materialize `--beads` at `sase/repos/beads` on demand, in `sase bead` and in the
+agent-launch bead claim, while schema-2 records keep bead state under
+`sase/repos/plans/beads`. Initialization also prepares every configured document sidecar
+at `sase/repos/<role>` in its current workspace; other workspaces clone lazy roles,
+including beads, when explicitly ensured. Providerless local storage uses the primary
 workspace. Numbered sibling stores are not merged; coordinate shared state through the
 normal VCS sync path. Prefer `sase repo path plans`, `sase repo path beads`,
 `sase repo path <document-role>`, or the `SASE_SDD_*_DIR` variables over hard-coded

@@ -35,6 +35,7 @@ def _record_calls(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, object]]:
         clone_dir: Path,
         remote_url: str,
         *,
+        reference_repo: Path | None = None,
         strict: bool = False,
         fresh: bool = False,
     ) -> None:
@@ -42,6 +43,7 @@ def _record_calls(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, object]]:
             {
                 "clone_dir": clone_dir,
                 "remote_url": remote_url,
+                "reference_repo": reference_repo,
                 "strict": strict,
                 "fresh": fresh,
             }
@@ -172,3 +174,37 @@ def test_ensure_beads_sidecar_clone_default_fresh_is_false(
 
     assert len(calls) == 1
     assert calls[0]["fresh"] is False
+
+
+def test_ensure_beads_sidecar_clone_passes_no_reference_for_primary_workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "repo"
+    primary.mkdir()
+    _write_sidecar_record(primary, with_beads=True)
+    calls = _record_calls(monkeypatch)
+
+    ensure_beads_sidecar_clone(primary, 1)
+
+    assert len(calls) == 1
+    assert calls[0]["reference_repo"] is None
+
+
+def test_ensure_beads_sidecar_clone_references_primary_sidecar_clone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase._linked_repo_paths import sidecar_repo_clone_dir
+
+    primary = tmp_path / "repo"
+    workspace = tmp_path / "repo_4"
+    primary.mkdir()
+    workspace.mkdir()
+    _write_sidecar_record(primary, with_beads=True)
+    calls = _record_calls(monkeypatch)
+
+    ensure_beads_sidecar_clone(workspace, 4)
+
+    assert len(calls) == 1
+    assert calls[0]["reference_repo"] == Path(sidecar_repo_clone_dir(primary, "beads"))
