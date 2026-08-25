@@ -195,7 +195,7 @@ def test_log_chdirs_into_the_requested_project_for_delegation(
     project_root = tmp_path / "other-project"
     project_root.mkdir()
     monkeypatch.setattr(
-        "sase.glossary.compat.glossary_project_root", lambda _ref: project_root
+        "sase.glossary.compat._glossary_project_root", lambda _ref: project_root
     )
     seen_cwd: list[Path] = []
     monkeypatch.setattr(

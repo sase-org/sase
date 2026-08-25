@@ -29,7 +29,7 @@ def print_glossary_deprecation_notice(subcommand: str, equivalent: str) -> None:
     )
 
 
-def glossary_project_root(project_ref: str | None) -> Path:
+def _glossary_project_root(project_ref: str | None) -> Path:
     """Resolve *project_ref* to a workspace root the same way `sase memory` does."""
     resolved = resolve_memory_cli_project(project_ref)
     return resolved.project_root if resolved is not None else Path.cwd()
@@ -42,7 +42,7 @@ def find_glossary_web(project_ref: str | None) -> MemoryWeb | None:
     re-resolves the same ref and raises the authoritative error message.
     """
     try:
-        root = glossary_project_root(project_ref)
+        root = _glossary_project_root(project_ref)
     except MemoryCliProjectError:
         return None
     return find_memory_web(root, GLOSSARY_WEB_SLUG)
@@ -60,7 +60,7 @@ def glossary_project_directory(project_ref: str | None) -> Iterator[None]:
         yield
         return
     previous = Path.cwd()
-    os.chdir(glossary_project_root(project_ref))
+    os.chdir(_glossary_project_root(project_ref))
     try:
         yield
     finally:
@@ -127,7 +127,6 @@ def _term_selectors(args: argparse.Namespace) -> list[str]:
 __all__ = [
     "find_glossary_web",
     "glossary_project_directory",
-    "glossary_project_root",
     "memory_all_namespace",
     "memory_log_namespace",
     "memory_read_namespace",

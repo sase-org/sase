@@ -13,7 +13,7 @@ from sase.core.project_lifecycle_wire import (
 from sase.glossary.cli_common import GlossaryCliError
 from sase.glossary.mutation import GlossaryMutationError, GlossaryValidationError
 from sase.glossary.resolution import GlossaryLookupError
-from sase.glossary.web_mutation import add_glossary_strand, delete_glossary_strand
+from sase.glossary.web_mutation import _add_glossary_strand, _delete_glossary_strand
 from sase.memory.web.catalog import find_memory_web
 from sase.xprompt import glossary_catalog as catalog_mod
 
@@ -87,7 +87,7 @@ def test_add_writes_strand_file_with_frontmatter(
     web = find_memory_web(workspace, "glossary")
     assert web is not None
 
-    outcome = add_glossary_strand(
+    outcome = _add_glossary_strand(
         "demo", web, "Widget Box", "A container for widgets.", aliases=("box",)
     )
 
@@ -110,7 +110,7 @@ def test_add_omits_aliases_key_when_none_given(
 
     web = find_memory_web(workspace, "glossary")
     assert web is not None
-    add_glossary_strand("demo", web, "Solo Term", "Stands alone.")
+    _add_glossary_strand("demo", web, "Solo Term", "Stands alone.")
 
     text = (workspace / "sase" / "memory" / "glossary" / "solo-term.md").read_text(
         encoding="utf-8"
@@ -128,7 +128,7 @@ def test_add_rejects_slug_collision(
     assert web is not None
 
     with pytest.raises(GlossaryMutationError, match="already exists"):
-        add_glossary_strand("demo", web, "Alpha", "A colliding definition.")
+        _add_glossary_strand("demo", web, "Alpha", "A colliding definition.")
 
 
 def test_add_rejects_alias_collision_via_rust_validation(
@@ -141,7 +141,7 @@ def test_add_rejects_alias_collision_via_rust_validation(
     assert web is not None
 
     with pytest.raises(GlossaryValidationError):
-        add_glossary_strand("demo", web, "Other", "Collides.", aliases=("Alpha",))
+        _add_glossary_strand("demo", web, "Other", "Collides.", aliases=("Alpha",))
     assert not (workspace / "sase" / "memory" / "glossary" / "other.md").exists()
 
 
@@ -153,9 +153,9 @@ def test_add_rejects_blank_and_malformed_terms(
     assert web is not None
 
     with pytest.raises(GlossaryMutationError, match="nonblank"):
-        add_glossary_strand("demo", web, "   ", "A definition.")
+        _add_glossary_strand("demo", web, "   ", "A definition.")
     with pytest.raises(GlossaryMutationError, match="single-line"):
-        add_glossary_strand("demo", web, "Bad\nTerm", "A definition.")
+        _add_glossary_strand("demo", web, "Bad\nTerm", "A definition.")
 
 
 def test_delete_by_term_removes_strand_file(
@@ -172,7 +172,7 @@ def test_delete_by_term_removes_strand_file(
     web = find_memory_web(workspace, "glossary")
     assert web is not None
 
-    outcome = delete_glossary_strand("demo", web, "Beta")
+    outcome = _delete_glossary_strand("demo", web, "Beta")
 
     assert outcome.term == "Beta"
     assert outcome.referenced_by == ("Alpha",)
@@ -189,7 +189,7 @@ def test_delete_dry_run_leaves_file(
     web = find_memory_web(workspace, "glossary")
     assert web is not None
 
-    outcome = delete_glossary_strand("demo", web, "Alpha", dry_run=True)
+    outcome = _delete_glossary_strand("demo", web, "Alpha", dry_run=True)
 
     assert outcome.term == "Alpha"
     assert (workspace / "sase" / "memory" / "glossary" / "alpha.md").exists()
@@ -205,7 +205,7 @@ def test_delete_unknown_term_raises_lookup_error(
     assert web is not None
 
     with pytest.raises(GlossaryLookupError, match="unknown glossary term: xyzzy"):
-        delete_glossary_strand("demo", web, "xyzzy")
+        _delete_glossary_strand("demo", web, "xyzzy")
 
 
 def test_add_unknown_project_raises(
@@ -218,4 +218,4 @@ def test_add_unknown_project_raises(
     assert web is not None
 
     with pytest.raises(GlossaryCliError, match="did not resolve"):
-        add_glossary_strand("missing", web, "Term", "A definition.")
+        _add_glossary_strand("missing", web, "Term", "A definition.")

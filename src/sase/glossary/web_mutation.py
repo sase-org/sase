@@ -47,7 +47,7 @@ from sase.memory.web.models import MemoryStrand, MemoryWeb
 from sase.xprompt.glossary_catalog import editor_glossary_catalog_for_project
 
 
-def add_glossary_strand(
+def _add_glossary_strand(
     project_ref: str | None,
     web: MemoryWeb,
     term: str,
@@ -96,7 +96,7 @@ def add_glossary_strand(
     )
 
 
-def delete_glossary_strand(
+def _delete_glossary_strand(
     project_ref: str | None,
     web: MemoryWeb,
     reference: str,
@@ -155,7 +155,7 @@ def handle_glossary_add_web_command(
     """Add a glossary term to a project's glossary web and print the outcome."""
     project_ref = getattr(args, "project", None)
     try:
-        outcome = add_glossary_strand(
+        outcome = _add_glossary_strand(
             project_ref,
             web,
             args.term,
@@ -183,7 +183,7 @@ def handle_glossary_del_web_command(
     project_ref = getattr(args, "project", None)
     dry_run = bool(getattr(args, "dry_run", False))
     try:
-        outcome = delete_glossary_strand(project_ref, web, args.term, dry_run=dry_run)
+        outcome = _delete_glossary_strand(project_ref, web, args.term, dry_run=dry_run)
     except write_error_types() as exc:
         exit_glossary_write_error("del", exc, project_ref=project_ref)
 
@@ -244,8 +244,6 @@ def _render_strand_text(term: str, definition: str, aliases: tuple[str, ...]) ->
 
 
 __all__ = [
-    "add_glossary_strand",
-    "delete_glossary_strand",
     "handle_glossary_add_web_command",
     "handle_glossary_del_web_command",
 ]
