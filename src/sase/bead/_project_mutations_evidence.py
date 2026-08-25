@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sase.bead._project_mutations_shared import combine_mutation_outcomes
 from sase.bead.model import Issue
 
 if TYPE_CHECKING:
@@ -73,7 +74,7 @@ class BeadProjectMutationEvidenceMixin:
             )
             issue_by_id[issue_id] = issue
             outcomes.append(outcome)
-        self._record_mutation_outcome(_combine_mutation_outcomes("update", outcomes))
+        self._record_mutation_outcome(combine_mutation_outcomes("update", outcomes))
         self._refresh_db_from_jsonl()
         return [issue_by_id[issue_id] for issue_id in resolved_ids]
 
@@ -101,31 +102,3 @@ class BeadProjectMutationEvidenceMixin:
         self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return issue, bool(outcome["changed"])
-
-
-def _combine_mutation_outcomes(
-    operation: str,
-    outcomes: list[dict[str, object]],
-) -> dict[str, object]:
-    if not outcomes:
-        return {"operation": operation, "issue_ids": []}
-    issue_ids: list[str] = []
-    reopened_ancestor_ids: list[str] = []
-    for outcome in outcomes:
-        _extend_unique(issue_ids, outcome.get("issue_ids"))
-        _extend_unique(reopened_ancestor_ids, outcome.get("reopened_ancestor_ids"))
-    combined = outcomes[-1].copy()
-    combined["operation"] = operation
-    combined["issue_ids"] = issue_ids
-    if reopened_ancestor_ids:
-        combined["reopened_ancestor_ids"] = reopened_ancestor_ids
-    return combined
-
-
-def _extend_unique(target: list[str], raw: object) -> None:
-    if not isinstance(raw, list):
-        return
-    for item in raw:
-        if not isinstance(item, str) or item in target:
-            continue
-        target.append(item)
