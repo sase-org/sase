@@ -70,29 +70,19 @@ def test_config_schema_validates_nested_owner_and_legacy_machine_name() -> None:
     assert schema()["properties"]["machine_name"]["deprecated"] is True
 
 
-def test_config_schema_validates_project_glossary_shape() -> None:
+def test_config_schema_rejects_retired_memory_glossary() -> None:
     validator = Draft7Validator(schema())
 
-    valid_glossary = {
-        "Agent Clan": {
-            "aliases": ["agent clans", "clan"],
-            "definition": "A named, rootless container.",
-        },
-        "Workspace": {
-            "definition": "A numbered project checkout.",
-        },
-    }
-    validator.validate({"memory": {"glossary": valid_glossary}})
-
-    for invalid in (
-        {"Agent Clan": {"aliases": ["clan"]}},
-        {"Agent Clan": {"definition": ""}},
-        {"Agent Clan": {"definition": "Valid", "aliases": ["two\nlines"]}},
-        {"Agent Clan": {"definition": "Valid", "unknown": True}},
-        {"": {"definition": "Blank term"}},
-    ):
-        with pytest.raises(ValidationError):
-            validator.validate({"memory": {"glossary": invalid}})
+    with pytest.raises(ValidationError):
+        validator.validate(
+            {
+                "memory": {
+                    "glossary": {
+                        "Workspace": {"definition": "A numbered project checkout."}
+                    }
+                }
+            }
+        )
 
 
 def test_config_schema_accepts_both_finalizer_refusal_policies() -> None:

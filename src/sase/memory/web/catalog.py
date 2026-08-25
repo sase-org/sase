@@ -15,7 +15,6 @@ from .lookup import ordered_web_strands
 from .models import MemoryStrand, MemoryWeb
 
 GLOSSARY_WEB_SLUG = "glossary"
-GLOSSARY_MIGRATE_HINT = "sase memory web migrate glossary"
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,25 +40,6 @@ def find_memory_web(root: Path, slug: str) -> MemoryWeb | None:
     for web in discovery.webs:
         if web.slug == slug:
             return web
-    return None
-
-
-def glossary_dual_source_diagnostic(
-    *, has_web: bool, config_declared: bool
-) -> str | None:
-    """Return the one fail-closed message when both glossary sources exist.
-
-    A project's glossary comes from strand files if a ``glossary`` web
-    exists, and from ``memory.glossary`` if it does not. Both present is a
-    blocker, never a merge and never a silent preference.
-    """
-
-    if has_web and config_declared:
-        return (
-            "glossary is declared in both a `glossary` memory web and "
-            f"`memory.glossary`; run `{GLOSSARY_MIGRATE_HINT}` to finish migrating "
-            "before either can be read"
-        )
     return None
 
 
@@ -199,10 +179,8 @@ def _range_payload(value: object) -> dict[str, Any] | None:
 
 
 __all__ = [
-    "GLOSSARY_MIGRATE_HINT",
     "GLOSSARY_WEB_SLUG",
     "find_memory_web",
-    "glossary_dual_source_diagnostic",
     "glossary_source_from_wire",
     "memory_web_glossary_entries",
     "memory_web_source_signature",

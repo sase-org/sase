@@ -6,7 +6,7 @@ from sase.core.glossary_facade import (
     build_glossary_catalog,
     compile_glossary_catalog,
 )
-from sase.glossary.relations import glossary_reverse_references
+from sase.memory.web.relations import glossary_reverse_references
 
 
 def test_reverse_references_drop_self_and_keep_inbound_order() -> None:

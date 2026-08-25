@@ -41,6 +41,12 @@ def candidates_for(
         return []
 
     fetch, source_path = provider
+    if value_kind is ValueKind.MEMORY:
+        try:
+            return filter_candidates(fetch(project), prefix, limit)
+        except Exception:
+            return []
+
     cache_key = value_kind if project is None else f"{value_kind}__{project}"
     source_mtime = _safe_mtime(source_path(project))
     cached = load_cached_candidates(cache_key, source_mtime=source_mtime)

@@ -26,7 +26,6 @@ _SHIPPED_KINDS = (
     "repo",
     "workspace",
     "flag",
-    "glossary",
     "plugin",
     "plan",
     "patch",

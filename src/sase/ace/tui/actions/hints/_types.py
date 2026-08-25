@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 # Import Patch and Agent unconditionally since they are used as type
 # annotations in attribute declarations (not just in function signatures)
-from sase.glossary.read_report import GlossaryReadReportSpec
+from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
 
 from ....patch import Patch
 from ...models.agent import Agent

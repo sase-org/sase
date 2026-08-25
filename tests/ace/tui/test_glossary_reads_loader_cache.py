@@ -12,7 +12,10 @@ from sase.ace.tui.glossary_reads import (
     _load_glossary_reads_for_agent,
     load_glossary_reads_for_agent_context,
 )
-from sase.glossary.read_log import GlossaryReadEvent, glossary_read_log_path
+from sase.memory.legacy_glossary_read_log import (
+    GlossaryReadEvent,
+    glossary_read_log_path,
+)
 
 from ._glossary_reads_loader_helpers import (
     clear_glossary_reads_cache_fixture,

@@ -13,7 +13,7 @@ from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.tools import SlowToolSource
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
-from sase.glossary.read_report import GlossaryReadReportSpec
+from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
 from sase.plan_documents import PlanWorkspace
 from sase.repo_inventory import RepoKind
 

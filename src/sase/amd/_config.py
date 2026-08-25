@@ -10,7 +10,7 @@ from typing import Any
 
 import sase.config.core as config_core
 from sase.content_layout import resolve_project_config_read_path
-from sase.glossary_config import MEMORY_CONFIG_KEY
+from sase.memory.config_keys import MEMORY_CONFIG_KEY
 
 from ._shared import load_yaml_mapping
 

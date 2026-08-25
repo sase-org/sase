@@ -4,8 +4,7 @@
 batch: a flat note name (``foo.md``), a bare memory-web name (``glossary``,
 every strand), and a ``web:keyword`` strand reference. The whole batch is
 resolved before any output is produced or audit event written, so one
-unknown selector fails the entire request with no partial output — the same
-atomicity ``sase glossary read`` already gives a batch of terms.
+unknown selector fails the entire request with no partial output.
 """
 
 from __future__ import annotations
@@ -38,7 +37,7 @@ from sase.memory.web import (
     resolve_memory_strand,
     resolve_strand_closure,
 )
-from sase.glossary.resolution import GlossaryClosureNode
+from sase.memory.web.resolution import GlossaryClosureNode
 
 MemorySelectorKind = Literal["note", "web", "strand"]
 

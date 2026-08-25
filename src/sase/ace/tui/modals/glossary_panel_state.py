@@ -14,7 +14,7 @@ from textual.widgets import Input, OptionList
 from textual.widgets.option_list import Option
 
 from sase.ace.tui.util.selection import restore_selection_by_identity
-from sase.glossary.text_filter import filter_glossary_entries
+from sase.memory.web.text_filter import filter_glossary_entries
 
 from .glossary_panel_rendering import build_term_row_text, sorted_glossary_entries
 

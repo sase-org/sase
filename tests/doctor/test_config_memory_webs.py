@@ -38,7 +38,9 @@ def test_doctor_memory_webs_reports_validation_blockers(tmp_path: Path) -> None:
     assert any("must not declare type" in detail for detail in check.details)
 
 
-def test_doctor_memory_webs_blocks_dual_glossary_sources(tmp_path: Path) -> None:
+def test_doctor_memory_webs_ignores_retired_config_glossary_key(
+    tmp_path: Path,
+) -> None:
     project = tmp_path / "project"
     home = tmp_path / "home"
     _write(
@@ -65,5 +67,5 @@ def test_doctor_memory_webs_blocks_dual_glossary_sources(tmp_path: Path) -> None
 
     check = check_config_memory_webs(context)
 
-    assert check.status == "ERROR"
-    assert any("sase memory web migrate glossary" in detail for detail in check.details)
+    assert check.status == "OK"
+    assert check.details == ()

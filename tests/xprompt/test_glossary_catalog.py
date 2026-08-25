@@ -10,7 +10,6 @@ import pytest
 
 from sase.core.glossary_facade import (
     GlossaryCatalog,
-    GlossaryDiagnostic,
     GlossaryEntry,
     GlossaryInputEntry,
     GlossarySource,
@@ -20,7 +19,6 @@ from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
 )
 from sase.memory.web.catalog import glossary_source_from_wire
-from sase.xprompt import _glossary_catalog_config as catalog_config
 from sase.xprompt import glossary_catalog as catalog
 
 
@@ -54,9 +52,6 @@ def _record(
 
 @pytest.fixture(autouse=True)
 def _fake_glossary_rust(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        catalog_config, "validate_glossary_entries", lambda _entries: ()
-    )
     monkeypatch.setattr(catalog, "build_glossary_catalog", _fake_build_catalog)
     monkeypatch.setattr(catalog, "compile_glossary_catalog", lambda entries: entries)
 
@@ -88,14 +83,14 @@ def _source_wire(
     return source
 
 
-def _write_config(workspace: Path, body: str) -> Path:
-    config_path = workspace / "sase" / "sase.yml"
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(body, encoding="utf-8")
-    return config_path
-
-
-def _write_glossary_web(workspace: Path) -> Path:
+def _write_glossary_web(
+    workspace: Path,
+    *,
+    term: str = "Agent Clan",
+    slug: str = "agent-clan",
+    aliases: str = "aliases: [clan]\n",
+    body: str = "A named container.\n",
+) -> Path:
     """Write a minimal ``glossary`` memory web with one strand and return it."""
     descriptor = workspace / "sase" / "memory" / "glossary.md"
     descriptor.parent.mkdir(parents=True, exist_ok=True)
@@ -110,13 +105,23 @@ def _write_glossary_web(workspace: Path) -> Path:
         "Glossary descriptor.\n",
         encoding="utf-8",
     )
-    strand_path = descriptor.parent / "glossary" / "agent-clan.md"
+    strand_path = descriptor.parent / "glossary" / f"{slug}.md"
     strand_path.parent.mkdir(parents=True, exist_ok=True)
     strand_path.write_text(
-        "---\nkeyword: Agent Clan\naliases: [clan]\n---\n\nA named container.\n",
+        f"---\nkeyword: {term}\n{aliases}---\n\n{body}",
         encoding="utf-8",
     )
     return strand_path
+
+
+def _write_stitch_web(workspace: Path) -> Path:
+    return _write_glossary_web(
+        workspace,
+        term="Stitch",
+        slug="stitch",
+        aliases="",
+        body="A stitch.\n",
+    )
 
 
 def _write_marker(
@@ -146,7 +151,6 @@ def _write_marker(
     return marker_path
 
 
-_ONE_TERM = "memory:\n  glossary:\n    Stitch:\n      definition: A stitch.\n"
 _NO_WORKSPACE_MATCH = (
     "no enabled project matched the active workspace; pass -p/--project"
 )
@@ -191,17 +195,12 @@ def test_catalog_for_project_uses_project_alias_and_source_ranges(
 ) -> None:
     workspace = tmp_path / "sase-workspace"
     workspace.mkdir()
-    config_path = _write_config(
+    strand_path = _write_glossary_web(
         workspace,
-        """memory:
-  glossary:
-    Agent Clan:
-      aliases:
-        - clan
-      definition: >-
-        A named, rootless container
-        for agents.
-""",
+        term="Agent Clan",
+        slug="agent-clan",
+        aliases="aliases: [clan]\n",
+        body="A named, rootless container\nfor agents.\n",
     )
     record = _record(
         "gh_sase-org__sase",
@@ -220,32 +219,28 @@ def test_catalog_for_project_uses_project_alias_and_source_ranges(
     assert result.project is not None
     assert result.project.key == "gh_sase-org__sase"
     assert result.catalog is not None
-    assert result.catalog.config_path == config_path
-    assert result.catalog.config_signature.path == str(config_path)
+    assert result.catalog.config_path == strand_path.parent
+    assert result.catalog.config_signature.path == str(strand_path.parent)
 
     entry = result.catalog.entries[0]
     assert entry.term == "Agent Clan"
     assert entry.display_aliases == ("clan",)
     assert entry.effective_aliases == ("Agent Clan", "clan")
     assert entry.source == {
-        "source_path": str(config_path),
-        "key_path": ["memory", "glossary", "Agent Clan"],
+        "source_path": str(strand_path),
+        "key_path": [],
         "keyword_range": {
-            "start": {"line": 2, "character": 4},
-            "end": {"line": 2, "character": 14},
+            "start": {"line": 1, "character": 9},
+            "end": {"line": 1, "character": 19},
         },
         "body_range": {
-            "start": {"line": 5, "character": 18},
-            "end": {"line": 7, "character": 19},
-        },
-        "aliases_range": {
-            "start": {"line": 4, "character": 8},
-            "end": {"line": 4, "character": 14},
+            "start": {"line": 5, "character": 0},
+            "end": {"line": 7, "character": 0},
         },
     }
 
 
-def test_catalog_for_project_prefers_strand_backed_glossary_web(
+def test_catalog_for_project_uses_strand_backed_glossary_web(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -271,24 +266,6 @@ def test_catalog_for_project_prefers_strand_backed_glossary_web(
     assert entry.source["keyword_range"]["start"] == {"line": 1, "character": 9}
 
 
-def test_catalog_for_project_blocks_dual_glossary_sources(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    workspace = tmp_path / "sase-workspace"
-    workspace.mkdir()
-    _write_glossary_web(workspace)
-    _write_config(workspace, _ONE_TERM)
-    record = _record("sase", workspace)
-    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
-
-    result = catalog.editor_glossary_catalog_for_project("sase")
-
-    assert result.catalog is None
-    assert len(result.diagnostics) == 1
-    assert "sase memory web migrate glossary" in result.diagnostics[0]
-
-
 def test_catalog_without_ref_uses_launch_workspace_and_never_falls_back_from_bad_ref(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -297,14 +274,8 @@ def test_catalog_without_ref_uses_launch_workspace_and_never_falls_back_from_bad
     beta = tmp_path / "beta"
     alpha.mkdir()
     beta.mkdir()
-    _write_config(
-        alpha,
-        "memory:\n  glossary:\n    Alpha Term:\n      definition: Alpha definition.\n",
-    )
-    _write_config(
-        beta,
-        "memory:\n  glossary:\n    Beta Term:\n      definition: Beta definition.\n",
-    )
+    _write_glossary_web(alpha, term="Alpha Term", slug="alpha-term", aliases="")
+    _write_glossary_web(beta, term="Beta Term", slug="beta-term", aliases="")
     records = [
         _record("alpha", alpha),
         _record("beta", beta, aliases=["docs"]),
@@ -337,50 +308,6 @@ def test_catalog_without_ref_uses_launch_workspace_and_never_falls_back_from_bad
     assert "did not resolve to an enabled workspace" in missing.diagnostics[0]
 
 
-def test_catalog_reports_validation_diagnostics(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    config_path = _write_config(
-        workspace,
-        """memory:
-  glossary:
-    Agent:
-      aliases:
-        - worker
-      definition: A worker.
-    Worker:
-      aliases:
-        - worker
-      definition: Another worker.
-""",
-    )
-    record = _record("sase", workspace)
-    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
-    monkeypatch.setattr(
-        catalog_config,
-        "validate_glossary_entries",
-        lambda _entries: (
-            GlossaryDiagnostic(
-                severity="error",
-                code="ambiguous_alias",
-                message="alias is claimed by more than one term",
-                path="glossary.Worker.aliases[0]",
-            ),
-        ),
-    )
-
-    result = catalog.editor_glossary_catalog_for_project("sase")
-
-    assert result.catalog is None
-    assert result.diagnostics == (
-        f"{config_path}: memory.glossary.Worker.aliases[0]: "
-        "alias is claimed by more than one term",
-    )
-
-
 def test_lsp_payload_materializes_enabled_project_catalogs_and_default(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -390,13 +317,8 @@ def test_lsp_payload_materializes_enabled_project_catalogs_and_default(
     missing = tmp_path / "missing"
     beta.mkdir()
     alpha.mkdir()
-    _write_config(
-        beta, "memory:\n  glossary:\n    Beta Term:\n      definition: Beta.\n"
-    )
-    _write_config(
-        alpha,
-        "memory:\n  glossary:\n    Alpha Term:\n      definition: Alpha.\n",
-    )
+    _write_glossary_web(beta, term="Beta Term", slug="beta-term", aliases="")
+    _write_glossary_web(alpha, term="Alpha Term", slug="alpha-term", aliases="")
     records = [
         _record("beta", beta, aliases=["b"], display_name="Beta"),
         _record("alpha", alpha, display_name="Alpha"),
@@ -424,7 +346,7 @@ def test_catalog_resolves_numbered_workspace_via_checkout_marker(
 ) -> None:
     primary = tmp_path / "primary"
     primary.mkdir()
-    _write_config(primary, _ONE_TERM)
+    _write_stitch_web(primary)
     launch = tmp_path / "state" / "proj_7"
     launch.mkdir(parents=True)
     _write_marker(launch, primary_workspace_dir=primary)
@@ -449,7 +371,7 @@ def test_catalog_resolves_nested_subdirectory_of_numbered_workspace(
 ) -> None:
     primary = tmp_path / "primary"
     primary.mkdir()
-    _write_config(primary, _ONE_TERM)
+    _write_stitch_web(primary)
     launch = tmp_path / "state" / "proj_7"
     nested = launch / "src" / "sase"
     nested.mkdir(parents=True)
@@ -473,7 +395,7 @@ def test_catalog_resolves_empty_primary_via_marker_project_name(
 ) -> None:
     primary = tmp_path / "primary"
     primary.mkdir()
-    _write_config(primary, _ONE_TERM)
+    _write_stitch_web(primary)
     launch = tmp_path / "state" / "proj_7"
     launch.mkdir(parents=True)
     _write_marker(
@@ -502,7 +424,7 @@ def test_catalog_resolves_empty_primary_via_marker_project_key(
     monkeypatch.setenv("HOME", str(tmp_path))
     primary = tmp_path / "projects" / "github" / "foo-org" / "foo"
     primary.mkdir(parents=True)
-    _write_config(primary, _ONE_TERM)
+    _write_stitch_web(primary)
     launch = tmp_path / "state" / "proj_7"
     launch.mkdir(parents=True)
     _write_marker(
@@ -530,7 +452,7 @@ def test_catalog_leaves_unlisted_marker_project_unresolved(
 ) -> None:
     listed = tmp_path / "listed"
     listed.mkdir()
-    _write_config(listed, _ONE_TERM)
+    _write_stitch_web(listed)
     other_primary = tmp_path / "other-primary"
     other_primary.mkdir()
     launch = tmp_path / "state" / "proj_7"
@@ -560,7 +482,7 @@ def test_catalog_still_resolves_primary_checkout_without_marker(
 ) -> None:
     primary = tmp_path / "primary"
     primary.mkdir()
-    _write_config(primary, _ONE_TERM)
+    _write_stitch_web(primary)
     record = _record("gh_sase-org__sase", primary, display_name="sase")
     monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
 

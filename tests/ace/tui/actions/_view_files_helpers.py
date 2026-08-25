@@ -11,8 +11,11 @@ from sase.ace.tui.actions.hints._processing import InputProcessingMixin
 from sase.ace.tui.tools import ToolCallEntry
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
-from sase.glossary.read_log import GLOSSARY_READ_LOG_SCHEMA_VERSION, GlossaryReadEvent
-from sase.glossary.read_report import GlossaryReadReportSpec
+from sase.memory.legacy_glossary_read_log import (
+    GLOSSARY_READ_LOG_SCHEMA_VERSION,
+    GlossaryReadEvent,
+)
+from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
 
 
 class _SuspendRecorder:

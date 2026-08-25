@@ -15,7 +15,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
     AgentHintRender,
     CommitViewSpec,
 )
-from sase.glossary.read_report import GlossaryReadReportSpec
+from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
 from sase.ace.tui.widgets.prompt_panel._messages import AgentDetailHeaderEnriched
 
 

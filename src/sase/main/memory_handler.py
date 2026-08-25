@@ -43,19 +43,13 @@ def _handle_memory_web_command(args: argparse.Namespace) -> None:
         handle_memory_web_list_command(args)
         return
 
-    if sub == "migrate":
-        from sase.memory.web.cli_migrate import handle_memory_web_migrate_command
-
-        handle_memory_web_migrate_command(args)
-        return
-
     if sub == "show":
         from sase.memory.web import handle_memory_web_show_command
 
         handle_memory_web_show_command(args)
         return
 
-    print("Usage: sase memory web {list,migrate,show}", file=sys.stderr)
+    print("Usage: sase memory web {list,show}", file=sys.stderr)
     sys.exit(1)
 
 

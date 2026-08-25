@@ -33,15 +33,12 @@ from .root_rendering_artifact_relations import (
     render_generated_artifact_relations_memory_body,
 )
 from .root_rendering_notes import (
-    generated_glossary_memory_content,
-    generated_glossary_memory_relative_path,
     generated_long_notes,
     generated_memory_note_relative_paths,
     generated_project_long_expected_files,
     generated_sase_memory_content,
     generated_sase_memory_relative_path,
     generated_short_notes,
-    render_generated_glossary_memory_body,
     render_generated_project_long_memory_contents,
     render_generated_sase_memory_body,
 )
@@ -225,7 +222,6 @@ def render_expected_memory_files(
     amd_sync: AmdMemorySyncPlan | None = None,
     generated_sase_body: str | None = None,
     generated_artifact_relations_body: str | None = None,
-    generated_glossary_body: str | None = None,
     generated_project_long_contents: Mapping[str, str] | None = None,
     source_memory_root: Path | None = None,
     include_project_memory: bool = False,
@@ -267,12 +263,6 @@ def render_expected_memory_files(
         if generated_artifact_relations_body is not None
         else None
     )
-    generated_glossary_path = root / generated_glossary_memory_relative_path()
-    generated_glossary_content = (
-        generated_glossary_memory_content(generated_glossary_body)
-        if generated_glossary_body is not None
-        else None
-    )
     note_overlay = {
         generated_sase_path: generated_sase_content,
     }
@@ -280,8 +270,6 @@ def render_expected_memory_files(
         note_overlay[generated_artifact_relations_path] = (
             generated_artifact_relations_content
         )
-    if generated_glossary_content is not None:
-        note_overlay[generated_glossary_path] = generated_glossary_content
     if include_project_memory and generated_project_long_contents is not None:
         for relative_path, content in generated_project_long_contents.items():
             note_overlay[root / relative_path] = content
@@ -312,14 +300,6 @@ def render_expected_memory_files(
                 path=generated_artifact_relations_path,
                 content=generated_artifact_relations_content,
                 detail="generated artifact relation memory note",
-            )
-        )
-    if generated_glossary_content is not None:
-        expected.append(
-            MemoryExpectedFile(
-                path=generated_glossary_path,
-                content=generated_glossary_content,
-                detail="generated glossary memory note",
             )
         )
     if include_project_memory:

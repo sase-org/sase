@@ -262,12 +262,6 @@ def main() -> NoReturn:
 
         handle_gate_command(args)
 
-    # --- glossary ---
-    if args.command == "glossary":
-        from .glossary_handler import handle_glossary_command
-
-        handle_glossary_command(args)
-
     # --- init ---
     if args.command == "init":
         if getattr(args, "all", False) and args.init_subcommand is not None:

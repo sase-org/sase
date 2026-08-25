@@ -48,6 +48,39 @@ def _write_config(workspace: Path, body: str) -> Path:
     return config_path
 
 
+def _write_glossary_web(
+    workspace: Path,
+    *,
+    alpha_body: str = "First term stands alone.\n",
+    beta_body: str | None = None,
+) -> Path:
+    descriptor = workspace / "sase" / "memory" / "glossary.md"
+    descriptor.parent.mkdir(parents=True, exist_ok=True)
+    descriptor.write_text(
+        "---\n"
+        "type: core\n"
+        "parent: AGENTS.md\n"
+        "web: true\n"
+        "roster: inline\n"
+        "roster_label: GLOSSARY TERMS\n"
+        "---\n\n"
+        "Glossary descriptor.\n",
+        encoding="utf-8",
+    )
+    strand_dir = descriptor.parent / "glossary"
+    strand_dir.mkdir(parents=True, exist_ok=True)
+    (strand_dir / "alpha.md").write_text(
+        "---\nkeyword: Alpha\n---\n\n" + alpha_body,
+        encoding="utf-8",
+    )
+    if beta_body is not None:
+        (strand_dir / "beta.md").write_text(
+            "---\nkeyword: Beta\n---\n\n" + beta_body,
+            encoding="utf-8",
+        )
+    return descriptor
+
+
 def _write_marker(
     checkout: Path,
     *,
@@ -87,38 +120,20 @@ def _clear_snapshot_cache_fixture() -> None:
     panel_catalog._snapshot_cache.clear()
 
 
-_ONE_TERM_GLOSSARY = """memory:
-  glossary:
-    Alpha:
-      definition: >-
-        First term stands alone.
-"""
-
-_TWO_TERM_GLOSSARY = """memory:
-  glossary:
-    Alpha:
-      definition: >-
-        First term stands alone.
-    Beta:
-      definition: >-
-        Second term added.
-"""
-
-
 def test_ring_orders_by_display_name_and_includes_launch_project_without_glossary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     zeta_ws = tmp_path / "zeta"
     zeta_ws.mkdir()
-    _write_config(zeta_ws, _ONE_TERM_GLOSSARY)
+    _write_glossary_web(zeta_ws)
 
     alpha_ws = tmp_path / "alpha"
     alpha_ws.mkdir()
-    _write_config(alpha_ws, "timezone: UTC\n")  # no memory.glossary declared
+    _write_config(alpha_ws, "timezone: UTC\n")  # no glossary web declared
 
     mid_ws = tmp_path / "mid"
     mid_ws.mkdir()
-    _write_config(mid_ws, _ONE_TERM_GLOSSARY)
+    _write_glossary_web(mid_ws)
 
     records = [
         _record("gh_z__z", zeta_ws, display_name="Zeta"),
@@ -148,7 +163,7 @@ def test_ring_includes_launch_project_from_numbered_workspace_without_glossary(
 
     other_ws = tmp_path / "other"
     other_ws.mkdir()
-    _write_config(other_ws, _ONE_TERM_GLOSSARY)
+    _write_glossary_web(other_ws)
 
     numbered = tmp_path / "state" / "launch_7"
     numbered.mkdir(parents=True)
@@ -182,7 +197,7 @@ def test_ring_excludes_no_glossary_project_when_not_the_launch_project(
 
     other_ws = tmp_path / "other"
     other_ws.mkdir()
-    _write_config(other_ws, _ONE_TERM_GLOSSARY)
+    _write_glossary_web(other_ws)
 
     records = [
         _record("gh_empty__empty", empty_ws, display_name="Empty"),
@@ -195,16 +210,21 @@ def test_ring_excludes_no_glossary_project_when_not_the_launch_project(
     assert [ref.key for ref in ring] == ["gh_other__other"]
 
 
-def test_ring_keeps_project_with_malformed_glossary_section(
+def test_ring_excludes_project_with_malformed_glossary_descriptor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     broken_ws = tmp_path / "broken"
     broken_ws.mkdir()
-    _write_config(broken_ws, "memory:\n  glossary: not-a-mapping\n")
+    write_path = broken_ws / "sase" / "memory" / "glossary.md"
+    write_path.parent.mkdir(parents=True, exist_ok=True)
+    write_path.write_text(
+        "---\ntype: core\nweb: 'yes'\n---\n\nBroken.\n",
+        encoding="utf-8",
+    )
 
     launch_ws = tmp_path / "launch"
     launch_ws.mkdir()
-    _write_config(launch_ws, "timezone: UTC\n")
+    _write_glossary_web(launch_ws)
 
     records = [
         _record("gh_broken__broken", broken_ws, display_name="Broken"),
@@ -214,19 +234,22 @@ def test_ring_keeps_project_with_malformed_glossary_section(
 
     ring = panel_catalog.build_glossary_project_ring(str(launch_ws))
 
-    assert {ref.key for ref in ring} == {"gh_broken__broken", "gh_launch__launch"}
-    by_key = {ref.key: ref for ref in ring}
-    assert by_key["gh_broken__broken"].has_glossary is True
+    assert [ref.key for ref in ring] == ["gh_launch__launch"]
 
 
-def test_load_snapshot_for_malformed_glossary_yields_diagnostics_not_raise(
+def test_load_snapshot_for_catalog_error_yields_diagnostics_not_raise(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     broken_ws = tmp_path / "broken"
     broken_ws.mkdir()
-    _write_config(broken_ws, "memory:\n  glossary: not-a-mapping\n")
+    _write_glossary_web(broken_ws)
     record = _record("gh_broken__broken", broken_ws, display_name="Broken")
     _install_records(monkeypatch, [record])
+    monkeypatch.setattr(
+        xprompt_catalog,
+        "build_glossary_catalog",
+        lambda _entries: (_ for _ in ()).throw(ValueError("bad glossary")),
+    )
 
     ref = panel_catalog.GlossaryProjectRef(
         key="gh_broken__broken",
@@ -238,6 +261,7 @@ def test_load_snapshot_for_malformed_glossary_yields_diagnostics_not_raise(
 
     assert snapshot.catalog is None
     assert snapshot.diagnostics
+    assert "bad glossary" in snapshot.diagnostics[0]
     assert snapshot.reverse_references == {}
 
 
@@ -246,7 +270,7 @@ def test_snapshot_cache_rereads_only_on_mtime_change(
 ) -> None:
     workspace = tmp_path / "demo"
     workspace.mkdir()
-    config_path = _write_config(workspace, _ONE_TERM_GLOSSARY)
+    descriptor_path = _write_glossary_web(workspace)
     record = _record("gh_demo__demo", workspace, display_name="Demo")
     _install_records(monkeypatch, [record])
 
@@ -268,9 +292,9 @@ def test_snapshot_cache_rereads_only_on_mtime_change(
     second = panel_catalog.load_glossary_project_snapshot(ref)
     assert second is first
 
-    config_path.write_text(_TWO_TERM_GLOSSARY, encoding="utf-8")
-    future_ns = config_path.stat().st_mtime_ns + 10_000_000_000
-    os.utime(config_path, ns=(future_ns, future_ns))
+    _write_glossary_web(workspace, beta_body="Second term added.\n")
+    future_ns = descriptor_path.stat().st_mtime_ns + 10_000_000_000
+    os.utime(descriptor_path, ns=(future_ns, future_ns))
     for entry in panel_catalog._snapshot_cache.values():
         entry.last_checked_monotonic = 0.0
 
@@ -285,10 +309,10 @@ def test_invalidate_glossary_project_drops_exactly_one_project(
 ) -> None:
     ws_a = tmp_path / "a"
     ws_a.mkdir()
-    _write_config(ws_a, _ONE_TERM_GLOSSARY)
+    _write_glossary_web(ws_a)
     ws_b = tmp_path / "b"
     ws_b.mkdir()
-    _write_config(ws_b, _ONE_TERM_GLOSSARY)
+    _write_glossary_web(ws_b)
 
     records = [
         _record("gh_a__a", ws_a, display_name="A"),
@@ -320,20 +344,15 @@ def test_glossary_entry_relations_returns_outbound_and_inbound_entries(
 ) -> None:
     workspace = tmp_path / "demo"
     workspace.mkdir()
-    _write_config(
+    _write_glossary_web(
         workspace,
-        """memory:
-  glossary:
-    Alpha:
-      definition: >-
-        Alpha mentions Beta.
-    Beta:
-      definition: >-
-        A leaf term.
-    Gamma:
-      definition: >-
-        Gamma also mentions Beta.
-""",
+        alpha_body="Alpha mentions Beta.\n",
+        beta_body="A leaf term.\n",
+    )
+    strand_dir = workspace / "sase" / "memory" / "glossary"
+    (strand_dir / "gamma.md").write_text(
+        "---\nkeyword: Gamma\n---\n\nGamma also mentions Beta.\n",
+        encoding="utf-8",
     )
     record = _record("gh_demo__demo", workspace, display_name="Demo")
     _install_records(monkeypatch, [record])

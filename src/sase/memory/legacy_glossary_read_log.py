@@ -1,24 +1,18 @@
-"""Foundation helpers for auditable ``sase glossary read`` access."""
+"""Read-only compatibility for legacy ``sase glossary read`` audit events."""
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from dataclasses import dataclass
 import fcntl
 import json
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
-from sase.agent.identity import AgentIdentity
-from sase.agent.identity import (
-    require_agent_identity as _require_agent_identity,
-)
 from sase.core.paths import sase_projects_dir
-from sase.glossary.resolution import normalize_glossary_reference
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.locks import locked_file
+from sase.memory.web.resolution import normalize_glossary_reference
 from sase.project_aliases import resolve_project_alias_ref
 
 GLOSSARY_READ_LOG_SCHEMA_VERSION = 1
@@ -72,78 +66,22 @@ class GlossaryReadAgentSummary:
     last_reason: str
 
 
-def require_agent_identity(env: Mapping[str, str] | None = None) -> AgentIdentity:
-    """Return the current agent identity or raise a clear auditability error."""
-    return _require_agent_identity(env, purpose="glossary reads")
-
-
 def normalize_read_reason(reason: str) -> str:
-    """Normalize and validate a glossary-read reason for audit logging."""
+    """Normalize and validate a legacy glossary-read reason."""
     normalized = reason.strip()
     if not normalized:
         raise GlossaryReadError("glossary read reason must not be empty")
     return normalized
 
 
-def build_glossary_read_event(
-    *,
-    reason: str,
-    agent: AgentIdentity,
-    terms: Sequence[str],
-    related_terms: Sequence[str] = (),
-    depth_limit: int | None = None,
-    definition_bytes: int = 0,
-    source_path: str | None = None,
-    project: str | None = None,
-    cwd: Path | None = None,
-    now: datetime | None = None,
-    read_id: str | None = None,
-) -> GlossaryReadEvent:
-    """Build a structured log event for a resolved glossary read."""
-    cwd_path = (cwd or Path.cwd()).resolve(strict=False)
-    project_name = project or project_memory_name(cwd_path)
-    timestamp = _event_timestamp(now or datetime.now(tz=UTC))
-    return GlossaryReadEvent(
-        schema_version=GLOSSARY_READ_LOG_SCHEMA_VERSION,
-        id=read_id or uuid4().hex[:12],
-        timestamp=timestamp,
-        project=project_name,
-        cwd=str(cwd_path),
-        agent_name=agent.name,
-        agent_source=agent.source,
-        artifacts_dir=agent.artifacts_dir,
-        reason=normalize_read_reason(reason),
-        terms=tuple(terms),
-        related_terms=tuple(related_terms),
-        depth_limit=depth_limit,
-        definition_bytes=definition_bytes,
-        source_path=source_path,
-    )
-
-
 def glossary_read_log_path(
     project: str | None = None, *, cwd: Path | None = None
 ) -> Path:
-    """Return the project-scoped glossary-read JSONL path under ``~/.sase``."""
+    """Return the project-scoped legacy glossary-read JSONL path under ``~/.sase``."""
     project_name = resolve_project_alias_ref(
         project or project_memory_name(cwd or Path.cwd())
     )
     return sase_projects_dir() / project_name / "glossary_reads.jsonl"
-
-
-def append_glossary_read_event(
-    event: GlossaryReadEvent,
-    *,
-    log_path: Path | None = None,
-) -> None:
-    """Append one glossary-read event under an exclusive file lock."""
-    path = log_path or glossary_read_log_path(event.project)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
-        with path.open("a", encoding="utf-8") as output_file:
-            json.dump(asdict(event), output_file, sort_keys=True)
-            output_file.write("\n")
-            output_file.flush()
 
 
 def read_glossary_read_events(
@@ -151,7 +89,7 @@ def read_glossary_read_events(
     project: str | None = None,
     log_path: Path | None = None,
 ) -> tuple[GlossaryReadEvent, ...]:
-    """Read glossary-read events, skipping malformed or wrong-schema JSONL rows."""
+    """Read legacy glossary-read events, skipping malformed JSONL rows."""
     path = log_path or glossary_read_log_path(project)
     with locked_file(path.with_suffix(".lock"), fcntl.LOCK_SH):
         if not path.exists():
@@ -262,12 +200,6 @@ def _first_requested_term(event: GlossaryReadEvent) -> str:
     return event.terms[0] if event.terms else ""
 
 
-def _event_timestamp(now: datetime) -> str:
-    if now.tzinfo is None:
-        now = now.replace(tzinfo=UTC)
-    return now.astimezone(UTC).isoformat()
-
-
 def _event_from_mapping(data: Mapping[str, Any]) -> GlossaryReadEvent | None:
     if data.get("schema_version") != GLOSSARY_READ_LOG_SCHEMA_VERSION:
         return None
@@ -335,13 +267,10 @@ __all__ = [
     "GlossaryReadError",
     "GlossaryReadEvent",
     "GlossaryReadTermSummary",
-    "append_glossary_read_event",
-    "build_glossary_read_event",
     "filter_glossary_read_events",
     "glossary_read_log_path",
     "normalize_read_reason",
     "read_glossary_read_events",
-    "require_agent_identity",
     "summarize_glossary_reads_by_agent",
     "summarize_glossary_reads_by_term",
 ]

@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from sase.main.init_memory.root_rendering import (
-    generated_glossary_memory_relative_path,
     generated_memory_note_relative_paths,
     generated_short_notes,
     render_generated_project_long_memory_contents,
@@ -35,7 +34,6 @@ def test_generated_memory_note_relative_paths_match_private_helpers() -> None:
         "sase/memory/sase.md",
         "sase/memory/task_types.md",
         "sase/memory/artifact_relations.md",
-        "sase/memory/glossary.md",
         "sase/memory/sase_artifacts.md",
         "sase/memory/sase_beads.md",
         "sase/memory/sase_sizes.md",
@@ -55,7 +53,6 @@ def test_generated_paths_cover_every_note_sase_memory_init_generates() -> None:
         *generated_short_notes(
             "generated sase body",
             "generated artifact relations body",
-            "generated glossary body",
         ),
         *long_contents,
     }
@@ -66,14 +63,11 @@ def test_generated_paths_cover_every_note_sase_memory_init_generates() -> None:
     assert written <= contract
 
 
-def test_generated_glossary_note_is_project_only_and_matches_its_helper() -> None:
-    assert generated_glossary_memory_relative_path().as_posix() == (
-        "sase/memory/glossary.md"
-    )
-    assert generated_glossary_memory_relative_path() in (
+def test_glossary_note_is_not_reserved_as_generated_project_memory() -> None:
+    assert Path("sase/memory/glossary.md") not in (
         generated_memory_note_relative_paths(include_project_memory=True)
     )
-    assert generated_glossary_memory_relative_path() not in (
+    assert Path("sase/memory/glossary.md") not in (
         generated_memory_note_relative_paths(include_project_memory=False)
     )
 
@@ -113,32 +107,39 @@ def test_generated_notes_are_refused_for_create_update_and_delete(
         create_note(tmp_path, "sase_artifacts", description="Project generated.")
 
 
-def test_generated_glossary_note_is_refused_in_a_project_scope(tmp_path: Path) -> None:
+def test_project_scope_allows_user_owned_glossary_note(tmp_path: Path) -> None:
     seed_scope(tmp_path)
-    glossary = tmp_path / "sase" / "memory" / "glossary.md"
-    write_file(glossary, note_text(note_type="core", description="Generated glossary."))
+    outcome = create_note(
+        tmp_path,
+        "glossary",
+        note_type="core",
+        description="User-owned glossary descriptor.",
+    )
+
+    assert outcome.relative_path == "sase/memory/glossary.md"
+    glossary = tmp_path / outcome.relative_path
     digest = memory_note_digest(glossary.read_bytes())
 
-    with pytest.raises(MemoryGeneratedNoteError, match="sase/memory/glossary.md"):
-        create_note(tmp_path, "glossary", note_type="core", description="Nope.")
-    with pytest.raises(MemoryGeneratedNoteError, match="sase/memory/glossary.md"):
-        update_memory_note(
-            scope_key="demo",
-            content_root=tmp_path,
-            relative_path="sase/memory/glossary.md",
-            note_type="core",
-            parent=AGENTS_PARENT,
-            description="Nope.",
-            expected_digest=digest,
-        )
-    with pytest.raises(MemoryGeneratedNoteError, match="sase/memory/glossary.md"):
-        delete_memory_note(
-            scope_key="demo",
-            content_root=tmp_path,
-            relative_path="sase/memory/glossary.md",
-            expected_digest=digest,
-        )
-    assert glossary.is_file()
+    updated = update_memory_note(
+        scope_key="demo",
+        content_root=tmp_path,
+        relative_path="sase/memory/glossary.md",
+        note_type="core",
+        parent=AGENTS_PARENT,
+        description="Updated glossary descriptor.",
+        expected_digest=digest,
+    )
+    assert updated.relative_path == "sase/memory/glossary.md"
+
+    digest = memory_note_digest(glossary.read_bytes())
+    deleted = delete_memory_note(
+        scope_key="demo",
+        content_root=tmp_path,
+        relative_path="sase/memory/glossary.md",
+        expected_digest=digest,
+    )
+    assert deleted.relative_path == "sase/memory/glossary.md"
+    assert not glossary.exists()
 
 
 def test_home_scope_allows_the_project_only_task_types_name(tmp_path: Path) -> None:

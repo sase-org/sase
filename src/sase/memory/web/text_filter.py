@@ -1,8 +1,4 @@
-"""Shared substring filter over glossary terms, aliases, and definitions.
-
-Used by ``sase glossary list`` and the ACE glossary panel's ``/`` filter so
-both apply identical casefold matching semantics.
-"""
+"""Shared substring filter over glossary-web terms, aliases, and definitions."""
 
 from __future__ import annotations
 

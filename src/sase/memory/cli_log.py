@@ -17,7 +17,7 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.core.time import format_local
-from sase.glossary.read_log import (
+from sase.memory.legacy_glossary_read_log import (
     GlossaryReadEvent,
     filter_glossary_read_events,
     read_glossary_read_events,

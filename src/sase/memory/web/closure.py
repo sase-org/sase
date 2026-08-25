@@ -4,9 +4,8 @@ A web's ``closure:`` frontmatter selects how far ``sase memory read`` walks
 from requested strands: ``mentions`` reuses the same Rust phrase matcher the
 glossary uses today, ``none`` (the default for every web except the
 glossary) never expands past the requested strands. Reusing
-:func:`~sase.glossary.resolution.resolve_glossary_closure` here is what lets
-a future glossary migration read identically through
-``sase memory read glossary:<term>``.
+:func:`~sase.memory.web.resolution.resolve_glossary_closure` here keeps
+``sase memory read glossary:<term>`` aligned with prompt highlighting.
 """
 
 from __future__ import annotations
@@ -17,7 +16,7 @@ from sase.core.glossary_facade import (
     build_glossary_catalog,
     compile_glossary_catalog,
 )
-from sase.glossary.resolution import GlossaryClosure, resolve_glossary_closure
+from sase.memory.web.resolution import GlossaryClosure, resolve_glossary_closure
 
 from .models import MemoryStrand, MemoryWeb
 

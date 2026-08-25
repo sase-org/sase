@@ -7,7 +7,6 @@ from pathlib import Path
 from sase.core.glossary_facade import GlossarySource
 from sase.memory.web.catalog import (
     find_memory_web,
-    glossary_dual_source_diagnostic,
     memory_web_glossary_entries,
     memory_web_source_signature,
 )
@@ -138,14 +137,3 @@ def test_memory_web_source_signature_changes_when_strand_added_or_removed(
     assert web_with_one_again is not None
     one_strand_again = memory_web_source_signature(web_with_one_again)
     assert one_strand_again.size != two_strands.size
-
-
-def test_glossary_dual_source_diagnostic_only_fires_when_both_present() -> None:
-    assert glossary_dual_source_diagnostic(has_web=False, config_declared=False) is None
-    assert glossary_dual_source_diagnostic(has_web=True, config_declared=False) is None
-    assert glossary_dual_source_diagnostic(has_web=False, config_declared=True) is None
-
-    message = glossary_dual_source_diagnostic(has_web=True, config_declared=True)
-
-    assert message is not None
-    assert "sase memory web migrate glossary" in message

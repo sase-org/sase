@@ -18,8 +18,11 @@ from sase.ace.tui.widgets.prompt_panel._agent_glossary_reads import (
     append_agent_glossary_reads_section,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
-from sase.glossary.read_log import GLOSSARY_READ_LOG_SCHEMA_VERSION, GlossaryReadEvent
-from sase.glossary.read_report import glossary_read_report_path
+from sase.memory.legacy_glossary_read_log import (
+    GLOSSARY_READ_LOG_SCHEMA_VERSION,
+    GlossaryReadEvent,
+)
+from sase.memory.legacy_glossary_read_report import glossary_read_report_path
 
 
 @pytest.fixture(autouse=True)

@@ -1,4 +1,4 @@
-"""Markdown reports for audited ``sase glossary read`` invocations.
+"""Markdown reports for legacy audited glossary-read invocations.
 
 Frontend-agnostic on purpose: ACE hint selection materializes these reports,
 and any other surface can reuse the same builder.
@@ -16,19 +16,14 @@ from pathlib import Path
 
 from sase.core.paths import ensure_sase_directory, sase_subdir
 from sase.core.time import format_local
-from sase.glossary.cli_common import (
-    GlossaryCliError,
-    ResolvedGlossaryProject,
-    resolve_glossary_cli_project,
-    resolve_glossary_cli_project_name,
-)
-from sase.glossary.read_log import GlossaryReadEvent
-from sase.glossary.render import glossary_closure_markdown
-from sase.glossary.resolution import (
+from sase.memory.legacy_glossary_read_log import GlossaryReadEvent
+from sase.memory.web.render import glossary_closure_markdown
+from sase.memory.web.resolution import (
     GlossaryClosure,
     GlossaryLookupError,
     resolve_glossary_closure,
 )
+from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
 
 _REPORT_SUBDIR = "glossary_read_reports"
 _REPORT_KEEP_COUNT = 50
@@ -58,18 +53,18 @@ def _build_glossary_read_report(spec: GlossaryReadReportSpec) -> str:
     degrade to the recorded-metadata block plus a short note.
     """
     event = spec.event
-    resolved: ResolvedGlossaryProject | None = None
+    resolved: EditorGlossaryCatalog | None = None
     closure: GlossaryClosure | None = None
     failure_note: str | None = None
     try:
-        resolved = resolve_glossary_cli_project(event.project)
+        resolved = _resolve_legacy_report_catalog(event.project)
         closure = resolve_glossary_closure(
             resolved.catalog,
             resolved.compiled,
             event.terms,
             depth=event.depth_limit,
         )
-    except GlossaryCliError as exc:
+    except _LegacyGlossaryReportError as exc:
         failure_note = f"Could not resolve this project's glossary: {exc}"
     except GlossaryLookupError as exc:
         failure_note = f"Could not re-resolve the glossary closure: {exc}"
@@ -109,7 +104,7 @@ def _build_glossary_read_report(spec: GlossaryReadReportSpec) -> str:
             "## Output",
             "",
             glossary_closure_markdown(
-                closure, project_name=resolved.project_name
+                closure, project_name=resolved.project.name
             ).rstrip(),
             "",
         ]
@@ -146,14 +141,11 @@ def write_glossary_read_report(spec: GlossaryReadReportSpec) -> str | None:
 
 
 def _project_display_name(
-    event: GlossaryReadEvent, resolved: ResolvedGlossaryProject | None
+    event: GlossaryReadEvent, resolved: EditorGlossaryCatalog | None
 ) -> str | None:
     if resolved is not None:
-        return resolved.project_name
-    try:
-        return resolve_glossary_cli_project_name(event.project)
-    except GlossaryCliError:
-        return None
+        return resolved.project.name
+    return event.project or None
 
 
 def _title_terms(event: GlossaryReadEvent) -> str:
@@ -161,11 +153,26 @@ def _title_terms(event: GlossaryReadEvent) -> str:
 
 
 def _reproduced_command(event: GlossaryReadEvent) -> str:
-    parts = ["sase", "glossary", "read", *event.terms]
+    selectors = [f"glossary:{term}" for term in event.terms]
+    parts = ["sase", "memory", "read", *selectors]
     if event.depth_limit is not None:
         parts.extend(["-d", str(event.depth_limit)])
     parts.extend(["-r", event.reason])
     return " ".join(shlex.quote(part) for part in parts)
+
+
+class _LegacyGlossaryReportError(ValueError):
+    """Raised when a legacy glossary report cannot resolve a current catalog."""
+
+
+def _resolve_legacy_report_catalog(project_ref: str) -> EditorGlossaryCatalog:
+    from sase.xprompt.glossary_catalog import editor_glossary_catalog_for_project
+
+    result = editor_glossary_catalog_for_project(project_ref)
+    if result.catalog is not None:
+        return result.catalog
+    diagnostics = "; ".join(result.diagnostics) or "no glossary memory web found"
+    raise _LegacyGlossaryReportError(diagnostics)
 
 
 def _metadata_lines(

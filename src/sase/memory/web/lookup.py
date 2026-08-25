@@ -9,7 +9,7 @@ from sase.core.glossary_facade import (
     GlossaryInputEntry,
     build_glossary_catalog,
 )
-from sase.glossary.resolution import normalize_glossary_reference
+from sase.memory.web.resolution import normalize_glossary_reference
 
 from .models import MemoryStrand, MemoryWeb
 

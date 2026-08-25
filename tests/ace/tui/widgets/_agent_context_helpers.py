@@ -27,7 +27,10 @@ from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
     SECTION_MARKER_META_KEY,
 )
-from sase.glossary.read_log import GLOSSARY_READ_LOG_SCHEMA_VERSION, GlossaryReadEvent
+from sase.memory.legacy_glossary_read_log import (
+    GLOSSARY_READ_LOG_SCHEMA_VERSION,
+    GlossaryReadEvent,
+)
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
 

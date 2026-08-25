@@ -11,7 +11,7 @@ import pytest
 
 from sase.ace.tui import glossary_reads as glossary_reads_module
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.glossary.read_log import (
+from sase.memory.legacy_glossary_read_log import (
     GLOSSARY_READ_LOG_SCHEMA_VERSION,
     GlossaryReadEvent,
 )

@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from io import StringIO
 from pathlib import Path
 
 import pytest
 from rich.console import Console
 
-from sase.agent.identity import AgentIdentity
-from sase.glossary.read_log import append_glossary_read_event, build_glossary_read_event
+from sase.memory.legacy_glossary_read_log import (
+    GlossaryReadEvent,
+    glossary_read_log_path,
+)
 from sase.memory.cli_log import _render_memory_log_summary, handle_memory_log_command
 from sase.memory.proposals import (
     ProposalAuthor,
@@ -333,17 +334,47 @@ def test_memory_log_include_proposals_rich_output(
 
 
 def _seed_glossary_read_event(tmp_path: Path, *, project: str) -> None:
-    event = build_glossary_read_event(
-        reason="Need Stitch",
-        agent=AgentIdentity("agent-a", "SASE_AGENT_NAME", None),
-        terms=["Stitch"],
-        related_terms=["Patch"],
+    event = GlossaryReadEvent(
+        schema_version=1,
+        id="glossary-read-a",
+        timestamp="2026-05-23T12:00:00+00:00",
         project=project,
-        cwd=tmp_path,
-        now=datetime(2026, 5, 23, 12, 0, tzinfo=UTC),
-        read_id="glossary-read-a",
+        cwd=str(tmp_path),
+        agent_name="agent-a",
+        agent_source="SASE_AGENT_NAME",
+        artifacts_dir=None,
+        reason="Need Stitch",
+        terms=("Stitch",),
+        related_terms=("Patch",),
+        depth_limit=None,
+        definition_bytes=0,
+        source_path=None,
     )
-    append_glossary_read_event(event)
+    log_path = glossary_read_log_path(project)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text(
+        json.dumps(
+            {
+                "schema_version": event.schema_version,
+                "id": event.id,
+                "timestamp": event.timestamp,
+                "project": event.project,
+                "cwd": event.cwd,
+                "agent_name": event.agent_name,
+                "agent_source": event.agent_source,
+                "artifacts_dir": event.artifacts_dir,
+                "reason": event.reason,
+                "terms": list(event.terms),
+                "related_terms": list(event.related_terms),
+                "depth_limit": event.depth_limit,
+                "definition_bytes": event.definition_bytes,
+                "source_path": event.source_path,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def test_memory_log_include_glossary_json_adds_glossary_events(

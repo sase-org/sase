@@ -84,11 +84,12 @@ def test_completion_install_accepts_shell_and_modifiers() -> None:
 
 
 def test_completion_candidates_kind_is_limited_to_shipped_kinds() -> None:
-    parsed = parse_sase_args(["completion", "candidates", "glossary", "age"])
+    parsed = parse_sase_args(["completion", "candidates", "memory", "glossary:"])
 
-    assert parsed.kind == "glossary"
-    assert parsed.prefix == "age"
-    assert {"bead", "glossary", "project"} <= set(shipped_kinds())
+    assert parsed.kind == "memory"
+    assert parsed.prefix == "glossary:"
+    assert {"bead", "memory", "project"} <= set(shipped_kinds())
+    assert "glossary" not in shipped_kinds()
     # path/dir are declared kinds but complete natively in the shell.
     assert "path" not in shipped_kinds()
     with pytest.raises(SystemExit):

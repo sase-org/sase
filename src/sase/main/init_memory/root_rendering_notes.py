@@ -6,7 +6,6 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.agents_sync.rendering_markdown import md_escape
 from sase.amd._config import resolve_markdown_template_override
 from sase.amd.inline_memory import validate_short_memory_structure
 from sase.mdtemplates import render_markdown_template
@@ -23,7 +22,6 @@ from sase.memory.paths import (
 )
 
 from .formatting import format_generated_memory_markdown
-from .glossary import ProjectGlossaryTerms
 from .models import LinkedRepoMemoryEntry, MemoryExpectedFile
 from .root_rendering_artifact_relations import (
     generated_artifact_relations_memory_relative_path,
@@ -34,10 +32,8 @@ MEMORY_SASE_TEMPLATE_FILENAME = "memory-sase.template.md"
 MEMORY_SASE_ARTIFACTS_TEMPLATE_FILENAME = "memory-sase-artifacts.template.md"
 MEMORY_SASE_BEADS_TEMPLATE_FILENAME = "memory-sase-beads.template.md"
 MEMORY_SASE_SIZES_TEMPLATE_FILENAME = "memory-sase-sizes.template.md"
-MEMORY_SASE_GLOSSARY_TEMPLATE_FILENAME = "memory-sase-glossary.template.md"
 _MEMORY_TEMPLATE_PACKAGE = "sase.main.init_memory"
 _MEMORY_SASE_TEMPLATE_VARS = frozenset({"project_name", "linked_repo_entries"})
-_MEMORY_SASE_GLOSSARY_TEMPLATE_VARS = frozenset({"glossary_term_entries"})
 GENERATED_SASE_MEMORY_PRIORITY = 10
 
 
@@ -96,11 +92,6 @@ def _render_sase_memory(
 def generated_sase_memory_relative_path() -> Path:
     """Return the generated ``sase/memory/sase.md`` root-relative path."""
     return CANONICAL_MEMORY_RELATIVE_ROOT / "sase.md"
-
-
-def generated_glossary_memory_relative_path() -> Path:
-    """Return the generated glossary note's root-relative path."""
-    return CANONICAL_MEMORY_RELATIVE_ROOT / "glossary.md"
 
 
 def _generated_artifacts_memory_relative_path() -> Path:
@@ -166,13 +157,10 @@ def generated_memory_note_relative_paths(
     """Return the generated memory-note paths for one memory root.
 
     Shared notes are always included. Project-only notes
-    (``task_types.md``, ``artifact_relations.md``, ``glossary.md``,
-    ``sase_artifacts.md``, ``sase_beads.md``, and ``sase_sizes.md``) are added
-    when *include_project_memory* is true; ``glossary.md`` is reserved for the
-    generated note whether or not this project declares glossary entries,
-    because ``sase memory init`` either regenerates that path or blocks on an
-    unmarked note already sitting there. The path helpers feed this set so the
-    two cannot drift.
+    (``task_types.md``, ``artifact_relations.md``, ``sase_artifacts.md``,
+    ``sase_beads.md``, and ``sase_sizes.md``) are added when
+    *include_project_memory* is true. ``glossary.md`` is user-owned web
+    descriptor content and is never reserved as a generated note.
     """
     paths = (generated_sase_memory_relative_path(),)
     if include_project_memory:
@@ -180,60 +168,11 @@ def generated_memory_note_relative_paths(
             *paths,
             generated_task_types_memory_relative_path(),
             generated_artifact_relations_memory_relative_path(),
-            generated_glossary_memory_relative_path(),
             _generated_artifacts_memory_relative_path(),
             _generated_beads_memory_relative_path(),
             _generated_sizes_memory_relative_path(),
         )
     return paths
-
-
-def _render_glossary_term_entry(term: str, display_aliases: tuple[str, ...]) -> str:
-    escaped_term = md_escape(term)
-    if not display_aliases:
-        return escaped_term
-    escaped_aliases = ", ".join(md_escape(alias) for alias in display_aliases)
-    return f"{escaped_term} ({escaped_aliases})"
-
-
-def render_generated_glossary_memory_body(
-    glossary_terms: ProjectGlossaryTerms,
-) -> tuple[str | None, str | None]:
-    """Render the stable ``sase/memory/glossary.md`` body or return a blocker."""
-    if not glossary_terms.terms:
-        return None, None
-    entries = "; ".join(
-        _render_glossary_term_entry(term, display_aliases)
-        for term, display_aliases in glossary_terms.terms
-    )
-    rendered, render_error = render_markdown_template(
-        package=_MEMORY_TEMPLATE_PACKAGE,
-        filename=f"templates/{MEMORY_SASE_GLOSSARY_TEMPLATE_FILENAME}",
-        required_variables=_MEMORY_SASE_GLOSSARY_TEMPLATE_VARS,
-        context={"glossary_term_entries": entries},
-    )
-    if render_error is not None or rendered is None:
-        return (
-            None,
-            render_error or "failed to render sase/memory/glossary.md template",
-        )
-    formatted = format_generated_memory_markdown(rendered)
-    structure_error = validate_short_memory_structure(formatted)
-    if structure_error is not None:
-        return (
-            None,
-            f"packaged {MEMORY_SASE_GLOSSARY_TEMPLATE_FILENAME}: {structure_error}",
-        )
-    return formatted, None
-
-
-def generated_glossary_memory_content(generated_glossary_body: str) -> str:
-    """Return ``sase/memory/glossary.md`` with generated core-note frontmatter."""
-    return apply_memory_frontmatter(
-        generated_glossary_body,
-        note_type="core",
-        parent=AGENTS_PARENT,
-    )
 
 
 def _render_generated_long_memory_content(
@@ -328,7 +267,6 @@ def generated_project_long_expected_files(
 def generated_short_notes(
     generated_sase_body: str,
     generated_artifact_relations_body: str | None = None,
-    generated_glossary_body: str | None = None,
 ) -> dict[str, GeneratedShortMemoryNote]:
     """Return freshly generated core notes keyed by relative path.
 
@@ -345,10 +283,6 @@ def generated_short_notes(
     if generated_artifact_relations_body is not None:
         notes[generated_artifact_relations_memory_relative_path().as_posix()] = (
             GeneratedShortMemoryNote(generated_artifact_relations_body)
-        )
-    if generated_glossary_body is not None:
-        notes[generated_glossary_memory_relative_path().as_posix()] = (
-            GeneratedShortMemoryNote(generated_glossary_body)
         )
     return notes
 

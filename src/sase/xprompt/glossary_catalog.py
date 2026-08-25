@@ -5,7 +5,7 @@ Public surface:
 - :func:`editor_glossary_lsp_catalog_payload`
 
 Project resolution lives in :mod:`sase.xprompt._glossary_catalog_projects`, and
-config reading/shaping in :mod:`sase.xprompt._glossary_catalog_config`.
+the catalog source is the ``glossary`` memory web.
 """
 
 from __future__ import annotations
@@ -13,7 +13,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.content_layout import resolve_project_config_read_path
 from sase.core.glossary_facade import (
     CompiledGlossaryCatalog,
     GlossaryCatalog,
@@ -24,21 +23,13 @@ from sase.core.glossary_facade import (
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import ProjectRecordWire
-from sase.glossary_config import GLOSSARY_CONFIG_KEY, resolve_glossary_config
 from sase.memory.web.catalog import (
     GLOSSARY_WEB_SLUG,
     find_memory_web,
-    glossary_dual_source_diagnostic,
     memory_web_glossary_entries,
     memory_web_source_signature,
 )
 from sase.memory.web.models import MemoryWeb
-from sase.xprompt._glossary_catalog_config import (
-    load_round_trip_mapping,
-    parse_glossary_entries,
-    read_config_lines,
-    validation_diagnostics,
-)
 from sase.xprompt._glossary_catalog_projects import (
     EditorGlossaryProject,
     glossary_project_record_for_workspace,
@@ -131,103 +122,12 @@ def editor_glossary_catalog_for_project(
 def _load_editor_glossary_catalog(
     project: EditorGlossaryProject,
 ) -> EditorGlossaryCatalogResult:
-    """Load and compile the project-local glossary for an exact project."""
+    """Load and compile the project-local glossary memory web."""
 
     glossary_web = find_memory_web(project.workspace_dir, GLOSSARY_WEB_SLUG)
-
-    try:
-        config_path = resolve_project_config_read_path(
-            project.workspace_dir,
-            label=f"project config for {project.key}",
-        )
-    except Exception as exc:
-        return EditorGlossaryCatalogResult(
-            project,
-            None,
-            (f"{project.key}: failed to resolve project config: {exc}",),
-        )
-
-    resolution = None
-    if config_path is not None:
-        config_path = config_path.expanduser().resolve(strict=False)
-        loaded, diagnostics = load_round_trip_mapping(config_path)
-        if diagnostics:
-            return EditorGlossaryCatalogResult(project, None, diagnostics)
-        if loaded is not None:
-            resolution = resolve_glossary_config(loaded)
-            if resolution.error is not None:
-                return EditorGlossaryCatalogResult(
-                    project, None, (f"{config_path}: {resolution.error}",)
-                )
-
-    dual_source = glossary_dual_source_diagnostic(
-        has_web=glossary_web is not None,
-        config_declared=resolution is not None and resolution.declared,
-    )
-    if dual_source is not None:
-        return EditorGlossaryCatalogResult(project, None, (dual_source,))
-
-    if glossary_web is not None:
-        return _web_editor_glossary_catalog(project, glossary_web)
-
-    if (
-        config_path is None
-        or resolution is None
-        or not resolution.declared
-        or resolution.node is None
-    ):
+    if glossary_web is None:
         return EditorGlossaryCatalogResult(project, None, ())
-
-    lines = read_config_lines(config_path)
-    entries, shape_errors = parse_glossary_entries(
-        config_path,
-        resolution.node,
-        lines,
-        config_key_path=resolution.key_path,
-        display_path=resolution.display_path,
-    )
-    if shape_errors:
-        return EditorGlossaryCatalogResult(project, None, shape_errors)
-    if not entries:
-        return EditorGlossaryCatalogResult(project, None, ())
-
-    diagnostics = validation_diagnostics(
-        config_path,
-        entries,
-        display_path=resolution.display_path,
-    )
-    if diagnostics:
-        return EditorGlossaryCatalogResult(project, None, diagnostics)
-
-    try:
-        catalog = build_glossary_catalog(entries)
-        compiled = compile_glossary_catalog(entries)
-    except (AttributeError, ImportError, ValueError, RuntimeError) as exc:
-        return EditorGlossaryCatalogResult(
-            project,
-            None,
-            (f"{config_path}: failed to build glossary catalog: {exc}",),
-        )
-
-    signature = _config_signature(config_path)
-    if signature is None:
-        return EditorGlossaryCatalogResult(
-            project,
-            None,
-            (f"{config_path}: failed to stat glossary config",),
-        )
-
-    return EditorGlossaryCatalogResult(
-        project,
-        EditorGlossaryCatalog(
-            schema_version=EDITOR_GLOSSARY_CATALOG_SCHEMA_VERSION,
-            project=project,
-            config_path=config_path,
-            config_signature=signature,
-            catalog=catalog,
-            compiled=compiled,
-        ),
-    )
+    return _web_editor_glossary_catalog(project, glossary_web)
 
 
 def _web_editor_glossary_catalog(
@@ -325,18 +225,6 @@ def enabled_project_records(
     )
 
 
-def _config_signature(path: Path) -> _GlossaryConfigSignature | None:
-    try:
-        stat = path.stat()
-    except OSError:
-        return None
-    return _GlossaryConfigSignature(
-        path=str(path),
-        mtime_ns=stat.st_mtime_ns,
-        size=stat.st_size,
-    )
-
-
 def _entry_to_wire(entry: GlossaryEntry) -> dict[str, object]:
     return {
         "index": entry.index,
@@ -352,7 +240,6 @@ def _entry_to_wire(entry: GlossaryEntry) -> dict[str, object]:
 
 __all__ = [
     "EDITOR_GLOSSARY_CATALOG_SCHEMA_VERSION",
-    "GLOSSARY_CONFIG_KEY",
     "EditorGlossaryCatalog",
     "EditorGlossaryCatalogResult",
     "EditorGlossaryProject",

@@ -1,7 +1,6 @@
 """CLI handlers for ``sase memory web list``/``show``.
 
-``show`` is the filterable *index* for one web — the memory-web analogue of
-``sase glossary list`` — and never prints strand bodies. Reading strand
+``show`` is the filterable *index* for one web and never prints strand bodies. Reading strand
 content is ``sase memory show``/``read`` with a ``web:keyword`` selector.
 """
 

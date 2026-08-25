@@ -1,26 +1,20 @@
-"""Tests for the glossary read-event store and summaries."""
+"""Tests for legacy glossary read-event parsing and summaries."""
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from datetime import UTC, datetime
 import json
 from pathlib import Path
 
 import pytest
 
-from sase.agent.identity import AgentIdentity, AgentIdentityError
-from sase.glossary.read_log import (
+from sase.memory.legacy_glossary_read_log import (
     GlossaryReadError,
     GlossaryReadEvent,
-    append_glossary_read_event,
-    build_glossary_read_event,
     filter_glossary_read_events,
     glossary_read_log_path,
     normalize_read_reason,
     read_glossary_read_events,
-    require_agent_identity,
     summarize_glossary_reads_by_agent,
     summarize_glossary_reads_by_term,
 )
@@ -32,18 +26,13 @@ def test_normalize_read_reason_rejects_blank() -> None:
         normalize_read_reason("   ")
 
 
-def test_require_agent_identity_raises_without_attribution() -> None:
-    with pytest.raises(AgentIdentityError, match="glossary reads"):
-        require_agent_identity({})
-
-
-def test_append_and_read_round_trip_skips_malformed_and_wrong_schema(
+def test_read_round_trip_skips_malformed_and_wrong_schema(
     tmp_path: Path,
 ) -> None:
     event = _event()
     log_path = tmp_path / "glossary_reads.jsonl"
 
-    append_glossary_read_event(event, log_path=log_path)
+    _write_events(log_path, event)
     with log_path.open("a", encoding="utf-8") as handle:
         handle.write("not json\n")
         handle.write(json.dumps({"schema_version": 2, "id": "other"}) + "\n")
@@ -56,17 +45,11 @@ def test_read_missing_log_returns_empty(tmp_path: Path) -> None:
     assert read_glossary_read_events(log_path=tmp_path / "missing.jsonl") == ()
 
 
-def test_concurrent_appends_are_all_readable(tmp_path: Path) -> None:
+def test_multiple_legacy_rows_are_all_readable(tmp_path: Path) -> None:
     log_path = tmp_path / "glossary_reads.jsonl"
     events = tuple(_event(id=f"read-{index:02d}") for index in range(20))
 
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        list(
-            pool.map(
-                lambda event: append_glossary_read_event(event, log_path=log_path),
-                events,
-            )
-        )
+    _write_events(log_path, *events)
 
     read = read_glossary_read_events(log_path=log_path)
     assert sorted(item.id for item in read) == sorted(item.id for item in events)
@@ -77,11 +60,11 @@ def test_glossary_read_log_path_uses_project_state_and_aliases(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "sase.glossary.read_log.sase_projects_dir",
+        "sase.memory.legacy_glossary_read_log.sase_projects_dir",
         lambda: tmp_path / ".sase" / "projects",
     )
     monkeypatch.setattr(
-        "sase.glossary.read_log.resolve_project_alias_ref",
+        "sase.memory.legacy_glossary_read_log.resolve_project_alias_ref",
         lambda ref: {"bob": "bob-cli"}.get(ref, ref),
     )
 
@@ -143,31 +126,6 @@ def test_filter_and_summaries_cover_requested_and_related_terms() -> None:
     assert agent_summaries[1].read_count == 1
 
 
-def test_build_glossary_read_event_records_canonical_fields(tmp_path: Path) -> None:
-    event = build_glossary_read_event(
-        reason="  Need hood ",
-        agent=AgentIdentity("agent-a", "SASE_AGENT_NAME", "/tmp/artifacts"),
-        terms=("Agent Hood",),
-        related_terms=("Sase Agent",),
-        depth_limit=1,
-        definition_bytes=64,
-        source_path="/repo/sase/sase.yml",
-        project="proj",
-        cwd=tmp_path,
-        now=datetime(2026, 5, 23, 12, 0, tzinfo=UTC),
-        read_id="read-a",
-    )
-
-    assert event.reason == "Need hood"
-    assert event.terms == ("Agent Hood",)
-    assert event.related_terms == ("Sase Agent",)
-    assert event.depth_limit == 1
-    assert event.definition_bytes == 64
-    assert event.source_path == "/repo/sase/sase.yml"
-    assert event.project == "proj"
-    assert event.timestamp == "2026-05-23T12:00:00+00:00"
-
-
 def _event(**overrides: object) -> GlossaryReadEvent:
     payload: dict[str, object] = {
         "schema_version": 1,
@@ -187,3 +145,30 @@ def _event(**overrides: object) -> GlossaryReadEvent:
     }
     payload.update(overrides)
     return GlossaryReadEvent(**payload)  # type: ignore[arg-type]
+
+
+def _write_events(path: Path, *events: GlossaryReadEvent) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        for event in events:
+            json.dump(
+                {
+                    "schema_version": event.schema_version,
+                    "id": event.id,
+                    "timestamp": event.timestamp,
+                    "project": event.project,
+                    "cwd": event.cwd,
+                    "agent_name": event.agent_name,
+                    "agent_source": event.agent_source,
+                    "artifacts_dir": event.artifacts_dir,
+                    "reason": event.reason,
+                    "terms": list(event.terms),
+                    "related_terms": list(event.related_terms),
+                    "depth_limit": event.depth_limit,
+                    "definition_bytes": event.definition_bytes,
+                    "source_path": event.source_path,
+                },
+                handle,
+                sort_keys=True,
+            )
+            handle.write("\n")

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.ace.tui.models.agent import Agent
-from sase.glossary.read_log import (
+from sase.memory.legacy_glossary_read_log import (
     GlossaryReadEvent,
     glossary_read_log_path,
     read_glossary_read_events,

@@ -2,21 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase._yaml_safe import yaml_safe_load
-from sase.content_layout import resolve_project_config_read_path
 from sase.diagnostics import CheckStatus, DiagnosticCheck
 from sase.doctor.checks_config_common import MAX_DETAIL_ROWS
-from sase.glossary_config import resolve_glossary_config
 from sase.memory.web import (
     cross_scope_keyword_warnings,
     discover_memory_webs,
     validate_memory_webs,
 )
-from sase.memory.web.catalog import GLOSSARY_WEB_SLUG, glossary_dual_source_diagnostic
 
 if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
@@ -37,10 +32,8 @@ def check_config_memory_webs(context: DoctorContext) -> DiagnosticCheck:
     home_report = (
         None if home_discovery is None else validate_memory_webs(home_discovery)
     )
-    dual_source_blockers = _glossary_dual_source_blockers(context, project_discovery)
     blockers = [
         *_prefixed("project", project_report.blockers),
-        *_prefixed("project", dual_source_blockers),
         *(() if home_report is None else _prefixed("home", home_report.blockers)),
     ]
     warnings = [
@@ -84,33 +77,6 @@ def check_config_memory_webs(context: DoctorContext) -> DiagnosticCheck:
             "warning_count": len(warnings),
         },
     )
-
-
-def _glossary_dual_source_blockers(
-    context: DoctorContext, project_discovery: Any
-) -> tuple[str, ...]:
-    has_web = any(web.slug == GLOSSARY_WEB_SLUG for web in project_discovery.webs)
-    diagnostic = glossary_dual_source_diagnostic(
-        has_web=has_web,
-        config_declared=_project_config_declares_glossary(context.cwd),
-    )
-    return () if diagnostic is None else (diagnostic,)
-
-
-def _project_config_declares_glossary(root: Path) -> bool:
-    try:
-        config_path = resolve_project_config_read_path(root, label="project config")
-    except Exception:
-        return False
-    if config_path is None or not config_path.exists():
-        return False
-    try:
-        config = yaml_safe_load(config_path.read_text(encoding="utf-8"))
-    except Exception:
-        return False
-    if not isinstance(config, Mapping):
-        return False
-    return resolve_glossary_config(config).declared
 
 
 def _home_root(context: DoctorContext) -> Path:

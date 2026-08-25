@@ -15,7 +15,7 @@ from sase.core.glossary_facade import (
     GlossarySpan,
     scan_glossary_spans,
 )
-from sase.glossary.resolution import resolve_glossary_closure
+from sase.memory.web.resolution import resolve_glossary_closure
 from sase.memory.web.catalog import glossary_source_from_wire
 from sase.xprompt.highlight_theme import derive_argument_color
 

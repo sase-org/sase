@@ -13,13 +13,10 @@ from dataclasses import dataclass
 from pathlib import Path
 import time
 
-from sase._yaml_safe import yaml_safe_load
 from sase.ace.tui.modals.glossary_preview_render import glossary_cross_references
-from sase.content_layout import resolve_project_config_read_path
 from sase.core.glossary_facade import GlossaryEntry
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
-from sase.glossary.relations import glossary_reverse_references
-from sase.glossary_config import resolve_glossary_config
+from sase.memory.web.relations import glossary_reverse_references
 from sase.memory.web.catalog import (
     GLOSSARY_WEB_SLUG,
     find_memory_web,
@@ -74,9 +71,9 @@ def build_glossary_project_ring(
 ) -> tuple[GlossaryProjectRef, ...]:
     """Return the ordered, de-duplicated project ring for `p`/`P` cycling.
 
-    Every enabled project with a configured glossary is included, plus the
-    project the panel was opened from even when it has none, so `a` can
-    bootstrap that project's first term. Order is by display name.
+    Every enabled project with a glossary memory web is included, plus the
+    project the panel was opened from even when it has none. Order is by
+    display name.
     """
     records = enabled_project_records(projects_root)
     launch_record = glossary_project_record_for_workspace(launch_workspace, records)
@@ -101,7 +98,7 @@ def load_glossary_project_snapshot(ref: GlossaryProjectRef) -> GlossaryProjectSn
     """Load and compile *ref*'s glossary catalog behind an mtime-keyed cache.
 
     Only ever call this off the event loop: a cache miss reads and compiles
-    a project's ``sase.yml`` glossary section.
+    a project's glossary memory web.
     """
     now = time.monotonic()
     current_stat = _config_stat(ref)
@@ -159,35 +156,10 @@ def _project_ref(
 
 
 def _project_declares_glossary(record: ProjectRecordWire) -> bool:
-    """Return whether *record*'s config declares a ``memory.glossary`` section.
-
-    A cheap presence check only: a malformed section still counts as
-    declared, so the project stays in the ring and its diagnostics surface
-    when :func:`load_glossary_project_snapshot` actually loads it. One
-    broken project must never shrink the ring for everyone else.
-    """
+    """Return whether *record* has a glossary memory web."""
     if not record.workspace_dir:
         return False
-    config_path = _resolve_config_path(record.project_name, record.workspace_dir)
-    if config_path is None or not config_path.exists():
-        return False
-    try:
-        config = yaml_safe_load(config_path.read_text(encoding="utf-8"))
-    except Exception:
-        return False
-    if not isinstance(config, Mapping):
-        return False
-    return resolve_glossary_config(config).declared
-
-
-def _resolve_config_path(project_key: str, workspace_dir: str) -> Path | None:
-    try:
-        return resolve_project_config_read_path(
-            Path(workspace_dir),
-            label=f"project config for {project_key}",
-        )
-    except Exception:
-        return None
+    return find_memory_web(Path(record.workspace_dir), GLOSSARY_WEB_SLUG) is not None
 
 
 def _config_stat(ref: GlossaryProjectRef) -> tuple[int, int]:
@@ -197,14 +169,7 @@ def _config_stat(ref: GlossaryProjectRef) -> tuple[int, int]:
     if web is not None:
         signature = memory_web_source_signature(web)
         return (signature.mtime_ns, signature.size)
-    config_path = _resolve_config_path(ref.key, ref.workspace_dir)
-    if config_path is None:
-        return (0, 0)
-    try:
-        stat = config_path.stat()
-    except OSError:
-        return (0, 0)
-    return (stat.st_mtime_ns, stat.st_size)
+    return (0, 0)
 
 
 def _load_glossary_project_snapshot(ref: GlossaryProjectRef) -> GlossaryProjectSnapshot:

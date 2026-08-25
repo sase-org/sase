@@ -25,7 +25,7 @@ from sase.core.glossary_facade import (
     GlossaryInputEntry,
     validate_glossary_entries,
 )
-from sase.glossary.resolution import normalize_glossary_reference
+from sase.memory.web.resolution import normalize_glossary_reference
 
 _VALIDATE_DELAY_S = 0.15
 _AddField = Literal["term", "aliases", "definition"]

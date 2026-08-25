@@ -1,8 +1,7 @@
 """Shared substring filter over memory-note stems, descriptions, and bodies.
 
-Used by the ACE Memory panel's ``/`` filter (and later CLI list surfaces) so
-every matcher applies the same casefold semantics as
-:func:`sase.glossary.text_filter.filter_glossary_entries`.
+Used by the ACE Memory panel's ``/`` filter and CLI list surfaces so every
+matcher applies the same casefold semantics.
 """
 
 from __future__ import annotations

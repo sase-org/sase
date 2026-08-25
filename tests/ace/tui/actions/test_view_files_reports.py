@@ -3,17 +3,80 @@
 from __future__ import annotations
 
 import asyncio
-import threading
 from pathlib import Path
+import threading
 from unittest.mock import MagicMock
 
 import pytest
 
+from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
-from sase.glossary.read_report import GlossaryReadReportSpec
-from tests.main.glossary_cli_helpers import diamond_resolved_glossary_project
+from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
+from sase.xprompt._glossary_catalog_projects import EditorGlossaryProject
+from sase.xprompt.glossary_catalog import (
+    EDITOR_GLOSSARY_CATALOG_SCHEMA_VERSION,
+    EditorGlossaryCatalog,
+    EditorGlossaryCatalogResult,
+)
 
 from ._view_files_helpers import _glossary_spec, _make_app, _report_spec
+
+
+class _Signature:
+    def to_wire(self) -> dict[str, object]:
+        return {}
+
+
+def _catalog_result() -> EditorGlossaryCatalogResult:
+    entries = (
+        GlossaryEntry(
+            index=0,
+            term="Alpha",
+            normalized_term="alpha",
+            definition="Mentions Beta then Gamma.",
+            configured_aliases=(),
+            display_aliases=(),
+            effective_aliases=("Alpha",),
+            source=None,
+        ),
+        GlossaryEntry(
+            index=1,
+            term="Beta",
+            normalized_term="beta",
+            definition="Beta definition.",
+            configured_aliases=(),
+            display_aliases=(),
+            effective_aliases=("Beta",),
+            source=None,
+        ),
+        GlossaryEntry(
+            index=2,
+            term="Gamma",
+            normalized_term="gamma",
+            definition="Gamma definition.",
+            configured_aliases=(),
+            display_aliases=(),
+            effective_aliases=("Gamma",),
+            source=None,
+        ),
+    )
+    project = EditorGlossaryProject(
+        key="sase",
+        name="sase",
+        aliases=(),
+        workspace_dir=Path("/tmp/sase"),
+    )
+    return EditorGlossaryCatalogResult(
+        project=project,
+        catalog=EditorGlossaryCatalog(
+            schema_version=EDITOR_GLOSSARY_CATALOG_SCHEMA_VERSION,
+            project=project,
+            config_path=Path("/tmp/sase/sase/memory/glossary"),
+            config_signature=_Signature(),  # type: ignore[arg-type]
+            catalog=GlossaryCatalog(schema_version=1, entries=entries),
+            compiled=None,  # type: ignore[arg-type]
+        ),
+    )
 
 
 async def test_tool_call_report_hint_is_materialized_for_pager(
@@ -142,8 +205,8 @@ async def test_glossary_hint_is_materialized_for_pager(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.setattr(
-        "sase.glossary.read_report.resolve_glossary_cli_project",
-        lambda *_a, **_kw: diamond_resolved_glossary_project(),
+        "sase.xprompt.glossary_catalog.editor_glossary_catalog_for_project",
+        lambda _project: _catalog_result(),
     )
     report_path = str(tmp_path / ".sase" / "glossary_read_reports" / "report.md")
     app = _make_app(report_path)
@@ -154,7 +217,7 @@ async def test_glossary_hint_is_materialized_for_pager(
 
     assert Path(report_path).is_file()
     body = Path(report_path).read_text(encoding="utf-8")
-    assert "sase glossary read Alpha" in body
+    assert "sase memory read glossary:Alpha" in body
     assert "Mentions Beta then Gamma." in body
     app._view_files_with_pager.assert_called_once_with([report_path])
 
@@ -192,8 +255,8 @@ async def test_mixed_glossary_tool_call_and_file_selection_preserves_order(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.setattr(
-        "sase.glossary.read_report.resolve_glossary_cli_project",
-        lambda *_a, **_kw: diamond_resolved_glossary_project(),
+        "sase.xprompt.glossary_catalog.editor_glossary_catalog_for_project",
+        lambda _project: _catalog_result(),
     )
     notes = tmp_path / "notes.md"
     notes.write_text("notes", encoding="utf-8")

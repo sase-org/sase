@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase.ace.tui.glossary_reads import load_glossary_reads_for_agent_context
-from sase.glossary.read_log import glossary_read_log_path
+from sase.memory.legacy_glossary_read_log import glossary_read_log_path
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,

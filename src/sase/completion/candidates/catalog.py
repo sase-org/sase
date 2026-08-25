@@ -42,8 +42,6 @@ from sase.completion.candidates.catalog_build import (
     plugin_source_path,
 )
 from sase.completion.candidates.catalog_content import (
-    glossary_candidates,
-    glossary_source_path,
     memory_candidates,
     memory_source_path,
 )
@@ -84,7 +82,6 @@ PROVIDERS: dict[ValueKind, tuple[_Fetch, _SourcePath]] = {
     ValueKind.REPO: (repo_candidates, repo_source_path),
     ValueKind.WORKSPACE: (workspace_candidates, workspace_source_path),
     ValueKind.FLAG: (flag_candidates, flag_source_path),
-    ValueKind.GLOSSARY: (glossary_candidates, glossary_source_path),
     ValueKind.PLUGIN: (plugin_candidates, plugin_source_path),
     ValueKind.PLAN: (plan_candidates, plan_source_path),
     ValueKind.PATCH: (patch_candidates, patch_source_path),

@@ -7,7 +7,6 @@ from pathlib import Path
 
 from sase.amd._shared import ProviderShimPlan, apply_planned_delete
 
-from .glossary import ProjectGlossaryTerms
 from .inventory import unreferenced_memory_files
 from .models import LinkedRepoMemoryEntry, MemoryExpectedFile, MemoryRootResult
 from .root_planning import memory_root_context
@@ -152,7 +151,6 @@ def initialize_memory_root(
     linked_entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
-    glossary_terms: ProjectGlossaryTerms | None = None,
     manage_memory: bool = True,
     enable_amd: bool = False,
     derive_project_title: bool = False,
@@ -164,7 +162,6 @@ def initialize_memory_root(
         root,
         linked_entries,
         project_name=project_name,
-        glossary_terms=glossary_terms,
         manage_memory=manage_memory,
         enable_amd=enable_amd,
         derive_project_title=derive_project_title,

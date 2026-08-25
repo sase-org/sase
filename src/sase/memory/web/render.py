@@ -1,10 +1,8 @@
-"""Shared rendering for ``sase glossary show``/``read``/``all`` output.
+"""Shared rendering for glossary memory-web closure output.
 
-``show`` and ``read`` resolve a :class:`~sase.glossary.resolution.GlossaryClosure`
-through identical code and must print identical output for identical
-arguments, so both route through :func:`render_glossary_closure`.
-``all`` prints the same closure over every catalog entry via
-:func:`render_glossary_catalog`.
+Memory-web and preview surfaces resolve a
+:class:`~sase.memory.web.resolution.GlossaryClosure` through identical code,
+so retained glossary rendering routes through these helpers.
 """
 
 from __future__ import annotations
@@ -22,7 +20,7 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.cli_show_palette import SECTION_COLOR
-from sase.glossary.resolution import (
+from sase.memory.web.resolution import (
     GlossaryClosure,
     GlossaryClosureNode,
     GlossaryReferrer,
@@ -36,7 +34,7 @@ _MAX_INDENT_DEPTH = 3
 _ACCENT = SECTION_COLOR
 _MARKDOWN_MAX_HEADING_LEVEL = 6
 _AUDIT_HINT = (
-    'Not an audited read — agents must use: sase glossary read <term> -r "<why>"'
+    'Not an audited read - agents must use: sase memory read glossary:<term> -r "<why>"'
 )
 _EMPTY_CATALOG = "no glossary terms configured for {project}"
 

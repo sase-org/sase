@@ -16,7 +16,6 @@ class ValueKind(StrEnum):
     WORKSPACE = "workspace"
     PLUGIN = "plugin"
     FLAG = "flag"
-    GLOSSARY = "glossary"
     PLAN = "plan"
     PATCH = "patch"
     ARTIFACT = "artifact"
@@ -124,10 +123,6 @@ def _build_path_overrides() -> dict[tuple[tuple[str, ...], str], ValueKind]:
         (("agent", "restart"), "name"): ValueKind.AGENT,
         (("agent", "revert"), "name"): ValueKind.AGENT,
         (("agent", "show"), "name"): ValueKind.AGENT,
-        (("glossary", "del"), "term"): ValueKind.GLOSSARY,
-        (("glossary", "log"), "term"): ValueKind.GLOSSARY,
-        (("glossary", "read"), "term"): ValueKind.GLOSSARY,
-        (("glossary", "show"), "term"): ValueKind.GLOSSARY,
         (("memory", "read"), "selectors"): ValueKind.MEMORY,
         (("memory", "show"), "selectors"): ValueKind.MEMORY,
         (("plan", "show"), "target"): ValueKind.PLAN,

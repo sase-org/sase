@@ -15,7 +15,7 @@ from sase.core.glossary_facade import (
     build_glossary_catalog,
     compile_glossary_catalog,
 )
-from sase.glossary.resolution import (
+from sase.memory.web.resolution import (
     GlossaryLookupError,
     _GlossaryLookupFailure,
     normalize_glossary_reference,

@@ -5,7 +5,10 @@ from __future__ import annotations
 from rich.text import Text
 
 from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
-from sase.glossary.read_report import GlossaryReadReportSpec, glossary_read_report_path
+from sase.memory.legacy_glossary_read_report import (
+    GlossaryReadReportSpec,
+    glossary_read_report_path,
+)
 
 from ._agent_display_state import HeaderHintState
 from ._agent_context_common import (

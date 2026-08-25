@@ -21,7 +21,6 @@ from sase.memory.web import (
     validate_memory_webs,
 )
 
-from .glossary import ProjectGlossaryTerms
 from .inventory import memory_parent_blockers, unreferenced_memory_files
 from .models import (
     LinkedRepoMemoryEntry,
@@ -44,7 +43,6 @@ from .root_rendering import (
     generated_long_notes,
     generated_short_notes,
     render_generated_artifact_relations_memory_body,
-    render_generated_glossary_memory_body,
     render_generated_project_long_memory_contents,
     render_generated_sase_memory_body,
     render_expected_memory_files,
@@ -270,7 +268,6 @@ def memory_root_context(
     linked_entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
-    glossary_terms: ProjectGlossaryTerms | None = None,
     manage_memory: bool = True,
     enable_amd: bool = False,
     derive_project_title: bool = False,
@@ -365,23 +362,6 @@ def memory_root_context(
                     or "failed to render sase/memory/artifact_relations.md template",
                 ),
             )
-    generated_glossary_body: str | None = None
-    if glossary_terms is not None and glossary_terms.terms:
-        generated_glossary_body, glossary_render_error = (
-            render_generated_glossary_memory_body(glossary_terms)
-        )
-        if glossary_render_error is not None or generated_glossary_body is None:
-            return _MemoryRootContext(
-                amd_sync=None,
-                expected_files=(),
-                shim_plan=ProviderShimPlan(writes=(), deletes=()),
-                additional_shim_plans=(),
-                source_memory_root=migration.source_memory_root,
-                blockers=(
-                    glossary_render_error
-                    or "failed to render sase/memory/glossary.md template",
-                ),
-            )
     generated_project_long_contents: dict[str, str] = {}
     if include_project_memory:
         generated_project_long_contents, generated_long_error = (
@@ -399,7 +379,6 @@ def memory_root_context(
     generated_short_note_bodies = generated_short_notes(
         generated_sase_body,
         generated_artifact_relations_body,
-        generated_glossary_body,
     )
     if memory_web_plan.core_note_bodies is not None:
         generated_short_note_bodies = {
@@ -422,7 +401,6 @@ def memory_root_context(
         amd_sync=amd_sync,
         generated_sase_body=generated_sase_body,
         generated_artifact_relations_body=generated_artifact_relations_body,
-        generated_glossary_body=generated_glossary_body,
         generated_project_long_contents=generated_project_long_contents,
         source_memory_root=migration.source_memory_root,
         include_project_memory=include_project_memory,
@@ -470,7 +448,6 @@ def plan_memory_root(
     linked_entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
-    glossary_terms: ProjectGlossaryTerms | None = None,
     manage_memory: bool = True,
     enable_amd: bool = False,
     derive_project_title: bool = False,
@@ -482,7 +459,6 @@ def plan_memory_root(
         root,
         linked_entries,
         project_name=project_name,
-        glossary_terms=glossary_terms,
         manage_memory=manage_memory,
         enable_amd=enable_amd,
         derive_project_title=derive_project_title,

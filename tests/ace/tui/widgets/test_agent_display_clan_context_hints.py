@@ -31,8 +31,11 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
     HeaderHintState,
 )
 from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
-from sase.glossary.read_log import GLOSSARY_READ_LOG_SCHEMA_VERSION, GlossaryReadEvent
-from sase.glossary.read_report import glossary_read_report_path
+from sase.memory.legacy_glossary_read_log import (
+    GLOSSARY_READ_LOG_SCHEMA_VERSION,
+    GlossaryReadEvent,
+)
+from sase.memory.legacy_glossary_read_report import glossary_read_report_path
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from tests.ace.tui.widgets._agent_display_clan_helpers import rich_clan_snapshot
 from tests.ace.tui.widgets._agent_display_plan_helpers import plan_summary

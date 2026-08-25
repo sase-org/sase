@@ -192,54 +192,58 @@ def test_plan_candidates_emit_canonical_references(
     assert result == [Candidate("plan:202608/cli_completion.md", "cli_completion")]
 
 
-def _write_glossary_project(root: Path) -> None:
-    config = root / "sase" / "sase.yml"
-    config.parent.mkdir(parents=True)
-    config.write_text(
-        "memory:\n"
-        "  glossary:\n"
-        "    Agent Hood:\n"
-        "      definition: >-\n"
-        "        An agent hood is a group of agents. It has a second sentence.\n"
-        "      aliases:\n"
-        "        - hood\n"
-        "        - agent neighborhood\n"
-        "    Stitch:\n"
-        "      definition: A stitch is one recorded VCS change\n",
+def _write_glossary_web(root: Path) -> None:
+    memory_root = root / "sase" / "memory"
+    (memory_root / "glossary").mkdir(parents=True)
+    (memory_root / "sase.md").write_text(
+        "---\ntype: core\nparent: AGENTS.md\n---\n\nCore memory.\n",
+        encoding="utf-8",
+    )
+    (memory_root / "glossary.md").write_text(
+        "---\ntype: core\nparent: AGENTS.md\nweb: true\n"
+        "roster: inline\nroster_label: GLOSSARY TERMS\nstrand_noun: term\n"
+        "---\n\nGlossary descriptor.\n",
+        encoding="utf-8",
+    )
+    (memory_root / "glossary" / "agent-hood.md").write_text(
+        "---\nkeyword: Agent Hood\nsummary: Group of agents\n"
+        "aliases: [hood]\n---\n\nAn agent hood is a group of agents.\n",
+        encoding="utf-8",
+    )
+    (memory_root / "glossary" / "stitch.md").write_text(
+        "---\nkeyword: Stitch\nsummary: Recorded VCS change\n---\n\nA stitch.\n",
         encoding="utf-8",
     )
 
 
-def test_glossary_candidates_use_slug_references_and_first_sentences(
+def test_memory_candidates_include_notes_webs_and_strands(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    _write_glossary_project(tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    _write_glossary_web(tmp_path)
     monkeypatch.chdir(tmp_path)
 
-    result = candidates_for("glossary", "", project=None, limit=200)
+    result = candidates_for("memory", "", project=None, limit=200)
 
-    # Slug form: `sase glossary` resolves references case- and
-    # separator-insensitively, so a hyphenated value never needs quoting.
-    assert result == [
-        Candidate("agent-hood", "An agent hood is a group of agents"),
-        Candidate("hood", "alias of Agent Hood"),
-        Candidate("agent-neighborhood", "alias of Agent Hood"),
-        Candidate("stitch", "A stitch is one recorded VCS change"),
-    ]
+    assert Candidate("sase.md", "memory note") in result
+    assert Candidate("glossary", "memory web") in result
+    assert Candidate("glossary:agent-hood", "Group of agents") in result
+    assert Candidate("glossary:stitch", "Recorded VCS change") in result
 
 
-def test_glossary_candidates_filter_by_prefix_and_survive_missing_config(
+def test_memory_candidates_filter_by_prefix_and_survive_missing_memory(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
     project = tmp_path / "project"
-    _write_glossary_project(project)
+    _write_glossary_web(project)
     monkeypatch.chdir(project)
     assert [
         candidate.value
-        for candidate in candidates_for("glossary", "agent-", project=None, limit=200)
-    ] == ["agent-hood", "agent-neighborhood"]
+        for candidate in candidates_for("memory", "glossary:", project=None, limit=200)
+    ] == ["glossary:agent-hood", "glossary:stitch"]
 
     empty = tmp_path / "elsewhere"
     empty.mkdir()
     monkeypatch.chdir(empty)
-    assert candidates_for("glossary", "", project=None, limit=200) == []
+    assert candidates_for("memory", "", project=None, limit=200) == []

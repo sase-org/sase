@@ -51,27 +51,6 @@ def test_mutex_groups_found() -> None:
     assert total == 14
 
 
-def test_glossary_del_term_is_kinded_and_add_term_is_not() -> None:
-    spec = build_spec()
-    del_cmd = _by_path(spec.root, ("glossary", "del"))
-    del_term = next(
-        positional for positional in del_cmd.positionals if positional.dest == "term"
-    )
-    assert del_term.kind is ValueKind.GLOSSARY
-
-    add_cmd = _by_path(spec.root, ("glossary", "add"))
-    add_term = next(
-        positional for positional in add_cmd.positionals if positional.dest == "term"
-    )
-    add_definition = next(
-        positional
-        for positional in add_cmd.positionals
-        if positional.dest == "definition"
-    )
-    assert add_term.kind is None
-    assert add_definition.kind is None
-
-
 def test_kind_resolution_precedence_on_real_tree() -> None:
     spec = build_spec()
     show = _by_path(spec.root, ("bead", "show"))

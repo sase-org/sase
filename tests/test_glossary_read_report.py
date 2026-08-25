@@ -1,233 +1,176 @@
-"""Tests for deferred ``sase glossary read`` Markdown reports."""
+"""Tests for deferred legacy glossary-read Markdown reports."""
 
 from __future__ import annotations
 
-import hashlib
+from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
-import pytest
-
-from sase.glossary import read_report as read_report_mod
-from sase.glossary.cli_common import GlossaryCliError
-from sase.glossary.read_log import GLOSSARY_READ_LOG_SCHEMA_VERSION, GlossaryReadEvent
-from sase.glossary.read_report import (
+from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
+from sase.memory.legacy_glossary_read_log import (
+    GLOSSARY_READ_LOG_SCHEMA_VERSION,
+    GlossaryReadEvent,
+)
+from sase.memory.legacy_glossary_read_report import (
     GlossaryReadReportSpec,
+    _build_glossary_read_report,
     glossary_read_report_path,
     write_glossary_read_report,
 )
-from tests.main.glossary_cli_helpers import (
-    diamond_resolved_glossary_project,
-    glossary_entry,
-    resolved_glossary_project,
+from sase.xprompt._glossary_catalog_projects import EditorGlossaryProject
+from sase.xprompt.glossary_catalog import (
+    EDITOR_GLOSSARY_CATALOG_SCHEMA_VERSION,
+    EditorGlossaryCatalog,
+    EditorGlossaryCatalogResult,
 )
 
 
+class _Signature:
+    def to_wire(self) -> dict[str, object]:
+        return {}
+
+
 def _event(**overrides: object) -> GlossaryReadEvent:
-    kwargs: dict[str, object] = {
+    payload: dict[str, object] = {
         "schema_version": GLOSSARY_READ_LOG_SCHEMA_VERSION,
-        "id": "read-alpha",
-        "timestamp": "2026-08-01T12:00:00+00:00",
-        "project": "gh_sase-org__sase",
-        "cwd": "/tmp/sase",
-        "agent_name": "athena",
+        "id": "abc123",
+        "timestamp": "2026-05-23T12:00:00+00:00",
+        "project": "demo",
+        "cwd": "/repo",
+        "agent_name": "agent-a",
         "agent_source": "SASE_AGENT_NAME",
         "artifacts_dir": "/tmp/artifacts",
         "reason": "needed the hood/agent distinction",
         "terms": ("Alpha",),
-        "related_terms": ("Beta", "Gamma", "Delta"),
+        "related_terms": (),
         "depth_limit": None,
-        "definition_bytes": 64,
-        "source_path": "/tmp/sase/sase/sase.yml",
+        "definition_bytes": 42,
+        "source_path": "/repo/sase/memory/glossary/alpha.md",
     }
-    kwargs.update(overrides)
-    return GlossaryReadEvent(**kwargs)  # type: ignore[arg-type]
+    payload.update(overrides)
+    return GlossaryReadEvent(**payload)  # type: ignore[arg-type]
 
 
 def _spec(
-    event: GlossaryReadEvent | None = None,
-    *,
-    report_path: str = "/tmp/glossary-read.md",
-    agent_label: str | None = "coder",
+    event: GlossaryReadEvent | None = None, report_path: str = "/tmp/r.md"
 ) -> GlossaryReadReportSpec:
     return GlossaryReadReportSpec(
         event=event or _event(),
-        agent_label=agent_label,
+        agent_label=None,
         report_path=report_path,
     )
 
 
-def _patch_resolved(
-    monkeypatch: pytest.MonkeyPatch, resolved: object | None = None
-) -> None:
-    project = resolved if resolved is not None else diamond_resolved_glossary_project()
-    monkeypatch.setattr(
-        read_report_mod,
-        "resolve_glossary_cli_project",
-        lambda *_a, **_kw: project,
+def _catalog_result(*terms: str) -> EditorGlossaryCatalogResult:
+    entries = tuple(
+        GlossaryEntry(
+            index=index,
+            term=term,
+            normalized_term=term.casefold(),
+            definition=f"{term} definition.",
+            configured_aliases=(),
+            display_aliases=(),
+            effective_aliases=(term,),
+            source=None,
+        )
+        for index, term in enumerate(terms)
+    )
+    project = EditorGlossaryProject(
+        key="demo",
+        name="Demo",
+        aliases=(),
+        workspace_dir=Path("/repo"),
+    )
+    return EditorGlossaryCatalogResult(
+        project=project,
+        catalog=EditorGlossaryCatalog(
+            schema_version=EDITOR_GLOSSARY_CATALOG_SCHEMA_VERSION,
+            project=project,
+            config_path=Path("/repo/sase/memory/glossary"),
+            config_signature=_Signature(),  # type: ignore[arg-type]
+            catalog=GlossaryCatalog(schema_version=1, entries=entries),
+            compiled=None,  # type: ignore[arg-type]
+        ),
     )
 
 
-def test_report_path_is_deterministic_and_io_free(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_report_path_is_deterministic_and_project_state_scoped(
+    tmp_path: Path, monkeypatch: Any
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    event = _event()
 
-    first = glossary_read_report_path(event)
-    second = glossary_read_report_path(event)
+    first = glossary_read_report_path(_event())
+    second = glossary_read_report_path(_event())
 
     assert first == second
-    assert not Path(first).exists()
     assert Path(first).parent == tmp_path / ".sase" / "glossary_read_reports"
-    assert Path(first).name.startswith("alpha-")
-    assert Path(first).name.endswith(".md")
-    digest = hashlib.sha256(event.id.encode("utf-8")).hexdigest()[:8]
-    assert digest in Path(first).name
 
 
-def test_report_contains_command_metadata_and_definitions(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_resolved(monkeypatch)
-    report = read_report_mod._build_glossary_read_report(_spec())
+def test_build_report_uses_memory_read_reproduction(monkeypatch: Any) -> None:
+    monkeypatch.setattr(
+        "sase.xprompt.glossary_catalog.editor_glossary_catalog_for_project",
+        lambda _project: _catalog_result("Alpha"),
+    )
 
-    assert "# Glossary read: Alpha" in report
-    assert "sase glossary read Alpha -r 'needed the hood/agent distinction'" in report
-    assert "**Agent**: athena (coder)" in report
-    assert "**Reason**: needed the hood/agent distinction" in report
-    assert "**Time**:" in report
-    assert "Mentions Beta then Gamma." in report
+    report = _build_glossary_read_report(_spec())
+
+    assert (
+        "sase memory read glossary:Alpha -r 'needed the hood/agent distinction'"
+        in report
+    )
+    assert "## Output" in report
     assert "# Alpha" in report
-    assert "## Beta" in report
-    assert "Mentions Delta." in report
-    assert "gh_sase-org__sase" not in report
-    assert "GLOSSARY: sase" in report
-    assert "**Project**: sase" in report
-    assert "**Source**: /tmp/sase/sase/sase.yml" in report
 
 
-def test_report_header_uses_project_display_name(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_resolved(monkeypatch)
-    report = read_report_mod._build_glossary_read_report(_spec())
-
-    assert "GLOSSARY: sase" in report
-    assert "**Project**: sase" in report
-    assert "gh_sase-org__sase" not in report
-
-
-def test_unresolvable_project_degrades_to_metadata_note(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_build_report_records_catalog_resolution_failure(monkeypatch: Any) -> None:
     monkeypatch.setattr(
-        read_report_mod,
-        "resolve_glossary_cli_project",
-        lambda *_a, **_kw: (_ for _ in ()).throw(GlossaryCliError("no such project")),
-    )
-    monkeypatch.setattr(
-        read_report_mod,
-        "resolve_glossary_cli_project_name",
-        lambda *_a, **_kw: (_ for _ in ()).throw(GlossaryCliError("no such project")),
+        "sase.xprompt.glossary_catalog.editor_glossary_catalog_for_project",
+        lambda _project: EditorGlossaryCatalogResult(
+            project=None,
+            catalog=None,
+            diagnostics=("no such project",),
+        ),
     )
 
-    report = read_report_mod._build_glossary_read_report(_spec())
+    report = _build_glossary_read_report(_spec())
 
-    assert "## Recorded" in report
     assert "Could not resolve this project's glossary: no such project" in report
-    assert "Recorded terms: Alpha" in report
-    assert "## Output" not in report
-    assert "gh_sase-org__sase" not in report
 
 
-def test_unknown_term_degrades_to_metadata_note(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_resolved(monkeypatch)
-    report = read_report_mod._build_glossary_read_report(
-        _spec(_event(terms=("Zzz",), related_terms=()))
+def test_build_report_records_unknown_current_term(monkeypatch: Any) -> None:
+    monkeypatch.setattr(
+        "sase.xprompt.glossary_catalog.editor_glossary_catalog_for_project",
+        lambda _project: _catalog_result("Delta"),
     )
 
-    assert "Could not re-resolve the glossary closure:" in report
-    assert "unknown glossary term: Zzz" in report
-    assert "Recorded terms: Zzz" in report
-    assert "## Output" not in report
-
-
-def test_deleted_term_degrades_to_metadata_note(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    remaining = resolved_glossary_project(
-        project_name="sase",
-        entries=(glossary_entry(0, "Delta", "A leaf."),),
-    )
-    _patch_resolved(monkeypatch, remaining)
-    report = read_report_mod._build_glossary_read_report(_spec())
+    report = _build_glossary_read_report(_spec())
 
     assert "Could not re-resolve the glossary closure:" in report
     assert "unknown glossary term: Alpha" in report
-    assert "Recorded terms: Alpha" in report
-    assert "## Output" not in report
 
 
-def test_related_term_count_drift_appends_note(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_resolved(monkeypatch)
-    report = read_report_mod._build_glossary_read_report(
-        _spec(_event(related_terms=("Beta",)))
-    )
-
-    assert "Mentions Beta then Gamma." in report
-    assert (
-        "Note: this read recorded 1 related term; the current glossary has 3 "
-        "related terms."
-    ) in report
-
-
-def test_write_overwrites_and_prunes_reports(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_write_report_prunes_old_reports(tmp_path: Path, monkeypatch: Any) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    _patch_resolved(monkeypatch)
+    monkeypatch.setattr(
+        "sase.xprompt.glossary_catalog.editor_glossary_catalog_for_project",
+        lambda _project: _catalog_result("Alpha"),
+    )
     event = _event()
     path = glossary_read_report_path(event)
 
     assert write_glossary_read_report(_spec(event, report_path=path)) == path
-    assert "needed the hood/agent distinction" in Path(path).read_text(encoding="utf-8")
-
-    updated = _event(reason="confirming stitch vs commit")
-    assert write_glossary_read_report(_spec(updated, report_path=path)) == path
-    rewritten = Path(path).read_text(encoding="utf-8")
-    assert "confirming stitch vs commit" in rewritten
-    assert "needed the hood/agent distinction" not in rewritten
 
     for index in range(55):
-        extra = _event(id=f"extra-{index}", terms=("Alpha",))
+        extra = replace(
+            event,
+            id=f"extra-{index}",
+            timestamp=f"2026-05-23T12:{index:02d}:00+00:00",
+        )
         extra_path = glossary_read_report_path(extra)
-        assert write_glossary_read_report(_spec(extra, report_path=extra_path)) == (
-            extra_path
+        assert (
+            write_glossary_read_report(_spec(extra, report_path=extra_path))
+            == extra_path
         )
 
     report_dir = tmp_path / ".sase" / "glossary_read_reports"
     assert len(list(report_dir.glob("*.md"))) == 50
-
-
-def test_write_is_atomic_on_replace_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    _patch_resolved(monkeypatch)
-    event = _event()
-    path = glossary_read_report_path(event)
-    assert write_glossary_read_report(_spec(event, report_path=path)) == path
-    original = Path(path).read_text(encoding="utf-8")
-
-    monkeypatch.setattr(
-        read_report_mod.os,
-        "replace",
-        lambda *_a, **_kw: (_ for _ in ()).throw(OSError("replace failed")),
-    )
-
-    assert write_glossary_read_report(_spec(event, report_path=path)) is None
-    assert Path(path).read_text(encoding="utf-8") == original

@@ -8,7 +8,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.glossary.read_report import (
+from sase.memory.legacy_glossary_read_report import (
     GlossaryReadReportSpec,
     write_glossary_read_report,
 )

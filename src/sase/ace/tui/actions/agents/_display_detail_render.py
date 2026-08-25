@@ -14,7 +14,7 @@ from ...widgets.prompt_panel._messages import (
 from ._display_helpers import TabName
 
 if TYPE_CHECKING:
-    from sase.glossary.read_report import GlossaryReadReportSpec
+    from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
 
     from ...models import Agent
     from ...tools.report import SlowToolCallReportSpec
