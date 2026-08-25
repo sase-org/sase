@@ -153,8 +153,6 @@ never edited in place. Read one on demand with
 was chosen over the credible alternatives, what it costs, and the condition that would
 reopen it.
 
-<!-- sase:strands -->
-
 - **Agents Are Single-Turn** (`single-turn-agents`) - A SASE agent run is one provider
   turn; continuation is always mechanical, never a promise to resume.
 - **Completion Is Host-Owned** (`host-owned-completion`) - An agent never creates
@@ -170,8 +168,6 @@ reopen it.
   default and just check-full gates landing, because host capacity is the constraint,
   not test speed.
 
-<!-- /sase:strands -->
-
 ### 1.4 Glossary Terms (glossary)
 
 Run `sase memory read glossary:<term> [<term> ...] -r "<why>"` before relying on any of
@@ -179,8 +175,6 @@ these SASE terms; it prints each term's definition plus every term those definit
 depend on. Pass every term you need in one command — one batched read costs far fewer
 tokens than one read per term, because terms shared between definitions are printed
 once. Terms are separated by semicolons; aliases follow in parentheses.
-
-<!-- sase:strands -->
 
 **GLOSSARY TERMS:** Agent Clan; Agent Family; Agent Hood (hood, agent neighborhood);
 Agent Instruction File (agents.md file); Agent Neighbor; Agent Node; Agent Shell; Agent
@@ -192,8 +186,6 @@ Agent (agent); Sase Monitor (monitor); Sase Node (node); Sase Project; Sase Repo
 Shell (shell); Sase Workspace (workspace); Stitch; Strand Keyword; Task Type (task
 type); Xprompt; Xprompt Memory (memory file, sase memory); Xprompt Part; Xprompt Swarm;
 Xprompt Workflow
-
-<!-- /sase:strands -->
 
 ### 1.5 Code Conventions and Gotchas (gotchas)
 
@@ -222,8 +214,6 @@ Every task bead can carry a `task_type` drawn from this project's catalog.
 `sase memory read task_types:<slug> -r "<why>"` for one generated type in full. This
 note is the generated, always-current snapshot of the agent-creatable types below.
 
-<!-- sase:strands -->
-
 - **Bug** (`bug`) - A defect an agent found while doing unrelated work, not an external
   tracker bug.
 - **CI failure** (`ci`) - A confirmed true test or lint failure, not a flake.
@@ -231,8 +221,6 @@ note is the generated, always-current snapshot of the agent-creatable types belo
   list.
 - **Flaky test** (`flake`) - A test that fails and then passes on an unchanged tree.
 - **Memory** (`memory`) - A sase memory note or skill that is out of date.
-
-<!-- /sase:strands -->
 
 #### 1.7.1 File Discovered Work As Task Beads
 
