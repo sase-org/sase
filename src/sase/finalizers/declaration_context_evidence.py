@@ -15,6 +15,7 @@ from sase.finalizers.commit_validation import protected_baseline_paths
 from sase.finalizers.declaration_recovery_evidence import (
     MAX_PATHS_PER_REPO,
     MAX_TOOL_CALL_PATHS,
+    direct_written_paths,
     written_paths_from_tool_calls,
 )
 from sase.finalizers.declaration_store import HostRepositoryRecord
@@ -86,7 +87,7 @@ def _repository_evidence(
     written_paths: tuple[str, ...],
 ) -> dict[str, Any]:
     paths = tuple(obligation.paths)
-    run_written = _direct_written_paths(
+    run_written = direct_written_paths(
         repo_path=record.path if record is not None else None,
         written_paths=written_paths,
         named_paths=paths,
@@ -176,31 +177,6 @@ def _protected_paths(
         )
     )
     return tuple(path for path in obligation_paths if path in protected)
-
-
-def _direct_written_paths(
-    *,
-    repo_path: str | None,
-    written_paths: tuple[str, ...],
-    named_paths: tuple[str, ...],
-) -> tuple[str, ...]:
-    if repo_path is None:
-        return tuple(path for path in named_paths if path in set(written_paths))
-    named = set(named_paths)
-    repo_root = Path(repo_path).expanduser().resolve(strict=False)
-    matched: set[str] = set()
-    for raw_path in written_paths:
-        candidates = {raw_path, raw_path[2:] if raw_path.startswith("./") else raw_path}
-        candidate_path = Path(raw_path).expanduser()
-        if candidate_path.is_absolute():
-            try:
-                candidates.add(
-                    str(candidate_path.resolve(strict=False).relative_to(repo_root))
-                )
-            except ValueError:
-                pass
-        matched.update(candidate for candidate in candidates if candidate in named)
-    return tuple(path for path in named_paths if path in matched)
 
 
 def _cap(paths: tuple[str, ...], limit: int) -> tuple[tuple[str, ...], int]:

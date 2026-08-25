@@ -17,7 +17,10 @@ from sase.finalizers.declaration_manifest import (
     CommitDeferralDecision,
     commit_deferral_decisions_for_payload,
 )
-from sase.finalizers.declaration_recovery_evidence import written_paths_from_tool_calls
+from sase.finalizers.declaration_recovery_evidence import (
+    direct_written_paths,
+    written_paths_from_tool_calls,
+)
 from sase.finalizers.declaration_store import (
     FinalizerDeclarationError,
     HostRepositoryRecord,
@@ -182,7 +185,7 @@ def _adjudicate_decision(
             root=root,
         )
     if reason in {"foreign_work", "belongs_to_another_turn"}:
-        direct_writes = _direct_written_paths(
+        direct_writes = direct_written_paths(
             repo_path=record.path,
             written_paths=written_paths,
             named_paths=paths,
@@ -255,31 +258,6 @@ def _baseline_owned_paths(
         fingerprints,
     )
     return tuple(sorted(run_owned))
-
-
-def _direct_written_paths(
-    *,
-    repo_path: str,
-    written_paths: tuple[str, ...],
-    named_paths: tuple[str, ...],
-) -> tuple[str, ...]:
-    named = set(named_paths)
-    repo_root = Path(repo_path).expanduser().resolve(strict=False)
-    matched: set[str] = set()
-    for raw_path in written_paths:
-        candidates = {raw_path, raw_path[2:] if raw_path.startswith("./") else raw_path}
-        candidate_path = Path(raw_path).expanduser()
-        if candidate_path.is_absolute():
-            try:
-                candidates.add(
-                    str(candidate_path.resolve(strict=False).relative_to(repo_root))
-                )
-            except ValueError:
-                pass
-        for candidate in candidates:
-            if candidate in named:
-                matched.add(candidate)
-    return tuple(sorted(matched))
 
 
 def _reject_run_owned_paths(

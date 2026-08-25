@@ -13,6 +13,7 @@ from sase.finalizers.declaration import (
     publish_final_context,
     submit_final_manifest,
 )
+from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 
 from .finalizer_declaration_channel_test_helpers import (
     add_deferral,
@@ -125,6 +126,61 @@ def test_submit_rejects_run_owned_deferral_from_direct_write_evidence(
 
     assert exc_info.value.code == "commit_deferral_rejected"
     assert "write/edit tool calls" in str(exc_info.value)
+
+
+def test_submit_rejects_deferral_for_sidecar_path_written_by_absolute_tool_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression for run 20260825070100: `_reject_run_owned_paths` must catch
+    a bogus deferral for a linked/sidecar repo path this run wrote directly,
+    even though the tool call recorded an absolute path outside the primary
+    workspace checkout."""
+
+    sidecar = tmp_path / "sase" / "repos" / "research"
+    sidecar.mkdir(parents=True)
+    changed_path = "202608/remove_direct_git_plugin_installs.md"
+    dirty = DirtyState(
+        project_dir=str(tmp_path),
+        repos=(
+            DirtyRepo(
+                name="research",
+                path=str(sidecar),
+                changed_files=(changed_path,),
+                kind="sdd",
+            ),
+        ),
+        details="dirty",
+    )
+    prepare_dirty_declaration(monkeypatch, tmp_path, collect=lambda _root: dirty)
+    written_file = sidecar / "202608" / "remove_direct_git_plugin_installs.md"
+    (tmp_path / "tool_calls.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "ToolUse",
+                "tool_name": "Write",
+                "tool_input_summary": {"file_path": str(written_file)},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    publication = publish_final_context()
+    manifest = valid_manifest(publication)
+    add_deferral(
+        manifest,
+        publication.context.obligations[0].obligation_id,
+        reason="belongs_to_another_turn",
+        paths=[changed_path],
+    )
+
+    with pytest.raises(FinalizerDeclarationError) as exc_info:
+        submit_final_manifest(manifest)
+
+    assert exc_info.value.code == "commit_deferral_rejected"
+    message = str(exc_info.value)
+    assert changed_path in message
+    assert "write/edit tool calls" in message
 
 
 def test_submit_upholds_foreign_work_when_baseline_proves_pre_existing(

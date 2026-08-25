@@ -148,6 +148,106 @@ def test_context_publishes_bounded_repository_commit_provenance(
     assert str(tmp_path) not in json.dumps(publication.payload)
 
 
+def test_context_attributes_direct_write_to_linked_repo_by_absolute_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression for run 20260825070100: a write into a linked/sidecar repo,
+    recorded as an absolute tool-call path, must be attributed to this run
+    even though the artifacts root (and `Path.cwd()`) is the primary
+    workspace checkout, not the sidecar."""
+
+    sidecar = tmp_path / "sase" / "repos" / "research"
+    sidecar.mkdir(parents=True)
+    changed_path = "202608/remove_direct_git_plugin_installs.md"
+    dirty = DirtyState(
+        project_dir=str(tmp_path),
+        repos=(
+            DirtyRepo(
+                name="research",
+                path=str(sidecar),
+                changed_files=(changed_path,),
+                kind="sdd",
+            ),
+        ),
+        details="dirty",
+    )
+    prepare_dirty_declaration(monkeypatch, tmp_path, collect=lambda _root: dirty)
+    monkeypatch.setattr(
+        "sase.finalizers.declaration_context_evidence.protected_baseline_paths",
+        lambda _root, _repo_path, *, get_changed_files: (),
+    )
+    written_file = sidecar / "202608" / "remove_direct_git_plugin_installs.md"
+    (tmp_path / "tool_calls.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "ToolUse",
+                "tool_name": "Write",
+                "tool_input_summary": {"file_path": str(written_file)},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    publication = publish_final_context()
+
+    evidence = publication.payload["commit_declaration"]["repository_evidence"][0]
+    assert evidence["run_written_paths"] == [changed_path]
+    paths = {item["path"]: item for item in evidence["paths"]}
+    assert paths[changed_path]["written_by_this_run"] is True
+    assert str(tmp_path) not in json.dumps(publication.payload)
+
+
+def test_context_direct_write_matcher_rejects_sibling_prefix_repo_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A path under `<repo>-other/` must not be mistaken for a path under
+    `<repo>/` just because the strings share a prefix."""
+
+    repo = tmp_path / "repo"
+    sibling = tmp_path / "repo-other"
+    repo.mkdir()
+    sibling.mkdir()
+    changed_path = "src/app.py"
+    dirty = DirtyState(
+        project_dir=str(tmp_path),
+        repos=(
+            DirtyRepo(
+                name="main",
+                path=str(repo),
+                changed_files=(changed_path,),
+                kind="main",
+            ),
+        ),
+        details="dirty",
+    )
+    prepare_dirty_declaration(monkeypatch, tmp_path, collect=lambda _root: dirty)
+    monkeypatch.setattr(
+        "sase.finalizers.declaration_context_evidence.protected_baseline_paths",
+        lambda _root, _repo_path, *, get_changed_files: (),
+    )
+    (tmp_path / "tool_calls.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "ToolUse",
+                "tool_name": "Write",
+                "tool_input_summary": {"file_path": str(sibling / changed_path)},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    publication = publish_final_context()
+
+    evidence = publication.payload["commit_declaration"]["repository_evidence"][0]
+    assert evidence["run_written_paths"] == []
+    paths = {item["path"]: item for item in evidence["paths"]}
+    assert paths[changed_path]["written_by_this_run"] is False
+
+
 def test_context_host_snapshot_is_not_model_visible(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

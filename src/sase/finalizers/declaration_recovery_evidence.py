@@ -199,14 +199,21 @@ def _written_files_section(root: Path | None) -> str | None:
     paths = written_paths_from_tool_calls(root)
     if not paths:
         return None
-    lines = [f"- `{path}`" for path in paths]
+    lines = [f"- `{_workspace_relative(path)}`" for path in paths]
     return "## Files this run wrote directly\n\n" + _cap_lines(
         lines, MAX_TOOL_CALL_PATHS
     )
 
 
 def written_paths_from_tool_calls(root: Path) -> tuple[str, ...]:
-    """Return workspace-relative paths directly written by this run's tools."""
+    """Return paths directly written by this run's tools, exactly as recorded.
+
+    The path is returned verbatim (absolute or relative, whichever the tool
+    call recorded) so callers that need to relativize it against a
+    repository root other than the primary workspace checkout still can.
+    Rendering it for a human reads workspace-relative via
+    :func:`_workspace_relative`.
+    """
 
     path = root / _TOOL_CALLS_FILENAME
     try:
@@ -234,8 +241,43 @@ def written_paths_from_tool_calls(root: Path) -> tuple[str, ...]:
         file_path = summary.get("file_path")
         if not isinstance(file_path, str) or not file_path:
             continue
-        seen.setdefault(_workspace_relative(file_path), None)
+        seen.setdefault(file_path, None)
     return tuple(seen)
+
+
+def direct_written_paths(
+    *,
+    repo_path: str | None,
+    written_paths: tuple[str, ...],
+    named_paths: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Return which of ``named_paths`` this run's tool calls wrote directly.
+
+    ``written_paths`` comes from :func:`written_paths_from_tool_calls` and may
+    hold either workspace-relative or absolute paths. An absolute entry is
+    relativized against ``repo_path`` so a direct write into a linked,
+    sidecar, or external repository still matches its obligation path.
+    """
+
+    named = set(named_paths)
+    if repo_path is None:
+        return tuple(path for path in named_paths if path in set(written_paths))
+    repo_root = Path(repo_path).expanduser().resolve(strict=False)
+    matched: set[str] = set()
+    for raw_path in written_paths:
+        candidates = {raw_path}
+        if raw_path.startswith("./"):
+            candidates.add(raw_path[2:])
+        candidate_path = Path(raw_path).expanduser()
+        if candidate_path.is_absolute():
+            try:
+                candidates.add(
+                    str(candidate_path.resolve(strict=False).relative_to(repo_root))
+                )
+            except ValueError:
+                pass
+        matched.update(candidate for candidate in candidates if candidate in named)
+    return tuple(path for path in named_paths if path in matched)
 
 
 def _workspace_relative(path: str) -> str:
