@@ -11,6 +11,17 @@ from sase.main.parser import create_parser
 from tests.main.parser_help_helpers import help_subcommand_rows, parser_for
 
 
+def _no_glossary_web(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force every dispatch test onto the legacy config-backed branch.
+
+    These tests exercise pure dispatch mechanics, not the compat delegation
+    added in the `glossary` memory-web migration; without this, dispatch
+    would probe the real filesystem for a `glossary` memory web at the
+    current working directory.
+    """
+    monkeypatch.setattr(glossary_handler, "find_glossary_web", lambda *_a, **_kw: None)
+
+
 def test_parser_registers_glossary_namespace() -> None:
     parser = create_parser()
 
@@ -215,6 +226,7 @@ def test_parser_glossary_depth_rejects_negative() -> None:
 def test_glossary_all_dispatches_to_all_handler(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _no_glossary_web(monkeypatch)
     calls: list[argparse.Namespace] = []
 
     def fake_all(args: argparse.Namespace) -> None:
@@ -233,6 +245,7 @@ def test_glossary_all_dispatches_to_all_handler(
 def test_glossary_add_dispatches_to_add_handler(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _no_glossary_web(monkeypatch)
     calls: list[argparse.Namespace] = []
 
     def fake_add(args: argparse.Namespace) -> None:
@@ -251,6 +264,7 @@ def test_glossary_add_dispatches_to_add_handler(
 def test_glossary_del_dispatches_to_del_handler(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _no_glossary_web(monkeypatch)
     calls: list[argparse.Namespace] = []
 
     def fake_del(args: argparse.Namespace) -> None:
@@ -269,6 +283,7 @@ def test_glossary_del_dispatches_to_del_handler(
 def test_glossary_list_dispatches_to_list_handler(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _no_glossary_web(monkeypatch)
     calls: list[argparse.Namespace] = []
 
     def fake_list(args: argparse.Namespace) -> None:
@@ -289,6 +304,7 @@ def test_glossary_list_dispatches_to_list_handler(
 def test_glossary_show_dispatches_to_show_handler(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _no_glossary_web(monkeypatch)
     calls: list[argparse.Namespace] = []
 
     def fake_show(args: argparse.Namespace) -> None:
@@ -309,6 +325,7 @@ def test_glossary_show_dispatches_to_show_handler(
 def test_glossary_read_dispatches_to_read_handler(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _no_glossary_web(monkeypatch)
     calls: list[argparse.Namespace] = []
 
     def fake_read(args: argparse.Namespace) -> None:
@@ -331,6 +348,7 @@ def test_glossary_read_dispatches_to_read_handler(
 def test_glossary_log_dispatches_to_log_handler(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _no_glossary_web(monkeypatch)
     calls: list[argparse.Namespace] = []
 
     def fake_log(args: argparse.Namespace) -> None:
@@ -347,6 +365,7 @@ def test_glossary_log_dispatches_to_log_handler(
 
 
 def test_bare_glossary_defaults_to_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    _no_glossary_web(monkeypatch)
     calls: list[argparse.Namespace] = []
 
     def fake_list(args: argparse.Namespace) -> None:

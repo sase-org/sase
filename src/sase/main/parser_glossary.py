@@ -16,9 +16,11 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Add, delete, list, show, and audit project glossary terms",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Inspect or update the project glossary configured under "
-            "memory.glossary in sase/sase.yml. Running `sase glossary` "
-            "defaults to `sase glossary list`."
+            "Inspect or update the project glossary, which lives in the "
+            "`glossary` memory web once a project migrates "
+            "(`sase memory web migrate glossary`); `memory.glossary` in "
+            "sase/sase.yml is accepted until the next release. Running "
+            "`sase glossary` defaults to `sase glossary list`."
         ),
         epilog=(
             "examples:\n"

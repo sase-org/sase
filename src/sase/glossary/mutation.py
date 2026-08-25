@@ -86,9 +86,9 @@ def add_glossary_term(
     aliases: Sequence[str] = (),
 ) -> GlossaryMutationOutcome:
     """Insert *term* into the target project's glossary after Rust validation."""
-    cleaned_term = _require_term_text(term)
-    cleaned_definition = _require_definition_text(definition)
-    cleaned_aliases = _normalize_aliases(aliases)
+    cleaned_term = require_glossary_term_text(term)
+    cleaned_definition = require_glossary_definition_text(definition)
+    cleaned_aliases = normalize_glossary_aliases(aliases)
     project = _resolve_project(project_ref, require_catalog=False)
     config_path = resolve_project_config_write_path(project.workspace_dir)
     original_bytes, text = _read_config_text(config_path)
@@ -101,7 +101,7 @@ def add_glossary_term(
             aliases=cleaned_aliases,
         ),
     )
-    _validate_candidate(candidate)
+    validate_glossary_candidate(candidate)
     new_text = _apply_add_to_text(
         text, cleaned_term, cleaned_definition, cleaned_aliases
     )
@@ -114,7 +114,7 @@ def add_glossary_term(
         aliases=cleaned_aliases,
         definition=cleaned_definition,
         created_section=created_section,
-        restore_command=_restore_command(
+        restore_command=glossary_restore_command(
             cleaned_term,
             cleaned_definition,
             cleaned_aliases,
@@ -155,7 +155,7 @@ def delete_glossary_term(
     )
     if len(remaining) == len(current_entries):
         raise GlossaryLookupError(reference)
-    _validate_candidate(remaining)
+    validate_glossary_candidate(remaining)
     new_text = unset_key(text, (_MEMORY_KEY, _GLOSSARY_KEY, entry.term))
     if not dry_run:
         _write_config_atomically(config_path, new_text, original_bytes)
@@ -168,7 +168,7 @@ def delete_glossary_term(
         aliases=aliases,
         definition=entry.definition,
         created_section=False,
-        restore_command=_restore_command(
+        restore_command=glossary_restore_command(
             entry.term, entry.definition, aliases, project.name
         ),
         referenced_by=referenced_by,
@@ -204,7 +204,8 @@ def _resolve_project(
     )
 
 
-def _require_term_text(term: str) -> str:
+def require_glossary_term_text(term: str) -> str:
+    """Validate and normalize a glossary term string shared by all write paths."""
     if "\n" in term or "\r" in term:
         raise GlossaryMutationError("glossary term must be a single-line string")
     cleaned = term.strip()
@@ -215,14 +216,16 @@ def _require_term_text(term: str) -> str:
     return cleaned
 
 
-def _require_definition_text(definition: str) -> str:
+def require_glossary_definition_text(definition: str) -> str:
+    """Validate and normalize a glossary definition string shared by all write paths."""
     cleaned = definition.strip()
     if not cleaned:
         raise GlossaryMutationError("glossary definition must be a nonblank string")
     return cleaned
 
 
-def _normalize_aliases(aliases: Sequence[str]) -> tuple[str, ...]:
+def normalize_glossary_aliases(aliases: Sequence[str]) -> tuple[str, ...]:
+    """Validate and normalize glossary aliases shared by all write paths."""
     cleaned: list[str] = []
     for alias in aliases:
         if "\n" in alias or "\r" in alias:
@@ -306,7 +309,8 @@ def _load_current_entries(text: str) -> tuple[tuple[GlossaryInputEntry, ...], bo
     return tuple(entries), False
 
 
-def _validate_candidate(entries: Sequence[GlossaryInputEntry]) -> None:
+def validate_glossary_candidate(entries: Sequence[GlossaryInputEntry]) -> None:
+    """Raise :class:`GlossaryValidationError` when a candidate entry set is invalid."""
     diagnostics = validate_glossary_entries(entries)
     errors = tuple(item for item in diagnostics if item.severity == "error")
     if errors:
@@ -548,9 +552,10 @@ def _preferred_newline(lines: list[str]) -> str:
     return "\n"
 
 
-def _restore_command(
+def glossary_restore_command(
     term: str, definition: str, aliases: Sequence[str], project_name: str
 ) -> str:
+    """Build the ``sase glossary add`` command that restores a deleted term."""
     parts = ["sase", "glossary", "add", term, definition]
     for alias in aliases:
         parts.extend(["-a", alias])
@@ -616,4 +621,9 @@ __all__ = [
     "GlossaryValidationError",
     "add_glossary_term",
     "delete_glossary_term",
+    "glossary_restore_command",
+    "normalize_glossary_aliases",
+    "require_glossary_definition_text",
+    "require_glossary_term_text",
+    "validate_glossary_candidate",
 ]
