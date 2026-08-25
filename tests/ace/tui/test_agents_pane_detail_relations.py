@@ -25,45 +25,19 @@ from sase.ace.tui.widgets.artifacts.agents_detail import (
 from sase.ace.tui.widgets.artifacts.agents_list import build_grouped_agent_rows
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.agents.catalog import AgentCatalogRow
+from tests._agent_catalog_helpers import make_agent_catalog_row
 
 
 def _agent_row(name: str, **overrides: Any) -> AgentCatalogRow:
     defaults: dict[str, Any] = {
-        "name": name,
-        "canonical_global_name": None,
         "kind": ("member",),
         "project": "alpha",
         "state": "active",
-        "family": None,
-        "role": None,
-        "clan": None,
-        "tribe": None,
-        "workflow": None,
-        "parent_timestamp": None,
-        "raw_suffix": None,
-        "artifacts_dir": None,
-        "bundle_path": None,
-        "model": None,
-        "llm_provider": None,
         "status": "RUNNING",
-        "hidden": False,
-        "started_at": None,
-        "finished_at": None,
-        "retry_attempt": None,
-        "retry_of_timestamp": None,
-        "retried_as_timestamp": None,
-        "retry_chain_root_timestamp": None,
-        "patch": None,
-        "dismissed": False,
-        "revivable": False,
-        "attention": False,
-        "retry": False,
-        "has_collision_history": False,
         "from_artifact_index": True,
-        "from_dismissed_archive": False,
     }
     defaults.update(overrides)
-    return AgentCatalogRow(**defaults)
+    return make_agent_catalog_row(name, **defaults)
 
 
 def _contract() -> Any:

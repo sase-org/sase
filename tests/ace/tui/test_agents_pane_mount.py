@@ -14,6 +14,7 @@ from __future__ import annotations
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.agents_pane import ArtifactsAgentsPane
 from sase.ace.tui.widgets.artifacts.shell import ArtifactsPaneState
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
 
 async def test_agents_pane_mounts_activates_and_loads() -> None:
@@ -23,7 +24,10 @@ async def test_agents_pane_mounts_activates_and_loads() -> None:
         pane = page.query_one_widget("#artifacts-agents-pane", ArtifactsAgentsPane)
         assert pane.artifacts_active is True
         assert pane.first_activation_count == 1
-        await page.pause()
+        await page.wait_for(
+            lambda _state: pane.pane_state() is not ArtifactsPaneState.LOADING,
+            timeout=LOAD_TOLERANT_TIMEOUT,
+        )
         assert pane.pane_state() in {
             ArtifactsPaneState.RESULTS,
             ArtifactsPaneState.EMPTY,

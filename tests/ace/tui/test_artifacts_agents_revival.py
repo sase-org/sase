@@ -10,6 +10,7 @@ from sase.ace.tui.widgets.artifacts.agents_revival import (
 )
 from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from sase.agents.catalog import AgentCatalogRow
+from tests._agent_catalog_helpers import make_agent_catalog_row
 
 
 class _Pane(AgentsRevivalMixin):
@@ -115,34 +116,20 @@ def _row(
     dismissed: bool = False,
     revivable: bool = False,
 ) -> AgentCatalogRow:
-    return AgentCatalogRow(
-        name=name,
+    return make_agent_catalog_row(
+        name,
         canonical_global_name=name,
         kind=kind,
         project="sase",
         state=state,
         family=family,
-        role=None,
         clan=clan,
-        tribe=None,
-        workflow=None,
-        parent_timestamp=None,
         raw_suffix=f"{name}-suffix",
         artifacts_dir=f"/tmp/{name}",
         bundle_path=f"/tmp/{name}.json" if dismissed else None,
-        model=None,
-        llm_provider=None,
         status="DONE" if dismissed else None,
-        hidden=False,
-        started_at=None,
-        finished_at=None,
-        retry_attempt=None,
-        patch=None,
         dismissed=dismissed,
         revivable=revivable,
-        attention=False,
-        retry=False,
-        has_collision_history=False,
         from_artifact_index=not dismissed,
         from_dismissed_archive=dismissed,
         retry_of_timestamp=None,

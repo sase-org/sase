@@ -14,6 +14,7 @@ from sase.project_display_names import (
     ProjectDisplaySnapshot,
     ProjectRefDisplaySnapshot,
 )
+from tests._agent_catalog_helpers import make_agent_catalog_row
 from tests.main.parser_help_helpers import help_subcommand_rows, parser_for
 
 _JSON_KEYS = {
@@ -221,41 +222,20 @@ def _snapshot(*rows: AgentCatalogRow) -> AgentCatalogSnapshot:
 
 def _row(name: str, **overrides: Any) -> AgentCatalogRow:
     values: dict[str, Any] = {
-        "name": name,
         "canonical_global_name": f"bbugyi200.athena.{name}",
         "kind": ("agent",),
         "project": "gh_sase-org__sase",
         "state": "active",
-        "family": None,
-        "role": None,
-        "clan": None,
-        "tribe": None,
-        "workflow": None,
-        "parent_timestamp": None,
-        "retry_of_timestamp": None,
-        "retried_as_timestamp": None,
-        "retry_chain_root_timestamp": None,
         "raw_suffix": "20260801000000",
         "artifacts_dir": f"/artifacts/{name}",
-        "bundle_path": None,
         "model": "gpt-5",
         "llm_provider": "codex",
         "status": "DONE",
-        "hidden": False,
         "started_at": "2026-08-01T00:00:00+00:00",
-        "finished_at": None,
-        "retry_attempt": None,
-        "patch": None,
-        "dismissed": False,
-        "revivable": False,
-        "attention": False,
-        "retry": False,
-        "has_collision_history": False,
         "from_artifact_index": True,
-        "from_dismissed_archive": False,
     }
     values.update(overrides)
-    return AgentCatalogRow(**values)
+    return make_agent_catalog_row(name, **values)
 
 
 def _epoch(value: str) -> float:

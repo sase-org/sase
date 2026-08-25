@@ -18,6 +18,7 @@ from sase.ace.tui.widgets.artifacts.files_pane import ArtifactsFilesPane
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsDocumentsPane
 from sase.ace.tui.widgets.artifacts.shell import ArtifactsPaneState
 from sase.agents.catalog import AgentCatalogRow
+from tests._agent_catalog_helpers import make_agent_catalog_row
 from tests.ace.tui._artifacts_beads_helpers import snapshot as beads_snapshot
 from tests.ace.tui._artifacts_files_helpers import artifact_file
 from tests.ace.tui._artifacts_files_helpers import snapshot as files_snapshot
@@ -26,41 +27,16 @@ from tests.ace.tui._artifacts_plans_helpers import _snapshot as plans_snapshot
 
 def _agent_row(name: str = "0b4--0", **overrides: Any) -> AgentCatalogRow:
     defaults: dict[str, Any] = {
-        "name": name,
-        "canonical_global_name": None,
         "kind": ("member",),
         "project": "alpha",
         "state": "active",
         "family": "0b4",
         "role": "code",
-        "clan": None,
-        "tribe": None,
-        "workflow": None,
-        "parent_timestamp": None,
-        "raw_suffix": None,
-        "artifacts_dir": None,
-        "bundle_path": None,
-        "model": None,
-        "llm_provider": None,
         "status": "RUNNING",
-        "hidden": False,
-        "started_at": None,
-        "finished_at": None,
-        "retry_attempt": None,
-        "retry_of_timestamp": None,
-        "retried_as_timestamp": None,
-        "retry_chain_root_timestamp": None,
-        "patch": None,
-        "dismissed": False,
-        "revivable": False,
-        "attention": False,
-        "retry": False,
-        "has_collision_history": False,
         "from_artifact_index": True,
-        "from_dismissed_archive": False,
     }
     defaults.update(overrides)
-    return AgentCatalogRow(**defaults)
+    return make_agent_catalog_row(name, **defaults)
 
 
 def test_beads_pane_state_precedence(tmp_path: Path) -> None:

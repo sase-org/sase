@@ -18,45 +18,27 @@ from sase.project_display_names import (
     ProjectDisplaySnapshot,
     ProjectRefDisplaySnapshot,
 )
+from tests._agent_catalog_helpers import make_agent_catalog_row
 
 
 def _row(name: str, **overrides: Any) -> AgentCatalogRow:
     values: dict[str, Any] = {
-        "name": name,
         "canonical_global_name": f"bbugyi200.athena.{name}",
         "kind": ("agent",),
         "project": "gh_sase-org__sase",
         "state": "active",
-        "family": None,
-        "role": None,
-        "clan": None,
-        "tribe": None,
-        "workflow": None,
-        "parent_timestamp": None,
         "raw_suffix": "20260824100000",
         "artifacts_dir": f"/agents/{name}",
-        "bundle_path": None,
         "model": "gpt-5",
         "llm_provider": "codex",
         "status": "DONE",
-        "hidden": False,
         "started_at": "2026-08-24T10:00:00+00:00",
         "finished_at": 1798107000.0,
         "retry_attempt": 0,
-        "patch": None,
-        "dismissed": False,
-        "revivable": False,
-        "attention": False,
-        "retry": False,
-        "has_collision_history": False,
         "from_artifact_index": True,
-        "from_dismissed_archive": False,
-        "retry_of_timestamp": None,
-        "retried_as_timestamp": None,
-        "retry_chain_root_timestamp": None,
     }
     values.update(overrides)
-    return AgentCatalogRow(**values)
+    return make_agent_catalog_row(name, **values)
 
 
 def _snapshot(rows: tuple[AgentCatalogRow, ...]) -> AgentsSnapshot:
