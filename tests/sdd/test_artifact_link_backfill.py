@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.sdd.artifact_link_backfill import (
     run_artifact_link_backfill_batch,
     sweepable_artifact_link_documents,
@@ -84,10 +83,9 @@ def test_batch_is_bounded_and_reports_remaining(
     _write_plan(tmp_path, "202608/b.md", bead="sase-yy")
     _write_plan(tmp_path, "202608/c.md", bead="sase-zz")
 
-    with override_flags(artifact_link_derivation=True):
-        report, swept = run_artifact_link_backfill_batch(
-            store, already_swept=frozenset(), batch_size=2
-        )
+    report, swept = run_artifact_link_backfill_batch(
+        store, already_swept=frozenset(), batch_size=2
+    )
 
     assert report.total_pending == 3
     assert report.scanned == 2
@@ -95,10 +93,9 @@ def test_batch_is_bounded_and_reports_remaining(
     assert report.persisted == 2
     assert len(swept) == 2
 
-    with override_flags(artifact_link_derivation=True):
-        second_report, second_swept = run_artifact_link_backfill_batch(
-            store, already_swept=swept, batch_size=2
-        )
+    second_report, second_swept = run_artifact_link_backfill_batch(
+        store, already_swept=swept, batch_size=2
+    )
 
     assert second_report.scanned == 1
     assert second_report.remaining == 0
@@ -114,10 +111,9 @@ def test_no_pending_documents_is_a_fast_noop(
     _write_plan(tmp_path, "202608/a.md", bead="sase-xx")
     already_swept = frozenset({"plan:202608/a.md"})
 
-    with override_flags(artifact_link_derivation=True):
-        report, swept = run_artifact_link_backfill_batch(
-            store, already_swept=already_swept, batch_size=500
-        )
+    report, swept = run_artifact_link_backfill_batch(
+        store, already_swept=already_swept, batch_size=500
+    )
 
     assert report.total_pending == 0
     assert report.scanned == 0

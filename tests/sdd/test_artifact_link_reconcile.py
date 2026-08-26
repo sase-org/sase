@@ -27,7 +27,11 @@ def test_reconciles_and_repairs_with_the_doctor_candidate_refs(
 ) -> None:
     store = _store(tmp_path, monkeypatch)
     reconcile_calls: list[object] = []
-    monkeypatch.setattr(store, "reconcile_aggregate", lambda: reconcile_calls.append(1))
+    monkeypatch.setattr(
+        ArtifactLinkStore,
+        "reconcile_aggregate",
+        lambda _store: reconcile_calls.append(1),
+    )
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
         lambda _store: ("plan:202608/dangling.md",),
@@ -54,7 +58,7 @@ def test_commits_changed_paths_from_a_repair(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = _store(tmp_path, monkeypatch)
-    monkeypatch.setattr(store, "reconcile_aggregate", lambda: None)
+    monkeypatch.setattr(ArtifactLinkStore, "reconcile_aggregate", lambda _store: None)
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
         lambda _store: (),
@@ -83,7 +87,7 @@ def test_no_changed_paths_does_not_commit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = _store(tmp_path, monkeypatch)
-    monkeypatch.setattr(store, "reconcile_aggregate", lambda: None)
+    monkeypatch.setattr(ArtifactLinkStore, "reconcile_aggregate", lambda _store: None)
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
         lambda _store: (),

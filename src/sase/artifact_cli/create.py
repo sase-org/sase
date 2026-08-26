@@ -148,10 +148,6 @@ def _derive_links_for_created_artifact(
 
     if not path:
         return
-    from sase.artifact_links.derive import artifact_link_derivation_enabled
-
-    if not artifact_link_derivation_enabled():
-        return
     try:
         from sase.artifact_links.derive import DerivableDocument
         from sase.sdd.artifact_link_derivation import derive_and_persist_artifact_links

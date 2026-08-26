@@ -231,10 +231,6 @@ def _derive_artifact_links_for_commit(
 
         if cause == ARTIFACT_LINK_FILE_HOOK_CAUSE:
             return
-        from sase.artifact_links.derive import artifact_link_derivation_enabled
-
-        if not artifact_link_derivation_enabled():
-            return
         from sase.artifact_links.derive import DerivableDocument
         from sase.sdd._artifact_link_store_support import (
             canonicalize_artifact_link_ref,

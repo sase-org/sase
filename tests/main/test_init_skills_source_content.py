@@ -47,6 +47,17 @@ def test_sase_plan_skill_does_not_expose_internal_model_aliases() -> None:
         assert internal_name not in body
 
 
+def test_sase_plan_skill_mentions_artifact_read_derivation() -> None:
+    src = get_sase_package_skills_dir() / "sase_plan.md"
+    body = src.read_text(encoding="utf-8")
+    flat = collapse_whitespace(body)
+
+    assert (
+        "SASE derives your plan's links from the artifacts you read this turn; "
+        "use `sase artifact read` for context you actually used."
+    ) in flat
+
+
 def test_sase_repo_skill_description_covers_web_fetches() -> None:
     """The always-visible skill trigger closes the repository web-fetch loophole."""
     src = get_sase_package_skills_dir() / "sase_repo.md"

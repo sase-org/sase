@@ -172,6 +172,7 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
         "migrate-notes",
         "relation",
         "rm",
+        "suggest",
     ]
     assert _long_options(link_subcommands.choices["add"]) == []
     assert _long_options(link_subcommands.choices["list"]) == [
@@ -190,6 +191,10 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
     assert _long_options(relation_subcommands.choices["list"]) == ["--json"]
     assert _long_options(relation_subcommands.choices["show"]) == ["--json"]
     assert _long_options(link_subcommands.choices["rm"]) == ["--relation"]
+    assert _long_options(link_subcommands.choices["suggest"]) == [
+        "--json",
+        "--limit",
+    ]
     assert _long_options(subcommands.choices["list"]) == [
         "--agent",
         "--explicit",

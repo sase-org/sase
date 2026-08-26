@@ -18,7 +18,6 @@ from pathlib import Path
 
 from sase.artifact_links.derive import (
     DerivableDocument,
-    artifact_link_derivation_enabled,
     derive_candidate_links,
 )
 from sase.sdd._artifact_link_commit import (
@@ -50,11 +49,11 @@ def derive_and_persist_artifact_links(
     """Derive candidate rows for *documents* and persist them via *store*.
 
     A no-op, including the known-bead-ids read the ``implements`` rule needs,
-    when the beta flag is off or *documents* is empty. Every persisted row is
-    committed together in at most one scoped commit rather than one per row.
+    when *documents* is empty. Every persisted row is committed together in at
+    most one scoped commit rather than one per row.
     """
 
-    if not documents or not artifact_link_derivation_enabled():
+    if not documents:
         return ArtifactLinkDerivationOutcome()
 
     candidates = derive_candidate_links(

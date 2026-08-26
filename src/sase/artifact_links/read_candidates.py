@@ -16,7 +16,7 @@ from sase.artifact_read_log import ArtifactReadEvent
 
 
 @dataclass(frozen=True, slots=True)
-class ReadCitationCandidate:
+class _ReadCitationCandidate:
     """One ``(agent, ref)`` pairing ranked by how often it recurred."""
 
     agent_name: str
@@ -28,7 +28,7 @@ class ReadCitationCandidate:
 
 def rank_read_citation_candidates(
     events: Sequence[ArtifactReadEvent],
-) -> tuple[ReadCitationCandidate, ...]:
+) -> tuple[_ReadCitationCandidate, ...]:
     """Aggregate every read event into one ranked candidate per (agent, ref).
 
     Scoped to every read, not a `plan:`/`research:` subset (owner decision
@@ -49,7 +49,7 @@ def rank_read_citation_candidates(
             latest[key] = event
 
     candidates = [
-        ReadCitationCandidate(
+        _ReadCitationCandidate(
             agent_name=agent_name,
             ref=ref,
             reason=latest[(agent_name, ref)].reason,
@@ -64,4 +64,4 @@ def rank_read_citation_candidates(
     return tuple(candidates)
 
 
-__all__ = ["ReadCitationCandidate", "rank_read_citation_candidates"]
+__all__ = ["rank_read_citation_candidates"]

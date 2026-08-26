@@ -2,10 +2,10 @@
 
 The reactive derivation hooks (``sase plan propose``, ``sase artifact
 create``, the sidecar commit path) only see documents created or committed
-after the beta flag went on. This sweep covers everything that existed
-before it: it walks every ``plan:``/``research:`` document the project's
-sidecar roots hold, deriving and persisting candidates for whichever ones a
-caller has not already swept.
+after their hooks landed. This sweep covers everything that existed before
+them: it walks every ``plan:``/``research:`` document the project's sidecar
+roots hold, deriving and persisting candidates for whichever ones a caller has
+not already swept.
 """
 
 from __future__ import annotations
@@ -13,10 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.artifact_links.derive import (
-    DerivableDocument,
-    artifact_link_derivation_enabled,
-)
+from sase.artifact_links.derive import DerivableDocument
 from sase.sdd.artifact_link_derivation import (
     ArtifactLinkDerivationOutcome,
     derive_and_persist_artifact_links,
@@ -32,7 +29,7 @@ _SWEEP_CREATED_BY = "sase"
 
 
 @dataclass(frozen=True)
-class ArtifactLinkBackfillReport:
+class _ArtifactLinkBackfillReport:
     """Outcome of one bounded sweep batch."""
 
     total_pending: int = 0
@@ -78,26 +75,22 @@ def run_artifact_link_backfill_batch(
     already_swept: frozenset[str],
     batch_size: int,
     artifacts_dir: str | Path | None = None,
-) -> tuple[ArtifactLinkBackfillReport, frozenset[str]]:
+) -> tuple[_ArtifactLinkBackfillReport, frozenset[str]]:
     """Derive and persist one bounded batch of not-yet-swept documents.
 
     Returns the batch report plus the updated swept-ref set: *already_swept*
     plus every document this call examined, whether or not it produced a
-    candidate, so a repeat call over an unchanged tree is a fast no-op. A
-    no-op, skipping even the directory walk, when the beta flag is off.
+    candidate, so a repeat call over an unchanged tree is a fast no-op.
     """
-
-    if not artifact_link_derivation_enabled():
-        return ArtifactLinkBackfillReport(), already_swept
 
     pending = sweepable_artifact_link_documents(store, already_swept=already_swept)
     if not pending:
-        return ArtifactLinkBackfillReport(), already_swept
+        return _ArtifactLinkBackfillReport(), already_swept
 
     batch = pending[: max(0, batch_size)]
     if not batch:
         return (
-            ArtifactLinkBackfillReport(
+            _ArtifactLinkBackfillReport(
                 total_pending=len(pending), remaining=len(pending)
             ),
             already_swept,
@@ -110,7 +103,7 @@ def run_artifact_link_backfill_batch(
         artifacts_dir=artifacts_dir,
     )
     updated_swept = already_swept | frozenset(document.ref for document in batch)
-    report = ArtifactLinkBackfillReport(
+    report = _ArtifactLinkBackfillReport(
         total_pending=len(pending),
         scanned=len(batch),
         candidates=outcome.candidates,
@@ -122,7 +115,7 @@ def run_artifact_link_backfill_batch(
 
 
 @dataclass(frozen=True)
-class ArtifactLinkReconcileReport:
+class _ArtifactLinkReconcileReport:
     """Outcome of one cross-workspace reconcile-and-repair pass."""
 
     repaired_renames: int = 0
@@ -130,7 +123,7 @@ class ArtifactLinkReconcileReport:
 
 def reconcile_and_repair_artifact_links(
     store: ArtifactLinkStore,
-) -> ArtifactLinkReconcileReport:
+) -> _ArtifactLinkReconcileReport:
     """Run the cross-workspace aggregate reconcile and dangling-ref repair.
 
     The aggregate reconcile writes only machine-local state
@@ -156,12 +149,10 @@ def reconcile_and_repair_artifact_links(
             push_after_commit="async",
             mutation_origin="machine" if store.sdd_store is not None else "user",
         )
-    return ArtifactLinkReconcileReport(repaired_renames=len(repair.renames))
+    return _ArtifactLinkReconcileReport(repaired_renames=len(repair.renames))
 
 
 __all__ = [
-    "ArtifactLinkBackfillReport",
-    "ArtifactLinkReconcileReport",
     "reconcile_and_repair_artifact_links",
     "run_artifact_link_backfill_batch",
     "sweepable_artifact_link_documents",

@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.sdd._commit_store import _derive_artifact_links_for_commit
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 
@@ -38,13 +37,12 @@ def test_skips_a_non_derivable_sidecar_role(
 ) -> None:
     calls = _capture_derivation(monkeypatch)
 
-    with override_flags(artifact_link_derivation=True):
-        _derive_artifact_links_for_commit(
-            tmp_path,
-            sidecar_role="beads",
-            cause="user",
-            changed_files=["202608/a.md"],
-        )
+    _derive_artifact_links_for_commit(
+        tmp_path,
+        sidecar_role="beads",
+        cause="user",
+        changed_files=["202608/a.md"],
+    )
 
     assert calls == []
 
@@ -55,32 +53,12 @@ def test_skips_the_artifact_links_cause_to_avoid_retriggering(
     calls = _capture_derivation(monkeypatch)
     _fake_store(tmp_path, monkeypatch)
 
-    with override_flags(artifact_link_derivation=True):
-        _derive_artifact_links_for_commit(
-            tmp_path,
-            sidecar_role="plans",
-            cause="artifact_links",
-            changed_files=["202608/a.md"],
-        )
-
-    assert calls == []
-
-
-def test_skips_when_the_flag_is_off(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    calls = _capture_derivation(monkeypatch)
-    _fake_store(tmp_path, monkeypatch)
-    (tmp_path / "202608").mkdir()
-    (tmp_path / "202608" / "a.md").write_text("body\n", encoding="utf-8")
-
-    with override_flags():
-        _derive_artifact_links_for_commit(
-            tmp_path,
-            sidecar_role="plans",
-            cause="user",
-            changed_files=["202608/a.md"],
-        )
+    _derive_artifact_links_for_commit(
+        tmp_path,
+        sidecar_role="plans",
+        cause="artifact_links",
+        changed_files=["202608/a.md"],
+    )
 
     assert calls == []
 
@@ -95,17 +73,16 @@ def test_derives_for_changed_markdown_files_and_skips_the_links_dir(
     (tmp_path / "links" / "202608").mkdir(parents=True)
     (tmp_path / "links" / "202608" / "a.md.json").write_text("{}", encoding="utf-8")
 
-    with override_flags(artifact_link_derivation=True):
-        _derive_artifact_links_for_commit(
-            tmp_path,
-            sidecar_role="plans",
-            cause="user",
-            changed_files=[
-                "202608/a.md",
-                "links/202608/a.md.json",
-                "202608/deleted.md",
-            ],
-        )
+    _derive_artifact_links_for_commit(
+        tmp_path,
+        sidecar_role="plans",
+        cause="user",
+        changed_files=[
+            "202608/a.md",
+            "links/202608/a.md.json",
+            "202608/deleted.md",
+        ],
+    )
 
     assert len(calls) == 1
     _store, documents, _kwargs = calls[0]

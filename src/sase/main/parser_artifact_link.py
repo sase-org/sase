@@ -10,17 +10,18 @@ from sase.main.parser_bead import nonnegative_int
 def register_artifact_link_parser(
     artifact_subparsers: argparse._SubParsersAction,
 ) -> None:
-    """Register ``sase artifact link`` with add/list/migrate-notes/relation/rm."""
+    """Register ``sase artifact link`` subcommands."""
 
     link_parser = artifact_subparsers.add_parser(
         "link",
-        help="Add, list, and remove typed artifact links",
+        help="Add, list, remove, and suggest typed artifact links",
         description=(
             "Typed, bidirectional artifact links. Bare `sase artifact link` "
             "defaults to `sase artifact link list`.\n\n"
             "`add` always takes an explicit source ref, a closed-registry "
             "relation, a target ref, and a one-line why. `blocks` and "
-            "`depends-on` error with a pointer to `sase bead dep`."
+            "`depends-on` error with a pointer to `sase bead dep`. "
+            "`suggest` prints hard-evidence candidates and writes nothing."
         ),
         epilog=(
             "examples:\n"
@@ -30,6 +31,7 @@ def register_artifact_link_parser(
             "  sase artifact link list plan:202608/a.md -d both\n"
             "  sase artifact link rm plan:202608/a.md bead:sase-js "
             "-R implements\n"
+            "  sase artifact link suggest plan:202608/a.md\n"
             "  sase artifact link migrate-notes\n"
             "  sase artifact link relation show implements"
         ),
@@ -224,6 +226,38 @@ def register_artifact_link_parser(
         "--relation",
         default=None,
         help="Only remove this relation slug (default: every edge between the pair)",
+    )
+
+    suggest_parser = link_subparsers.add_parser(
+        "suggest",
+        help="Suggest missing links from hard evidence without writing rows",
+        description=(
+            "Suggest missing artifact links from hard evidence only: shared "
+            "beads, shared epics, overlapping read sets, read-log candidates, "
+            "and deterministic filename lineage. Suggestions are ephemeral; "
+            "the command never writes store rows or companion files."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    suggest_parser.add_argument(
+        "reference",
+        nargs="?",
+        default=None,
+        help="Optional artifact reference whose suggestions should be shown",
+    )
+    suggest_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON array (stable schema)",
+    )
+    suggest_parser.add_argument(
+        "-l",
+        "--limit",
+        type=nonnegative_int,
+        default=50,
+        metavar="N",
+        help="Maximum suggestions to return (default: 50; 0 means unlimited)",
     )
 
 

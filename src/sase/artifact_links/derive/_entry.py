@@ -20,13 +20,11 @@ def derive_candidate_links(
 ) -> tuple[DerivedLinkCandidate, ...]:
     """Run every derivation rule over *documents* and return candidate rows.
 
-    Writes nothing itself: the caller owns persistence and its own flag
-    check (``artifact_link_derivation_enabled``). A document whose ref kind
-    no rule recognizes contributes no candidates. *agents_sidecar_root* and
-    *is_agent_published* feed only ``derive_agent_cites_plan``; omitting
-    either -- there being no agents sidecar clone here, or no publication
-    check supplied -- makes that one rule a no-op rather than the whole
-    entry point.
+    Writes nothing itself: the caller owns persistence. A document whose ref
+    kind no rule recognizes contributes no candidates. *agents_sidecar_root*
+    and *is_agent_published* feed only ``derive_agent_cites_plan``; omitting
+    either -- there being no agents sidecar clone here, or no publication check
+    supplied -- makes that one rule a no-op rather than the whole entry point.
     """
 
     published_check = is_agent_published or _no_agent_published

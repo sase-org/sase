@@ -184,6 +184,22 @@ def _print_report(
         )
         table.add_row("Read-link outbox", str(link_report.outbox_entries))
         table.add_row("Read-link outbox dropped", str(link_report.outbox_dropped))
+        if link_report.coverage.populations:
+            for population in link_report.coverage.populations:
+                table.add_row(
+                    f"Derived coverage: {population.name}",
+                    _coverage_fraction(population.linked, population.total),
+                )
+        else:
+            table.add_row("Derived coverage", "[dim]none[/dim]")
+        table.add_row(
+            "Rows by origin",
+            _count_pairs(link_report.coverage.rows_by_origin),
+        )
+        table.add_row(
+            "Rows by relation",
+            _count_pairs(link_report.coverage.rows_by_relation),
+        )
         if link_report.rebuilt:
             table.add_row("Link aggregate", "[green]rebuilt[/green]")
         if link_report.repaired_renames:
@@ -230,6 +246,17 @@ def _count_markup(value: int, *, healthy: bool) -> str:
 
 def _counter_pair(left: int, left_label: str, right: int, right_label: str) -> str:
     return f"{left} {left_label} / {right} {right_label} (delta {right - left:+d})"
+
+
+def _coverage_fraction(linked: int, total: int) -> str:
+    percent = 0 if total == 0 else round((linked / total) * 100)
+    return f"{linked} linked / {total} candidates ({percent}%)"
+
+
+def _count_pairs(values: tuple[tuple[str, int], ...]) -> str:
+    if not values:
+        return "[dim]none[/dim]"
+    return ", ".join(f"{name}: {count}" for name, count in values)
 
 
 __all__ = ["handle_doctor"]

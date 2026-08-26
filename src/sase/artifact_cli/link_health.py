@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from sase.artifact_cli.references import resolve_cli_reference
 from sase.artifact_read_log import read_artifact_read_events
+from sase.artifact_links.derive import derive_candidate_links
 from sase.core.rust import require_rust_binding
 from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
 from sase.sdd._artifact_link_projection import safety_body
@@ -35,6 +37,24 @@ _RESOLVED = frozenset({"exact", "drifted", "vcs_backed"})
 
 
 @dataclass(frozen=True)
+class _ArtifactLinkCoveragePopulation:
+    """Coverage for one derivable hard-evidence population."""
+
+    name: str
+    linked: int
+    total: int
+
+
+@dataclass(frozen=True)
+class _ArtifactLinkCoverageReport:
+    """Informational coverage counters for derived artifact links."""
+
+    populations: tuple[_ArtifactLinkCoveragePopulation, ...] = ()
+    rows_by_origin: tuple[tuple[str, int], ...] = ()
+    rows_by_relation: tuple[tuple[str, int], ...] = ()
+
+
+@dataclass(frozen=True)
 class ArtifactLinkHealthReport:
     """Doctor findings for the artifact link graph."""
 
@@ -53,6 +73,9 @@ class ArtifactLinkHealthReport:
     aggregate_rows: int = 0
     outbox_entries: int = 0
     outbox_dropped: int = 0
+    coverage: _ArtifactLinkCoverageReport = field(
+        default_factory=_ArtifactLinkCoverageReport
+    )
     rebuilt: bool = False
     repaired_renames: int = 0
 
@@ -139,6 +162,7 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         aggregate_rows=len(rows),
         outbox_entries=0 if outbox is None else outbox.queued,
         outbox_dropped=0 if outbox is None else outbox.dropped,
+        coverage=_coverage_report(store, rows),
         rebuilt=fix,
         repaired_renames=repaired_renames,
     )
@@ -175,6 +199,107 @@ def _read_row_count(rows: tuple[dict[str, Any], ...]) -> int:
             )
         )
     return len(seen)
+
+
+def _coverage_report(
+    store: ArtifactLinkStore,
+    rows: list[dict[str, Any]],
+) -> _ArtifactLinkCoverageReport:
+    origin_counts = Counter(str(row.get("origin") or "unknown") for row in rows)
+    relation_counts = Counter(str(row.get("relation") or "unknown") for row in rows)
+    existing = _exact_row_keys(rows)
+    populations: dict[str, set[tuple[str, str, str]]] = {}
+    try:
+        from sase.sdd.artifact_link_backfill import sweepable_artifact_link_documents
+
+        candidates = derive_candidate_links(
+            sweepable_artifact_link_documents(store),
+            known_bead_ids=frozenset(_known_bead_ids(store) or ()),
+            agents_sidecar_root=_agents_sidecar_root(store),
+            is_agent_published=_is_agent_published,
+        )
+    except Exception:  # noqa: BLE001 - coverage is a report, not a gate.
+        candidates = ()
+
+    for candidate in candidates:
+        population = _coverage_population(
+            candidate.source_ref,
+            candidate.relation,
+            candidate.target_ref,
+        )
+        if population is None:
+            continue
+        populations.setdefault(population, set()).add(
+            (candidate.source_ref, candidate.relation, candidate.target_ref)
+        )
+
+    coverage = tuple(
+        _ArtifactLinkCoveragePopulation(
+            name=name,
+            linked=sum(1 for key in keys if key in existing),
+            total=len(keys),
+        )
+        for name, keys in sorted(populations.items())
+    )
+    return _ArtifactLinkCoverageReport(
+        populations=coverage,
+        rows_by_origin=tuple(sorted(origin_counts.items())),
+        rows_by_relation=tuple(sorted(relation_counts.items())),
+    )
+
+
+def _exact_row_keys(
+    rows: list[dict[str, Any]],
+) -> frozenset[tuple[str, str, str]]:
+    return frozenset(
+        (
+            str(row.get("source_ref") or ""),
+            str(row.get("relation") or ""),
+            str(row.get("target_ref") or ""),
+        )
+        for row in rows
+        if row.get("source_ref") and row.get("relation") and row.get("target_ref")
+    )
+
+
+def _coverage_population(
+    source_ref: str,
+    relation: str,
+    target_ref: str,
+) -> str | None:
+    source_kind = kind_of_ref(source_ref)
+    target_kind = kind_of_ref(target_ref)
+    if source_kind == "plan" and relation == "implements" and target_kind == "bead":
+        return "plan bead_id implements"
+    if (
+        source_kind == "research"
+        and relation == "derives-from"
+        and target_kind == "research"
+    ):
+        return "research-swarm filename lineage"
+    if source_kind == "agent" and relation == "cites" and target_kind == "plan":
+        return "prompt header cites"
+    return None
+
+
+def _agents_sidecar_root(store: ArtifactLinkStore) -> Path | None:
+    if store.sdd_store is None:
+        return None
+    from sase.sdd.store import AGENTS_SIDECAR_ROLE
+
+    try:
+        root = store.sdd_store.kind_root(AGENTS_SIDECAR_ROLE)
+    except Exception:  # noqa: BLE001 - no agents sidecar, no coverage candidates.
+        return None
+    return root if root.is_dir() else None
+
+
+def _is_agent_published(agent_name: str) -> bool:
+    try:
+        result = resolve_cli_reference(f"agent:{agent_name}")
+    except Exception:  # noqa: BLE001 - unpublished agents are not covered rows.
+        return False
+    return result.resolution.status in _RESOLVED
 
 
 def _dangling_refs(

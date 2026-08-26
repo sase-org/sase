@@ -3090,7 +3090,7 @@
           {
             "aliases": [],
             "default_child": "list",
-            "description_digest": "ac0f7dc397a837b5",
+            "description_digest": "de34154c0c7c788b",
             "hidden": false,
             "mutex_groups": [],
             "name": "link",
@@ -3508,6 +3508,68 @@
                     "kind": "artifact",
                     "metavar": "TARGET",
                     "nargs": null
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "311d15226b4a617d",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "suggest",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "limit",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-l",
+                      "--limit"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "artifact",
+                  "link",
+                  "suggest"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "reference",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "reference",
+                    "nargs": "?"
                   }
                 ],
                 "subcommands": []

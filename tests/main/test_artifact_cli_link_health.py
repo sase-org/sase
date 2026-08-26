@@ -12,6 +12,8 @@ import pytest
 
 from sase.artifact_cli.doctor import handle_doctor
 from sase.artifact_cli.link_health import ArtifactLinkHealthReport
+from sase.artifact_cli.link_health import _ArtifactLinkCoveragePopulation
+from sase.artifact_cli.link_health import _ArtifactLinkCoverageReport
 from sase.artifact_cli.link_health import _curated_peer_keys
 from sase.artifact_cli.link_health import inspect_artifact_link_health
 from sase.bead.model import IssueType
@@ -358,6 +360,17 @@ def test_doctor_reports_link_divergence_counters(
             durable_read_rows=1,
             durable_sidecar_rows=4,
             aggregate_rows=5,
+            coverage=_ArtifactLinkCoverageReport(
+                populations=(
+                    _ArtifactLinkCoveragePopulation(
+                        name="research-swarm filename lineage",
+                        linked=1,
+                        total=2,
+                    ),
+                ),
+                rows_by_origin=(("derived", 2), ("manual", 3)),
+                rows_by_relation=(("derives-from", 2), ("related", 3)),
+            ),
         ),
     )
 
@@ -367,6 +380,12 @@ def test_doctor_reports_link_divergence_counters(
     assert "4 durable / 5 aggregate" in output
     assert "Read events vs durable rows" in output
     assert "2 recorded / 1 durable" in output
+    assert "Derived coverage" in output
+    assert "1 linked / 2 candidates" in output
+    assert "Rows by origin" in output
+    assert "derived: 2, manual: 3" in output
+    assert "Rows by relation" in output
+    assert "derives-from: 2, related: 3" in output
 
 
 def test_curated_peer_keys_treats_derived_origin_as_curated() -> None:

@@ -13,8 +13,8 @@ from sase.axe.chop_script_context import ChopScriptContext
 from sase.chops.builtin import BuiltinChopRuntime
 from sase.chops.sdk import ChopLogger
 from sase.sdd.artifact_link_backfill import (
-    ArtifactLinkBackfillReport,
-    ArtifactLinkReconcileReport,
+    _ArtifactLinkBackfillReport,
+    _ArtifactLinkReconcileReport,
 )
 
 
@@ -69,7 +69,7 @@ def test_runs_every_job_and_aggregates_totals(
         backfill_chop,
         "run_artifact_link_backfill_batch",
         lambda store, **kwargs: (
-            ArtifactLinkBackfillReport(scanned=3, persisted=2, remaining=1),
+            _ArtifactLinkBackfillReport(scanned=3, persisted=2, remaining=1),
             frozenset({"plan:202608/a.md"}),
         ),
     )
@@ -81,7 +81,7 @@ def test_runs_every_job_and_aggregates_totals(
     monkeypatch.setattr(
         backfill_chop,
         "reconcile_and_repair_artifact_links",
-        lambda store: ArtifactLinkReconcileReport(repaired_renames=2),
+        lambda store: _ArtifactLinkReconcileReport(repaired_renames=2),
     )
 
     result = backfill_chop._run(_runtime(tmp_path))
@@ -111,7 +111,7 @@ def test_a_broken_project_is_recorded_and_does_not_stop_the_sweep(
     )
 
     def _resolve(cwd: Path | None = None) -> object:
-        if cwd is not None and "broken" in str(cwd):
+        if cwd is not None and Path(cwd).name == "broken":
             raise RuntimeError("no project here")
         return object()
 
@@ -119,7 +119,7 @@ def test_a_broken_project_is_recorded_and_does_not_stop_the_sweep(
     monkeypatch.setattr(
         backfill_chop,
         "run_artifact_link_backfill_batch",
-        lambda store, **kwargs: (ArtifactLinkBackfillReport(), frozenset()),
+        lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
     )
     monkeypatch.setattr(
         backfill_chop,
@@ -129,7 +129,7 @@ def test_a_broken_project_is_recorded_and_does_not_stop_the_sweep(
     monkeypatch.setattr(
         backfill_chop,
         "reconcile_and_repair_artifact_links",
-        lambda store: ArtifactLinkReconcileReport(),
+        lambda store: _ArtifactLinkReconcileReport(),
     )
 
     result = backfill_chop._run(_runtime(tmp_path))
@@ -151,9 +151,9 @@ def test_checkpoint_survives_across_ticks(
 
     def _fake_batch(
         store: object, *, already_swept: frozenset[str], batch_size: int
-    ) -> tuple[ArtifactLinkBackfillReport, frozenset[str]]:
+    ) -> tuple[_ArtifactLinkBackfillReport, frozenset[str]]:
         seen_already_swept.append(already_swept)
-        return ArtifactLinkBackfillReport(), already_swept | {"plan:202608/a.md"}
+        return _ArtifactLinkBackfillReport(), already_swept | {"plan:202608/a.md"}
 
     monkeypatch.setattr(backfill_chop, "run_artifact_link_backfill_batch", _fake_batch)
     monkeypatch.setattr(
@@ -164,7 +164,7 @@ def test_checkpoint_survives_across_ticks(
     monkeypatch.setattr(
         backfill_chop,
         "reconcile_and_repair_artifact_links",
-        lambda store: ArtifactLinkReconcileReport(),
+        lambda store: _ArtifactLinkReconcileReport(),
     )
 
     backfill_chop._run(_runtime(tmp_path))
