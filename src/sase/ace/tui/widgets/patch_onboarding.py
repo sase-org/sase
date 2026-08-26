@@ -32,11 +32,10 @@ _VCS_DOCS_URL = "https://sase.sh/vcs/"
 _PLUGINS_DOCS_URL = "https://sase.sh/plugins/"
 _LIFECYCLE: tuple[str, ...] = ("WIP", "Draft", "Ready", "Mailed", "Submitted")
 _ARTIFACT_DESCRIPTIONS: dict[ArtifactsSubTab, str] = {
-    "agents": "Watch live and completed agent runs.",
+    "agents": "Browse durable agent runs and open their artifacts.",
     "stitches": "Trace committed work across projects.",
     "patches": "Inspect Patches and move PRs through review.",
     "beads": "Review task, epic, and phase work items.",
-    "agents": "Browse durable agent runs and open their artifacts.",
     "files": "Browse logical artifact files and their versions.",
 }
 _ARTIFACT_LABELS: dict[ArtifactsSubTab, str] = {
@@ -44,7 +43,6 @@ _ARTIFACT_LABELS: dict[ArtifactsSubTab, str] = {
     "stitches": "Stitch",
     "patches": "Patch",
     "beads": "Bead",
-    "agents": "Agent",
     "files": "File",
 }
 

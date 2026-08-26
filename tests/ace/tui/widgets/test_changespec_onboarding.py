@@ -54,18 +54,18 @@ def test_patch_onboarding_uses_active_keymap_registry() -> None:
     positions = {
         label: tabs_text.index(label)
         for label in (
+            "Agent",
             "Stitch",
             "Patch",
             "Bead",
-            "Agent",
             "File",
         )
     }
     assert (
-        positions["Stitch"]
+        positions["Agent"]
+        < positions["Stitch"]
         < positions["Patch"]
         < positions["Bead"]
-        < positions["Agent"]
         < positions["File"]
     )
     for key in ("f3", "f4", "f5"):
