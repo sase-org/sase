@@ -165,6 +165,7 @@ def check_app_action(
         "show_artifacts_stitches",
         "show_artifacts_bugs",
         "show_artifacts_beads",
+        "show_artifacts_agents",
         "show_artifacts_files",
         "show_artifacts_digit",
     }:

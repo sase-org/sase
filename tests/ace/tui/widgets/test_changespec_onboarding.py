@@ -17,7 +17,11 @@ def test_patch_onboarding_content_includes_docs_lifecycle_and_storage() -> None:
     rendered = "\n".join(text.plain for text in sections.values())
 
     assert "Everything your agents produce, in one place" in rendered
-    assert "Browse commits, patches, beads, document providers, and files" in rendered
+    assert (
+        "Browse commits, patches, beads, agents, document providers, and files"
+        in rendered
+    )
+    assert "Browse durable agent runs and open their artifacts." in rendered
     assert "Browse logical artifact files and their versions." in rendered
     assert "https://sase.sh/patch/" in rendered
     assert "https://sase.sh/vcs/" in rendered
@@ -53,11 +57,16 @@ def test_patch_onboarding_uses_active_keymap_registry() -> None:
             "Stitch",
             "Patch",
             "Bead",
+            "Agent",
             "File",
         )
     }
     assert (
-        positions["Stitch"] < positions["Patch"] < positions["Bead"] < positions["File"]
+        positions["Stitch"]
+        < positions["Patch"]
+        < positions["Bead"]
+        < positions["Agent"]
+        < positions["File"]
     )
     for key in ("f3", "f4", "f5"):
         assert key in tabs_text

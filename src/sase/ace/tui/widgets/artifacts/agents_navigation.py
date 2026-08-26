@@ -69,6 +69,7 @@ class AgentsNavigationMixin(_MixinBase):
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
     _entry_marks: set[ArtifactEntryTarget]
     _entry_targets_cache: tuple[ArtifactEntryTarget, ...]
+    _entry_target_index_by_target: dict[ArtifactEntryTarget, int]
     _option_id_by_target: dict[ArtifactEntryTarget, str]
     _option_index_by_target: dict[ArtifactEntryTarget, int]
     _banner_target_by_option_id: dict[str, ArtifactEntryTarget]
@@ -94,6 +95,7 @@ class AgentsNavigationMixin(_MixinBase):
         self._entry_jump_hints = {}
         self._entry_marks = set()
         self._entry_targets_cache = ()
+        self._entry_target_index_by_target = {}
         self._option_id_by_target = {}
         self._option_index_by_target = {}
         self._banner_target_by_option_id = {}
@@ -121,6 +123,10 @@ class AgentsNavigationMixin(_MixinBase):
             and (target := target_by_option_id.get(option.id or "")) is not None
         )
         self._entry_targets_cache = tuple(target for _index, target in indexed_targets)
+        self._entry_target_index_by_target = {
+            target: target_index
+            for target_index, (_option_index, target) in enumerate(indexed_targets)
+        }
         self._option_index_by_target = {
             target: index for index, target in indexed_targets
         }
@@ -171,6 +177,9 @@ class AgentsNavigationMixin(_MixinBase):
 
     def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
         return self._entry_targets_cache
+
+    def entry_target_index(self, target: ArtifactEntryTarget) -> int | None:
+        return self._entry_target_index_by_target.get(target)
 
     def selected_entry_target(self) -> ArtifactEntryTarget | None:
         row = self.selected_row()

@@ -27,6 +27,7 @@ FIXED_ARTIFACTS_SUBTAB_ORDER: tuple[ArtifactsSubTab, ...] = (
     "stitches",
     "patches",
     "beads",
+    "agents",
     "files",
 )
 FIXED_ARTIFACTS_PANE_IDS: dict[ArtifactsSubTab, str] = {

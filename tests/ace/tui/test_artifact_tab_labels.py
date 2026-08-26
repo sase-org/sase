@@ -9,6 +9,7 @@ _EXPECTED_FIXED_LABELS = {
     "stitches": "Stitch",
     "patches": "Patch",
     "beads": "Bead",
+    "agents": "Agent",
     "files": "File",
 }
 

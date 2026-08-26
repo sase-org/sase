@@ -11,6 +11,8 @@ the widget-free contract/conformance tests cannot see.
 
 from __future__ import annotations
 
+from typing import Any
+
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.agents_pane import ArtifactsAgentsPane
 from sase.ace.tui.widgets.artifacts.shell import ArtifactsPaneState
@@ -20,12 +22,33 @@ from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 async def test_agents_pane_mounts_activates_and_loads() -> None:
     async with AcePage(initial_tab="patches", startup_policy="real") as page:
         await page.press(page.artifacts_digit("agents"))
-        await page.pause()
-        pane = page.query_one_widget("#artifacts-agents-pane", ArtifactsAgentsPane)
+
+        mounted: dict[str, Any] = {}
+
+        def pane_activated() -> bool:
+            try:
+                pane = page.query_one_widget(
+                    "#artifacts-agents-pane",
+                    ArtifactsAgentsPane,
+                )
+            except Exception:
+                return False
+            mounted["pane"] = pane
+            return pane.artifacts_active is True and pane.first_activation_count == 1
+
+        await page.wait_for(
+            lambda _state: pane_activated(),
+            timeout=LOAD_TOLERANT_TIMEOUT,
+        )
+        pane = mounted["pane"]
         assert pane.artifacts_active is True
         assert pane.first_activation_count == 1
         await page.wait_for(
-            lambda _state: pane.pane_state() is not ArtifactsPaneState.LOADING,
+            lambda _state: (
+                pane.snapshot is not None
+                and pane.pane_state()
+                in {ArtifactsPaneState.RESULTS, ArtifactsPaneState.EMPTY}
+            ),
             timeout=LOAD_TOLERANT_TIMEOUT,
         )
         assert pane.pane_state() in {

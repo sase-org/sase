@@ -14,6 +14,7 @@ from sase.finalizers.declaration import (
     FINAL_SUBMISSION_HOST_FILENAME,
     load_accepted_host_repositories,
     publish_final_context,
+    repository_state_digest,
     submit_final_manifest,
 )
 from sase.finalizers.declaration_context_evidence import COMMIT_DECLARATION_RULE
@@ -146,6 +147,48 @@ def test_context_publishes_bounded_repository_commit_provenance(
     assert paths["src/run.py"]["written_by_this_run"] is True
     assert paths["src/protected.py"]["protected"] is True
     assert str(tmp_path) not in json.dumps(publication.payload)
+
+
+def test_context_caps_repository_obligation_paths_but_digests_full_dirty_set(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = tuple(f"tests/snapshots/artifacts_{index:03}.png" for index in range(150))
+    fingerprints = {path: ("M", f"digest-{index}") for index, path in enumerate(paths)}
+    dirty = DirtyState(
+        project_dir=str(tmp_path),
+        repos=(
+            DirtyRepo(
+                name="main",
+                path=str(tmp_path),
+                changed_files=paths,
+                kind="main",
+            ),
+        ),
+        details="dirty",
+    )
+    prepare_dirty_declaration(
+        monkeypatch,
+        tmp_path,
+        fingerprints=fingerprints,
+        collect=lambda _root: dirty,
+    )
+
+    publication = publish_final_context()
+
+    obligation = publication.payload["context"]["obligations"][0]
+    assert obligation["paths"] == list(paths[:128])
+    assert obligation["digest"] == repository_state_digest(
+        publication.context.obligations[0].obligation_id,
+        dirty.repos[0],
+        paths,
+    )
+    evidence = publication.payload["commit_declaration"]["repository_evidence"][0]
+    assert evidence["omitted_path_count"] == 50
+
+    submit_final_manifest(valid_manifest(publication))
+    records = load_accepted_host_repositories(tmp_path)
+    assert records[0].path_count == len(paths)
 
 
 def test_context_attributes_direct_write_to_linked_repo_by_absolute_path(

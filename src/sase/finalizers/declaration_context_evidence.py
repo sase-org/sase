@@ -105,7 +105,12 @@ def _repository_evidence(
     already_dirty = tuple(
         path for path in paths if provenance.get(path) == _PROVENANCE_ALREADY_DIRTY
     )
-    capped_paths, omitted_paths = _cap(paths, MAX_PATHS_PER_REPO)
+    full_path_count = _full_path_count(record, paths)
+    capped_paths, omitted_paths = _cap(
+        paths,
+        MAX_PATHS_PER_REPO,
+        total_count=full_path_count,
+    )
     capped_written, omitted_written = _cap(run_written, MAX_TOOL_CALL_PATHS)
     capped_dirty, omitted_dirty = _cap(already_dirty, MAX_PATHS_PER_REPO)
     capped_protected, omitted_protected = _cap(protected, MAX_PATHS_PER_REPO)
@@ -179,9 +184,23 @@ def _protected_paths(
     return tuple(path for path in obligation_paths if path in protected)
 
 
-def _cap(paths: tuple[str, ...], limit: int) -> tuple[tuple[str, ...], int]:
+def _full_path_count(
+    record: HostRepositoryRecord | None,
+    paths: tuple[str, ...],
+) -> int:
+    if record is not None and record.path_count is not None:
+        return max(record.path_count, len(paths))
+    return len(paths)
+
+
+def _cap(
+    paths: tuple[str, ...],
+    limit: int,
+    *,
+    total_count: int | None = None,
+) -> tuple[tuple[str, ...], int]:
     capped = paths[:limit]
-    return capped, len(paths) - len(capped)
+    return capped, (total_count or len(paths)) - len(capped)
 
 
 def _add_omitted(payload: dict[str, Any], key: str, count: int) -> None:

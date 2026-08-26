@@ -121,7 +121,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("1", "show_artifacts_digit(1)", "Show Stitches", show=False),
     Binding("2", "show_artifacts_digit(2)", "Show Patches", show=False),
     Binding("3", "show_artifacts_digit(3)", "Show Beads", show=False),
-    Binding("4", "show_artifacts_digit(4)", "Show Files", show=False),
+    Binding("4", "show_artifacts_digit(4)", "Show Agents", show=False),
+    Binding("5", "show_artifacts_digit(5)", "Show Files", show=False),
     # Stitches sub-tab actions.
     Binding("j", "stitches_next", "Next Commit", show=False),
     Binding("k", "stitches_prev", "Previous Commit", show=False),

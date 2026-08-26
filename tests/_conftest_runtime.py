@@ -136,6 +136,17 @@ def _clear_function_cache(cached: object) -> None:
         cache_clear()
 
 
+def _clear_notification_tab_style_caches_if_loaded() -> None:
+    """Clear TUI notification-tab style caches without importing TUI modules."""
+    import sys
+
+    module = sys.modules.get("sase.ace.tui.widgets.notification_tab_style")
+    if module is None:
+        return
+    _clear_function_cache(getattr(module, "_configured_tab_styles_for_token", None))
+    _clear_function_cache(getattr(module, "_indicator_max_counts_for_token", None))
+
+
 def _capture_derived_config_cache_helpers() -> tuple[object, object, object]:
     """Bind the real cached helpers before tests replace their names."""
     from sase.llm_provider import config as llm_provider_config
@@ -199,6 +210,7 @@ def _reset_derived_config_caches() -> None:
     reset_artifact_provider_registry_cache()
     reset_process_feature_flags()
     _stop_orphaned_proc_observers_if_loaded()
+    _clear_notification_tab_style_caches_if_loaded()
     _drain_config_token_refresh()
     config_core.clear_config_cache()
     for cached in _derived_config_cache_helpers():

@@ -69,6 +69,11 @@ class ArtifactEntryNavigator(metaclass=_ArtifactEntryNavigatorMeta):
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
         """Return action names and labels that depend on the selected row."""
 
+    def entry_target_index(self, target: ArtifactEntryTarget) -> int | None:
+        """Return the target's visual index when the pane has a cached lookup."""
+        del target
+        return None
+
     def relation_entry_facts(
         self,
     ) -> Mapping[ArtifactEntryTarget, RelationEntryFact]:
@@ -116,10 +121,20 @@ def select_relative_entry(
         target = targets[-1]
     elif offset is not None:
         current = navigator.selected_entry_target()
-        try:
-            current_index = targets.index(current) if current is not None else None
-        except ValueError:
+        current_index = (
+            navigator.entry_target_index(current) if current is not None else None
+        )
+        if current_index is not None and (
+            current_index < 0
+            or current_index >= len(targets)
+            or targets[current_index] != current
+        ):
             current_index = None
+        if current_index is None and current is not None:
+            try:
+                current_index = targets.index(current)
+            except ValueError:
+                current_index = None
         if current_index is None:
             current_index = 0 if offset >= 0 else len(targets) - 1
         target = targets[max(0, min(len(targets) - 1, current_index + offset))]

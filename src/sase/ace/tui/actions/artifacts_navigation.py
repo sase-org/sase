@@ -453,6 +453,9 @@ class ArtifactsNavigationActionsMixin:
     def action_show_artifacts_beads(self) -> None:
         self._switch_artifacts_subtab("beads")
 
+    def action_show_artifacts_agents(self) -> None:
+        self._switch_artifacts_subtab("agents")
+
     def action_show_artifacts_files(self) -> None:
         self._switch_artifacts_subtab("files")
 

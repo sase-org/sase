@@ -11,6 +11,7 @@ from textual.widgets.option_list import Option
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.keymaps import KeymapRegistry
 from sase.bead.model import IssueType, Status
+from sase.core.artifact_relation_layout import RelationKeymap
 
 from ...models.group_fold import GroupFoldRegistry, GroupKey
 from .._prompt_preview_target import PreviewPayload
@@ -91,7 +92,9 @@ class BeadsNavigationMixin(_MixinBase):
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
     _entry_marks: set[ArtifactEntryTarget]
     _entry_targets_cache: tuple[ArtifactEntryTarget, ...]
+    _entry_target_index_by_target: dict[ArtifactEntryTarget, int]
     _option_index_by_target: dict[ArtifactEntryTarget, int]
+    _conditional_footer_signature: tuple[tuple[str, str], ...] | None
     _pending_entry_target: ArtifactEntryTarget | None
 
     if TYPE_CHECKING:
@@ -125,7 +128,9 @@ class BeadsNavigationMixin(_MixinBase):
         self._entry_jump_hints = {}
         self._entry_marks = set()
         self._entry_targets_cache = ()
+        self._entry_target_index_by_target = {}
         self._option_index_by_target = {}
+        self._conditional_footer_signature = None
         self._pending_entry_target = None
 
     def _set_bead_rows(
@@ -141,6 +146,10 @@ class BeadsNavigationMixin(_MixinBase):
             if (row := rows.get(option.id or "")) is not None
         )
         self._entry_targets_cache = tuple(target for _index, target in indexed_targets)
+        self._entry_target_index_by_target = {
+            target: target_index
+            for target_index, (_option_index, target) in enumerate(indexed_targets)
+        }
         self._option_index_by_target = {
             target: index for index, target in indexed_targets
         }
@@ -174,6 +183,9 @@ class BeadsNavigationMixin(_MixinBase):
     def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
         return self._entry_targets_cache
 
+    def entry_target_index(self, target: ArtifactEntryTarget) -> int | None:
+        return self._entry_target_index_by_target.get(target)
+
     def selected_entry_target(self) -> ArtifactEntryTarget | None:
         row = self.selected_row()
         return None if row is None else bead_row_target(row)
@@ -184,7 +196,12 @@ class BeadsNavigationMixin(_MixinBase):
         if option_list is None or target_index is None:
             return False
         changed = option_list.highlighted != target_index
-        previous_footer_entries = self.conditional_footer_entries() if changed else ()
+        relation_panel = None
+        if changed:
+            relation_panel_getter = getattr(self, "relation_panel", None)
+            if callable(relation_panel_getter):
+                relation_panel = relation_panel_getter()
+        had_relation_panel = bool(getattr(relation_panel, "display", False))
         option_list.focus()
         self._syncing_options = True
         try:
@@ -196,15 +213,12 @@ class BeadsNavigationMixin(_MixinBase):
                 self._update_detail()
             else:
                 self._detail_debouncer.schedule(self._update_detail)
-            relation_panel = None
-            relation_panel_getter = getattr(self, "relation_panel", None)
-            if callable(relation_panel_getter):
-                relation_panel = relation_panel_getter()
-            had_relation_panel = bool(getattr(relation_panel, "display", False))
-            footer_entries = self.conditional_footer_entries()
+            keymap = self.refresh_relation_panel(refresh_footer=False)
+            footer_entries = BeadsNavigationMixin._conditional_footer_entries(
+                self, keymap
+            )
             has_relation_panel = bool(getattr(relation_panel, "display", False))
-            if footer_entries != previous_footer_entries:
-                self._sync_artifacts_footer()
+            self._sync_artifacts_footer_if_changed(footer_entries, keymap)
             schedule_option_list_highlight_reveal(
                 option_list,
                 allow_future_growth=has_relation_panel and not had_relation_panel,
@@ -241,6 +255,15 @@ class BeadsNavigationMixin(_MixinBase):
                 if callable(refresh_relation_panel)
                 else None
             )
+        return BeadsNavigationMixin._conditional_footer_entries(self, keymap)
+
+    def _conditional_footer_entries(
+        self,
+        keymap: Any = None,
+    ) -> tuple[tuple[str, str], ...]:
+        row = self.selected_row()
+        if row is None:
+            return ()
         entries: list[tuple[str, str]] = []
         first_link_target = getattr(keymap, "first_link_target", None)
         if callable(first_link_target) and first_link_target("plans") is not None:
@@ -269,6 +292,32 @@ class BeadsNavigationMixin(_MixinBase):
         if callable(relation_footer_entries):
             entries.extend(relation_footer_entries(keymap))
         return tuple(entries)
+
+    def _sync_artifacts_footer_if_changed(
+        self,
+        footer_entries: tuple[tuple[str, str], ...],
+        keymap: RelationKeymap,
+    ) -> None:
+        if self._conditional_footer_signature == footer_entries:
+            return
+        self._conditional_footer_signature = footer_entries
+        if not getattr(self, "artifacts_active", False):
+            return
+        app = getattr(self, "app", None)
+        sync = getattr(app, "_sync_active_artifacts_entry_state", None)
+        if app is None or not callable(sync):
+            return
+        attr = "_relation_footer_keymap_override"
+        had_previous = hasattr(app, attr)
+        previous = getattr(app, attr, None)
+        setattr(app, attr, keymap)
+        try:
+            sync()
+        finally:
+            if had_previous:
+                setattr(app, attr, previous)
+            else:
+                delattr(app, attr)
 
     def apply_entry_jump_hints(
         self,

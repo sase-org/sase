@@ -437,6 +437,26 @@ async def _wait_for_zoom_content(
     await wait_for_visual_idle(page)
 
 
+async def _wait_for_metadata_zoom_resolved(page: AcePage) -> None:
+    """Wait until the async metadata sections have finished resolving."""
+
+    def metadata_ready() -> bool:
+        panel = page.app.screen.query_one("#zoom-metadata-panel", AgentPromptPanel)
+        metadata = renderable_to_text(panel.content) or ""
+        return (
+            "Xprompts:" in metadata
+            and "ARTIFACTS · 1 file" in metadata
+            and "resolving..." not in metadata
+        )
+
+    await wait_for_state(
+        page,
+        metadata_ready,
+        description="resolved agent metadata zoom context",
+    )
+    await wait_for_visual_idle(page)
+
+
 async def test_agents_file_zoom_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -632,6 +652,7 @@ async def test_agents_metadata_zoom_modal_png_snapshot(
             "Xprompts:",
             scroll_selector="#zoom-metadata-scroll",
         )
+        await _wait_for_metadata_zoom_resolved(page)
 
         ace_png_visual.assert_page_png(
             page,

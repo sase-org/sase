@@ -72,7 +72,7 @@ def _plan_test_descriptor() -> Any:
 
 
 def _fast_artifacts_subtabs() -> tuple[Any, ...]:
-    """Expose a deterministic plan document provider in fast TUI tests."""
+    """Expose deterministic Artifacts panes in fast TUI tests."""
     from sase.ace.tui._artifact_tab_descriptors import (
         assign_artifacts_digit_shortcuts,
         fixed_descriptor,
@@ -84,6 +84,7 @@ def _fast_artifacts_subtabs() -> tuple[Any, ...]:
             fixed_descriptor("patches"),
             fixed_descriptor("beads"),
             _plan_test_descriptor(),
+            fixed_descriptor("agents"),
             fixed_descriptor("files"),
         )
     )

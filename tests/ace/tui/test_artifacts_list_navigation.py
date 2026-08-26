@@ -397,9 +397,7 @@ async def test_agents_implements_next_prev_navigation(
         lambda _project, _limit=None: snapshot,
     )
 
-    # The fast startup stub does not yet know about the "agents" pane
-    # (sase-tj.10.3 adds it), so this needs the live resolver.
-    async with AcePage(initial_tab="patches", startup_policy="real") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press(page.artifacts_digit("agents"))
         pane = page.query_one_widget("#artifacts-agents-pane", ArtifactsAgentsPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)

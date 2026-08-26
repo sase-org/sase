@@ -35,12 +35,14 @@ _ARTIFACT_DESCRIPTIONS: dict[ArtifactsSubTab, str] = {
     "stitches": "Trace committed work across projects.",
     "patches": "Inspect Patches and move PRs through review.",
     "beads": "Review task, epic, and phase work items.",
+    "agents": "Browse durable agent runs and open their artifacts.",
     "files": "Browse logical artifact files and their versions.",
 }
 _ARTIFACT_LABELS: dict[ArtifactsSubTab, str] = {
     "stitches": "Stitch",
     "patches": "Patch",
     "beads": "Bead",
+    "agents": "Agent",
     "files": "File",
 }
 
@@ -145,7 +147,7 @@ class PatchOnboarding(VerticalScroll):
         )
         text.append("  *\n", style="bold #FFD700")
         text.append(
-            "Browse commits, patches, beads, document providers, and files in Artifacts",
+            "Browse commits, patches, beads, agents, document providers, and files in Artifacts",
             style=f"dim {_ACCENT}",
         )
         return text

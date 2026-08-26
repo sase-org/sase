@@ -39,6 +39,7 @@ FINAL_DECLARATION_LOCK_FILENAME = "final_declaration.lock"
 
 _HOST_REPO_KINDS = frozenset({"main", "sibling", "external", "sdd"})
 _DECLARATION_THREAD_LOCK = threading.Lock()
+_MAX_REPOSITORY_OBLIGATION_PATHS = 128
 
 
 class FinalizerDeclarationError(RuntimeError):
@@ -57,6 +58,7 @@ class HostRepositoryRecord:
     kind: str
     name: str
     path: str
+    path_count: int | None = None
 
 
 @contextmanager
@@ -105,6 +107,7 @@ def host_repository_records(
             kind=repo.kind,
             name=repo.name,
             path=repo.path,
+            path_count=len(repo.changed_files),
         )
         for repo in dirty_state.repos
     )
@@ -127,6 +130,7 @@ def write_host_repository_file(
                     "kind": record.kind,
                     "name": record.name,
                     "path": record.path,
+                    "path_count": record.path_count,
                 }
                 for record in records
             ],
@@ -163,12 +167,16 @@ def read_host_repository_file(path: Path) -> tuple[HostRepositoryRecord, ...]:
         kind = item.get("kind")
         name = item.get("name")
         repo_path = item.get("path")
+        path_count = item.get("path_count")
         if not (
             isinstance(obligation_id, str)
             and isinstance(kind, str)
             and kind in _HOST_REPO_KINDS
             and isinstance(name, str)
             and isinstance(repo_path, str)
+            and (
+                path_count is None or (isinstance(path_count, int) and path_count >= 0)
+            )
         ):
             raise FinalizerDeclarationError(
                 "finalizer host repository snapshot has an invalid record",
@@ -180,6 +188,7 @@ def read_host_repository_file(path: Path) -> tuple[HostRepositoryRecord, ...]:
                 kind=kind,
                 name=name,
                 path=repo_path,
+                path_count=path_count,
             )
         )
     return tuple(records)
@@ -291,8 +300,9 @@ def repository_state_digest(
 
 def _repository_obligation(repo: DirtyRepo) -> FinalizerObligationWire:
     repo_id = repository_obligation_id(repo)
-    paths = list(repo.changed_files)
-    state_digest = repository_state_digest(repo_id, repo, paths)
+    full_paths = list(repo.changed_files)
+    paths = full_paths[:_MAX_REPOSITORY_OBLIGATION_PATHS]
+    state_digest = repository_state_digest(repo_id, repo, full_paths)
     return FinalizerObligationWire(
         obligation_id=repo_id,
         kind="repository",

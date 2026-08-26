@@ -247,13 +247,15 @@ def test_fallback_bindings_match_numbered_artifacts_and_saved_query_picker() -> 
             ("1", "stitches"),
             ("2", "patches"),
             ("3", "beads"),
-            ("4", "files"),
+            ("4", "agents"),
+            ("5", "files"),
         )
     ] == [
         ("1", "stitches"),
         ("2", "patches"),
         ("3", "beads"),
-        ("4", "files"),
+        ("4", "agents"),
+        ("5", "files"),
     ]
     assert by_action["open_saved_query_picker"].key == "asterisk"
     assert by_action["start_saved_query_mode"].key == "0"
@@ -261,7 +263,7 @@ def test_fallback_bindings_match_numbered_artifacts_and_saved_query_picker() -> 
         binding.key
         for binding in DEFAULT_BINDINGS
         if len(binding.key) == 1 and binding.key.isdigit()
-    } == {"1", "2", "3", "4", "0"}
+    } == {"1", "2", "3", "4", "5", "0"}
     assert not any(
         binding.action.startswith("load_saved_query") for binding in DEFAULT_BINDINGS
     )

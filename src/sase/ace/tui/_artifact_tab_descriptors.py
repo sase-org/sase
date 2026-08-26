@@ -62,7 +62,7 @@ _ARTIFACTS_DIGIT_KEYS: tuple[str, ...] = tuple(str(digit) for digit in range(1, 
 
 
 def fixed_descriptor(subtab: ArtifactsSubTab) -> ArtifactsTabDescriptor:
-    """Return the descriptor for one of the four built-in Artifacts panes."""
+    """Return the descriptor for one of the built-in Artifacts panes."""
 
     labels = {
         "patches": "Patch",
@@ -113,6 +113,7 @@ def provider_descriptors(
         "patches",
         "beads",
         *(f"ref:{kind}" for kind in kinds),
+        "agents",
         "files",
     )
     descriptors: list[ArtifactsTabDescriptor] = []
