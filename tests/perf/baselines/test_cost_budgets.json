@@ -4,7 +4,7 @@
       "count_enforce": "hard",
       "count_limit": 840,
       "cpu_enforce": "hard",
-      "cpu_limit": 590.0,
+      "cpu_limit": 690.0,
       "enforce": "advisory",
       "limit": 540.0
     },
@@ -12,7 +12,7 @@
       "count_enforce": "hard",
       "count_limit": 8600,
       "cpu_enforce": "hard",
-      "cpu_limit": 290.0,
+      "cpu_limit": 300.0,
       "enforce": "advisory",
       "limit": 340.0
     },
@@ -20,7 +20,7 @@
       "count_enforce": "hard",
       "count_limit": 2300,
       "cpu_enforce": "hard",
-      "cpu_limit": 33.0,
+      "cpu_limit": 34.0,
       "enforce": "advisory",
       "limit": 52.0
     },
@@ -28,7 +28,7 @@
       "count_enforce": "hard",
       "count_limit": 18000,
       "cpu_enforce": "hard",
-      "cpu_limit": 250.0,
+      "cpu_limit": 270.0,
       "enforce": "advisory",
       "limit": 230.0
     },
@@ -36,7 +36,7 @@
       "count_enforce": "hard",
       "count_limit": 52000,
       "cpu_enforce": "hard",
-      "cpu_limit": 24.0,
+      "cpu_limit": 27.0,
       "enforce": "advisory",
       "limit": 540.0
     },
@@ -44,7 +44,7 @@
       "count_enforce": "hard",
       "count_limit": 4500,
       "cpu_enforce": "hard",
-      "cpu_limit": 520.0,
+      "cpu_limit": 570.0,
       "enforce": "advisory",
       "limit": 470.0
     },
@@ -52,7 +52,7 @@
       "count_enforce": "hard",
       "count_limit": 56000,
       "cpu_enforce": "hard",
-      "cpu_limit": 18.0,
+      "cpu_limit": 19.0,
       "enforce": "advisory",
       "limit": 20.0
     }
@@ -68,13 +68,14 @@
     "Sample used for total_file_cpu_seconds and every count_limit above: 8 recordings from host athena, 2026-08-23T08:40Z-2026-08-23T15:17Z, 9-14 workers, 36,199-36,323 nodes. Existing keys only: raise a limit when --suggest exceeds the committed value; do not add new cause keys or lower a still-passing limit.",
     "`collection_seconds` and `collection_cpu_seconds` are per-worker limits (each xdist worker collects the whole suite, so the recorded summary sum is divided by the worker count before comparison); every other summary and cause entry is a suite-wide total.",
     "`peak_worker_rss_kib` is the peak of a worker's RSS curve sampled across the run, not the curve's post-collection reading (~520 MiB), which is stable and much lower.",
+    "2026-08-26 cost-budget recalibration after repeated local full-lane failures on host athena: `tools/check_test_cost_budgets --suggest --history 8` sampled 8 recordings from 2026-08-26T06:08:02Z through 2026-08-26T16:25:19Z, all with 14 workers and 37,196-37,263 nodes. Raised only existing hard CPU limits that the retained recordings exceeded or nearly exceeded: total_file_cpu_seconds 1800 -> 2000, collection_cpu_seconds 25 -> 28, ace_page_enter.cpu 590 -> 690, ace_settle_pilot.cpu 290 -> 300, parser_create.cpu 33 -> 34, pilot_pause_delay.cpu 250 -> 270, subprocess_run.cpu 24 -> 27, textual_app_run_test_enter.cpu 520 -> 570, yaml_load.cpu 18 -> 19. Kept wall advisory, count, and memory budgets unchanged unless they were needed for the failing gate.",
     "Raising a limit requires a fresh `just test-cost` recording plus `tools/check_test_cost_budgets --suggest` output — do not raise a limit to hide a one-off regression."
   ],
   "schema": 1,
   "summary": {
     "collection_cpu_seconds": {
       "enforce": "hard",
-      "limit": 25.0,
+      "limit": 28.0,
       "per_worker": true
     },
     "collection_seconds": {
@@ -92,7 +93,7 @@
     },
     "total_file_cpu_seconds": {
       "enforce": "hard",
-      "limit": 1800.0
+      "limit": 2000.0
     },
     "total_file_wall_seconds": {
       "enforce": "advisory",

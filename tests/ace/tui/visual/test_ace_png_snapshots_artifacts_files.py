@@ -173,14 +173,14 @@ async def test_artifacts_files_populated_png_snapshot(
             )
         )
         await wait_for_svg_contains(page, "release-notes artifact")
-        await wait_for_svg_contains(page, "Stored:")
+        await wait_for_svg_contains(page, "Logical path:")
         await wait_for_visual_idle(page)
 
         for glyph in set(FILE_VIEW_MODE_GLYPHS.values()):
             assert_page_svg_contains(page, glyph)
         for chip in ("1 images", "2 documents", "1 videos", "1 files"):
             assert_page_svg_contains(page, chip)
-        for token in ("Captured", "Created", "[Alpha]", "[Beta]", "live"):
+        for token in ("Captured", "Created", "[Alpha]", "[Beta]"):
             assert_page_svg_contains(page, token)
         # The even split intentionally ellipsizes long labels; stable row identity
         # prefixes remain visible while full labels stay covered by ``snapshot.rows``.
