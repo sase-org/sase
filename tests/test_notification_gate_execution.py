@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import subprocess
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from sase.notification_gates.durability import request_sha256
+from sase.notification_gates.durability import file_lock, request_sha256
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.models import GateError
@@ -159,6 +161,36 @@ def test_cancel_gate_dismisses_notification(gate_home: Path) -> None:
     assert notification.id == created.notification_id
     assert notification.dismissed is True
     assert load_notifications() == []
+
+
+def test_cancel_gate_times_out_instead_of_blocking_behind_a_running_command(
+    gate_home: Path,
+) -> None:
+    created = create_gate(gate_spec(request_id="cancel-lock-timeout"))
+    lock_path = created.bundle_path / ".response.lock"
+    holder_ready = threading.Event()
+    release_holder = threading.Event()
+
+    def _hold_lock_like_a_running_option_command() -> None:
+        with file_lock(lock_path):
+            holder_ready.set()
+            release_holder.wait(timeout=5)
+
+    holder = threading.Thread(target=_hold_lock_like_a_running_option_command)
+    holder.start()
+    try:
+        assert holder_ready.wait(timeout=5)
+
+        started = time.monotonic()
+        with pytest.raises(GateError) as excinfo:
+            cancel_gate(created.bundle_path, source="test", lock_timeout_seconds=0.2)
+        elapsed = time.monotonic() - started
+    finally:
+        release_holder.set()
+        holder.join(timeout=5)
+
+    assert excinfo.value.code == "lock_timeout"
+    assert elapsed < 2.0
 
 
 def test_notification_dismissal_failure_does_not_break_persisted_answer(

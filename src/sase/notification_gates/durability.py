@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import errno
 import fcntl
 import hashlib
 import json
 import os
 import stat
 import tempfile
+import time
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
@@ -177,15 +179,91 @@ def fsync_dir(path: Path) -> None:
 
 
 @contextmanager
-def file_lock(path: Path) -> Iterator[None]:
-    """Hold an exclusive advisory lock for the duration of the context."""
+def file_lock(path: Path, *, timeout: float | None = None) -> Iterator[None]:
+    """Hold an exclusive advisory lock for the duration of the context.
+
+    With no ``timeout`` this blocks indefinitely, unchanged from before. With
+    a ``timeout``, raise :class:`GateError` (code ``lock_timeout``) if the
+    lock cannot be acquired within that many seconds, naming *path* and the
+    current holder's pid where obtainable from ``/proc/locks``.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a+", encoding="utf-8") as stream:
-        fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+        if timeout is None:
+            fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+        else:
+            _flock_with_timeout(stream.fileno(), path, timeout=timeout)
         try:
             yield
         finally:
             fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+
+
+def _flock_with_timeout(
+    fd: int, path: Path, *, timeout: float, poll_interval: float = 0.05
+) -> None:
+    deadline = time.monotonic() + max(0.0, timeout)
+    while True:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except OSError as exc:
+            if not _is_lock_unavailable(exc):
+                raise
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            holder_pid = _find_flock_holder_pid(path)
+            holder_note = f"; held by pid {holder_pid}" if holder_pid else ""
+            raise GateError(
+                "lock_timeout",
+                str(path),
+                f"timed out waiting {timeout:g}s for lock on {path}{holder_note}",
+            )
+        time.sleep(min(poll_interval, remaining))
+
+
+def _is_lock_unavailable(exc: OSError) -> bool:
+    return isinstance(exc, BlockingIOError) or exc.errno in {
+        errno.EACCES,
+        errno.EAGAIN,
+    }
+
+
+def _find_flock_holder_pid(path: Path) -> int | None:
+    """Best-effort lookup of the process holding an flock on *path* (Linux)."""
+    try:
+        info = path.stat()
+    except OSError:
+        return None
+    target_major = os.major(info.st_dev)
+    target_minor = os.minor(info.st_dev)
+    target_inode = info.st_ino
+    try:
+        with open("/proc/locks", encoding="utf-8") as locks_file:
+            lines = locks_file.readlines()
+    except OSError:
+        return None
+    for line in lines:
+        parts = line.split()
+        if len(parts) < 6 or parts[1] != "FLOCK":
+            continue
+        try:
+            pid = int(parts[4])
+        except ValueError:
+            continue
+        lock_id = parts[5].split(":")
+        if len(lock_id) != 3:
+            continue
+        major_text, minor_text, inode_text = lock_id
+        try:
+            major = int(major_text, 16)
+            minor = int(minor_text, 16)
+            inode = int(inode_text)
+        except ValueError:
+            continue
+        if major == target_major and minor == target_minor and inode == target_inode:
+            return pid if pid > 0 else None
+    return None
 
 
 def verify_mode(path: Path, *, executable: bool) -> None:

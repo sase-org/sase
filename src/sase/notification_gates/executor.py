@@ -58,6 +58,12 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+#: Bound on how long ``cancel_gate`` waits for ``.response.lock``. An
+#: approved option command holds that lock for its full runtime, so an
+#: untimed wait here reproduces a cancellation that hangs behind it
+#: indefinitely (bead ``bob-cli-15.2`` note #2).
+CANCEL_LOCK_TIMEOUT_SECONDS = 5.0
+
 
 def execute_gate_selection(
     bundle_path: Path,
@@ -457,10 +463,17 @@ def cancel_gate(
     *,
     reason: str = "requester_cancelled",
     source: str = "requester",
+    lock_timeout_seconds: float | None = CANCEL_LOCK_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
-    """Persist a write-once cancellation if the gate has no response."""
+    """Persist a write-once cancellation if the gate has no response.
+
+    ``lock_timeout_seconds`` bounds the wait for ``.response.lock`` so a
+    cancellation can never block behind an approved command's full runtime;
+    it raises :class:`GateError` (code ``lock_timeout``) on expiry instead of
+    hanging. Pass ``None`` to wait indefinitely, matching the old behaviour.
+    """
     bundle_path = assert_owned_bundle(bundle_path)
-    with file_lock(bundle_path / ".response.lock"):
+    with file_lock(bundle_path / ".response.lock", timeout=lock_timeout_seconds):
         envelope, _adapter = load_and_verify_bundle(bundle_path)
         response_path = bundle_path / RESPONSE_FILENAME
         if response_path.exists():
