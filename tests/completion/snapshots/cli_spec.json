@@ -10481,9 +10481,13 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "dcb962110bc4d53a",
+            "description_digest": "3e4685daf64b7c36",
             "hidden": false,
             "mutex_groups": [
+              [
+                "detach",
+                "no_detach"
+              ],
               [
                 "restart",
                 "resume"
@@ -10500,6 +10504,30 @@
                 "strings": [
                   "-h",
                   "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "detach",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-d",
+                  "--detach"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "no_detach",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-D",
+                  "--no-detach"
                 ],
                 "takes_value": false
               },
@@ -10634,7 +10662,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "9d3092cd106542a7",
+            "description_digest": "8d09e12061ca3666",
             "hidden": false,
             "mutex_groups": [],
             "name": "create",
@@ -10650,6 +10678,63 @@
                   "--help"
                 ],
                 "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "next",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-n",
+                  "--next"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": [
+                  "family",
+                  "shell",
+                  "none"
+                ],
+                "dest": "next_fork",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--next-fork"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "next_model",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-m",
+                  "--next-model"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": [
+                  "none",
+                  "results",
+                  "tail",
+                  "file"
+                ],
+                "dest": "next_output",
+                "hidden": false,
+                "kind": null,
+                "repeatable": true,
+                "strings": [
+                  "-N",
+                  "--next-output"
+                ],
+                "takes_value": true
               },
               {
                 "choices": null,
@@ -10696,6 +10781,42 @@
                 "strings": [
                   "-s",
                   "--sender"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "shell",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-G",
+                  "--shell"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "shell_status",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-g",
+                  "--shell-status"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "shell_stop_status",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-E",
+                  "--shell-stop-status"
                 ],
                 "takes_value": true
               },

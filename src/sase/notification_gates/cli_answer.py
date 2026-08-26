@@ -13,11 +13,15 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any, Literal, NoReturn
 
 from rich.console import Console
 from rich.text import Text
 
+from sase.gate_shell.log import bind_gate_shell_execution_callbacks
+from sase.gate_shell.settlement import settle_gate_shell
+from sase.gate_shell.store import find_gate_shell_by_gate_id
 from sase.notification_gates.branches import GateBranchData
 from sase.notification_gates.cli_support import (
     EXIT_ERROR,
@@ -36,10 +40,15 @@ from sase.notification_gates.model_options import GateOption
 from sase.notification_gates.models import GateError
 from sase.ops.cli import emit_operation_result, load_request
 from sase.ops.names import GATE_ANSWER
+from sase.procs.request import ProcSubmitRequest
+from sase.procs.service import submit_proc_request
 from sase.xprompt.models import InputType
 
 _TRUE_WORDS = frozenset({"1", "on", "true", "yes", "y"})
 _FALSE_WORDS = frozenset({"0", "off", "false", "no", "n"})
+
+#: Origin tag recorded on a proc submitted by ``sase gate answer --detach``.
+GATE_ANSWER_DETACH_ORIGIN = "gate-answer-detach"
 
 
 def handle_gate_answer(args: argparse.Namespace) -> NoReturn:
@@ -124,20 +133,127 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
             "per-option values; use one or the other"
         )
     feedback = request.payload.get("feedback")
+    feedback = (
+        feedback if isinstance(feedback, str) else getattr(args, "feedback", None)
+    )
     retry = request.payload.get("retry")
+    retry = retry if retry in {"resume", "restart"} else _retry_choice(args)
 
+    # A shell-backed gate is defined by the envelope's ``shell`` block (the
+    # source of truth per the gate-shell design), never by whether the
+    # family-member lookup below happens to resolve one -- that lookup goes
+    # through the artifact-index scan, which is best-effort here.
+    shell_backed = isinstance(bundle.envelope.get("shell"), dict)
+    if _effective_detach(args, shell_backed=shell_backed):
+        return _submit_detached_answer(
+            bundle,
+            selected,
+            input_data=input_data,
+            feedback=feedback,
+            retry=retry,
+            option_inputs=option_inputs,
+        )
+
+    gate_shell = (
+        find_gate_shell_by_gate_id(None, bundle.request_id) if shell_backed else None
+    )
+
+    execution_kwargs: dict[str, Any] = (
+        {}
+        if gate_shell is None
+        else bind_gate_shell_execution_callbacks(gate_shell.artifacts_dir).as_kwargs()
+    )
     execution = execute_gate_selection(
         bundle.root,
         [option.id for option in selected],
         input_data,
-        feedback=feedback
-        if isinstance(feedback, str)
-        else getattr(args, "feedback", None),
+        feedback=feedback,
         source="cli",
-        retry=retry if retry in {"resume", "restart"} else _retry_choice(args),
+        retry=retry,
         option_inputs=option_inputs,
+        **execution_kwargs,
     )
+    if gate_shell is not None:
+        settle_gate_shell(gate_shell, gate_state="answered", reason="gate answered")
     return _answered_payload(bundle, execution.response, execution.already_completed)
+
+
+def _effective_detach(args: argparse.Namespace, *, shell_backed: bool) -> bool:
+    """Return whether this answer should run as a detached background proc.
+
+    Explicit ``--detach``/``--no-detach`` always win; absent either flag, a
+    gate-shell-backed gate defaults to detached so an approved command
+    outlives the client that approved it, and an ordinary gate keeps
+    today's synchronous default.
+    """
+    if bool(getattr(args, "detach", False)):
+        return True
+    if bool(getattr(args, "no_detach", False)):
+        return False
+    return shell_backed
+
+
+def _submit_detached_answer(
+    bundle: ResolvedGateCliBundle,
+    selected: tuple[GateOption, ...],
+    *,
+    input_data: object | None,
+    feedback: str | None,
+    retry: Literal["resume", "restart"] | None,
+    option_inputs: Mapping[str, object] | None,
+) -> dict[str, Any]:
+    """Submit a supervised background proc that owns this gate's execution.
+
+    The submitted proc re-invokes this same command with ``--no-detach`` so
+    it cannot recurse into another detached submission; every resolved
+    argument travels through the operation-request sidecar instead of argv,
+    the same durable-submission contract ACE already answers gates through.
+    """
+    selected_ids = [option.id for option in selected]
+    payload: dict[str, Any] = {"option_ids": selected_ids}
+    if input_data is not None:
+        payload["input_data"] = input_data
+    if option_inputs is not None:
+        payload["option_inputs"] = dict(option_inputs)
+    if feedback is not None:
+        payload["feedback"] = feedback
+    if retry is not None:
+        payload["retry"] = retry
+
+    proc = submit_proc_request(
+        ProcSubmitRequest(
+            argv=[
+                "sase",
+                "gate",
+                "answer",
+                "--id",
+                bundle.request_id,
+                "--kind",
+                bundle.kind,
+                "--no-detach",
+                "--json",
+            ],
+            label=f"Gate answer: {bundle.kind}/{bundle.request_id}",
+            cwd=str(Path.cwd()),
+            origin=GATE_ANSWER_DETACH_ORIGIN,
+            operation=GATE_ANSWER,
+            operation_payload=payload,
+        )
+    )
+    return {
+        "already_answered": False,
+        "detached": True,
+        "feedback": feedback,
+        "kind": bundle.kind,
+        "message": f"Gate answer submitted to background proc {proc.proc_id}",
+        "option_inputs": dict(option_inputs) if option_inputs else {},
+        "option_results": [],
+        "proc_id": proc.proc_id,
+        "request_id": bundle.request_id,
+        "response_path": str(bundle.response_path),
+        "selected_option_ids": selected_ids,
+        "status": "submitted",
+    }
 
 
 def _request_option_ids(payload: Mapping[str, Any]) -> list[str]:
@@ -357,10 +473,15 @@ def _print_human_summary(payload: Mapping[str, Any]) -> None:
     summary = Text()
     summary.append("✓", style="bold green")
     summary.append(f" Gate {payload['kind']}/{payload['request_id']} ")
-    summary.append(
-        "was already answered" if payload["already_answered"] else "answered",
-        style="bold green",
-    )
+    if payload.get("detached"):
+        summary.append(
+            f"submitted to proc {payload.get('proc_id')}", style="bold green"
+        )
+    else:
+        summary.append(
+            "was already answered" if payload["already_answered"] else "answered",
+            style="bold green",
+        )
     selected = payload["selected_option_ids"]
     if isinstance(selected, list) and selected:
         summary.append(" · options ", style="dim")

@@ -77,10 +77,15 @@ def has_any_gate_shell(project_name: str, lane: str) -> bool:
 
 
 def find_gate_shell_by_gate_id(
-    project_name: str,
+    project_name: str | None,
     gate_id: str,
 ) -> GateShellRecord | None:
-    """Return the newest gate-shell member for ``gate_id``, if present."""
+    """Return the newest gate-shell member for ``gate_id``, if present.
+
+    A ``None`` project searches every project's artifact index, the same
+    unscoped lookup :func:`list_gate_shells` already performs for the
+    reclaim chop.
+    """
     matches = [
         record
         for record in list_gate_shells(project=project_name)

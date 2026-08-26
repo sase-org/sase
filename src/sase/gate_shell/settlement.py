@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -13,8 +14,11 @@ from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.gate_shell.log import gate_shell_output_tail
 from sase.gate_shell.models import GateShellRecord, GateShellState
 from sase.gate_shell.start_claim import release_gate_shell_claim
+from sase.history.chat import save_chat_history
+from sase.notification_gates.branches import GateBranchData
 from sase.notification_gates.durability import read_json_object
 from sase.notification_gates.paths import CANCELLATION_FILENAME, RESPONSE_FILENAME
 from sase.shells.settlement import (
@@ -77,13 +81,14 @@ def settle_gate_shell(
     if settle_error:
         meta["gate_followup_error"] = settle_error
 
-    decision_path = _write_decision_record(
+    decision_path, decision_text = _write_decision_record(
         artifacts_dir,
         meta,
         gate_state=gate_state,
         reason=reason,
     )
     meta["gate_decision_path"] = str(decision_path)
+    meta["chat_path"] = _write_settlement_chat(artifacts_dir, meta, decision_text)
     _write_meta(artifacts_dir, meta)
 
     done_marker = _done_marker(meta, gate_state=gate_state, reason=reason)
@@ -132,6 +137,8 @@ def _done_marker(
         "gate_followup_error",
         "gate_followup_degraded_reason",
         "gate_followup_prompt_path",
+        "gate_decision_path",
+        "chat_path",
     ):
         if key in meta:
             marker[key] = meta[key]
@@ -151,7 +158,7 @@ def _write_decision_record(
     *,
     gate_state: GateShellState,
     reason: str | None,
-) -> Path:
+) -> tuple[Path, str]:
     path = Path(artifacts_dir) / "gate_decision.md"
     bundle = _bundle_path(meta)
     envelope = _read_json(bundle / "request.json") if bundle else {}
@@ -159,6 +166,9 @@ def _write_decision_record(
     cancellation = _read_json(bundle / CANCELLATION_FILENAME) if bundle else {}
     title = _title(envelope, meta)
     selected = response.get("selected_option_ids")
+    selected_ids = (
+        [str(item) for item in selected] if isinstance(selected, list) else []
+    )
     lines = [
         f"# {title}",
         "",
@@ -166,8 +176,12 @@ def _write_decision_record(
     ]
     if reason:
         lines.append(f"Reason: {reason}")
-    if isinstance(selected, list):
-        lines.append("Selected options: " + ", ".join(str(item) for item in selected))
+    if selected_ids:
+        lines.append("Selected options: " + ", ".join(selected_ids))
+    branch_lines = _branch_lines(envelope, selected_ids)
+    if branch_lines:
+        lines.extend(["", "Branches:", ""])
+        lines.extend(branch_lines)
     if response.get("feedback"):
         lines.extend(["", "Reviewer note:", "", str(response["feedback"])])
     if cancellation:
@@ -176,9 +190,53 @@ def _write_decision_record(
     if isinstance(option_results, list) and option_results:
         lines.extend(["", "Option results:", ""])
         lines.append(json.dumps(option_results, indent=2, sort_keys=True))
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    tail = gate_shell_output_tail(artifacts_dir)
+    if tail:
+        lines.extend(["", "Output tail:", "", "```text", tail.rstrip("\n"), "```"])
+    text = "\n".join(lines).rstrip() + "\n"
+    path.write_text(text, encoding="utf-8")
     update_agent_artifact_index_for_marker_mutation(artifacts_dir)
-    return path
+    return path, text
+
+
+def _branch_lines(envelope: dict[str, Any], selected_ids: list[str]) -> list[str]:
+    """Render every branch, marking the one the reviewer selected."""
+    try:
+        branch_data = GateBranchData.from_envelope(envelope)
+    except Exception:
+        return []
+    selected_set = set(selected_ids)
+    labels = {option.id: option.label for option in branch_data.options}
+    lines = []
+    for branch in branch_data.branches:
+        marker = "x" if selected_set and selected_set == set(branch) else " "
+        label = " + ".join(labels.get(option_id, option_id) for option_id in branch)
+        lines.append(f"- [{marker}] {label} ({'+'.join(branch)})")
+    return lines
+
+
+def _write_settlement_chat(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    decision_text: str,
+) -> str:
+    """Save the settle-time chat file that ``#fork`` reads as this shell's turn."""
+    member_name = str(meta.get("name") or "")
+    timestamp = os.path.basename(artifacts_dir.rstrip("/"))
+    prompt = (
+        f"sase gate answer --id {meta.get('gate_id')} --kind {meta.get('gate_kind')}"
+    )
+    return save_chat_history(
+        prompt,
+        decision_text,
+        "ace-run",
+        agent=member_name,
+        timestamp=timestamp,
+        branch_or_workspace=meta.get("cl_name"),
+        metadata_agent=member_name,
+        metadata_model=meta.get("model"),
+        metadata_llm_provider=meta.get("llm_provider"),
+    )
 
 
 def _apply_branch_policy(meta: dict[str, Any], *, gate_state: GateShellState) -> None:

@@ -120,6 +120,23 @@ def _register_answer_parser(gate_subparsers: argparse._SubParsersAction) -> None
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    detach_group = answer_parser.add_mutually_exclusive_group()
+    detach_group.add_argument(
+        "-d",
+        "--detach",
+        action="store_true",
+        help=(
+            "Submit to a supervised background proc instead of answering "
+            "inline, so an approved command survives this client exiting; "
+            "gate shells default to this"
+        ),
+    )
+    detach_group.add_argument(
+        "-D",
+        "--no-detach",
+        action="store_true",
+        help="Answer inline even for a gate shell, overriding its detached default",
+    )
     answer_parser.add_argument(
         "-f",
         "--feedback",
