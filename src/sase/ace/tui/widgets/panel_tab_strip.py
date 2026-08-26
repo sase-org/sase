@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from rich.cells import cell_len
 from rich.text import Text
-from textual.events import Click, Resize
+from textual.events import Click, Leave, MouseMove, Resize
 from textual.message import Message
 from textual.widgets import Static
 
@@ -24,6 +24,7 @@ class PanelTab:
     micro_label: str | None = None
     shortcut: str | None = None
     icon: str = ""
+    description: str = ""
 
 
 _PanelTabTier = Literal["full", "compact", "micro"]
@@ -195,13 +196,35 @@ class PanelTabStrip(Static):
                 return candidate
         return "micro"
 
-    def on_click(self, event: Click) -> None:
-        """Post :class:`TabClicked` when the user clicks a tab label."""
+    def _tab_id_at(self, x: int) -> str | None:
+        """Return the tab id under cell offset ``x``, or ``None`` between tabs."""
         content_width = max(0, int(self.size.width))
         center_pad = max(0, (content_width - self._line_width) // 2)
-        x = event.x - center_pad
+        adjusted = x - center_pad
         for tab_id, (start, end) in self._tab_ranges.items():
-            if start <= x < end:
-                if tab_id != self._active_tab:
-                    self.post_message(self.TabClicked(tab_id))
-                return
+            if start <= adjusted < end:
+                return tab_id
+        return None
+
+    def on_click(self, event: Click) -> None:
+        """Post :class:`TabClicked` when the user clicks a tab label."""
+        tab_id = self._tab_id_at(event.x)
+        if tab_id is not None and tab_id != self._active_tab:
+            self.post_message(self.TabClicked(tab_id))
+
+    def on_mouse_move(self, event: MouseMove) -> None:
+        """Show the hovered tab's description as a tooltip, if it has one."""
+        if not any(tab.description for tab in self._tabs):
+            return
+        tab_id = self._tab_id_at(event.x)
+        description = None
+        if tab_id is not None:
+            description = next(
+                (tab.description for tab in self._tabs if tab.id == tab_id), None
+            )
+        self.tooltip = description or None
+
+    def on_leave(self, _event: Leave) -> None:
+        """Clear the tooltip once the pointer leaves the strip."""
+        if any(tab.description for tab in self._tabs):
+            self.tooltip = None

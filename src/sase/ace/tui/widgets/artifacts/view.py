@@ -192,6 +192,7 @@ class ArtifactsView(Vertical):
                 descriptor.accent,
                 shortcut=descriptor.digit_shortcut,
                 icon="⚠" if descriptor.is_degraded else descriptor.icon,
+                description=descriptor.description,
             )
             for descriptor in self._descriptors
         )
