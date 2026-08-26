@@ -393,10 +393,11 @@ three top-level tabs:
 - **Agents**: live and recent agents, groups, tags, hidden rows, child workflow steps,
   prompt panels, transcript panels, artifact viewers, tool metadata, file panels,
   retry/fork/wait/kill actions, and model/provider badges.
-- **Artifacts**: Stitches, Patches, Beads, configured document providers, and Files. The
-  Patches view owns Patch status, hooks, comments, mentor output, diffs, file deltas,
-  mail/submit flows, rewind, revert, restore, and archive operations; provider document
-  panes browse sidecar-backed material such as plans and research notes.
+- **Artifacts**: the historical Agent catalog, Stitches, Patches, Beads, configured
+  document providers, and Files. The Patches view owns Patch status, hooks, comments,
+  mentor output, diffs, file deltas, mail/submit flows, rewind, revert, restore, and
+  archive operations; provider document panes browse sidecar-backed material such as
+  plans and research notes.
 - **Axe**: the daemon view: lumberjacks, chops, run history, live output, wait checks,
   hook checks, mentor checks, comment polling, and error digests.
 

@@ -418,11 +418,12 @@ Comment polling:
 
 Periodic maintenance:
 
-| Chop                 | Description                                                                     |
-| -------------------- | ------------------------------------------------------------------------------- |
-| `error_digest`       | Send error notification digests (creates `ViewErrorReport` notification action) |
-| `managed_tmp_reap`   | Prune stale scratch under the managed SASE temp root                            |
-| `bead_stale_cleanup` | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate     |
+| Chop                     | Description                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| `error_digest`           | Send error notification digests (creates `ViewErrorReport` notification action) |
+| `managed_tmp_reap`       | Prune stale scratch under the managed SASE temp root                            |
+| `bead_stale_cleanup`     | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate     |
+| `artifact_link_backfill` | Derive and reconcile artifact links, drain reads, and repair renamed refs       |
 
 The `error_digest` chop summarizes recent errors into a digest file stored at
 `~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a
@@ -459,6 +460,15 @@ the bar the pending gate is canceled. A project whose store cannot be read is sk
 and cannot cancel a healthy pending gate, because the true roster is then unknown. Run
 `sase axe chop run bead_stale_cleanup` to raise or refresh that gate without waiting for
 the hour.
+
+The `artifact_link_backfill` chop runs four bounded jobs per enabled project. It sweeps
+older documents for deterministic derived links, resuming from a per-project checkpoint
+when one tick's budget is exhausted; drains audited-read outbox rows whose agents have
+since published; reconciles cross-workspace local aggregates; and repairs dangling refs
+from Git rename history. A large derivation backlog converges over several hourly ticks
+instead of rescanning the full corpus each time. Run
+`sase axe chop run artifact_link_backfill` for an immediate pass. The link model and
+doctor counters are documented in [Artifact Links](artifact_links.md).
 
 ## Configuration
 

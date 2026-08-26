@@ -440,12 +440,16 @@ while launch validation normalizes both to `medium` with a warning so legacy tal
 launch.
 
 SASE-managed `create_time`, `status`, `bead`, and `bead_id` fields are accepted but
-never required. Historical plans with a deprecated `prompt` or `parent` property remain
-valid, but both are intentionally omitted from canonical schema and authoring output
-because new links use the Markdown header block; `parent` additionally reports a
-deprecation warning pointing at the `PARENT` bullet. Epics may also carry the
-SASE-managed `parent_bead` field. Unknown fields are errors. A plan must start with
-valid, closed YAML frontmatter and contain a non-empty Markdown body.
+never required. A proposal may also carry the transient `links:` authoring inlet: a list
+of typed artifact relationships that `sase plan propose` validates, persists, and
+removes before archiving; see
+[Authoring links in a proposed plan](artifact_links.md#authoring-links-in-a-proposed-plan).
+Historical plans with a deprecated `prompt` or `parent` property remain valid, but both
+are intentionally omitted from canonical schema and authoring output because new links
+use the Markdown header block; `parent` additionally reports a deprecation warning
+pointing at the `PARENT` bullet. Epics may also carry the SASE-managed `parent_bead`
+field. Other unknown fields are errors. A plan must start with valid, closed YAML
+frontmatter and contain a non-empty Markdown body.
 
 Epics additionally require an ordered, non-empty `phases` list. Optional `changespec`
 and integer `bug_id` metadata may be supplied; `bug_id` requires `changespec`. The

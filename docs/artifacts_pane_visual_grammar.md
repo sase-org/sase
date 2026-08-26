@@ -1,6 +1,6 @@
 # Artifacts pane visual grammar
 
-Every configured Artifacts pane — Stitches, Patch, Beads, Files, every document
+Every configured Artifacts pane — Agent, Stitches, Patch, Beads, Files, every document
 provider, and a degraded provider that failed to load — renders through one shared,
 contract-driven shell. This document is the reference for that grammar: the code lives
 in `src/sase/ace/tui/widgets/artifacts/shell.py`.
@@ -110,8 +110,8 @@ pane id so the target switch is explicit.
 `.` (`toggle_relation_panel`) collapses that panel into a one-line relations rail and
 expands it again; the panel **starts collapsed** by default
 (`ace.artifacts.relations_expanded: false`). The collapsed flag is session-scoped and
-shared by every relations pane, so switching Patches / Beads / Files / Plans / Stitches
-keeps the same expanded or collapsed state.
+shared by every relations pane, so switching Agent / Patches / Beads / Files / Plans /
+Stitches keeps the same expanded or collapsed state.
 
 The collapsed rail leads with a **control chip** — `" ▸ {key} "` rendered bold on the
 pane accent, where `{key}` is the resolved display name of `toggle_relation_panel` (not

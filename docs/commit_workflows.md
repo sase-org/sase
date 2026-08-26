@@ -677,6 +677,19 @@ Final declarations have three distinct boundaries:
    refuses before running the stitch and fails with the non-retryable
    `protected_paths_exhausted` diagnostic, which names the protected paths and the
    baseline record (`repo_id`, `scope`, `captured_at`) that protects them.
+
+   A conflict gets one automated repair turn. That turn must resolve and stage every
+   marker, run the project's verification gate before continuing the paused VCS
+   operation, fold any semantic-merge fixes into the resolution, and finish with
+   `sase stitch create --resume`. Marker-free text alone is not sufficient evidence:
+   list, mapping, tuple, or enum additions can merge into a duplicate that only lint or
+   tests expose. After the resumed primary commit lands, the repair turn still ends
+   through `/sase_final`. If repair-related attributable paths remain, the dispatcher
+   uses that accepted declaration's commit message for exactly one follow-up stitch. A
+   missing declaration, a second conflict, or dirt left after the follow-up fails
+   completion with diagnostics that also state whether the primary commit already
+   landed.
+
 6. Verify each mutation with stitch evidence in `commit_results.json`, publication
    checks for sidecar SDD/bead state, and discarded-work classification for shared
    clones.

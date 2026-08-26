@@ -220,6 +220,13 @@ every strand you need in one command: shared related strands print once, and a b
 that names an unknown strand reports every unresolved reference at once, prints nothing,
 and exits 1.
 
+Markdown output labels every flat note in a multi-note or mixed batch as
+`MEMORY FILE: <canonical-path>` and every web section as `MEMORY WEB: <slug>`, so file
+boundaries remain unambiguous when several bodies are concatenated. The exact one-note
+case stays header-free for backward compatibility and appends that note's nested
+`## Children` section. Multi-note and mixed Markdown batches currently omit the per-note
+children sections; read a parent note by itself when you need its child list.
+
 A web whose descriptor sets `closure: mentions` — `glossary` is one — additionally walks
 the recursive closure of strands each requested strand's body mentions. Every related
 strand shows why it appeared: which requesting strand's body mentioned it, and the exact

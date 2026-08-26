@@ -81,12 +81,17 @@ off critique agents — the back-half of the mentor follow-up loop. The `checks`
 lumberjack (5-minute interval) runs `pr_submitted_checks` to notice when a PR has been
 submitted upstream, plus a slower backstop pass of `stale_running_cleanup`.
 
-The `housekeeping` lumberjack (1-hour interval) runs the `error_digest` chop. It
-summarizes recent errors into `~/.sase/axe/error_digests/digest_<timestamp>.txt` and
-posts a notification with a `ViewErrorReport` action that opens the digest in `$EDITOR`
-when selected from the ACE notification modal. The relevant errors are tracked in
-`~/.sase/axe/recent_errors.json` (last 100), so the digest is not reconstructed from
-logs.
+The `housekeeping` lumberjack (1-hour interval) runs four maintenance chops.
+`error_digest` summarizes recent errors into
+`~/.sase/axe/error_digests/digest_<timestamp>.txt` and posts a notification with a
+`ViewErrorReport` action that opens the digest in `$EDITOR` when selected from the ACE
+notification modal. The relevant errors are tracked in `~/.sase/axe/recent_errors.json`
+(last 100), so the digest is not reconstructed from logs. `managed_tmp_reap` bounds
+SASE-managed scratch, `bead_stale_cleanup` batches stale sub-threshold ready tasks into
+a human cleanup gate, and `artifact_link_backfill` derives and reconciles typed links,
+drains audited reads after agent publication, and repairs refs after Git renames. Each
+is bounded so a neglected backlog converges across ticks without turning the hourly lane
+into an unbounded scan.
 
 ## The Lumberjack Control Surface
 

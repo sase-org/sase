@@ -65,11 +65,11 @@ can still be selected and recovered.
 
 ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
-| Tab           | Description                                                                                                                                                                                |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Agents**    | View running and completed agents, their files and prompts                                                                                                                                 |
-| **Artifacts** | Browse Stitch, Patch, Bead, configured document providers, and File. See the [Artifacts pane contract](artifacts_pane_contract.md) and [visual grammar](artifacts_pane_visual_grammar.md). |
-| **Axe**       | Monitor the Axe daemon and background commands                                                                                                                                             |
+| Tab           | Description                                                                                                                                                                                                                 |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Agents**    | View running and completed agents, their files and prompts                                                                                                                                                                  |
+| **Artifacts** | Browse the durable Agent catalog, Stitches, Patches, Beads, configured document providers, and Files. See the [Artifacts pane contract](artifacts_pane_contract.md) and [visual grammar](artifacts_pane_visual_grammar.md). |
+| **Axe**       | Monitor the Axe daemon and background commands                                                                                                                                                                              |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press `?`
 to open the Help modal on its **Keymaps** view, then `]` to switch to the tab's
@@ -95,21 +95,24 @@ more" links into the published docs. An empty Beads pane points agents to
 TaskTriage.
 
 Within Artifacts, number keys follow the visible left-to-right order of the strip:
-Stitch, Patch, and Bead are always **1**, **2**, **3**; configured document-provider
-tabs such as Plan and Research take the next digits; and File, which always renders
-last, always carries the highest digit — **4** with no provider tabs configured, **6**
-with two. Digits stop at `9`, and File keeps its digit even then. Use `[` / `]` to cycle
-through the complete runtime strip. As horizontal space tightens, the strip chooses the
-widest tier that fits from a full → compact → micro ladder and re-renders only when the
-tier changes. Compact removes outer padding; micro also tightens the separators and
-hides inactive labels, leaving their digits and icons visible. If even micro is wider
-than the available space, micro remains selected. Every Artifacts tab has an icon,
-including provider tabs whose missing or invalid `ref.icon` falls back to the generic
-`◆`, so the micro tier never leaves an inactive tab unidentified. These keys act only
-while Artifacts is visible. Press `p` in Stitch, Bead, provider document panes, or File
-to change the shared project scope — first-open seeds from the
-[current project](#current-project) — or use the command palette to jump directly to a
-top-level view. Patches remains query-scoped and retains the existing Patch workflow.
+Agent, Stitch, Patch, and Bead are always **1**, **2**, **3**, **4**; configured
+document-provider tabs such as Plan and Research take the next digits; and File, which
+always renders last, carries the highest digit — **5** with no provider tabs configured,
+**7** with two. Digits stop at `9`, and File keeps `9` when the runtime strip grows past
+nine panes; middle overflow panes may then have no digit. Use `[` / `]` to cycle through
+the complete runtime strip. As horizontal space tightens, the strip chooses the widest
+tier that fits from a full → compact → micro ladder and re-renders only when the tier
+changes. Compact removes outer padding; micro also tightens the separators and hides
+inactive labels, leaving their digits and icons visible. If even micro is wider than the
+available space, micro remains selected. Every Artifacts tab has an icon, including
+provider tabs whose missing or invalid `ref.icon` falls back to the generic `◆`, so the
+micro tier never leaves an inactive tab unidentified. Hovering a tab shows that pane's
+one-sentence description. These keys act only while Artifacts is visible. Press `p` in
+Agent, Stitch, Bead, provider document panes, or File to change the shared project scope
+— first-open seeds from the [current project](#current-project) — or use the command
+palette to jump directly to a top-level view. Patches remains query-scoped and retains
+the existing Patch workflow. The strip order does not change the entry point: opening
+Artifacts still selects Stitch by default.
 
 ### Split Modes in Artifacts Panes
 
@@ -153,16 +156,16 @@ only, a dim italic hint naming both places its description can be configured:
 [Artifacts pane visual grammar](artifacts_pane_visual_grammar.md#pane-brief) for the
 full rendering rules.
 
-### Navigation in Stitches, Beads, Provider Documents, and Files
+### Navigation in Agent, Stitches, Beads, Provider Documents, and Files
 
 The non-Patches panes share fast navigation over their selectable left-panel entries.
-Stitches and Files skip day headings; Beads and provider document panes skip section and
-empty-state rows. Movement clamps at the first or last entry and silently does nothing
-when a list is empty.
+Stitches and Files skip day headings; Agent, Beads, and provider document panes skip
+group, section, and empty-state rows as applicable. Movement clamps at the first or last
+entry and silently does nothing when a list is empty.
 
 | Key                       | Action                                                                                  |
 | ------------------------- | --------------------------------------------------------------------------------------- |
-| `g` / `G`                 | Select the first / last commit, issue, bead, document, or file                          |
+| `g` / `G`                 | Select the first / last agent, commit, issue, bead, document, or file                   |
 | `Enter`                   | Open the selected commit, document, bead, or file in its full-screen reader             |
 | `Ctrl+F` / `Ctrl+B`       | Move down / up 10 selectable entries                                                    |
 | `Ctrl+D` / `Ctrl+U`       | Scroll the active right-hand detail pane down / up (half page)                          |
@@ -175,6 +178,10 @@ for each non-Patches pane, and stale origins disappear automatically after filte
 changing project scope, refreshing data, or collapsing an expanded bead tree. Escape or
 an invalid hint exits jump mode. These actions use the configured keymap values; the
 keys above are the defaults.
+
+The Agent pane is the deliberate exception to `Enter`: its detail is already inline, so
+selecting a row updates the right-hand identity, lifecycle, lineage, provenance, prompt,
+chat, and published-page view without opening a reader.
 
 When the selected entry has declared relationships, a relation panel appears at the
 bottom of the list column, starting collapsed into a one-line rail that names its own
@@ -219,7 +226,7 @@ drilling into or out of a Launch Control bucket, or an async provider-snapshot r
 discard the stored origins instead of leaving them pointing at whatever row inherited
 the index.
 
-### Copy Mode in Stitches, Beads, Provider Documents, and Files
+### Copy Mode in Agent, Stitches, Beads, Provider Documents, and Files
 
 Press `%` on any non-Patches Artifacts pane to open the context-aware **Copy as…**
 palette for the visible entry. Rows are grouped by representation, show their configured
@@ -230,6 +237,7 @@ cancellation.
 
 | Pane               | Keys                                                                                                                                                              |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent              | `%@` artifact ref · `%!` ref in agent prompt · `%n` name · `%l` Markdown link · `%p` artifacts path · `%c` chat path · `%P` prompt · `%j` metadata JSON           |
 | Stitches           | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan               |
 | Beads              | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` id · `%t` title · `%b` description and notes · `%d` design          |
 | Provider documents | `%@` artifact ref · `%d` bead design ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` bead id · `%p` path · `%t` title · `%b` body |
@@ -241,18 +249,19 @@ The palette and copied value follow the active pane. After selection or cancella
 the footer returns to the active pane's normal bindings. An unknown printable key warns
 but leaves the palette open so another choice can be made.
 
-When entries are marked, `%@` copies newline-separated prompt references, `%l` copies a
-Markdown bullet list, `%J` copies one JSON array, and `%!` seeds one prompt with the
-marked set. Entries that cannot produce the selected representation are skipped; the
-completion toast reports both the copied and skipped counts. The palette title reports
-the visible marked count and applicable rows use plural labels such as **commit SHAs**.
+When entries are marked, the reference choice copies newline-separated prompt
+references, the Markdown-link choice copies a bullet list, the metadata-JSON choice
+copies one array, and the handoff choice seeds one prompt with the marked set. Entries
+that cannot produce the selected representation are skipped; the completion toast
+reports both the copied and skipped counts. The palette title reports the visible marked
+count and applicable rows use plural labels such as **commit SHAs**.
 
 The same `%` prefix opens the palette above copy-forwarding readers and modals,
 including the preview panel. Dismissing the palette returns to the underlying modal.
 Snapshot choices dismiss the palette before capture, so the palette itself is not
 included in the copied pane.
 
-### Marks in Stitches, Beads, Provider Documents, and Files
+### Marks in Agent, Stitches, Beads, Provider Documents, and Files
 
 Press `m` to mark or unmark the selected entry and `u` to clear the active pane's marks.
 Each non-Patches pane keeps an independent stable-target mark set, so marks survive
@@ -266,7 +275,7 @@ are capped at 512,000 bytes per item and per assembled payload, with an explicit
 truncation banner and toast. The footer shows the active pane's mark count only while
 that count is nonzero.
 
-### Filtering Patches, Stitches, Beads, and Plans
+### Filtering Agent, Patches, Stitches, Beads, and Plans
 
 Patches keeps its canonical query visible in a persistent, read-only filter row at the
 top of the detail column, so the active query is legible without opening anything. Press
@@ -291,6 +300,20 @@ query lives in the idle bar, not on the counts line. Tokens from different facet
 combine with AND semantics; comma-separated and repeated values within one facet combine
 with OR semantics. Free-text terms must all match. Press `Tab` to accept the highlighted
 key or value completion.
+
+Agent uses the same persistent query row and the Boolean profile dialect shared with
+[`sase agent search`](configuration.md#sase-agent). It accepts `AND`, `OR`, `NOT`, and
+parentheses, plus free text over agent names and metadata. Its fields cover identity and
+lineage (`name`, `kind`, `family`, `clan`, `tribe`, `role`, `workflow`, `parent`,
+`project`), execution (`state`, `status`, `provider`, `model`, `attempt`), lifecycle
+booleans (`hidden`, `dismissed`, `revivable`, `attention`, `retry`), artifact links
+(`linked`, `relation`, `artifact`), start/finish bounds (`since`, `until`, `after`,
+`before`), and runtime bounds (`min`, `max`). Date bounds accept `Nh` / `Nd` / `Nw` /
+`Nm`, `today`, and `YYYY-MM-DD`, where `Nm` means months; runtime bounds accept seconds
+or `Ns` / `Nm` / `Nh` / `Nd`, where `Nm` means minutes. There are no sigils or macros.
+For example, `state:dismissed AND revivable:true`,
+`provider:codex AND status:FAILED AND since:7d`, and `linked:true AND relation:read` are
+valid queries.
 
 Stitches accepts singular `project:` plus `repo:`, `author:`, `origin:`, `type:`,
 `since:`, `until:`, `sidecar:`, `merges:`, and `limit:` and free text matched against
@@ -478,18 +501,58 @@ When that worker appears on the Agents tab, its bead badge points directly to th
 and its **SASE CONTEXT / BEAD** lane shows the task title and description, plus size
 when one is stored, without trying to resolve an epic plan.
 
+### Agent Pane
+
+Artifacts → Agent is the durable historical catalog. It is intentionally different from
+the top-level Agents tab: the live tab is the operational view for running work, unread
+completions, and current clan/family panels, while this pane keeps queryable rows for
+prior runs, dismissed agents, families, clans, workflows, and workflow children. Rows
+are newest-first. The pane paints its newest 500 rows first, then extends to the
+complete catalog and builds the full query index off-thread.
+
+The left side defaults to **Family** grouping; `o` / `O` cycle forward or backward
+through **Family**, **State**, and **Project**. The shared fold keys (`h`, `l`, `H`,
+`L`) collapse or expand group banners. Selecting a row updates the right-hand detail
+with its durable `agent:` reference, identity, lifecycle and timing, model/provider,
+family and retry lineage, provenance, a bounded prompt preview, chat path, and hosted
+agent page when those files resolve.
+
+The collapsed relation rail combines catalog lineage—family, clan, parent, and retry
+chain—with typed artifact links such as `cites`, `read`, `implements`, and their inverse
+labels. Expand it with `.`, then use the printed `<`, `>`, or `~` mode and row hint to
+navigate. `linked:true`, `relation:<slug>`, and `artifact:<canonical-ref>` expose the
+same graph as query facets.
+
+| Key                 | Action                                                          |
+| ------------------- | --------------------------------------------------------------- |
+| `j` / `k`           | Select the next / previous catalog row                          |
+| `/` / `f`           | Edit the Boolean Agent query                                    |
+| `o` / `O`           | Cycle grouping forward / backward                               |
+| `w`                 | Revive the selected dismissed row, or the marked revivable rows |
+| `m` / `u`           | Mark / unmark the selected row · clear this pane's marks        |
+| `Ctrl+J` / `Ctrl+K` | Load more matching agents / unload one page (rewrites `limit:`) |
+| `p`                 | Change the shared Artifacts project scope                       |
+| `%`                 | Open the Agent **Copy as…** palette                             |
+| `R`                 | Refresh the catalog                                             |
+
+`w` skips marked rows that are not revivable. On an aggregate family or clan with one
+revivable member it revives that member directly; with several, it narrows the pane to
+the matching `state:dismissed AND revivable:true` family or clan query so the choice is
+explicit. Use [`sase agent search`](configuration.md#sase-agent) for the same catalog
+dialect outside ACE.
+
 ### Document Provider Panes
 
 Artifacts includes one document pane per configured artifact-reference provider. The
-fixed tabs are Stitch, Patch, Bead, and File; provider-backed document tabs such as Plan
-and Research appear between Bead and File when an enabled project configures the
+fixed tabs are Agent, Stitch, Patch, Bead, and File; provider-backed document tabs such
+as Plan and Research appear between Bead and File when an enabled project configures the
 matching sidecar `ref:` policy. Persisted selections use stable ids such as `ref:plan`
 and `ref:research`, so a missing provider falls back to Stitch instead of crashing
-startup. Each pane renders an icon before its label — the four fixed marks (`◉` Stitch,
-`⎇` Patch, `◈` Bead, `▤` File) are built in, and a provider pane's mark comes from its
-sidecar `ref.icon`. The active tab's icon takes that pane's accent color; inactive icons
-render dim. A missing `ref.icon`, one that fails validation, or one wider than two
-terminal cells uses the generic `◆` provider icon instead.
+startup. Each pane renders an icon before its label — the five fixed marks (`⬡` Agent,
+`◉` Stitch, `⎇` Patch, `◈` Bead, `▤` File) are built in, and a provider pane's mark
+comes from its sidecar `ref.icon`. The active tab's icon takes that pane's accent color;
+inactive icons render dim. A missing `ref.icon`, one that fails validation, or one wider
+than two terminal cells uses the generic `◆` provider icon instead.
 
 Plans is the built-in provider-backed document pane for the plans sidecar. It keeps the
 existing plan actions: `A` and `X` approve or reject pending proposals, and `L` appears
@@ -576,11 +639,11 @@ press.
 ### File Pane
 
 Files browses the artifact-file index that backs [`sase artifact list`](cli.md). The
-pane is one of the four fixed Artifacts views: Stitch, Patch, Bead, and File. Configured
-document-provider panes appear between Bead and File in the runtime tab strip. Rows are
-grouped by logical file identity, so repeated captures of `@file:~/bob/gtd.md` or
-repeated `sase artifact create` rows for the same logical artifact appear as one
-selectable row with versions.
+pane is one of the five fixed Artifacts views: Agent, Stitch, Patch, Bead, and File.
+Configured document-provider panes appear between Bead and File in the runtime tab
+strip. Rows are grouped by logical file identity, so repeated captures of
+`@file:~/bob/gtd.md` or repeated `sase artifact create` rows for the same logical
+artifact appear as one selectable row with versions.
 
 Each row shows a view-mode glyph, the project, the producing agents, an origin badge,
 the logical label, the latest selected version's timestamp, and the indexed size.
@@ -637,7 +700,7 @@ configuration names and are remappable under
 `Ctrl+K` are the shared `artifacts_load_more`/`artifacts_unload` actions. Version
 cycling uses the old nested-files sub-tab keys. The pane also shares the navigation and
 jump keys described in
-[Navigation in Stitches, Beads, Provider Documents, and Files](#navigation-in-stitches-beads-provider-documents-and-files).
+[Navigation in Agent, Stitches, Beads, Provider Documents, and Files](#navigation-in-agent-stitches-beads-provider-documents-and-files).
 
 `Y` copies the anchored stored path, except that PDF rows deliberately yield the live
 Markdown source they were rendered from when the index recorded one. Relative index
@@ -656,9 +719,9 @@ copies — only its `Source` path reports `missing`.
 #### Filtering Files
 
 Files keeps its committed query visible in a persistent filter row, the same idle chrome
-Patches, Stitches, Beads, and Plans use. Press `f` or `/` to edit it. Filtering is
-purely in-memory over the loaded snapshot, so a query narrows thousands of rows without
-a re-query. Files accepts `kind:`, `project:`, `agent:`, `workflow:`, `origin:`,
+Agent, Patches, Stitches, Beads, and Plans use. Press `f` or `/` to edit it. Filtering
+is purely in-memory over the loaded snapshot, so a query narrows thousands of rows
+without a re-query. Files accepts `kind:`, `project:`, `agent:`, `workflow:`, `origin:`,
 `since:`, `until:`, and host-owned `limit:`, plus free text matched against the label,
 logical path, stored path, source path, digest, and artifact id. Tokens from different
 facets combine with AND semantics, while comma-separated or repeated values within
@@ -2519,14 +2582,15 @@ Agents reserves bare `/` for forward inline metadata search, so its structured q
 editor uses the independent `,/` leader chord instead. Help is the app-level `?` on
 every tab.
 
-| Context                 | Default query key  |
-| ----------------------- | ------------------ |
-| Patches                 | `/` (or local `f`) |
-| Stitches                | `/` (or local `f`) |
-| Beads                   | `/` (or local `f`) |
-| Provider documents      | `/` (or local `f`) |
-| Files                   | `/` (or local `f`) |
-| Agents structured query | `,/`               |
+| Context            | Default query key  |
+| ------------------ | ------------------ |
+| Patches            | `/` (or local `f`) |
+| Stitches           | `/` (or local `f`) |
+| Beads              | `/` (or local `f`) |
+| Provider documents | `/` (or local `f`) |
+| Files              | `/` (or local `f`) |
+| Artifacts → Agent  | `/` (or local `f`) |
+| Agents tab query   | `,/`               |
 
 The Axe tab has no query editor. Its `?` help modal and the command palette both still
 offer "Edit search query" there, but the action currently does nothing on Axe; use the
@@ -2673,7 +2737,7 @@ effective binding and destination.
 Inside every working section, `'` is an Admin Center-wide entry-jump key: it paints
 adaptive hints over that section's selectable rows using the same hint alphabet
 described under
-[Navigation in Stitches, Beads, Provider Documents, and Files](#navigation-in-stitches-beads-provider-documents-and-files),
+[Navigation in Agent, Stitches, Beads, Provider Documents, and Files](#navigation-in-agent-stitches-beads-provider-documents-and-files),
 a hint character moves the selection there, `'` again returns to the previous position
 (or the first hint with an empty back stack), and `Esc` cancels. Each working section's
 own keybindings table names its jump targets; two are deliberate exceptions. The
@@ -3768,7 +3832,7 @@ press `c` on the Projects tab. Hide the chip with
 When `ace.current_project.seed_filters` is on (the default), first-open surfaces that
 can filter by project seed from the current project instead of starting at all projects:
 
-- the shared Artifacts project scope (Stitches, Beads, Plans, Files, Patches)
+- the shared Artifacts project scope (Agent, Stitches, Beads, Plans, Files, Patches)
 - the Statistics project filter
 - the Repos / Workspaces inventory filters
 - the Memory panel's scope ring
@@ -5395,37 +5459,42 @@ token under the cursor:
   prompt, before that prefix; words later in the prompt (including any suffix already
   sitting to the right of the cursor) are never candidates. Identifier-like candidates
   may include ASCII hyphens, so `bob-mac-capture` is matched and replaced as one word;
-  Unicode dash punctuation still acts as a boundary. Matching is case-insensitive, but
-  each candidate keeps its original spelling. Accepting a candidate replaces only the
-  typed prefix, so completion works safely in the middle of a word: `foo<cursor>baz`
-  completing to `foobar` becomes `foobar<cursor> baz` — a single space is inserted to
-  separate the completed word from a preserved right-hand suffix, and the cursor lands
-  immediately after the completed word, before that space. An exact-prefix spelling is
-  only offered when accepting it would have this separating effect; at a plain word
-  boundary with no suffix to separate, that exact match is suppressed as a no-op. While
-  multiple candidates share a longer common prefix, `Ctrl+T` only narrows the typed
-  prefix and keeps the menu open; it never inserts the separator until a candidate is
-  actually committed. Candidates shorter than `ace.prompt_completion.word_min_length`
-  are skipped before history fallback is considered; the default is `5`, and the
-  threshold applies to the complete candidate rather than the typed prefix. This
-  provider scans only the current prompt pane and takes precedence over history words
-  when it has an eligible match. Candidates are ordered nearest-first: the word you just
-  wrote is the one you are most likely repeating.
+  Unicode dash punctuation still acts as a boundary. Matching is case-insensitive and
+  case variants collapse into one row. Insertion honors the casing you started: a prefix
+  with at least two cased characters that are all uppercase uppercases the rest (`GITHU`
+  → `GITHUB`); otherwise intrinsic spellings such as `GitHub`, `README`, and `iPhone`
+  stay intact, while a plain word keeps the typed prefix's case and appends its
+  remembered remainder. Accepting a candidate replaces only the typed prefix, so
+  completion works safely in the middle of a word: `foo<cursor>baz` completing to
+  `foobar` becomes `foobar<cursor> baz` — a single space is inserted to separate the
+  completed word from a preserved right-hand suffix, and the cursor lands immediately
+  after the completed word, before that space. An exact-prefix spelling is only offered
+  when accepting it would have this separating effect; at a plain word boundary with no
+  suffix to separate, that exact match is suppressed as a no-op. While multiple
+  candidates share a longer common prefix, `Ctrl+T` only narrows the typed prefix and
+  keeps the menu open; it never inserts the separator until a candidate is actually
+  committed. Candidates shorter than `ace.prompt_completion.word_min_length` are skipped
+  before history fallback is considered; the default is `5`, and the threshold applies
+  to the complete candidate rather than the typed prefix. This provider scans only the
+  current prompt pane and takes precedence over history words when it has an eligible
+  match. Candidates are ordered nearest-first: the word you just wrote is the one you
+  are most likely repeating.
 - **History-word completion**: When prompt-local words have no match, `Ctrl+T` filters
   recently used words derived from recorded prompt history using that same
   left-of-cursor prefix; any suffix under the cursor is never consulted to include or
   exclude candidates, only to decide whether accepting inserts the same separating space
   described above. Hyphenated identifier-like spellings are indexed, matched,
   length-filtered, and replaced as one word, with only the typed prefix replaced so a
-  preserved suffix survives acceptance. Matching remains case-insensitive and keeps
-  exact spelling. ACE retains up to `ace.prompt_completion.history_word_count` unique
-  words that meet the shared `ace.prompt_completion.word_min_length` (defaults: `10000`
-  and `5`); set `history_word_count: 0` to disable only this final fallback. History is
-  loaded off-thread, so a cold cache briefly shows `loading history words…` without
-  blocking input. `Ctrl+D` deletes the highlighted word instantly, without rebuilding
-  the index, and records it in `~/.sase/prompt_word_deletions.json`, so future history
-  derivations continue to filter it out; remove that file to reset all history-word
-  deletions. The former `history_word_min_length` configuration key has been replaced by
+  preserved suffix survives acceptance. Matching and insertion use the same case-variant
+  collapse and typed-case policy as prompt-local completion. ACE retains up to
+  `ace.prompt_completion.history_word_count` unique words that meet the shared
+  `ace.prompt_completion.word_min_length` (defaults: `10000` and `5`); set
+  `history_word_count: 0` to disable only this final fallback. History is loaded
+  off-thread, so a cold cache briefly shows `loading history words…` without blocking
+  input. `Ctrl+D` deletes the highlighted word instantly, without rebuilding the index,
+  and records it in `~/.sase/prompt_word_deletions.json`, so future history derivations
+  continue to filter it out; remove that file to reset all history-word deletions. The
+  former `history_word_min_length` configuration key has been replaced by
   `word_min_length`.
 
   By default (`ace.prompt_completion.word_ranking: smart`) rows are ranked by a weighted

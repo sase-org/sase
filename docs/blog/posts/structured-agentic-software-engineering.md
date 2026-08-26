@@ -257,9 +257,10 @@ shell history._
 
 `sase ace` opens ACE, the Agentic Change Explorer. It has three top-level tabs:
 **Agents**, **Artifacts**, and **Axe**. Agents is the startup default. Artifacts has
-views for Stitches, Patches, Beads, configured document providers, and Files. Its
-Patches view owns durable PR-sized Patch records. Axe is the background daemon view.
-This post stays on Agents because that is the tmux-window-farm replacement.
+views for the historical Agent catalog, Stitches, Patches, Beads, configured document
+providers, and Files. Its Patches view owns durable PR-sized Patch records. Axe is the
+background daemon view. This post stays on Agents because that is the tmux-window-farm
+replacement.
 
 The first difference is observability. The Agents tab groups runs by project, date, or
 status; folds and unfolds the tree with `h`/`l` and `H`/`L`; and shows a metric strip

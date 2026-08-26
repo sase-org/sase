@@ -7,27 +7,29 @@ sub-tab in `sase ace [query]` and by other Patch filters such as
 
 ## Host-owned `limit:` cap
 
-Every Artifacts pane — Patches, Stitches, Beads, Files, and every document-provider pane
-— accepts `limit:N` / `limit:all` as a **host-owned presentation cap**, not a
-row-matching field. ACE extracts the token before dialect parse and Rust evaluation,
-matches rows against the remainder, then slices the visible list. Completions offer
-`40`, `100`, `200`, and `all`. Startup injects `limit:<ace.page_size>` (default 100)
-into each pane's default query when no `limit:` is present. An explicit token is left
-alone; deleting it leaves that pane uncapped. `limit:all` is the unlimited synonym on
-every pane. The shared parser also treats `limit:0` as unlimited (Stitches used that
-spelling first); completions offer `all`, not `0`. On the Artifacts tab, `Ctrl+J` raises
-the cap by `ace.page_size` and `Ctrl+K` lowers it, never dropping below one page;
-unloading an unlimited query introduces `limit:<ace.page_size>`. The token cannot be
-negated and may appear only once. Do not add `limit` as a filterable profile field on
-Beads, Plans, Files, Patches, or provider dialects; Stitches already treats it as a cap
-and strips it before row eval.
+Every Artifacts pane — Agent, Patches, Stitches, Beads, Files, and every
+document-provider pane — accepts `limit:N` / `limit:all` as a **host-owned presentation
+cap**, not a row-matching field. ACE extracts the token before dialect parse and Rust
+evaluation, matches rows against the remainder, then slices the visible list.
+Completions offer `40`, `100`, `200`, and `all`. Startup injects `limit:<ace.page_size>`
+(default 100) into each pane's default query when no `limit:` is present. An explicit
+token is left alone; deleting it leaves that pane uncapped. `limit:all` is the unlimited
+synonym on every pane. The shared parser also treats `limit:0` as unlimited (Stitches
+used that spelling first); completions offer `all`, not `0`. On the Artifacts tab,
+`Ctrl+J` raises the cap by `ace.page_size` and `Ctrl+K` lowers it, never dropping below
+one page; unloading an unlimited query introduces `limit:<ace.page_size>`. The token
+cannot be negated and may appear only once. Do not add `limit` as a filterable profile
+field on Beads, Plans, Files, Patches, or provider dialects; Stitches already treats it
+as a cap and strips it before row eval.
 
 Normal query surfaces use enabled-project Patch discovery. Disabled projects are omitted
 from CLI search and day-to-day ACE/axe scans. Views that are specifically about agent
 history or old artifacts opt into all project lifecycle states explicitly.
 
-This page documents Patch queries. The Agents tab in ACE has a separate agent query
-language with agent-specific property keys.
+This page documents Patch queries. The top-level Agents tab has its own operational
+query language. Artifacts → Agent and `sase agent search` share a third, historical
+agent-catalog Boolean dialect with identity, lineage, lifecycle, runtime, and
+artifact-link fields; see [ACE: Agent Pane](ace.md#agent-pane).
 
 In the Patches sub-tab, the canonical form of the active query stays visible in a
 persistent filter row. Press `/` (or the local `f`) to edit it. Typing previews each
@@ -39,12 +41,12 @@ predicates, and macros — and, while the row is empty, saved-query slots. A lea
 saves or deletes a slot without changing the active query; see
 [ACE: Editing Queries](ace.md#editing-queries).
 
-Stitches, Beads, Plans, Files, and document-provider panes use the same idle chrome —
-the committed query stays visible without opening an editor — but each pane has its own
-query dialect and previews against **that pane's** loaded snapshot, not the Patch
-snapshot. Shared keys such as `/` and `f` still focus the row; the tokens you can type
-are documented per pane in
-[ACE Artifacts](ace.md#filtering-patches-stitches-beads-and-plans).
+Agent, Stitches, Beads, Plans, Files, and document-provider panes use the same idle
+chrome — the committed query stays visible without opening an editor — but each pane has
+its own query dialect and previews against **that pane's** loaded snapshot, not the
+Patch snapshot. Shared keys such as `/` and `f` still focus the row; the tokens you can
+type are documented per pane in
+[ACE Artifacts](ace.md#filtering-agent-patches-stitches-beads-and-plans).
 
 ## String Matching
 
