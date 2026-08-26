@@ -89,6 +89,38 @@
         "plan",
         "research"
       ]
+    },
+    {
+      "schema_version": 2,
+      "slug": "produced-by",
+      "inverse": "produced",
+      "directed": true,
+      "written_by": "projection",
+      "direction_note": "The stitch is the source; the agent that produced it is the target.",
+      "positive_example": "stitch:sase@0123456789abcdef0123456789abcdef01234567 produced-by agent:sase-tj.land",
+      "negative_example": "agent:sase-tj.land produced-by stitch:sase@0123456789abcdef0123456789abcdef01234567",
+      "recommended_source_kinds": [
+        "stitch"
+      ],
+      "recommended_target_kinds": [
+        "agent"
+      ]
+    },
+    {
+      "schema_version": 2,
+      "slug": "launched",
+      "inverse": "launched-by",
+      "directed": true,
+      "written_by": "projection",
+      "direction_note": "The chop is the source; the agent it launched is the target.",
+      "positive_example": "chop:refresh_docs/refresh_docs launched agent:sase-tj.land",
+      "negative_example": "agent:sase-tj.land launched chop:refresh_docs/refresh_docs",
+      "recommended_source_kinds": [
+        "chop"
+      ],
+      "recommended_target_kinds": [
+        "agent"
+      ]
     }
   ],
   "reserved": [

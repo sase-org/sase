@@ -150,8 +150,8 @@ into `AGENTS.md`, no matter what tier its web renders at.
 - Description: Read before creating, consuming, resolving, linking, or managing
   retention for SASE artifact references and indexed files.
 - Parent: `AGENTS.md`
-- Lines: 105
-- Approx. tokens: 1058
+- Lines: 107
+- Approx. tokens: 1096
 
 ### `sase/memory/sase_beads.md`
 
@@ -216,8 +216,8 @@ into `AGENTS.md`, no matter what tier its web renders at.
 - Total notes: 16
 - Core notes: 7
 - Reference notes: 9
-- Total lines: 1075
-- Total approx. tokens: 13597
+- Total lines: 1077
+- Total approx. tokens: 13635
 
 ## Commands
 
