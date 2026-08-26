@@ -2,62 +2,47 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
-from datetime import datetime
-import json
-import re
-from typing import Any, cast
+from collections.abc import Iterable
+from typing import Any
 
-from sase.ace.query.searchable import RUNNING_AGENT_MARKER, RUNNING_PROCESS_MARKER
-from sase.ace.query.types import (
-    AndExpr,
-    NotExpr,
-    OrExpr,
-    PropertyMatch,
-    QueryExpr,
-    StringMatch,
+from sase.ace.query.profile_evaluator_matching import evaluate_expr
+from sase.ace.query.profile_evaluator_patch import (
+    coerce_patch_query_row,
+    coerce_patch_query_row_with_wire,
+    is_patch_row,
+    patch_ancestor_chain,
+    patch_parent_name,
+    patch_query_stable_id,
 )
-from sase.ace.query_profile import CompiledQueryProfile, QueryFieldSpec
-from sase.ace.query_profile.registry import (
-    HOST_DATE_BOUND_KEYS,
-    HOST_DURATION_BOUND_KEYS,
+from sase.ace.query.profile_evaluator_support import (
+    artifact_query_row_wire,
+    build_generic_query_row,
+    build_generic_query_row_with_wire,
+    coerce_date_value,
 )
-from sase.ace.query_profile.types import FieldValueKind
-from sase.core.patch import strip_reverted_suffix
-from sase.vcs_log.dates import (
-    VcsLogDateError,
-    normalize_reference_time,
-    parse_time_bound,
+from sase.ace.query.profile_evaluator_types import (
+    ArtifactQueryEvaluationContext,
+    ArtifactQueryRow,
+    ArtifactQueryRowInput,
+    ProfileFieldValue,
 )
+from sase.ace.query.types import QueryExpr
+from sase.ace.query_profile import CompiledQueryProfile
 
-type ProfileFieldValue = str | bool | int
-type ArtifactQueryRowInput = Mapping[str, Any] | object
-
-_INTEGER_RE = re.compile(r"^[+-]?\d+$")
-_BOOLEAN_VALUES = {"true": True, "false": False}
-
-
-@dataclass(frozen=True, slots=True)
-class ArtifactQueryRow:
-    """Typed/coerced row consumed by the profile reference evaluator."""
-
-    stable_id: str
-    fields: Mapping[str, tuple[ProfileFieldValue, ...]]
-    searchable_text: str
-    predicates: frozenset[str] = frozenset()
-
-
-@dataclass(slots=True)
-class ArtifactQueryEvaluationContext:
-    """Immutable per-corpus data shared by profile-driven per-row evaluation."""
-
-    profile: CompiledQueryProfile
-    rows: tuple[ArtifactQueryRow, ...]
-    by_stable_id: Mapping[str, ArtifactQueryRow] = field(init=False)
-
-    def __post_init__(self) -> None:
-        self.by_stable_id = {row.stable_id: row for row in self.rows}
+__all__ = [
+    "ArtifactQueryEvaluationContext",
+    "ArtifactQueryRow",
+    "ArtifactQueryRowInput",
+    "ProfileFieldValue",
+    "build_query_context_for_profile",
+    "coerce_artifact_query_date_value",
+    "coerce_artifact_query_row",
+    "coerce_artifact_query_rows",
+    "coerce_artifact_query_rows_with_wire",
+    "evaluate_query_for_profile",
+    "evaluate_query_with_profile_context",
+    "patch_query_stable_id",
+]
 
 
 def build_query_context_for_profile(
@@ -84,7 +69,7 @@ def evaluate_query_with_profile_context(
         if isinstance(row, ArtifactQueryRow)
         else coerce_artifact_query_row(ctx.profile, row)
     )
-    return _evaluate(query, typed_row, ctx.profile)
+    return evaluate_expr(query, typed_row, ctx.profile)
 
 
 def evaluate_query_for_profile(
@@ -99,7 +84,7 @@ def evaluate_query_for_profile(
         if isinstance(row, ArtifactQueryRow)
         else coerce_artifact_query_row(profile, row)
     )
-    return _evaluate(query, typed_row, profile)
+    return evaluate_expr(query, typed_row, profile)
 
 
 def coerce_artifact_query_row(
@@ -110,20 +95,9 @@ def coerce_artifact_query_row(
 
     if isinstance(entry, ArtifactQueryRow):
         return entry
-    if _is_patch_row(entry):
-        return _coerce_patch_query_row(profile, entry)
-
-    raw = _entry_mapping(entry)
-    raw_fields = _entry_field_mapping(raw)
-    fields = _coerced_fields(profile, raw_fields)
-    searchable_text = _searchable_text(profile, fields, raw)
-    predicates = frozenset(str(item) for item in _raw_sequence(raw.get("predicates")))
-    return ArtifactQueryRow(
-        stable_id=_stable_id(raw),
-        fields=fields,
-        searchable_text=searchable_text,
-        predicates=predicates,
-    )
+    if is_patch_row(entry):
+        return coerce_patch_query_row(profile, entry)
+    return build_generic_query_row(profile, entry)
 
 
 def coerce_artifact_query_rows(
@@ -141,16 +115,16 @@ def coerce_artifact_query_rows(
         return tuple(coerce_artifact_query_row(profile, entry) for entry in entries)
 
     materialized = tuple(entries)
-    if all(_is_patch_row(item) for item in materialized):
+    if all(is_patch_row(item) for item in materialized):
         parent_by_name = {
-            str(getattr(item, "name", "")).casefold(): _patch_parent_name(item)
+            str(getattr(item, "name", "")).casefold(): patch_parent_name(item)
             for item in materialized
         }
         return tuple(
-            _coerce_patch_query_row(
+            coerce_patch_query_row(
                 profile,
                 item,
-                ancestor_chain=_patch_ancestor_chain(item, parent_by_name),
+                ancestor_chain=patch_ancestor_chain(item, parent_by_name),
             )
             for item in materialized
         )
@@ -165,18 +139,18 @@ def coerce_artifact_query_rows_with_wire(
 
     if profile.pane_id == "patches":
         materialized = tuple(entries)
-        if all(_is_patch_row(item) for item in materialized):
+        if all(is_patch_row(item) for item in materialized):
             parent_by_name = {
-                str(getattr(item, "name", "")).casefold(): _patch_parent_name(item)
+                str(getattr(item, "name", "")).casefold(): patch_parent_name(item)
                 for item in materialized
             }
             rows: list[ArtifactQueryRow] = []
             wire_rows: list[dict[str, Any]] = []
             for item in materialized:
-                row, wire = _coerce_patch_query_row_with_wire(
+                row, wire = coerce_patch_query_row_with_wire(
                     profile,
                     item,
-                    ancestor_chain=_patch_ancestor_chain(item, parent_by_name),
+                    ancestor_chain=patch_ancestor_chain(item, parent_by_name),
                 )
                 rows.append(row)
                 wire_rows.append(wire)
@@ -195,17 +169,7 @@ def coerce_artifact_query_rows_with_wire(
 def coerce_artifact_query_date_value(value: object) -> int | None:
     """Coerce one row date value using the profile query row rules."""
 
-    return _coerce_date_value(value)
-
-
-def _artifact_query_row_wire(row: ArtifactQueryRow) -> dict[str, Any]:
-    """Return the Rust corpus wire shape for one already-coerced query row."""
-
-    return _row_wire_from_parts(
-        {key: list(values) for key, values in row.fields.items()},
-        searchable_text=row.searchable_text,
-        predicates=row.predicates,
-    )
+    return coerce_date_value(value)
 
 
 def _coerce_artifact_query_row_with_wire(
@@ -213,504 +177,7 @@ def _coerce_artifact_query_row_with_wire(
     entry: ArtifactQueryRowInput,
 ) -> tuple[ArtifactQueryRow, dict[str, Any]]:
     if isinstance(entry, ArtifactQueryRow):
-        return entry, _artifact_query_row_wire(entry)
-    if _is_patch_row(entry):
-        return _coerce_patch_query_row_with_wire(profile, entry)
-
-    raw = _entry_mapping(entry)
-    raw_fields = _entry_field_mapping(raw)
-    fields, wire_fields = _coerced_fields_with_wire(profile, raw_fields)
-    searchable_text = _searchable_text(profile, fields, raw)
-    predicates = frozenset(str(item) for item in _raw_sequence(raw.get("predicates")))
-    row = ArtifactQueryRow(
-        stable_id=_stable_id(raw),
-        fields=fields,
-        searchable_text=searchable_text,
-        predicates=predicates,
-    )
-    return row, _row_wire_from_parts(
-        wire_fields,
-        searchable_text=searchable_text,
-        predicates=predicates,
-    )
-
-
-def _coerced_fields(
-    profile: CompiledQueryProfile,
-    raw_fields: Mapping[str, Any],
-) -> dict[str, tuple[ProfileFieldValue, ...]]:
-    return {
-        spec.key: values
-        for spec in profile.fields
-        if (values := _coerce_field_values(spec, raw_fields.get(spec.key)))
-    }
-
-
-def _coerced_fields_with_wire(
-    profile: CompiledQueryProfile,
-    raw_fields: Mapping[str, Any],
-) -> tuple[
-    dict[str, tuple[ProfileFieldValue, ...]], dict[str, list[ProfileFieldValue]]
-]:
-    fields: dict[str, tuple[ProfileFieldValue, ...]] = {}
-    wire_fields: dict[str, list[ProfileFieldValue]] = {}
-    for spec in profile.fields:
-        values = _coerce_field_values(spec, raw_fields.get(spec.key))
-        if not values:
-            continue
-        fields[spec.key] = values
-        wire_fields[spec.key] = list(values)
-    return fields, wire_fields
-
-
-def _row_wire_from_parts(
-    fields: dict[str, list[ProfileFieldValue]],
-    *,
-    searchable_text: str,
-    predicates: frozenset[str],
-) -> dict[str, Any]:
-    return {
-        "fields": fields,
-        "searchable_text": searchable_text,
-        "predicates": {
-            "error_suffix": "error_suffix" in predicates,
-            "running_agent": "running_agent" in predicates,
-            "running_process": "running_process" in predicates,
-        },
-    }
-
-
-def _entry_mapping(entry: ArtifactQueryRowInput) -> Mapping[str, Any]:
-    if isinstance(entry, Mapping):
-        return entry
-    to_wire = getattr(entry, "to_wire", None)
-    if callable(to_wire):
-        wire = to_wire()
-        if isinstance(wire, Mapping):
-            return wire
-    raw: dict[str, Any] = {}
-    for name in (
-        "stable_id",
-        "ref_kind",
-        "canonical_argument",
-        "display_label",
-        "origin",
-        "project_display_name",
-        "repository",
-        "repo_relative_path",
-        "captured_revision",
-        "captured_digest",
-        "logical_path",
-        "properties",
-        "predicates",
-        "searchable_text",
-    ):
-        if hasattr(entry, name):
-            raw[name] = getattr(entry, name)
-    return raw
-
-
-def _entry_field_mapping(raw: Mapping[str, Any]) -> Mapping[str, Any]:
-    properties = raw.get("properties")
-    fields = raw.get("fields")
-    merged: dict[str, Any] = {}
-    if isinstance(properties, Mapping):
-        merged.update(properties)
-    if isinstance(fields, Mapping):
-        merged.update(fields)
-    for key, value in raw.items():
-        if key not in {"properties", "fields", "predicates", "searchable_text"}:
-            merged.setdefault(key, value)
-    return merged
-
-
-def _stable_id(raw: Mapping[str, Any]) -> str:
-    value = raw.get("stable_id") or raw.get("id") or raw.get("canonical_argument")
-    if value is None:
-        return ""
-    return str(value)
-
-
-def _coerce_field_values(
-    field: QueryFieldSpec,
-    raw: object,
-) -> tuple[ProfileFieldValue, ...]:
-    values = _raw_values(raw, repeatable=field.repeatable)
-    coerced: list[ProfileFieldValue] = []
-    for value in values:
-        item = _coerce_one_field_value(field.value_kind, value)
-        if item is not None:
-            coerced.append(item)
-    return tuple(coerced)
-
-
-def _raw_values(raw: object, *, repeatable: bool) -> tuple[object, ...]:
-    if raw is None:
-        return ()
-    if isinstance(raw, str):
-        if repeatable:
-            parsed = _parse_serialized_sequence(raw)
-            if parsed is not None:
-                return parsed
-        return (raw,)
-    if isinstance(raw, Sequence) and not isinstance(raw, (bytes, bytearray)):
-        return tuple(raw)
-    return (raw,)
-
-
-def _raw_sequence(raw: object) -> tuple[object, ...]:
-    if raw is None:
-        return ()
-    if isinstance(raw, str):
-        return (raw,)
-    if isinstance(raw, Iterable) and not isinstance(raw, (bytes, bytearray, Mapping)):
-        return tuple(raw)
-    return (raw,)
-
-
-def _parse_serialized_sequence(value: str) -> tuple[object, ...] | None:
-    stripped = value.strip()
-    if not stripped:
-        return ()
-    if stripped.startswith("["):
-        try:
-            parsed = json.loads(stripped)
-        except json.JSONDecodeError:
-            return None
-        if isinstance(parsed, list):
-            return tuple(parsed)
-    if "\n" in value:
-        return tuple(item.strip() for item in value.splitlines() if item.strip())
-    return None
-
-
-def _coerce_one_field_value(
-    kind: FieldValueKind,
-    value: object,
-) -> ProfileFieldValue | None:
-    if kind in {"string", "enum"}:
-        return _string_value(value)
-    if kind == "bool":
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            return _BOOLEAN_VALUES.get(value.casefold())
-        return None
-    if kind == "int":
-        if isinstance(value, bool):
-            return None
-        if isinstance(value, int):
-            return value
-        if isinstance(value, str) and _INTEGER_RE.fullmatch(value.strip()):
-            return int(value)
-        return None
-    if kind == "date":
-        return _coerce_date_value(value)
-    return None
-
-
-def _coerce_date_value(value: object) -> int | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return value
-    if not isinstance(value, str) or not value.strip():
-        return None
-    text = value.strip()
-    if _INTEGER_RE.fullmatch(text):
-        return int(text)
-    try:
-        return int(datetime.fromisoformat(text).timestamp())
-    except ValueError:
-        try:
-            return parse_time_bound(text).resolve(
-                now=normalize_reference_time(),
-                boundary="since",
-            )
-        except VcsLogDateError:
-            return None
-
-
-def _string_value(value: object) -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value
-    if isinstance(value, (bool, int)):
-        return str(value).lower() if isinstance(value, bool) else str(value)
-    return None
-
-
-def _searchable_text(
-    profile: CompiledQueryProfile,
-    fields: Mapping[str, tuple[ProfileFieldValue, ...]],
-    raw: Mapping[str, Any],
-) -> str:
-    explicit = raw.get("searchable_text")
-    if isinstance(explicit, str):
-        return explicit
-    parts: list[str] = []
-    for key in profile.searchable_fields():
-        for value in fields.get(key, ()):
-            parts.append(str(value))
-    return "\n".join(parts)
-
-
-def _evaluate(
-    expr: QueryExpr,
-    row: ArtifactQueryRow,
-    profile: CompiledQueryProfile,
-) -> bool:
-    if isinstance(expr, StringMatch):
-        if expr.is_error_suffix:
-            return "error_suffix" in row.predicates
-        if expr.is_running_agent:
-            return "running_agent" in row.predicates
-        if expr.is_running_process:
-            return "running_process" in row.predicates
-        return _match_string(row.searchable_text, expr)
-    if isinstance(expr, PropertyMatch):
-        return _match_field(profile, row, expr)
-    if isinstance(expr, NotExpr):
-        return not _evaluate(expr.operand, row, profile)
-    if isinstance(expr, AndExpr):
-        return all(_evaluate(item, row, profile) for item in expr.operands)
-    if isinstance(expr, OrExpr):
-        return any(_evaluate(item, row, profile) for item in expr.operands)
-    raise TypeError(f"Unknown expression type: {type(expr)}")
-
-
-def _match_string(text: str, expr: StringMatch) -> bool:
-    if expr.case_sensitive:
-        return expr.value in text
-    return expr.value.casefold() in text.casefold()
-
-
-def _match_field(
-    profile: CompiledQueryProfile,
-    row: ArtifactQueryRow,
-    expr: PropertyMatch,
-) -> bool:
-    field = profile.field(expr.key)
-    if field is None:
-        return False
-    values = row.fields.get(expr.key, ())
-    if not values:
-        return False
-    if field.value_kind == "bool":
-        desired = expr.value == "true"
-        return any(isinstance(value, bool) and value is desired for value in values)
-    if field.value_kind == "int":
-        try:
-            desired_int = int(expr.value)
-        except ValueError:
-            return False
-        return _match_int_field(expr.key, values, desired_int)
-    if field.value_kind == "date":
-        try:
-            desired_epoch = int(expr.value)
-        except ValueError:
-            return False
-        return _match_date_field(expr.key, values, desired_epoch)
-    return _match_text_field(profile, field, values, expr.value)
-
-
-def _match_date_field(
-    key: str,
-    values: tuple[ProfileFieldValue, ...],
-    desired_epoch: int,
-) -> bool:
-    int_values = _field_int_values(values)
-    direction = HOST_DATE_BOUND_KEYS.get(key)
-    if direction == ">=":
-        return any(value >= desired_epoch for value in int_values)
-    if direction == "<=":
-        return any(value <= desired_epoch for value in int_values)
-    return any(value == desired_epoch for value in int_values)
-
-
-def _match_int_field(
-    key: str,
-    values: tuple[ProfileFieldValue, ...],
-    desired_int: int,
-) -> bool:
-    int_values = _field_int_values(values)
-    direction = HOST_DURATION_BOUND_KEYS.get(key)
-    if direction == ">=":
-        return any(value >= desired_int for value in int_values)
-    if direction == "<=":
-        return any(value <= desired_int for value in int_values)
-    return any(value == desired_int for value in int_values)
-
-
-def _field_int_values(values: tuple[ProfileFieldValue, ...]) -> tuple[int, ...]:
-    return tuple(
-        value
-        for value in values
-        if isinstance(value, int) and not isinstance(value, bool)
-    )
-
-
-def _match_text_field(
-    profile: CompiledQueryProfile,
-    field: QueryFieldSpec,
-    values: tuple[ProfileFieldValue, ...],
-    desired: str,
-) -> bool:
-    desired_text = desired.casefold()
-    if field.key == "sibling" and profile.pane_id == "patches":
-        desired_text = strip_reverted_suffix(desired).casefold()
-    haystack = tuple(str(value).casefold() for value in values)
-    if field.value_kind == "enum" or field.exact_match:
-        return desired_text in haystack
-    return any(desired_text in value for value in haystack)
-
-
-def _is_patch_row(entry: object) -> bool:
-    return all(
-        hasattr(entry, name)
-        for name in ("name", "description", "status", "project_query_name")
-    )
-
-
-def _coerce_patch_query_row(
-    profile: CompiledQueryProfile,
-    entry: object,
-    *,
-    ancestor_chain: tuple[str, ...] | None = None,
-) -> ArtifactQueryRow:
-    stable_id, raw_fields, searchable, predicates = _patch_query_row_parts(
-        entry,
-        ancestor_chain=ancestor_chain,
-    )
-    fields = _coerced_fields(profile, raw_fields)
-    return ArtifactQueryRow(
-        stable_id=stable_id,
-        fields=fields,
-        searchable_text=searchable,
-        predicates=predicates,
-    )
-
-
-def _coerce_patch_query_row_with_wire(
-    profile: CompiledQueryProfile,
-    entry: object,
-    *,
-    ancestor_chain: tuple[str, ...] | None = None,
-) -> tuple[ArtifactQueryRow, dict[str, Any]]:
-    stable_id, raw_fields, searchable, predicates = _patch_query_row_parts(
-        entry,
-        ancestor_chain=ancestor_chain,
-    )
-    fields, wire_fields = _coerced_fields_with_wire(profile, raw_fields)
-    row = ArtifactQueryRow(
-        stable_id=stable_id,
-        fields=fields,
-        searchable_text=searchable,
-        predicates=predicates,
-    )
-    return row, _row_wire_from_parts(
-        wire_fields,
-        searchable_text=searchable,
-        predicates=predicates,
-    )
-
-
-def _patch_query_row_parts(
-    entry: object,
-    *,
-    ancestor_chain: tuple[str, ...] | None,
-) -> tuple[str, dict[str, Any], str, frozenset[str]]:
-    from sase.ace.patch import has_any_status_suffix, normalize_pr_origin
-    from sase.ace.query.matchers import get_base_status
-    from sase.ace.query.searchable import get_searchable_text
-
-    name = str(getattr(entry, "name", ""))
-    parent = getattr(entry, "parent", None)
-    searchable = get_searchable_text(cast(Any, entry))
-    raw_fields: dict[str, Any] = {
-        "status": get_base_status(str(getattr(entry, "status", ""))),
-        "project": str(getattr(entry, "project_query_name", "")),
-        "name": name,
-        "sibling": strip_reverted_suffix(name),
-        "origin": normalize_pr_origin(getattr(entry, "pr_origin", None)),
-        "description": str(getattr(entry, "description", "")),
-        "refs": tuple(getattr(entry, "refs", ()) or ()),
-        "parent": parent or "",
-        "pr_url": getattr(entry, "pr_url", "") or "",
-        "notes": searchable,
-    }
-    if ancestor_chain is not None:
-        raw_fields["ancestor"] = ancestor_chain
-    elif parent:
-        raw_fields["ancestor"] = (name, str(parent))
-    else:
-        raw_fields["ancestor"] = (name,)
-    predicates = set[str]()
-    if has_any_status_suffix(cast(Any, entry)):
-        predicates.add("error_suffix")
-    if RUNNING_AGENT_MARKER in searchable:
-        predicates.add("running_agent")
-    if RUNNING_PROCESS_MARKER in searchable:
-        predicates.add("running_process")
-    return (
-        patch_query_stable_id(entry),
-        raw_fields,
-        searchable,
-        frozenset(predicates),
-    )
-
-
-def patch_query_stable_id(entry: object) -> str:
-    """Return the profile-query row id for a Patch-like object."""
-
-    project = getattr(entry, "project_name", None)
-    if project is None:
-        project = getattr(entry, "project_query_name", "")
-    return f"{project}\x1f{getattr(entry, 'name', '')}"
-
-
-def _patch_parent_name(entry: object) -> str | None:
-    parent = getattr(entry, "parent", None)
-    if parent is None:
-        return None
-    text = str(parent)
-    return text or None
-
-
-def _patch_ancestor_chain(
-    entry: object,
-    parent_by_name: Mapping[str, str | None],
-) -> tuple[str, ...]:
-    """Return own name followed by transitive ancestors, cycle-guarded."""
-
-    chain: list[str] = []
-    seen: set[str] = set()
-    current = str(getattr(entry, "name", ""))
-    while current:
-        folded = current.casefold()
-        if folded in seen:
-            break
-        seen.add(folded)
-        chain.append(current)
-        parent = parent_by_name.get(folded)
-        if parent is None:
-            break
-        current = parent
-    return tuple(chain)
-
-
-__all__ = [
-    "ArtifactQueryEvaluationContext",
-    "ArtifactQueryRow",
-    "ArtifactQueryRowInput",
-    "ProfileFieldValue",
-    "build_query_context_for_profile",
-    "coerce_artifact_query_date_value",
-    "coerce_artifact_query_row",
-    "coerce_artifact_query_rows",
-    "coerce_artifact_query_rows_with_wire",
-    "evaluate_query_for_profile",
-    "evaluate_query_with_profile_context",
-    "patch_query_stable_id",
-]
+        return entry, artifact_query_row_wire(entry)
+    if is_patch_row(entry):
+        return coerce_patch_query_row_with_wire(profile, entry)
+    return build_generic_query_row_with_wire(profile, entry)

@@ -53,7 +53,7 @@ def _freeze_profile_reference_time(monkeypatch: pytest.MonkeyPatch) -> None:
         return now.astimezone(fixed.tzinfo)
 
     monkeypatch.setattr(
-        "sase.ace.query.profile_evaluator.normalize_reference_time",
+        "sase.ace.query.profile_evaluator_support.normalize_reference_time",
         normalize,
     )
     monkeypatch.setattr(
