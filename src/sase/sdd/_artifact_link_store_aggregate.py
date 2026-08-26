@@ -37,6 +37,7 @@ class ArtifactLinkStoreAggregateMixin:
     _authoritative_source_was_consulted_for_pass: Callable[
         [], Callable[[Mapping[str, Any]], bool]
     ]
+    projected_rows: Callable[[], tuple[dict[str, Any], ...]]
 
     def load_aggregate(self) -> dict[str, Any]:
         """Read the project aggregate, or return an empty v2 document."""
@@ -53,7 +54,9 @@ class ArtifactLinkStoreAggregateMixin:
         Both route the scanned rows plus the on-disk prior rows through
         :func:`project_aggregate_rows`, the one place that decides which
         rows survive, so the two previews can disagree about which stores
-        they saw but never about which of the seen rows to keep.
+        they saw but never about which of the seen rows to keep. The
+        projection layer's rows are recomputed fresh here too, never
+        cross-workspace-reconciled.
         """
 
         prior = self.load_aggregate()
@@ -68,6 +71,7 @@ class ArtifactLinkStoreAggregateMixin:
                 authoritative_source_was_consulted=(
                     self._authoritative_source_was_consulted_for_pass()
                 ),
+                projected_rows=self.projected_rows(),
             ),
         }
 

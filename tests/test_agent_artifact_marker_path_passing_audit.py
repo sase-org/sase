@@ -183,6 +183,20 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "separately."
         ),
     ),
+    "src/sase/gate_shell/settlement.py:_read_meta": PathPassingReview(
+        exemption=(
+            "Read-only gate-shell settlement lookup: agent_meta.json is read "
+            "only to recover current gate-shell state before later mutations "
+            "go through _write_meta or write_done_marker_and_update_index."
+        ),
+    ),
+    "src/sase/gate_shell/transaction.py:_read_meta": PathPassingReview(
+        exemption=(
+            "Read-only gate-shell transaction lookup: agent_meta.json is read "
+            "only to recover the creator's lane metadata before gate-shell "
+            "creation writes its own markers through dedicated helpers."
+        ),
+    ),
     "src/sase/ace/tui/widgets/artifacts/agents_detail.py:load_agent_detail": (
         PathPassingReview(
             exemption=(

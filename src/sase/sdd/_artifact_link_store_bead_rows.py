@@ -6,7 +6,12 @@ from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.sdd._artifact_link_store_support import pair_matches, row_touches, unique_rows
+from sase.sdd._artifact_link_store_support import (
+    is_projected_row,
+    pair_matches,
+    row_touches,
+    unique_rows,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -175,7 +180,9 @@ class ArtifactLinkStoreBeadRowsMixin:
         return [
             dict(row)
             for row in self.load_aggregate().get("rows", [])
-            if self._is_aggregate_only(row) and row_touches(row, artifact_ref)
+            if self._is_aggregate_only(row)
+            and row_touches(row, artifact_ref)
+            and not is_projected_row(row)
         ]
 
     def _iter_bead_rows(self) -> Iterable[dict[str, Any]]:

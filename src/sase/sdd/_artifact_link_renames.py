@@ -11,6 +11,7 @@ from sase.agents_sync.io import atomic_write_json
 from sase.sdd._artifact_link_store_support import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     canonicalize_artifact_link_ref,
+    is_projected_row,
     kind_of_ref,
     read_artifact_link_index,
     row_touches,
@@ -255,6 +256,11 @@ def _rewrite_aggregate(store: Any, mapping: Mapping[str, str]) -> bool:
     changed = False
     for raw in rows:
         if not isinstance(raw, dict):
+            continue
+        if is_projected_row(raw):
+            # Recomputed on the next rebuild, never rewritten: a rewrite here
+            # would persist a repair the source fact does not support.
+            rewritten_rows.append(dict(raw))
             continue
         rewritten = _rewrite_row(raw, mapping)
         if rewritten is None:

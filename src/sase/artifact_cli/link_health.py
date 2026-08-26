@@ -17,6 +17,7 @@ from sase.sdd._artifact_link_projection import safety_body
 from sase.sdd._artifact_link_store_support import (
     kind_of_ref,
     read_artifact_link_index,
+    store_backed_rows,
 )
 from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
@@ -107,7 +108,7 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
     try:
         if fix:
             store.reconcile_aggregate()
-        rows = [dict(row) for row in store.load_aggregate().get("rows", [])]
+        rows = store_backed_rows(store.load_aggregate().get("rows", []))
         sidecar_rows = store.durable_sidecar_rows()
     except Exception as exc:  # noqa: BLE001 - surface unsupported v1/schema errors
         return ArtifactLinkHealthReport(skipped=False, errors=(str(exc),))
@@ -125,7 +126,7 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         repaired_renames = len(repair.renames) if repair.changed else 0
         if repair.changed:
             try:
-                rows = [dict(row) for row in store.load_aggregate().get("rows", [])]
+                rows = store_backed_rows(store.load_aggregate().get("rows", []))
                 sidecar_rows = store.durable_sidecar_rows()
                 dangling, unpublished_agents = _dangling_refs(
                     rows, store, context=resolution_context
@@ -186,7 +187,7 @@ def dangling_and_orphaned_artifact_link_refs(
     directly instead.
     """
 
-    rows = [dict(row) for row in store.load_aggregate().get("rows", [])]
+    rows = store_backed_rows(store.load_aggregate().get("rows", []))
     resolution_context = launch_artifact_ref_context(is_home_mode=False)
     dangling, _unpublished_agents = _dangling_refs(
         rows, store, context=resolution_context
@@ -216,8 +217,12 @@ def _coverage_report(
     *,
     context: ArtifactRefContext,
 ) -> _ArtifactLinkCoverageReport:
-    origin_counts = Counter(str(row.get("origin") or "unknown") for row in rows)
-    relation_counts = Counter(str(row.get("relation") or "unknown") for row in rows)
+    # `rows` (the caller's store-backed view) excludes projected rows, but the
+    # origin/relation breakdown is diagnostic, not a durable-truth read, so it
+    # counts every row in the aggregate -- including projected ones.
+    all_rows = store.load_aggregate().get("rows", [])
+    origin_counts = Counter(str(row.get("origin") or "unknown") for row in all_rows)
+    relation_counts = Counter(str(row.get("relation") or "unknown") for row in all_rows)
     existing = _exact_row_keys(rows)
     populations: dict[str, set[tuple[str, str, str]]] = {}
     try:

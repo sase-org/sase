@@ -62,11 +62,14 @@ def render_memory_note(
 
 def _note_children(view: ResolvedMemoryNote) -> tuple[MemoryNote, ...]:
     """Return *view*'s children, filtered from the discovered notes."""
-    parent_key = view.content.path.note.relative_path
+    parent_keys = {
+        view.content.path.canonical_path,
+        view.content.path.note.relative_path,
+    }
     children = (
         note
         for note in view.children
-        if note.type == "reference" and note.parent == parent_key
+        if note.type == "reference" and note.parent in parent_keys
     )
     return tuple(sorted(children, key=lambda note: note.relative_path))
 

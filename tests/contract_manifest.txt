@@ -8,6 +8,7 @@ tests/test_config_schema.py
 tests/test_config_schema_ace.py
 tests/test_config_schema_beads.py
 tests/test_config_schema_extensions.py
+tests/test_config_schema_gate_shell.py
 tests/test_config_schema_keymaps.py
 tests/test_config_schema_runtime_limits.py
 tests/test_core_finalizer_facade.py

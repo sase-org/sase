@@ -19,6 +19,7 @@ from rich.table import Table
 from sase.artifact_links.derive import DerivableDocument, derive_research_swarm_lineage
 from sase.artifact_links.read_candidates import rank_read_citation_candidates
 from sase.artifact_read_log import ArtifactReadEvent, read_artifact_read_events
+from sase.sdd._artifact_link_store_support import store_backed_rows
 from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
     canonicalize_artifact_link_ref,
@@ -88,7 +89,7 @@ def _suggest_artifact_links(
     canonical_reference = (
         None if reference is None else canonicalize_artifact_link_ref(reference)
     )
-    rows = tuple(dict(row) for row in store.load_aggregate().get("rows", []))
+    rows = tuple(store_backed_rows(store.load_aggregate().get("rows", [])))
     collector = _SuggestionCollector(rows, reference=canonical_reference)
     _collect_filename_lineage(collector, store)
     _collect_shared_bead_and_epic(collector, rows)

@@ -178,6 +178,71 @@ def test_list_reads_rows_without_feature_override(
     assert payload[0]["relation"] == "related"
 
 
+def test_list_without_reference_merges_in_projected_rows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    _patch_store(monkeypatch, store)
+    projected_row = {
+        "schema_version": 2,
+        "source_ref": "stitch:sase@0123456789abcdef0123456789abcdef01234567",
+        "relation": "implements",
+        "target_ref": "bead:sase-xx",
+        "description": "commit trailer names bead sase-xx",
+        "origin": "projected",
+        "created_by": "projection:stitch-bead",
+        "created_at": "2026-08-20T00:00:00Z",
+        "uses": 1,
+    }
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_store_projected.project_link_rows",
+        lambda _inputs: (projected_row,),
+    )
+    handle_link_add(
+        argparse.Namespace(
+            source_ref="plan:202608/a.md",
+            relation="related",
+            target_ref="plan:202608/b.md",
+            why="shares a root cause",
+        )
+    )
+    capsys.readouterr()
+    assert (
+        handle_link_list(
+            argparse.Namespace(
+                reference=None,
+                direction="both",
+                json=True,
+                limit=50,
+                origin="projected",
+                relation=None,
+            )
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert len(payload) == 1
+    assert payload[0]["created_by"] == "projection:stitch-bead"
+    assert (
+        handle_link_list(
+            argparse.Namespace(
+                reference=None,
+                direction="both",
+                json=True,
+                limit=50,
+                origin="manual",
+                relation=None,
+            )
+        )
+        == 0
+    )
+    manual_payload = json.loads(capsys.readouterr().out)
+    assert len(manual_payload) == 1
+    assert manual_payload[0]["relation"] == "related"
+
+
 def test_add_rejects_reserved_and_machine_relations(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -317,6 +382,8 @@ def test_relation_list_covers_every_builtin_slug(
         "supersedes",
         "implements",
         "derives-from",
+        "produced-by",
+        "launched",
     }
 
 

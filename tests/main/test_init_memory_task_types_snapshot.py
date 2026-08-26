@@ -102,6 +102,8 @@ def test_memory_plan_generates_artifact_relation_registry_in_artifacts_note_and_
         "supersedes",
         "implements",
         "derives-from",
+        "produced-by",
+        "launched",
     ]
     assert payload["reserved"] == [
         {"slug": "blocks", "pointer": "sase bead dep"},

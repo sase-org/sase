@@ -11,6 +11,7 @@ from sase.artifact_ref_models import ArtifactRefContext
 from sase.sdd._artifact_link_store_support import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     BEAD_KIND,
+    is_projected_row,
     kind_of_ref,
     project_aggregate_rows,
     unique_rows,
@@ -38,6 +39,7 @@ class ArtifactLinkStoreReconcileMixin:
         [Iterable[ArtifactLinkStore]], Callable[[Mapping[str, Any]], bool]
     ]
     _upsert_bead: Callable[[Mapping[str, Any]], dict[str, Any] | None]
+    projected_rows: Callable[[], tuple[dict[str, Any], ...]]
 
     def durable_sidecar_rows(self) -> tuple[dict[str, Any], ...]:
         """Return sidecar rows whose agent endpoints have published.
@@ -72,7 +74,8 @@ class ArtifactLinkStoreReconcileMixin:
         same :func:`project_aggregate_rows` call :meth:`preview_aggregate`
         uses to decide which rows survive: this pass and that one may see a
         different set of stores, never a different keep/drop rule for what
-        they both see.
+        they both see. The projection layer's rows come from this
+        workspace alone, exactly as :meth:`preview_aggregate` computes them.
         """
 
         prior = self.load_aggregate()
@@ -90,6 +93,7 @@ class ArtifactLinkStoreReconcileMixin:
                 authoritative_source_was_consulted=(
                     self._authoritative_source_was_consulted_for_pass(stores)
                 ),
+                projected_rows=self.projected_rows(),
             ),
         }
 
@@ -114,6 +118,8 @@ class ArtifactLinkStoreReconcileMixin:
             *self.load_aggregate().get("rows", ()),
             *self._iter_sidecar_rows(),
         ):
+            if is_projected_row(row):
+                continue
             target = str(row.get("target_ref") or "")
             if kind_of_ref(target) != BEAD_KIND:
                 continue

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
+from functools import cache
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -29,6 +30,41 @@ BEAD_KIND = "bead"
 # `uses` count rather than re-accumulate it.
 _COMMIT_SCOPED_ORIGINS = frozenset({"prompt_ref", "prompt_prose"})
 
+_PROJECTION_RELATIONS = (
+    {
+        "schema_version": 2,
+        "slug": "produced-by",
+        "inverse": "produced",
+        "directed": True,
+        "written_by": "projection",
+        "direction_note": (
+            "The stitch is the source; the agent that produced it is the target."
+        ),
+        "positive_example": (
+            "stitch:sase@0123456789abcdef0123456789abcdef01234567 "
+            "produced-by agent:sase-tj.land"
+        ),
+        "negative_example": (
+            "agent:sase-tj.land produced-by "
+            "stitch:sase@0123456789abcdef0123456789abcdef01234567"
+        ),
+        "recommended_source_kinds": ["stitch"],
+        "recommended_target_kinds": ["agent"],
+    },
+    {
+        "schema_version": 2,
+        "slug": "launched",
+        "inverse": "launched-by",
+        "directed": True,
+        "written_by": "projection",
+        "direction_note": "The chop is the source; the agent it launched is the target.",
+        "positive_example": "chop:refresh_docs/refresh_docs launched agent:sase-tj.land",
+        "negative_example": "agent:sase-tj.land launched chop:refresh_docs/refresh_docs",
+        "recommended_source_kinds": ["chop"],
+        "recommended_target_kinds": ["agent"],
+    },
+)
+
 
 def assembled_artifact_relations(
     *,
@@ -44,6 +80,12 @@ def assembled_artifact_relations(
     rows = [
         dict(item) for item in require_rust_binding("artifact_relations_builtins")()
     ]
+    existing_slugs = {str(item.get("slug") or "") for item in rows}
+    rows.extend(
+        dict(item)
+        for item in _PROJECTION_RELATIONS
+        if str(item.get("slug") or "") not in existing_slugs
+    )
     rows.extend(dict(item) for item in plugins)
     rows.extend(dict(item) for item in config)
     return rows
@@ -148,6 +190,7 @@ def project_aggregate_rows(
     collected: Iterable[Mapping[str, Any]],
     prior_rows: Iterable[Mapping[str, Any]],
     authoritative_source_was_consulted: Callable[[Mapping[str, Any]], bool],
+    projected_rows: Iterable[Mapping[str, Any]] = (),
 ) -> list[dict[str, Any]]:
     """Decide which rows survive an aggregate projection.
 
@@ -160,13 +203,40 @@ def project_aggregate_rows(
     it is a publication-holdback concern, not a local read-model concern,
     and must never be checked here (see ``durable_sidecar_rows`` for the
     filter that does apply it).
+
+    Every prior row whose ``origin`` is ``projected`` is dropped rather than
+    carried forward -- a projected row is recomputed on every pass, not
+    persisted, so a rule that stops matching must let its row disappear
+    here. *projected_rows* is appended last so :func:`unique_rows`'s
+    first-wins dedup lets a store-backed row with the same identity beat a
+    projected one.
     """
 
     rows = list(collected)
     for row in prior_rows:
+        if is_projected_row(row):
+            continue
         if not authoritative_source_was_consulted(row):
             rows.append(row)
+    rows.extend(projected_rows)
     return unique_rows(rows)
+
+
+def is_projected_row(row: Mapping[str, Any]) -> bool:
+    """Return whether *row* was recomputed by the projection layer.
+
+    A projected row enters the machine-local read model and nothing else:
+    every path that treats an aggregate row as durable truth must exclude
+    it.
+    """
+
+    return str(row.get("origin") or "") == "projected"
+
+
+def store_backed_rows(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Return *rows* with every projected row excluded."""
+
+    return [dict(row) for row in rows if not is_projected_row(row)]
 
 
 def read_artifact_link_index(path: Path, *, artifact_ref: str) -> dict[str, Any]:
@@ -297,19 +367,24 @@ def row_touches(row: Mapping[str, Any], artifact_ref: str) -> bool:
     }
 
 
+@cache
+def _relation_is_directed(relation: str) -> bool:
+    """Return whether *relation* is directed, per the compiled-in registry."""
+
+    try:
+        looked_up = require_rust_binding("artifact_relation_lookup")(relation)
+        return bool(looked_up.get("directed", True))
+    except (ValueError, TypeError, AttributeError):
+        return relation != "related"
+
+
 def _row_identity(row: Mapping[str, Any]) -> tuple[str, ...]:
     """Return the directed or undirected identity of a row."""
 
     relation = str(row.get("relation") or "")
     source = str(row.get("source_ref") or "")
     target = str(row.get("target_ref") or "")
-    directed = True
-    try:
-        looked_up = require_rust_binding("artifact_relation_lookup")(relation)
-        directed = bool(looked_up.get("directed", True))
-    except (ValueError, TypeError, AttributeError):
-        directed = relation != "related"
-    if directed:
+    if _relation_is_directed(relation):
         return ("directed", source, relation, target)
     left, right = sorted((source, target))
     return ("undirected", relation, left, right)

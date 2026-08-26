@@ -20,6 +20,7 @@ from sase.artifact_links.derive import (
     DerivedLinkCandidate,
     derive_candidate_links,
 )
+from sase.sdd._artifact_link_store_support import is_projected_row
 from sase.sdd.artifact_link_derivation import (
     ArtifactLinkDerivationInputs,
     artifact_link_derivation_inputs,
@@ -204,6 +205,7 @@ def _stored_link_keys(store: ArtifactLinkStore) -> frozenset[tuple[str, str, str
             str(row.get("target_ref") or ""),
         )
         for row in store.load_aggregate().get("rows", [])
+        if not is_projected_row(row)
     )
 
 

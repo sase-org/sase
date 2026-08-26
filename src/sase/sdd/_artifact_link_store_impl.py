@@ -19,6 +19,7 @@ from sase.sdd._artifact_link_project_key import (
 from sase.sdd._artifact_link_store_aggregate import ArtifactLinkStoreAggregateMixin
 from sase.sdd._artifact_link_store_bead_rows import ArtifactLinkStoreBeadRowsMixin
 from sase.sdd._artifact_link_store_core import ArtifactLinkStoreCoreMixin
+from sase.sdd._artifact_link_store_projected import ArtifactLinkStoreProjectedMixin
 from sase.sdd._artifact_link_store_reconcile import ArtifactLinkStoreReconcileMixin
 from sase.sdd._artifact_link_store_rows import (
     ArtifactLinkRemoval,
@@ -45,6 +46,7 @@ class ArtifactLinkStore(
     ArtifactLinkStoreRowsMixin,
     ArtifactLinkStoreSidecarMixin,
     ArtifactLinkStoreAggregateMixin,
+    ArtifactLinkStoreProjectedMixin,
     ArtifactLinkStoreBeadRowsMixin,
     ArtifactLinkStoreReconcileMixin,
 ):

@@ -11,7 +11,9 @@ from sase.core.rust import require_rust_binding
 from sase.sdd._artifact_link_store_support import (
     BEAD_KIND,
     canonicalize_artifact_link_ref,
+    is_projected_row,
     kind_of_ref,
+    pair_matches,
     read_artifact_link_index,
     row_touches,
     sidecar_index_path,
@@ -111,6 +113,18 @@ class ArtifactLinkStoreRowsMixin:
             relation = str(
                 require_rust_binding("artifact_relation_lookup")(relation)["slug"]
             )
+        matching = [
+            row
+            for row in self.load_aggregate().get("rows", [])
+            if pair_matches(row, source=source, target=target, relation=relation)
+        ]
+        if matching and all(is_projected_row(row) for row in matching):
+            rule_ids = sorted({str(row.get("created_by") or "") for row in matching})
+            raise ValueError(
+                f"{source} <-> {target} is recomputed by {', '.join(rule_ids)}, not "
+                "stored -- deleting it here would not stop the next rebuild from "
+                "putting it straight back"
+            )
         dropped: list[dict[str, Any]] = []
         changed_indexes: list[Path] = []
         for ref in (source, target):
@@ -162,5 +176,5 @@ class ArtifactLinkStoreRowsMixin:
         return tuple(
             dict(row)
             for row in self.load_aggregate().get("rows", [])
-            if row_touches(row, canonical)
+            if row_touches(row, canonical) and not is_projected_row(row)
         )

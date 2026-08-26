@@ -17,6 +17,7 @@ from rich.table import Table
 from sase.agent.identity import discover_agent_identity
 from sase.core.rust import require_rust_binding
 from sase.core.time import format_local
+from sase.sdd._artifact_link_store_support import unique_rows
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     ArtifactLinkStore,
@@ -109,7 +110,9 @@ def handle_link_list(args: argparse.Namespace) -> int:
         rows = (
             list(store.load_artifact_rows(canonical))
             if canonical is not None
-            else list(store.load_aggregate().get("rows", []))
+            else unique_rows(
+                [*store.load_aggregate().get("rows", []), *store.projected_rows()]
+            )
         )
     except (RuntimeError, TypeError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

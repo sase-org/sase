@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from sase.agent.pending_handoff import (
+    GATE_PENDING_MARKER,
     MONITOR_PENDING_MARKER,
     PENDING_HANDOFF_MARKERS,
     PIPE_PENDING_MARKER,
@@ -28,6 +29,7 @@ def test_pending_handoff_markers_are_named_constants() -> None:
         PLAN_PENDING_MARKER,
         QUESTIONS_PENDING_MARKER,
         MONITOR_PENDING_MARKER,
+        GATE_PENDING_MARKER,
         PIPE_PENDING_MARKER,
     )
     assert PIPE_PENDING_MARKER == ".sase_pipe_pending"

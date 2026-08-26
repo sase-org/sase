@@ -483,14 +483,25 @@ def _parent_key(parent: MemoryNote | str | Path) -> str:
     return parent.strip().replace("\\", "/")
 
 
+def _parent_keys(parent: MemoryNote | str | Path) -> frozenset[str]:
+    key = _parent_key(parent)
+    if not isinstance(parent, MemoryNote):
+        return frozenset({key})
+    prefix = "sase/memory/"
+    keys = {key}
+    if key.startswith(prefix):
+        keys.add(key[len(prefix) :])
+    return frozenset(keys)
+
+
 def _children_of(
     notes: Iterable[MemoryNote],
     parent: MemoryNote | str | Path,
 ) -> tuple[MemoryNote, ...]:
     """Return reference notes parented under ``parent``, sorted by path."""
-    key = _parent_key(parent)
+    keys = _parent_keys(parent)
     children = [
-        note for note in notes if note.type == "reference" and note.parent == key
+        note for note in notes if note.type == "reference" and note.parent in keys
     ]
     return tuple(sorted(children, key=lambda note: note.relative_path))
 

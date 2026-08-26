@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
+from sase.sdd._artifact_link_store_support import is_projected_row
 from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
     artifact_link_aggregate_path,
@@ -77,6 +78,7 @@ def _check_artifact_links_aggregate(context: DoctorContext) -> DiagnosticCheck:
     stale = _rows_signature(on_disk) != _rows_signature(expected)
     missing = not artifact_link_aggregate_path(project_key).is_file()
     expected_count = len(expected["rows"])
+    projected_count = sum(1 for row in expected["rows"] if is_projected_row(row))
     if missing and expected_count == 0:
         return DiagnosticCheck(
             id=_CHECK_ID,
@@ -104,6 +106,7 @@ def _check_artifact_links_aggregate(context: DoctorContext) -> DiagnosticCheck:
                 "stale": True,
                 "missing": missing,
                 "rows": expected_count,
+                "projected_rows": projected_count,
             },
         )
     return DiagnosticCheck(
@@ -112,17 +115,29 @@ def _check_artifact_links_aggregate(context: DoctorContext) -> DiagnosticCheck:
         status="OK",
         title="Artifact link aggregate",
         summary=f"{expected_count} artifact link row(s) indexed",
-        data={"stale": False, "rows": expected_count},
+        data={
+            "stale": False,
+            "rows": expected_count,
+            "projected_rows": projected_count,
+        },
     )
 
 
 def _rows_signature(document: dict[str, object]) -> tuple[tuple[object, ...], ...]:
+    """Return a store-backed signature: HEAD moving must not read as stale.
+
+    Projected rows are recomputed on every pass, so comparing them here
+    would report staleness after every commit -- see
+    :func:`_check_artifact_links_aggregate`'s ``projected_rows`` count for
+    that information instead.
+    """
+
     rows = document.get("rows")
     if not isinstance(rows, list):
         return ()
     signatures: list[tuple[object, ...]] = []
     for row in rows:
-        if not isinstance(row, dict):
+        if not isinstance(row, dict) or is_projected_row(row):
             continue
         signatures.append(
             (

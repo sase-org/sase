@@ -16,8 +16,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_startup,
     wait_for_visual_idle,
 )
+from tests.ace.tui.visual._ace_agents_png_snapshot_zoom_fixtures import zoom_agent
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
-from tests.ace.tui.visual.test_ace_png_snapshots_agents_zoom import _zoom_agent
 
 pytestmark = pytest.mark.visual
 
@@ -27,7 +27,7 @@ async def test_agents_metadata_search_typing_and_committed_png_snapshots(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    agent = _zoom_agent(tmp_path)
+    agent = zoom_agent(tmp_path)
     agent.diff_path = None
     patch_startup_loaders(monkeypatch, agents=[agent])
 
