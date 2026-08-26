@@ -27,7 +27,6 @@ from sase.core.paths import sase_projects_dir
 
 log = logging.getLogger(__name__)
 
-_SEGMENT_SEPARATOR_RE = re.compile(r"^---\s*$", re.MULTILINE)
 _WORKFLOW_TYPE_RE = re.compile(r"^#([a-zA-Z_][a-zA-Z0-9_]*)")
 _WORKSPACE_NUM_ENV_VARS = (
     "SASE_AGENT_WORKSPACE_NUM",
@@ -305,30 +304,24 @@ def prompt_ref_contexts_for_segment_vcs_refs(
 def _prompt_segments(prompt: str) -> tuple[tuple[tuple[int, int], str], ...]:
     """Split *prompt* into top-level ``---``-separated segments with spans.
 
-    Mirrors ``xprompt._parsing_vcs_tags``'s segment splitting (protect
-    fenced/inline code before splitting on the separator, then restore each
-    piece) without frontmatter handling: by the time a prompt reaches late
-    preprocessing, ``parse_multi_prompt`` has already stripped any leading
-    YAML frontmatter block and rejoined segments with the same separator.
+    Uses ``xprompt._prompt_segments``'s shared, disabled-region-aware
+    splitter (protect fenced/inline code and disabled regions before
+    splitting on the separator, then restore each piece) without
+    frontmatter handling: by the time a prompt reaches late preprocessing,
+    ``parse_multi_prompt`` has already stripped any leading YAML
+    frontmatter block and rejoined segments with the same separator.
     """
 
-    from sase.xprompt._fenced_blocks import (
-        protect_fenced_blocks,
-        unprotect_fenced_blocks,
-    )
+    from sase.xprompt._prompt_segments import split_prompt_segments
 
-    fenced_blocks: list[str] = []
-    protected = protect_fenced_blocks(prompt, fenced_blocks)
-    pieces = _SEGMENT_SEPARATOR_RE.split(protected)
-    separators = _SEGMENT_SEPARATOR_RE.findall(protected)
+    pieces, separators = split_prompt_segments(prompt)
 
     segments: list[tuple[tuple[int, int], str]] = []
     offset = 0
     for index, piece in enumerate(pieces):
-        restored = unprotect_fenced_blocks(piece, fenced_blocks)
         start = offset
-        end = start + len(restored)
-        segments.append(((start, end), restored))
+        end = start + len(piece)
+        segments.append(((start, end), piece))
         offset = end
         if index < len(separators):
             offset += len(separators[index])

@@ -3,7 +3,16 @@
 import re
 from unittest.mock import patch
 
-from sase.xprompt._parsing import inherit_vcs_workflow_tag, replace_vcs_workflow_tags
+from sase.xprompt._disabled_regions import protect_disabled_regions
+from sase.xprompt._parsing import (
+    inherit_vcs_workflow_tag,
+    normalize_default_vcs_workflow,
+    replace_vcs_workflow_tags,
+)
+from sase.xprompt._parsing_vcs_tags import (
+    _inherit_vcs_workflow_tag_segment,
+    normalize_default_vcs_workflow_segment,
+)
 
 
 _TEST_VCS_REPLACE_PATTERN = re.compile(
@@ -178,3 +187,117 @@ def test_inherit_vcs_tag_skips_known_project_fallback_ref() -> None:
     ):
         prompt = "#gh:sase Fix it"
         assert inherit_vcs_workflow_tag(prompt, "#git:other ") == prompt
+
+
+def _fork_shaped_prompt(query: str = "New query text") -> str:
+    """Build a ``#fork``-injected-history-shaped prompt, tag already leading."""
+    return (
+        "#gh:sase \n"
+        "%xprompts_enabled:false\n"
+        "# Previous Conversation\n\n"
+        "turn one\n\n"
+        "---\n\n"
+        "turn two\n\n"
+        "---\n\n"
+        "%xprompts_enabled:true\n"
+        f"# New Query\n\n{query}"
+    )
+
+
+def test_inherit_vcs_tag_leaves_fork_injected_history_untouched() -> None:
+    """A fork-shaped prompt is returned unchanged: no tag inside the region,
+    and ``# New Query`` is not preceded by an injected tag."""
+    with (
+        _patch_ref_patterns(),
+        patch("sase.xprompt.loader.get_known_project_workspaces", return_value=set()),
+    ):
+        prompt = _fork_shaped_prompt()
+        result = inherit_vcs_workflow_tag(prompt, "#gh:sase ")
+        assert result == prompt
+        assert "#gh:sase # New Query" not in result
+        assert result.count("#gh:sase") == 1
+
+
+def test_inherit_vcs_tag_mixed_multi_prompt_and_fork_region() -> None:
+    """Real ``---`` segments outside a disabled region inherit; the region's
+    internal ``---`` lines never become segment boundaries."""
+    with (
+        _patch_ref_patterns(),
+        patch("sase.xprompt.loader.get_known_project_workspaces", return_value=set()),
+    ):
+        fork_block = (
+            "%xprompts_enabled:false\n"
+            "# Previous Conversation\n\n"
+            "turn one\n\n"
+            "---\n\n"
+            "turn two\n\n"
+            "---\n\n"
+            "%xprompts_enabled:true\n"
+            "# New Query"
+        )
+        prompt = f"Fix A\n---\n{fork_block}\n\nquery text"
+        result = inherit_vcs_workflow_tag(prompt, "#gh:sase ")
+
+        assert result.startswith("#gh:sase Fix A\n---\n")
+        assert "\n---\n\nturn two\n\n---\n\n%xprompts_enabled:true" in result
+        assert "#gh:sase # New Query" not in result
+
+
+def test_normalize_default_vcs_workflow_leaves_fork_injected_history_untouched() -> (
+    None
+):
+    """Mirrors the ``inherit_vcs_workflow_tag`` fork-shaped-prompt case."""
+    with (
+        _patch_ref_patterns(),
+        patch("sase.xprompt.loader.get_known_project_workspaces", return_value=set()),
+    ):
+        prompt = _fork_shaped_prompt()
+        result = normalize_default_vcs_workflow(prompt)
+        assert result == prompt
+
+
+def test_normalize_default_vcs_workflow_mixed_multi_prompt_and_fork_region() -> None:
+    """Mirrors the ``inherit_vcs_workflow_tag`` mixed multi-prompt case."""
+    with (
+        _patch_ref_patterns(),
+        patch("sase.xprompt.loader.get_known_project_workspaces", return_value=set()),
+    ):
+        fork_block = (
+            "%xprompts_enabled:false\n"
+            "# Previous Conversation\n\n"
+            "turn one\n\n"
+            "---\n\n"
+            "turn two\n\n"
+            "---\n\n"
+            "%xprompts_enabled:true\n"
+            "# New Query"
+        )
+        prompt = f"Fix A\n---\n{fork_block}\n\nquery text"
+        result = normalize_default_vcs_workflow(prompt)
+
+        assert result.startswith("#git:home Fix A\n---\n")
+        assert "\n---\n\nturn two\n\n---\n\n%xprompts_enabled:true" in result
+        assert "#git:home # New Query" not in result
+
+
+def test_inherit_vcs_tag_segment_keeps_marker_at_line_start() -> None:
+    """Guard: a tag inserted before a disabled-region-opening body leaves the
+    marker on its own line, so the region stays parseable."""
+    segment = "%xprompts_enabled:false\nhidden ---\n%xprompts_enabled:true"
+    result = _inherit_vcs_workflow_tag_segment(segment, "#gh:sase ")
+
+    regions: list[str] = []
+    protected = protect_disabled_regions(result, regions)
+    assert len(regions) == 1
+    assert "---" not in protected
+
+
+def test_normalize_default_vcs_workflow_segment_keeps_marker_at_line_start() -> None:
+    """Guard: mirrors the ``_inherit_vcs_workflow_tag_segment`` case."""
+    segment = "%xprompts_enabled:false\nhidden ---\n%xprompts_enabled:true"
+    result = normalize_default_vcs_workflow_segment(segment)
+
+    regions: list[str] = []
+    protected = protect_disabled_regions(result, regions)
+    assert len(regions) == 1
+    assert "---" not in protected

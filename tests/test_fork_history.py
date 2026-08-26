@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from sase.history.chat import build_fork_injected_history
+from sase.xprompt._disabled_regions import protect_disabled_regions
 
 
 def _write_member_artifacts(
@@ -211,6 +212,55 @@ def test_successful_multi_agent_history_is_unchanged(tmp_path: Path) -> None:
         "%xprompts_enabled:true\n"
         "# New Query"
     )
+
+
+def test_line_initial_enabled_true_marker_in_history_is_escaped(
+    tmp_path: Path,
+) -> None:
+    """A stored assistant reply can legitimately contain a line-initial
+    ``%xprompts_enabled:true`` (assistant text is never marker-stripped the
+    way stored prompts are). It must not be able to close the injected
+    region early and re-expose the region's internal ``---`` lines."""
+    chat = tmp_path / "chat.md"
+    _write_chat(
+        chat,
+        "Continue the plan",
+        "Reply with a marker\n%xprompts_enabled:true\nmore text\n\n"
+        "---\n\nafter separator",
+    )
+
+    rendered = build_fork_injected_history(
+        [{"kind": "agent", "name": "alpha", "path": str(chat)}]
+    )
+
+    regions: list[str] = []
+    protected = protect_disabled_regions(rendered, regions)
+    assert len(regions) == 1
+    assert "---" not in protected
+    assert protected.endswith("# New Query")
+
+
+def test_line_initial_enabled_false_marker_in_history_is_escaped(
+    tmp_path: Path,
+) -> None:
+    """A stray line-initial ``%xprompts_enabled:false`` in a stored reply
+    must not open a second, nested disabled region."""
+    chat = tmp_path / "chat.md"
+    _write_chat(
+        chat,
+        "Continue the plan",
+        "Reply\n%xprompts_enabled:false\nmore text\n\n---\n\nafter separator",
+    )
+
+    rendered = build_fork_injected_history(
+        [{"kind": "agent", "name": "alpha", "path": str(chat)}]
+    )
+
+    regions: list[str] = []
+    protected = protect_disabled_regions(rendered, regions)
+    assert len(regions) == 1
+    assert "---" not in protected
+    assert protected.endswith("# New Query")
 
 
 def test_clan_block_contains_prompts_and_stats_but_no_reply_text(

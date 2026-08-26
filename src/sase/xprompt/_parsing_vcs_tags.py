@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from ._disabled_regions import starts_with_disabled_region_marker
 from ._parsing_vcs_refs import (
     extract_known_project_vcs_ref,
     normalize_vcs_underscore_refs,
@@ -18,6 +19,8 @@ _VCS_REPLACE_PATTERN: re.Pattern[str] | None = None
 # This matcher is intentionally limited to the leading launch-directive prefix;
 # the directive parser still owns full syntax validation.
 _DIRECTIVE_PREFIX_RE = re.compile(r"(%[^\s(]+(?:\((?:[^()]|\([^()]*\))*\))?[\s]+)+")
+# Kept for callers that only need the bare separator pattern (e.g. offset
+# lookups); segment splitting itself goes through ``_prompt_segments``.
 _SEGMENT_SEPARATOR_RE = re.compile(r"^---\s*$", re.MULTILINE)
 
 
@@ -138,11 +141,13 @@ def normalize_default_vcs_workflow_segment(
 
     directive_match = _DIRECTIVE_PREFIX_RE.match(body)
     if directive_match is None:
-        return f"{leading_ws}{default_vcs_prefix} {body}"
+        sep = "\n" if starts_with_disabled_region_marker(body) else " "
+        return f"{leading_ws}{default_vcs_prefix}{sep}{body}"
 
     directive_prefix = directive_match.group(0)
     remainder = body[directive_match.end() :]
-    return f"{leading_ws}{directive_prefix}{default_vcs_prefix} {remainder}"
+    sep = "\n" if starts_with_disabled_region_marker(remainder) else " "
+    return f"{leading_ws}{directive_prefix}{default_vcs_prefix}{sep}{remainder}"
 
 
 def _inherit_vcs_workflow_tag_segment(segment: str, inherited_vcs_tag: str) -> str:
@@ -162,11 +167,13 @@ def _inherit_vcs_workflow_tag_segment(segment: str, inherited_vcs_tag: str) -> s
     tag = inherited_vcs_tag.strip()
     directive_match = _DIRECTIVE_PREFIX_RE.match(body)
     if directive_match is None:
-        return f"{leading_ws}{tag} {body}"
+        sep = "\n" if starts_with_disabled_region_marker(body) else " "
+        return f"{leading_ws}{tag}{sep}{body}"
 
     directive_prefix = directive_match.group(0)
     remainder = body[directive_match.end() :]
-    return f"{leading_ws}{directive_prefix}{tag} {remainder}"
+    sep = "\n" if starts_with_disabled_region_marker(remainder) else " "
+    return f"{leading_ws}{directive_prefix}{tag}{sep}{remainder}"
 
 
 def inherit_vcs_workflow_tag(prompt: str, inherited_vcs_tag: str | None) -> str:
@@ -174,23 +181,14 @@ def inherit_vcs_workflow_tag(prompt: str, inherited_vcs_tag: str | None) -> str:
     if not inherited_vcs_tag or not inherited_vcs_tag.strip():
         return prompt
 
-    from sase.xprompt._fenced_blocks import (
-        protect_fenced_blocks,
-        unprotect_fenced_blocks,
-    )
+    from ._prompt_segments import split_prompt_segments
 
     frontmatter, body = _split_frontmatter_block(prompt)
-    fenced_blocks: list[str] = []
-    protected = protect_fenced_blocks(body, fenced_blocks)
-    pieces = _SEGMENT_SEPARATOR_RE.split(protected)
-    separators = _SEGMENT_SEPARATOR_RE.findall(protected)
+    pieces, separators = split_prompt_segments(body)
 
-    normalized_pieces: list[str] = []
-    for piece in pieces:
-        restored = unprotect_fenced_blocks(piece, fenced_blocks)
-        normalized_pieces.append(
-            _inherit_vcs_workflow_tag_segment(restored, inherited_vcs_tag)
-        )
+    normalized_pieces = [
+        _inherit_vcs_workflow_tag_segment(piece, inherited_vcs_tag) for piece in pieces
+    ]
 
     rebuilt = normalized_pieces[0] if normalized_pieces else ""
     for sep, piece in zip(separators, normalized_pieces[1:], strict=False):
@@ -240,21 +238,14 @@ def normalize_default_vcs_workflow(prompt: str) -> str:
     leading frontmatter block and ``---`` separators. Segments that already
     contain any registered workspace workflow ref are left unchanged.
     """
-    from sase.xprompt._fenced_blocks import (
-        protect_fenced_blocks,
-        unprotect_fenced_blocks,
-    )
+    from ._prompt_segments import split_prompt_segments
 
     frontmatter, body = _split_frontmatter_block(prompt)
-    fenced_blocks: list[str] = []
-    protected = protect_fenced_blocks(body, fenced_blocks)
-    pieces = _SEGMENT_SEPARATOR_RE.split(protected)
-    separators = _SEGMENT_SEPARATOR_RE.findall(protected)
+    pieces, separators = split_prompt_segments(body)
 
-    normalized_pieces: list[str] = []
-    for piece in pieces:
-        restored = unprotect_fenced_blocks(piece, fenced_blocks)
-        normalized_pieces.append(normalize_default_vcs_workflow_segment(restored))
+    normalized_pieces = [
+        normalize_default_vcs_workflow_segment(piece) for piece in pieces
+    ]
 
     rebuilt = normalized_pieces[0] if normalized_pieces else ""
     for sep, piece in zip(separators, normalized_pieces[1:], strict=False):

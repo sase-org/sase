@@ -10,6 +10,7 @@ import pytest
 
 from sase.axe.run_agent_runner_setup import expand_deferred_launch_xprompts
 from sase.llm_provider.preprocessing import preprocess_prompt_late
+from sase.xprompt._parsing import inherit_vcs_workflow_tag
 from sase.xprompt.loader import get_sase_package_xprompts_dir
 from sase.xprompt.models import UNSET
 from sase.xprompt.tags import XPromptTag
@@ -375,6 +376,74 @@ def test_inline_deferred_fork_survives_workspace_removal_and_late_preprocessing(
 
     assert "%xprompts_enabled" not in final_prompt
     assert "\n # New Query" not in final_prompt
+    _, separator, new_query = final_prompt.rpartition("\n# New Query")
+    assert separator, f"missing New Query heading in {final_prompt!r}"
+    assert new_query.strip() == "Continue the work"
+
+
+def test_inherited_vcs_tag_is_not_injected_into_fork_history(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The runner's inherited VCS tag must not leak into forked history.
+
+    Drives the same ``inherit_vcs_workflow_tag`` -> expand ->
+    ``preprocess_prompt_late`` sequence ``_execute_prompt_step`` uses, but
+    with a real ``inherited_vcs_tag`` set on the executor (unlike the
+    sibling test above, which constructs it with none). The launch's tag
+    must appear exactly where it started -- as the launch prefix -- and
+    nowhere inside the injected transcript or in front of ``# New Query``.
+    """
+    monkeypatch.setenv("HOME", str(tmp_path))
+    chat_path = tmp_path / "previous-chat.md"
+    chat_path.write_text(
+        "## Prompt\n\nOld question\n\n## Response\n\nOld answer\n",
+        encoding="utf-8",
+    )
+    _write_completed_agent(
+        tmp_path,
+        "20260727010101",
+        "builder",
+        response_path=chat_path,
+    )
+
+    artifacts_dir = tmp_path / "runner-artifacts"
+    artifacts_dir.mkdir()
+    with (
+        patch(
+            "sase.xprompt.loader.get_all_workflows",
+            return_value={"fork": _load_fork_workflow()},
+        ),
+        patch("sase.xprompt.used_xprompts.write_used_xprompts"),
+    ):
+        expanded_fork = expand_deferred_launch_xprompts(
+            "#gh:sase #fork:builder Continue the work",
+            str(artifacts_dir),
+        )
+
+    workspace_workflow = Workflow(
+        name="gh",
+        steps=[WorkflowStep(name="inject", prompt_part="")],
+        tags=frozenset({XPromptTag.vcs}),
+    )
+    parent_workflow = Workflow(
+        name="parent",
+        steps=[WorkflowStep(name="review", agent=expanded_fork)],
+    )
+    executor = WorkflowExecutor(
+        parent_workflow, {}, str(artifacts_dir), inherited_vcs_tag="#gh:sase "
+    )
+    tagged = inherit_vcs_workflow_tag(expanded_fork, executor.inherited_vcs_tag)
+    with patch(
+        "sase.xprompt.loader.get_all_workflows",
+        return_value={"gh": workspace_workflow},
+    ):
+        without_workspace, _, _ = executor._expand_embedded_workflows_in_prompt(tagged)
+
+    fake_prettier_missing(monkeypatch)
+    final_prompt = preprocess_prompt_late(without_workspace, file_ref_mode="skip")
+
+    assert "#gh:" not in final_prompt
     _, separator, new_query = final_prompt.rpartition("\n# New Query")
     assert separator, f"missing New Query heading in {final_prompt!r}"
     assert new_query.strip() == "Continue the work"

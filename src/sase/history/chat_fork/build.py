@@ -136,14 +136,10 @@ def build_fork_injected_history(
 
 
 def _wrap_fork_history(heading: str, body: str) -> str:
-    return (
-        "%xprompts_enabled:false\n"
-        f"{heading}\n\n"
-        f"{body}\n\n"
-        "---\n\n"
-        "%xprompts_enabled:true\n"
-        "# New Query"
-    )
+    from sase.xprompt._disabled_regions import wrap_disabled_region
+
+    region_body = f"{heading}\n\n{body}\n\n---\n"
+    return f"{wrap_disabled_region(region_body)}\n# New Query"
 
 
 def _format_fork_source(

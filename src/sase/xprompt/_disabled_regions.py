@@ -18,6 +18,11 @@ _PLACEHOLDER_PREFIX = "\x00XPD_"
 _PLACEHOLDER_SUFFIX = "\x00"
 
 
+def starts_with_disabled_region_marker(text: str) -> bool:
+    """Return whether *text* opens with a ``%xprompts_enabled:false`` marker."""
+    return bool(_DISABLED_REGION_START_RE.match(text))
+
+
 def ensure_disabled_region_at_line_start(content: str, is_at_line_start: bool) -> str:
     """Keep a leading disabled-region marker on a line boundary.
 

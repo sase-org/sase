@@ -111,6 +111,30 @@ def test_segment_without_a_tag_falls_back_to_launch_identity() -> None:
     assert context_b.origin == "vcs_workflow"
 
 
+def test_fork_shaped_prompt_yields_a_single_segment() -> None:
+    """A ``#fork``-injected transcript's internal ``---`` lines must not
+    fragment segment resolution: the whole disabled-region block plus the
+    trailing New Query is the launch's single segment."""
+    prompt = (
+        "#git:sase \n"
+        "%xprompts_enabled:false\n"
+        "# Previous Conversation\n\n"
+        "turn one\n\n"
+        "---\n\n"
+        "turn two\n\n"
+        "---\n\n"
+        "%xprompts_enabled:true\n"
+        "# New Query\n\n"
+        "Can you now do X?"
+    )
+    pairs = prompt_ref_contexts_for_prompt(prompt, is_home_mode=False)
+
+    assert len(pairs) == 1
+    _span, context = pairs[0]
+    assert context.origin == "vcs_workflow"
+    assert context.vcs_ref == "sase"
+
+
 def test_home_mode_and_unresolvable_ref_produce_no_project_context() -> None:
     empty = empty_prompt_ref_context(is_home_mode=True)
     assert empty.project is None
