@@ -17,10 +17,30 @@ def test_history_builder_filters_casefold_prefix_in_mru_order() -> None:
     assert result is not None
     assert [candidate.insertion for candidate in result.candidates] == [
         "ALPINE",
+        "aLpha",
+        "aLphabet",
+    ]
+    assert [candidate.name for candidate in result.candidates] == [
+        "ALPINE",
         "Alpha",
         "alphabet",
     ]
     assert result.shared_extension == "P"
+
+
+def test_history_builder_collapses_case_variants_by_mru_spelling() -> None:
+    result = build_history_word_completion_result(
+        "git",
+        len("git"),
+        ["github", "GitHub", "Github", "gitlab"],
+    )
+
+    assert result is not None
+    assert [candidate.name for candidate in result.candidates] == ["github", "gitlab"]
+    assert [candidate.insertion for candidate in result.candidates] == [
+        "github",
+        "gitlab",
+    ]
 
 
 def test_history_builder_replaces_only_the_prefix_and_preserves_suffix() -> None:
@@ -55,6 +75,26 @@ def test_history_builder_suppresses_exact_prefix_spelling_without_suffix() -> No
         "publish",
         "publication",
     ]
+
+
+def test_history_builder_suppresses_noop_after_case_policy() -> None:
+    assert (
+        build_history_word_completion_result(
+            "readme",
+            len("readme"),
+            ["readme"],
+        )
+        is None
+    )
+
+    result = build_history_word_completion_result(
+        "github",
+        len("github"),
+        ["GitHub"],
+    )
+
+    assert result is not None
+    assert [candidate.insertion for candidate in result.candidates] == ["GitHub"]
 
 
 def test_history_builder_ignores_suffix_when_filtering() -> None:

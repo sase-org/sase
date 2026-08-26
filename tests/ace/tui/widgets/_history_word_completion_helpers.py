@@ -62,7 +62,10 @@ class RankedHistoryCompletionTestApp(CompletionTestApp):
         from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
         self.forgotten_history_words.append(word)
-        self.deletions = self.deletions | {word}
+        folded = word.casefold()
+        self.deletions = frozenset(
+            candidate for candidate in self.deletions if candidate.casefold() != folded
+        ) | {word}
         for text_area in self.query(PromptTextArea):
             if (
                 text_area._file_completion_active

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_word_completion import (
     WordCompletionResult,
+    apply_word_case,
     shared_word_extension,
     word_range_at_cursor,
 )
@@ -52,8 +53,9 @@ def build_history_word_completion_result(
     Only the left-side prefix filters the warm MRU word list; any right-hand
     suffix under the cursor is neither used to include nor exclude candidates,
     and the replacement range covers just the typed prefix so that suffix is
-    preserved on acceptance. An MRU word that exactly matches the typed prefix
-    is only offered when the cursor also has a right-hand suffix to separate,
+    preserved on acceptance. Case variants collapse to the first MRU spelling.
+    A candidate whose computed insertion exactly matches the typed prefix is
+    only offered when the cursor also has a right-hand suffix to separate,
     since otherwise accepting it would have no effect.
     """
     word_range = word_range_at_cursor(text, cursor_offset)
@@ -67,27 +69,21 @@ def build_history_word_completion_result(
     ordered: list[str] = []
     seen: set[str] = set()
     for word in words:
-        if word in seen:
+        folded = word.casefold()
+        if folded in seen:
             continue
-        seen.add(word)
+        seen.add(folded)
         if not word.casefold().startswith(prefix_folded):
             continue
-        if word == prefix and not has_word_suffix:
+        insertion = apply_word_case(word, prefix)
+        if insertion == prefix and not has_word_suffix:
             continue
         ordered.append(word)
 
     if not ordered:
         return None
 
-    candidates = [
-        CompletionCandidate(
-            display=word,
-            insertion=word,
-            is_dir=False,
-            name=word,
-        )
-        for word in ordered
-    ]
+    candidates = [_history_word_candidate(word, prefix) for word in ordered]
     return WordCompletionResult(
         prefix=prefix,
         replacement_start=word_start,
@@ -110,7 +106,7 @@ def build_indexed_history_word_completion_result(
     """Return index-backed history-word matches for the prefix left of the cursor.
 
     Mirrors :func:`build_history_word_completion_result`'s prefix, replacement
-    range, and exact-spelling-suppression rules. When *smart* is set,
+    range, and insertion-suppression rules. When *smart* is set,
     candidates are ordered by the relation/recency/frequency composite score
     and carry :class:`HistoryWordCompletionMetadata` evidence; otherwise they
     reproduce plain MRU order (``word_ranking: recent``) with no metadata, so
@@ -123,7 +119,6 @@ def build_indexed_history_word_completion_result(
     word_start, word_end = word_range
     prefix = text[word_start:cursor_offset]
     has_word_suffix = word_end > cursor_offset
-    exclude_exact = None if has_word_suffix else prefix
 
     if smart:
         context = build_word_ranking_context(
@@ -137,7 +132,6 @@ def build_indexed_history_word_completion_result(
             context,
             prefix=prefix,
             deleted=deleted,
-            exclude_exact=exclude_exact,
             now=now,
         )
     else:
@@ -145,13 +139,25 @@ def build_indexed_history_word_completion_result(
             index,
             prefix=prefix,
             deleted=deleted,
-            exclude_exact=exclude_exact,
             now=now,
         )
+    ranked = [
+        item
+        for item in ranked
+        if _keep_cased_word(item.word, prefix, has_word_suffix=has_word_suffix)
+    ]
+    extension_source = [
+        word
+        for word in extension_source
+        if _keep_cased_word(word, prefix, has_word_suffix=has_word_suffix)
+    ]
     if not ranked:
         return None
 
-    candidates = [_indexed_history_word_candidate(item, smart=smart) for item in ranked]
+    candidates = [
+        _indexed_history_word_candidate(item, prefix=prefix, smart=smart)
+        for item in ranked
+    ]
     return WordCompletionResult(
         prefix=prefix,
         replacement_start=word_start,
@@ -162,14 +168,35 @@ def build_indexed_history_word_completion_result(
     )
 
 
+def _history_word_candidate(word: str, prefix: str) -> CompletionCandidate:
+    insertion = apply_word_case(word, prefix)
+    return CompletionCandidate(
+        display=insertion,
+        insertion=insertion,
+        is_dir=False,
+        name=word,
+    )
+
+
+def _keep_cased_word(
+    word: str,
+    prefix: str,
+    *,
+    has_word_suffix: bool,
+) -> bool:
+    return has_word_suffix or apply_word_case(word, prefix) != prefix
+
+
 def _indexed_history_word_candidate(
     item: RankedWord,
     *,
+    prefix: str,
     smart: bool,
 ) -> CompletionCandidate:
+    insertion = apply_word_case(item.word, prefix)
     return CompletionCandidate(
-        display=item.word,
-        insertion=item.word,
+        display=insertion,
+        insertion=insertion,
         is_dir=False,
         name=item.word,
         metadata=(

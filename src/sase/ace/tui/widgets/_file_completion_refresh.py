@@ -363,22 +363,7 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
             self._clear_file_completion()
             return
 
-        previous = None
-        if self._file_completion_candidates:
-            previous = self._file_completion_candidates[
-                self._file_completion_index
-            ].insertion
-
-        self._file_completion_candidates = result.candidates
-        self._file_completion_index = min(
-            self._file_completion_index,
-            len(result.candidates) - 1,
-        )
-        if previous is not None:
-            for index, candidate in enumerate(result.candidates):
-                if candidate.insertion == previous:
-                    self._file_completion_index = index
-                    break
+        self._replace_completion_candidates_preserving_selection(result.candidates)
         self._update_file_completion_panel(result.prefix)
 
     def _refresh_history_word_completion(
@@ -428,12 +413,12 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
         self,
         candidates: list[CompletionCandidate],
     ) -> None:
-        """Replace completion rows while retaining the selected insertion."""
+        """Replace completion rows while retaining the selected candidate."""
         previous = None
         if self._file_completion_candidates:
-            previous = self._file_completion_candidates[
-                self._file_completion_index
-            ].insertion
+            previous = self._completion_candidate_refresh_key(
+                self._file_completion_candidates[self._file_completion_index]
+            )
         self._file_completion_candidates = candidates
         self._file_completion_index = min(
             self._file_completion_index,
@@ -441,9 +426,20 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
         )
         if previous is not None:
             for index, candidate in enumerate(candidates):
-                if candidate.insertion == previous:
+                if self._completion_candidate_refresh_key(candidate) == previous:
                     self._file_completion_index = index
                     break
+
+    def _completion_candidate_refresh_key(
+        self,
+        candidate: CompletionCandidate,
+    ) -> str:
+        if self._completion_kind in {
+            PROMPT_WORD_COMPLETION_KIND,
+            HISTORY_WORD_COMPLETION_KIND,
+        }:
+            return candidate.name
+        return candidate.insertion
 
     def _structured_completion_claims_cursor(self) -> bool:
         """Return whether an existing provider shadows prompt-word fallback."""

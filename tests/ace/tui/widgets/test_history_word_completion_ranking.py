@@ -7,6 +7,7 @@ import pytest
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
     HistoryWordCompletionMetadata,
+    build_indexed_history_word_completion_result,
 )
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.history.prompt_word_index import _parse_sase_timestamp_epoch
@@ -85,4 +86,85 @@ async def test_smart_mode_mid_word_completion_preserves_suffix() -> None:
 
         assert ta.text == "foobar baz"
         assert ta.cursor_location == (0, len("foobar"))
+        assert ta._file_completion_active is False
+
+
+async def test_smart_mode_applies_typed_shout_case_and_auto_accepts() -> None:
+    index = seeded_index([("spectacular", "260814_000000")])
+    app = RankedHistoryCompletionTestApp(index)
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("SPECTAC")
+        ta.cursor_location = (0, len("SPECTAC"))
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "SPECTACULAR"
+        assert ta._file_completion_active is False
+
+
+async def test_smart_mode_case_variants_collapse_to_one_auto_accept_row() -> None:
+    index = seeded_index(
+        [
+            ("spectacular", "260814_000000"),
+            ("SPECTACULAR", "260813_000000"),
+        ]
+    )
+    result = build_indexed_history_word_completion_result(
+        "SPECTAC",
+        len("SPECTAC"),
+        index,
+        deleted=frozenset(),
+        now=0.0,
+        smart=True,
+    )
+    assert result is not None
+    assert [candidate.name for candidate in result.candidates] == ["spectacular"]
+    assert [candidate.insertion for candidate in result.candidates] == ["SPECTACULAR"]
+
+    app = RankedHistoryCompletionTestApp(index)
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("SPECTAC")
+        ta.cursor_location = (0, len("SPECTAC"))
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "SPECTACULAR"
+        assert ta._file_completion_active is False
+
+
+async def test_smart_mode_shared_extension_uses_typed_case() -> None:
+    index = seeded_index(
+        [
+            ("xprompt", "260814_000000"),
+            ("xprompts", "260813_000000"),
+        ]
+    )
+    app = RankedHistoryCompletionTestApp(index)
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("XPROMP")
+        ta.cursor_location = (0, len("XPROMP"))
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "XPROMPT"
+        assert ta._completion_kind == HISTORY_WORD_COMPLETION_KIND
+        assert [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ] == ["XPROMPTS"]
+
+
+async def test_smart_mode_preserves_intrinsic_casing() -> None:
+    index = seeded_index([("GitHub", "260814_000000")])
+    app = RankedHistoryCompletionTestApp(index)
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("githu")
+        ta.cursor_location = (0, len("githu"))
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "GitHub"
         assert ta._file_completion_active is False

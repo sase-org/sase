@@ -42,13 +42,14 @@ def build_prompt_word_completion_result(
     must have a non-empty word prefix immediately to its left. Candidates are
     drawn only from complete words that appear earlier in the prompt, before
     the active prefix; words later in the prompt (including any right-hand
-    suffix of the current word) are never candidates. An earlier word whose
-    spelling exactly matches the typed prefix is only offered when the cursor
-    also has a right-hand suffix to separate, since otherwise accepting it
-    would have no effect. The minimum applies to complete candidates, not to
-    the typed prefix. Candidates are ordered nearest-first: by the latest
-    offset each distinct spelling starts at before the active word, since the
-    word you just wrote is the one you are most likely repeating.
+    suffix of the current word) are never candidates. Case variants of the
+    same word collapse into one row. A candidate whose computed insertion
+    exactly matches the typed prefix is only offered when the cursor also has
+    a right-hand suffix to separate, since otherwise accepting it would have
+    no effect. The minimum applies to complete candidates, not to the typed
+    prefix. Candidates are ordered nearest-first: by the latest offset each
+    distinct folded spelling starts at before the active word, since the word
+    you just wrote is the one you are most likely repeating.
     """
     word_range = word_range_at_cursor(text, cursor_offset)
     if word_range is None:
@@ -59,7 +60,7 @@ def build_prompt_word_completion_result(
     prefix_folded = prefix.casefold()
 
     minimum = max(1, min_length)
-    latest_offset: dict[str, int] = {}
+    latest_by_fold: dict[str, tuple[str, int]] = {}
     for start, end in _word_ranges(text):
         if start >= word_start:
             break
@@ -70,29 +71,42 @@ def build_prompt_word_completion_result(
             or not word.casefold().startswith(prefix_folded)
         ):
             continue
-        if word == prefix and not has_word_suffix:
-            continue
-        latest_offset[word] = start
+        latest_by_fold[word.casefold()] = (word, start)
 
-    if not latest_offset:
+    if not latest_by_fold:
         return None
 
-    ordered = sorted(latest_offset, key=lambda word: -latest_offset[word])
-    candidates = [
-        CompletionCandidate(
-            display=word,
-            insertion=word,
-            is_dir=False,
-            name=word,
+    ordered = [
+        word
+        for word, _start in sorted(
+            latest_by_fold.values(),
+            key=lambda item: -item[1],
         )
-        for word in ordered
     ]
+    candidates: list[CompletionCandidate] = []
+    extension_source: list[str] = []
+    for word in ordered:
+        insertion = apply_word_case(word, prefix)
+        if insertion == prefix and not has_word_suffix:
+            continue
+        extension_source.append(word)
+        candidates.append(
+            CompletionCandidate(
+                display=insertion,
+                insertion=insertion,
+                is_dir=False,
+                name=word,
+            )
+        )
+    if not candidates:
+        return None
+
     return WordCompletionResult(
         prefix=prefix,
         replacement_start=word_start,
         replacement_end=cursor_offset,
         candidates=candidates,
-        shared_extension=shared_word_extension(ordered, prefix),
+        shared_extension=shared_word_extension(extension_source, prefix),
         has_word_suffix=has_word_suffix,
     )
 
@@ -137,8 +151,40 @@ def is_prompt_word_candidate(word: str) -> bool:
     return any(character != "-" for character in word)
 
 
+def apply_word_case(canonical: str, prefix: str) -> str:
+    """Return *canonical* re-cased to honor the casing typed in *prefix*.
+
+    ``canonical`` is expected to casefold-start with ``prefix``. If the folded
+    prefix does not align to a character boundary in ``canonical`` (for
+    example ``stras`` against ``Straße``), the canonical spelling is returned
+    unchanged except for an explicit shout prefix. A prefix shouts when it has
+    at least two cased characters and all of them are uppercase; shouting
+    uppercases the remainder too, so ``GITHU`` completes ``GitHub`` as
+    ``GITHUB``. Otherwise, canonical spellings with intrinsic uppercase
+    letters after their first cased character (``GitHub``, ``README``,
+    ``iPhone``) stay intact; plain words keep the typed prefix and take the
+    remainder from history.
+    """
+    split = _casefold_prefix_split(canonical, prefix)
+    if _is_shout_prefix(prefix):
+        if split is None:
+            shouted = canonical.upper()
+            return (
+                shouted
+                if shouted.casefold().startswith(prefix.casefold())
+                else canonical
+            )
+        return f"{prefix}{canonical[split:].upper()}"
+
+    if split is None:
+        return canonical
+    if _has_intrinsic_uppercase(canonical):
+        return canonical
+    return f"{prefix}{canonical[split:]}"
+
+
 def shared_word_extension(insertions: list[str], prefix: str) -> str:
-    """Return the case-insensitive common suffix beyond *prefix*."""
+    """Return the re-cased case-insensitive common suffix beyond *prefix*."""
     if len(insertions) <= 1:
         return ""
 
@@ -154,11 +200,41 @@ def shared_word_extension(insertions: list[str], prefix: str) -> str:
         if not shared:
             return ""
 
-    # Case-folding can change string length (for example, ``ß`` -> ``ss``).
-    # Only extend when the character slice aligns with the typed prefix.
-    if (
-        len(shared) <= len(prefix)
-        or shared[: len(prefix)].casefold() != prefix.casefold()
-    ):
+    split = _casefold_prefix_split(shared, prefix)
+    if split is None or split >= len(shared):
         return ""
-    return shared[len(prefix) :]
+    recased = apply_word_case(shared, prefix)
+    if not recased.casefold().startswith(prefix.casefold()):
+        return ""
+    return recased[len(prefix) :]
+
+
+def _casefold_prefix_split(canonical: str, prefix: str) -> int | None:
+    """Return the smallest character split matching the folded prefix."""
+    folded = prefix.casefold()
+    for split in range(len(canonical) + 1):
+        if canonical[:split].casefold() == folded:
+            return split
+    return None
+
+
+def _is_cased_character(character: str) -> bool:
+    return character.lower() != character.upper()
+
+
+def _is_shout_prefix(prefix: str) -> bool:
+    cased = [character for character in prefix if _is_cased_character(character)]
+    return len(cased) >= 2 and all(character.isupper() for character in cased)
+
+
+def _has_intrinsic_uppercase(canonical: str) -> bool:
+    seen_first_cased = False
+    for character in canonical:
+        if not _is_cased_character(character):
+            continue
+        if not seen_first_cased:
+            seen_first_cased = True
+            continue
+        if character.isupper():
+            return True
+    return False

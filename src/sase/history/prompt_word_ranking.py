@@ -89,7 +89,6 @@ def rank_history_words(
     *,
     prefix: str,
     deleted: set[str] | frozenset[str],
-    exclude_exact: str | None,
     now: float,
     limit: int = HISTORY_WORD_MAX_ROWS,
 ) -> tuple[list[RankedWord], list[str]]:
@@ -100,7 +99,6 @@ def rank_history_words(
             index,
             prefix=prefix,
             deleted=deleted,
-            exclude_exact=exclude_exact,
         )
     ]
     ranked.sort(key=lambda item: (-item.score, item.word.casefold(), item.word))
@@ -112,19 +110,17 @@ def rank_recent_history_words(
     *,
     prefix: str,
     deleted: set[str] | frozenset[str],
-    exclude_exact: str | None,
     now: float | None = None,
     limit: int = HISTORY_WORD_MAX_ROWS,
 ) -> tuple[list[RankedWord], list[str]]:
     """Return MRU prefix matches as zero-score ranked words."""
     timestamp = time.time() if now is None else now
     prefix_folded = prefix.casefold()
+    deleted_folded = {word.casefold() for word in deleted}
     ranked: list[RankedWord] = []
     for word_id in index.mru:
         word = index.spelling(word_id)
-        if word in deleted:
-            continue
-        if exclude_exact is not None and word == exclude_exact:
+        if word.casefold() in deleted_folded:
             continue
         if not word.casefold().startswith(prefix_folded):
             continue
@@ -276,15 +272,13 @@ def _prefix_candidate_word_ids(
     *,
     prefix: str,
     deleted: set[str] | frozenset[str],
-    exclude_exact: str | None,
 ) -> list[int]:
+    deleted_folded = {word.casefold() for word in deleted}
     word_ids: list[int] = []
     for row in index.word_ids_with_prefix(prefix):
         word_id = index.folded_order[row]
         word = index.spelling(word_id)
-        if word in deleted:
-            continue
-        if exclude_exact is not None and word == exclude_exact:
+        if word.casefold() in deleted_folded:
             continue
         word_ids.append(word_id)
     return word_ids

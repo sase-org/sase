@@ -538,7 +538,7 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
         from sase.ace.tui.util.io_async import schedule_persist
         from sase.history.prompt_word_deletions import delete_prompt_word
 
-        word = selected.insertion
+        word = selected.name
         forget = getattr(self.app, "forget_history_prompt_word", None)
         if callable(forget):
             forget(word)

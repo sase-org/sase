@@ -14,7 +14,9 @@ from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.prompt_word_completion import (
     PROMPT_WORD_COMPLETION_KIND,
     WordCompletionResult,
+    apply_word_case,
     build_prompt_word_completion_result,
+    shared_word_extension,
     word_range_at_cursor,
     _word_ranges,
 )
@@ -44,6 +46,36 @@ def _result(
     return result
 
 
+def test_apply_word_case_examples() -> None:
+    cases = [
+        ("SPECTAC", "spectacular", "SPECTACULAR"),
+        ("spectac", "spectacular", "spectacular"),
+        ("Spectac", "spectacular", "Spectacular"),
+        ("S", "spectacular", "Spectacular"),
+        ("als", "Also", "also"),
+        ("githu", "GitHub", "GitHub"),
+        ("GITHU", "GitHub", "GITHUB"),
+        ("readm", "README", "README"),
+        ("nas", "NASA", "NASA"),
+        ("sPectac", "spectacular", "sPectacular"),
+        ("stras", "Straße", "Straße"),
+        ("123", "123abc", "123abc"),
+        ("X-1", "x-123", "X-123"),
+    ]
+
+    for prefix, canonical, expected in cases:
+        result = apply_word_case(canonical, prefix)
+
+        assert result == expected
+        assert result == canonical or result.casefold().startswith(prefix.casefold())
+
+
+def test_shared_word_extension_is_recased_to_typed_prefix() -> None:
+    assert shared_word_extension(["spectacular", "spectacle"], "SPEC") == "TAC"
+    assert shared_word_extension(["spectacular", "spectacle"], "spec") == "tac"
+    assert shared_word_extension(["Straße", "Straßen"], "stras") == ""
+
+
 def test_multiline_candidates_are_deduplicated_and_sorted() -> None:
     text = "alpha Alpine\napplication alpha\nal"
 
@@ -56,7 +88,7 @@ def test_multiline_candidates_are_deduplicated_and_sorted() -> None:
     )
     assert [candidate.insertion for candidate in result.candidates] == [
         "alpha",
-        "Alpine",
+        "alpine",
     ]
     assert result.shared_extension == "p"
 
@@ -138,14 +170,31 @@ def test_hyphen_only_runs_are_not_prompt_word_candidates() -> None:
     )
 
 
-def test_case_insensitive_filter_preserves_exact_spellings() -> None:
+def test_case_insensitive_filter_recases_plain_spellings() -> None:
     result = _result("Alpha ALPINE alphabet aL")
 
     assert [candidate.insertion for candidate in result.candidates] == [
+        "aLphabet",
+        "ALPINE",
+        "aLpha",
+    ]
+    assert [candidate.name for candidate in result.candidates] == [
         "alphabet",
         "ALPINE",
         "Alpha",
     ]
+
+
+def test_case_variants_collapse_to_latest_prompt_local_spelling() -> None:
+    result = build_prompt_word_completion_result(
+        "Also also ALSO al",
+        len("Also also ALSO al"),
+        min_length=1,
+    )
+
+    assert result is not None
+    assert [candidate.name for candidate in result.candidates] == ["ALSO"]
+    assert [candidate.insertion for candidate in result.candidates] == ["ALSO"]
 
 
 def test_current_word_and_exact_duplicates_are_excluded() -> None:

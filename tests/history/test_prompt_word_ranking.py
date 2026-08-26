@@ -70,7 +70,6 @@ def _rank(
         context,
         prefix=prefix,
         deleted=frozenset(),
-        exclude_exact=active_word,
         now=now,
         limit=limit,
     )
@@ -135,7 +134,6 @@ def test_globally_common_word_gets_no_relation_lift() -> None:
         context,
         prefix="co",
         deleted=frozenset(),
-        exclude_exact="co",
         now=now,
     )
 
@@ -193,7 +191,6 @@ def test_recency_decay_future_clamp_and_unparsable_timestamp_ordering() -> None:
         context,
         prefix="age",
         deleted=frozenset(),
-        exclude_exact=None,
         now=now,
     )
     by_word = _ranked_by_word(ranked)
@@ -221,7 +218,6 @@ def test_frequency_saturates_without_exceeding_the_other_signal_pair() -> None:
         context,
         prefix="",
         deleted=frozenset(),
-        exclude_exact=None,
         now=now,
     )
     by_word = _ranked_by_word(ranked)
@@ -294,7 +290,6 @@ def test_equal_scores_sort_by_folded_spelling_then_spelling_deterministically() 
         context,
         prefix="",
         deleted=frozenset(),
-        exclude_exact=None,
         now=now,
     )
     second, _ = rank_history_words(
@@ -302,11 +297,10 @@ def test_equal_scores_sort_by_folded_spelling_then_spelling_deterministically() 
         context,
         prefix="",
         deleted=frozenset(),
-        exclude_exact=None,
         now=now,
     )
 
-    assert [word.word for word in first] == ["Alpha", "alpha", "Beta"]
+    assert [word.word for word in first] == ["alpha", "Beta"]
     assert [word.word for word in second] == [word.word for word in first]
 
 
@@ -358,7 +352,6 @@ def test_shared_extension_source_includes_matches_beyond_limit() -> None:
         context,
         prefix="foo",
         deleted=frozenset(),
-        exclude_exact=None,
         now=now,
         limit=1,
     )
@@ -381,7 +374,6 @@ def test_recent_ranking_preserves_mru_filter_with_zero_contributions() -> None:
         index,
         prefix="re",
         deleted={"remove"},
-        exclude_exact=None,
         now=now,
         limit=2,
     )
@@ -393,6 +385,34 @@ def test_recent_ranking_preserves_mru_filter_with_zero_contributions() -> None:
         == (0.0, 0.0, 0.0, 0.0)
         for word in ranked
     )
+
+
+def test_deleted_words_are_matched_by_casefold() -> None:
+    now = _epoch("260801_000000")
+    index = _index(
+        [
+            _entry("Also", "260801_000000"),
+            _entry("alpha", "260731_000000"),
+        ]
+    )
+    context = build_word_ranking_context(index, "", exclude_range=None, now=now)
+
+    smart, _ = rank_history_words(
+        index,
+        context,
+        prefix="al",
+        deleted={"also"},
+        now=now,
+    )
+    recent, _ = rank_recent_history_words(
+        index,
+        prefix="al",
+        deleted={"ALSO"},
+        now=now,
+    )
+
+    assert [word.word for word in smart] == ["alpha"]
+    assert [word.word for word in recent] == ["alpha"]
 
 
 @pytest.mark.slow

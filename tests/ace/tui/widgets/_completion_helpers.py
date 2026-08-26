@@ -90,9 +90,10 @@ class CompletionTestApp(App[None]):
         from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
         self.forgotten_history_words.append(word)
+        folded = word.casefold()
         words = getattr(self, "words", None)
         if isinstance(words, list):
-            words = [candidate for candidate in words if candidate != word]
+            words = [candidate for candidate in words if candidate.casefold() != folded]
             self.words = words
         for text_area in self.query(PromptTextArea):
             if (

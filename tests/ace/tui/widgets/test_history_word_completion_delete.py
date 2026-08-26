@@ -107,3 +107,28 @@ async def test_smart_mode_ctrl_d_deletes_instantly_without_rebuilding_index() ->
         ] == ["revise"]
         assert app.index is index
         assert app.warm_requests == before
+
+
+async def test_smart_mode_ctrl_d_persists_canonical_word_for_uppercase_prefix() -> None:
+    index = seeded_index(
+        [
+            ("review", "260814_000000"),
+            ("Review", "260813_000000"),
+            ("revise", "260812_000000"),
+        ]
+    )
+    app = RankedHistoryCompletionTestApp(index)
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("RE")
+        ta.cursor_location = (0, len("RE"))
+
+        with patch("sase.ace.tui.util.io_async.schedule_persist") as schedule:
+            await pilot.press("ctrl+t", "ctrl+d")
+
+    assert app.forgotten_history_words == ["review"]
+    assert schedule.call_args.args[2] == "review"
+    assert ta._file_completion_active is True
+    assert [candidate.insertion for candidate in ta._file_completion_candidates] == [
+        "REVISE"
+    ]

@@ -54,7 +54,11 @@ class _PromptWordPostings:
 
 @dataclass(frozen=True, slots=True)
 class PromptWordIndex:
-    """Prompt-history word corpus indexed for MRU and prefix lookup."""
+    """Prompt-history word corpus indexed for MRU and prefix lookup.
+
+    ``words`` contains canonical spellings, one per casefold group. Prompt
+    context lookup is therefore case-insensitive as well as prefix lookup.
+    """
 
     words: tuple[str, ...]
     folded_order: tuple[int, ...]
@@ -78,7 +82,7 @@ class PromptWordIndex:
         return range(start, end)
 
     def word_ids_for_spelling(self, spelling: str) -> tuple[int, ...]:
-        """Return exact case-insensitive matches for *spelling*."""
+        """Return the canonical id for *spelling*'s casefold group, if present."""
         folded = spelling.casefold()
         rows = self.word_ids_with_prefix(spelling)
         return tuple(
@@ -89,7 +93,7 @@ class PromptWordIndex:
         )
 
     def spelling(self, word_id: int) -> str:
-        """Return the exact spelling for one word id."""
+        """Return the canonical spelling for one word id."""
         return self.words[word_id]
 
     def prompt_word_ids(self, prompt_id: int) -> array:
@@ -202,6 +206,15 @@ def _build_prompt_word_index_from_paths(
     if reached_prompt_limit:
         log.info("Prompt word index stopped after prompt_limit=%s", prompt_limit)
 
+    words, word_postings, prompt_word_rows, last_used_epochs = (
+        _collapse_casefold_word_groups(
+            words,
+            word_postings,
+            prompt_word_rows,
+            last_used_epochs,
+        )
+    )
+
     prompt_postings = _build_postings(prompt_word_rows)
     word_prompt_postings = _build_postings(word_postings)
     document_frequency = array("i", (len(postings) for postings in word_postings))
@@ -226,6 +239,67 @@ def _build_prompt_word_index_from_paths(
         prompt_count=len(prompt_word_rows),
         max_document_frequency=max_document_frequency,
         source_token=source_token,
+    )
+
+
+def _collapse_casefold_word_groups(
+    words: list[str],
+    word_postings: list[list[int]],
+    prompt_word_rows: list[list[int]],
+    last_used_epochs: array,
+) -> tuple[list[str], list[list[int]], list[list[int]], array]:
+    """Merge case variants after distinct word collection."""
+    groups: dict[str, list[int]] = {}
+    for word_id, word in enumerate(words):
+        groups.setdefault(word.casefold(), []).append(word_id)
+
+    if all(len(group) == 1 for group in groups.values()):
+        return words, word_postings, prompt_word_rows, last_used_epochs
+
+    old_to_new = [0] * len(words)
+    collapsed_words: list[str] = []
+    collapsed_postings: list[list[int]] = []
+    collapsed_last_used_epochs = array("d")
+    grouped_word_ids = sorted(groups.values(), key=lambda group: group[0])
+
+    for new_id, group in enumerate(grouped_word_ids):
+        canonical_id = min(
+            group,
+            key=lambda word_id: (
+                -len(word_postings[word_id]),
+                -last_used_epochs[word_id],
+                word_id,
+            ),
+        )
+        collapsed_words.append(words[canonical_id])
+        collapsed_postings.append(
+            sorted(
+                {prompt_id for word_id in group for prompt_id in word_postings[word_id]}
+            )
+        )
+        collapsed_last_used_epochs.append(
+            max(last_used_epochs[word_id] for word_id in group)
+        )
+        for word_id in group:
+            old_to_new[word_id] = new_id
+
+    collapsed_prompt_word_rows: list[list[int]] = []
+    for row in prompt_word_rows:
+        collapsed_row: list[int] = []
+        seen_in_prompt: set[int] = set()
+        for old_word_id in row:
+            new_word_id = old_to_new[old_word_id]
+            if new_word_id in seen_in_prompt:
+                continue
+            seen_in_prompt.add(new_word_id)
+            collapsed_row.append(new_word_id)
+        collapsed_prompt_word_rows.append(collapsed_row)
+
+    return (
+        collapsed_words,
+        collapsed_postings,
+        collapsed_prompt_word_rows,
+        collapsed_last_used_epochs,
     )
 
 

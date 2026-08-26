@@ -154,6 +154,34 @@ def test_prefix_lookup_is_case_insensitive_and_uses_unicode_folding(
     assert list(index.word_ids_with_prefix("missing")) == []
 
 
+def test_case_variants_collapse_to_one_canonical_word_id(tmp_path: Path) -> None:
+    history_dir = tmp_path / "prompt_history"
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_DIR", history_dir):
+        _write_shard(
+            history_dir,
+            "2607.json",
+            [
+                _entry("Also also ALSO", "260704_000000"),
+                _entry("also beta", "260703_000000"),
+                _entry("ALSO gamma", "260702_000000"),
+                _entry("Also delta", "260701_000000"),
+            ],
+        )
+
+        index = build_prompt_word_index(
+            min_length=1,
+            shard_limit=None,
+            prompt_limit=None,
+        )
+
+    also_id = index.word_ids_for_spelling("ALSO")[0]
+    assert index.spelling(also_id) == "Also"
+    assert index.word_ids_for_spelling("also") == (also_id,)
+    assert index.document_frequency[also_id] == 4
+    assert list(index.word_prompt_ids(also_id)) == [0, 1, 2, 3]
+    assert list(index.prompt_word_ids(0)).count(also_id) == 1
+
+
 def test_per_shard_cache_reuses_and_invalidates_tokenization(
     tmp_path: Path,
 ) -> None:

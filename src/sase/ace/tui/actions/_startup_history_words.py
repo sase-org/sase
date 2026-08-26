@@ -108,14 +108,15 @@ class StartupHistoryWordsMixin:
         so ``Ctrl+D`` never triggers a full corpus rebuild.
         """
         current = self._history_prompt_word_deletions_cache or frozenset()
-        if word in current:
+        folded = word.casefold()
+        if folded in {candidate.casefold() for candidate in current}:
             return
         self._history_prompt_word_deletions_cache = current | {word}
         if isinstance(self._history_prompt_words_cache, list):
             self._history_prompt_words_cache = [
                 candidate
                 for candidate in self._history_prompt_words_cache
-                if candidate != word
+                if candidate.casefold() != folded
             ]
         self._refresh_visible_history_word_surfaces()
 
@@ -211,13 +212,14 @@ def _mru_words_from_index(
     deletions: frozenset[str],
     max_words: int,
 ) -> list[str]:
-    """Return exact-spelling words in MRU order, deletions and cap applied."""
+    """Return canonical words in MRU order, folded deletions and cap applied."""
     if index is None or max_words <= 0:
         return []
+    deletion_folds = {word.casefold() for word in deletions}
     words: list[str] = []
     for word_id in index.mru:
         word = index.spelling(word_id)
-        if word in deletions:
+        if word.casefold() in deletion_folds:
             continue
         words.append(word)
         if len(words) >= max_words:
