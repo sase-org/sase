@@ -2,7 +2,6 @@
 keyword: Sase Gate
 aliases:
   - gate
-  - gates
 ---
 
 A sase gate is a durable, command-backed request for one user decision, created when
