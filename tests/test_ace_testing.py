@@ -40,7 +40,7 @@ async def test_ace_page_press() -> None:
     """Pressing 'j' changes the current index."""
     async with AcePage() as page:
         assert page.state["idx"] == 0
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.press("j")
         assert page.state["idx"] == 1
 

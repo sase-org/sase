@@ -204,7 +204,7 @@ async def test_commits_fast_navigation_skips_day_banners_and_jumps_without_openi
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("1")
+        await page.press(page.artifacts_digit("stitches"))
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         assert len(pane.entry_targets()) == 50
@@ -367,7 +367,7 @@ async def test_configured_navigation_actions_route_to_non_pr_list(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("1")
+        await page.press(page.artifacts_digit("stitches"))
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         await page.press("G")

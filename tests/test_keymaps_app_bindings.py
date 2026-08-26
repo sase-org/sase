@@ -221,6 +221,7 @@ def test_build_app_bindings_number_artifacts_and_prefix_saved_queries() -> None:
         if descriptor.digit_shortcut is not None
     }
 
+    assert expected_digits["1"] == "agents"
     assert {
         by_action[f"show_artifacts_digit({digit})"].key: subtab
         for digit, subtab in expected_digits.items()
@@ -244,17 +245,17 @@ def test_fallback_bindings_match_numbered_artifacts_and_saved_query_picker() -> 
     assert [
         (by_action[f"show_artifacts_digit({digit})"].key, subtab)
         for digit, subtab in (
-            ("1", "stitches"),
-            ("2", "patches"),
-            ("3", "beads"),
-            ("4", "agents"),
+            ("1", "agents"),
+            ("2", "stitches"),
+            ("3", "patches"),
+            ("4", "beads"),
             ("5", "files"),
         )
     ] == [
-        ("1", "stitches"),
-        ("2", "patches"),
-        ("3", "beads"),
-        ("4", "agents"),
+        ("1", "agents"),
+        ("2", "stitches"),
+        ("3", "patches"),
+        ("4", "beads"),
         ("5", "files"),
     ]
     assert by_action["open_saved_query_picker"].key == "asterisk"

@@ -24,7 +24,7 @@ async def test_selection_marks_jumps_and_reload_preserve_stable_target(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)
         targets = pane.entry_targets()
@@ -71,7 +71,7 @@ async def test_detail_scroll_reserves_its_gutter_so_the_width_never_oscillates(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)
         scroll = pane.query_one("#beads-detail-scroll")

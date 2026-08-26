@@ -18,7 +18,7 @@ async def test_default_keys_still_work() -> None:
     """With no config override, default 'j' key navigates down."""
     with _patch_config():
         async with AcePage() as page:
-            await page.press("2")
+            await page.press(page.artifacts_digit("patches"))
             await page.press("j")
             await page.expect_state("idx", 1)
 
@@ -30,14 +30,14 @@ async def test_remapped_navigation_key() -> None:
     # 'P' should navigate
     with _patch_config(keymap_cfg):
         async with AcePage() as page:
-            await page.press("2")
+            await page.press(page.artifacts_digit("patches"))
             await page.press("P")
             await page.expect_state("idx", 1)
 
     # 'j' should no longer navigate
     with _patch_config(keymap_cfg):
         async with AcePage() as page:
-            await page.press("2")
+            await page.press(page.artifacts_digit("patches"))
             await page.press("j")
             await page.expect_state("idx", 0)
 
@@ -48,8 +48,8 @@ async def test_default_query_shortcuts_follow_the_context_matrix() -> None:
             edits: list[str] = []
             for subtab, subtab_key, top_level_subtab, expected_edit in (
                 ("stitches", None, "stitches", True),
-                ("patches", "2", "patches", True),
-                ("beads", "3", "beads", True),
+                ("patches", page.artifacts_digit("patches"), "patches", True),
+                ("beads", page.artifacts_digit("beads"), "beads", True),
                 ("plans", page.artifacts_digit("ref:plan"), "ref:plan", True),
                 ("files", page.artifacts_digit("files"), "files", True),
             ):

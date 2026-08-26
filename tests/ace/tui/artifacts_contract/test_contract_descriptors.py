@@ -89,6 +89,7 @@ def test_degraded_descriptor_satisfies_every_conformance_check() -> None:
 def test_digit_assignment_synchronizes_contract() -> None:
     descriptors = assign_artifacts_digit_shortcuts(
         (
+            fixed_descriptor("agents"),
             fixed_descriptor("stitches"),
             fixed_descriptor("patches"),
             fixed_descriptor("beads"),
@@ -111,6 +112,7 @@ def test_exact_lookup_does_not_normalize_unknown_ids(
         "sase.ace.tui.artifact_tabs.resolve_artifacts_subtabs",
         lambda: assign_artifacts_digit_shortcuts(
             (
+                fixed_descriptor("agents"),
                 fixed_descriptor("stitches"),
                 fixed_descriptor("patches"),
                 fixed_descriptor("beads"),
@@ -123,6 +125,7 @@ def test_exact_lookup_does_not_normalize_unknown_ids(
     assert descriptor_for_artifacts_subtab("missing") is not None
     assert descriptor_for_artifacts_subtab("missing").id == "stitches"
     assert configured_artifacts_pane_ids() == (
+        "agents",
         "stitches",
         "patches",
         "beads",

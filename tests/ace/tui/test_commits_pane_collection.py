@@ -154,7 +154,7 @@ async def test_unlimited_commits_status_follows_backend_coverage_without_a_query
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("1")
+        await page.press(page.artifacts_digit("stitches"))
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         bar = pane.query_one(CommitFilterBar)
         status = bar.query_one("#commit-filter-status", Static)
@@ -201,7 +201,7 @@ async def test_explicit_limit_truncates_and_remains_visible(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("1")
+        await page.press(page.artifacts_digit("stitches"))
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         bar = pane.query_one(CommitFilterBar)
         status = bar.query_one("#commit-filter-status", Static)
@@ -247,7 +247,7 @@ async def test_type_filter_uses_uncapped_backend_candidates_before_host_limit(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("1")
+        await page.press(page.artifacts_digit("stitches"))
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         bar = pane.query_one(CommitFilterBar)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
@@ -324,7 +324,7 @@ async def test_unchanged_relative_query_reuses_cache_and_refreshes_its_clock(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("1")
+        await page.press(page.artifacts_digit("stitches"))
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(
             lambda _state: (
@@ -405,7 +405,7 @@ async def test_sidecar_filter_and_compatibility_toggle_share_collection_scope(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("1")
+        await page.press(page.artifacts_digit("stitches"))
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is narrow)
         assert calls[-1]["include_sidecars"] is False

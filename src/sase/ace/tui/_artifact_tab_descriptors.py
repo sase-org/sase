@@ -109,11 +109,11 @@ def provider_descriptors(
 
     kinds = set(by_kind) | set(issues_by_kind)
     configured_pane_ids = (
+        "agents",
         "stitches",
         "patches",
         "beads",
         *(f"ref:{kind}" for kind in kinds),
-        "agents",
         "files",
     )
     descriptors: list[ArtifactsTabDescriptor] = []

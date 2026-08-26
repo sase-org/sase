@@ -64,7 +64,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("1")
+        await page.press(page.artifacts_digit("stitches"))
         await page.expect_state("artifacts_subtab", "stitches")
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
@@ -231,7 +231,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
 
         # Slash remains inert on Beads rather than opening the commit bar or
         # historical PR query modal. Plans owns its own filter-bar route.
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         await page.expect_state("artifacts_subtab", "beads")
         await page.press("slash")
         await page.wait_for(lambda _state: page.app.focused is not editor)
@@ -257,7 +257,7 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: _DIFF)
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("1")
+        await page.press(page.artifacts_digit("stitches"))
         await page.expect_state("artifacts_subtab", "stitches")
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
@@ -344,7 +344,7 @@ async def test_commits_cycle_merges_updates_query_and_recollects(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: _DIFF)
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("1")
+        await page.press(page.artifacts_digit("stitches"))
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         bar = pane.query_one(CommitFilterBar)

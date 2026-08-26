@@ -207,7 +207,7 @@ async def test_commits_filter_bar_rejects_invalid_submit(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="patches", notifications=True) as page:
-        await page.press("1")
+        await page.press(page.artifacts_digit("stitches"))
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         bar = pane.query_one(CommitFilterBar)
@@ -307,7 +307,7 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("1")
+        await page.press(page.artifacts_digit("stitches"))
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         bar = pane.query_one(CommitFilterBar)

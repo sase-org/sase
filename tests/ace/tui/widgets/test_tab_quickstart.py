@@ -24,6 +24,7 @@ from sase.ace.tui.widgets.tab_quickstart import (
 def _fixed_only_descriptors() -> tuple[artifact_tabs.ArtifactsTabDescriptor, ...]:
     return assign_artifacts_digit_shortcuts(
         (
+            fixed_descriptor("agents"),
             fixed_descriptor("stitches"),
             fixed_descriptor("patches"),
             fixed_descriptor("beads"),
@@ -63,6 +64,7 @@ def _compiled_plan_descriptor() -> artifact_tabs.ArtifactsTabDescriptor:
 def _one_provider_descriptors() -> tuple[artifact_tabs.ArtifactsTabDescriptor, ...]:
     return assign_artifacts_digit_shortcuts(
         (
+            fixed_descriptor("agents"),
             fixed_descriptor("stitches"),
             fixed_descriptor("patches"),
             fixed_descriptor("beads"),
@@ -151,8 +153,8 @@ def test_artifacts_quickstart_advertises_every_subtab(
     agents_card = _section_plain(agents, "#agent-quickstart-card")
     artifacts_card = _section_plain(patches, "#patch-quickstart-card")
 
-    assert "Jump: Stitch · Patch · Bead · File." in artifacts_card
-    assert "Cycle Artifacts: Stitch · Patch · Bead · File." in artifacts_card
+    assert "Jump: Agent · Stitch · Patch · Bead · File." in artifacts_card
+    assert "Cycle Artifacts: Agent · Stitch · Patch · Bead · File." in artifacts_card
     assert "File: previous / next version." in artifacts_card
     assert "Cycle Artifacts" not in agents_card
     assert _section_plain(agents, "#agent-quickstart-hero") != _section_plain(
@@ -168,8 +170,10 @@ def test_artifacts_quickstart_advertises_every_subtab(
     provider_patches = TabQuickStart.render_content(registry, tab="patches")
     provider_card = _section_plain(provider_patches, "#patch-quickstart-card")
 
-    assert "Jump: Stitch · Patch · Bead · Plan · File." in provider_card
-    assert "Cycle Artifacts: Stitch · Patch · Bead · Plan · File." in provider_card
+    assert "Jump: Agent · Stitch · Patch · Bead · Plan · File." in provider_card
+    assert (
+        "Cycle Artifacts: Agent · Stitch · Patch · Bead · Plan · File." in provider_card
+    )
 
 
 def test_artifacts_quickstart_uses_configured_subtab_keys() -> None:
@@ -242,7 +246,7 @@ def test_tab_quickstart_wrapped_descriptions_use_hanging_indent() -> None:
     )
     continuation = lines[admin_line_idx + 1]
     expected_indent = (
-        TabQuickStart._keycap_width(("1", "2", "3", "4")) + _KEY_DESCRIPTION_GAP
+        TabQuickStart._keycap_width(("1", "2", "3", "4", "5")) + _KEY_DESCRIPTION_GAP
     )
 
     assert continuation.startswith(" " * expected_indent)

@@ -7,14 +7,29 @@ active tab filters rows. Which tab *owns* a row lives in
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.modals.notification_modal_tags import MUTED_TAB_KEY
+from sase.ace.tui.widgets import notification_tab_style
 
 from tests._notification_modal_helpers import (
     _FakeOptionList,
     _make_notification,
     _option_ids,
 )
+
+
+@pytest.fixture(autouse=True)
+def _shipped_notification_tab_priority(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep Beads' shipped lowered priority stable under broad xdist runs."""
+    notification_tab_style._configured_tab_styles_for_token.cache_clear()
+    notification_tab_style._indicator_max_counts_for_token.cache_clear()
+    monkeypatch.setattr(
+        notification_tab_style,
+        "load_merged_config",
+        lambda: {"ace": {"notification_tabs": {"beads": {"priority": 0}}}},
+    )
 
 
 def test_tag_tabs_order_counts_and_capitalized_labels() -> None:

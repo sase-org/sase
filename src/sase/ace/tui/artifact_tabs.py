@@ -82,11 +82,11 @@ def resolve_artifacts_subtabs() -> tuple[ArtifactsTabDescriptor, ...]:
     providers = provider_descriptors(loaded.records, loaded.issues)
     descriptors = assign_artifacts_digit_shortcuts(
         (
+            fixed_descriptor("agents"),
             fixed_descriptor("stitches"),
             fixed_descriptor("patches"),
             fixed_descriptor("beads"),
             *providers,
-            fixed_descriptor("agents"),
             fixed_descriptor("files"),
         )
     )

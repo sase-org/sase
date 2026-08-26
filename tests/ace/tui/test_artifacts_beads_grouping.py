@@ -24,7 +24,7 @@ async def test_new_epics_start_collapsed_and_toggle_survives_reload(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)
 
@@ -57,7 +57,7 @@ async def test_fold_state_is_pruned_when_an_epic_disappears_and_reseeded_on_retu
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)
 

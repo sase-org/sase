@@ -80,11 +80,11 @@ def _fast_artifacts_subtabs() -> tuple[Any, ...]:
 
     return assign_artifacts_digit_shortcuts(
         (
+            fixed_descriptor("agents"),
             fixed_descriptor("stitches"),
             fixed_descriptor("patches"),
             fixed_descriptor("beads"),
             _plan_test_descriptor(),
-            fixed_descriptor("agents"),
             fixed_descriptor("files"),
         )
     )

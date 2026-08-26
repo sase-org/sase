@@ -90,7 +90,7 @@ async def test_beads_open_plan_selects_unloaded_plans_pane(
     _patch_loaders(monkeypatch, plans=plans, beads=beads)
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         beads_pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: beads_pane.snapshot is beads)
         assert beads_pane.select_entry_target(
@@ -164,7 +164,7 @@ async def test_crosslink_actions_warn_when_counterpart_is_missing(
 
         page.app.notify = notify  # type: ignore[method-assign]
 
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         beads_pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: beads_pane.snapshot is beads)
         assert beads_pane.select_entry_target(

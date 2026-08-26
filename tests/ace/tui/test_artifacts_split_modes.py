@@ -112,7 +112,7 @@ async def test_split_keys_share_mode_classes_and_badge_accent() -> None:
         assert page.app.artifacts_split_mode == "wide"
         assert _active_split_classes(view) == {"-split-wide"}
 
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         await page.expect_state("artifacts_subtab", "beads")
         assert _active_split_classes(view) == {"-split-wide"}
         accent = ARTIFACTS_ACCENTS["beads"]

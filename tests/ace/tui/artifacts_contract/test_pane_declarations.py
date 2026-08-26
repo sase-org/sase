@@ -137,7 +137,7 @@ def test_invalid_provider_pane_reference_degrades_contract() -> None:
 def test_compiled_artifact_panes_declare_artifact_link_relations() -> None:
     contracts = [
         compile_builtin_contract(adapter, label=adapter, icon="x", accent="#0")
-        for adapter in ("stitches", "patches", "beads", "files")
+        for adapter in ("agents", "stitches", "patches", "beads", "files")
     ]
     contracts.append(
         compile_provider_contract(

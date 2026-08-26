@@ -210,7 +210,7 @@ async def test_focused_patch_filter_bar_can_type_artifact_file_digits_and_star()
     None
 ):
     async with AcePage(query='"feature"') as page:
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.press("slash")
         bar = page.query_one_widget("#patch-filter-bar", PatchFilterBar)

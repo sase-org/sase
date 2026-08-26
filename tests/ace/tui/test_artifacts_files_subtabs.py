@@ -31,7 +31,7 @@ async def test_files_pane_activation_is_preserved_across_top_level_switches() ->
         assert files.artifacts_active is True
         assert files.first_activation_count == 1
 
-        await page.press("1")
+        await page.press(page.artifacts_digit("stitches"))
         assert files.artifacts_active is False
 
         await page.press(page.artifacts_digit("files"))
@@ -54,7 +54,7 @@ async def test_marks_and_jump_history_are_isolated_by_top_level_pane_key() -> No
         assert page.app._active_artifacts_marks() == {file_target}
         assert page.app._artifacts_jump_history["files"] == file_target
 
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         assert page.app.current_artifacts_pane_key == "beads"
         assert page.app._active_artifacts_marks() == {bead_target}
         assert page.app._artifacts_jump_history["beads"] == bead_target

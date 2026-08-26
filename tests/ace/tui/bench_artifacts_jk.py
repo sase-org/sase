@@ -288,6 +288,12 @@ async def test_artifacts_subtabs_jk_p95(
         await _press_burst(page, "k")
         await _press_fast_navigation_bursts(page)
 
+    # Agent pane: a separate AcePage. A real 12,525-row catalog build inside
+    # a background worker thread, combined with host contention, can take well
+    # beyond the default 5s wait budget, so the initial snapshot wait below
+    # uses a longer timeout; the burst measurements themselves are unaffected
+    # since they only depend on the already-mounted pane.
+    async with AcePage(initial_tab="patches") as page:
         await page.press(page.artifacts_digit("agents"))
         await page.expect_state("artifacts_subtab", "agents")
         agents_pane = page.query_one_widget(

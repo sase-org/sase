@@ -54,7 +54,7 @@ async def test_artifacts_split_mode_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches(), size=size) as page:
         await wait_for_startup(page)
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         await page.expect_state("artifacts_subtab", "beads")
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
@@ -100,7 +100,7 @@ async def test_artifacts_split_mode_selected_detail_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches(), size=size) as page:
         await wait_for_startup(page)
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         await page.expect_state("artifacts_subtab", "beads")
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)

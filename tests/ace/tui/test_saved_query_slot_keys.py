@@ -17,7 +17,7 @@ def _saved(canonical: str) -> dict[str, dict[str, QueryRecord]]:
 async def test_zero_then_digit_loads_slot_from_prs_subtab() -> None:
     """``0`` then a populated slot digit loads that slot from the PRs pane."""
     async with AcePage() as page:
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app._saved_queries = {
             "patches": {"2": QueryRecord(source='"slot2"', canonical='"slot2"')}
@@ -56,7 +56,7 @@ async def test_zero_then_digit_from_commits_stays_on_commits_pane() -> None:
 async def test_zero_then_zero_loads_slot_zero() -> None:
     """``00`` loads slot 0."""
     async with AcePage() as page:
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app._saved_queries = {
             "patches": {"0": QueryRecord(source='"slot0"', canonical='"slot0"')}
@@ -72,7 +72,7 @@ async def test_zero_then_zero_loads_slot_zero() -> None:
 async def test_zero_then_empty_slot_leaves_query_unchanged() -> None:
     """A digit for an empty slot leaves the current query unchanged."""
     async with AcePage() as page:
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app._saved_queries = {"patches": {}}
         original_query = page.state["query"]
@@ -90,7 +90,7 @@ async def test_bare_digit_still_switches_subtab_without_prefix() -> None:
     async with AcePage() as page:
         await page.expect_state("artifacts_subtab", "stitches")
 
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         await page.pause()
 
         await page.expect_state("artifacts_subtab", "beads")
@@ -100,7 +100,7 @@ async def test_bare_digit_still_switches_subtab_without_prefix() -> None:
 async def test_zero_then_escape_cancels() -> None:
     """``Esc`` after ``0`` cancels: mode flag cleared, query unchanged."""
     async with AcePage() as page:
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app._saved_queries = _saved('"slot2"')
         original_query = page.state["query"]
@@ -131,7 +131,7 @@ async def test_stale_profile_digest_reports_error_without_applying_slot() -> Non
     It is never silently reinterpreted or auto-applied.
     """
     async with AcePage() as page:
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app._saved_queries = {
             "patches": {

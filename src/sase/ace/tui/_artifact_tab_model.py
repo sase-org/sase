@@ -24,10 +24,10 @@ ArtifactsPaneKey = str
 DEFAULT_ARTIFACTS_SUBTAB: ArtifactsSubTab = "stitches"
 DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED: bool = True
 FIXED_ARTIFACTS_SUBTAB_ORDER: tuple[ArtifactsSubTab, ...] = (
+    "agents",
     "stitches",
     "patches",
     "beads",
-    "agents",
     "files",
 )
 FIXED_ARTIFACTS_PANE_IDS: dict[ArtifactsSubTab, str] = {

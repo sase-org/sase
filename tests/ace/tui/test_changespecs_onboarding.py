@@ -33,7 +33,7 @@ def _search_query_plain(page: AcePage) -> str:
 
 
 async def _open_prs(page: AcePage) -> None:
-    await page.press("2")
+    await page.press(page.artifacts_digit("patches"))
     await page.expect_state("artifacts_subtab", "patches")
 
 

@@ -32,7 +32,7 @@ async def test_navigation_next_key() -> None:
     """Test 'j' key navigates to next patch."""
     async with AcePage() as page:
         assert page.state["idx"] == 0
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
 
         await page.press("j")
         await page.expect_state("idx", 1)
@@ -48,7 +48,7 @@ async def test_navigation_next_at_end() -> None:
         make_patch(name="feature_b"),
     ]
     async with AcePage(patches=patches) as page:
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.press("j")
         assert page.state["idx"] == 1
 
@@ -65,7 +65,7 @@ async def test_navigation_prev_at_start() -> None:
     ]
     async with AcePage(patches=patches) as page:
         assert page.state["idx"] == 0
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
 
         # Press 'k' at start should cycle to last item
         await page.press("k")
@@ -80,7 +80,7 @@ async def test_patch_inline_filter_cancel() -> None:
     patches = [make_patch()]
     async with AcePage(query='"original"', patches=patches) as page:
         original_query = page.state["query"]
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
 
         bar = await _open_patch_filter_bar(page)
 
@@ -98,7 +98,7 @@ async def test_patch_inline_filter_apply() -> None:
     ]
     async with AcePage(query='"feature"', patches=patches) as page:
         assert page.state["query"] == '"feature" limit:100'
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
 
         bar = await _open_patch_filter_bar(page)
         bar.set_query('"other"')
@@ -113,7 +113,7 @@ async def test_patch_inline_filter_invalid_query() -> None:
     patches = [make_patch()]
     async with AcePage(query='"valid"', patches=patches) as page:
         original_query = page.state["query"]
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
 
         bar = await _open_patch_filter_bar(page)
         bar.set_query('"unclosed')
@@ -133,7 +133,7 @@ async def test_patch_inline_filter_invalid_query() -> None:
 async def test_unmark_navigates_to_next_spec() -> None:
     """Test un-marking a spec navigates to the next spec."""
     async with AcePage() as page:
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         # Mark first spec (navigates to second)
         await page.press("m")
         assert page.state["idx"] == 1
@@ -153,7 +153,7 @@ async def test_mark_single_spec_stays() -> None:
     patches = [make_patch(name="only_spec")]
     async with AcePage(query='"only"', patches=patches) as page:
         assert page.state["idx"] == 0
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
 
         # Mark the only spec - should stay on it
         await page.press("m")
@@ -179,7 +179,7 @@ async def test_deltas_fold_mode_cycles_summary_files_lines() -> None:
         )
     ]
     async with AcePage(query='"feature_deltas"', patches=patches) as page:
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         assert "DELTAS:  +0 ~1 (+2 ~3 -1) -0 (1 file)" in _detail_plain(page)
         assert "src/feature.py" not in _detail_plain(page)
 

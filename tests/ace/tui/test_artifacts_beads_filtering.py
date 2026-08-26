@@ -475,7 +475,7 @@ async def test_hide_closed_default_is_visible_and_clearable(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)
         assert pane.filters.excluded_statuses == ("closed",)
@@ -520,7 +520,7 @@ async def test_clicking_idle_bead_bar_opens_the_filter_session(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)
         bar = pane.query_one(BeadFilterBar)
@@ -545,7 +545,7 @@ async def test_committing_bead_query_updates_idle_bar(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)
         bar = pane.query_one(BeadFilterBar)
@@ -573,7 +573,7 @@ async def test_changing_project_scope_keeps_idle_bead_bar_in_sync(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         pane.set_project_scope("alpha")
         await page.wait_for(lambda _state: pane.snapshot is alpha)
@@ -604,7 +604,7 @@ async def test_bead_bar_geometry_is_unchanged_between_idle_and_editing(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)
         option_list = pane.query_one("#beads-list")

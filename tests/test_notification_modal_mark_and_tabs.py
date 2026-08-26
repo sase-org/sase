@@ -2,9 +2,24 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.ace.tui.modals.notification_modal import NotificationModal
+from sase.ace.tui.widgets import notification_tab_style
 
 from tests._notification_modal_helpers import _make_notification
+
+
+@pytest.fixture(autouse=True)
+def _shipped_notification_tab_priority(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep Beads' shipped lowered priority stable under broad xdist runs."""
+    notification_tab_style._configured_tab_styles_for_token.cache_clear()
+    notification_tab_style._indicator_max_counts_for_token.cache_clear()
+    monkeypatch.setattr(
+        notification_tab_style,
+        "load_merged_config",
+        lambda: {"ace": {"notification_tabs": {"beads": {"priority": 0}}}},
+    )
 
 
 def test_toggle_mark_adds_id_to_marked_set() -> None:

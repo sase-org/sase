@@ -30,6 +30,7 @@ class _MarkHarness(MarkingMixin, ArtifactsMixin):
         self.current_files_subtab = "files"
         self.marked_indices = {7}
         self._artifacts_marked_targets = {
+            "agents": set(),
             "stitches": set(),
             "beads": set(),
             "ref:plan": set(),
@@ -89,12 +90,13 @@ def test_non_pr_artifact_mark_toggles_stable_target_without_touching_pr_marks(
     assert app.footer_syncs == 2
 
 
-@pytest.mark.parametrize("subtab", ["stitches", "beads", "ref:plan", "files"])
+@pytest.mark.parametrize("subtab", ["agents", "stitches", "beads", "ref:plan", "files"])
 def test_clear_marks_is_scoped_to_the_active_artifacts_subtab(subtab: str) -> None:
     target = ("entry", subtab)
     app = _MarkHarness(subtab, target)
     app._artifacts_marked_targets = {
-        name: {("entry", name)} for name in ("stitches", "beads", "ref:plan", "files")
+        name: {("entry", name)}
+        for name in ("agents", "stitches", "beads", "ref:plan", "files")
     }
 
     app.action_clear_marks()
@@ -102,7 +104,7 @@ def test_clear_marks_is_scoped_to_the_active_artifacts_subtab(subtab: str) -> No
     assert app._artifacts_marked_targets[subtab] == set()
     assert all(
         app._artifacts_marked_targets[name] == {("entry", name)}
-        for name in ("stitches", "beads", "ref:plan", "files")
+        for name in ("agents", "stitches", "beads", "ref:plan", "files")
         if name != subtab
     )
     assert app.navigator.applied_marks[-1] == set()
@@ -114,14 +116,15 @@ def test_project_scope_change_clears_every_non_pr_mark_set(
 ) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.actions.artifacts_navigation.artifacts_subtab_order",
-        lambda: ("stitches", "patches", "beads", "ref:plan", "files"),
+        lambda: ("agents", "stitches", "patches", "beads", "ref:plan", "files"),
     )
     app = _MarkHarness("ref:plan", ("entry", "plans"))
     app._artifacts_marked_targets = {
-        name: {("entry", name)} for name in ("stitches", "beads", "ref:plan", "files")
+        name: {("entry", name)}
+        for name in ("agents", "stitches", "beads", "ref:plan", "files")
     }
 
     app._clear_all_artifacts_marks()
 
     assert all(not marks for marks in app._artifacts_marked_targets.values())
-    assert len(app.navigator.applied_marks) == 4
+    assert len(app.navigator.applied_marks) == 5

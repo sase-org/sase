@@ -76,11 +76,11 @@ async def test_default_queries_include_page_size_limit(
         assert patches_cap == 100
         assert "limit:100" in patches_query
 
-        await page.press("1")
+        await page.press(page.artifacts_digit("stitches"))
         stitches = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         assert stitches.filters.limit == 100
 
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         beads = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: beads.snapshot is value)
         assert beads.filters.limit == 100
@@ -110,7 +110,7 @@ async def test_beads_ctrl_j_grows_limit_and_ctrl_k_returns_to_floor(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)
         assert pane.filters.limit == 2
@@ -146,7 +146,7 @@ async def test_beads_limit_all_then_ctrl_k_introduces_page_size(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)
         pane.apply_host_limit_query("-status:closed limit:all")
@@ -167,7 +167,7 @@ async def test_custom_page_size_is_honored_on_patches(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _remainder, cap = extract_limit(page.app.query_string)
         assert cap == 25
@@ -181,7 +181,7 @@ async def test_custom_page_size_is_honored_on_patches(
 
 async def test_patches_query_history_returns_to_pre_ctrl_j_query() -> None:
     async with AcePage(initial_tab="patches") as page:
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         original = page.app.query_string
         assert extract_limit(original)[1] == 100
@@ -207,7 +207,7 @@ async def test_open_filter_editor_updates_text_on_ctrl_j(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("3")
+        await page.press(page.artifacts_digit("beads"))
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)
         bar = pane.query_one(BeadFilterBar)

@@ -116,11 +116,11 @@ def test_discovery_failure_keeps_a_degraded_plan_tab(
     second = resolve_artifacts_subtabs()
 
     assert [descriptor.id for descriptor in first] == [
+        "agents",
         "stitches",
         "patches",
         "beads",
         "ref:plan",
-        "agents",
         "files",
     ]
     plan = next(descriptor for descriptor in first if descriptor.id == "ref:plan")

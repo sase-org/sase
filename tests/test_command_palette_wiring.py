@@ -96,7 +96,7 @@ async def test_palette_omits_inapplicable_axe_only_command_on_cls_tab() -> None:
             query="test_feature",
             patches=[make_patch()],
         ) as page:
-            await page.press("2")
+            await page.press(page.artifacts_digit("patches"))
             await page.press("colon")
             await page.expect_modal("CommandPaletteModal")
 

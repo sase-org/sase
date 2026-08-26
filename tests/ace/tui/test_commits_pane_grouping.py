@@ -24,7 +24,7 @@ async def _mounted_pane(
     monkeypatch.setattr(commits_module, "run_vcs_log", collect)
     page = AcePage(initial_tab="patches")
     await page.__aenter__()
-    await page.press("1")
+    await page.press(page.artifacts_digit("stitches"))
     await page.expect_state("artifacts_subtab", "stitches")
     pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
     await page.wait_for(lambda _state: pane.result is result)

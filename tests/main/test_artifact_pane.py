@@ -33,6 +33,7 @@ def test_pane_show_json_explains_verdicts(
 ) -> None:
     descriptors = assign_artifacts_digit_shortcuts(
         (
+            fixed_descriptor("agents"),
             fixed_descriptor("stitches"),
             fixed_descriptor("patches"),
             fixed_descriptor("beads"),

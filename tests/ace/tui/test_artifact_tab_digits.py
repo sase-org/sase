@@ -18,9 +18,10 @@ def _descriptor(id_: str, *, is_provider: bool = False) -> ArtifactsTabDescripto
     )
 
 
-def test_fixed_only_strip_numbers_one_through_four() -> None:
+def test_fixed_only_strip_numbers_one_through_five() -> None:
     descriptors = assign_artifacts_digit_shortcuts(
         (
+            _descriptor("agents"),
             _descriptor("stitches"),
             _descriptor("patches"),
             _descriptor("beads"),
@@ -32,12 +33,14 @@ def test_fixed_only_strip_numbers_one_through_four() -> None:
         "2",
         "3",
         "4",
+        "5",
     ]
 
 
 def test_two_providers_push_files_to_six() -> None:
     descriptors = assign_artifacts_digit_shortcuts(
         (
+            _descriptor("agents"),
             _descriptor("stitches"),
             _descriptor("patches"),
             _descriptor("beads"),
@@ -53,14 +56,16 @@ def test_two_providers_push_files_to_six() -> None:
         "4",
         "5",
         "6",
+        "7",
     ]
     by_id = {descriptor.id: descriptor.digit_shortcut for descriptor in descriptors}
-    assert by_id["files"] == "6"
-    assert by_id["ref:plan"] == "4"
-    assert by_id["ref:research"] == "5"
+    assert by_id["agents"] == "1"
+    assert by_id["files"] == "7"
+    assert by_id["ref:plan"] == "5"
+    assert by_id["ref:research"] == "6"
 
 
-@pytest.mark.parametrize("provider_count", range(6))
+@pytest.mark.parametrize("provider_count", range(5))
 def test_digit_assignment_invariants_hold_for_provider_counts(
     provider_count: int,
 ) -> None:
@@ -70,6 +75,7 @@ def test_digit_assignment_invariants_hold_for_provider_counts(
     ]
     descriptors = assign_artifacts_digit_shortcuts(
         (
+            _descriptor("agents"),
             _descriptor("stitches"),
             _descriptor("patches"),
             _descriptor("beads"),
@@ -93,10 +99,11 @@ def test_digit_assignment_invariants_hold_for_provider_counts(
 
 def test_overflow_at_ten_panes_files_still_gets_ninth_digit() -> None:
     providers = [
-        _descriptor(f"ref:provider{index}", is_provider=True) for index in range(6)
+        _descriptor(f"ref:provider{index}", is_provider=True) for index in range(5)
     ]
     descriptors = assign_artifacts_digit_shortcuts(
         (
+            _descriptor("agents"),
             _descriptor("stitches"),
             _descriptor("patches"),
             _descriptor("beads"),

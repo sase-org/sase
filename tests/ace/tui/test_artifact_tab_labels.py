@@ -6,6 +6,7 @@ from sase.ace.tui._artifact_tab_descriptors import _provider_label, fixed_descri
 from sase.ace.tui.artifact_tabs import FIXED_ARTIFACTS_SUBTAB_ORDER
 
 _EXPECTED_FIXED_LABELS = {
+    "agents": "Agent",
     "stitches": "Stitch",
     "patches": "Patch",
     "beads": "Bead",

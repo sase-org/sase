@@ -126,6 +126,9 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         assert commits.activation_count == 2
 
         await page.press("[")
+        await page.expect_state("artifacts_subtab", "agents")
+
+        await page.press("[")
         await page.expect_state("artifacts_subtab", "files")
         assert page.app.check_action("refresh", ()) is True
         await page.press("(")
@@ -154,7 +157,7 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
             await page.expect_state("artifacts_subtab", provider.id)
             assert page.app.check_action("refresh", ()) is True
 
-        await page.press("3")
+        await page.press(_digit_for(view, "beads"))
         await page.expect_state("artifacts_subtab", "beads")
         await page.press(_digit_for(view, "files"))
         await page.expect_state("artifacts_subtab", "files")
@@ -172,7 +175,7 @@ async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:
 
         page.app.action_start_agent_from_patch = record_repeat_agent  # type: ignore[method-assign]
 
-        expected = ("stitches", "patches", "beads", "files")
+        expected = ("agents", "stitches", "patches", "beads", "files")
         for index, subtab in enumerate(expected, start=1):
             await page.press(_digit_for(view, subtab))
             await page.expect_state("artifacts_subtab", subtab)
@@ -186,7 +189,7 @@ async def test_number_keys_jump_artifacts_without_entering_from_other_tabs() -> 
     async with AcePage(initial_tab="patches") as page:
         view = page.query_one_widget("#artifacts-view", ArtifactsView)
         switcher = page.query_one_widget("#artifacts-content-switcher", ContentSwitcher)
-        expected = ("stitches", "patches", "beads", "files")
+        expected = ("agents", "stitches", "patches", "beads", "files")
 
         for start_subtab in expected:
             await page.press(_digit_for(view, start_subtab))
@@ -203,7 +206,7 @@ async def test_number_keys_jump_artifacts_without_entering_from_other_tabs() -> 
             None,
         )
         if provider is None or provider.digit_shortcut is None:
-            await page.press("5")
+            await page.press("9")
             await page.pause()
             assert page.app.current_artifacts_subtab == "stitches"
         else:
@@ -279,7 +282,9 @@ async def test_first_artifacts_entry_activates_default_without_hidden_collection
         assert page.app.current_artifacts_subtab == "stitches"
         assert view.current_subtab == "stitches"
         assert switcher.current == ARTIFACTS_PANE_IDS["stitches"]
-        assert "1 ◉ STITCH" in strip._build_content().plain
+        tab_text = strip._build_content().plain
+        assert "1 ⬡ Agent" in tab_text
+        assert "2 ◉ STITCH" in tab_text
         assert commits.first_activation_count == 0
         assert commits.artifacts_active is False
         assert calls == []
@@ -512,8 +517,8 @@ def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:
     # The mounted interaction tests cover rendering; this unit assertion keeps
     # the public pane-id map exhaustive for later feature phases.
     assert DEFAULT_ARTIFACTS_SUBTAB == "stitches"
-    assert ARTIFACTS_SUBTAB_ORDER[0] == DEFAULT_ARTIFACTS_SUBTAB
     assert ARTIFACTS_SUBTAB_ORDER == (
+        "agents",
         "stitches",
         "patches",
         "beads",
@@ -543,13 +548,14 @@ def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:
     assert FILES_SUBTAB_ORDER == ()
     assert FILES_PANE_IDS == {}
     descriptor_ids = tuple(descriptor.id for descriptor in view.descriptors)
-    assert descriptor_ids[:3] == ("stitches", "patches", "beads")
-    assert descriptor_ids[-2:] == ("agents", "files")
-    assert all(identifier.startswith("ref:") for identifier in descriptor_ids[3:-2])
-    assert [descriptor.digit_shortcut for descriptor in view.descriptors[:3]] == [
+    assert descriptor_ids[:4] == ("agents", "stitches", "patches", "beads")
+    assert descriptor_ids[-1] == "files"
+    assert all(identifier.startswith("ref:") for identifier in descriptor_ids[4:-1])
+    assert [descriptor.digit_shortcut for descriptor in view.descriptors[:4]] == [
         "1",
         "2",
         "3",
+        "4",
     ]
     assert view.descriptors[-1].id == "files"
     assigned_digits = [

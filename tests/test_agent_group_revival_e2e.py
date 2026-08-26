@@ -238,7 +238,7 @@ async def test_lowercase_s_dispatches_by_active_tab(
         initial_tab="changespecs",  # legacy tab id
     ) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.press("s")
         await page.expect_modal("StatusModal")
