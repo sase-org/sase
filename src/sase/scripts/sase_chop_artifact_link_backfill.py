@@ -21,8 +21,9 @@ import json
 import os
 import tempfile
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import Any
 
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
@@ -40,13 +41,18 @@ _STATE_FILENAME = "artifact_link_backfill.json"
 _STATE_SCHEMA_VERSION = 1
 _CHOP = "artifact_link_backfill"
 _SWEEP_BATCH_SIZE = 500
+_WORKSPACE_HINT_ENV = (
+    "SASE_GH_WORKSPACE_DIR",
+    "SASE_ACTIVE_PROJECT_DIR",
+    "SASE_SDD_DIR",
+)
 # Bounds only the sweep (job 1); the drain and reconcile/repair jobs already
 # bound their own work and run for every project regardless of this budget.
 _SWEEP_WORK_BUDGET_SECONDS = 45.0
 
 
 def _enabled_project_records() -> list[ProjectRecordWire]:
-    return [
+    records = [
         record
         for record in list_project_records(
             sase_projects_dir(),
@@ -56,6 +62,61 @@ def _enabled_project_records() -> list[ProjectRecordWire]:
         )
         if record.is_project and record.workspace_dir
     ]
+    return _prefer_current_workspace_record(records, cwd=Path.cwd())
+
+
+def _prefer_current_workspace_record(
+    records: list[ProjectRecordWire], *, cwd: Path
+) -> list[ProjectRecordWire]:
+    found = _current_workspace_marker(cwd)
+    if found is None:
+        return records
+    workspace_root, marker = found
+    project_refs = {
+        str(value)
+        for value in (marker.project_name, marker.project_key)
+        if isinstance(value, str) and value
+    }
+    if not project_refs:
+        return records
+    preferred = str(Path(workspace_root).expanduser().resolve(strict=False))
+    adjusted: list[ProjectRecordWire] = []
+    for record in records:
+        names = {
+            record.project_name,
+            *(record.aliases or ()),
+        }
+        if record.display_name:
+            names.add(record.display_name)
+        if project_refs & names:
+            adjusted.append(replace(record, workspace_dir=preferred))
+        else:
+            adjusted.append(record)
+    return adjusted
+
+
+def _current_workspace_marker(cwd: Path) -> tuple[str, Any] | None:
+    try:
+        from sase.workspace_provider import find_marker_from_cwd
+    except Exception:
+        return None
+    candidates = [
+        Path(raw) for key in _WORKSPACE_HINT_ENV if (raw := os.environ.get(key))
+    ]
+    candidates.append(cwd)
+    seen: set[Path] = set()
+    for candidate in candidates:
+        path = candidate.expanduser().resolve(strict=False)
+        if path in seen:
+            continue
+        seen.add(path)
+        try:
+            found = find_marker_from_cwd(str(path))
+        except Exception:
+            continue
+        if found is not None:
+            return found
+    return None
 
 
 def _read_state(path: Path) -> dict[str, list[str]]:
@@ -117,6 +178,7 @@ def _run_project(
     swept: dict[str, list[str]],
     totals: _Totals,
     deadline: float,
+    state_path: Path,
 ) -> None:
     try:
         store = resolve_artifact_link_store(cwd=Path(workspace_dir))
@@ -131,12 +193,23 @@ def _run_project(
             store,
             already_swept=already_swept,
             batch_size=_SWEEP_BATCH_SIZE,
+            deadline=deadline,
         )
         swept[project_key] = sorted(updated_swept)
         totals.sweep_scanned += report.scanned
         totals.sweep_persisted += report.persisted
         totals.sweep_remaining += report.remaining
         totals.warnings.extend(f"{project_key}: {error}" for error in report.errors)
+        try:
+            _write_state(state_path, swept)
+        except Exception as exc:  # noqa: BLE001 - retry on the next tick.
+            totals.warnings.append(f"failed to persist sweep checkpoint: {exc}")
+        if report.remaining and time.monotonic() >= deadline:
+            totals.warnings.append(
+                f"{project_key}: deferred outbox/reconcile after sweep budget"
+            )
+            totals.projects += 1
+            return
 
     try:
         outbox_report = drain_artifact_link_outbox(store=store)
@@ -174,6 +247,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             swept=swept,
             totals=totals,
             deadline=deadline,
+            state_path=state_path,
         )
 
     try:

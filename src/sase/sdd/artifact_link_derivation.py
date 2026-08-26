@@ -11,15 +11,18 @@ derivation error.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from sase.artifact_links.derive import (
     DerivableDocument,
+    DerivedLinkCandidate,
     derive_candidate_links,
 )
+from sase.artifact_ref_models import ArtifactRefContext
+from sase.sdd._artifact_link_store_support import validate_artifact_link_row
 from sase.sdd._artifact_link_commit import (
     ArtifactLinkPersistError,
     persist_artifact_link_graph_mutation,
@@ -31,12 +34,34 @@ from sase.sdd.artifact_link_store import (
 
 
 @dataclass(frozen=True)
-class ArtifactLinkDerivationOutcome:
+class _ArtifactLinkDerivationOutcome:
     """Result of one derive-and-persist pass over a set of documents."""
 
     candidates: int = 0
     persisted: int = 0
     errors: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ArtifactLinkDerivationInputs:
+    """Store-scoped facts reused across related derivation passes."""
+
+    known_bead_ids: Collection[str]
+    agents_sidecar_root: Path | None
+    is_agent_published: Callable[[str], bool]
+
+
+def artifact_link_derivation_inputs(
+    store: ArtifactLinkStore,
+) -> ArtifactLinkDerivationInputs:
+    """Load reusable store-scoped derivation inputs once."""
+
+    context = _artifact_ref_context_for_store(store)
+    return ArtifactLinkDerivationInputs(
+        known_bead_ids=_known_bead_ids(store),
+        agents_sidecar_root=_agents_sidecar_root(store),
+        is_agent_published=lambda name: _is_agent_published(name, context=context),
+    )
 
 
 def derive_and_persist_artifact_links(
@@ -45,7 +70,8 @@ def derive_and_persist_artifact_links(
     *,
     created_by: str,
     artifacts_dir: str | Path | None = None,
-) -> ArtifactLinkDerivationOutcome:
+    derivation_inputs: ArtifactLinkDerivationInputs | None = None,
+) -> _ArtifactLinkDerivationOutcome:
     """Derive candidate rows for *documents* and persist them via *store*.
 
     A no-op, including the known-bead-ids read the ``implements`` rule needs,
@@ -54,16 +80,34 @@ def derive_and_persist_artifact_links(
     """
 
     if not documents:
-        return ArtifactLinkDerivationOutcome()
+        return _ArtifactLinkDerivationOutcome()
 
+    inputs = derivation_inputs or artifact_link_derivation_inputs(store)
     candidates = derive_candidate_links(
         documents,
-        known_bead_ids=_known_bead_ids(store),
-        agents_sidecar_root=_agents_sidecar_root(store),
-        is_agent_published=_is_agent_published,
+        known_bead_ids=inputs.known_bead_ids,
+        agents_sidecar_root=inputs.agents_sidecar_root,
+        is_agent_published=inputs.is_agent_published,
     )
+    return persist_derived_link_candidates(
+        store,
+        candidates,
+        created_by=created_by,
+        artifacts_dir=artifacts_dir,
+    )
+
+
+def persist_derived_link_candidates(
+    store: ArtifactLinkStore,
+    candidates: Sequence[DerivedLinkCandidate],
+    *,
+    created_by: str,
+    artifacts_dir: str | Path | None = None,
+) -> _ArtifactLinkDerivationOutcome:
+    """Persist already-derived candidate rows via *store*."""
+
     if not candidates:
-        return ArtifactLinkDerivationOutcome()
+        return _ArtifactLinkDerivationOutcome()
 
     now = datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     changed_indexes: list[Path] = []
@@ -71,7 +115,7 @@ def derive_and_persist_artifact_links(
     persisted = 0
     errors: list[str] = []
     for candidate in candidates:
-        row = {
+        incoming = {
             "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
             "source_ref": candidate.source_ref,
             "relation": candidate.relation,
@@ -83,19 +127,33 @@ def derive_and_persist_artifact_links(
             "uses": 1,
         }
         try:
-            outcome = store.upsert_row(row)
+            row = validate_artifact_link_row(incoming)
+            outcome: dict[str, object] | None = None
+            for ref in (str(row["source_ref"]), str(row["target_ref"])):
+                written = store._upsert_sidecar(ref, row)
+                if written is not None:
+                    outcome = written
+                    changed_indexes.extend(
+                        Path(path) for path in written.get("changed_indexes") or ()
+                    )
+            bead_written = store._upsert_bead(row)
+            if bead_written is not None:
+                outcome = bead_written
+                beads_changed = (
+                    beads_changed or str(bead_written.get("kind") or "") != "unchanged"
+                )
+            elif store._is_aggregate_only(row):
+                outcome = store._upsert_aggregate_row(row)
         except (RuntimeError, TypeError, ValueError) as exc:
             errors.append(
                 f"{candidate.source_ref} {candidate.relation} "
                 f"{candidate.target_ref}: {exc}"
             )
             continue
-        changed_indexes.extend(
-            Path(path) for path in outcome.get("changed_indexes") or ()
-        )
-        beads_changed = beads_changed or bool(outcome.get("beads_changed"))
+        outcome = outcome or {"kind": "unchanged"}
         persisted += 1
 
+    store.rebuild_aggregate()
     if changed_indexes or beads_changed:
         try:
             persist_artifact_link_graph_mutation(
@@ -107,7 +165,7 @@ def derive_and_persist_artifact_links(
         except ArtifactLinkPersistError as exc:
             errors.append(str(exc))
 
-    return ArtifactLinkDerivationOutcome(
+    return _ArtifactLinkDerivationOutcome(
         candidates=len(candidates), persisted=persisted, errors=tuple(errors)
     )
 
@@ -135,17 +193,52 @@ def _agents_sidecar_root(store: ArtifactLinkStore) -> Path | None:
     return root if root.is_dir() else None
 
 
-def _is_agent_published(agent_name: str) -> bool:
+def _is_agent_published(
+    agent_name: str, *, context: ArtifactRefContext | None = None
+) -> bool:
     try:
         from sase.artifact_cli.references import resolve_cli_reference
 
-        result = resolve_cli_reference(f"agent:{agent_name}")
+        result = resolve_cli_reference(f"agent:{agent_name}", context=context)
     except Exception:  # noqa: BLE001 - unresolved agents contribute no candidate.
         return False
     return result.resolution.status in _PUBLISHED_AGENT_STATUSES
 
 
+def _artifact_ref_context_for_store(
+    store: ArtifactLinkStore,
+) -> ArtifactRefContext | None:
+    if store.sdd_store is None:
+        return None
+    try:
+        from sase.artifact_ref_context import artifact_ref_context
+        from sase.workspace_provider import find_marker_from_cwd
+    except Exception:  # noqa: BLE001 - fall back to cwd-based resolution.
+        return None
+    roots = (store.sdd_store.repo_root, *store.sidecar_roots.values())
+    for root in roots:
+        try:
+            found = find_marker_from_cwd(str(root))
+        except Exception:  # noqa: BLE001 - try the next visible root.
+            continue
+        if found is None:
+            continue
+        workspace_root, marker = found
+        workspace_num = marker.workspace_num if marker.workspace_num > 0 else 1
+        try:
+            return artifact_ref_context(
+                workspace_root,
+                workspace_num,
+                project=store.project_key,
+            )
+        except Exception:  # noqa: BLE001 - fall back to cwd-based resolution.
+            return None
+    return None
+
+
 __all__ = [
-    "ArtifactLinkDerivationOutcome",
+    "ArtifactLinkDerivationInputs",
+    "artifact_link_derivation_inputs",
     "derive_and_persist_artifact_links",
+    "persist_derived_link_candidates",
 ]

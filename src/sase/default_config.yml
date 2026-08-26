@@ -1041,7 +1041,7 @@ axe:
             canceled when the backlog drops below the bar.
         - name: artifact_link_backfill
           script: sase_chop_artifact_link_backfill
-          timeout: "3m"
+          timeout: "5m"
           description: |-
             Retroactively derive artifact links, drain the read outbox, reconcile, and repair renames
 

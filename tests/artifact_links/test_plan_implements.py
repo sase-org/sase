@@ -15,7 +15,7 @@ def _plan(tmp_path: Path, body: str) -> Path:
 def test_implements_a_bead_named_in_frontmatter(tmp_path: Path) -> None:
     path = _plan(
         tmp_path,
-        "---\ntier: tale\nbead: sase-xx\n---\n\nbody\n",
+        "---\ntier: tale\nbead_id: sase-xx\n---\n\nbody\n",
     )
     document = DerivableDocument(ref="plan:202608/example.md", path=path)
 
@@ -37,14 +37,21 @@ def test_skips_a_plan_with_no_bead_field(tmp_path: Path) -> None:
 
 
 def test_skips_a_bead_id_that_does_not_resolve(tmp_path: Path) -> None:
-    path = _plan(tmp_path, "---\ntier: tale\nbead: sase-zz\n---\n\nbody\n")
+    path = _plan(tmp_path, "---\ntier: tale\nbead_id: sase-zz\n---\n\nbody\n")
     document = DerivableDocument(ref="plan:202608/example.md", path=path)
 
     assert derive_plan_implements_bead(document, known_bead_ids={"sase-xx"}) == ()
 
 
 def test_skips_a_blank_bead_field(tmp_path: Path) -> None:
-    path = _plan(tmp_path, '---\ntier: tale\nbead: ""\n---\n\nbody\n')
+    path = _plan(tmp_path, '---\ntier: tale\nbead_id: ""\n---\n\nbody\n')
+    document = DerivableDocument(ref="plan:202608/example.md", path=path)
+
+    assert derive_plan_implements_bead(document, known_bead_ids={"sase-xx"}) == ()
+
+
+def test_skips_proposing_agent_bead_without_plan_bead_id(tmp_path: Path) -> None:
+    path = _plan(tmp_path, "---\ntier: tale\nbead: sase-xx\n---\n\nbody\n")
     document = DerivableDocument(ref="plan:202608/example.md", path=path)
 
     assert derive_plan_implements_bead(document, known_bead_ids={"sase-xx"}) == ()
@@ -58,7 +65,7 @@ def test_skips_invalid_frontmatter(tmp_path: Path) -> None:
 
 
 def test_skips_a_non_plan_ref(tmp_path: Path) -> None:
-    path = _plan(tmp_path, "---\ntier: tale\nbead: sase-xx\n---\n\nbody\n")
+    path = _plan(tmp_path, "---\ntier: tale\nbead_id: sase-xx\n---\n\nbody\n")
     document = DerivableDocument(ref="research:202608/example.md", path=path)
 
     assert derive_plan_implements_bead(document, known_bead_ids={"sase-xx"}) == ()

@@ -6,6 +6,8 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.artifact_ref_models import ArtifactRefContext
+
 from sase.sdd._artifact_link_store_support import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     BEAD_KIND,
@@ -35,18 +37,20 @@ class ArtifactLinkStoreReconcileMixin:
     def durable_sidecar_rows(self) -> tuple[dict[str, Any], ...]:
         """Return deduplicated publishable sidecar rows from known workspaces."""
 
+        context = self._artifact_ref_context_for_store()
         return tuple(
             unique_rows(
                 row
                 for store in self._iter_reconciliation_stores()
                 for row in self._iter_reconciliation_sidecar_rows(store)
-                if self._row_is_publishable(row)
+                if self._row_is_publishable(row, context=context)
             )
         )
 
     def preview_reconciled_aggregate(self) -> dict[str, Any]:
         """Return the cross-workspace aggregate reconciliation result."""
 
+        context = self._artifact_ref_context_for_store()
         collected: list[dict[str, Any]] = []
         for store in self._iter_reconciliation_stores():
             collected.extend(self._iter_reconciliation_sidecar_rows(store))
@@ -55,7 +59,9 @@ class ArtifactLinkStoreReconcileMixin:
         return {
             "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
             "rows": unique_rows(
-                row for row in collected if self._row_is_publishable(row)
+                row
+                for row in collected
+                if self._row_is_publishable(row, context=context)
             ),
         }
 
@@ -97,7 +103,12 @@ class ArtifactLinkStoreReconcileMixin:
             self.rebuild_aggregate()
         return {"candidates": len(candidates), "written": written}
 
-    def _row_is_publishable(self, row: Mapping[str, Any]) -> bool:
+    def _row_is_publishable(
+        self,
+        row: Mapping[str, Any],
+        *,
+        context: ArtifactRefContext | None = None,
+    ) -> bool:
         """Return whether agent endpoints in *row* have been published."""
 
         for ref in (str(row.get("source_ref") or ""), str(row.get("target_ref") or "")):
@@ -106,12 +117,41 @@ class ArtifactLinkStoreReconcileMixin:
             try:
                 from sase.artifact_cli.references import resolve_cli_reference
 
-                result = resolve_cli_reference(ref)
+                result = resolve_cli_reference(ref, context=context)
             except Exception:  # noqa: BLE001 - unresolved agents stay local.
                 return False
             if result.resolution.status not in {"exact", "drifted", "vcs_backed"}:
                 return False
         return True
+
+    def _artifact_ref_context_for_store(self) -> ArtifactRefContext | None:
+        sdd_store = getattr(self, "sdd_store", None)
+        if sdd_store is None:
+            return None
+        try:
+            from sase.artifact_ref_context import artifact_ref_context
+            from sase.workspace_provider import find_marker_from_cwd
+        except Exception:  # noqa: BLE001 - fall back to cwd-based resolution.
+            return None
+        roots = (sdd_store.repo_root, *self.sidecar_roots.values())
+        for root in roots:
+            try:
+                found = find_marker_from_cwd(str(root))
+            except Exception:  # noqa: BLE001 - try the next visible root.
+                continue
+            if found is None:
+                continue
+            workspace_root, marker = found
+            workspace_num = marker.workspace_num if marker.workspace_num > 0 else 1
+            try:
+                return artifact_ref_context(
+                    workspace_root,
+                    workspace_num,
+                    project=self.project_key,
+                )
+            except Exception:  # noqa: BLE001 - fall back to cwd-based resolution.
+                return None
+        return None
 
     def _iter_reconciliation_stores(self) -> Iterable[ArtifactLinkStore]:
         """Yield known workspace stores for aggregate reconciliation."""

@@ -21,7 +21,7 @@ tier: tale
 title: Ship the planned change
 goal: Ship the planned change
 size: small
-bead: sase-xx
+bead_id: sase-xx
 ---
 # Plan
 

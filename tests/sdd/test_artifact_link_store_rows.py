@@ -7,7 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from sase.sdd.artifact_link_store import artifact_link_aggregate_path
+from sase.bead.model import IssueType
+from sase.bead.project import BeadProject
+from sase.sdd.artifact_link_store import ArtifactLinkStore, artifact_link_aggregate_path
+from tests._conftest_environment import redirect_sase_home
 from tests.sdd._artifact_link_store_helpers import _plan_index, _row, _store
 
 
@@ -57,6 +60,37 @@ def test_prompt_ref_upsert_converges_uses_instead_of_incrementing(
 
     store.upsert_row({**prompt_ref, "uses": 1})
     assert store.load_artifact_rows("plan:202608/a.md")[0]["uses"] == 3
+
+
+def test_derived_bead_endpoint_upsert_does_not_increment_uses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    plans = tmp_path / "plans"
+    plans.mkdir()
+    with BeadProject.init(tmp_path / "beads") as project:
+        issue = project.create("Plan bead", IssueType.PLAN)
+        store = ArtifactLinkStore(
+            project_key="gh_sase-org__sase",
+            sidecar_roots={"plan": plans},
+            beads_dir=project.beads_dir,
+        )
+        row = _row(
+            source="plan:202608/a.md",
+            relation="implements",
+            target=f"bead:{issue.id}",
+            origin="derived",
+            description="derived from the plan's `bead_id:` frontmatter field",
+            created_by="sase",
+        )
+
+        store.upsert_row(row)
+        second = store.upsert_row(row)
+        rows = store.load_artifact_rows(f"bead:{issue.id}")
+
+    assert second["beads_changed"] is False
+    assert len(rows) == 1
+    assert rows[0]["uses"] == 1
 
 
 def test_undirected_related_is_idempotent(

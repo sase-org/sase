@@ -69,7 +69,9 @@ def test_inspect_treats_existing_bead_refs_as_live(
     )
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.resolve_cli_reference",
-        lambda _ref: (_ for _ in ()).throw(RuntimeError("no generated page")),
+        lambda _ref, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("no generated page")
+        ),
     )
 
     report = inspect_artifact_link_health()
@@ -163,7 +165,7 @@ def test_inspect_fix_repairs_historical_research_rename(
         lambda: store,
     )
 
-    def resolve(ref: str) -> object:
+    def resolve(ref: str, **_kwargs: object) -> object:
         status = "missing" if ref.endswith("source.md") else "exact"
         return SimpleNamespace(
             resolution=SimpleNamespace(status=status, resolved_path=None)
@@ -251,7 +253,7 @@ def test_inspect_fix_does_not_reintroduce_renamed_rows_from_sibling_clone(
         lambda _self: iter((store, sibling_store)),
     )
 
-    def resolve(ref: str) -> object:
+    def resolve(ref: str, **_kwargs: object) -> object:
         status = "missing" if ref.endswith("source.md") else "exact"
         return SimpleNamespace(
             resolution=SimpleNamespace(status=status, resolved_path=None)
@@ -297,7 +299,7 @@ def test_unpublished_agent_refs_are_informational(
         lambda: store,
     )
 
-    def resolve(ref: str) -> object:
+    def resolve(ref: str, **_kwargs: object) -> object:
         status = "missing" if ref.startswith("agent:") else "exact"
         return SimpleNamespace(
             resolution=SimpleNamespace(status=status, resolved_path=None)
@@ -454,7 +456,9 @@ def test_derived_row_rendered_in_links_table_is_not_stale(
     )
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.resolve_cli_reference",
-        lambda _ref: (_ for _ in ()).throw(RuntimeError("no generated page")),
+        lambda _ref, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("no generated page")
+        ),
     )
 
     report = inspect_artifact_link_health()
@@ -514,7 +518,9 @@ def test_missing_derived_row_projection_is_reported_stale(
     )
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.resolve_cli_reference",
-        lambda _ref: (_ for _ in ()).throw(RuntimeError("no generated page")),
+        lambda _ref, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("no generated page")
+        ),
     )
 
     report = inspect_artifact_link_health()
@@ -561,7 +567,7 @@ def test_fix_does_not_rewrite_when_marker_text_is_unmanaged_prose(
     )
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.resolve_cli_reference",
-        lambda _ref: SimpleNamespace(
+        lambda _ref, **_kwargs: SimpleNamespace(
             resolution=SimpleNamespace(status="exact", resolved_path=None)
         ),
     )

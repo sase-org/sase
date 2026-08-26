@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -83,7 +84,7 @@ def test_derives_and_persists_plan_implements(
     month.mkdir(parents=True)
     plan_path = month / "example.md"
     plan_path.write_text(
-        "---\ntier: tale\nbead: sase-xx\n---\n\nbody\n", encoding="utf-8"
+        "---\ntier: tale\nbead_id: sase-xx\n---\n\nbody\n", encoding="utf-8"
     )
     documents = (DerivableDocument(ref="plan:202608/example.md", path=plan_path),)
 
@@ -116,10 +117,10 @@ def test_a_persist_failure_is_reported_not_raised(
     store = _store(tmp_path, monkeypatch)
     documents = _research_lineage_documents(tmp_path)
 
-    def _boom(_self: object, _row: object) -> dict[str, object]:
+    def _boom(_self: object, _ref: object, _row: object) -> dict[str, object]:
         raise ValueError("disk is on fire")
 
-    monkeypatch.setattr(ArtifactLinkStore, "upsert_row", _boom)
+    monkeypatch.setattr(ArtifactLinkStore, "_upsert_sidecar", _boom)
 
     outcome = derive_and_persist_artifact_links(store, documents, created_by="sase")
 
@@ -207,7 +208,7 @@ def test_derives_and_persists_agent_cites_plan(
     monkeypatch.setattr(
         artifact_link_derivation_module,
         "_is_agent_published",
-        lambda name: name == "alice.athena.worker",
+        lambda name, **_kwargs: name == "alice.athena.worker",
     )
     documents = (DerivableDocument(ref="plan:202608/example.md", path=plan_path),)
 
@@ -220,3 +221,45 @@ def test_derives_and_persists_agent_cites_plan(
     assert rows[0]["source_ref"] == "agent:alice.athena.worker"
     assert rows[0]["relation"] == "cites"
     assert rows[0]["origin"] == "derived"
+
+
+def test_derivation_inputs_resolve_agents_from_store_workspace_context(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plans = tmp_path / "workspace" / "sase" / "repos" / "plans"
+    research = tmp_path / "workspace" / "sase" / "repos" / "research"
+    agents = tmp_path / "agents"
+    plans.mkdir(parents=True)
+    research.mkdir(parents=True)
+    agents.mkdir()
+    sdd_store = SddStore(
+        "sidecar_repos",
+        plans,
+        plans,
+        sidecar_dirs={"research": research, "agents": agents},
+    )
+    store = ArtifactLinkStore.from_sdd_store(sdd_store, "gh_sase-org__sase")
+    context = object()
+    resolved_contexts: list[object | None] = []
+    monkeypatch.setattr(
+        "sase.workspace_provider.find_marker_from_cwd",
+        lambda _cwd: (
+            str(tmp_path / "workspace"),
+            SimpleNamespace(workspace_num=12),
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.artifact_ref_context.artifact_ref_context",
+        lambda workspace_root, workspace_num, project=None: context,
+    )
+
+    def _resolve(_ref: str, *, context: object | None = None) -> object:
+        resolved_contexts.append(context)
+        return SimpleNamespace(resolution=SimpleNamespace(status="exact"))
+
+    monkeypatch.setattr("sase.artifact_cli.references.resolve_cli_reference", _resolve)
+
+    inputs = artifact_link_derivation_module.artifact_link_derivation_inputs(store)
+
+    assert inputs.is_agent_published("alice.athena.worker") is True
+    assert resolved_contexts == [context]

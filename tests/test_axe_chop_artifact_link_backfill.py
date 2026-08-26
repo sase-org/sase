@@ -12,6 +12,7 @@ import sase.scripts.sase_chop_artifact_link_backfill as backfill_chop
 from sase.axe.chop_script_context import ChopScriptContext
 from sase.chops.builtin import BuiltinChopRuntime
 from sase.chops.sdk import ChopLogger
+from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.sdd.artifact_link_backfill import (
     _ArtifactLinkBackfillReport,
     _ArtifactLinkReconcileReport,
@@ -43,6 +44,82 @@ def _project(tmp_path: Path, *, name: str = "proj") -> SimpleNamespace:
         workspace_dir=str(workspace_dir),
         project_name=name,
     )
+
+
+def _record(
+    tmp_path: Path, *, project_name: str, display_name: str | None = None
+) -> ProjectRecordWire:
+    workspace_dir = tmp_path / "projects" / project_name
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+    return ProjectRecordWire(
+        schema_version=3,
+        project_name=project_name,
+        project_dir=str(tmp_path / ".sase" / project_name),
+        project_file=str(tmp_path / ".sase" / project_name / f"{project_name}.sase"),
+        archive_file=None,
+        workspace_dir=str(workspace_dir),
+        state="enabled",
+        state_explicit=False,
+        system_managed=False,
+        active_claim_count=0,
+        launchable=True,
+        aliases=[],
+        warnings=[],
+        parse_warnings=[],
+        display_name=display_name,
+        is_project=True,
+        vcs_kind="gh",
+    )
+
+
+def test_prefers_current_workspace_for_matching_project_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current_workspace = tmp_path / "workspaces" / "sase_12"
+    current_workspace.mkdir(parents=True)
+    marker = SimpleNamespace(
+        project_name="sase",
+        project_key="sase-org/sase",
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.find_marker_from_cwd",
+        lambda _cwd: (str(current_workspace), marker),
+    )
+    sase = _record(tmp_path, project_name="gh_sase-org__sase", display_name="sase")
+    other = _record(tmp_path, project_name="gh_example__other", display_name="other")
+
+    records = backfill_chop._prefer_current_workspace_record(
+        [sase, other], cwd=current_workspace
+    )
+
+    assert records[0].workspace_dir == str(current_workspace.resolve(strict=False))
+    assert records[1].workspace_dir == other.workspace_dir
+
+
+def test_prefers_workspace_hint_when_chop_child_cwd_is_state_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current_workspace = tmp_path / "workspaces" / "sase_12"
+    state_dir = tmp_path / ".sase" / "axe" / "lumberjacks" / "housekeeping"
+    current_workspace.mkdir(parents=True)
+    state_dir.mkdir(parents=True)
+    marker = SimpleNamespace(
+        project_name="sase",
+        project_key="sase-org/sase",
+    )
+    monkeypatch.setenv("SASE_GH_WORKSPACE_DIR", str(current_workspace))
+
+    def find_marker(cwd: str):
+        if Path(cwd) == current_workspace.resolve(strict=False):
+            return (str(current_workspace), marker)
+        return None
+
+    monkeypatch.setattr("sase.workspace_provider.find_marker_from_cwd", find_marker)
+    sase = _record(tmp_path, project_name="gh_sase-org__sase", display_name="sase")
+
+    records = backfill_chop._prefer_current_workspace_record([sase], cwd=state_dir)
+
+    assert records[0].workspace_dir == str(current_workspace.resolve(strict=False))
 
 
 def test_no_enabled_projects_short_circuits(
@@ -150,8 +227,13 @@ def test_checkpoint_survives_across_ticks(
     seen_already_swept: list[frozenset[str]] = []
 
     def _fake_batch(
-        store: object, *, already_swept: frozenset[str], batch_size: int
+        store: object,
+        *,
+        already_swept: frozenset[str],
+        batch_size: int,
+        deadline: float | None = None,
     ) -> tuple[_ArtifactLinkBackfillReport, frozenset[str]]:
+        assert deadline is not None
         seen_already_swept.append(already_swept)
         return _ArtifactLinkBackfillReport(), already_swept | {"plan:202608/a.md"}
 
@@ -171,3 +253,51 @@ def test_checkpoint_survives_across_ticks(
     backfill_chop._run(_runtime(tmp_path))
 
     assert seen_already_swept == [frozenset(), frozenset({"plan:202608/a.md"})]
+
+
+def test_later_jobs_defer_after_sweep_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        backfill_chop, "_enabled_project_records", lambda: [_project(tmp_path)]
+    )
+    monkeypatch.setattr(
+        backfill_chop, "resolve_artifact_link_store", lambda cwd=None: object()
+    )
+    times = iter((0.0, 1.0, 46.0))
+    monkeypatch.setattr(backfill_chop.time, "monotonic", lambda: next(times, 46.0))
+
+    def _fake_batch(
+        store: object,
+        *,
+        already_swept: frozenset[str],
+        batch_size: int,
+        deadline: float | None = None,
+    ) -> tuple[_ArtifactLinkBackfillReport, frozenset[str]]:
+        return (
+            _ArtifactLinkBackfillReport(scanned=1, persisted=1, remaining=1),
+            already_swept | {"plan:202608/a.md"},
+        )
+
+    monkeypatch.setattr(backfill_chop, "run_artifact_link_backfill_batch", _fake_batch)
+    monkeypatch.setattr(
+        backfill_chop,
+        "drain_artifact_link_outbox",
+        lambda store=None: pytest.fail("outbox should defer"),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "reconcile_and_repair_artifact_links",
+        lambda store: pytest.fail("reconcile should defer"),
+    )
+
+    result = backfill_chop._run(_runtime(tmp_path))
+
+    assert result.counters["projects"] == 1
+    assert result.counters["sweep_scanned"] == 1
+    assert result.counters["sweep_remaining"] == 1
+    assert result.counters["outbox_drained"] == 0
+    state = (tmp_path / "state" / backfill_chop._STATE_FILENAME).read_text(
+        encoding="utf-8"
+    )
+    assert "plan:202608/a.md" in state

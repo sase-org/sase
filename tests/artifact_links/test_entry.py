@@ -16,7 +16,7 @@ def test_aggregates_candidates_from_every_rule(tmp_path: Path) -> None:
     plans_month.mkdir(parents=True)
     plan_path = plans_month / "example.md"
     plan_path.write_text(
-        "---\ntier: tale\nbead: sase-xx\n---\n\nbody\n", encoding="utf-8"
+        "---\ntier: tale\nbead_id: sase-xx\n---\n\nbody\n", encoding="utf-8"
     )
 
     documents = (

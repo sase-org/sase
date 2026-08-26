@@ -26,6 +26,7 @@ class ArtifactLinkStoreBeadRowsMixin:
         from sase.sdd.artifact_link_beads import (
             add_bead_endpoint_link,
             bead_id_from_ref,
+            rows_touching_bead,
         )
 
         source_ref = str(incoming["source_ref"])
@@ -40,9 +41,22 @@ class ArtifactLinkStoreBeadRowsMixin:
             uses = 1
         uses = uses if uses > 0 else 1
 
+        def derived_link_exists(issue_id: str) -> bool:
+            if origin != "derived":
+                return False
+            for row in rows_touching_bead(self._list_bead_issues(), issue_id):
+                if (
+                    str(row.get("source_ref") or "") == source_ref
+                    and str(row.get("target_ref") or "") == target_ref
+                    and str(row.get("relation") or "") == relation
+                    and str(row.get("origin") or "") == origin
+                ):
+                    return True
+            return False
+
         writes: list[dict[str, Any]] = []
         source_issue_id = bead_id_from_ref(source_ref)
-        if source_issue_id is not None:
+        if source_issue_id is not None and not derived_link_exists(source_issue_id):
             writes.append(
                 add_bead_endpoint_link(
                     self.beads_dir,
@@ -57,7 +71,11 @@ class ArtifactLinkStoreBeadRowsMixin:
                 )
             )
         target_issue_id = bead_id_from_ref(target_ref)
-        if target_issue_id is not None and target_issue_id != source_issue_id:
+        if (
+            target_issue_id is not None
+            and target_issue_id != source_issue_id
+            and not derived_link_exists(target_issue_id)
+        ):
             writes.append(
                 add_bead_endpoint_link(
                     self.beads_dir,

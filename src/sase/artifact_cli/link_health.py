@@ -10,6 +10,7 @@ from typing import Any
 from sase.artifact_cli.references import resolve_cli_reference
 from sase.artifact_read_log import read_artifact_read_events
 from sase.artifact_links.derive import derive_candidate_links
+from sase.artifact_refs import ArtifactRefContext, launch_artifact_ref_context
 from sase.core.rust import require_rust_binding
 from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
 from sase.sdd._artifact_link_projection import safety_body
@@ -110,7 +111,10 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         sidecar_rows = store.durable_sidecar_rows()
     except Exception as exc:  # noqa: BLE001 - surface unsupported v1/schema errors
         return ArtifactLinkHealthReport(skipped=False, errors=(str(exc),))
-    dangling, unpublished_agents = _dangling_refs(rows, store)
+    resolution_context = launch_artifact_ref_context(is_home_mode=False)
+    dangling, unpublished_agents = _dangling_refs(
+        rows, store, context=resolution_context
+    )
     orphaned_companions = _orphaned_link_indexes(store)
     repaired_renames = 0
     if fix:
@@ -123,12 +127,14 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
             try:
                 rows = [dict(row) for row in store.load_aggregate().get("rows", [])]
                 sidecar_rows = store.durable_sidecar_rows()
-                dangling, unpublished_agents = _dangling_refs(rows, store)
+                dangling, unpublished_agents = _dangling_refs(
+                    rows, store, context=resolution_context
+                )
                 orphaned_companions = _orphaned_link_indexes(store)
             except Exception as exc:  # noqa: BLE001 - report the failed repair.
                 return ArtifactLinkHealthReport(skipped=False, errors=(str(exc),))
     stale = _stale_tables(store, rows)
-    missing_companions = _missing_companions(rows)
+    missing_companions = _missing_companions(rows, context=resolution_context)
     missing_head = _missing_head_indexes(store)
     read_events = 0
     recorded_read_events = 0
@@ -162,7 +168,7 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         aggregate_rows=len(rows),
         outbox_entries=0 if outbox is None else outbox.queued,
         outbox_dropped=0 if outbox is None else outbox.dropped,
-        coverage=_coverage_report(store, rows),
+        coverage=_coverage_report(store, rows, context=resolution_context),
         rebuilt=fix,
         repaired_renames=repaired_renames,
     )
@@ -181,7 +187,10 @@ def dangling_and_orphaned_artifact_link_refs(
     """
 
     rows = [dict(row) for row in store.load_aggregate().get("rows", [])]
-    dangling, _unpublished_agents = _dangling_refs(rows, store)
+    resolution_context = launch_artifact_ref_context(is_home_mode=False)
+    dangling, _unpublished_agents = _dangling_refs(
+        rows, store, context=resolution_context
+    )
     orphaned_companions = _orphaned_link_indexes(store)
     return (*dangling, *orphaned_companions)
 
@@ -204,6 +213,8 @@ def _read_row_count(rows: tuple[dict[str, Any], ...]) -> int:
 def _coverage_report(
     store: ArtifactLinkStore,
     rows: list[dict[str, Any]],
+    *,
+    context: ArtifactRefContext,
 ) -> _ArtifactLinkCoverageReport:
     origin_counts = Counter(str(row.get("origin") or "unknown") for row in rows)
     relation_counts = Counter(str(row.get("relation") or "unknown") for row in rows)
@@ -216,7 +227,7 @@ def _coverage_report(
             sweepable_artifact_link_documents(store),
             known_bead_ids=frozenset(_known_bead_ids(store) or ()),
             agents_sidecar_root=_agents_sidecar_root(store),
-            is_agent_published=_is_agent_published,
+            is_agent_published=lambda name: _is_agent_published(name, context=context),
         )
     except Exception:  # noqa: BLE001 - coverage is a report, not a gate.
         candidates = ()
@@ -294,9 +305,9 @@ def _agents_sidecar_root(store: ArtifactLinkStore) -> Path | None:
     return root if root.is_dir() else None
 
 
-def _is_agent_published(agent_name: str) -> bool:
+def _is_agent_published(agent_name: str, *, context: ArtifactRefContext) -> bool:
     try:
-        result = resolve_cli_reference(f"agent:{agent_name}")
+        result = resolve_cli_reference(f"agent:{agent_name}", context=context)
     except Exception:  # noqa: BLE001 - unpublished agents are not covered rows.
         return False
     return result.resolution.status in _RESOLVED
@@ -305,6 +316,8 @@ def _is_agent_published(agent_name: str) -> bool:
 def _dangling_refs(
     rows: list[dict[str, Any]],
     store: ArtifactLinkStore,
+    *,
+    context: ArtifactRefContext,
 ) -> tuple[list[str], list[str]]:
     seen: set[str] = set()
     dangling: list[str] = []
@@ -321,7 +334,7 @@ def _dangling_refs(
                     dangling.append(ref)
                 continue
             try:
-                result = resolve_cli_reference(ref)
+                result = resolve_cli_reference(ref, context=context)
             except (RuntimeError, ValueError):
                 if kind_of_ref(ref) == "agent":
                     unpublished_agents.append(ref)
@@ -414,7 +427,9 @@ def _curated_peer_keys(
     return keys
 
 
-def _missing_companions(rows: list[dict[str, Any]]) -> list[str]:
+def _missing_companions(
+    rows: list[dict[str, Any]], *, context: ArtifactRefContext
+) -> list[str]:
     missing: list[str] = []
     seen: set[str] = set()
     md_path = require_rust_binding("artifact_md_path")
@@ -425,7 +440,7 @@ def _missing_companions(rows: list[dict[str, Any]]) -> list[str]:
                 continue
             seen.add(ref)
             try:
-                result = resolve_cli_reference(ref)
+                result = resolve_cli_reference(ref, context=context)
             except (RuntimeError, ValueError):
                 continue
             request = {

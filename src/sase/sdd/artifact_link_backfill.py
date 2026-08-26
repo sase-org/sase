@@ -10,13 +10,20 @@ not already swept.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+import time
 
-from sase.artifact_links.derive import DerivableDocument
+from sase.artifact_links.derive import (
+    DerivableDocument,
+    DerivedLinkCandidate,
+    derive_candidate_links,
+)
 from sase.sdd.artifact_link_derivation import (
-    ArtifactLinkDerivationOutcome,
-    derive_and_persist_artifact_links,
+    ArtifactLinkDerivationInputs,
+    artifact_link_derivation_inputs,
+    persist_derived_link_candidates,
 )
 from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
@@ -26,6 +33,7 @@ from sase.sdd.referenced_by_index import REFERENCED_BY_LINKS_DIR
 
 _SWEEP_KINDS = ("plan", "research")
 _SWEEP_CREATED_BY = "sase"
+_PERSIST_CHUNK_SIZE = 50
 
 
 @dataclass(frozen=True)
@@ -74,6 +82,7 @@ def run_artifact_link_backfill_batch(
     *,
     already_swept: frozenset[str],
     batch_size: int,
+    deadline: float | None = None,
     artifacts_dir: str | Path | None = None,
 ) -> tuple[_ArtifactLinkBackfillReport, frozenset[str]]:
     """Derive and persist one bounded batch of not-yet-swept documents.
@@ -96,22 +105,106 @@ def run_artifact_link_backfill_batch(
             already_swept,
         )
 
-    outcome: ArtifactLinkDerivationOutcome = derive_and_persist_artifact_links(
-        store,
-        batch,
-        created_by=_SWEEP_CREATED_BY,
-        artifacts_dir=artifacts_dir,
-    )
-    updated_swept = already_swept | frozenset(document.ref for document in batch)
+    updated_swept = set(already_swept)
+    candidates = 0
+    persisted = 0
+    errors: list[str] = []
+    scanned = 0
+    derivation_inputs = artifact_link_derivation_inputs(store)
+    for offset in range(0, len(batch), _PERSIST_CHUNK_SIZE):
+        chunk = batch[offset : offset + _PERSIST_CHUNK_SIZE]
+        candidates_by_ref = _derive_chunk_candidates(chunk, derivation_inputs)
+        chunk_candidates = tuple(
+            candidate
+            for document_candidates in candidates_by_ref.values()
+            for candidate in document_candidates
+        )
+        outcome = persist_derived_link_candidates(
+            store,
+            chunk_candidates,
+            created_by=_SWEEP_CREATED_BY,
+            artifacts_dir=artifacts_dir,
+        )
+        scanned += len(chunk)
+        candidates += len(chunk_candidates)
+        persisted += outcome.persisted
+        errors.extend(outcome.errors)
+        updated_swept.update(
+            _swept_refs_after_chunk(
+                store,
+                candidates_by_ref=candidates_by_ref,
+                had_errors=bool(outcome.errors),
+                errors=errors,
+            )
+        )
+        if deadline is not None and time.monotonic() >= deadline:
+            break
     report = _ArtifactLinkBackfillReport(
         total_pending=len(pending),
-        scanned=len(batch),
-        candidates=outcome.candidates,
-        persisted=outcome.persisted,
-        remaining=len(pending) - len(batch),
-        errors=outcome.errors,
+        scanned=scanned,
+        candidates=candidates,
+        persisted=persisted,
+        remaining=sum(1 for document in pending if document.ref not in updated_swept),
+        errors=tuple(errors),
     )
-    return report, updated_swept
+    return report, frozenset(updated_swept)
+
+
+def _derive_chunk_candidates(
+    documents: Sequence[DerivableDocument],
+    derivation_inputs: ArtifactLinkDerivationInputs,
+) -> dict[str, tuple[DerivedLinkCandidate, ...]]:
+    return {
+        document.ref: derive_candidate_links(
+            (document,),
+            known_bead_ids=derivation_inputs.known_bead_ids,
+            agents_sidecar_root=derivation_inputs.agents_sidecar_root,
+            is_agent_published=derivation_inputs.is_agent_published,
+        )
+        for document in documents
+    }
+
+
+def _swept_refs_after_chunk(
+    store: ArtifactLinkStore,
+    *,
+    candidates_by_ref: Mapping[str, Sequence[DerivedLinkCandidate]],
+    had_errors: bool,
+    errors: list[str],
+) -> tuple[str, ...]:
+    durable_keys = _stored_link_keys(store) if not had_errors else frozenset()
+    swept_refs: list[str] = []
+    for ref, document_candidates in candidates_by_ref.items():
+        if not document_candidates:
+            swept_refs.append(ref)
+            continue
+        if had_errors:
+            continue
+        missing = [
+            candidate
+            for candidate in document_candidates
+            if _candidate_key(candidate) not in durable_keys
+        ]
+        if missing:
+            errors.append(f"{ref}: derived link candidates were not durable")
+            continue
+        swept_refs.append(ref)
+    return tuple(swept_refs)
+
+
+def _candidate_key(candidate: DerivedLinkCandidate) -> tuple[str, str, str]:
+    return (candidate.source_ref, candidate.relation, candidate.target_ref)
+
+
+def _stored_link_keys(store: ArtifactLinkStore) -> frozenset[tuple[str, str, str]]:
+    return frozenset(
+        (
+            str(row.get("source_ref") or ""),
+            str(row.get("relation") or ""),
+            str(row.get("target_ref") or ""),
+        )
+        for row in store.load_aggregate().get("rows", [])
+    )
 
 
 @dataclass(frozen=True)

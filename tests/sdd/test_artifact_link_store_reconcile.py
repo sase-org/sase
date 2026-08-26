@@ -112,3 +112,52 @@ def test_reconcile_aggregate_skips_unpublished_agent_rows(
     reconciled = store.reconcile_aggregate()
 
     assert reconciled["rows"] == []
+
+
+def test_reconcile_agent_rows_use_store_workspace_context(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    workspace = tmp_path / "workspace"
+    plans = workspace / "plans"
+    plans.mkdir(parents=True)
+    marker = SimpleNamespace(workspace_num=12)
+    context = object()
+    seen: list[tuple[str, object | None]] = []
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans},
+        sdd_store=SimpleNamespace(repo_root=workspace),  # type: ignore[arg-type]
+    )
+    store.upsert_row(
+        _row(
+            source="agent:alice.athena.worker",
+            relation="cites",
+            target="plan:202608/a.md",
+            origin="derived",
+            description="derived from a prompt header reference",
+        )
+    )
+
+    monkeypatch.setattr(
+        "sase.workspace_provider.find_marker_from_cwd",
+        lambda cwd: (str(workspace), marker) if Path(cwd) == workspace else None,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_ref_context.artifact_ref_context",
+        lambda root, workspace_num, project=None: context,
+    )
+
+    def fake_resolve(ref: str, *, context: object | None = None, **_kwargs: object):
+        seen.append((ref, context))
+        return SimpleNamespace(resolution=SimpleNamespace(status="exact"))
+
+    monkeypatch.setattr(
+        "sase.artifact_cli.references.resolve_cli_reference",
+        fake_resolve,
+    )
+
+    rows = store.durable_sidecar_rows()
+
+    assert len(rows) == 1
+    assert seen == [("agent:alice.athena.worker", context)]

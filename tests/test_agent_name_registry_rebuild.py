@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shutil
 import time
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -509,15 +510,27 @@ def test_reservation_reads_skip_the_stale_proof_memo(tmp_path: Path) -> None:
     """A name-reservation answer sees a directory the memo would still hide."""
     _make_agent(tmp_path, "proj", "run1", "foo")
     with patch.object(Path, "home", return_value=tmp_path):
+        workflow_dir = (
+            tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run"
+        )
         rebuild_name_registry()
         load_name_registry()  # arm the memo
         assert _registry._stale_proof_memo_valid()
+        workflow_stat = workflow_dir.stat()
         _make_agent(tmp_path, "proj", "run2", "bar")
 
-        # The display read is allowed to miss ``bar`` until the memo expires.
-        assert "bar" not in load_name_registry()["entries"]
-        # Allocation must not be, or it would hand ``bar`` out a second time.
-        assert "bar" in get_reserved_agent_names()
+        original_stat = Path.stat
+
+        def stale_workflow_stat(self: Path, *args: Any, **kwargs: Any) -> object:
+            if self == workflow_dir:
+                return workflow_stat
+            return original_stat(self, *args, **kwargs)
+
+        with patch.object(Path, "stat", stale_workflow_stat):
+            # The display read is allowed to miss ``bar`` until the memo expires.
+            assert "bar" not in load_name_registry()["entries"]
+            # Allocation must not be, or it would hand ``bar`` out a second time.
+            assert "bar" in get_reserved_agent_names()
 
 
 def test_stale_proof_memo_expires_after_ttl(

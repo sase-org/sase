@@ -505,6 +505,7 @@ def _load_registry_for_reservations() -> dict[str, Any]:
     or vanished since the last staleness proof, so they pay the full proof
     instead of reusing the memo a display read would accept.
     """
+    _reset_registry_scan_caches()
     return load_name_registry(trust_stale_proof_memo=False)
 
 
