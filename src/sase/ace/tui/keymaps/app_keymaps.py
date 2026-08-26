@@ -35,6 +35,8 @@ class AppKeymaps:
     # Artifacts split
     cycle_artifacts_split: str
     cycle_artifacts_split_reverse: str
+    # Artifacts pane brief
+    cycle_artifacts_description: str
     files_next_version: str
     files_prev_version: str
     pick_artifacts_project: str

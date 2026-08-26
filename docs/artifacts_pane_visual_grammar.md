@@ -9,6 +9,10 @@ in `src/sase/ace/tui/widgets/artifacts/shell.py`.
 
 The vertical order is invariant for every pane:
 
+0. **Pane brief** — owned by `ArtifactsView`, not by any individual pane, so every
+   built-in, provider, and degraded pane gets it for free. Sits directly under the
+   Artifacts sub-tab strip and above every pane's own layout. See
+   [Pane brief](#pane-brief) below.
 1. **Query bar** — always present on every pane whose contract has
    `PaneCapability.FILTER_SESSION`. Absent only on degraded panes and on providers that
    declare no fields. The bar is a permanent layout slot: pressing `/` never inserts or
@@ -30,6 +34,44 @@ The vertical order is invariant for every pane:
 Bespoke information (Patch fold levels, Stitch repository presence, Bead triage counts,
 File origin counts) belongs in the state/count lane or the pane's own rows — never in a
 second identity header.
+
+### Pane brief
+
+`shell.build_pane_brief` renders the resolved pane description
+(`ArtifactsPaneContract`'s `description` / `description_body`, `description_source` /
+`description_body_source`) as a fixed layout slot owned by `ArtifactsView`, immediately
+under the sub-tab strip. It is pure and widget-free: contract-derived values plus the
+already-resolved cycle-key display name go in, a `Text` comes out — no pane, provider,
+or filesystem access.
+
+Three session-scoped modes, cycled forward-only by `cycle_artifacts_description`
+(default `D`), a click on the brief, or the command palette, and seeded from
+`ace.artifacts.description_mode`:
+
+| Mode      | Rows shown                                                           |
+| --------- | -------------------------------------------------------------------- |
+| `off`     | None — the brief renders empty `Text` and the row collapses to zero. |
+| `summary` | One line: gutter, icon, the summary, ellipsized if too long.         |
+| `full`    | Summary (wrapped) plus body paragraphs, capped at `max_lines` (6).   |
+
+Every row opens with a two-cell `"▌ "` gutter: `bold {accent}` on the summary row(s),
+`dim {accent}` on body rows. The summary row reads
+`gutter + icon + two spaces + summary` — the pane label is deliberately not repeated,
+since the strip above already shows it in the same accent. A right-aligned disclosure
+hint (`"▸ {key}"` in `summary` mode, `"▾ {key}"` in `full` mode) appears on the summary
+row using the resolved display name of `cycle_artifacts_description`, and is dropped
+when the row has no room for it or when there is nothing to disclose (empty body and no
+unconfigured hint). In `full` mode, an unconfigured provider pane
+(`description_source == "fallback"`) gets one more `dim italic` line naming both config
+paths (`ref.pane.description` and `ace.artifacts.panes.<pane_id>.description`) — the
+only place this brief renders developer-facing text. The accent color appears only in
+the gutter and the disclosure hint; every other style (`italic` summary, `dim` body) is
+theme-safe with no hex lookup.
+
+Because pane description resolution is a total function — every pane, degraded ones
+included, resolves a non-empty summary — the brief is a stable layout slot: switching
+panes never inserts or removes this row, only `off` mode does, exactly like the query
+bar's `/` never inserting or removing its row.
 
 ### Query bar states
 

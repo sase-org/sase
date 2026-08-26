@@ -98,6 +98,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         CL_ONLY,
         ("split", "pane width", "narrower list"),
     ),
+    (
+        "cycle_artifacts_description",
+        "Cycle Artifacts pane description",
+        "Display",
+        CL_ONLY,
+        ("description", "brief", "off", "summary", "full"),
+    ),
     ("files_next_version", "Files: next version", "Navigation", CL_ONLY, ()),
     ("files_prev_version", "Files: previous version", "Navigation", CL_ONLY, ()),
     (

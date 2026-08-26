@@ -108,6 +108,14 @@
     background: $surface;
 }
 
+#artifacts-pane-brief {
+    width: 100%;
+    height: auto;
+    max-height: 6;
+    padding: 0 1;
+    background: $surface;
+}
+
 #artifacts-content-switcher,
 #artifacts-patches-pane,
 #artifacts-stitches-pane,

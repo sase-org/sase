@@ -19,6 +19,10 @@ from sase.project_display_names import (
     ProjectRefDisplaySnapshot,
 )
 
+from ..artifacts_description import (
+    ArtifactsDescriptionMode,
+    cycle_artifacts_description_mode,
+)
 from ..tab_order import ARTIFACTS_TAB
 from ..widgets.artifacts import FIXED_ARTIFACTS_SUBTAB_ORDER
 from .artifacts_agents import AGENTS_ARTIFACT_ACTIONS, ArtifactsAgentsActionsMixin
@@ -60,6 +64,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "cycle_artifacts_subtab_reverse",
         "cycle_artifacts_split",
         "cycle_artifacts_split_reverse",
+        "cycle_artifacts_description",
         "files_next_version",
         "files_prev_version",
         "cycle_grouping_mode",
@@ -277,6 +282,7 @@ class ArtifactsMixin(
     parsed_query: Any
     query_string: str
     artifacts_project_scope: str | None
+    artifacts_description_mode: ArtifactsDescriptionMode
     _artifacts_project_choices: _ArtifactsProjectChoices | None
     _artifacts_project_choices_loading: bool
     _artifacts_project_picker_pending: bool
@@ -500,6 +506,13 @@ class ArtifactsMixin(
                 "Loading project scope…", timeout=1.5
             )
         self._open_artifacts_project_picker()
+
+    def action_cycle_artifacts_description(self) -> None:
+        """Cycle the Artifacts pane brief through off / summary / full."""
+        self.artifacts_description_mode = cycle_artifacts_description_mode(
+            self.artifacts_description_mode,
+            1,
+        )
 
     def _request_active_artifacts_refresh(self) -> None:
         view = self._artifacts_view()

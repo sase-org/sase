@@ -1157,6 +1157,10 @@ The Artifacts split actions are remappable as `cycle_artifacts_split` and
 `left_curly_bracket` (`{`); both curly-bracket key names are accepted anywhere an ACE
 keybinding is configured.
 
+The [Artifacts pane brief](ace.md#pane-description-brief) cycles with
+`cycle_artifacts_description`, default `D`. It shares that key with the Agents-only
+`toggle_attempt_view`; see the shared-key allowlist below.
+
 **`modes`** — Prefix-key mode definitions. Built-in modes (`fold_mode`, `copy_mode`,
 `leader_mode`, `bang_mode`) can be reconfigured, and custom modes can be added. Each
 mode has:
@@ -1194,6 +1198,7 @@ rejects every other duplicate app binding:
 | `E`                  | `E`                | `beads_open_bug` / `files_open_external`               | Beads vs Files panes (the shared open-externally verb) |
 | `.`                  | `full_stop`        | `toggle_relation_panel` / `toggle_hide_reverted`       | Artifacts vs Agents/Axe                                |
 | `X`                  | `X`                | `open_agent_cleanup_panel` / `patches_toggle_reverted` | Agents vs Patches                                      |
+| `D`                  | `D`                | `toggle_attempt_view` / `cycle_artifacts_description`  | Agents vs Artifacts                                    |
 
 The first column is what the key looks like on your keyboard; the second is the name to
 write in `sase.yml`, matching how `src/sase/default_config.yml` spells it. Punctuation

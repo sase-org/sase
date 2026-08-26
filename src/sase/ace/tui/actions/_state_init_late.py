@@ -142,6 +142,13 @@ def init_late_startup_state(
         relations_expanded if isinstance(relations_expanded, bool) else False
     )
     self._reactive_artifacts_relations_collapsed = not relations_expanded
+    from ..artifacts_description import normalize_artifacts_description_mode
+
+    self._reactive_artifacts_description_mode = normalize_artifacts_description_mode(
+        artifacts_cfg.get("description_mode")
+        if isinstance(artifacts_cfg, dict)
+        else None
+    )
     from ..widgets.artifacts.commit_config import (
         merge_commits_startup_project,
         resolve_commits_default_query,

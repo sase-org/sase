@@ -58,6 +58,10 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                     "Narrow / widen the list panel",
                 ),
                 (
+                    d(a.cycle_artifacts_description),
+                    "Cycle pane description mode",
+                ),
+                (
                     d(a.pick_artifacts_project),
                     "Pick (seeded); rewrite project:",
                 ),

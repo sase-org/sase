@@ -11,6 +11,12 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import ContentSwitcher, Static
 
 from ...artifact_tabs import artifacts_provider_diagnostics
+from ...artifacts_description import (
+    ArtifactsDescriptionMode,
+    DEFAULT_ARTIFACTS_DESCRIPTION_MODE,
+    normalize_artifacts_description_mode,
+    unconfigured_pane_description_hint,
+)
 from ...artifacts_split import (
     ARTIFACTS_SPLIT_CLASSES,
     DEFAULT_ARTIFACTS_SPLIT_MODE,
@@ -18,7 +24,7 @@ from ...artifacts_split import (
     cycle_artifacts_split_mode,
     normalize_artifacts_split_mode,
 )
-from ...keymaps import KeymapRegistry
+from ...keymaps import KeymapRegistry, key_display_name
 from ...tab_order import ARTIFACTS_TAB
 from ..panel_tab_strip import PanelTab, PanelTabStrip
 from .agents_pane import ArtifactsAgentsPane
@@ -27,6 +33,7 @@ from .commits import CommitsPane
 from .entry_navigation import ArtifactEntryNavigator
 from .files_pane import ArtifactsFilesPane
 from .lifecycle import ArtifactsPaneLifecycle
+from .pane_brief import ArtifactsPaneBrief
 from .panes import ArtifactPlaceholderPane, ArtifactsDegradedPane, ArtifactsPatchesPane
 from .plans_pane import ArtifactsDocumentsPane, ArtifactsPlansPane
 from .relation_panel import RelationPanel
@@ -74,6 +81,10 @@ class ArtifactsView(Vertical):
             DEFAULT_ARTIFACTS_SUBTAB
         )
         self._split_mode: ArtifactsSplitMode = DEFAULT_ARTIFACTS_SPLIT_MODE
+        self._description_mode: ArtifactsDescriptionMode = (
+            DEFAULT_ARTIFACTS_DESCRIPTION_MODE
+        )
+        self._keymap_registry: KeymapRegistry | None = None
         self._commits_default_filter = commits_default_filter
 
     def compose(self) -> ComposeResult:
@@ -90,6 +101,7 @@ class ArtifactsView(Vertical):
             tabs.styles.width = "1fr"
             yield tabs
             yield ArtifactsSplitBadge(id="artifacts-split-badge")
+        yield ArtifactsPaneBrief(id="artifacts-pane-brief")
         with ContentSwitcher(
             initial=self._pane_id(self._current_subtab),
             id="artifacts-content-switcher",
@@ -99,6 +111,7 @@ class ArtifactsView(Vertical):
 
     def on_mount(self) -> None:
         self.apply_split_mode(cast("AceApp", self.app).artifacts_split_mode)
+        self.apply_description_mode(cast("AceApp", self.app).artifacts_description_mode)
         self._refresh_provider_diagnostics()
         if getattr(self.app, "current_tab", None) == ARTIFACTS_TAB:
             self._pane(self._current_subtab).activate()
@@ -120,6 +133,10 @@ class ArtifactsView(Vertical):
     def split_mode(self) -> ArtifactsSplitMode:
         return self._split_mode
 
+    @property
+    def description_mode(self) -> ArtifactsDescriptionMode:
+        return self._description_mode
+
     def apply_split_mode(self, mode: object) -> None:
         """Apply exactly one shared split class and refresh its badge."""
 
@@ -129,11 +146,42 @@ class ArtifactsView(Vertical):
         self._split_mode = normalized
         self._refresh_split_badge()
 
+    def apply_description_mode(self, mode: object) -> None:
+        """Apply the shared pane-brief description mode and repaint it."""
+
+        self._description_mode = normalize_artifacts_description_mode(mode)
+        self._refresh_pane_brief()
+
     def _refresh_split_badge(self) -> None:
         descriptor = self._descriptor_by_id[self._current_subtab]
         self.query_one("#artifacts-split-badge", ArtifactsSplitBadge).set_state(
             self._split_mode,
             descriptor.accent,
+        )
+
+    def _refresh_pane_brief(self) -> None:
+        descriptor = self._descriptor_by_id[self._current_subtab]
+        contract = descriptor.contract
+        unconfigured_hint = None
+        if (
+            self._description_mode == "full"
+            and contract is not None
+            and contract.description_source == "fallback"
+        ):
+            unconfigured_hint = unconfigured_pane_description_hint(descriptor.id)
+        disclosure_key = None
+        if self._keymap_registry is not None:
+            disclosure_key = key_display_name(
+                self._keymap_registry.app.cycle_artifacts_description
+            )
+        self.query_one("#artifacts-pane-brief", ArtifactsPaneBrief).set_state(
+            icon=descriptor.icon,
+            accent=descriptor.accent,
+            summary=descriptor.description,
+            body=descriptor.description_body,
+            mode=self._description_mode,
+            disclosure_key=disclosure_key,
+            unconfigured_hint=unconfigured_hint,
         )
 
     def _panel_tabs(self) -> tuple[PanelTab, ...]:
@@ -274,6 +322,7 @@ class ArtifactsView(Vertical):
         ).current = self._pane_id(subtab)
         self.query_one("#artifacts-subtabs", PanelTabStrip).set_active_tab(subtab)
         self._refresh_split_badge()
+        self._refresh_pane_brief()
         if artifacts_visible:
             self._pane(subtab).activate()
 
@@ -289,6 +338,8 @@ class ArtifactsView(Vertical):
     def set_keymap_registry(self, registry: KeymapRegistry) -> None:
         """Forward configured key display to project-backed panes."""
 
+        self._keymap_registry = registry
+        self._refresh_pane_brief()
         for pane in self.query(ArtifactPlaceholderPane):
             pane.set_keymap_registry(registry)
         for pane_type in (
@@ -367,6 +418,11 @@ class ArtifactsView(Vertical):
             app.artifacts_split_mode,
             1,
         )
+
+    @on(ArtifactsPaneBrief.Clicked)
+    def _on_pane_brief_clicked(self, event: ArtifactsPaneBrief.Clicked) -> None:
+        event.stop()
+        cast("AceApp", self.app).action_cycle_artifacts_description()
 
     @on(RelationPanel.Clicked)
     def _on_relation_panel_clicked(self, event: RelationPanel.Clicked) -> None:

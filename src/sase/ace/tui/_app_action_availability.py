@@ -107,6 +107,8 @@ def check_app_action(
         return app.current_tab == "axe"
     if action == "toggle_axe_description":
         return app.current_tab == "axe"
+    if action == "toggle_attempt_view":
+        return app.current_tab == "agents"
     if action == "show_diff" and app.current_tab != ARTIFACTS_TAB:
         return False
     if action == "open_artifact_files" and app.current_tab != "agents":
@@ -149,6 +151,7 @@ def check_app_action(
         "cycle_artifacts_subtab_reverse",
         "cycle_artifacts_split",
         "cycle_artifacts_split_reverse",
+        "cycle_artifacts_description",
     }:
         if app.current_tab != ARTIFACTS_TAB:
             return False

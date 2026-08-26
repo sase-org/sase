@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from .artifact_tabs import ArtifactsSubTab, FilesSubTab
+from .artifacts_description import ArtifactsDescriptionMode
 from .artifacts_split import ArtifactsSplitMode
 from .tab_order import ARTIFACTS_TAB, TabName
 from .widgets import ArtifactsView, TabBar
@@ -230,6 +231,21 @@ class AppWatchersMixin:
             return
         view.apply_split_mode(new_mode)
         self._apply_patch_list_width()
+
+    def watch_artifacts_description_mode(
+        self: Any,
+        old_mode: ArtifactsDescriptionMode,
+        new_mode: ArtifactsDescriptionMode,
+    ) -> None:
+        """Apply the shared pane-brief description mode."""
+
+        if old_mode == new_mode:
+            return
+        try:
+            view = self.query_one("#artifacts-view", ArtifactsView)
+        except Exception:
+            return
+        view.apply_description_mode(new_mode)
 
     def watch_current_files_subtab(
         self: Any,

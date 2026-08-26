@@ -83,6 +83,10 @@ from .artifact_tabs import (
     FilesSubTab,
     artifacts_pane_key,
 )
+from .artifacts_description import (
+    DEFAULT_ARTIFACTS_DESCRIPTION_MODE,
+    ArtifactsDescriptionMode,
+)
 from .artifacts_split import (
     DEFAULT_ARTIFACTS_SPLIT_MODE,
     ArtifactsSplitMode,
@@ -170,6 +174,9 @@ class AceApp(
     )
     artifacts_split_mode: reactive[ArtifactsSplitMode] = reactive(
         DEFAULT_ARTIFACTS_SPLIT_MODE, recompose=False
+    )
+    artifacts_description_mode: reactive[ArtifactsDescriptionMode] = reactive(
+        DEFAULT_ARTIFACTS_DESCRIPTION_MODE, recompose=False
     )
     current_files_subtab: reactive[FilesSubTab] = reactive(
         DEFAULT_FILES_SUBTAB, recompose=False

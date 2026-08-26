@@ -14,6 +14,7 @@ from sase.ace.tui._artifact_tab_descriptors import (
     provider_descriptors,
 )
 from sase.ace.tui._artifact_tab_model import PaneCapability, ProviderDiscoveryIssue
+from sase.ace.tui.artifacts_description import DEFAULT_ARTIFACTS_DESCRIPTION_MODE
 from sase.ace.tui.artifacts_split import DEFAULT_ARTIFACTS_SPLIT_MODE
 from sase.ace.tui.widgets.artifacts.view import ArtifactsView
 from sase.ace.tui.widgets.filter_bar import FilterBar
@@ -97,6 +98,7 @@ async def test_degraded_resolved_subtab_mounts_no_query_bar(
     class _App(App[None]):
         ENABLE_COMMAND_PALETTE = False
         artifacts_split_mode = DEFAULT_ARTIFACTS_SPLIT_MODE
+        artifacts_description_mode = DEFAULT_ARTIFACTS_DESCRIPTION_MODE
 
         def compose(self) -> ComposeResult:
             yield ArtifactsView()

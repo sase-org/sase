@@ -101,6 +101,9 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         frozenset({"agents_revive", "reword"}),
         frozenset({"toggle_relation_panel", "toggle_hide_reverted"}),
         frozenset({"open_agent_cleanup_panel", "patches_toggle_reverted"}),
+        # Pane-disjoint by construction: Agents-only attempt history vs
+        # Artifacts-only pane brief cycling.
+        frozenset({"toggle_attempt_view", "cycle_artifacts_description"}),
     }
 )
 

@@ -131,6 +131,28 @@ The Patch pane remains content-sized instead of reserving empty list space. Its 
 sets the maximum list width for the available terminal width, while the existing 43-cell
 readability floor and 80-cell upper bound still apply.
 
+### Pane Description Brief
+
+Every Artifacts pane — the five built-ins, the Plan pane, and every pane a sidecar ref
+creates — carries a resolved, never-empty description, shown as a host-owned brief
+directly under the sub-tab strip. Press `D` to cycle it through three modes:
+
+| Mode      | What you see                                                     |
+| --------- | ---------------------------------------------------------------- |
+| `off`     | Nothing; the row disappears entirely.                            |
+| `summary` | One line: an icon and a one-sentence summary, ellipsized to fit. |
+| `full`    | The summary plus a longer body, capped at 6 rows.                |
+
+`ace.artifacts.description_mode` seeds which mode a session starts in (default
+`summary`); `D` changes it in memory for the current session only. Clicking the brief
+cycles it the same way. An unconfigured document-provider pane shows, in `full` mode
+only, a dim italic hint naming both places its description can be configured:
+`ref.pane.description` in the sidecar's ref config, or
+`ace.artifacts.panes."<pane_id>".description` in `sase.yml`. See
+[`ace.artifacts`](configuration.md#aceartifacts) for the config surface and
+[Artifacts pane visual grammar](artifacts_pane_visual_grammar.md#pane-brief) for the
+full rendering rules.
+
 ### Navigation in Stitches, Beads, Provider Documents, and Files
 
 The non-Patches panes share fast navigation over their selectable left-panel entries.

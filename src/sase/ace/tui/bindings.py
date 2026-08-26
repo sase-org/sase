@@ -104,6 +104,12 @@ DEFAULT_BINDINGS: list[BindingType] = [
         show=False,
     ),
     Binding(
+        "D",
+        "cycle_artifacts_description",
+        "Pane Description",
+        show=False,
+    ),
+    Binding(
         "right_parenthesis",
         "files_next_version",
         "Next File Version",

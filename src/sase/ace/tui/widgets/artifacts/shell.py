@@ -17,14 +17,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from rich.cells import cell_len
+from rich.console import Console
 from rich.text import Text
 
+from ...artifacts_description import ARTIFACTS_BRIEF_MAX_LINES, ArtifactsDescriptionMode
 from .types import ArtifactsPaneContract
 
 _LOADING_BADGE_STYLE = "bold #FFD700"
 _STALE_BADGE_STYLE = "bold #FFD700"
 _ERROR_BADGE_STYLE = "bold #FF5F5F"
 _SEPARATOR = "  ·  "
+
+_BRIEF_GUTTER = "▌ "
+_BRIEF_GUTTER_WIDTH = 2
+_BRIEF_SUMMARY_STYLE = "italic"
+_BRIEF_BODY_STYLE = "dim"
+_BRIEF_HINT_STYLE = "dim italic"
+_BRIEF_OVERFLOW_STYLE = "dim"
 
 
 class ArtifactsPaneState(StrEnum):
@@ -242,12 +252,116 @@ def build_footer_hints(
     return text
 
 
+def build_pane_brief(
+    *,
+    icon: str,
+    accent: str,
+    summary: str,
+    body: str,
+    mode: ArtifactsDescriptionMode,
+    width: int,
+    disclosure_key: str | None,
+    unconfigured_hint: str | None = None,
+    max_lines: int = ARTIFACTS_BRIEF_MAX_LINES,
+) -> Text:
+    """Build the host-owned pane brief shown under the Artifacts sub-tab strip.
+
+    Pure and widget-free: every value must already be resolved by the
+    caller (contract summary/body, the active mode, and the display name
+    of the cycle key). Returns empty ``Text`` in ``off`` mode -- the
+    caller is expected to hide the row entirely in that mode.
+    """
+
+    if mode == "off":
+        return Text()
+
+    content_width = max(1, width - _BRIEF_GUTTER_WIDTH)
+    summary_line = Text(f"{icon}  " if icon.strip() else "")
+    summary_line.append(summary.strip(), style=_BRIEF_SUMMARY_STYLE)
+
+    expanded = mode == "full"
+    if expanded:
+        summary_rows = _brief_wrapped(summary_line, content_width)
+    else:
+        summary_line.truncate(content_width, overflow="ellipsis")
+        summary_rows = [summary_line]
+
+    has_unconfigured_hint = bool(unconfigured_hint and unconfigured_hint.strip())
+    has_disclosure_target = bool(body.strip()) or has_unconfigured_hint
+    if disclosure_key and has_disclosure_target:
+        hint = f"{'▾' if expanded else '▸'} {disclosure_key}"
+        first_width = summary_rows[0].cell_len
+        if content_width - first_width >= cell_len(hint) + 1:
+            summary_rows[0].append(" " * (content_width - first_width - cell_len(hint)))
+            summary_rows[0].append(hint, style=f"dim {accent}")
+
+    rows: list[tuple[Text, bool]] = [(row, True) for row in summary_rows]
+    if expanded and (body.strip() or has_unconfigured_hint):
+        rows.append((Text(), False))
+        if body.strip():
+            rows.extend((row, False) for row in _brief_body_rows(body, content_width))
+        if has_unconfigured_hint:
+            hint_text = Text(unconfigured_hint.strip(), style=_BRIEF_HINT_STYLE)  # type: ignore[union-attr]
+            rows.extend(
+                (row, False) for row in _brief_wrapped(hint_text, content_width)
+            )
+
+    capped = max(1, max_lines)
+    if len(rows) > capped:
+        dropped = len(rows) - (capped - 1)
+        rows = rows[: capped - 1]
+        rows.append((Text(f"… +{dropped} more", style=_BRIEF_OVERFLOW_STYLE), False))
+
+    return Text("\n").join(
+        _brief_with_gutter(row, accent, summary=is_summary) for row, is_summary in rows
+    )
+
+
+def _brief_wrapped(text: Text, width: int) -> list[Text]:
+    return list(
+        text.wrap(
+            Console(),
+            max(1, width),
+            justify=None,
+            overflow="fold",
+            no_wrap=False,
+        )
+    ) or [Text()]
+
+
+def _brief_body_rows(body: str, content_width: int) -> list[Text]:
+    rows: list[Text] = []
+    paragraphs = [paragraph for paragraph in body.split("\n\n") if paragraph.strip()]
+    for index, paragraph in enumerate(paragraphs):
+        if index:
+            rows.append(Text())
+        rows.extend(
+            _brief_wrapped(
+                Text(paragraph.strip(), style=_BRIEF_BODY_STYLE), content_width
+            )
+        )
+    return rows
+
+
+def _brief_with_gutter(row: Text, accent: str, *, summary: bool) -> Text:
+    # ``stylize`` scopes the accent to just the gutter span rather than the
+    # constructor's ``style=``, which sets the base style of the whole Text
+    # and would otherwise leak the accent color into every unstyled
+    # character appended after it (e.g. the icon and inter-word padding).
+    gutter_style = f"bold {accent}" if summary else f"dim {accent}"
+    rendered = Text(_BRIEF_GUTTER)
+    rendered.append_text(row)
+    rendered.stylize(gutter_style, 0, len(_BRIEF_GUTTER))
+    return rendered
+
+
 __all__ = [
     "ArtifactsPaneState",
     "ArtifactsShellState",
     "build_degraded_card",
     "build_empty_card",
     "build_footer_hints",
+    "build_pane_brief",
     "build_reveal_chip",
     "build_shell_scope",
     "build_state_badge",
