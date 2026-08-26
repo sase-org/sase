@@ -28,7 +28,7 @@ from .agent_scan_golden import (
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
     assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 6
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 22
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 23
 
 
 def test_clan_context_round_trips_with_source_identity() -> None:
@@ -299,6 +299,103 @@ def test_agent_meta_output_variables_round_trip() -> None:
     }
     assert payload["records"][0]["agent_meta"]["agent_family_parallel"] is True
     assert payload["records"][0]["agent_meta"]["output_path"] == "/tmp/producer.log"
+
+
+def test_gate_shell_marker_fields_round_trip() -> None:
+    snapshot = agent_scan_wire_from_dict(
+        {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": "/tmp/projects",
+            "options": {},
+            "stats": {},
+            "records": [
+                {
+                    "project_name": "myproj",
+                    "project_dir": "/tmp/projects/myproj",
+                    "project_file": "/tmp/projects/myproj/myproj.sase",
+                    "workflow_dir_name": "ace-run",
+                    "artifact_dir": "/tmp/projects/myproj/artifacts/ace-run/gate",
+                    "timestamp": "gate",
+                    "agent_meta": {
+                        "name": "acme--gate",
+                        "agent_family": "acme",
+                        "agent_family_role": "gate",
+                        "gate_id": "gate-1",
+                        "gate_kind": "approval",
+                        "gate_state": "pending",
+                        "gate_start_status": "WAITING",
+                        "gate_stop_status": "ANSWERED",
+                        "gate_accent": "#0BCDEC",
+                        "gate_output_path": "gate.out",
+                        "gate_output_truncated": True,
+                        "gate_creator_agent": "acme--0",
+                        "gate_followup_agent": "acme--1",
+                        "gate_next_action": "Resume after gate.",
+                        "gate_next_fork": "family",
+                        "gate_next_output": "summary",
+                        "gate_next_model": "@large",
+                        "gate_followup_outcome": "launched",
+                        "gate_followup_error": "claim moved late",
+                        "gate_followup_degraded_reason": "workspace unavailable",
+                        "gate_followup_prompt_path": "gate_followup.md",
+                        "gate_elapsed_seconds": 2.5,
+                        "gate_label": "approval/gate-1",
+                        "gate_reason": "Need owner approval",
+                        "gate_timeout_seconds": 600.0,
+                        "gate_request_fingerprint": "sha256:cafe",
+                        "gate_workspace_policy": "inherit",
+                        "gate_bundle_path": "gate_bundle.json",
+                        "gate_notification_id": "notif-1",
+                        "gate_decision_path": "gate_decision.md",
+                        "shell_kind": "gate",
+                        "proc_id": "proc-gate",
+                    },
+                    "done": {
+                        "outcome": "gated",
+                        "gate_id": "gate-1",
+                        "gate_kind": "approval",
+                        "gate_state": "answered",
+                        "gate_elapsed_seconds": 2.5,
+                        "status_label": "ANSWERED",
+                        "gate_output_path": "gate.out",
+                        "gate_output_truncated": True,
+                        "gate_bundle_path": "gate_bundle.json",
+                        "gate_notification_id": "notif-1",
+                        "gate_followup_outcome": "launched",
+                        "gate_followup_error": "claim moved late",
+                        "gate_followup_degraded_reason": "workspace unavailable",
+                        "gate_followup_prompt_path": "gate_followup.md",
+                    },
+                    "running": None,
+                    "waiting": None,
+                    "pending_question": None,
+                    "workflow_state": None,
+                    "plan_path": None,
+                    "prompt_steps": [],
+                    "raw_prompt_snippet": None,
+                    "has_done_marker": True,
+                }
+            ],
+        }
+    )
+
+    record = snapshot.records[0]
+    assert record.agent_meta is not None
+    assert record.done is not None
+    assert record.agent_meta.gate_id == "gate-1"
+    assert record.agent_meta.gate_next_model == "@large"
+    assert record.agent_meta.gate_output_truncated is True
+    assert record.agent_meta.gate_decision_path == "gate_decision.md"
+    assert record.done.gate_state == "answered"
+    assert record.done.gate_elapsed_seconds == 2.5
+    assert record.done.gate_output_truncated is True
+    payload = agent_scan_wire_to_json_dict(snapshot)
+    meta_payload = payload["records"][0]["agent_meta"]
+    done_payload = payload["records"][0]["done"]
+    assert meta_payload["gate_request_fingerprint"] == "sha256:cafe"
+    assert meta_payload["gate_decision_path"] == "gate_decision.md"
+    assert done_payload["gate_notification_id"] == "notif-1"
+    assert done_payload["gate_followup_prompt_path"] == "gate_followup.md"
 
 
 def test_agent_meta_clan_field_order_matches_rust_wire() -> None:

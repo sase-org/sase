@@ -61,7 +61,10 @@ def list_gate_shells(*, project: str | None = None) -> list[GateShellRecord]:
         )
         if converted is not None
     ]
-    records.sort(key=lambda record: record.timestamp, reverse=True)
+    records.sort(
+        key=lambda record: (record.timestamp, record.artifacts_dir),
+        reverse=True,
+    )
     return records
 
 

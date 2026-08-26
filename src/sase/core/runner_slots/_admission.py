@@ -11,6 +11,7 @@ from sase.monitor_state import is_real_monitor_member
 
 RecordLiveness = Callable[[AgentArtifactRecordWire], bool]
 DEFAULT_WAIT_PRIORITY = 10
+GATE_FAMILY_ROLE = "gate"
 
 
 def normalize_wait_priority(value: object) -> int:
@@ -219,11 +220,26 @@ def is_runner_slot_occupying_record(
     meta = record.agent_meta
     if meta is None:
         return False
+    if (
+        is_real_gate_member_record(record)
+        and (meta.gate_state or "").strip() == "pending"
+    ):
+        return False
     monitor = is_real_monitor_member(meta.agent_family_role, meta.monitor_id)
     started = meta.pid is not None if monitor else bool(meta.run_started_at)
     if not started:
         return False
     return is_live(record)
+
+
+def is_real_gate_member_record(record: AgentArtifactRecordWire) -> bool:
+    """Return whether *record* is the durable gate-shell member."""
+    meta = record.agent_meta
+    return (
+        meta is not None
+        and (meta.agent_family_role or "").strip() == GATE_FAMILY_ROLE
+        and bool((meta.gate_id or "").strip())
+    )
 
 
 def runner_slot_family_key(record: AgentArtifactRecordWire) -> tuple[str, str]:

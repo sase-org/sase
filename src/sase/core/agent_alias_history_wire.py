@@ -1,7 +1,7 @@
 """Wire records for bounded per-alias agent history queries.
 
 Mirrors ``sase_core::agent_scan``'s ``AgentAliasHistoryQueryWire`` /
-``AgentAliasHistoryWire`` family (artifact-index schema 22). The Python CLI
+``AgentAliasHistoryWire`` family (artifact-index schema 23). The Python CLI
 builds a request, the Rust binding executes one bounded index query per
 requested alias, and these records are the only shape that crosses the
 facade.

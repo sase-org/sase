@@ -80,6 +80,8 @@ class DoneMarkerWire:
             follow-up prompt was persisted to when it could not be launched.
         gate_state: Terminal gate-shell outcome, mirroring the running member's
             ``agent_meta.json::gate_state``.
+        gate_output_path: Path to gate-shell output, when recorded.
+        gate_output_truncated: Whether the gate-shell output was truncated.
         gate_followup_outcome: The gate follow-up launch disposition, when
             recorded.
         gate_followup_error: Human-readable reason a gate follow-up was dropped
@@ -129,7 +131,14 @@ class DoneMarkerWire:
     monitor_followup_error: str | None = None
     monitor_followup_degraded_reason: str | None = None
     monitor_followup_prompt_path: str | None = None
+    gate_id: str | None = None
+    gate_kind: str | None = None
     gate_state: str | None = None
+    gate_elapsed_seconds: float | None = None
+    gate_output_path: str | None = None
+    gate_output_truncated: bool = False
+    gate_bundle_path: str | None = None
+    gate_notification_id: str | None = None
     gate_followup_outcome: str | None = None
     gate_followup_error: str | None = None
     gate_followup_degraded_reason: str | None = None
@@ -255,23 +264,27 @@ class AgentMetaWire:
     gate_start_status: str | None = None
     gate_stop_status: str | None = None
     gate_accent: str | None = None
-    gate_label: str | None = None
-    gate_reason: str | None = None
+    gate_output_path: str | None = None
+    gate_output_truncated: bool = False
     gate_creator_agent: str | None = None
-    gate_bundle_path: str | None = None
-    gate_notification_id: str | None = None
-    gate_timeout_seconds: float | None = None
-    gate_request_fingerprint: str | None = None
-    gate_workspace_policy: str | None = None
     gate_followup_agent: str | None = None
-    gate_followup_outcome: str | None = None
-    gate_followup_error: str | None = None
-    gate_followup_degraded_reason: str | None = None
-    gate_followup_prompt_path: str | None = None
     gate_next_action: str | None = None
     gate_next_fork: str | None = None
     gate_next_output: str | None = None
     gate_next_model: str | None = None
+    gate_followup_outcome: str | None = None
+    gate_followup_error: str | None = None
+    gate_followup_degraded_reason: str | None = None
+    gate_followup_prompt_path: str | None = None
+    gate_elapsed_seconds: float | None = None
+    gate_label: str | None = None
+    gate_reason: str | None = None
+    gate_timeout_seconds: float | None = None
+    gate_request_fingerprint: str | None = None
+    gate_workspace_policy: str | None = None
+    gate_bundle_path: str | None = None
+    gate_notification_id: str | None = None
+    gate_decision_path: str | None = None
     shell_kind: str | None = None
     proc_id: str | None = None
 

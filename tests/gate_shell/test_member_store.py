@@ -7,7 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from sase.core.agent_scan_wire import AgentArtifactRecordWire, AgentMetaWire
 from sase.gate_shell.member import create_gate_shell_member
+import sase.gate_shell.store as gate_store
 from sase.gate_shell.store import read_gate_shell_marker
 from sase.notification_gates.model_shell import GateShellSpec
 
@@ -79,3 +81,41 @@ def test_create_gate_shell_member_projects_gate_metadata() -> None:
     assert record.next_action == "continue"
     assert record.next_fork == "shell"
     assert record.next_output == "results,tail"
+
+
+def test_list_gate_shells_orders_tied_timestamps_deterministically(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def wire(path: str) -> AgentArtifactRecordWire:
+        return AgentArtifactRecordWire(
+            project_name="proj",
+            project_dir="/tmp/proj",
+            project_file="/tmp/proj/proj.sase",
+            workflow_dir_name="ace-run",
+            artifact_dir=path,
+            timestamp="20260812120000",
+            agent_meta=AgentMetaWire(
+                name=Path(path).name,
+                agent_family="lane",
+                agent_family_role="gate",
+                gate_id="gate-1",
+                gate_kind="custom",
+                gate_state="pending",
+            ),
+        )
+
+    monkeypatch.setattr(
+        gate_store,
+        "_project_records",
+        lambda project_name: [
+            wire("/tmp/proj/artifacts/ace-run/20260812120000-a"),
+            wire("/tmp/proj/artifacts/ace-run/20260812120000-b"),
+        ],
+    )
+
+    records = gate_store.list_gate_shells(project="proj")
+    assert [record.artifacts_dir for record in records] == [
+        "/tmp/proj/artifacts/ace-run/20260812120000-b",
+        "/tmp/proj/artifacts/ace-run/20260812120000-a",
+    ]
+    assert gate_store.find_gate_shell_by_gate_id("proj", "gate-1") == records[0]

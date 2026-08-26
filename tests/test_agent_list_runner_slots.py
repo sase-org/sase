@@ -9,7 +9,12 @@ from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
 from sase.core.agent_scan_wire import AgentMetaWire, PendingQuestionMarkerWire
 from sase.core.agent_scan_wire import WaitingMarkerWire
-from sase.core.runner_slots import live_runner_slot_waiters
+from sase.core.runner_slots import (
+    is_real_gate_member_record,
+    is_runner_slot_occupying_record,
+    live_runner_slot_waiters,
+    running_agent_slot_count,
+)
 from sase.integrations.agent_list_entries import (
     _attach_runner_slot_context,
     _build_agent_list_entry,
@@ -394,3 +399,35 @@ def test_answered_question_runner_wait_has_waiting_precedence(tmp_path) -> None:
 
     (entry,) = _attach_runner_slot_context([entry], 0)
     assert entry.wait.runner_slot_queue_position == 1
+
+
+def test_pending_gate_member_frees_runner_slot() -> None:
+    gate = record(
+        agent_meta=AgentMetaWire(
+            agent_family="fam",
+            agent_family_role="gate",
+            gate_id="gate-1",
+            gate_state="pending",
+            pid=1234,
+            run_started_at="2026-07-09T12:00:00Z",
+        )
+    )
+
+    assert is_real_gate_member_record(gate)
+    assert not is_runner_slot_occupying_record(gate, lambda _: True)
+    assert running_agent_slot_count([gate], lambda _: True) == 0
+
+
+def test_inherited_gate_id_without_gate_role_uses_ordinary_started_rule() -> None:
+    gate_followup = record(
+        agent_meta=AgentMetaWire(
+            agent_family="fam",
+            agent_family_role="code",
+            gate_id="gate-1",
+            gate_state="pending",
+            pid=1234,
+        )
+    )
+
+    assert not is_real_gate_member_record(gate_followup)
+    assert not is_runner_slot_occupying_record(gate_followup, lambda _: True)
