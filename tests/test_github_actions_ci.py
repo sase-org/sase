@@ -44,6 +44,10 @@ def _load_setup_sase_action() -> dict[str, Any]:
     return yaml.safe_load(action_path.read_text())
 
 
+def _workflow_triggers(workflow: dict[str, Any]) -> dict[str, Any]:
+    return workflow["on" if "on" in workflow else True]
+
+
 def _job_run_text(job: dict[str, Any]) -> str:
     return "\n".join(
         step.get("run", "") for step in job["steps"] if isinstance(step.get("run"), str)
@@ -478,6 +482,70 @@ def test_publish_depends_on_floor_exact_install_smoke() -> None:
     assert 'grep -Fq "sase chat list"' in floor_exact
 
 
+def test_publish_generation_runs_on_schedule_or_manual_dispatch_only() -> None:
+    workflow = _load_publish_workflow()
+    triggers = _workflow_triggers(workflow)
+    jobs = workflow["jobs"]
+
+    generator_if = (
+        "${{ github.event_name == 'schedule' || "
+        "(github.event_name == 'workflow_dispatch' && "
+        "inputs.publish_existing == false) }}"
+    )
+    generator_retry_prefix = (
+        "${{ (github.event_name == 'schedule' || "
+        "(github.event_name == 'workflow_dispatch' && "
+        "inputs.publish_existing == false)) && "
+    )
+    publish_if = (
+        "${{ needs.release.outputs.release_created == 'true' || "
+        "(github.event_name == 'workflow_dispatch' && "
+        "inputs.publish_existing == true) }}"
+    )
+
+    assert "push" not in triggers
+    assert triggers["schedule"] == [{"cron": "17 */3 * * *"}]
+    assert triggers["workflow_dispatch"]["inputs"]["publish_existing"] == {
+        "description": "Publish the existing release version recorded on master",
+        "type": "boolean",
+        "required": True,
+        "default": False,
+    }
+
+    release_steps = jobs["release"]["steps"]
+    release_please_steps = [
+        step
+        for step in release_steps
+        if step.get("uses") == "googleapis/release-please-action@v5"
+    ]
+    assert [step["id"] for step in release_please_steps] == [
+        "release1",
+        "release2",
+        "release3",
+    ]
+    assert release_please_steps[0]["if"] == generator_if
+    assert release_please_steps[1]["if"] == (
+        generator_retry_prefix + "steps.release1.outcome == 'failure' }}"
+    )
+    assert release_please_steps[2]["if"] == (
+        generator_retry_prefix + "steps.release2.outcome == 'failure' }}"
+    )
+    assert any(
+        step.get("name") == "Back off before release-please retry 2"
+        and step.get("if")
+        == generator_retry_prefix + "steps.release1.outcome == 'failure' }}"
+        for step in release_steps
+    )
+    assert any(
+        step.get("name") == "Back off before release-please retry 3"
+        and step.get("if")
+        == generator_retry_prefix + "steps.release2.outcome == 'failure' }}"
+        for step in release_steps
+    )
+    assert jobs["build"]["if"] == publish_if
+    assert jobs["publish"]["if"] == publish_if
+
+
 def test_publish_sync_release_metadata_applies_ratchet_before_lock_refresh() -> None:
     workflow = _load_publish_workflow()
     jobs = workflow["jobs"]
@@ -485,7 +553,11 @@ def test_publish_sync_release_metadata_applies_ratchet_before_lock_refresh() -> 
     assert "sync-lockfile" not in jobs
     job = jobs["sync-release-metadata"]
     assert job["needs"] == "release"
-    assert job["if"] == "${{ always() && github.event_name == 'push' }}"
+    assert job["if"] == (
+        "${{ always() && (github.event_name == 'schedule' || "
+        "(github.event_name == 'workflow_dispatch' && "
+        "inputs.publish_existing == false)) }}"
+    )
     assert workflow["concurrency"] == {
         "group": "${{ github.workflow }}-${{ github.ref }}",
         "cancel-in-progress": False,

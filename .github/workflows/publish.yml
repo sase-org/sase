@@ -1,10 +1,9 @@
 name: Publish
 
 on:
-  push:
-    branches: [master]
-    paths-ignore:
-      - "sdd/**"
+  schedule:
+    # Keep release-please from churning the release branch on every master push.
+    - cron: '17 */3 * * *'
   workflow_dispatch:
     inputs:
       publish_existing:
@@ -30,31 +29,31 @@ jobs:
       - uses: googleapis/release-please-action@v5
         id: release1
         name: Release Please
-        if: ${{ github.event_name == 'push' }}
+        if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing == false) }}
         continue-on-error: true
         with:
           token: ${{ secrets.SASE_RELEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
       - name: Back off before release-please retry 2
-        if: ${{ github.event_name == 'push' && steps.release1.outcome == 'failure' }}
+        if: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing == false)) && steps.release1.outcome == 'failure' }}
         run: sleep 60
       - uses: googleapis/release-please-action@v5
         id: release2
         name: Release Please (retry 2)
-        if: ${{ github.event_name == 'push' && steps.release1.outcome == 'failure' }}
+        if: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing == false)) && steps.release1.outcome == 'failure' }}
         continue-on-error: true
         with:
           token: ${{ secrets.SASE_RELEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
       - name: Back off before release-please retry 3
-        if: ${{ github.event_name == 'push' && steps.release2.outcome == 'failure' }}
+        if: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing == false)) && steps.release2.outcome == 'failure' }}
         run: sleep 60
       - uses: googleapis/release-please-action@v5
         id: release3
         name: Release Please (retry 3)
-        if: ${{ github.event_name == 'push' && steps.release2.outcome == 'failure' }}
+        if: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing == false)) && steps.release2.outcome == 'failure' }}
         with:
           token: ${{ secrets.SASE_RELEASE_TOKEN }}
           config-file: release-please-config.json
@@ -63,13 +62,13 @@ jobs:
   sync-release-metadata:
     needs: release
     # release-please updates the pending release PR's pyproject.toml on
-    # every push to master, but never touches uv.lock or the published
-    # sase-core-rs floor. Reconcile release metadata on that branch so
+    # scheduled/manual generation runs, but never touches uv.lock or the
+    # published sase-core-rs floor. Reconcile release metadata on that branch so
     # release-please regeneration remains idempotent instead of leaving
     # stray follow-up diffs. Run regardless of the release job's own retry
     # outcome so a transient release-please failure doesn't also skip this
-    # reconciliation.
-    if: ${{ always() && github.event_name == 'push' }}
+    # reconciliation; skip pure publish_existing dispatches.
+    if: ${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing == false)) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
