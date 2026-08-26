@@ -39,5 +39,11 @@ def test_conflict_repair_prompt_scopes_commit_restrictions(
     assert "automated host instruction, not a message from the user" in prompt
     assert "paused operation in sase-core" in prompt
     assert "fresh commit in sase-core" in prompt
+    assert "Before continuing the paused VCS operation" in prompt
+    assert "run the project's verification gate" in prompt
+    assert "same list, dict, tuple, or enum" in prompt
+    assert "only lint or tests will catch" in prompt
     assert "every repository you changed this turn" in prompt
     assert "/sase_final" in prompt
+    assert "single follow-up commit" in prompt
+    assert "message you declare there is the message that lands" in prompt
