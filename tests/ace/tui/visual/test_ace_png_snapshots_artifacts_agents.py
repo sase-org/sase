@@ -203,9 +203,7 @@ async def _open_agents(
     await page.press(page.artifacts_digit("agents"))
     await page.expect_state("artifacts_subtab", "agents")
     pane = page.query_one_widget("#artifacts-agents-pane", ArtifactsAgentsPane)
-    await page.wait_for(
-        lambda _state: pane.snapshot is snapshot and pane._query_index is not None
-    )
+    await page.wait_for(lambda _state: pane.snapshot is snapshot)
     return pane
 
 

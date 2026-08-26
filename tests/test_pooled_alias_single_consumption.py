@@ -37,8 +37,11 @@ def _force_pool_availability(monkeypatch: pytest.MonkeyPatch) -> None:
     Mirrors the setup already used by the runner-metadata pool tests in
     ``test_reasoning_effort_metadata_persistence.py``: a bare ``claude``
     provider config (so the default launch setting uses the shipped
-    ``@large`` pool) with availability filtering disabled so member
-    selection is deterministic regardless of installed provider CLIs.
+    ``@large`` pool) with availability filtering disabled at both seams.
+    Alias resolution reads the callable indirectly through ``config``, while
+    reservation redemption imports it directly in ``launch_selection``; both
+    checks are neutralised so a host without one pool member's CLI installed
+    cannot change which member these tests observe.
     """
     from sase.llm_provider import config as llm_config
 
@@ -48,6 +51,10 @@ def _force_pool_availability(monkeypatch: pytest.MonkeyPatch) -> None:
         "sase.llm_provider.registry.get_llm_provider_config", lambda: config
     )
     monkeypatch.setattr(llm_config, "_resolved_target_is_available", lambda _t: True)
+    monkeypatch.setattr(
+        "sase.llm_provider.launch_selection.resolved_target_is_available",
+        lambda _target, **_kwargs: True,
+    )
     llm_config._get_model_aliases_for_token.cache_clear()
 
 

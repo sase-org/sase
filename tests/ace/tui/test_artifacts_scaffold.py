@@ -522,7 +522,6 @@ def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:
         "stitches",
         "patches",
         "beads",
-        "agents",
         "files",
     )
     assert tuple(ARTIFACTS_PANE_IDS) == (

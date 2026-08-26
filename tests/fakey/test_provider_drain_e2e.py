@@ -20,6 +20,7 @@ this sandbox (codex) still count as "available" for routing purposes.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -81,7 +82,7 @@ def _configure_reroute_environment(
 ) -> None:
     """Make a hard fakey disable reroute (not strand) the second agent.
 
-    Three env knobs, all inherited by the real ``sase agent drain`` child
+    Four env knobs, all inherited by the real ``sase agent drain`` child
     process and its grandchild relaunch:
 
     - ``HOME`` points at an isolated directory so the relaunch's
@@ -93,11 +94,18 @@ def _configure_reroute_environment(
       install.
     - ``SASE_LLM_EXEC_PROVIDER=fakey`` overrides which CLI actually runs at
       invocation time; the reroute's *display* provider stays codex.
+    - ``PATH`` is prepended with this workspace's entry-point directory so
+      the proc supervisor's bare ``sase`` argv resolves to the checkout under
+      test, not to whichever executable happens to be installed globally.
     """
     fake_home = harness.root / "operator-home"
     fake_home.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("HOME", str(fake_home))
     _write_alias_overlay(fake_home / ".config" / "sase")
+    venv_bin = Path(sys.executable).parent
+    sase_binary = venv_bin / "sase"
+    assert sase_binary.is_file(), "just install must register the sase binary"
+    monkeypatch.setenv("PATH", f"{venv_bin}{os.pathsep}{os.environ.get('PATH', '')}")
     fakey_binary = Path(sys.executable).with_name("fakey")
     assert fakey_binary.is_file(), "just install must register the fakey binary"
     monkeypatch.setenv(provider_path_env_var("codex"), str(fakey_binary))
@@ -232,7 +240,7 @@ def test_provider_drain_e2e_flag_on_relaunches_stranded_agent(
 
     result = _read_drain_result(proc.proc_id)
     payload = result.payload
-    assert payload is not None
+    assert payload is not None, f"drain reported no payload: {result.error}"
     assert payload["provider"] == "fakey"
     moves = payload["moves"]
     assert len(moves) == 1
