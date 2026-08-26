@@ -114,9 +114,12 @@ The directory has three responsibilities:
   replaces the old `.sase/home/` location.
 - `pool/<sha12>-<basename>` holds immutable content-addressed copies of external file
   bytes. The `sha12` prefix is the first twelve hexadecimal characters of the file's
-  SHA-256 digest, and the basename is sanitized for a single path component. Published
-  prompt archives copy these pooled bytes to the agents sidecar's
-  `files/objects/sha256/<hex-prefix>/<sha256>` object store.
+  SHA-256 digest, and the basename is sanitized for a single path component. Captured
+  `@file:<path>` references use the fixed pool stem `file-ref` and mirror the source
+  suffix as `pool/<sha12>-file-ref<.ext>`, while staged `@path` and artifact references
+  keep `pool/<sha12>-<basename>`. Published prompt archives copy these pooled bytes to
+  the agents sidecar's digest-addressed `files/objects/sha256/<hex-prefix>/<sha256>`
+  object store, which remains extensionless.
 - `prompt-artifacts.jsonl` records one manifest row per staged reference;
   `prompt-artifacts.lock` serializes concurrent writers.
 

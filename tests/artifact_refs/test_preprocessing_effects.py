@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 from pathlib import Path
 from unittest.mock import patch
 
@@ -159,17 +160,55 @@ def test_file_ref_expands_to_captured_copy(
         staged_file_paths=staged_paths,
     )
 
-    captured_path = next(iter(staged_paths))
-    assert expanded == f"Read the {captured_path} file."
+    digest = hashlib.sha256(b"tasks").hexdigest()
+    display_path = Path(".sase") / "artifacts" / "pool" / f"{digest[:12]}-file-ref.md"
+    captured_path = tmp_path / display_path
+    assert expanded == f"Read the {display_path} file."
+    assert staged_paths == {str(captured_path)}
+    assert display_path.resolve(strict=False) == captured_path
+    assert str(tmp_path) not in expanded
     assert str(source) not in expanded
     assert f"@{captured_path}" not in expanded
-    assert Path(captured_path).read_text(encoding="utf-8") == "tasks"
+    assert captured_path.read_text(encoding="utf-8") == "tasks"
     rows = sase_core_rs.prompt_artifact_manifest_parse(
         (tmp_path / ".sase/artifacts/prompt-artifacts.jsonl").read_bytes()
     )
     assert len(rows) == 1
     assert rows[0]["origin"] == "ref"
     assert rows[0]["logical_path"] == "bob:gtd.md"
+
+
+def test_png_file_ref_expands_to_captured_copy_with_suffix(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "bob"
+    root.mkdir()
+    source = root / "shot.png"
+    source.write_bytes(b"png bytes")
+    context = replace(
+        make_context(tmp_path),
+        file_roots=(ArtifactRefFileRoot("bob", root),),
+        home_dir=tmp_path,
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "run"))
+    staged_paths: set[str] = set()
+
+    expanded = process_artifact_references(
+        f"Open @file:{source}.",
+        context=context,
+        staged_file_paths=staged_paths,
+    )
+
+    digest = hashlib.sha256(b"png bytes").hexdigest()
+    display_path = Path(".sase") / "artifacts" / "pool" / f"{digest[:12]}-file-ref.png"
+    captured_path = tmp_path / display_path
+    assert expanded == f"Open the {display_path} file."
+    assert expanded.endswith("-file-ref.png file.")
+    assert str(tmp_path) not in expanded
+    assert staged_paths == {str(captured_path)}
+    assert captured_path.read_bytes() == b"png bytes"
 
 
 def test_fragment_is_recorded_separately_from_fragment_free_ref(

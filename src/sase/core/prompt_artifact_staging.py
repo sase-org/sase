@@ -174,7 +174,13 @@ def capture_prompt_file_ref(
     workspace_root: Path | str | None = None,
     agent_artifacts_dir: Path | str | None = None,
 ) -> PromptArtifactRecord | None:
-    """Capture one resolved ``@file:<path>`` reference into the local pool."""
+    """Capture one resolved ``@file:<path>`` reference into the local pool.
+
+    The pool stem stays fixed at ``file-ref`` so local basenames remain only in
+    manifest metadata, but the source suffix is mirrored into the pool filename.
+    That makes local pool deduplication per digest and suffix; the durable object
+    path remains digest-addressed through ``object_relpath``.
+    """
 
     try:
         artifacts_dir = _resolve_agent_artifacts_dir(agent_artifacts_dir)
@@ -232,10 +238,12 @@ def capture_prompt_file_ref(
                 _append_manifest_record(manifest_path, lock_path, record)
                 return record
 
+            # Keep the user's basename out of the pool path, but preserve the
+            # suffix so downstream readers can infer the captured file type.
             pool_filename = str(
                 require_rust_binding("prompt_artifact_pool_filename")(
                     sha256,
-                    "file-ref",
+                    f"file-ref{source.suffix}",
                 )
             )
             pool_relpath = f"{PROMPT_ARTIFACT_POOL_DIR}/{pool_filename}"

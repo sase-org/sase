@@ -2504,7 +2504,9 @@ manifest. Home-directory `@path` references are copied to the readable working-c
 `.sase/artifacts/home/`, external bytes are pooled by digest under
 `.sase/artifacts/pool/`, and clean tracked files in known repositories are recorded as
 VCS-backed rows instead of copied. The committing agent's prompt archive then links
-those rows from the agents sidecar.
+those rows from the agents sidecar. A captured `@file:<path>` reference expands to a
+workspace-relative `.sase/artifacts/pool/...` path, matching the
+`.sase/artifacts/home/...` convention used by the plain `@path` pass.
 
 ### Home Mode
 

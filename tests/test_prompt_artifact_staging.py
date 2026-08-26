@@ -341,6 +341,8 @@ def test_file_ref_capture_writes_captured_copy_and_metadata(tmp_path: Path) -> N
     )
 
     assert record is not None
+    digest = hashlib.sha256(b"original").hexdigest()
+    assert record["pool_relpath"] == f"pool/{digest[:12]}-file-ref.md"
     pool_path = tmp_path / ".sase/artifacts" / str(record["pool_relpath"])
     assert pool_path.read_text(encoding="utf-8") == "original"
     assert record["logical_path"] == "bob:gtd.md"
@@ -349,6 +351,50 @@ def test_file_ref_capture_writes_captured_copy_and_metadata(tmp_path: Path) -> N
     assert record["origin"] == "ref"
     assert str(record["object_relpath"]).startswith("files/objects/sha256/")
     assert _rows(tmp_path)[0]["sha256"] == record["sha256"]
+
+
+def test_file_ref_capture_preserves_png_suffix(tmp_path: Path) -> None:
+    source = tmp_path / "screenshots" / "shot.png"
+    source.parent.mkdir()
+    source.write_bytes(b"png bytes")
+
+    record = capture_prompt_file_ref(
+        source=source,
+        logical_path="screenshots:shot.png",
+        root_name="screenshots",
+        authored_path=str(source),
+        raw_ref=f"@file:{source}",
+        expanded_ref=f"@file:{source}",
+        workspace_root=tmp_path,
+        agent_artifacts_dir=tmp_path / "run",
+    )
+
+    assert record is not None
+    assert str(record["pool_relpath"]).endswith("-file-ref.png")
+    pool_path = tmp_path / ".sase/artifacts" / str(record["pool_relpath"])
+    assert pool_path.read_bytes() == b"png bytes"
+
+
+def test_file_ref_capture_without_suffix_keeps_extensionless_pool_name(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "README"
+    source.write_text("read me", encoding="utf-8")
+
+    record = capture_prompt_file_ref(
+        source=source,
+        logical_path="bob:README",
+        root_name="bob",
+        authored_path=str(source),
+        raw_ref=f"@file:{source}",
+        expanded_ref=f"@file:{source}",
+        workspace_root=tmp_path,
+        agent_artifacts_dir=tmp_path / "run",
+    )
+
+    assert record is not None
+    digest = hashlib.sha256(b"read me").hexdigest()
+    assert record["pool_relpath"] == f"pool/{digest[:12]}-file-ref"
 
 
 def test_file_ref_capture_is_stable_after_source_mutation(tmp_path: Path) -> None:
@@ -409,6 +455,45 @@ def test_file_ref_capture_reuses_pool_for_duplicate_bytes(tmp_path: Path) -> Non
     assert second_record is not None
     assert first_record["sha256"] == second_record["sha256"]
     assert len(list((tmp_path / ".sase/artifacts/pool").iterdir())) == 1
+
+
+def test_file_ref_capture_keeps_distinct_pool_files_for_distinct_suffixes(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "same.md"
+    second = tmp_path / "same.png"
+    first.write_bytes(b"same")
+    second.write_bytes(b"same")
+
+    first_record = capture_prompt_file_ref(
+        source=first,
+        logical_path="bob:same.md",
+        root_name="bob",
+        authored_path=str(first),
+        raw_ref=f"@file:{first}",
+        expanded_ref=f"@file:{first}",
+        workspace_root=tmp_path,
+        agent_artifacts_dir=tmp_path / "run",
+    )
+    second_record = capture_prompt_file_ref(
+        source=second,
+        logical_path="bob:same.png",
+        root_name="bob",
+        authored_path=str(second),
+        raw_ref=f"@file:{second}",
+        expanded_ref=f"@file:{second}",
+        workspace_root=tmp_path,
+        agent_artifacts_dir=tmp_path / "run",
+    )
+
+    assert first_record is not None
+    assert second_record is not None
+    digest = hashlib.sha256(b"same").hexdigest()
+    assert first_record["sha256"] == second_record["sha256"] == digest
+    assert first_record["object_relpath"] == second_record["object_relpath"]
+    assert first_record["pool_relpath"] == f"pool/{digest[:12]}-file-ref.md"
+    assert second_record["pool_relpath"] == f"pool/{digest[:12]}-file-ref.png"
+    assert len(list((tmp_path / ".sase/artifacts/pool").iterdir())) == 2
 
 
 def test_file_ref_capture_returns_none_without_artifacts_dir(

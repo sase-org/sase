@@ -430,7 +430,7 @@ def _replacement_for_candidate(
     materialized_path = _materialized_artifact_path(
         reference, resolution, context=context
     )
-    captured_record, captured_path = _capture_file_path_ref(
+    captured_record, captured_path, display_path = _capture_file_path_ref(
         reference,
         resolution,
         raw_ref,
@@ -448,6 +448,7 @@ def _replacement_for_candidate(
         materialized_path=materialized_path,
         jinja_protection=jinja_protection,
         entry=None if outcome is None else outcome.entry,
+        display_path=display_path,
     )
     return replacement_text, resolved_path, captured_record
 
@@ -480,6 +481,7 @@ def _artifact_ref_replacement(
     materialized_path: Path | None,
     jinja_protection: ArtifactRendererJinjaProtection | None,
     entry: ArtifactEntry | None = None,
+    display_path: Path | None = None,
 ) -> tuple[str, Path | None]:
     return _artifact_ref_replacement_impl(
         reference,
@@ -489,6 +491,7 @@ def _artifact_ref_replacement(
         jinja_protection=jinja_protection,
         issue_url_resolver=_resolved_bug_url,
         entry=entry,
+        display_path=display_path,
     )
 
 
@@ -605,7 +608,7 @@ def _capture_file_path_ref(
     reference: ArtifactRef,
     resolution: ArtifactRefResolution,
     raw_ref: str,
-) -> tuple[dict[str, object] | None, Path | None]:
+) -> tuple[dict[str, object] | None, Path | None, Path | None]:
     if (
         reference.kind_type != "file"
         or reference.payload.type != "file_path"
@@ -613,10 +616,10 @@ def _capture_file_path_ref(
         or resolution.resolved_path is None
         or resolution.locator is None
     ):
-        return None, None
+        return None, None, None
     root_name, separator, _relative = resolution.locator.partition(":")
     if not separator:
-        return None, None
+        return None, None, None
     from sase.core.prompt_artifact_staging import capture_prompt_file_ref
 
     record = capture_prompt_file_ref(
@@ -628,13 +631,14 @@ def _capture_file_path_ref(
         expanded_ref=raw_ref,
     )
     if record is None:
-        return None, None
+        return None, None, None
     pool_relpath = record.get("pool_relpath")
     if not isinstance(pool_relpath, str) or not pool_relpath:
-        return dict(record), None
+        return dict(record), None, None
     captured_path = Path.cwd().expanduser().resolve(strict=False)
     captured_path = captured_path / ".sase" / "artifacts" / pool_relpath
-    return dict(record), captured_path
+    display_path = Path(".sase") / "artifacts" / pool_relpath
+    return dict(record), captured_path, display_path
 
 
 def _print_captured_file_ref_notice(

@@ -63,8 +63,13 @@ def artifact_ref_replacement(
     jinja_protection: ArtifactRendererJinjaProtection | None,
     issue_url_resolver: _IssueUrlResolver,
     entry: ArtifactEntry | None = None,
+    display_path: Path | None = None,
 ) -> tuple[str, Path | None]:
-    """Render the replacement text and return it with its resolved path."""
+    """Render the replacement text and return it with its resolved path.
+
+    ``display_path`` is a prompt-facing override for the path rendered into the
+    expansion; the returned resolved path is unaffected.
+    """
 
     resolved_path = artifact_resolved_path(
         reference,
@@ -79,6 +84,7 @@ def artifact_ref_replacement(
         resolved_path=resolved_path,
         issue_url_resolver=issue_url_resolver,
         entry=entry,
+        display_path=display_path,
     )
     replacement_text = f"{replacement_text}{_fragment_annotation(reference.fragment)}"
     if jinja_protection is not None:
@@ -94,6 +100,7 @@ def _replacement_text(
     resolved_path: Path | None,
     issue_url_resolver: _IssueUrlResolver,
     entry: ArtifactEntry | None,
+    display_path: Path | None,
 ) -> str:
     kind_type = reference.kind_type
     if kind_type == "document":
@@ -103,7 +110,7 @@ def _replacement_text(
             resolved_path=resolved_path,
         )
     if kind_type in {"file", "chat"}:
-        return _path_file_text(resolved_path)
+        return _path_file_text(resolved_path, display_path=display_path)
     if kind_type == "bead":
         return _bead_text(reference, resolution, entry)
     if kind_type == "agent":
@@ -175,11 +182,14 @@ def _with_one_hop_neighborhood(reference: ArtifactRef, text: str) -> str:
     return f"{text} (linked: {' · '.join(items)})"
 
 
-def _path_file_text(resolved_path: Path | None) -> str:
+def _path_file_text(
+    resolved_path: Path | None, *, display_path: Path | None = None
+) -> str:
     if resolved_path is None:
         raise RuntimeError("resolver returned no artifact path")
     return _render_expansion(
-        _FILE_EXPANSION_FORMAT, {"checkout_path": str(resolved_path)}
+        _FILE_EXPANSION_FORMAT,
+        {"checkout_path": str(display_path or resolved_path)},
     )
 
 
