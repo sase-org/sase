@@ -326,6 +326,35 @@ async def test_notification_beads_typed_gates_png_snapshot(
         )
 
 
+async def test_notification_beads_recent_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_modal_determinism(monkeypatch)
+
+    async with AcePage(
+        query='"visual"',
+        size=(120, 40),
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(_typed_palette_modal())
+        await page.expect_modal("NotificationModal")
+        await wait_for_visual_idle(page)
+
+        await page.press("S")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "Beads")
+        assert_page_svg_contains(page, "sase-bug")
+        assert_page_svg_contains(page, "sase-flake")
+        ace_png_visual.assert_page_png(
+            page,
+            "notification_beads_recent_120x40",
+            title="ACE notification Beads recent mode",
+        )
+
+
 def _task_triage_modal_data() -> CustomGateModalData:
     spec = build_task_triage_gate_spec(
         request_id="bead-task-triage-sase-cx-e9a1f-g1",
@@ -417,7 +446,7 @@ async def test_custom_gate_task_triage_png_snapshot(
         patches=patches(),
     ) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(CustomGateModal(_task_triage_modal_data()))
         await page.expect_modal("CustomGateModal")

@@ -211,7 +211,9 @@ ace:
   # tabs, a gate-declared panel name such as "beads", or a notification tag.
   # An empty color string restores the built-in default for that tab. An
   # integer priority reorders the tab (higher sorts earlier); omit it to
-  # inherit the default for the tab's kind.
+  # inherit the default for the tab's kind. A grouping strategy such as
+  # "bead_type" renders ordered row sections for that tab; "recent" keeps a
+  # flat newest-first list.
   notification_tabs:
     hitl:
       color: "#FF8700"
@@ -223,6 +225,7 @@ ace:
       color: "#AF87FF"
       icon: "◈"
       priority: 0
+      grouping: bead_type
     general:
       color: "#FFD700"
       icon: "✉"

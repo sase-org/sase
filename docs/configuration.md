@@ -895,6 +895,7 @@ name such as `beads`, or a notification tag.
 | `color`    | str  | `""`    | `#RRGGBB` foreground for that tab's count chip and its tooltip label. Set `""` to restore the built-in default for the tab.          |
 | `icon`     | str  | `""`    | One emoji or display glyph for that tab's chip and tab-strip icon. Set `""` to restore the built-in default for the tab.             |
 | `priority` | int  | inherit | Sort weight for that tab in the panel strip and the indicator; higher sorts earlier. Omit to inherit the default for the tab's kind. |
+| `grouping` | str  | `""`    | Row grouping strategy for the notification modal. `""` uses the built-in default, and `recent` opts out to a flat newest-first list. |
 
 Colors resolve by precedence, highest first: this setting, then a color the sending gate
 declared through `presentation.color`, then the built-in default for a tab ACE ships
@@ -929,6 +930,13 @@ panel `50`, `Errors` `40`, `General` `30`, `Done` (a `done` tag) `20`, any other
 drops `Beads` below every ordinary tab and above the two put-away tabs. A tab whose
 effective priority differs from its default renders a compact `▴` (raised) or `▾`
 (lowered) mark in the panel strip and the indicator tooltip.
+
+Grouping controls section headers in the notification modal, not tab membership. The
+shipped strategy is `bead_type` for the `beads` tab, grouping task-bead notifications by
+task type with Due, Cleanup, and Other fallback buckets. Set
+`ace.notification_tabs.beads.grouping: recent` to open Beads flat by default. Press `S`
+in the notification modal to toggle the active tab for the current ACE process without
+rewriting config.
 
 #### `ace.notification_indicator_max_counts`
 

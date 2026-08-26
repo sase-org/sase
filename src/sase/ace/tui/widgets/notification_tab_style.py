@@ -1,4 +1,4 @@
-"""Stable per-tab colors, icons, labels, and sort priorities for the indicator.
+"""Stable per-tab colors, icons, labels, grouping, and priorities.
 
 Every notification-panel tab renders with a color, so a brand-new tag tab is
 never colorless. The precedence, highest first, is the user's
@@ -12,11 +12,13 @@ a hash. An arbitrary color is still a usable identifier, but an arbitrary glyph
 would teach the reader something false, so icons are only ever meaningful or
 honestly generic.
 
-Priority is a third sibling of color and icon. Every tab has a default from a
-ladder that restates the core's ``ordered_tab_keys`` as numbers, and an
-effective value that is the configured override when one is set. Tabs sort by
-effective priority descending; a tab whose effective value differs from its
-default renders a one-cell up or down mark.
+Grouping is parsed beside the visual fields so notification-panel render paths
+pay one token-cached config read. Priority is another sibling of color and icon:
+every tab has a default from a ladder that restates the core's
+``ordered_tab_keys`` as numbers, and an effective value that is the configured
+override when one is set. Tabs sort by effective priority descending; a tab
+whose effective value differs from its default renders a one-cell up or down
+mark.
 """
 
 from __future__ import annotations
@@ -48,6 +50,7 @@ GENERAL_TAB_KEY = "general"
 DEFAULT_NOTIFICATION_INDICATOR_MAX_COUNTS = 4
 
 _COLOR_PATTERN = re.compile(r"#[0-9A-Fa-f]{6}")
+_GROUPING_PATTERN = re.compile(r"[a-z][a-z0-9_]*")
 
 # Built-in colors for the tabs ACE ships knowing about. These mirror the
 # ``ace.notification_tabs`` defaults in ``default_config.yml``; the config read
@@ -131,9 +134,10 @@ class _ConfiguredTabStyle(NamedTuple):
     color: str
     icon: str
     priority: int | None = None
+    grouping: str = ""
 
 
-_EMPTY_TAB_STYLE = _ConfiguredTabStyle(color="", icon="", priority=None)
+_EMPTY_TAB_STYLE = _ConfiguredTabStyle(color="", icon="", priority=None, grouping="")
 
 
 class _IconRung(Enum):
@@ -160,7 +164,12 @@ def _notification_tab_config_key(tab: NotificationTagTab) -> str:
     Config keys use the user-facing names, so the internal ``__snoozed__`` and
     ``__muted__`` keys are not something anyone has to type.
     """
-    key = _notification_tab_key(tab)
+    return notification_tab_config_key_for_tag(tab.tag)
+
+
+def notification_tab_config_key_for_tag(tag: str | None) -> str:
+    """Return the ``ace.notification_tabs`` key users write for *tag*."""
+    key = GENERAL_TAB_KEY if tag is None else tag
     if key == SNOOZED_TAB_KEY:
         return "snoozed"
     if key == MUTED_TAB_KEY:
@@ -200,6 +209,11 @@ def resolve_notification_tab_priority(tab: NotificationTagTab) -> int:
     if configured is not None:
         return configured
     return default_notification_tab_priority(tab)
+
+
+def resolve_notification_tab_grouping(config_key: str) -> str:
+    """Return the configured grouping strategy id for one tab key, if any."""
+    return _configured_tab_style(config_key).grouping
 
 
 def notification_tab_priority_mark(
@@ -361,6 +375,14 @@ def _sanitize_priority(raw: object) -> int | None:
     return raw
 
 
+def _sanitize_grouping(raw: object) -> str:
+    """Return a safe strategy id, or an empty string for stored junk."""
+    if not isinstance(raw, str):
+        return ""
+    grouping = raw.strip()
+    return grouping if _GROUPING_PATTERN.fullmatch(grouping) else ""
+
+
 def _ace_config() -> dict[str, Any]:
     try:
         config = load_merged_config()
@@ -376,10 +398,10 @@ def _ace_config() -> dict[str, Any]:
 def _configured_tab_styles_for_token(
     _token: tuple[Any, ...],
 ) -> dict[str, _ConfiguredTabStyle]:
-    """Resolve every configured tab color, icon, and priority per token.
+    """Resolve every configured tab color, icon, priority, and grouping per token.
 
-    Color, icon, and priority are parsed together so a render pays one config
-    read rather than one per styled attribute.
+    These fields are parsed together so a render pays one config read rather
+    than one per styled attribute.
     """
     tabs = _ace_config().get("notification_tabs", {})
     if not isinstance(tabs, dict):
@@ -392,6 +414,7 @@ def _configured_tab_styles_for_token(
             color=_sanitize_color(raw.get("color", "")),
             icon=_sanitize_icon(raw.get("icon", "")),
             priority=_sanitize_priority(raw.get("priority")),
+            grouping=_sanitize_grouping(raw.get("grouping", "")),
         )
         if style != _EMPTY_TAB_STYLE:
             styles[name] = style
@@ -422,8 +445,10 @@ __all__ = [
     "default_notification_tab_priority",
     "notification_indicator_max_counts",
     "notification_tab_label",
+    "notification_tab_config_key_for_tag",
     "notification_tab_priority_mark",
     "resolve_notification_tab_color",
+    "resolve_notification_tab_grouping",
     "resolve_notification_tab_icons",
     "resolve_notification_tab_priority",
 ]

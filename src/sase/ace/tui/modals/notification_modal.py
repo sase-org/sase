@@ -36,6 +36,11 @@ from .notification_modal_gate import NotificationGateMixin, NotificationSummaryM
 from .notification_modal_options import NotificationOptionMixin
 from .notification_modal_question import NotificationQuestionMixin
 from .notification_modal_report import NotificationReportMixin
+from .notification_section_modes import NotificationSectionModes
+from .notification_sections import (
+    NotificationSectionStrategy,
+    resolve_tab_section_strategy,
+)
 from .notification_modal_sent_at import NotificationSentAtMixin
 from .notification_modal_snooze_status import NotificationSnoozeStatusMixin
 from .notification_modal_tags import (
@@ -43,6 +48,7 @@ from .notification_modal_tags import (
     NotificationTagTab,
     classify_notification_modal_tabs,
 )
+from ..widgets.notification_tab_style import notification_tab_config_key_for_tag
 
 
 class NotificationModal(
@@ -79,6 +85,7 @@ class NotificationModal(
         ("left_square_bracket", "prev_notification_tag_tab", "Prev Tag"),
         ("right_square_bracket", "next_notification_tag_tab", "Next Tag"),
         ("R", "read_tab", "Read Tab"),
+        ("S", "toggle_sections", "Sections"),
         ("M", "toggle_mute", "Toggle Mute"),
         ("m", "toggle_mark", "Mark"),
         ("s", "snooze", "Snooze"),
@@ -91,7 +98,11 @@ class NotificationModal(
     ]
 
     def __init__(
-        self, notifications: list[Notification], *, initial_index: int = 0
+        self,
+        notifications: list[Notification],
+        *,
+        initial_index: int = 0,
+        section_modes: NotificationSectionModes | None = None,
     ) -> None:
         """Initialize the notification modal.
 
@@ -102,6 +113,7 @@ class NotificationModal(
         super().__init__()
         self._notifications = list(notifications)
         self._initial_index = initial_index
+        self._section_modes = section_modes or NotificationSectionModes()
         self._current_file_index: int = 0
         self._notification_tab_keys: dict[str, str | None] = {}
         tabs = self._tag_tabs()
@@ -398,6 +410,48 @@ class NotificationModal(
         """Return the first selectable notification for the active tab."""
         visible = self._visual_notification_index_order()
         return visible[0] if visible else None
+
+    def _active_tab_config_key(self) -> str:
+        """Return the config key for the active notification tab."""
+        return notification_tab_config_key_for_tag(self._active_notification_tag)
+
+    def _active_section_strategy(self) -> NotificationSectionStrategy | None:
+        """Return the active tab's grouped-render strategy, if enabled."""
+        return self._section_modes.strategy_for(self._active_tab_config_key())
+
+    def action_toggle_sections(self) -> None:
+        """Toggle grouped sections for the active notification tab."""
+        config_key = self._active_tab_config_key()
+        strategy = resolve_tab_section_strategy(config_key)
+        tab_label = self._active_tab_label()
+        if strategy is None:
+            self.notify(f"No sections for {tab_label}")
+            return
+
+        highlighted_id = None
+        highlighted = self._get_highlighted_notification()
+        if highlighted is not None:
+            highlighted_id = highlighted.id
+        mode = self._section_modes.toggle(config_key)
+        highlight = self._visible_notification_index_for_id(highlighted_id)
+        if highlight is None:
+            highlight = self._first_visible_notification_index()
+        self._rebuild_list(highlight_index=highlight)
+        if mode == "grouped":
+            self.notify(f"{tab_label} · grouped by {strategy.display_name}")
+        else:
+            self.notify(f"{tab_label} · newest first")
+
+    def _active_tab_label(self) -> str:
+        """Return the visible label for the active tab."""
+        active_tag = self._active_notification_tag
+        active_tab = next(
+            (tab for tab in self._tag_tabs() if tab.tag == active_tag),
+            None,
+        )
+        if active_tab is not None:
+            return active_tab.label
+        return "General" if active_tag is None else str(active_tag)
 
     def _switch_notification_tag_tab(self, tag: str | None) -> None:
         """Switch the active tag tab and rebuild the in-memory list."""

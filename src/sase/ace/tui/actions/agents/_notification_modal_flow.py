@@ -213,5 +213,10 @@ class AgentNotificationModalMixin:
                 )
 
         self.push_screen(  # type: ignore[attr-defined]
-            NotificationModal(unread, initial_index=initial_index), callback=_on_dismiss
+            NotificationModal(
+                unread,
+                initial_index=initial_index,
+                section_modes=getattr(self, "_notification_section_modes", None),
+            ),
+            callback=_on_dismiss,
         )  # type: ignore[attr-defined]

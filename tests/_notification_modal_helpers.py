@@ -29,8 +29,10 @@ def _make_notification(
 
 
 def _option_ids(modal: NotificationModal) -> list[str | None]:
-    """Return the option ids the modal renders for its active tab."""
-    return [option.id for option in modal._create_sectioned_options()]
+    """Return selectable notification option ids for the active tab."""
+    return [
+        option.id for option in modal._create_sectioned_options() if not option.disabled
+    ]
 
 
 class _TestApp(App[None]):

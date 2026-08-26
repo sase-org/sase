@@ -54,9 +54,12 @@ def init_runtime_state(
     # their state remain scoped to one modal lifetime.
     from ..modals.config_center_history import AdminCenterTabHistory
     from ..modals.config_center_session import AdminCenterSessionState
+    from ..modals.notification_section_modes import NotificationSectionModes
 
     self._admin_center_session_state = AdminCenterSessionState()
     self._admin_center_history = AdminCenterTabHistory()
+    # Notification list section mode choices are per ACE process by design.
+    self._notification_section_modes = NotificationSectionModes()
     self._last_admin_center_tab = None
     self._init_proc_observer()
     self.theme = ACE_THEME_NAME

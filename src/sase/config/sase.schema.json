@@ -1222,6 +1222,16 @@
                 "description": "Sort weight for this tab in the notification panel's tab strip and the top-bar indicator; higher sorts earlier. Omit to inherit the default for the tab's kind (Gates 60, panel 50, Errors 40, General 30, Done 20, tag 10, Snoozed -10, Muted -20). A tab whose priority differs from that default renders a compact up/down mark.",
                 "minimum": -1000,
                 "maximum": 1000
+              },
+              "grouping": {
+                "type": "string",
+                "enum": [
+                  "",
+                  "recent",
+                  "bead_type"
+                ],
+                "description": "Row-grouping strategy for this tab's notification list: a strategy id such as \"bead_type\" renders ordered sections with headers, \"recent\" renders one flat newest-first list, and \"\" uses the built-in default for the tab. Toggle at runtime with S in the notification panel.",
+                "default": ""
               }
             }
           },

@@ -54,13 +54,13 @@ def notification_icon(action: str | None, icon: str | None) -> str:
 HEADER_ID_PREFIX = "hdr:"
 DEFAULT_HINT_TEXT = (
     "Enter: select  d: debug  m: mark  x: dismiss  M: mute  s: snooze  e: edit  V: view  Y: copy path  "
-    "C-n/C-p: next/prev file  C-d/C-u: scroll  g/G: top/bot  R: read tab  []: tags  q: close"
+    "C-n/C-p: next/prev file  C-d/C-u: scroll  g/G: top/bot  R: read tab  S: sections  []: tags  q: close"
 )
 QUESTION_HINT_TEXT = (
     "Enter: answer  d: debug  C-d/C-u: scroll  g/G: top/bot  m: mark  x: dismiss  M: mute  "
-    "s: snooze  []: tags  q: close"
+    "s: snooze  S: sections  []: tags  q: close"
 )
 GATE_HINT_TEXT = (
     "Enter: review  d: debug  C-n/C-p: file  C-d/C-u: scroll  g/G: top/bot  m: mark  x: dismiss  "
-    "M: mute  s: snooze  []: tags  q: close"
+    "M: mute  s: snooze  S: sections  []: tags  q: close"
 )

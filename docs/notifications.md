@@ -38,6 +38,7 @@ relative age (`sent today 13:18:42 · 4m ago`), tiered as `today HH:MM:SS` /
 | `g` / `G`           | Jump the detail pane to the top / bottom of its contents                    |
 | `[` / `]`           | Switch notification tabs                                                    |
 | `R`                 | Mark every unread notification in the **active tab** read (confirms first)  |
+| `S`                 | Toggle the active tab between sectioned and newest-first rows               |
 | `Esc` / `q`         | Close modal                                                                 |
 
 Plan, launch, question, task-triage, flag-triage, snooze, and stale-cleanup
@@ -109,6 +110,18 @@ actually changed.
 
 A row with multiple tags therefore occupies exactly one tab, not one per tag; dismissing
 it removes the row from at most one tab's count.
+
+#### Sections
+
+Tabs can render their rows under ordered section headers. The shipped strategy is
+enabled for `Beads`, where task-bead rows are grouped by task type in catalog order:
+Bug, CI failure, Feature, Flaky test, and Memory, followed by Due, Cleanup, and Other
+for rows without a task-type chip. Rows inside each section keep the same activity
+ordering described below.
+
+Press `S` to toggle the active tab between grouped sections and `recent`, a flat
+newest-first render. The choice is per tab and lasts only for the current ACE process.
+Tabs without a grouping strategy stay flat and report that they have no sections.
 
 Within the active tab, rows are ordered newest-first by their **activity time** —
 `resurfaced_at` when a snooze has expired, otherwise `timestamp` (see

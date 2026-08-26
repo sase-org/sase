@@ -26,11 +26,13 @@ from sase.ace.tui.widgets.notification_tab_style import (
     _default_notification_tab_color,
     default_notification_tab_priority,
     notification_indicator_max_counts,
+    notification_tab_config_key_for_tag,
     _notification_tab_config_key,
     _notification_tab_key,
     notification_tab_label,
     notification_tab_priority_mark,
     resolve_notification_tab_color,
+    resolve_notification_tab_grouping,
     resolve_notification_tab_icons,
     resolve_notification_tab_priority,
 )
@@ -131,7 +133,12 @@ def test_an_empty_configured_color_falls_through_to_the_default(
 
 @pytest.mark.parametrize("stored", ["red", "#FFF", "#GGGGGG", "  ", 7, None])
 def test_a_junk_stored_color_degrades_instead_of_raising(stored: object) -> None:
-    tab = NotificationTagTab(tag="beads", label="Beads", count=1, color=stored)  # type: ignore[arg-type]
+    tab = NotificationTagTab(
+        tag="beads",
+        label="Beads",
+        count=1,
+        color=stored,  # type: ignore[arg-type]
+    )
 
     assert resolve_notification_tab_color(tab) == _BUILTIN_TAB_COLORS["beads"]
 
@@ -152,6 +159,22 @@ def test_config_keys_use_the_user_facing_tab_names(
 ) -> None:
     """Nobody should have to type ``__snoozed__`` in their config."""
     assert _notification_tab_config_key(_tab(tag)) == config_key
+
+
+@pytest.mark.parametrize(
+    ("tag", "config_key"),
+    [
+        (None, "general"),
+        (SNOOZED_TAB_KEY, "snoozed"),
+        (MUTED_TAB_KEY, "muted"),
+        ("beads", "beads"),
+    ],
+)
+def test_config_keys_resolve_from_bare_tags(
+    tag: str | None,
+    config_key: str,
+) -> None:
+    assert notification_tab_config_key_for_tag(tag) == config_key
 
 
 def test_a_configured_snoozed_color_reaches_the_synthetic_tab(
@@ -355,7 +378,12 @@ def test_a_junk_configured_icon_falls_through_to_the_default(
 
 @pytest.mark.parametrize("stored", ["ab", "  ", 7, ""])
 def test_a_junk_stored_icon_degrades_instead_of_raising(stored: object) -> None:
-    tab = NotificationTagTab(tag="beads", label="Beads", count=1, icon=stored)  # type: ignore[arg-type]
+    tab = NotificationTagTab(
+        tag="beads",
+        label="Beads",
+        count=1,
+        icon=stored,  # type: ignore[arg-type]
+    )
 
     assert _resolve_notification_tab_icon(tab) == _BUILTIN_TAB_ICONS["beads"]
 
@@ -482,6 +510,29 @@ def test_a_junk_configured_priority_falls_back_to_the_default(
 
     assert resolve_notification_tab_priority(tab) == 50
     assert notification_tab_priority_mark(tab) is None
+
+
+@pytest.mark.parametrize(
+    ("configured", "expected"),
+    [
+        ("bead_type", "bead_type"),
+        ("", ""),
+        (" recent ", "recent"),
+        ("nope", "nope"),
+        ("9bad", ""),
+        ("bad-hyphen", ""),
+        (7, ""),
+        (None, ""),
+    ],
+)
+def test_configured_grouping_is_sanitized(
+    monkeypatch: pytest.MonkeyPatch,
+    configured: object,
+    expected: str,
+) -> None:
+    _use_config(monkeypatch, {"notification_tabs": {"beads": {"grouping": configured}}})
+
+    assert resolve_notification_tab_grouping("beads") == expected
 
 
 def test_the_shipped_beads_priority_is_a_deviation_from_the_panel_default() -> None:

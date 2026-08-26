@@ -27,10 +27,16 @@ from .notification_modal_constants import (
     ACTION_BADGES,
     DEFAULT_HINT_TEXT,
     GATE_HINT_TEXT,
+    HEADER_ID_PREFIX,
     QUESTION_HINT_TEXT,
     notification_icon,
 )
 
+from .notification_section_render import (
+    render_notification_section_header,
+    render_notification_section_spacer,
+)
+from .notification_sections import group_notifications
 from .notification_modal_tags import (
     notification_display_tags,
     notification_matches_tag_tab,
@@ -142,12 +148,50 @@ class NotificationOptionMixin(KeyedPaneEntryJumpMixin[int]):
     def _create_notification_options(
         self: Any, *, jump_hints: dict[int, str] | None = None
     ) -> list[Option]:
-        """Create a flat, activity-sorted option list for the active tab.
+        """Create an option list for the active tab.
 
         Rows are ordered by ``resurfaced_at ?? timestamp`` so a resurfaced
         snooze is recent activity rather than staying buried at its original
         creation time.
         """
+        rows = self._active_tab_rows()
+        strategy = self._active_section_strategy()
+        if strategy is None:
+            return self._create_flat_notification_options(
+                rows,
+                jump_hints=jump_hints,
+            )
+
+        options: list[Option] = []
+        config_key = self._active_tab_config_key()
+        for group_index, (section, section_rows) in enumerate(
+            group_notifications(rows, strategy)
+        ):
+            if group_index > 0:
+                options.append(
+                    Option(
+                        render_notification_section_spacer(),
+                        id=f"{HEADER_ID_PREFIX}gap:{config_key}:{section.key}",
+                        disabled=True,
+                    )
+                )
+            options.append(
+                Option(
+                    render_notification_section_header(section, len(section_rows)),
+                    id=f"{HEADER_ID_PREFIX}sec:{config_key}:{section.key}",
+                    disabled=True,
+                )
+            )
+            options.extend(
+                self._create_flat_notification_options(
+                    section_rows,
+                    jump_hints=jump_hints,
+                )
+            )
+        return options
+
+    def _active_tab_rows(self: Any) -> list[tuple[int, Notification]]:
+        """Return activity-sorted notification rows for the active tab."""
         active_tag: str | None = getattr(self, "_active_notification_tag", None)
         tab_keys: dict[str, str | None] = getattr(self, "_notification_tab_keys", {})
         rows: list[tuple[int, Notification]] = []
@@ -159,7 +203,15 @@ class NotificationOptionMixin(KeyedPaneEntryJumpMixin[int]):
                 continue
             rows.append((i, n))
         rows.sort(key=lambda pair: activity_sort_key(pair[1]), reverse=True)
+        return rows
 
+    def _create_flat_notification_options(
+        self: Any,
+        rows: list[tuple[int, Notification]],
+        *,
+        jump_hints: dict[int, str] | None = None,
+    ) -> list[Option]:
+        """Create selectable notification row options from pre-sorted rows."""
         options: list[Option] = []
         marked_ids: set[str] = getattr(self, "_marked_notification_ids", set())
         for idx, n in rows:

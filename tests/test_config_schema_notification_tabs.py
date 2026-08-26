@@ -8,6 +8,10 @@ import pytest
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import ValidationError
 
+from sase.ace.tui.modals.notification_sections import (
+    NOTIFICATION_SECTION_STRATEGIES,
+    RECENT_STRATEGY_ID,
+)
 from sase.config.inventory import load_config_schema
 
 
@@ -19,7 +23,7 @@ def test_config_schema_accepts_ace_notification_tab_settings() -> None:
                     "hitl": {"color": "#FF8700", "icon": "⚑"},
                     "snoozed": {"color": "#6c6c6c"},
                     "my-tag.1": {"color": "", "icon": ""},
-                    "beads": {},
+                    "beads": {"grouping": "bead_type"},
                     "deployments": {"icon": "🚀"},
                 },
                 "notification_indicator_max_counts": 6,
@@ -78,6 +82,34 @@ def test_config_schema_accepts_notification_tab_priorities() -> None:
                 }
             }
         }
+    )
+
+
+@pytest.mark.parametrize("grouping", ["bead_type", "recent", ""])
+def test_config_schema_accepts_notification_tab_grouping(grouping: str) -> None:
+    Draft7Validator(load_config_schema()).validate(
+        {"ace": {"notification_tabs": {"beads": {"grouping": grouping}}}}
+    )
+
+
+@pytest.mark.parametrize("grouping", ["nope", 7])
+def test_config_schema_rejects_invalid_notification_tab_grouping(
+    grouping: object,
+) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(load_config_schema()).validate(
+            {"ace": {"notification_tabs": {"beads": {"grouping": grouping}}}}
+        )
+
+
+def test_notification_tab_grouping_schema_enum_tracks_registry() -> None:
+    schema = load_config_schema()
+    grouping = schema["properties"]["ace"]["properties"]["notification_tabs"][
+        "additionalProperties"
+    ]["properties"]["grouping"]
+
+    assert set(grouping["enum"]) == (
+        {"", RECENT_STRATEGY_ID} | set(NOTIFICATION_SECTION_STRATEGIES)
     )
 
 
