@@ -13,6 +13,12 @@ from ...widgets.artifacts.entry_navigation import ArtifactEntryTarget
 JUMP_HINT_CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 JUMP_HINT_CAPACITY = len(JUMP_HINT_CHARS) ** 2
 
+#: Reserved command keys the pager binds to a verb (``q`` close, ``j``/``k``
+#: scroll, ``g``/``G`` top/bottom, ``y`` copy, ``E`` edit, ``r`` refresh,
+#: ``n``/``N`` search next/prev). Named once so the viewer's bindings and the
+#: prefix-free allocator below can never drift apart.
+PAGER_RESERVED_JUMP_COMMAND_KEYS: frozenset[str] = frozenset("qjkgGyErnN")
+
 
 class JumpHintMatchOutcome(StrEnum):
     """Possible results from one generated-hint keypress."""
@@ -82,20 +88,75 @@ def normalize_jump_key(key: str, character: str | None = None) -> str:
 
 def build_jump_hint_maps[T: Hashable](
     targets: list[T],
+    *,
+    excluded: frozenset[str] = frozenset(),
+    prefix_free: bool = False,
 ) -> tuple[dict[str, T], dict[T, str]]:
-    """Build fixed-width hint maps for visible entries.
+    """Build hint maps for visible entries.
 
-    Sessions with at most 62 targets use compact one-character base-62 hints.
-    Larger sessions use two-character hints and truncate after ``ZZ``.
+    Fixed-width mode (the default, unchanged for every existing caller):
+    sessions with at most 62 targets use compact one-character base-62
+    hints; larger sessions use two-character hints and truncate after
+    ``ZZ``.
+
+    ``prefix_free=True`` switches to variable-width allocation over
+    ``JUMP_HINT_CHARS`` minus ``excluded``: single-character labels are
+    assigned first, and only the minimum number of trailing alphabet
+    characters needed to cover every target are reserved as two-character
+    prefixes. A reserved prefix character is never itself a complete label,
+    so matching stays prefix-free and untimed — no reserved prefix can ever
+    collide with a single-key label the way fixed-width labels collide once
+    a session crosses 62 targets.
     """
+    alphabet = "".join(char for char in JUMP_HINT_CHARS if char not in excluded)
+    if prefix_free:
+        hints = _prefix_free_hint_sequence(len(targets), alphabet=alphabet)
+    else:
+        width = 1 if len(targets) <= len(alphabet) else 2
+        capacity = len(alphabet) if width == 1 else len(alphabet) ** 2
+        hints = [
+            _jump_hint_for_index(index, alphabet=alphabet, width=width)
+            for index in range(min(len(targets), capacity))
+        ]
     hint_to_target: dict[str, T] = {}
     target_to_hint: dict[T, str] = {}
-    width = 1 if len(targets) <= len(JUMP_HINT_CHARS) else 2
-    for index, target in enumerate(targets[:JUMP_HINT_CAPACITY]):
-        hint = _jump_hint_for_index(index, width=width)
+    for hint, target in zip(hints, targets, strict=False):
         hint_to_target[hint] = target
         target_to_hint[target] = hint
     return hint_to_target, target_to_hint
+
+
+def _minimum_prefix_reservation(target_count: int, alphabet_size: int) -> int:
+    """Return the fewest trailing alphabet characters reserved as prefixes.
+
+    ``k`` reserved characters combined with the full alphabet as a second
+    character yield ``alphabet_size + k * (alphabet_size - 1)`` total labels
+    -- ``alphabet_size - k`` single-character labels plus ``k * alphabet_size``
+    two-character ones. Returns the smallest ``k`` whose capacity covers
+    ``target_count``.
+    """
+    if target_count <= alphabet_size or alphabet_size < 2:
+        return 0
+    reserved = 1
+    while alphabet_size + reserved * (alphabet_size - 1) < target_count:
+        reserved += 1
+    return reserved
+
+
+def _prefix_free_hint_sequence(count: int, *, alphabet: str) -> list[str]:
+    """Return *count* prefix-free labels, single-key first, in order."""
+    size = len(alphabet)
+    reserved = _minimum_prefix_reservation(count, size)
+    single_char_labels = alphabet[: size - reserved]
+    hints = list(single_char_labels[:count])
+    if len(hints) >= count:
+        return hints
+    for prefix_char in alphabet[size - reserved :]:
+        for char in alphabet:
+            hints.append(f"{prefix_char}{char}")
+            if len(hints) == count:
+                return hints
+    return hints
 
 
 def match_jump_hint[T](
@@ -115,9 +176,11 @@ def match_jump_hint[T](
     return _JumpHintMatch(JumpHintMatchOutcome.INVALID)
 
 
-def _jump_hint_for_index(index: int, *, width: int) -> str:
-    """Encode ``index`` in the canonical base-62 alphabet at fixed width."""
+def _jump_hint_for_index(
+    index: int, *, alphabet: str = JUMP_HINT_CHARS, width: int
+) -> str:
+    """Encode ``index`` in the given base-N alphabet at fixed width."""
     if width == 1:
-        return JUMP_HINT_CHARS[index]
-    quotient, remainder = divmod(index, len(JUMP_HINT_CHARS))
-    return f"{JUMP_HINT_CHARS[quotient]}{JUMP_HINT_CHARS[remainder]}"
+        return alphabet[index]
+    quotient, remainder = divmod(index, len(alphabet))
+    return f"{alphabet[quotient]}{alphabet[remainder]}"

@@ -1,8 +1,11 @@
 """Tests for jump-to-entry hint assignment and input matching."""
 
+import pytest
+
 from sase.ace.tui.actions.navigation.jump_hints import (
     JUMP_HINT_CAPACITY,
     JUMP_HINT_CHARS,
+    PAGER_RESERVED_JUMP_COMMAND_KEYS,
     JumpHintMatchOutcome,
     build_jump_hint_maps,
     match_jump_hint,
@@ -13,6 +16,10 @@ from tests.ace.tui._jump_to_entry_hints_helpers import (
     _InlineJumpEventApp,
     _KeyEvent,
     _make_patch,
+)
+
+_PAGER_ALPHABET = "".join(
+    char for char in JUMP_HINT_CHARS if char not in PAGER_RESERVED_JUMP_COMMAND_KEYS
 )
 
 
@@ -162,3 +169,97 @@ def test_inline_jump_on_key_uses_uppercase_event_character() -> None:
     assert app.handled_keys == ["A"]
     assert event.prevented is True
     assert event.stopped is True
+
+
+def test_pager_reserved_jump_command_keys_matches_house_vocabulary() -> None:
+    assert PAGER_RESERVED_JUMP_COMMAND_KEYS == frozenset("qjkgGyErnN")
+    assert PAGER_RESERVED_JUMP_COMMAND_KEYS <= set(JUMP_HINT_CHARS)
+    assert len(_PAGER_ALPHABET) == 52
+
+
+@pytest.mark.parametrize(
+    "count", [0, 1, 2, 50, 51, 52, 53, 54, 100, 103, 104, 154, 155, 205, 206, 250]
+)
+def test_prefix_free_hint_maps_are_prefix_free_and_stable(count: int) -> None:
+    targets = list(range(count))
+
+    first_hint_to_target, first_target_to_hint = build_jump_hint_maps(
+        targets, excluded=PAGER_RESERVED_JUMP_COMMAND_KEYS, prefix_free=True
+    )
+    second_hint_to_target, _ = build_jump_hint_maps(
+        targets, excluded=PAGER_RESERVED_JUMP_COMMAND_KEYS, prefix_free=True
+    )
+
+    assert first_hint_to_target == second_hint_to_target
+    assert len(first_hint_to_target) == count
+
+    hints = list(first_hint_to_target)
+    assert len(set(hints)) == len(hints)
+    for hint in hints:
+        assert not any(other != hint and other.startswith(hint) for other in hints)
+        assert not (len(hint) == 1 and hint in PAGER_RESERVED_JUMP_COMMAND_KEYS)
+    for target, hint in first_target_to_hint.items():
+        assert first_hint_to_target[hint] == target
+
+
+@pytest.mark.parametrize(
+    ("count", "expected_single", "expected_double"),
+    [
+        (51, 51, 0),
+        (52, 52, 0),
+        (53, 51, 2),
+        (103, 51, 52),
+        (154, 50, 104),
+        (205, 49, 156),
+    ],
+)
+def test_prefix_free_allocation_boundary_widths(
+    count: int, expected_single: int, expected_double: int
+) -> None:
+    hint_to_target, _ = build_jump_hint_maps(
+        list(range(count)), excluded=PAGER_RESERVED_JUMP_COMMAND_KEYS, prefix_free=True
+    )
+
+    widths = [len(hint) for hint in hint_to_target]
+
+    assert widths.count(1) == expected_single
+    assert widths.count(2) == expected_double
+
+
+def test_prefix_free_allocation_keeps_digits_first() -> None:
+    hint_to_target, _ = build_jump_hint_maps(
+        list(range(5)), excluded=PAGER_RESERVED_JUMP_COMMAND_KEYS, prefix_free=True
+    )
+
+    assert hint_to_target == {"0": 0, "1": 1, "2": 2, "3": 3, "4": 4}
+
+
+def test_prefix_free_allocation_two_key_tail_draws_from_alphabet_end() -> None:
+    hint_to_target, _ = build_jump_hint_maps(
+        list(range(53)), excluded=PAGER_RESERVED_JUMP_COMMAND_KEYS, prefix_free=True
+    )
+
+    two_key_hints = [hint for hint in hint_to_target if len(hint) == 2]
+
+    assert len(two_key_hints) == 2
+    assert all(hint[0] == _PAGER_ALPHABET[-1] for hint in two_key_hints)
+
+
+def test_existing_fixed_width_callers_are_unaffected_by_new_parameters() -> None:
+    targets = list(range(63))
+
+    default_hint_to_target, default_target_to_hint = build_jump_hint_maps(targets)
+    explicit_hint_to_target, explicit_target_to_hint = build_jump_hint_maps(
+        targets, excluded=frozenset(), prefix_free=False
+    )
+
+    assert default_hint_to_target == explicit_hint_to_target
+    assert default_target_to_hint == explicit_target_to_hint
+
+
+def test_normalize_jump_key_round_trips_every_uppercase_pager_label() -> None:
+    uppercase_labels = [char for char in _PAGER_ALPHABET if char.isupper()]
+
+    assert uppercase_labels
+    for char in uppercase_labels:
+        assert normalize_jump_key(char.lower(), char) == char

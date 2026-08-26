@@ -47,12 +47,12 @@ _CONTAINER_FILE_PATH_PATTERN = (
 # Group 2: the actual file path
 FILE_PATH_RE = re.compile(_FILE_PATH_PATTERN)
 _FILE_PATH_RE = FILE_PATH_RE
-_HTTP_URL_PATTERN = r"(?<!\w)(?i:https?)://[^\s<>()\[\]{}'\"`]+"
+HTTP_URL_PATTERN = r"(?<!\w)(?i:https?)://[^\s<>()\[\]{}'\"`]+"
 _FILE_PATH_OR_HTTP_URL_RE = re.compile(
-    f"(?:{_HTTP_URL_PATTERN})|(?:{_FILE_PATH_PATTERN})"
+    f"(?:{HTTP_URL_PATTERN})|(?:{_FILE_PATH_PATTERN})"
 )
 _CONTAINER_FILE_PATH_OR_HTTP_URL_RE = re.compile(
-    f"(?:{_HTTP_URL_PATTERN})|(?:{_CONTAINER_FILE_PATH_PATTERN})"
+    f"(?:{HTTP_URL_PATTERN})|(?:{_CONTAINER_FILE_PATH_PATTERN})"
 )
 
 
@@ -187,12 +187,12 @@ def iter_container_file_path_matches(
 
 def iter_xprompt_file_path_matches(content: str) -> Iterator[re.Match[str]]:
     """Yield ordinary file hints, excluding complete typed artifact refs."""
-    yield from _matches_outside_artifact_refs(content, iter_file_path_matches(content))
+    yield from matches_outside_artifact_refs(content, iter_file_path_matches(content))
 
 
 def iter_xprompt_container_file_path_matches(content: str) -> Iterator[re.Match[str]]:
     """Yield container file hints, excluding complete typed artifact refs."""
-    yield from _matches_outside_artifact_refs(
+    yield from matches_outside_artifact_refs(
         content,
         iter_container_file_path_matches(content),
     )
@@ -208,7 +208,7 @@ def has_file_path(content: str) -> bool:
     return next(iter_file_path_matches(content), None) is not None
 
 
-def _matches_outside_artifact_refs(
+def matches_outside_artifact_refs(
     content: str,
     matches: Iterator[re.Match[str]],
 ) -> Iterator[re.Match[str]]:

@@ -22,6 +22,7 @@ class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
     admin_center_flags = "admin_center_flags"
+    link_pager = "link_pager"
     provider_drain = "provider_drain"
     ref_sync_gesture = "ref_sync_gesture"
     typed_launch_units = "typed_launch_units"
@@ -36,6 +37,15 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "feature-flag control."
         ),
         bead="sase-rx",
+    ),
+    FeatureFlag.link_pager: FeatureFlagDefinition(
+        key=FeatureFlag.link_pager,
+        kind="beta",
+        description=(
+            "Beta gate for the link-traversing SasePager surface, its "
+            "jump-hint keys, and its navigation trail."
+        ),
+        bead="sase-ul",
     ),
     FeatureFlag.provider_drain: FeatureFlagDefinition(
         key=FeatureFlag.provider_drain,
