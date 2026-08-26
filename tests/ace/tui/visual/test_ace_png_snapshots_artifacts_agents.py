@@ -177,11 +177,21 @@ def _install_agents_fixture(
     snapshot: AgentsSnapshot,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(
-        agents_pane_module,
-        "load_agents_snapshot",
-        lambda _project: snapshot,
-    )
+    first_page = replace(snapshot, complete=False)
+
+    def _load(_project: str | None, limit: int | None = None) -> AgentsSnapshot:
+        """Mirror the pane's two-stage loader.
+
+        The bounded first page reports ``complete=False`` so the pane
+        schedules its full extension pass, which is what builds the query
+        index the filter bar and completion menu render from. Returning the
+        fixture snapshot itself for the full pass keeps ``pane.snapshot is
+        snapshot`` true once the pane settles.
+        """
+
+        return snapshot if limit is None else first_page
+
+    monkeypatch.setattr(agents_pane_module, "load_agents_snapshot", _load)
     monkeypatch.setattr(agents_detail_panel, "load_agent_detail", _detail_for)
 
 
