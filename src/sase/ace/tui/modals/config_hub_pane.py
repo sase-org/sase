@@ -121,7 +121,9 @@ class ConfigHubPane(Vertical):
         remembered = validated_config_subtab(
             self._session_state.config_hub.active_subtab
         )
-        self._active_subtab: ConfigSubTab = requested or remembered or "xprompts"
+        self._active_subtab: ConfigSubTab = (
+            requested or remembered or self._subtab_order[0]
+        )
         self._session_state.config_hub.active_subtab = self._active_subtab
         self._panes: dict[ConfigSubTab, Widget] = {}
         self._navigation_lock = asyncio.Lock()

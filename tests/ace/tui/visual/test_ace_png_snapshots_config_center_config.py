@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.config_pane import ConfigPane
 from sase.ace.tui.modals.xprompt_browser_filter_input import BrowserFilterInput
 from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
@@ -48,6 +49,7 @@ async def test_config_center_config_tab_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("2")
+        await page.press("3")
         await page.expect_state("artifacts_subtab", "patches")
         await _open_config_modal(page)
 
@@ -71,6 +73,7 @@ async def test_config_center_config_tab_flags_off_png_snapshot(
         async with AcePage(query='"visual"', patches=patches()) as page:
             await wait_for_startup(page)
             await page.press("2")
+            await page.press("3")
             await page.expect_state("artifacts_subtab", "patches")
             await _open_config_modal(page)
 
@@ -94,6 +97,7 @@ async def test_config_center_config_empty_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("2")
+        await page.press("3")
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_config_modal(page, wait_for_loaded=False)
         await page.wait_for(lambda _s: pane._view is not None and not pane._loading)
@@ -119,6 +123,7 @@ async def test_config_center_config_loading_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("2")
+        await page.press("3")
         await page.expect_state("artifacts_subtab", "patches")
         await _open_config_modal(page, wait_for_loaded=False)
 
@@ -142,6 +147,7 @@ async def test_config_center_config_long_value_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("2")
+        await page.press("3")
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_config_modal(page)
         # Select the field whose effective value is a long query string.
@@ -172,6 +178,7 @@ async def test_config_center_config_object_value_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("2")
+        await page.press("3")
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_config_modal(page)
         pane._do_jump("ace.lumberjack")
@@ -197,8 +204,11 @@ async def test_config_center_xprompts_tab_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("2")
+        await page.press("3")
         await page.expect_state("artifacts_subtab", "patches")
-        await _open_modal(page, "config")
+        await _open_modal(
+            page, "config", config_entry=ConfigHubEntry(subtab="xprompts")
+        )
 
         ace_png_visual.assert_page_png(
             page,
@@ -219,8 +229,11 @@ async def test_config_center_xprompts_filter_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("2")
+        await page.press("3")
         await page.expect_state("artifacts_subtab", "patches")
-        modal = await _open_modal(page, "config")
+        modal = await _open_modal(
+            page, "config", config_entry=ConfigHubEntry(subtab="xprompts")
+        )
         pane = modal.query_one("#xprompts", XPromptBrowserPane)
         filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
         await page.press("slash")

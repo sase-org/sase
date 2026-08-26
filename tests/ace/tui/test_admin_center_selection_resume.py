@@ -307,6 +307,8 @@ async def test_real_opener_resume_restores_visible_selection(
         await page.wait_for(lambda _s: modal._active_tab is not None)
         if case.surface == "config":
             await modal.query_one(ConfigHubPane)._switch_to("misc")
+        if case.surface == "xprompts":
+            await modal.query_one(ConfigHubPane)._switch_to("xprompts")
         if case.setup_keys:
             await page.press(*case.setup_keys)
         if case.surface == "procs":
@@ -335,6 +337,10 @@ async def test_real_opener_resume_restores_visible_selection(
         if case.surface == "config":
             await page.wait_for(
                 lambda _s: resumed.query_one(ConfigHubPane)._active_subtab == "misc"
+            )
+        if case.surface == "xprompts":
+            await page.wait_for(
+                lambda _s: resumed.query_one(ConfigHubPane)._active_subtab == "xprompts"
             )
         if case.surface == "procs":
             _seed_proc_projection(page.app, tasks)

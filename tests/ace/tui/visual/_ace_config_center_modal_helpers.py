@@ -16,8 +16,13 @@ from sase.logs import RegisteredError
 from tests.ace.tui.visual._ace_png_snapshot_helpers import wait_for_visual_idle
 
 
-async def _open_modal(page: AcePage, initial_tab: CenterTab) -> ConfigCenterModal:
-    modal = ConfigCenterModal(initial_tab=initial_tab)
+async def _open_modal(
+    page: AcePage,
+    initial_tab: CenterTab,
+    *,
+    config_entry: ConfigHubEntry | None = None,
+) -> ConfigCenterModal:
+    modal = ConfigCenterModal(initial_tab=initial_tab, config_entry=config_entry)
     page.app.push_screen(modal)
     await page.expect_modal("ConfigCenterModal")
     await wait_for_visual_idle(page)

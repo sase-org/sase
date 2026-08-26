@@ -13,6 +13,7 @@ from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.xprompt_browser_filter_input import BrowserFilterInput
 from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
 
@@ -179,7 +180,10 @@ async def test_empty_catalog_filter_and_list_escape_are_safe(
 ) -> None:
     _patch_panes(monkeypatch, {})
     async with AcePage() as page:
-        modal = ConfigCenterModal(initial_tab="config")
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="xprompts"),
+        )
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
         await page.wait_for(lambda _s: bool(modal.query("#xprompts")))

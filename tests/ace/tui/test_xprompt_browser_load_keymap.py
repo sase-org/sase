@@ -26,6 +26,7 @@ from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
+from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.xprompt_browser_filter_input import BrowserFilterInput
 from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -84,7 +85,11 @@ async def _open_xprompts_tab(
 ) -> tuple[ConfigCenterModal, XPromptBrowserPane]:
     """Open the Admin Center on the Config XPrompts child with *prompts* seeded."""
     _patch_panes(monkeypatch, prompts)
-    modal = ConfigCenterModal(initial_tab="config", session_state=session_state)
+    modal = ConfigCenterModal(
+        initial_tab="config",
+        session_state=session_state,
+        config_entry=ConfigHubEntry(subtab="xprompts"),
+    )
     page.app.push_screen(modal)
     await page.expect_modal("ConfigCenterModal")
     await page.wait_for(lambda _s: bool(modal.query("#xprompts")))
@@ -331,7 +336,10 @@ async def test_list_focused_digits_select_admin_center_tabs(
     prompts = {"note": _md_xprompt("note", "Body.", source_path="n.md")}
     async with AcePage() as page:
         _patch_panes(monkeypatch, prompts)
-        modal = ConfigCenterModal(initial_tab="config")
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="xprompts"),
+        )
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
 

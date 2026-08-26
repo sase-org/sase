@@ -2,21 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
-import threading
-
 import pytest
 from textual.widgets import Input, Static
 
 from sase.ace.testing import AcePage, wait_for
 from sase.ace.tui import AceApp
-from sase.ace.tui.modals import config_center_state
 from sase.ace.tui.modals.config_center_history import AdminCenterTabHistory
 from sase.ace.tui.modals.config_center_modal import CenterTab, ConfigCenterModal
-from sase.ace.tui.modals.config_center_state import (
-    load_admin_center_tab_history,
-    save_admin_center_tab_history,
-)
 from tests.ace.tui._config_center_tabs_helpers import (
     _HostApp,
     _InputPane,
@@ -78,8 +70,6 @@ async def test_generic_reopen_is_home_first_then_repeated_opener_resumes(
         await page.press("escape")
         await page.expect_no_modal()
         assert page.app._last_admin_center_tab == "procs"
-        generation = page.app._admin_center_tab_save_generation
-        assert generation == 1
 
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
@@ -97,7 +87,6 @@ async def test_generic_reopen_is_home_first_then_repeated_opener_resumes(
         assert page.app.screen is second
         assert len(page.app.screen_stack) == 2
         assert page.app.current_tab == "agents"
-        assert page.app._admin_center_tab_save_generation == generation
 
 
 async def test_switching_changes_resume_target_and_home_only_close_retains_it(
@@ -139,54 +128,34 @@ async def test_direct_entry_establishes_resume_target_after_success(
         modal = page.app.screen
         assert isinstance(modal, ConfigCenterModal)
         await page.wait_for(lambda _state: modal._active_tab == "procs")
-        await page.wait_for(
-            lambda _state: page.app._admin_center_tab_completed_generation == 1
-        )
 
-        assert load_admin_center_tab_history() == AdminCenterTabHistory(current="procs")
+        assert page.app._admin_center_history == AdminCenterTabHistory(current="procs")
         await page.press("escape")
         await page.expect_no_modal()
 
         assert page.app._last_admin_center_tab == "procs"
 
 
-async def test_persisted_tab_seeds_home_and_repeated_opener_resume(
+async def test_new_process_starts_with_no_remembered_admin_center_section(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    save_admin_center_tab_history(AdminCenterTabHistory(current="procs"))
-    _created, calls = _patch_stub_panes(monkeypatch)
-
+    _patch_stub_panes(monkeypatch)
     async with AcePage(initial_tab="agents") as page:
-        assert page.app._last_admin_center_tab == "procs"
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
-        modal = page.app.screen
-        assert isinstance(modal, ConfigCenterModal)
-        assert modal._active_tab is None
-        assert modal._panes == {}
-        hint = modal.query_one("#admin-center-home-hint", Static).render().plain
-        assert "resume Procs" in hint
+        first = page.app.screen
+        assert isinstance(first, ConfigCenterModal)
+        await page.press("3")
+        await page.wait_for(lambda _state: first._active_tab == "procs")
+        await page.press("escape")
+        await page.expect_no_modal()
+        assert page.app._last_admin_center_tab == "procs"
 
-        await page.press("number_sign")
-        await page.wait_for(lambda _state: modal._active_tab == "procs")
+    def fail_create(_self: ConfigCenterModal, _tab: CenterTab) -> _StubPane:
+        raise AssertionError("a new ACE process must not resume a prior one's section")
 
-        assert calls == ["procs"]
-        assert tuple(modal._panes) == ("procs",)
-        assert page.app._admin_center_tab_save_generation == 0
-
-
-async def test_invalid_persisted_tab_keeps_no_history_home(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    path = config_center_state._admin_center_last_tab_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("missing\n")
-
-    def _fail_create(_self: ConfigCenterModal, _tab: CenterTab) -> _StubPane:
-        raise AssertionError("invalid persisted state must not construct a pane")
-
-    monkeypatch.setattr(ConfigCenterModal, "_create_pane", _fail_create)
-    async with AcePage() as page:
+    monkeypatch.setattr(ConfigCenterModal, "_create_pane", fail_create)
+    async with AcePage(initial_tab="agents") as page:
         assert page.app._last_admin_center_tab is None
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
@@ -199,102 +168,6 @@ async def test_invalid_persisted_tab_keeps_no_history_home(
         await page.pause()
         assert modal._active_tab is None
         assert modal._panes == {}
-
-
-async def test_blocked_write_keeps_navigation_responsive_and_persists_latest(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_stub_panes(monkeypatch)
-    started = threading.Event()
-    release = threading.Event()
-    writes: list[AdminCenterTabHistory] = []
-
-    async with AcePage() as page:
-
-        def _save(history: AdminCenterTabHistory) -> None:
-            started.set()
-            assert release.wait(5.0)
-            writes.append(history)
-
-        page.app._save_admin_center_tab_now = _save  # type: ignore[method-assign]
-        await page.press("number_sign")
-        await page.expect_modal("ConfigCenterModal")
-        modal = page.app.screen
-        assert isinstance(modal, ConfigCenterModal)
-
-        await page.press("2")
-        await page.wait_for(lambda _state: modal._active_tab == "logs")
-        assert await asyncio.wait_for(
-            asyncio.to_thread(started.wait, 1.0),
-            timeout=1.5,
-        )
-        try:
-            await page.press("3")
-            await page.wait_for(lambda _state: modal._active_tab == "procs")
-            await page.press("6")
-            await page.wait_for(lambda _state: modal._active_tab == "updates")
-            assert page.app._last_admin_center_tab == "updates"
-            assert writes == []
-        finally:
-            release.set()
-
-        await page.wait_for(
-            lambda _state: (
-                page.app._admin_center_tab_completed_generation
-                == page.app._admin_center_tab_save_generation
-            )
-        )
-
-    assert writes == [
-        AdminCenterTabHistory(current="logs"),
-        AdminCenterTabHistory(current="updates", alternate="procs"),
-    ]
-
-
-async def test_write_failure_is_nonfatal_and_same_tab_can_retry(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_stub_panes(monkeypatch)
-    attempts: list[AdminCenterTabHistory] = []
-
-    async with AcePage() as page:
-
-        def _save(history: AdminCenterTabHistory) -> None:
-            attempts.append(history)
-            if len(attempts) == 1:
-                raise OSError("synthetic write failure")
-            save_admin_center_tab_history(history)
-
-        page.app._save_admin_center_tab_now = _save  # type: ignore[method-assign]
-        await page.press("number_sign")
-        await page.expect_modal("ConfigCenterModal")
-        first = page.app.screen
-        assert isinstance(first, ConfigCenterModal)
-        await page.press("2")
-        await page.wait_for(lambda _state: first._active_tab == "logs")
-        await page.wait_for(
-            lambda _state: page.app._admin_center_tab_completed_generation == 1
-        )
-        assert page.app._last_admin_center_tab == "logs"
-        assert page.app._admin_center_tab_queued is None
-
-        await page.press("escape")
-        await page.expect_no_modal()
-        await page.press("number_sign")
-        await page.expect_modal("ConfigCenterModal")
-        second = page.app.screen
-        assert isinstance(second, ConfigCenterModal)
-        await page.press("2")
-        await page.wait_for(lambda _state: second._active_tab == "logs")
-        await page.wait_for(
-            lambda _state: page.app._admin_center_tab_completed_generation == 2
-        )
-
-        assert attempts == [
-            AdminCenterTabHistory(current="logs"),
-            AdminCenterTabHistory(current="logs"),
-        ]
-        assert load_admin_center_tab_history() == AdminCenterTabHistory(current="logs")
 
 
 async def test_failed_resume_retains_prior_target_and_remains_retryable(

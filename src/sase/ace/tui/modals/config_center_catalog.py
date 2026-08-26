@@ -191,9 +191,9 @@ def center_tab_accent(tab: str) -> str | None:
 def validated_center_tab(value: object) -> CenterTab | None:
     """Return a catalog-backed Admin Center tab identity, if valid.
 
-    A persisted top-level ``xprompts`` identity from the pre-cutover Admin
-    Center maps to ``config`` so old resume state still reaches XPrompts
-    through the hub's default child.
+    A legacy top-level ``xprompts`` identity from the pre-cutover Admin
+    Center maps to ``config`` as a cheap guard for stray callers still
+    passing the old id.
     """
     if not isinstance(value, str):
         return None

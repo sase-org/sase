@@ -69,7 +69,9 @@ class ConfigHubSessionState:
     pane modules.
     """
 
-    active_subtab: ConfigSubTab = "xprompts"
+    active_subtab: ConfigSubTab = field(
+        default_factory=lambda: config_subtab_order()[0]
+    )
     flags: CatalogPaneSession = field(default_factory=CatalogPaneSession)
     memory: Any = None
     launch: Any = None

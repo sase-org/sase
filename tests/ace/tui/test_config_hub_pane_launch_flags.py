@@ -186,13 +186,13 @@ async def test_flags_resume_falls_back_when_rollout_is_off(
             pilot.app.push_screen(modal)
             await wait_for(pilot, lambda: modal._active_tab == "config")
             hub = modal.query_one("#config", ConfigHubPane)
-            await wait_for(pilot, lambda: "xprompts" in hub._panes)
+            await wait_for(pilot, lambda: "misc" in hub._panes)
 
-            assert calls == ["xprompts"]
-            assert hub._active_subtab == "xprompts"
+            assert calls == ["misc"]
+            assert hub._active_subtab == "misc"
             assert "flags" not in hub._subtab_order
             assert validated_config_subtab("flags") is None
-            _assert_hub_caption(hub, "xprompts")
+            _assert_hub_caption(hub, "misc")
 
 
 async def test_flags_off_prefix_keeps_five_child_numbering(
@@ -205,7 +205,7 @@ async def test_flags_off_prefix_keeps_five_child_numbering(
             pilot.app.push_screen(modal)
             await wait_for(pilot, lambda: modal._active_tab == "config")
             hub = modal.query_one("#config", ConfigHubPane)
-            await wait_for(pilot, lambda: "xprompts" in hub._panes)
+            await wait_for(pilot, lambda: "misc" in hub._panes)
 
             await pilot.press("0", "1")
             await wait_for(pilot, lambda: hub._active_subtab == "misc")

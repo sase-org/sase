@@ -10,7 +10,7 @@ from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.config_hub_catalog import config_panel_tabs
 from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
-from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
+from sase.ace.tui.modals.config_hub_session import CONFIG_SUBTAB_ORDER, ConfigHubEntry
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 from tests.ace.tui._config_center_tabs_helpers import _HostApp
 from tests.ace.tui._config_hub_pane_helpers import (
@@ -60,7 +60,10 @@ async def test_opening_config_constructs_only_the_active_child(
 ) -> None:
     created, calls = _patch_hub_children(monkeypatch)
     async with AcePage(initial_tab="agents") as page:
-        modal = ConfigCenterModal(initial_tab="config")
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="xprompts"),
+        )
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
         await page.wait_for(lambda _s: modal._active_tab == "config")
@@ -86,7 +89,10 @@ async def test_subtab_cycle_caches_children_and_does_not_reload(
 ) -> None:
     created, calls = _patch_hub_children(monkeypatch)
     async with _HostApp().run_test() as pilot:
-        modal = ConfigCenterModal(initial_tab="config")
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="xprompts"),
+        )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
@@ -115,7 +121,10 @@ async def test_failed_child_mount_leaves_previous_child_visible(
 
     monkeypatch.setattr(ConfigHubPane, "_create_pane", maybe_fail)
     async with _HostApp().run_test() as pilot:
-        modal = ConfigCenterModal(initial_tab="config")
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="xprompts"),
+        )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
@@ -158,7 +167,7 @@ async def test_direct_entry_opens_requested_child_once(
         _assert_hub_caption(hub, "memory")
 
 
-async def test_legacy_xprompts_resume_opens_config_hub(
+async def test_legacy_xprompts_resume_opens_config_hub_on_default_subtab(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _created, calls = _patch_hub_children(monkeypatch)
@@ -167,9 +176,9 @@ async def test_legacy_xprompts_resume_opens_config_hub(
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await wait_for(pilot, lambda: "xprompts" in hub._panes)
+        await wait_for(pilot, lambda: "misc" in hub._panes)
 
-        assert calls == ["xprompts"]
+        assert calls == ["misc"]
         assert "xprompts" not in {spec.id for spec in modal._tab_specs}
 
 
@@ -196,7 +205,10 @@ async def test_resize_switches_caption_variant_without_reloading_children(
 ) -> None:
     _created, calls = _patch_hub_children(monkeypatch)
     async with AcePage(initial_tab="agents", size=(120, 40)) as page:
-        modal = ConfigCenterModal(initial_tab="config")
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="xprompts"),
+        )
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
         await page.wait_for(lambda _s: modal._active_tab == "config")
@@ -227,3 +239,45 @@ async def test_resize_switches_caption_variant_without_reloading_children(
         assert hub._panes == panes
         assert page.app.focused is child
         assert page.app.focused is not _caption_widget(hub)
+
+
+async def test_config_lands_on_the_first_catalog_subtab_with_a_fresh_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _created, calls = _patch_hub_children(monkeypatch)
+    async with _HostApp().run_test() as pilot:
+        modal = ConfigCenterModal(initial_tab="config")
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._active_tab == "config")
+        hub = modal.query_one("#config", ConfigHubPane)
+        await wait_for(pilot, lambda: CONFIG_SUBTAB_ORDER[0] in hub._panes)
+
+        assert hub._active_subtab == CONFIG_SUBTAB_ORDER[0]
+        assert calls == [CONFIG_SUBTAB_ORDER[0]]
+
+
+async def test_config_subtab_visited_earlier_this_session_is_where_reopen_lands(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_hub_children(monkeypatch)
+    state = AdminCenterSessionState()
+    async with _HostApp().run_test() as pilot:
+        first = ConfigCenterModal(initial_tab="config", session_state=state)
+        pilot.app.push_screen(first)
+        await wait_for(pilot, lambda: first._active_tab == "config")
+        hub = first.query_one("#config", ConfigHubPane)
+        await wait_for(pilot, lambda: CONFIG_SUBTAB_ORDER[0] in hub._panes)
+
+        await hub._switch_to("memory")
+        assert state.config_hub.active_subtab == "memory"
+
+        first.action_close()
+        await wait_for(pilot, lambda: len(pilot.app.screen_stack) == 1)
+
+        second = ConfigCenterModal(initial_tab="config", session_state=state)
+        pilot.app.push_screen(second)
+        await wait_for(pilot, lambda: second._active_tab == "config")
+        hub2 = second.query_one("#config", ConfigHubPane)
+        await wait_for(pilot, lambda: "memory" in hub2._panes)
+
+        assert hub2._active_subtab == "memory"

@@ -9,6 +9,7 @@ from sase.ace.testing import wait_for
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
+from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from tests.ace.tui._config_center_tabs_helpers import _HostApp
 from tests.ace.tui._config_hub_pane_helpers import (
     _BusyHubChild,
@@ -55,7 +56,10 @@ async def test_filter_brackets_cycle_config_subtabs(
 
     monkeypatch.setattr(ConfigHubPane, "_create_pane", create)
     async with _HostApp().run_test() as pilot:
-        modal = ConfigCenterModal(initial_tab="config")
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="xprompts"),
+        )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
@@ -73,7 +77,10 @@ async def test_config_number_prefix_selects_alphabetic_subtabs(
 ) -> None:
     _created, calls = _patch_hub_children(monkeypatch)
     async with _HostApp().run_test() as pilot:
-        modal = ConfigCenterModal(initial_tab="config")
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="xprompts"),
+        )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
@@ -101,7 +108,10 @@ async def test_config_prefix_repeats_out_of_range_and_non_digit_cancel(
 ) -> None:
     _patch_hub_children(monkeypatch)
     async with _HostApp().run_test() as pilot:
-        modal = ConfigCenterModal(initial_tab="config")
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="xprompts"),
+        )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
@@ -130,7 +140,10 @@ async def test_configured_config_prefix_selects_subtab(
 
     async with _HostApp().run_test() as pilot:
         pilot.app._keymap_registry = registry  # type: ignore[attr-defined]
-        modal = ConfigCenterModal(initial_tab="config")
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="xprompts"),
+        )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
@@ -154,7 +167,10 @@ async def test_bare_child_digit_stays_local_until_config_prefix(
 
     monkeypatch.setattr(ConfigHubPane, "_create_pane", create)
     async with _HostApp().run_test() as pilot:
-        modal = ConfigCenterModal(initial_tab="config")
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="xprompts"),
+        )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
@@ -179,7 +195,10 @@ async def test_config_filter_keeps_prefix_digits_as_text(
 
     monkeypatch.setattr(ConfigHubPane, "_create_pane", create)
     async with _HostApp().run_test() as pilot:
-        modal = ConfigCenterModal(initial_tab="config")
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="xprompts"),
+        )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
@@ -200,7 +219,10 @@ async def test_relationship_children_own_tab_keys(
 ) -> None:
     _patch_hub_children(monkeypatch)
     async with _HostApp().run_test() as pilot:
-        modal = ConfigCenterModal(initial_tab="config")
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="xprompts"),
+        )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
@@ -228,7 +250,10 @@ async def test_busy_child_blocks_config_subtab_switch(
 
     monkeypatch.setattr(ConfigHubPane, "_create_pane", create)
     async with _HostApp().run_test() as pilot:
-        modal = ConfigCenterModal(initial_tab="config")
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="xprompts"),
+        )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
@@ -257,7 +282,10 @@ async def test_busy_config_child_blocks_top_level_switch_and_close(
 
     monkeypatch.setattr(ConfigHubPane, "_create_pane", create)
     async with _HostApp().run_test() as pilot:
-        modal = ConfigCenterModal(initial_tab="config")
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="xprompts"),
+        )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         await wait_for(pilot, lambda: busy is not None)
