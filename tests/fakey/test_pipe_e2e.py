@@ -458,7 +458,7 @@ def test_monitor_sleep_one_next_still_attaches_and_transfers_claim(
     assert result.launched is True
     assert captured["workspace_num"] == 3
     assert captured["retry_transfer_from_pid"] == os.getpid()
-    assert captured["prompt"].startswith("#fork:acme--0\n")
+    assert captured["prompt"].startswith("#fork:acme\n")
     env = captured["extra_env"]
     assert env["SASE_INTERNAL_AGENT_NAME_BYPASS"] == "1"
     plan = json.loads(env["SASE_AGENT_FAMILY_ATTACH"])

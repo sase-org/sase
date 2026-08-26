@@ -180,7 +180,7 @@ def test_launch_followup_agent_attaches_to_the_lane_and_transfers_the_claim(
     # The starter's routing (set by `make_starter_agent()` above) is carried
     # onto the follow-up as %model:/%effort: prefix directives.
     assert captured["prompt"].startswith(
-        "#fork:acme--0\n%model:claude-sonnet-5\n%effort:high\n\n"
+        "#fork:acme\n%model:claude-sonnet-5\n%effort:high\n\n"
     )
 
     env = captured["extra_env"]
@@ -227,7 +227,7 @@ def test_launch_followup_agent_uses_explicit_next_model(
     )
 
     assert result.launched is True
-    assert captured["prompt"].startswith("#fork:acme--0\n%model:@small\n\n")
+    assert captured["prompt"].startswith("#fork:acme\n%model:@small\n\n")
     assert "%effort:high" not in captured["prompt"]
     assert "%model:claude-sonnet-5" not in captured["prompt"]
 

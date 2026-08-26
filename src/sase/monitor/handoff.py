@@ -9,13 +9,14 @@ artifacts dir and killing the agent runner, which is a concern of the
 from __future__ import annotations
 
 import os
-import time
 from pathlib import Path
 
 from sase.agent.pending_handoff import MONITOR_PENDING_MARKER
-from sase.agent.pending_handoff_write import (
-    PendingHandoffError,
-    write_pending_handoff_marker,
+from sase.shells.handoff import (
+    ShellHandoffError,
+    maybe_handoff_shell_from_agent,
+    will_handoff_shell_to_agent_runner,
+    write_shell_pending_marker,
 )
 
 from .models import MonitorError, MonitorRecord
@@ -30,7 +31,7 @@ def will_handoff_monitor_to_agent_runner() -> bool:
     not conditioned on its return value, which the process never lives to
     observe when this is true.
     """
-    return bool(os.environ.get("SASE_AGENT"))
+    return will_handoff_shell_to_agent_runner(os.environ)
 
 
 def maybe_handoff_monitor_from_agent(
@@ -45,21 +46,15 @@ def maybe_handoff_monitor_from_agent(
     no-op outside an agent process and terminates the current runner when
     ``SASE_AGENT`` is set.
     """
-    if not os.environ.get("SASE_AGENT"):
-        return False
-
-    resolved_artifacts_dir = artifacts_dir or os.environ.get("SASE_ARTIFACTS_DIR")
-    if not resolved_artifacts_dir:
-        raise MonitorError(
-            "cannot hand monitor to agent runner: SASE_ARTIFACTS_DIR is unset"
+    try:
+        return maybe_handoff_shell_from_agent(
+            marker_name=MONITOR_PENDING_MARKER,
+            marker_data=_monitor_pending_payload(record),
+            artifacts_dir=artifacts_dir,
+            env=os.environ,
         )
-
-    write_monitor_pending_marker(record, resolved_artifacts_dir)
-
-    from sase.main.utils import kill_agent_runner_group
-
-    kill_agent_runner_group(resolved_artifacts_dir)
-    return True
+    except ShellHandoffError as exc:
+        raise MonitorError(str(exc).replace("shell", "monitor")) from exc
 
 
 def write_monitor_pending_marker(
@@ -69,35 +64,23 @@ def write_monitor_pending_marker(
     timestamp: float | None = None,
 ) -> Path:
     """Persist the pending monitor handoff marker for the runner to adopt."""
-    marker_data: dict[str, str | float] = {
+    try:
+        return write_shell_pending_marker(
+            MONITOR_PENDING_MARKER,
+            _monitor_pending_payload(record),
+            artifacts_dir,
+            timestamp=timestamp,
+        )
+    except ShellHandoffError as exc:
+        raise MonitorError(str(exc).replace("shell", "monitor")) from exc
+
+
+def _monitor_pending_payload(record: MonitorRecord) -> dict[str, str]:
+    return {
         "monitor_id": record.monitor_id,
         "member_artifacts_dir": record.artifacts_dir,
         "member_agent_name": record.member_agent_name,
     }
-    if timestamp is not None:
-        marker_data["timestamp"] = timestamp
-    try:
-        marker_path = write_pending_handoff_marker(
-            MONITOR_PENDING_MARKER,
-            marker_data,
-            artifacts_dir=artifacts_dir,
-        )
-    except (OSError, PendingHandoffError) as exc:
-        raise MonitorError(f"could not write monitor handoff marker: {exc}") from exc
-
-    _touch_agent_artifacts_refresh_pulse(artifacts_dir)
-    return marker_path
-
-
-def _touch_agent_artifacts_refresh_pulse(artifacts_dir: str) -> None:
-    try:
-        pulse_path = Path(artifacts_dir).parents[1] / ".ace_refresh_pulse"
-    except IndexError:
-        return
-    try:
-        pulse_path.write_text(str(time.time()), encoding="utf-8")
-    except OSError:
-        pass
 
 
 __all__ = [

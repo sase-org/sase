@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 from sase.monitor_status import DEFAULT_MONITOR_STOP_STATUS
-from sase.plan_chain import agent_family_role_for_suffix
+from sase.shells.state import (
+    ShellStateConfig,
+    is_real_shell_member,
+    is_shell_member_role,
+    shell_state_bucket,
+    shell_state_is_terminal,
+)
 
 MONITOR_FAMILY_ROLE = "monitor"
 MONITOR_GLYPH = "⚙"
@@ -21,6 +27,10 @@ MONITOR_STATE_BUCKETS: dict[str, str] = {
     "stopped": "Done",
     "lost": "Failed",
 }
+_MONITOR_STATE_CONFIG = ShellStateConfig(
+    family_role=MONITOR_FAMILY_ROLE,
+    buckets=MONITOR_STATE_BUCKETS,
+)
 
 
 def monitor_state_bucket(monitor_state: str | None) -> str:
@@ -30,7 +40,7 @@ def monitor_state_bucket(monitor_state: str | None) -> str:
     member that has not (yet) reached a terminal state never reads as
     finished.
     """
-    return MONITOR_STATE_BUCKETS.get(monitor_state or "", "Running")
+    return shell_state_bucket(monitor_state, _MONITOR_STATE_CONFIG)
 
 
 def monitor_state_is_terminal(monitor_state: str | None) -> bool:
@@ -41,7 +51,7 @@ def monitor_state_is_terminal(monitor_state: str | None) -> bool:
     buckets as ``Running`` and is therefore not terminal, so a monitor that
     has not (yet) reported never reads as finished.
     """
-    return monitor_state_bucket(monitor_state) != "Running"
+    return shell_state_is_terminal(monitor_state, _MONITOR_STATE_CONFIG)
 
 
 def is_monitor_member_role(
@@ -54,9 +64,11 @@ def is_monitor_member_role(
     started it, so it cannot classify a row on its own. The explicit role wins;
     the suffix is a fallback for older metadata that omitted the role.
     """
-    if isinstance(agent_family_role, str) and agent_family_role.strip():
-        return agent_family_role.strip() == MONITOR_FAMILY_ROLE
-    return agent_family_role_for_suffix(role_suffix) == MONITOR_FAMILY_ROLE
+    return is_shell_member_role(
+        agent_family_role,
+        role_suffix,
+        config=_MONITOR_STATE_CONFIG,
+    )
 
 
 def is_real_monitor_member(
@@ -69,11 +81,10 @@ def is_real_monitor_member(
     follow-ups, so the durable monitor predicate requires the explicit monitor
     role and a non-empty monitor id.
     """
-    return (
-        isinstance(agent_family_role, str)
-        and agent_family_role.strip() == MONITOR_FAMILY_ROLE
-        and isinstance(monitor_id, str)
-        and bool(monitor_id.strip())
+    return is_real_shell_member(
+        agent_family_role,
+        monitor_id,
+        config=_MONITOR_STATE_CONFIG,
     )
 
 

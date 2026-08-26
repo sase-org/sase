@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-import secrets
-
-from sase.plan_chain import (
-    PLAN_CHAIN_MONITOR_SUFFIX,
-    allocate_agent_family_child_suffix,
+from sase.plan_chain import PLAN_CHAIN_MONITOR_SUFFIX
+from sase.shells.naming import (
+    SequenceSuffixSpec,
+    ShellIdSpec,
+    allocate_shell_suffix,
+    new_shell_id,
+    short_shell_id,
 )
 
 #: Suffix template later monitor members in a lane allocate from, producing
@@ -21,17 +23,25 @@ _MONITOR_ID_LENGTH = 12
 #: Mirrors :data:`sase.procs.ids.SHORT_PROC_ID_LENGTH` for display.
 SHORT_MONITOR_ID_LENGTH = 6
 
+_MONITOR_ID_SPEC = ShellIdSpec(
+    alphabet=_MONITOR_ID_ALPHABET,
+    length=_MONITOR_ID_LENGTH,
+    short_length=SHORT_MONITOR_ID_LENGTH,
+)
+_MONITOR_SUFFIX_SPEC = SequenceSuffixSpec(
+    first_suffix=PLAN_CHAIN_MONITOR_SUFFIX,
+    sequence_template=MONITOR_SEQUENCE_SUFFIX_TEMPLATE,
+)
+
 
 def new_monitor_id() -> str:
     """Mint a 12-character lowercase unambiguous base32 monitor id."""
-    return "".join(
-        secrets.choice(_MONITOR_ID_ALPHABET) for _ in range(_MONITOR_ID_LENGTH)
-    )
+    return new_shell_id(_MONITOR_ID_SPEC)
 
 
 def short_monitor_id(monitor_id: str) -> str:
     """Return the standard six-character monitor-id display prefix."""
-    return monitor_id[:SHORT_MONITOR_ID_LENGTH]
+    return short_shell_id(monitor_id, _MONITOR_ID_SPEC)
 
 
 def allocate_monitor_suffix(lane: str, *, has_existing_monitor: bool) -> str:
@@ -42,9 +52,11 @@ def allocate_monitor_suffix(lane: str, *, has_existing_monitor: bool) -> str:
     -- allocates a sequence suffix (``--mon-0``, ``--mon-1``, ...) since a
     lane is sequential and only ever has one *active* monitor at a time.
     """
-    if not has_existing_monitor:
-        return PLAN_CHAIN_MONITOR_SUFFIX
-    return allocate_agent_family_child_suffix(lane, MONITOR_SEQUENCE_SUFFIX_TEMPLATE)
+    return allocate_shell_suffix(
+        lane,
+        has_existing_shell=has_existing_monitor,
+        spec=_MONITOR_SUFFIX_SPEC,
+    )
 
 
 __all__ = [

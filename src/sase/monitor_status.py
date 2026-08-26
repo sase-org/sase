@@ -36,8 +36,18 @@ were visible would change when the user switched tabs.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
-from sase.palette_hash import hash_palette_index
+from sase.shells.status import (
+    ShellStatusPair,
+    clamp_shell_status,
+    clamp_shell_status_or_default,
+    effective_shell_status,
+    shell_status_accent,
+    shell_status_glyph,
+    shell_status_pair,
+    shell_status_style,
+)
 
 DEFAULT_MONITOR_START_STATUS = "MONITORING"
 DEFAULT_MONITOR_STOP_STATUS = "MONITORED"
@@ -46,8 +56,6 @@ MONITOR_STATUS_ELLIPSIS = "…"
 MONITOR_STATUS_FAILURE_STYLE = "bold #FF5F5F"
 
 # Unit separator so ``FOO``+``BARBAZ`` and ``FOOBAR``+``BAZ`` cannot share a key.
-_MONITOR_STATUS_PAIR_KEY_SEP = "\x1f"
-
 _TERMINAL_MONITOR_STATES = frozenset(
     {"completed", "failed", "timeout", "stopped", "lost"}
 )
@@ -84,16 +92,8 @@ MONITOR_STATUS_ACCENTS: tuple[str, ...] = (
 
 
 @dataclass(frozen=True, slots=True)
-class MonitorStatusPair:
+class MonitorStatusPair(ShellStatusPair):
     """Ordered ``(start, stop)`` label pair that identifies one monitor kind."""
-
-    start: str
-    stop: str
-
-    @property
-    def key(self) -> str:
-        """Case-insensitive identity used to pick the pair's accent."""
-        return f"{self.start.upper()}{_MONITOR_STATUS_PAIR_KEY_SEP}{self.stop.upper()}"
 
 
 def clamp_monitor_status(value: str) -> str:
@@ -105,14 +105,12 @@ def clamp_monitor_status(value: str) -> str:
     :class:`ValueError`: truncation handles length, not a missing or
     broken label.
     """
-    if "\n" in value or "\r" in value:
-        raise ValueError("monitor status must be a single line")
-    stripped = value.strip()
-    if not stripped:
-        raise ValueError("monitor status must be non-empty")
-    if len(stripped) <= MONITOR_STATUS_MAX_CHARS:
-        return stripped
-    return stripped[: MONITOR_STATUS_MAX_CHARS - 1] + MONITOR_STATUS_ELLIPSIS
+    return clamp_shell_status(
+        value,
+        max_chars=MONITOR_STATUS_MAX_CHARS,
+        ellipsis=MONITOR_STATUS_ELLIPSIS,
+        noun="monitor status",
+    )
 
 
 def clamp_monitor_status_or_default(value: str | None, *, default: str) -> str:
@@ -121,12 +119,13 @@ def clamp_monitor_status_or_default(value: str | None, *, default: str) -> str:
     Read paths use this to project historical records that may omit a
     label, exceed the new cap, or contain junk. It never raises.
     """
-    if value is None:
-        return default
-    try:
-        return clamp_monitor_status(value)
-    except ValueError:
-        return default
+    return clamp_shell_status_or_default(
+        value,
+        default=default,
+        max_chars=MONITOR_STATUS_MAX_CHARS,
+        ellipsis=MONITOR_STATUS_ELLIPSIS,
+        noun="monitor status",
+    )
 
 
 def monitor_status_pair(start: str | None, stop: str | None) -> MonitorStatusPair:
@@ -135,19 +134,24 @@ def monitor_status_pair(start: str | None, stop: str | None) -> MonitorStatusPai
     Displayed text keeps the author's casing; only :attr:`MonitorStatusPair.key`
     uppercases, so ``Testing`` and ``TESTING`` are one identity.
     """
-    return MonitorStatusPair(
-        start=clamp_monitor_status_or_default(
-            start, default=DEFAULT_MONITOR_START_STATUS
+    return cast(
+        MonitorStatusPair,
+        shell_status_pair(
+            start,
+            stop,
+            default_start=DEFAULT_MONITOR_START_STATUS,
+            default_stop=DEFAULT_MONITOR_STOP_STATUS,
+            max_chars=MONITOR_STATUS_MAX_CHARS,
+            ellipsis=MONITOR_STATUS_ELLIPSIS,
+            pair_type=MonitorStatusPair,
+            noun="monitor status",
         ),
-        stop=clamp_monitor_status_or_default(stop, default=DEFAULT_MONITOR_STOP_STATUS),
     )
 
 
 def monitor_status_accent(pair: MonitorStatusPair) -> str:
     """Return the deterministic hex accent for ``pair``."""
-    return MONITOR_STATUS_ACCENTS[
-        hash_palette_index(pair.key, len(MONITOR_STATUS_ACCENTS))
-    ]
+    return shell_status_accent(pair, accents=MONITOR_STATUS_ACCENTS)
 
 
 def monitor_status_style(pair: MonitorStatusPair, *, monitor_state: str | None) -> str:
@@ -158,19 +162,19 @@ def monitor_status_style(pair: MonitorStatusPair, *, monitor_state: str | None) 
     ``running`` and any unknown or missing state are bold accent; a
     clean settlement (``completed`` / ``stopped``) is the bare accent.
     """
-    if monitor_state in _FAILURE_MONITOR_STATES:
-        return MONITOR_STATUS_FAILURE_STYLE
-    accent = monitor_status_accent(pair)
-    if monitor_state in _SETTLED_OK_MONITOR_STATES:
-        return accent
-    return f"bold {accent}"
+    return shell_status_style(
+        pair,
+        shell_state=monitor_state,
+        accents=MONITOR_STATUS_ACCENTS,
+        failure_states=_FAILURE_MONITOR_STATES,
+        settled_ok_states=_SETTLED_OK_MONITOR_STATES,
+        failure_style=MONITOR_STATUS_FAILURE_STYLE,
+    )
 
 
 def monitor_status_glyph(monitor_state: str | None) -> str:
     """Return the outcome glyph for ``monitor_state``, or ``""`` if none."""
-    if monitor_state is None:
-        return ""
-    return _MONITOR_STATUS_GLYPHS.get(monitor_state, "")
+    return shell_status_glyph(monitor_state, glyphs=_MONITOR_STATUS_GLYPHS)
 
 
 def effective_monitor_status(
@@ -185,9 +189,12 @@ def effective_monitor_status(
     project to ``pair.stop``; anything still live projects to
     ``pair.start``.
     """
-    if settled or monitor_state in _TERMINAL_MONITOR_STATES:
-        return pair.stop
-    return pair.start
+    return effective_shell_status(
+        pair,
+        shell_state=monitor_state,
+        settled=settled,
+        terminal_states=_TERMINAL_MONITOR_STATES,
+    )
 
 
 __all__ = [

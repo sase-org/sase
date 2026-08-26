@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import json
-import os
 from collections.abc import Sequence
 from typing import Any
 
-from sase.axe.agent_meta import write_agent_meta_atomic
-from sase.axe.run_agent_helpers import create_followup_artifacts
-from sase.core.agent_artifact_index_lifecycle import (
-    update_agent_artifact_index_for_marker_mutation,
-)
+from sase.shells.member import create_family_shell_member
+
+_MONITOR_INHERITED_METADATA_FIELDS = ("agent_clan", "agent_clan_generation")
 
 
 def create_monitor_member(
@@ -47,62 +43,50 @@ def create_monitor_member(
     on the ``monitor_*`` fields that describe the supervised command
     itself.
     """
-    member_name = f"{lane}{suffix}"
-    artifacts_dir = create_followup_artifacts(
+    monitor_metadata: dict[str, Any] = {
+        "monitor_id": monitor_id,
+        "proc_id": monitor_id,
+        # The selected agent's pid is not this new proc shell's pid.  Keep
+        # it empty until the detached supervisor reports its real pid.
+        "pid": None,
+        "monitor_command": command,
+        "monitor_cwd": cwd,
+        "monitor_label": label,
+        "monitor_reason": reason,
+        "monitor_start_status": start_status,
+        "monitor_stop_status": stop_status,
+        "monitor_timeout_seconds": timeout_seconds,
+        "monitor_tail_lines": tail_lines,
+        "monitor_next_output": next_output,
+        "monitor_state": "running",
+        "monitor_settled": False,
+        "monitor_request_fingerprint": request_fingerprint,
+    }
+    if idle_timeout_seconds > 0:
+        monitor_metadata["monitor_idle_timeout_seconds"] = idle_timeout_seconds
+    if next_action:
+        monitor_metadata["monitor_next_action"] = next_action
+    if next_model:
+        monitor_metadata["monitor_next_model"] = next_model
+    if starter_agent:
+        monitor_metadata["monitor_starter_agent"] = starter_agent
+    if execution_argv:
+        monitor_metadata["monitor_execution_argv"] = [
+            str(part) for part in execution_argv
+        ]
+
+    return create_family_shell_member(
         project_name,
         base_meta,
-        suffix,
-        prev_artifacts_timestamp,
+        family=lane,
+        suffix=suffix,
+        prev_artifacts_timestamp=prev_artifacts_timestamp,
         workspace_num=workspace_num,
-        agent_name_override=member_name,
-        workflow_name=lane,
-        agent_family_role="monitor",
+        shell_kind="proc",
+        family_role="monitor",
+        metadata=monitor_metadata,
+        inherited_metadata_fields=_MONITOR_INHERITED_METADATA_FIELDS,
     )
-    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-    with open(meta_path, encoding="utf-8") as f:
-        meta = json.load(f)
-    meta.update(
-        {
-            "monitor_id": monitor_id,
-            "proc_id": monitor_id,
-            # The selected agent's pid is not this new proc shell's pid.  Keep
-            # it empty until the detached supervisor reports its real pid.
-            "pid": None,
-            "shell_kind": "proc",
-            "monitor_command": command,
-            "monitor_cwd": cwd,
-            "monitor_label": label,
-            "monitor_reason": reason,
-            "monitor_start_status": start_status,
-            "monitor_stop_status": stop_status,
-            "monitor_timeout_seconds": timeout_seconds,
-            "monitor_tail_lines": tail_lines,
-            "monitor_next_output": next_output,
-            "monitor_state": "running",
-            "monitor_settled": False,
-            "monitor_request_fingerprint": request_fingerprint,
-        }
-    )
-    if idle_timeout_seconds > 0:
-        meta["monitor_idle_timeout_seconds"] = idle_timeout_seconds
-    if next_action:
-        meta["monitor_next_action"] = next_action
-    if next_model:
-        meta["monitor_next_model"] = next_model
-    if starter_agent:
-        meta["monitor_starter_agent"] = starter_agent
-    if execution_argv:
-        meta["monitor_execution_argv"] = [str(part) for part in execution_argv]
-    for key in ("agent_clan", "agent_clan_generation"):
-        value = base_meta.get(key)
-        if value:
-            meta[key] = value
-    write_agent_meta_atomic(
-        artifacts_dir,
-        meta,
-        index_updater=update_agent_artifact_index_for_marker_mutation,
-    )
-    return artifacts_dir
 
 
 __all__ = ["create_monitor_member"]

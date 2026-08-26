@@ -46,7 +46,7 @@ def test_compose_followup_prompt_completed_includes_fork_prefix_and_exit_code() 
         **_COMMON,
     )
 
-    assert prompt.startswith("#fork:acme--0\n\n")
+    assert prompt.startswith("#fork:acme\n\n")
     assert "COMPLETED — exit 0" in prompt
     assert "```text\njust check-full\n```" in prompt
     assert "sase monitor show m4kqm4kqm4kq --all-lines" in prompt
@@ -219,7 +219,7 @@ def test_compose_followup_prompt_prefixes_model_and_effort_directives() -> None:
         **_COMMON,
     )
 
-    assert prompt.startswith("#fork:acme--0\n%model:claude-sonnet-5\n%effort:high\n\n")
+    assert prompt.startswith("#fork:acme\n%model:claude-sonnet-5\n%effort:high\n\n")
     assert prompt.splitlines()[4] == "%xprompts_enabled:false"
 
     _, directives = extract_prompt_directives(prompt)
@@ -331,7 +331,7 @@ def test_compose_followup_prompt_body_is_one_disabled_region() -> None:
     regions = disabled_region_ranges(prompt)
     assert len(regions) == 1
     region_start, region_end = regions[0]
-    assert prompt.index("#fork:acme--0") < region_start
+    assert prompt.index("#fork:acme") < region_start
     assert prompt.index("%model:opus") < region_start
     assert prompt.index("%effort:high") < region_start
 
@@ -408,7 +408,7 @@ def test_compose_followup_prompt_next_action_model_text_stays_inert_with_selecti
     assert directives.model == "opus"
     assert directives.reasoning_effort == "high"
     assert "%model:haiku" in cleaned
-    assert prompt.startswith("#fork:acme--0\n%model:opus@high\n\n")
+    assert prompt.startswith("#fork:acme\n%model:opus@high\n\n")
 
 
 def test_compose_followup_prompt_next_action_xprompt_refs_stay_literal() -> None:
@@ -468,7 +468,7 @@ def test_compose_followup_prompt_explicit_next_model_replaces_inherited_routing(
         **_COMMON,
     )
 
-    assert prompt.startswith("#fork:acme--0\n%model:@small\n\n")
+    assert prompt.startswith("#fork:acme\n%model:@small\n\n")
     assert "%effort:high" not in prompt
     assert "%model:claude-sonnet-5" not in prompt
 
@@ -527,7 +527,7 @@ def test_compose_followup_prompt_omitted_next_model_still_inherits_routing() -> 
         **_COMMON,
     )
 
-    assert prompt.startswith("#fork:acme--0\n%model:claude-sonnet-5\n%effort:high\n\n")
+    assert prompt.startswith("#fork:acme\n%model:claude-sonnet-5\n%effort:high\n\n")
 
 
 def test_compose_followup_prompt_late_preprocessing_keeps_body_literal() -> None:

@@ -10,26 +10,27 @@ family, and role when it starts -- exactly as it would for an interactive
 
 from __future__ import annotations
 
-import json
 import os
-import time
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
-from sase.agent.detached_child import (
-    FamilyAttachDirective,
-    spawn_family_successor,
-)
 from sase.agent.launcher import spawn_agent_subprocess
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
-from sase.core.agent_artifact_paths import canonical_agent_artifact_path
-from sase.core.artifact_file_facade import store_explicit_artifact_file
 from sase.running_field import (
     WorkspaceClaim,
     WorkspaceClaimError,
     get_claimed_workspaces,
     get_workspace_directory_for_num,
+)
+from sase.shells.followup import (
+    DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
+    STARTER_SETTLE_POLL_SECONDS as _STARTER_SETTLE_POLL_SECONDS,
+    FollowupLaunchResult,
+    FollowupPersistence,
+    record_followup_launched,
+    record_followup_not_launchable,
+    spawn_shell_family_successor,
+    starter_identity,
+    wait_for_starter,
 )
 from sase.workflows.utils import get_project_file_path
 from sase.workspace_provider import resolve_consistent_workspace_pair
@@ -38,26 +39,16 @@ from .followup_prompt import DEFAULT_NEXT_OUTPUT, compose_followup_prompt
 from .logs import monitor_log_path
 from .output import OutputCapture
 
-#: How long to wait for the starter's own ``done.json`` before composing the
-#: follow-up prompt without a ``#fork:`` prefix. Injectable so tests do not
-#: have to wait out the real budget for the common "no starter" case.
-DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS = 60.0
-_STARTER_SETTLE_POLL_SECONDS = 0.5
 _SAVED_FOLLOWUP_PROMPT_NAME = "monitor_followup_prompt.md"
 
-
-@dataclass(frozen=True)
-class FollowupLaunchResult:
-    """Outcome of attempting to launch a monitor follow-up agent."""
-
-    launched: bool
-    degraded_reason: str | None = None
-    error: str | None = None
-    prompt_path: str | None = None
-    agent_name: str | None = None
-
-    def __bool__(self) -> bool:
-        return self.launched
+_FOLLOWUP_PERSISTENCE = FollowupPersistence(
+    agent_field="monitor_followup_agent",
+    error_field="monitor_followup_error",
+    prompt_path_field="monitor_followup_prompt_path",
+    degraded_reason_field="monitor_followup_degraded_reason",
+    prompt_filename=_SAVED_FOLLOWUP_PROMPT_NAME,
+    prompt_label="Unlaunched monitor follow-up prompt",
+)
 
 
 def launch_followup_agent(
@@ -94,6 +85,7 @@ def launch_followup_agent(
 
     prompt_kwargs: dict[str, Any] = {
         "starter_name": starter_name if settled else None,
+        "family_name": lane,
         "command": str(meta.get("monitor_command") or ""),
         "cwd": str(meta.get("monitor_cwd") or ""),
         "reason": str(meta.get("monitor_reason") or ""),
@@ -252,8 +244,8 @@ def _spawn_followup(
     workspace_num: int,
     transfer_from_pid: int | None,
 ) -> Any:
-    return spawn_family_successor(
-        FamilyAttachDirective(parent=lane, suffix="@"),
+    return spawn_shell_family_successor(
+        family=lane,
         project_name=project_name,
         prompt=prompt,
         workspace_dir=workspace_dir,
@@ -272,20 +264,13 @@ def _record_launched(
     *,
     degraded_reason: str | None = None,
 ) -> FollowupLaunchResult:
-    if agent_name:
-        meta["monitor_followup_agent"] = agent_name
-        update_meta_field(artifacts_dir, "monitor_followup_agent", agent_name)
-    if degraded_reason:
-        meta["monitor_followup_degraded_reason"] = degraded_reason
-        update_meta_field(
-            artifacts_dir,
-            "monitor_followup_degraded_reason",
-            degraded_reason,
-        )
-    return FollowupLaunchResult(
-        launched=True,
-        degraded_reason=degraded_reason,
+    return record_followup_launched(
+        artifacts_dir,
+        meta,
         agent_name=agent_name,
+        degraded_reason=degraded_reason,
+        persistence=_FOLLOWUP_PERSISTENCE,
+        update_meta_field=update_meta_field,
     )
 
 
@@ -295,36 +280,14 @@ def _record_not_launchable(
     error: str,
     prompt: str,
 ) -> FollowupLaunchResult:
-    prompt_path = _persist_unlaunchable_prompt(artifacts_dir, prompt)
-    message = error
-    if prompt_path:
-        message = f"{error}; follow-up prompt saved to {prompt_path}"
-        meta["monitor_followup_prompt_path"] = prompt_path
-        update_meta_field(artifacts_dir, "monitor_followup_prompt_path", prompt_path)
-    meta["monitor_followup_error"] = message
-    update_meta_field(artifacts_dir, "monitor_followup_error", message)
-    return FollowupLaunchResult(
-        launched=False,
-        error=message,
-        prompt_path=prompt_path,
+    return record_followup_not_launchable(
+        artifacts_dir,
+        meta,
+        error=error,
+        prompt=prompt,
+        persistence=_FOLLOWUP_PERSISTENCE,
+        update_meta_field=update_meta_field,
     )
-
-
-def _persist_unlaunchable_prompt(artifacts_dir: str, prompt: str) -> str | None:
-    try:
-        artifacts_path = Path(artifacts_dir).expanduser()
-        artifacts_path.mkdir(parents=True, exist_ok=True)
-        prompt_path = artifacts_path / _SAVED_FOLLOWUP_PROMPT_NAME
-        prompt_path.write_text(prompt, encoding="utf-8")
-        store_explicit_artifact_file(
-            prompt_path,
-            artifacts_path,
-            label="Unlaunched monitor follow-up prompt",
-            kind="markdown",
-        )
-        return str(prompt_path)
-    except Exception:
-        return None
 
 
 def _fresh_claim_degraded_reason(
@@ -391,33 +354,10 @@ def _clean_str(value: object) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
-def _starter_artifacts_dir(project_name: str, parent_timestamp: object) -> str | None:
-    if not isinstance(parent_timestamp, str) or not parent_timestamp:
-        return None
-    return str(canonical_agent_artifact_path(project_name, "ace-run", parent_timestamp))
-
-
-def _read_meta_str(artifacts_dir: str, key: str) -> str | None:
-    meta_path = Path(artifacts_dir) / "agent_meta.json"
-    try:
-        with meta_path.open(encoding="utf-8") as f:
-            data = json.load(f)
-    except (FileNotFoundError, OSError, ValueError):
-        return None
-    value = data.get(key) if isinstance(data, dict) else None
-    return value if isinstance(value, str) and value else None
-
-
 def _starter_identity(
     project_name: str, parent_timestamp: object
 ) -> tuple[str | None, str | None]:
-    starter_dir = _starter_artifacts_dir(project_name, parent_timestamp)
-    if starter_dir is None:
-        return None, None
-    return (
-        _read_meta_str(starter_dir, "name"),
-        _read_meta_str(starter_dir, "agent_family_role"),
-    )
+    return starter_identity(project_name, parent_timestamp)
 
 
 def _wait_for_starter(
@@ -432,14 +372,12 @@ def _wait_for_starter(
     the starter's chat to already be saved. Returns ``False`` -- continue
     without the ``#fork`` prefix -- rather than dropping the follow-up.
     """
-    starter_dir = _starter_artifacts_dir(project_name, parent_timestamp)
-    if starter_dir is None:
-        return False
-    done_path = Path(starter_dir) / "done.json"
-    deadline = time.monotonic() + timeout_seconds
-    while not done_path.exists() and time.monotonic() < deadline:
-        time.sleep(_STARTER_SETTLE_POLL_SECONDS)
-    return done_path.exists()
+    return wait_for_starter(
+        project_name,
+        parent_timestamp,
+        timeout_seconds=timeout_seconds,
+        poll_seconds=_STARTER_SETTLE_POLL_SECONDS,
+    )
 
 
 __all__ = [

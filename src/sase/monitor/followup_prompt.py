@@ -15,7 +15,8 @@ as defense in depth and to keep persisted prompts readable.
 
 from __future__ import annotations
 
-from sase.llm_provider.config import format_model_directive_value
+from sase.shells.followup import fork_target_for_settled_starter
+from sase.shells.prompt import shell_routing_prefix
 from sase.xprompt._disabled_regions import wrap_disabled_region
 
 #: Values for ``--next-output`` / ``monitor_next_output``.
@@ -139,21 +140,14 @@ def _routing_prefix(
     model: str | None,
     reasoning_effort: str | None,
     next_model: str | None = None,
+    family_name: str | None = None,
 ) -> str:
-    lines: list[str] = []
-    if starter_name:
-        lines.append(f"#fork:{starter_name}")
-    selected = next_model.strip() if isinstance(next_model, str) else ""
-    if selected:
-        # Explicit --model replaces inherited routing; alias defaults and an
-        # optional @effort ride on the %model expression, matching sase pipe.
-        lines.append(f"%model:{format_model_directive_value(selected)}")
-    else:
-        if model:
-            lines.append(f"%model:{model}")
-        if reasoning_effort:
-            lines.append(f"%effort:{reasoning_effort}")
-    return "".join(f"{line}\n" for line in lines)
+    fork_target = fork_target_for_settled_starter(
+        starter_name=starter_name,
+        family_name=family_name,
+        settled=starter_name is not None,
+    )
+    return shell_routing_prefix(fork_target, model, reasoning_effort, next_model)
 
 
 def compose_followup_prompt(
@@ -181,6 +175,7 @@ def compose_followup_prompt(
     model: str | None = None,
     reasoning_effort: str | None = None,
     next_model: str | None = None,
+    family_name: str | None = None,
     workspace_degraded_reason: str | None = None,
 ) -> str:
     """Compose the follow-up agent's full prompt.
@@ -256,7 +251,13 @@ def compose_followup_prompt(
         ]
     )
     body = wrap_disabled_region("\n".join(sections))
-    prefix = _routing_prefix(starter_name, model, reasoning_effort, next_model)
+    prefix = _routing_prefix(
+        starter_name,
+        model,
+        reasoning_effort,
+        next_model,
+        family_name=family_name,
+    )
     return f"{prefix}\n{body}" if prefix else body
 
 
