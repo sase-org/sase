@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import UTC, datetime
 import itertools
 import json
+import os
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 from typing import Any
 
@@ -14,6 +17,51 @@ import pytest
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
 from tests.sdd._artifact_link_store_helpers import _plan_index, _row, _store
+
+_OLD_SOURCE_DATE = "2026-08-01T00:00:00+00:00"
+_ROW_CREATED_DATE = "2026-08-18T00:00:00Z"
+_NEWER_MTIME_DATE = "2026-08-25T00:00:00+00:00"
+
+
+def _git(repo: Path, *args: str, env: Mapping[str, str] | None = None) -> None:
+    subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+        env={**os.environ, **(env or {})},
+    )
+
+
+def _init_git_repo(repo: Path) -> None:
+    repo.mkdir(parents=True, exist_ok=True)
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.name", "SASE Test")
+    _git(repo, "config", "user.email", "sase-test@example.com")
+
+
+def _commit_all(repo: Path, message: str, *, when: str) -> None:
+    _git(repo, "add", "-A")
+    _git(
+        repo,
+        "commit",
+        "-q",
+        "-m",
+        message,
+        env={"GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": when},
+    )
+
+
+def _touch(path: Path, when: str) -> None:
+    timestamp = datetime.fromisoformat(when).astimezone(UTC).timestamp()
+    os.utime(path, (timestamp, timestamp))
+
+
+def _touch_tree(root: Path, when: str) -> None:
+    _touch(root, when)
+    for path in root.rglob("*"):
+        _touch(path, when)
 
 
 def test_rebuild_carries_forward_rows_from_invisible_sidecar_clone(
@@ -54,6 +102,115 @@ def test_rebuild_drops_rows_deleted_from_visible_sidecar_companion(
 
     assert rebuilt["rows"] == []
     assert store.load_aggregate()["rows"] == []
+
+
+def test_rebuild_carries_forward_row_when_sidecar_commit_is_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    plans_a = tmp_path / "clone-a" / "plans"
+    plans_b = tmp_path / "clone-b" / "plans"
+    plans_a.mkdir(parents=True)
+    _init_git_repo(plans_b)
+    stale_index = plans_b / "links" / "202608" / "a.md.json"
+    stale_index.parent.mkdir(parents=True)
+    stale_index.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "artifact_ref": "plan:202608/a.md",
+                "rows": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    _commit_all(plans_b, "seed stale companion index", when=_OLD_SOURCE_DATE)
+    _touch(stale_index, _NEWER_MTIME_DATE)
+    store_a = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans_a},
+    )
+    store_b = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans_b},
+    )
+    store_a.upsert_row(_row(created_at=_ROW_CREATED_DATE))
+
+    rebuilt = store_b.rebuild_aggregate()
+
+    assert [(row["source_ref"], row["target_ref"]) for row in rebuilt["rows"]] == [
+        ("plan:202608/a.md", "plan:202608/b.md")
+    ]
+
+
+def test_rebuild_carries_forward_bead_row_when_bead_store_commit_is_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.bead.model import IssueType
+    from sase.bead.project import BeadProject
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    ahead_root = tmp_path / "ahead"
+    behind_root = tmp_path / "behind"
+    _init_git_repo(behind_root)
+    with BeadProject.init(ahead_root) as ahead_project:
+        issue = ahead_project.create("Target", IssueType.PLAN)
+        store_a = ArtifactLinkStore(
+            project_key="gh_sase-org__sase",
+            sidecar_roots={},
+            beads_dir=ahead_project.beads_dir,
+        )
+        store_a.upsert_row(
+            _row(
+                source="agent:alice.athena.worker",
+                relation="cites",
+                target=f"bead:{issue.id}",
+                origin="prompt_ref",
+                created_at=_ROW_CREATED_DATE,
+            )
+        )
+    with BeadProject.init(behind_root) as behind_project:
+        behind_beads_dir = behind_project.beads_dir
+    _commit_all(behind_root, "seed stale bead store", when=_OLD_SOURCE_DATE)
+    _touch_tree(behind_beads_dir, _NEWER_MTIME_DATE)
+    store_b = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={},
+        beads_dir=behind_beads_dir,
+    )
+
+    rebuilt = store_b.rebuild_aggregate()
+
+    assert [(row["source_ref"], row["target_ref"]) for row in rebuilt["rows"]] == [
+        ("agent:alice.athena.worker", f"bead:{issue.id}")
+    ]
+
+
+def test_rebuild_drops_bead_row_deleted_from_fresh_bead_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.bead.project import BeadProject
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    with BeadProject.init(tmp_path) as project:
+        store = ArtifactLinkStore(
+            project_key="gh_sase-org__sase",
+            sidecar_roots={},
+            beads_dir=project.beads_dir,
+        )
+        store._upsert_aggregate_row(  # noqa: SLF001 - seed a prior aggregate row.
+            _row(
+                source="agent:alice.athena.worker",
+                relation="cites",
+                target="bead:sase-missing",
+                origin="prompt_ref",
+                created_at="1970-01-01T00:00:00Z",
+            )
+        )
+
+        rebuilt = store.rebuild_aggregate()
+
+    assert rebuilt["rows"] == []
 
 
 def test_remove_rows_prunes_aggregate_even_when_sidecar_is_invisible(

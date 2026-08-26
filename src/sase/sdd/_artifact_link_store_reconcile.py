@@ -34,6 +34,9 @@ class ArtifactLinkStoreReconcileMixin:
     _iter_sidecar_rows: Callable[[], Iterable[dict[str, Any]]]
     _iter_bead_rows: Callable[[], Iterable[dict[str, Any]]]
     _authoritative_source_was_consulted: Callable[[Mapping[str, Any]], bool]
+    _authoritative_source_was_consulted_for_pass: Callable[
+        [Iterable[ArtifactLinkStore]], Callable[[Mapping[str, Any]], bool]
+    ]
     _upsert_bead: Callable[[Mapping[str, Any]], dict[str, Any] | None]
 
     def durable_sidecar_rows(self) -> tuple[dict[str, Any], ...]:
@@ -74,7 +77,8 @@ class ArtifactLinkStoreReconcileMixin:
 
         prior = self.load_aggregate()
         collected: list[dict[str, Any]] = []
-        for store in self._iter_reconciliation_stores():
+        stores = tuple(self._iter_reconciliation_stores())
+        for store in stores:
             collected.extend(self._iter_reconciliation_sidecar_rows(store))
             collected.extend(self._iter_reconciliation_bead_rows(store))
         return {
@@ -84,7 +88,7 @@ class ArtifactLinkStoreReconcileMixin:
                 collected=collected,
                 prior_rows=prior["rows"],
                 authoritative_source_was_consulted=(
-                    self._authoritative_source_was_consulted
+                    self._authoritative_source_was_consulted_for_pass(stores)
                 ),
             ),
         }

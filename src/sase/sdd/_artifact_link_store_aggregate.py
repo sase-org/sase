@@ -34,6 +34,9 @@ class ArtifactLinkStoreAggregateMixin:
     _iter_sidecar_rows: Callable[[], Iterable[dict[str, Any]]]
     _iter_bead_rows: Callable[[], Iterable[dict[str, Any]]]
     _authoritative_source_was_consulted: Callable[[Mapping[str, Any]], bool]
+    _authoritative_source_was_consulted_for_pass: Callable[
+        [], Callable[[Mapping[str, Any]], bool]
+    ]
 
     def load_aggregate(self) -> dict[str, Any]:
         """Read the project aggregate, or return an empty v2 document."""
@@ -63,7 +66,7 @@ class ArtifactLinkStoreAggregateMixin:
                 collected=collected,
                 prior_rows=prior["rows"],
                 authoritative_source_was_consulted=(
-                    self._authoritative_source_was_consulted
+                    self._authoritative_source_was_consulted_for_pass()
                 ),
             ),
         }
