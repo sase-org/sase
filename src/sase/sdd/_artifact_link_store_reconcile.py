@@ -12,6 +12,7 @@ from sase.sdd._artifact_link_store_support import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     BEAD_KIND,
     kind_of_ref,
+    project_aggregate_rows,
     unique_rows,
 )
 
@@ -29,13 +30,23 @@ class ArtifactLinkStoreReconcileMixin:
     beads_dir: Path | None
     load_aggregate: Callable[[], dict[str, Any]]
     rebuild_aggregate: Callable[[], dict[str, Any]]
-    _write_aggregate: Callable[[Mapping[str, Any]], None]
+    _write_merged_aggregate: Callable[[Callable[[], dict[str, Any]]], dict[str, Any]]
     _iter_sidecar_rows: Callable[[], Iterable[dict[str, Any]]]
     _iter_bead_rows: Callable[[], Iterable[dict[str, Any]]]
+    _authoritative_source_was_consulted: Callable[[Mapping[str, Any]], bool]
     _upsert_bead: Callable[[Mapping[str, Any]], dict[str, Any] | None]
 
     def durable_sidecar_rows(self) -> tuple[dict[str, Any], ...]:
-        """Return deduplicated publishable sidecar rows from known workspaces."""
+        """Return sidecar rows whose agent endpoints have published.
+
+        This filter serves the *publication* decision only: which rows are
+        safe to hand another machine over the outbox. The local read-model
+        aggregate must never apply it -- see :func:`project_aggregate_rows`
+        and :meth:`preview_reconciled_aggregate`, which route around it
+        deliberately so a row this workspace durably holds stays visible
+        locally even when its agent endpoint has not published anywhere
+        else.
+        """
 
         context = self._resolved_pass_context()
         cache: dict[str, bool] = {}
@@ -51,31 +62,37 @@ class ArtifactLinkStoreReconcileMixin:
         )
 
     def preview_reconciled_aggregate(self) -> dict[str, Any]:
-        """Return the cross-workspace aggregate reconciliation result."""
+        """Return the cross-workspace aggregate reconciliation result.
 
-        context = self._resolved_pass_context()
-        cache: dict[str, bool] = {}
+        Scans every visible workspace's sidecars and bead events, then
+        routes the collected rows plus the on-disk prior rows through the
+        same :func:`project_aggregate_rows` call :meth:`preview_aggregate`
+        uses to decide which rows survive: this pass and that one may see a
+        different set of stores, never a different keep/drop rule for what
+        they both see.
+        """
+
+        prior = self.load_aggregate()
         collected: list[dict[str, Any]] = []
         for store in self._iter_reconciliation_stores():
             collected.extend(self._iter_reconciliation_sidecar_rows(store))
             collected.extend(self._iter_reconciliation_bead_rows(store))
-        collected.extend(self.load_aggregate().get("rows", []))
-        deduped = unique_rows(collected)
         return {
             "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
-            "rows": [
-                row
-                for row in deduped
-                if self._row_is_publishable(row, context=context, cache=cache)
-            ],
+            "generation": prior["generation"],
+            "rows": project_aggregate_rows(
+                collected=collected,
+                prior_rows=prior["rows"],
+                authoritative_source_was_consulted=(
+                    self._authoritative_source_was_consulted
+                ),
+            ),
         }
 
     def reconcile_aggregate(self) -> dict[str, Any]:
         """Reconcile the aggregate with all visible workspace sidecar rows."""
 
-        document = self.preview_reconciled_aggregate()
-        self._write_aggregate(document)
-        return document
+        return self._write_merged_aggregate(self.preview_reconciled_aggregate)
 
     def backfill_bead_endpoint_links(self) -> dict[str, int]:
         """Write the inbound event a one-sided write never produced.

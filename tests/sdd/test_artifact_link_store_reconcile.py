@@ -91,9 +91,20 @@ def test_reconcile_aggregate_skips_unreadable_sibling_workspace_sidecar(
     assert len(store_a.durable_sidecar_rows()) == 1
 
 
-def test_reconcile_aggregate_skips_unpublished_agent_rows(
+def test_reconcile_aggregate_keeps_rows_with_unpublished_agent_endpoints(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Publishability gates the outbox, not the local read model.
+
+    Regression test for the defect diagnosed in
+    plan:202608/link_rail_every_tab.md: `reconcile_aggregate` used to drop
+    every row with an unpublished `agent:` endpoint from the aggregate, so
+    an hourly chop running from a context that cannot resolve agent refs
+    would silently erase the `cites`/`read` rows a workspace's own
+    `rebuild_aggregate` had just written. `durable_sidecar_rows` -- the
+    publication-facing view -- still filters these out.
+    """
+
     store = _store(tmp_path, monkeypatch)
     store.upsert_row(
         _row(
@@ -106,12 +117,17 @@ def test_reconcile_aggregate_skips_unpublished_agent_rows(
     )
     monkeypatch.setattr(
         "sase.artifact_cli.references.resolve_cli_reference",
-        lambda _ref: SimpleNamespace(resolution=SimpleNamespace(status="missing")),
+        lambda _ref, **_kwargs: SimpleNamespace(
+            resolution=SimpleNamespace(status="missing")
+        ),
     )
 
     reconciled = store.reconcile_aggregate()
 
-    assert reconciled["rows"] == []
+    assert [(row["source_ref"], row["target_ref"]) for row in reconciled["rows"]] == [
+        ("agent:pending.athena.worker", "plan:202608/a.md")
+    ]
+    assert store.durable_sidecar_rows() == ()
 
 
 def test_reconcile_agent_rows_use_store_workspace_context(
@@ -163,7 +179,7 @@ def test_reconcile_agent_rows_use_store_workspace_context(
     assert seen == [("agent:alice.athena.worker", context)]
 
 
-def test_preview_reconciled_aggregate_builds_pass_context_once(
+def test_durable_sidecar_rows_builds_pass_context_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
@@ -222,15 +238,15 @@ def test_preview_reconciled_aggregate_builds_pass_context_once(
         "sase.artifact_cli.references.resolve_cli_reference", fake_resolve
     )
 
-    reconciled = store_a.preview_reconciled_aggregate()
+    rows = store_a.durable_sidecar_rows()
 
-    assert len(reconciled["rows"]) == 2
+    assert len(rows) == 2
     assert launch_calls["count"] == 1
     assert seen_contexts == [context, context]
     assert None not in seen_contexts
 
 
-def test_preview_reconciled_aggregate_resolves_each_agent_ref_once(
+def test_durable_sidecar_rows_resolves_each_distinct_agent_ref_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
@@ -301,9 +317,9 @@ def test_preview_reconciled_aggregate_resolves_each_agent_ref_once(
         "sase.artifact_cli.references.resolve_cli_reference", fake_resolve
     )
 
-    reconciled = store_a.preview_reconciled_aggregate()
+    rows = store_a.durable_sidecar_rows()
 
-    assert len(reconciled["rows"]) == 4
+    assert len(rows) == 4
     assert len(resolved_refs) == 2
     assert set(resolved_refs) == {
         "agent:alice.athena.worker",
@@ -311,7 +327,7 @@ def test_preview_reconciled_aggregate_resolves_each_agent_ref_once(
     }
 
 
-def test_dedupe_before_filter_does_not_weaken_publishability(
+def test_durable_sidecar_rows_dedupe_before_filter_does_not_weaken_publishability(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = _store(tmp_path, monkeypatch)
@@ -346,9 +362,9 @@ def test_dedupe_before_filter_does_not_weaken_publishability(
         "sase.artifact_cli.references.resolve_cli_reference", fake_resolve
     )
 
-    reconciled = store.reconcile_aggregate()
+    rows = store.durable_sidecar_rows()
 
-    assert [(row["source_ref"], row["target_ref"]) for row in reconciled["rows"]] == [
+    assert [(row["source_ref"], row["target_ref"]) for row in rows] == [
         ("agent:published.athena.worker", "plan:202608/a.md")
     ]
 

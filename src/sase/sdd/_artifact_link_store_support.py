@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.core.paths import sase_projects_dir
 from sase.core.rust import require_rust_binding
@@ -13,6 +13,9 @@ from sase.sdd.referenced_by_index import (
     referenced_by_index_relpath,
     referenced_by_index_schema_version,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 ARTIFACT_LINK_ROW_SCHEMA_VERSION = 2
 ARTIFACT_LINK_AGGREGATE_FILENAME = "artifact-links.json"
@@ -101,10 +104,69 @@ def _empty_artifact_link_index(artifact_ref: str) -> dict[str, Any]:
     }
 
 
-def empty_artifact_link_aggregate() -> dict[str, Any]:
+def _empty_artifact_link_aggregate() -> dict[str, Any]:
     """Return an empty v2 aggregate document."""
 
-    return {"schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION, "rows": []}
+    return {
+        "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+        "generation": 0,
+        "rows": [],
+    }
+
+
+def read_aggregate_document(path: Path) -> dict[str, Any]:
+    """Read one aggregate document from disk without acquiring a lock.
+
+    Every caller either already holds the aggregate's flock or explicitly
+    wants an unlocked snapshot; the flock in :class:`locked_file` is a
+    per-open-file-description ``flock``, so a nested call through
+    ``ArtifactLinkStore.load_aggregate`` from inside an already-held lock
+    would deadlock rather than reenter.
+    """
+
+    if not path.is_file():
+        return _empty_artifact_link_aggregate()
+    payload = read_json_object(path)
+    if payload.get("schema_version") != ARTIFACT_LINK_ROW_SCHEMA_VERSION:
+        raise RuntimeError(f"unsupported artifact link aggregate schema: {path}")
+    rows = payload.get("rows")
+    if not isinstance(rows, list):
+        raise RuntimeError("artifact link aggregate rows must be a list")
+    try:
+        generation = int(payload.get("generation") or 0)
+    except (TypeError, ValueError):
+        generation = 0
+    return {
+        "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+        "generation": generation,
+        "rows": [dict(row) for row in rows if isinstance(row, dict)],
+    }
+
+
+def project_aggregate_rows(
+    *,
+    collected: Iterable[Mapping[str, Any]],
+    prior_rows: Iterable[Mapping[str, Any]],
+    authoritative_source_was_consulted: Callable[[Mapping[str, Any]], bool],
+) -> list[dict[str, Any]]:
+    """Decide which rows survive an aggregate projection.
+
+    The single point every aggregate-rebuilding path -- this workspace's own
+    scan, the cross-workspace reconciliation scan, and any future scan --
+    must route through, so those paths can differ only in *which stores
+    they scan*, never in *which of the scanned-plus-prior rows they keep*.
+    A prior row is carried forward exactly when this pass could not have
+    proven it deleted. Publication status has no bearing on that question:
+    it is a publication-holdback concern, not a local read-model concern,
+    and must never be checked here (see ``durable_sidecar_rows`` for the
+    filter that does apply it).
+    """
+
+    rows = list(collected)
+    for row in prior_rows:
+        if not authoritative_source_was_consulted(row):
+            rows.append(row)
+    return unique_rows(rows)
 
 
 def read_artifact_link_index(path: Path, *, artifact_ref: str) -> dict[str, Any]:
