@@ -7,6 +7,7 @@ import sys
 from collections.abc import Sequence
 from dataclasses import replace
 
+from sase.agent.names._registry import name_registry_load_session
 from sase.bead.cli_common import created_cell, get_read_view, status_icon
 from sase.bead.cli_dep_render import resolve_color
 from sase.bead.cli_detail import (
@@ -268,7 +269,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
     wrap = resolve_wrap_width(getattr(args, "wrap", markdown_print_width()))
     pager_mode: PagerMode = resolve_pager_mode(getattr(args, "pager", "auto"))
 
-    with get_read_view() as view:
+    with name_registry_load_session(), get_read_view() as view:
         batch = resolve_show_batch(
             view,
             ids,

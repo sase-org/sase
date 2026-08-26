@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 
+from sase.bead.show_epic_expansion import EXPANSION_SUFFIX
 from sase.main.parser_bead_common import bead_date_arg, nonnegative_int, wrap_width
 from sase.markdown_width import markdown_print_width
 from sase.vcs_log.dates import DATE_HELP
@@ -349,14 +350,17 @@ def register_bead_show_parser(
         help="Show one or more issues",
         description=(
             "Show every listed bead in argv order. Full or shorthand IDs are "
-            "accepted; duplicate IDs collapse after resolution. A missing ID "
-            "reports on stderr and exits 1 without suppressing beads that did "
-            "resolve. --format compact prints list rows; --format json emits "
-            "today's single envelope for one ID and an array of envelopes for "
-            "two or more IDs. --no-links skips neighborhood resolution and "
-            "omits human and JSON artifact-link fields. Long output on a "
-            "terminal is paged with color intact. DESCRIPTION, NOTES, link "
-            "reasons, and +1 evidence prose wrap at "
+            "accepted; an ID ending in '..' expands to that bead plus its "
+            "direct children (phase beads and child epics, one level, in "
+            "phase-number order) before duplicate IDs collapse after "
+            "resolution. A missing ID reports on stderr and exits 1 without "
+            "suppressing beads that did resolve. --format compact prints "
+            "list rows; --format json emits today's single envelope for one "
+            "ID and an array of envelopes for two or more IDs, always an "
+            "array for an expansion. --no-links skips neighborhood "
+            "resolution and omits human and JSON artifact-link fields. Long "
+            "output on a terminal is paged with color intact. DESCRIPTION, "
+            "NOTES, link reasons, and +1 evidence prose wrap at "
             f"{default_wrap_width} columns by default without breaking URLs "
             "or inline code spans."
         ),
@@ -369,7 +373,8 @@ def register_bead_show_parser(
             "  sase bead show sase-64 --no-links\n"
             "  sase bead show sase-64 --pager always\n"
             "  sase bead show sase-64 --style rich --color always\n"
-            "  sase bead show sase-64 --wrap auto"
+            "  sase bead show sase-64 --wrap auto\n"
+            f"  sase bead show sase-tt{EXPANSION_SUFFIX}"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -430,7 +435,11 @@ def register_bead_show_parser(
         "ids",
         nargs="+",
         metavar="ID",
-        help="Full or shorthand issue IDs to show (rendered in the order given)",
+        help=(
+            "Full or shorthand issue IDs to show (rendered in the order "
+            f"given); an ID ending in '{EXPANSION_SUFFIX}' expands to that "
+            "bead plus its direct children"
+        ),
     )
 
 

@@ -411,6 +411,7 @@ Quick Start:
   sase bead ready                                Show unblocked ready task beads
   sase bead show <id>                            View issue details
   sase bead show <id> --format=json              Machine-readable bead detail
+  sase bead show <epic-id>..                     Show an epic plus its direct children
   sase bead update <id> --status=in_progress     Claim an issue
   sase bead open <id>                            Reopen an issue
   sase bead snooze <id> -u 3d -r "why"           Defer a task until a wake time

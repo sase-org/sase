@@ -1601,13 +1601,29 @@ one block. If one ID in a batch is missing, the beads that resolved still print 
 after output or the pager exits, stderr gets one `Error: issue not found: <id>` line per
 miss and the command exits 1.
 
+An ID ending in `..` expands to that bead plus its direct children in one argv token:
+`sase bead show sase-tt..` is exactly
+`sase bead show sase-tt sase-tt.1 sase-tt.2 ... sase-tt.8`. Expansion is not recursive —
+only the target's direct children (phase beads and child epics, one level) are included,
+sorted by the integer suffix after the final dot when it parses as digits, with any
+unnumbered children kept after those in the order the store returned. A target with no
+children is not an error; it renders alone. Expansion happens before the existing
+positional dedup, so `sase bead show tt.3 tt..` renders `sase-tt.3`, then `sase-tt`,
+then its remaining children — `sase-tt.3` is not repeated. A malformed token such as
+`..` or `tt...` reports
+`Error: invalid ID expansion: '<token>' (expected <epic-id>.., for example sase-tt..)`
+and exits 1. A stem that does not resolve reports `Error: issue not found: <stem>` and
+exits 1, the same as any other missing ID, while beads that did resolve still print.
+
 With `--format full`, a multi-bead batch prints one detail block per bead. Each block is
 preceded by a left-aligned ordinal divider such as `── 1/3 ───`, styled with the same
 additive palette as the rest of the detail view. Single-ID output has no divider and
 keeps the same bytes as before. `--format compact` prints one aligned compact table in
 argv order. `--format json` preserves the existing single-bead envelope for one ID; two
 or more IDs emit an array of those envelopes, omitting any misses from the array while
-using exit 1 to report that the array is incomplete.
+using exit 1 to report that the array is incomplete. An expansion token (`<epic-id>..`)
+always emits the array form too, even when the epic has exactly one child or none, so a
+script never has to inspect the store to learn which shape it is parsing.
 
 A typed task prints a `Task type` row and appends the spec's body template below the
 description. When the type is unknown on this machine, the raw field pairs print under a

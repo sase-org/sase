@@ -17,6 +17,11 @@ from sase.bead.cli_detail_resolution import IssueDetail
 from sase.bead.cli_detail_style import DetailPalette, DetailStyle
 from sase.bead.cli_query_render import render_list_compact
 from sase.bead.model import Issue
+from sase.bead.show_epic_expansion import (
+    ExpansionError,
+    expand_epic_target,
+    expansion_stem,
+)
 from sase.markdown_width import markdown_print_width
 
 
@@ -65,7 +70,9 @@ def resolve_show_batch(
     failures: list[_ShowFailure] = []
     emitted: set[str] = set()
 
-    for requested_id in ids:
+    expanded_ids, expanded_any = _expand_show_ids(view, ids, failures)
+
+    for requested_id in expanded_ids:
         try:
             if format_name == "compact":
                 issue = view.show(requested_id)
@@ -97,8 +104,37 @@ def resolve_show_batch(
     return _ShowBatch(
         entries=tuple(entries),
         failures=tuple(failures),
-        multi_requested=len(ids) > 1,
+        multi_requested=len(expanded_ids) > 1 or expanded_any,
     )
+
+
+def _expand_show_ids(
+    view: Any,
+    ids: Sequence[str],
+    failures: list[_ShowFailure],
+) -> tuple[list[str], bool]:
+    """Expand ``<epic-id>..`` tokens in argv order, appending failures in place."""
+    expanded_ids: list[str] = []
+    expanded_any = False
+
+    for token in ids:
+        try:
+            stem = expansion_stem(token)
+        except ExpansionError as exc:
+            failures.append(_ShowFailure(token, str(exc)))
+            continue
+
+        if stem is None:
+            expanded_ids.append(token)
+            continue
+
+        expanded_any = True
+        try:
+            expanded_ids.extend(expand_epic_target(view, stem))
+        except KeyError:
+            failures.append(_ShowFailure(stem, f"issue not found: {stem}"))
+
+    return expanded_ids, expanded_any
 
 
 def render_show_batch(

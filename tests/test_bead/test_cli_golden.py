@@ -321,6 +321,12 @@ def _run_cli(
             stdout=_read_expected("show_phase_parent_epic_plan.stdout"),
         ),
         CliCase(
+            "show_epic_expansion_compact",
+            ["bead", "show", "beads-1..", "--format", "compact"],
+            "current",
+            stdout=_read_expected("show_epic_expansion_compact.stdout"),
+        ),
+        CliCase(
             "ready",
             ["bead", "ready"],
             "current",
