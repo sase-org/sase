@@ -38,7 +38,12 @@ from sase.bead.cli_query_render import (
     row_badges as _row_badges,
     search_field_value as _search_field_value,
 )
-from sase.bead.cli_show_batch import render_show_batch, resolve_show_batch
+from sase.bead.cli_show_batch import (
+    build_show_batch_document,
+    render_show_batch,
+    render_show_document,
+    resolve_show_batch,
+)
 from sase.bead.flag_fields import is_flag_bead
 from sase.bead.model import (
     BeadTier,
@@ -277,20 +282,31 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             include_links=include_links,
             detail_enricher=_with_artifact_link_neighborhood if include_links else None,
         )
-        body = render_show_batch(
-            batch,
-            format_name=args.format,
-            include_links=include_links,
-            style=style,
-            wrap=wrap,
-            relativize_design=(
-                design_paths_are_relative() if args.format == "full" else False
-            ),
-            plan_roots=plan_reference_roots() if args.format == "full" else (),
-            reference_context_factory=artifact_reference_context,
-            creator_url_for=resolve_bead_creator_url,
-            page_url_for=resolve_bead_page_url,
-        )
+        if args.format == "full":
+            document = build_show_batch_document(
+                batch,
+                style=style,
+                wrap=wrap,
+                relativize_design=design_paths_are_relative(),
+                plan_roots=plan_reference_roots(),
+                reference_context_factory=artifact_reference_context,
+                creator_url_for=resolve_bead_creator_url,
+                page_url_for=resolve_bead_page_url,
+            )
+            body = render_show_document(document, style=style, wrap=wrap)
+        else:
+            body = render_show_batch(
+                batch,
+                format_name=args.format,
+                include_links=include_links,
+                style=style,
+                wrap=wrap,
+                relativize_design=False,
+                plan_roots=(),
+                reference_context_factory=artifact_reference_context,
+                creator_url_for=resolve_bead_creator_url,
+                page_url_for=resolve_bead_page_url,
+            )
 
     if body:
         page_or_print(body, mode=pager_mode)

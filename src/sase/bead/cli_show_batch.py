@@ -6,7 +6,7 @@ import json
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from rich.cells import cell_len
 
@@ -23,6 +23,7 @@ from sase.bead.show_epic_expansion import (
     expansion_stem,
 )
 from sase.markdown_width import markdown_print_width
+from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 
 
 @dataclass(frozen=True)
@@ -182,6 +183,58 @@ def render_show_batch(
             raise AssertionError(f"unknown show format: {format_name}")
 
 
+def build_show_batch_document(
+    batch: _ShowBatch,
+    *,
+    style: DetailStyle,
+    wrap: int | None,
+    relativize_design: bool,
+    plan_roots: tuple[Path, ...],
+    reference_context_factory: ReferenceContextFactory,
+    creator_url_for: CreatorUrlResolver,
+    page_url_for: PageUrlResolver,
+) -> PagerDocument:
+    """Build a pager document with one full-rendered section per bead."""
+    sections = _show_batch_sections(
+        batch,
+        style=style,
+        wrap=wrap,
+        relativize_design=relativize_design,
+        plan_roots=plan_roots,
+        reference_context_factory=reference_context_factory,
+        creator_url_for=creator_url_for,
+        page_url_for=page_url_for,
+    )
+    return PagerDocument(
+        sections=sections,
+        title=_show_batch_document_title(batch),
+        origin=PagerOrigin.BEAD,
+    )
+
+
+def render_show_document(
+    document: PagerDocument,
+    *,
+    style: DetailStyle,
+    wrap: int | None,
+) -> str:
+    """Render a bead-show pager document to today's CLI string format."""
+    blocks = [cast(str, section.body) for section in document.sections]
+    if not blocks:
+        return ""
+    if len(blocks) == 1:
+        return blocks[0]
+
+    palette = DetailPalette.for_style(style)
+    divider_width = wrap if wrap is not None else markdown_print_width()
+    sections = [
+        f"{_show_divider(index, len(blocks), palette=palette, width=divider_width)}\n"
+        f"{block.rstrip(chr(10))}"
+        for index, block in enumerate(blocks, start=1)
+    ]
+    return "\n\n".join(sections) + "\n"
+
+
 def _show_divider(
     index: int,
     total: int,
@@ -235,6 +288,30 @@ def _render_full_batch(
     creator_url_for: CreatorUrlResolver,
     page_url_for: PageUrlResolver,
 ) -> str:
+    document = build_show_batch_document(
+        batch,
+        style=style,
+        wrap=wrap,
+        relativize_design=relativize_design,
+        plan_roots=plan_roots,
+        reference_context_factory=reference_context_factory,
+        creator_url_for=creator_url_for,
+        page_url_for=page_url_for,
+    )
+    return render_show_document(document, style=style, wrap=wrap)
+
+
+def _show_batch_sections(
+    batch: _ShowBatch,
+    *,
+    style: DetailStyle,
+    wrap: int | None,
+    relativize_design: bool,
+    plan_roots: tuple[Path, ...],
+    reference_context_factory: ReferenceContextFactory,
+    creator_url_for: CreatorUrlResolver,
+    page_url_for: PageUrlResolver,
+) -> tuple[PagerSection, ...]:
     reference_context: ArtifactRefContext | None = None
     reference_context_resolved = False
 
@@ -247,34 +324,38 @@ def _render_full_batch(
             reference_context_resolved = True
         return reference_context
 
-    blocks = [
-        render_issue_detail(
-            _require_detail(entry),
-            relativize_design=relativize_design,
-            plan_roots=plan_roots,
-            reference_context=context_for(entry.issue),
-            creator_url=(
-                creator_url_for(entry.issue.created_by)
-                if entry.issue.created_by
-                else None
-            ),
-            page_url=page_url_for(entry.issue.id),
-            style=style,
-            wrap=wrap,
+    sections: list[PagerSection] = []
+    for entry in batch.entries:
+        issue = entry.issue
+        subject_ref = f"bead:{issue.id}"
+        sections.append(
+            PagerSection(
+                identity=subject_ref,
+                title=f"{issue.id} · {issue.title}",
+                kind="bead",
+                body=render_issue_detail(
+                    _require_detail(entry),
+                    relativize_design=relativize_design,
+                    plan_roots=plan_roots,
+                    reference_context=context_for(issue),
+                    creator_url=(
+                        creator_url_for(issue.created_by) if issue.created_by else None
+                    ),
+                    page_url=page_url_for(issue.id),
+                    style=style,
+                    wrap=wrap,
+                ),
+                subject_ref=subject_ref,
+            )
         )
-        for entry in batch.entries
-    ]
-    if len(blocks) == 1:
-        return blocks[0]
+    return tuple(sections)
 
-    palette = DetailPalette.for_style(style)
-    divider_width = wrap if wrap is not None else markdown_print_width()
-    sections = [
-        f"{_show_divider(index, len(blocks), palette=palette, width=divider_width)}\n"
-        f"{block.rstrip(chr(10))}"
-        for index, block in enumerate(blocks, start=1)
-    ]
-    return "\n\n".join(sections) + "\n"
+
+def _show_batch_document_title(batch: _ShowBatch) -> str:
+    if len(batch.entries) == 1:
+        issue = batch.entries[0].issue
+        return f"{issue.id} · {issue.title}"
+    return f"{len(batch.entries)} beads"
 
 
 def _require_detail(entry: _ShowEntry) -> IssueDetail:
@@ -285,6 +366,8 @@ def _require_detail(entry: _ShowEntry) -> IssueDetail:
 
 
 __all__ = [
+    "build_show_batch_document",
     "render_show_batch",
+    "render_show_document",
     "resolve_show_batch",
 ]
