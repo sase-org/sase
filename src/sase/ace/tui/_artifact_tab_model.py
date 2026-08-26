@@ -281,10 +281,29 @@ class PaneSortField:
 
 
 @dataclass(frozen=True, slots=True)
+class PaneDescription:
+    """Resolved summary/body copy for one Artifacts pane."""
+
+    summary: str = ""
+    body: str = ""
+    summary_source: str = "fallback"
+    body_source: str = "fallback"
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "summary": self.summary,
+            "body": self.body,
+            "summary_source": self.summary_source,
+            "body_source": self.body_source,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class PanePresentation:
     """Normalized Python-owned presentation data for provider panes."""
 
     description: str = ""
+    description_body: str = ""
     row: PaneRowPresentation = field(default_factory=PaneRowPresentation)
     default_sort: tuple[PaneSortField, ...] = ()
     facets: tuple[str, ...] = ()
@@ -292,6 +311,7 @@ class PanePresentation:
     def to_payload(self) -> dict[str, Any]:
         return {
             "description": self.description,
+            "description_body": self.description_body,
             "row": self.row.to_payload(),
             "default_sort": [item.to_payload() for item in self.default_sort],
             "facets": list(self.facets),
@@ -328,6 +348,9 @@ class ArtifactsPaneContract:
     detail_scroll_id: str | None = None
     copy_keymap_group: str = ""
     adapter: str | None = None
+    description_body: str = ""
+    description_source: str = "builtin"
+    description_body_source: str = "builtin"
 
     def has(self, capability: PaneCapability) -> bool:
         return capability in self.capabilities
@@ -351,6 +374,12 @@ class ArtifactsPaneContract:
             "id": self.id,
             "label": self.label,
             "description": self.description,
+            "description_detail": PaneDescription(
+                summary=self.description,
+                body=self.description_body,
+                summary_source=self.description_source,
+                body_source=self.description_body_source,
+            ).to_payload(),
             "icon": self.icon,
             "accent": self.accent,
             "order": self.order,
@@ -390,6 +419,7 @@ class ArtifactsTabDescriptor:
     accent: str
     pane_id: str
     description: str = ""
+    description_body: str = ""
     icon: str = ""
     provider_kind: str | None = None
     provider_spec_digest: str | None = None

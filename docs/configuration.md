@@ -629,6 +629,11 @@ Configures the ACE TUI behavior. Defaults are provided by `src/sase/default_conf
 ace:
   axe_description_expanded: true # Axe-tab description panel starts expanded
   artifacts:
+    description_mode: summary # off | summary | full
+    panes:
+      "ref:plan":
+        description: Project implementation plans
+        description_body: Proposed, approved, and archived plan documents.
     relations_expanded: false # Relation panel starts collapsed as a rail; . expands it
     stitches:
       default_query: "sidecar:false merges:hide since:24h"
@@ -739,9 +744,11 @@ ace:
 
 #### `ace.artifacts`
 
-| Field                | Type | Default | Description                                                                                                                                                                                                |
-| -------------------- | ---- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `relations_expanded` | bool | `false` | Whether the [Artifacts relation panel](ace.md#navigation-in-stitches-beads-provider-documents-and-files) starts expanded; `.` (`toggle_relation_panel`) toggles it in memory for the current session only. |
+| Field                | Type | Default   | Description                                                                                                                                                                                                                              |
+| -------------------- | ---- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `description_mode`   | str  | `summary` | Initial Artifacts pane description mode: `off`, `summary`, or `full`. The configured cycle key changes it in memory for the current session only.                                                                                        |
+| `panes`              | dict | `{}`      | Per-pane description overrides keyed by pane id (`agents`, `stitches`, `patches`, `beads`, `files`, or provider ids such as `ref:plan`). `description` and `description_body` resolve independently and are both optional for each pane. |
+| `relations_expanded` | bool | `false`   | Whether the [Artifacts relation panel](ace.md#navigation-in-stitches-beads-provider-documents-and-files) starts expanded; `.` (`toggle_relation_panel`) toggles it in memory for the current session only.                               |
 
 #### `ace.artifacts.stitches`
 

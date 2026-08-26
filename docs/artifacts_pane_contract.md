@@ -69,8 +69,8 @@ user-facing keys and coverage badges.
 
 `ref.pane` is Python-owned presentation data at document-provider schema version 1. The
 Rust provider-spec wire stays at v1; this block never crosses that wire. A sidecar
-declares row template, sort, facets, grouping, and empty state as data and inherits the
-host query language, relations, marks, copy, help, and chrome.
+declares description copy, row template, sort, facets, grouping, and empty state as data
+and inherits the host query language, relations, marks, copy, help, and chrome.
 
 ```yaml
 ref:
@@ -81,6 +81,7 @@ ref:
   pane:
     label: Notes
     description: Working notes
+    description_body: Notes collected from this project's document sidecars.
     order: 40
     row:
       title: title
@@ -98,6 +99,8 @@ ref:
 
 Constraints that keep the plugin surface bounded:
 
+- `description` is the one-line pane summary and `description_body` is optional expanded
+  detail; both feed the Artifacts pane brief.
 - Presentation refers only to declared properties or the host common fields (`title`,
   `status`, `project`, timestamps, path/filename).
 - List fields are priority hints; detail stays lossless.

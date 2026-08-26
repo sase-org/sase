@@ -8,6 +8,7 @@ import sys
 
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 
 from sase.ace.tui.artifact_tabs import (
     artifacts_pane_contract,
@@ -18,6 +19,11 @@ from sase.ace.tui._artifact_tab_actions import (
     CAPABILITY_HOST_ACTIONS,
     action_applies_to_contract,
     keymap_actions_by_key,
+)
+from sase.ace.tui._artifact_tab_descriptions import (
+    MAX_PANE_DESCRIPTION_BODY_CHARS,
+    MAX_PANE_DESCRIPTION_SUMMARY_CHARS,
+    sanitize_description,
 )
 from sase.ace.tui._artifact_tab_model import (
     ArtifactsPaneContract,
@@ -30,7 +36,7 @@ from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.keymaps.key_validation import is_unbound_key
 
 
-PANE_SHOW_SCHEMA_VERSION = 2
+PANE_SHOW_SCHEMA_VERSION = 3
 
 
 def handle_pane(args: argparse.Namespace) -> int:
@@ -102,6 +108,7 @@ def _print_text(contract: ArtifactsPaneContract, payload: dict[str, object]) -> 
     console.print(header)
     console.print()
 
+    _print_description(console, contract)
     _print_relations(console, contract.relations)
     _print_grouping(console, contract.grouping.modes)
     _print_keys(console, contract)
@@ -143,6 +150,25 @@ def _print_text(contract: ArtifactsPaneContract, payload: dict[str, object]) -> 
             reason,
         )
     console.print(table)
+
+
+def _print_description(console: Console, contract: ArtifactsPaneContract) -> None:
+    console.print("[bold]Description[/]")
+    summary = sanitize_description(
+        contract.description,
+        max_len=MAX_PANE_DESCRIPTION_SUMMARY_CHARS,
+    )
+    body = sanitize_description(
+        contract.description_body,
+        max_len=MAX_PANE_DESCRIPTION_BODY_CHARS,
+        preserve_paragraphs=True,
+    )
+    console.print(Text(summary))
+    if body:
+        console.print(Text(body))
+    console.print(Text(f"summary source: {contract.description_source}", style="dim"))
+    console.print(Text(f"body source: {contract.description_body_source}", style="dim"))
+    console.print()
 
 
 def _print_relations(

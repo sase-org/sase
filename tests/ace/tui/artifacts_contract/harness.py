@@ -96,6 +96,22 @@ def check_descriptor_owns_contract(descriptor: ArtifactsTabDescriptor) -> None:
     assert [verdict.capability for verdict in contract.verdicts] == list(PaneCapability)
 
 
+def check_descriptor_description_is_total(
+    descriptor: ArtifactsTabDescriptor,
+) -> None:
+    """Every pane has resolved, non-empty summary copy."""
+    contract = descriptor.resolved_contract
+    assert descriptor.description
+    assert contract.description == descriptor.description
+    assert contract.description_source in {"config", "provider", "builtin", "fallback"}
+    assert contract.description_body_source in {
+        "config",
+        "provider",
+        "builtin",
+        "fallback",
+    }
+
+
 _PRESENTATION_ONLY_CAPABILITIES = frozenset(
     {PaneCapability.STATUS_COUNTERS, PaneCapability.SHELL}
 )
@@ -401,6 +417,7 @@ PANE_CONFORMANCE_CHECKS: tuple[tuple[str, ConformanceCheck], ...] = (
     ("provider_accent_is_declared", check_provider_accent_is_declared),
     ("degraded_tab_carries_error", check_degraded_tab_carries_error),
     ("descriptor_owns_contract", check_descriptor_owns_contract),
+    ("descriptor_description_is_total", check_descriptor_description_is_total),
     ("declared_actions_are_registered", check_declared_actions_are_registered),
     (
         "declared_capabilities_are_reachable",

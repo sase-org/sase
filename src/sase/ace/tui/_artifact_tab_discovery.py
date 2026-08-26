@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.content_layout import LayoutCollisionError
+from sase.config.core import current_config_token
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import effective_project_name
@@ -268,4 +269,5 @@ def provider_source_token() -> tuple[object, ...] | None:
                 config_token,
             )
         )
+    token.append(("config", current_config_token()))
     return tuple(token)

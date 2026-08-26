@@ -57,7 +57,11 @@ def test_pane_show_json_explains_verdicts(
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 0
     assert payload["id"] == "beads"
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
+    assert payload["description_detail"]["summary"] == payload["description"]
+    assert payload["description_detail"]["body"]
+    assert payload["description_detail"]["summary_source"] == "builtin"
+    assert payload["description_detail"]["body_source"] == "builtin"
     names = [item["capability"] for item in payload["capabilities"]]
     assert names == [item.value for item in PaneCapability]
     by_name = {item["capability"]: item for item in payload["capabilities"]}
@@ -84,6 +88,23 @@ def test_pane_show_json_explains_verdicts(
     assert "beads_next" in key_actions
     assert "refresh" in key_actions
     assert "plans_next" not in key_actions
+
+
+def test_pane_show_text_prints_description(monkeypatch, capsys) -> None:
+    descriptor = fixed_descriptor("stitches")
+    monkeypatch.setattr(
+        "sase.artifact_cli.pane.artifacts_pane_contract",
+        lambda pane_id: descriptor.contract if pane_id == descriptor.id else None,
+    )
+    exit_code = handle_pane(
+        SimpleNamespace(pane_subcommand="show", pane_id="stitches", json=False)
+    )
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "Description" in out
+    assert descriptor.description in out
+    assert "summary source: builtin" in out
+    assert "body source: builtin" in out
 
 
 def test_pane_show_unknown_id_lists_configured(monkeypatch, capsys) -> None:

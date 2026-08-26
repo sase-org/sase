@@ -6,6 +6,7 @@ import pytest
 
 from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui._artifact_link_contract import ARTIFACT_LINK_RELATIONS
+from sase.ace.tui import _artifact_tab_descriptions as descriptions
 from sase.ace.tui._artifact_tab_contract import (
     GENERIC_DOCUMENT_COPY_TARGETS,
     PLAN_COPY_TARGETS,
@@ -422,3 +423,77 @@ def test_presentation_digest_is_sensitive_to_the_query_profile() -> None:
     ).contract
     assert base.query_profile.digest != changed.query_profile.digest
     assert base.presentation_digest != changed.presentation_digest
+
+
+def test_presentation_digest_is_sensitive_to_description_body_and_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    descriptions._configured_pane_descriptions_for_token.cache_clear()
+    monkeypatch.setattr(descriptions, "current_config_token", lambda: ("provider",))
+    monkeypatch.setattr(descriptions, "load_merged_config", lambda: {})
+    base = compile_provider_contract(
+        kind="notes",
+        label="Note",
+        icon="¶",
+        accent="#5FAFFF",
+        spec=document_spec(
+            pane={
+                "description": "Shared summary",
+                "description_body": "Provider body",
+            }
+        ),
+        provider_spec_digest="def",
+    ).contract
+    changed_body = compile_provider_contract(
+        kind="notes",
+        label="Note",
+        icon="¶",
+        accent="#5FAFFF",
+        spec=document_spec(
+            pane={
+                "description": "Shared summary",
+                "description_body": "Changed body",
+            }
+        ),
+        provider_spec_digest="def",
+    ).contract
+
+    assert base.presentation_digest != changed_body.presentation_digest
+
+    descriptions._configured_pane_descriptions_for_token.cache_clear()
+    monkeypatch.setattr(descriptions, "current_config_token", lambda: ("config",))
+    monkeypatch.setattr(
+        descriptions,
+        "load_merged_config",
+        lambda: {
+            "ace": {
+                "artifacts": {
+                    "panes": {
+                        "ref:notes": {
+                            "description": "Shared summary",
+                            "description_body": "Provider body",
+                        }
+                    }
+                }
+            }
+        },
+    )
+    same_text_config_source = compile_provider_contract(
+        kind="notes",
+        label="Note",
+        icon="¶",
+        accent="#5FAFFF",
+        spec=document_spec(
+            pane={
+                "description": "Shared summary",
+                "description_body": "Provider body",
+            }
+        ),
+        provider_spec_digest="def",
+    ).contract
+
+    assert base.description == same_text_config_source.description
+    assert base.description_body == same_text_config_source.description_body
+    assert base.description_source == "provider"
+    assert same_text_config_source.description_source == "config"
+    assert base.presentation_digest != same_text_config_source.presentation_digest

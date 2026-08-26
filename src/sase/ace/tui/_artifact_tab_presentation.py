@@ -21,6 +21,7 @@ _PANE_KEYS = frozenset(
     {
         "label",
         "description",
+        "description_body",
         "order",
         "row",
         "default_sort",
@@ -107,6 +108,13 @@ def compile_provider_pane_presentation(
     description, error = _optional_text(pane, "description", max_len=240)
     if error is not None:
         return _invalid(error)
+    description_body, error = _optional_text(
+        pane,
+        "description_body",
+        max_len=600,
+    )
+    if error is not None:
+        return _invalid(error)
     order, error = _optional_order(pane.get("order"))
     if error is not None:
         return _invalid(error)
@@ -138,6 +146,7 @@ def compile_provider_pane_presentation(
         order=order,
         presentation=PanePresentation(
             description=description or "",
+            description_body=description_body or "",
             row=row,
             default_sort=default_sort,
             facets=facets,

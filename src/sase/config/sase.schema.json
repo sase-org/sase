@@ -123,6 +123,10 @@
         "filters": {
           "$ref": "#/definitions/sidecarRefFilters",
           "description": "Deprecated alias for inventory.globs."
+        },
+        "pane": {
+          "$ref": "#/definitions/sidecarRefPane",
+          "description": "Optional Artifacts pane presentation hints for this document ref kind."
         }
       }
     },
@@ -196,6 +200,127 @@
           "type": "array",
           "description": "Repo-relative document path globs, including !-prefixed exclusions. Omit for the Markdown default; an empty list allows no paths.",
           "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "sidecarRefPane": {
+      "type": "object",
+      "description": "Provider-owned presentation hints for an ACE Artifacts document pane.",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "description": "Short Artifacts sub-tab label for this document kind."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240,
+          "description": "One-line pane summary used by the Artifacts pane brief and hover tooltip."
+        },
+        "description_body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 600,
+          "description": "Optional pane detail used by the expanded Artifacts pane brief."
+        },
+        "order": {
+          "type": "integer",
+          "minimum": -10000,
+          "maximum": 10000,
+          "description": "Relative sort order among provider-backed Artifacts panes."
+        },
+        "row": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": { "type": "string", "minLength": 1 },
+            "badges": {
+              "oneOf": [
+                { "type": "string", "minLength": 1 },
+                {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 }
+                }
+              ]
+            },
+            "secondary": {
+              "oneOf": [
+                { "type": "string", "minLength": 1 },
+                {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 }
+                }
+              ]
+            },
+            "list_fields": {
+              "oneOf": [
+                { "type": "string", "minLength": 1 },
+                {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 }
+                }
+              ]
+            },
+            "fields": {
+              "oneOf": [
+                { "type": "string", "minLength": 1 },
+                {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 }
+                }
+              ]
+            }
+          }
+        },
+        "default_sort": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string", "minLength": 1 },
+              {
+                "type": "object",
+                "required": ["field"],
+                "additionalProperties": false,
+                "properties": {
+                  "field": { "type": "string", "minLength": 1 },
+                  "direction": {
+                    "type": "string",
+                    "enum": ["asc", "desc"],
+                    "default": "asc"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "facets": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            }
+          ]
+        },
+        "group_by": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            }
+          ]
+        },
+        "empty_state": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": { "type": "string", "minLength": 1, "maxLength": 80 },
+            "body": { "type": "string", "minLength": 1, "maxLength": 320 }
+          }
         }
       }
     },
@@ -936,6 +1061,36 @@
           "description": "Settings for ACE Artifacts panes",
           "additionalProperties": false,
           "properties": {
+            "description_mode": {
+              "type": "string",
+              "description": "Initial Artifacts pane description mode; the configured cycle key changes this only for the current ACE session.",
+              "enum": ["off", "summary", "full"],
+              "default": "summary"
+            },
+            "panes": {
+              "type": "object",
+              "description": "Per-pane Artifacts description overrides keyed by pane id.",
+              "propertyNames": {
+                "pattern": "^[a-z][a-z0-9_-]*(?::[a-z][a-z0-9_-]*)?$"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "description_body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 600
+                  }
+                }
+              },
+              "default": {}
+            },
             "relations_expanded": {
               "type": "boolean",
               "description": "Whether the Artifacts relation panel starts expanded; the configured toggle key changes this only for the current ACE session.",

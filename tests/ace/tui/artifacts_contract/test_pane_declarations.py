@@ -74,6 +74,7 @@ def test_provider_pane_declaration_compiles_presentation_and_grouping() -> None:
             pane={
                 "label": "Research",
                 "description": "Research reports",
+                "description_body": "Rows are durable research reports.",
                 "order": 40,
                 "row": {
                     "title": "title",
@@ -97,6 +98,10 @@ def test_provider_pane_declaration_compiles_presentation_and_grouping() -> None:
     assert result.error is None
     assert contract.label == "Research"
     assert contract.description == "Research reports"
+    assert contract.description_body == "Rows are durable research reports."
+    assert (
+        contract.presentation.description_body == "Rows are durable research reports."
+    )
     assert contract.order == 40
     assert contract.presentation.row.title == "title"
     assert contract.presentation.row.badges == ("status",)
@@ -130,6 +135,25 @@ def test_invalid_provider_pane_reference_degrades_contract() -> None:
     assert result.error is not None
     assert result.error_code == "invalid_ref_pane"
     assert "unsafe_callback" in result.error
+    assert result.contract.has(PaneCapability.REFRESH)
+    assert not result.contract.has(PaneCapability.FILTER_SESSION)
+
+
+def test_invalid_provider_pane_description_body_degrades_contract() -> None:
+    result = compile_provider_contract(
+        kind="research",
+        label="Research",
+        icon="R",
+        accent="#058D1D",
+        spec=_document_spec(
+            kind="research",
+            pane={"description_body": 42},
+        ),
+        provider_spec_digest="wire",
+    )
+
+    assert result.error == "ref.pane.description_body must be a string"
+    assert result.error_code == "invalid_ref_pane"
     assert result.contract.has(PaneCapability.REFRESH)
     assert not result.contract.has(PaneCapability.FILTER_SESSION)
 

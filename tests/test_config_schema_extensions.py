@@ -56,6 +56,120 @@ def test_config_schema_validates_artifact_refs_file_roots() -> None:
             validator.validate(invalid)
 
 
+def test_config_schema_accepts_ace_artifacts_pane_descriptions() -> None:
+    Draft7Validator(schema()).validate(
+        {
+            "ace": {
+                "artifacts": {
+                    "description_mode": "full",
+                    "panes": {
+                        "beads": {"description": "Tracked work"},
+                        "ref:plan": {
+                            "description": "Project plans",
+                            "description_body": "Approved and archived plan documents.",
+                        },
+                    },
+                }
+            }
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "artifacts",
+    [
+        {"description_mode": "expanded"},
+        {"panes": {"Ref:plan": {"description": "Bad key"}}},
+        {"panes": {"beads": {"description": ""}}},
+        {"panes": {"beads": {"extra": "nope"}}},
+    ],
+)
+def test_config_schema_rejects_invalid_ace_artifacts_pane_descriptions(
+    artifacts: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema()).validate({"ace": {"artifacts": artifacts}})
+
+
+def test_config_schema_accepts_sidecar_ref_pane_declaration() -> None:
+    Draft7Validator(schema()).validate(
+        {
+            "repos": {
+                "sidecar": {
+                    "custom": {
+                        "research": {
+                            "description": "Research reports.",
+                            "ref": {
+                                "kind": "research",
+                                "icon": "R",
+                                "expansion_format": "{repo_relative_path}",
+                                "properties": {
+                                    "title": {
+                                        "type": "string",
+                                        "source": "markdown_frontmatter",
+                                    },
+                                    "status": {
+                                        "type": "enum",
+                                        "values": ["draft", "final"],
+                                        "source": "markdown_frontmatter",
+                                    },
+                                },
+                                "pane": {
+                                    "label": "Research",
+                                    "description": "Research reports",
+                                    "description_body": "Rows are research reports.",
+                                    "order": 40,
+                                    "row": {
+                                        "title": "title",
+                                        "badges": ["status"],
+                                        "secondary": "updated_time",
+                                        "list_fields": ["tags"],
+                                    },
+                                    "default_sort": [
+                                        {
+                                            "field": "updated_time",
+                                            "direction": "desc",
+                                        }
+                                    ],
+                                    "facets": ["status"],
+                                    "group_by": "status",
+                                    "empty_state": {
+                                        "title": "No research",
+                                        "body": "No reports match.",
+                                    },
+                                },
+                            },
+                        }
+                    }
+                }
+            }
+        }
+    )
+
+
+def test_config_schema_rejects_invalid_sidecar_ref_pane_declaration() -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema()).validate(
+            {
+                "repos": {
+                    "sidecar": {
+                        "custom": {
+                            "research": {
+                                "description": "Research reports.",
+                                "ref": {
+                                    "kind": "research",
+                                    "pane": {
+                                        "description_body": "",
+                                    },
+                                },
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
+
 def test_config_schema_accepts_file_hooks() -> None:
     Draft7Validator(schema()).validate(
         {

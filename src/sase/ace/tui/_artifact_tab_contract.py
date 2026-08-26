@@ -42,6 +42,7 @@ from ._artifact_tab_contract_provider import (
     provider_query_profile,
 )
 from ._artifact_tab_contract_rules import derive_capability_verdicts
+from ._artifact_tab_descriptions import resolve_pane_description
 from ._artifact_tab_model import (
     ArtifactsPaneContract,
     ArtifactsTabDescriptor,
@@ -100,10 +101,19 @@ def compile_builtin_contract(
     assert query_profile is not None, (
         f"no compiled profile for pane {adapter.pane_id!r}"
     )
+    pane_description = resolve_pane_description(
+        adapter.pane_id,
+        label=label,
+        provider_summary="",
+        provider_body="",
+    )
     return _assemble_contract(
         pane_id=adapter.pane_id,
         label=label,
-        description="",
+        description=pane_description.summary,
+        description_body=pane_description.body,
+        description_source=pane_description.summary_source,
+        description_body_source=pane_description.body_source,
         icon=icon,
         accent=accent,
         order=order,
@@ -250,10 +260,19 @@ def compile_provider_contract(
     elif pane_result.empty_state is not None:
         empty_state = pane_result.empty_state
     detail_fields = provider_detail_fields(spec)
+    pane_description = resolve_pane_description(
+        f"ref:{kind}",
+        label=label,
+        provider_summary=pane_result.presentation.description,
+        provider_body=pane_result.presentation.description_body,
+    )
     contract = _assemble_contract(
         pane_id=f"ref:{kind}",
         label=label,
-        description=pane_result.presentation.description,
+        description=pane_description.summary,
+        description_body=pane_description.body,
+        description_source=pane_description.summary_source,
+        description_body_source=pane_description.body_source,
         icon=icon,
         accent=accent,
         order=order,
@@ -303,6 +322,7 @@ def attach_contract(
         descriptor,
         label=contract.label,
         description=contract.description,
+        description_body=contract.description_body,
         icon=contract.icon,
         accent=contract.accent,
         digit_shortcut=contract.digit,
@@ -317,6 +337,9 @@ def _presentation_digest(contract: ArtifactsPaneContract) -> str:
         "id": contract.id,
         "label": contract.label,
         "description": contract.description,
+        "description_body": contract.description_body,
+        "description_source": contract.description_source,
+        "description_body_source": contract.description_body_source,
         "icon": contract.icon,
         "accent": contract.accent,
         "order": contract.order,
@@ -354,6 +377,9 @@ def _presentation_digest_for(
     pane_id: str,
     label: str,
     description: str,
+    description_body: str,
+    description_source: str,
+    description_body_source: str,
     icon: str,
     accent: str,
     order: int,
@@ -380,6 +406,9 @@ def _presentation_digest_for(
         "id": pane_id,
         "label": label,
         "description": description,
+        "description_body": description_body,
+        "description_source": description_source,
+        "description_body_source": description_body_source,
         "icon": icon,
         "accent": accent,
         "order": order,
@@ -411,6 +440,9 @@ def _assemble_contract(
     pane_id: str,
     label: str,
     description: str,
+    description_body: str,
+    description_source: str,
+    description_body_source: str,
     icon: str,
     accent: str,
     order: int,
@@ -437,6 +469,9 @@ def _assemble_contract(
         pane_id=pane_id,
         label=label,
         description=description,
+        description_body=description_body,
+        description_source=description_source,
+        description_body_source=description_body_source,
         icon=icon,
         accent=accent,
         order=order,
@@ -461,6 +496,9 @@ def _assemble_contract(
         id=pane_id,
         label=label,
         description=description,
+        description_body=description_body,
+        description_source=description_source,
+        description_body_source=description_body_source,
         icon=icon,
         accent=accent,
         order=order,
