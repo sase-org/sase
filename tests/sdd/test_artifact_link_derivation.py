@@ -7,8 +7,15 @@ import pytest
 from sase.artifact_links.derive import DerivableDocument
 from sase.feature_flags import override_flags
 from sase.sdd import artifact_link_derivation as artifact_link_derivation_module
+from sase.sdd._store_types import SddStore
 from sase.sdd.artifact_link_derivation import derive_and_persist_artifact_links
 from sase.sdd.artifact_link_store import ArtifactLinkStore
+from sase.sdd.plan_header_block import (
+    PlanHeaderEntry,
+    PlanHeaderSection,
+    PlanHeaderSectionKind,
+    render_plan_header_block,
+)
 from tests._conftest_environment import redirect_sase_home
 
 
@@ -175,3 +182,61 @@ def test_every_candidate_lands_in_one_commit_call(
 
     assert outcome.persisted == 2
     assert len(calls) == 1
+
+
+def test_derives_and_persists_agent_cites_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    plans = tmp_path / "plans"
+    research = tmp_path / "research"
+    agents = tmp_path / "agents"
+    plans.mkdir()
+    research.mkdir()
+    agents.mkdir()
+    sdd_store = SddStore(
+        "sidecar_repos",
+        plans,
+        plans,
+        sidecar_dirs={"research": research, "agents": agents},
+    )
+    store = ArtifactLinkStore.from_sdd_store(sdd_store, "gh_sase-org__sase")
+
+    prompt_section = PlanHeaderSection(
+        kind=PlanHeaderSectionKind.PROMPT,
+        label="prompts/202608/example.md",
+        target="https://example.test/prompt",
+    )
+    plan_path = plans / "202608" / "example.md"
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text(
+        f"{render_plan_header_block((prompt_section,))}\n\n# Plan\n",
+        encoding="utf-8",
+    )
+    agents_section = PlanHeaderSection(
+        kind=PlanHeaderSectionKind.AGENTS,
+        entries=(PlanHeaderEntry(label="alice.athena.worker"),),
+    )
+    prompt_path = agents / "prompts" / "202608" / "example.md"
+    prompt_path.parent.mkdir(parents=True)
+    prompt_path.write_text(
+        f"{render_plan_header_block((agents_section,))}\n\n# Prompt\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        artifact_link_derivation_module,
+        "_is_agent_published",
+        lambda name: name == "alice.athena.worker",
+    )
+    documents = (DerivableDocument(ref="plan:202608/example.md", path=plan_path),)
+
+    with override_flags(artifact_link_derivation=True):
+        outcome = derive_and_persist_artifact_links(
+            store, documents, created_by="sase-agent.1"
+        )
+
+    assert outcome.persisted == 1
+    rows = store.load_artifact_rows("plan:202608/example.md")
+    assert rows[0]["source_ref"] == "agent:alice.athena.worker"
+    assert rows[0]["relation"] == "cites"
+    assert rows[0]["origin"] == "derived"

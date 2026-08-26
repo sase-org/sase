@@ -21,6 +21,11 @@ PLANS_ROLE = "plans"
 PLAN_KIND = "plan"
 BEAD_KIND = "bead"
 
+# Origins written from a `ReferencedByOutboxItem` drained at commit
+# granularity: a repeated drain of the same commit's entry must converge its
+# `uses` count rather than re-accumulate it.
+_COMMIT_SCOPED_ORIGINS = frozenset({"prompt_ref", "prompt_prose"})
+
 
 def assembled_artifact_relations(
     *,
@@ -146,7 +151,7 @@ def upsert_artifact_link_rows(
     )
     outcome_row = dict(outcome["row"])
     outcome_rows = [dict(row) for row in outcome["rows"]]
-    if str(incoming_row.get("origin") or "") == "prompt_ref":
+    if str(incoming_row.get("origin") or "") in _COMMIT_SCOPED_ORIGINS:
         outcome_rows = _converge_prompt_ref_uses(
             original_rows,
             incoming_row,
@@ -155,7 +160,7 @@ def upsert_artifact_link_rows(
         identity = _row_identity(incoming_row)
         for row in outcome_rows:
             if (
-                str(row.get("origin") or "") == "prompt_ref"
+                str(row.get("origin") or "") in _COMMIT_SCOPED_ORIGINS
                 and _row_identity(row) == identity
             ):
                 outcome_row = dict(row)
@@ -172,15 +177,15 @@ def _converge_prompt_ref_uses(
     incoming: Mapping[str, Any],
     outcome_rows: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Make prompt-ref retries converge instead of incrementing read-style counts."""
+    """Make commit-scoped outbox retries converge, not accumulate like reads."""
 
+    origin = str(incoming.get("origin") or "")
     identity = _row_identity(incoming)
     existing_uses = max(
         (
             _row_uses(row)
             for row in original_rows
-            if str(row.get("origin") or "") == "prompt_ref"
-            and _row_identity(row) == identity
+            if str(row.get("origin") or "") == origin and _row_identity(row) == identity
         ),
         default=0,
     )
@@ -188,10 +193,7 @@ def _converge_prompt_ref_uses(
     rows: list[dict[str, Any]] = []
     for raw in outcome_rows:
         row = dict(raw)
-        if (
-            str(row.get("origin") or "") == "prompt_ref"
-            and _row_identity(row) == identity
-        ):
+        if str(row.get("origin") or "") == origin and _row_identity(row) == identity:
             row["uses"] = uses
         rows.append(row)
     return rows

@@ -5,7 +5,10 @@ from typing import cast
 
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.prompt_archive.render import RenderedPromptArchive
-from sase.agents_sync.referenced_by_planning import plan_referenced_by_requests
+from sase.agents_sync.referenced_by_planning import (
+    plan_referenced_by_requests,
+    prose_referenced_by_requests,
+)
 from sase.core.artifact_ref_uses import record_artifact_ref_use
 from sase.core.prompt_artifact_staging import PromptArtifactRecord
 from sase.sdd.store import SddStore
@@ -95,3 +98,76 @@ def test_plan_referenced_by_requests_for_document_sidecar_refs(
     assert request.relation == "cites"
     assert request.origin == "prompt_ref"
     assert request.description == "prompt reference @plan:202608/example.md"
+
+
+def test_prose_referenced_by_requests_for_an_exact_path_match(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    plans = tmp_path / "plans"
+    agents = tmp_path / "agents"
+    workspace.mkdir()
+    plans.mkdir()
+    agents.mkdir()
+    document = plans / "202608" / "example.md"
+    document.parent.mkdir()
+    document.write_text("# Example\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.agents_sync.referenced_by_planning.resolution_config",
+        lambda *_args, **_kwargs: {},
+    )
+    store = SddStore("sidecar_repos", plans, plans)
+
+    [request] = prose_referenced_by_requests(
+        target=_target(workspace, agents),
+        prompt_text="See plans/202608/example.md for the design.",
+        global_agent="alice.athena.worker",
+        primary_revision="a" * 40,
+        store=store,
+        workspace_root=workspace,
+        agent_url="https://example.test/agents/worker",
+    )
+
+    assert request.project_key == "proj"
+    assert request.sidecar_role == "plans"
+    assert request.provider == "plan"
+    assert request.artifact_id == "plan:202608/example.md"
+    assert request.repo_relpath == "202608/example.md"
+    assert request.canonical_ref == "plan:202608/example.md"
+    assert request.uses == 1
+    assert request.relation == "cites"
+    assert request.origin == "prompt_prose"
+    assert request.description == "prose reference plans/202608/example.md"
+
+
+def test_prose_referenced_by_requests_skips_a_near_miss(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    plans = tmp_path / "plans"
+    agents = tmp_path / "agents"
+    workspace.mkdir()
+    plans.mkdir()
+    agents.mkdir()
+    document = plans / "202608" / "example.md"
+    document.parent.mkdir()
+    document.write_text("# Example\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.agents_sync.referenced_by_planning.resolution_config",
+        lambda *_args, **_kwargs: {},
+    )
+    store = SddStore("sidecar_repos", plans, plans)
+
+    requests = prose_referenced_by_requests(
+        target=_target(workspace, agents),
+        prompt_text="See plans/202608/example-typo.md for the design.",
+        global_agent="alice.athena.worker",
+        primary_revision="a" * 40,
+        store=store,
+        workspace_root=workspace,
+        agent_url="https://example.test/agents/worker",
+    )
+
+    assert requests == ()

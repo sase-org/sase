@@ -138,6 +138,7 @@ def prepare_prompt_archive(
     referenced_by_requests = _plan_referenced_by_requests(
         target=target,
         rendered=rendered,
+        prompt_text=prompt,
         agent_artifacts_dir=agent_artifacts_dir,
         global_agent=global_agent,
         primary_revision=primary_revision,
@@ -277,6 +278,7 @@ def _plan_referenced_by_requests(
     *,
     target: ProjectTarget,
     rendered: RenderedPromptArchive,
+    prompt_text: str,
     agent_artifacts_dir: Path,
     global_agent: str,
     primary_revision: str,
@@ -285,15 +287,21 @@ def _plan_referenced_by_requests(
     agent_url: str | None,
 ) -> tuple[ReferencedByOutboxItem, ...]:
     try:
-        from sase.agents_sync.referenced_by_planning import (
-            plan_referenced_by_requests,
-        )
         from sase.sdd.plan_refs import workspace_context_for_plan_resolution
         from sase.sdd.store import resolve_sdd_store
 
         workspace, number = workspace_context_for_plan_resolution(workspace_root)
         store = resolve_sdd_store(workspace, number)
-        return plan_referenced_by_requests(
+    except Exception:
+        return ()
+
+    requests: tuple[ReferencedByOutboxItem, ...] = ()
+    try:
+        from sase.agents_sync.referenced_by_planning import (
+            plan_referenced_by_requests,
+        )
+
+        requests += plan_referenced_by_requests(
             target=target,
             rendered=rendered,
             agent_artifacts_dir=agent_artifacts_dir,
@@ -305,7 +313,24 @@ def _plan_referenced_by_requests(
             agent_url=agent_url,
         )
     except Exception:
-        return ()
+        pass
+    try:
+        from sase.agents_sync.referenced_by_planning import (
+            prose_referenced_by_requests,
+        )
+
+        requests += prose_referenced_by_requests(
+            target=target,
+            prompt_text=prompt_text,
+            global_agent=global_agent,
+            primary_revision=primary_revision,
+            store=store,
+            workspace_root=workspace_root,
+            agent_url=agent_url,
+        )
+    except Exception:
+        pass
+    return requests
 
 
 def _patch_pr_url(locator: str, current_project: str) -> str | None:

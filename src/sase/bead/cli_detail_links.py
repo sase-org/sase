@@ -17,9 +17,10 @@ from sase.sdd.artifact_link_store import (
 LinkDirection = Literal["outgoing", "incoming", "symmetric"]
 LinkSection = Literal["links", "referenced_by"]
 
-_REFERENCED_BY_ORIGINS = frozenset({"prompt_ref", "read"})
+_REFERENCED_BY_ORIGINS = frozenset({"prompt_ref", "prompt_prose", "read"})
 _ORIGIN_LABELS = {
     "prompt_ref": "prompt citation",
+    "prompt_prose": "prose citation",
     "read": "audited read",
 }
 _GLYPHS = {

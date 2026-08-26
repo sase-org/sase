@@ -6,6 +6,7 @@ No call site exists yet. A future phase gates each call with
 
 from __future__ import annotations
 
+from sase.artifact_links.derive._agent_cites_plan import derive_agent_cites_plan
 from sase.artifact_links.derive._entry import derive_candidate_links
 from sase.artifact_links.derive._flag import artifact_link_derivation_enabled
 from sase.artifact_links.derive._model import DerivableDocument, DerivedLinkCandidate
@@ -16,6 +17,7 @@ __all__ = [
     "DerivableDocument",
     "DerivedLinkCandidate",
     "artifact_link_derivation_enabled",
+    "derive_agent_cites_plan",
     "derive_candidate_links",
     "derive_plan_implements_bead",
     "derive_research_swarm_lineage",

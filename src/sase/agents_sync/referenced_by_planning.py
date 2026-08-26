@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+import re
 
 from sase._linked_repo_config import resolution_config
 from sase.agents_sync.models import ProjectTarget
@@ -23,6 +24,12 @@ from sase.core.artifact_ref_uses import (
 from sase.core.prompt_artifact_staging import PromptArtifactRecord
 from sase.sdd.store import SddStore, document_sidecar_roles
 from sase.sidecar_ref_config import SidecarRefPolicy, effective_sidecar_ref_policies
+
+PROMPT_PROSE_ORIGIN = "prompt_prose"
+
+_PROSE_ARTIFACT_PATH_RE = re.compile(
+    r"(?<![\w/])(?:repos/)?(plans|research)/(20\d{4}(?:/[\w.-]+)*\.md)\b"
+)
 
 
 def plan_referenced_by_requests(
@@ -95,6 +102,84 @@ def plan_referenced_by_requests(
                 )
             )
     return tuple(by_key.values())
+
+
+def prose_referenced_by_requests(
+    *,
+    target: ProjectTarget,
+    prompt_text: str,
+    global_agent: str,
+    primary_revision: str,
+    store: SddStore,
+    workspace_root: Path,
+    agent_url: str | None,
+    now: datetime | None = None,
+) -> tuple[ReferencedByOutboxItem, ...]:
+    """Return durable `cites` requests for exact prose path mentions.
+
+    Resolves every ``(repos/)?(plans|research)/20YYMM/<file>.md`` occurrence
+    in *prompt_text* against the sidecar roots and emits a row only for an
+    exact on-disk match. No fuzzy or partial-stem matching: a wrong `cites`
+    row is worse than a missing one. *origin* is marked distinctly from
+    ``prompt_ref`` so a resolved prose citation stays distinguishable from a
+    real ``@ref`` citation.
+    """
+
+    policies = _referenced_by_policies(store, workspace_root)
+    if not policies:
+        return ()
+    role_roots = _role_roots(store, policies)
+    if not role_roots:
+        return ()
+
+    published_date = (now or datetime.now(tz=UTC)).date().isoformat()
+    by_key: dict[ReferencedByLogicalKey, ReferencedByOutboxItem] = {}
+    for match in _PROSE_ARTIFACT_PATH_RE.finditer(prompt_text):
+        role, mentioned_relpath = match.group(1), match.group(2)
+        roots = role_roots.get(role)
+        if roots is None:
+            continue
+        role_root, repo_root, policy = roots
+        candidate_path = (role_root / mentioned_relpath).resolve(strict=False)
+        if (
+            not candidate_path.is_relative_to(role_root)
+            or not candidate_path.is_relative_to(repo_root)
+            or not candidate_path.is_file()
+        ):
+            continue
+        repo_relpath = candidate_path.relative_to(repo_root).as_posix()
+        provider = policy.provider_id or policy.ref_kind
+        artifact_id = f"{provider}:{repo_relpath}"
+        item = ReferencedByOutboxItem(
+            project_key=target.project_key,
+            project=target.project,
+            global_agent=global_agent,
+            agent_url=agent_url,
+            primary_revision=primary_revision,
+            sidecar_role=role,
+            provider=provider,
+            artifact_id=artifact_id,
+            repo_relpath=repo_relpath,
+            identity_value=None,
+            canonical_ref=artifact_id,
+            destination=None,
+            uses=1,
+            published_date=published_date,
+            relation="cites",
+            origin=PROMPT_PROSE_ORIGIN,
+            description=_prose_description(match.group(0)),
+        )
+        key = item.logical_key
+        existing = by_key.get(key)
+        by_key[key] = (
+            item if existing is None else replace(existing, uses=existing.uses + 1)
+        )
+    return tuple(by_key.values())
+
+
+def _prose_description(matched_text: str) -> str:
+    cleaned = " ".join(matched_text.split())
+    return f"prose reference {cleaned}"[:240]
 
 
 def _referenced_by_policies(
@@ -191,4 +276,8 @@ def _record_document_path(
     return (root / vcs_relpath).expanduser().resolve(strict=False)
 
 
-__all__ = ["plan_referenced_by_requests"]
+__all__ = [
+    "PROMPT_PROSE_ORIGIN",
+    "plan_referenced_by_requests",
+    "prose_referenced_by_requests",
+]

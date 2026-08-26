@@ -10,7 +10,7 @@ from sase.core.rust import require_rust_binding
 from sase.sdd.artifact_link_beads import rows_touching_bead
 
 _CURATED_ORIGINS = frozenset({"manual", "migrated", "derived"})
-_AUTOMATIC_ORIGINS = frozenset({"prompt_ref", "read"})
+_AUTOMATIC_ORIGINS = frozenset({"prompt_ref", "prompt_prose", "read"})
 _LINKS_SCHEMA_VERSION = 1
 _LINKS_COLUMNS = (
     {"key": "relation", "label": "Relation", "numeric": False},

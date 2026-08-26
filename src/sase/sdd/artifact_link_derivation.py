@@ -58,7 +58,10 @@ def derive_and_persist_artifact_links(
         return ArtifactLinkDerivationOutcome()
 
     candidates = derive_candidate_links(
-        documents, known_bead_ids=_known_bead_ids(store)
+        documents,
+        known_bead_ids=_known_bead_ids(store),
+        agents_sidecar_root=_agents_sidecar_root(store),
+        is_agent_published=_is_agent_published,
     )
     if not candidates:
         return ArtifactLinkDerivationOutcome()
@@ -116,6 +119,31 @@ def _known_bead_ids(store: ArtifactLinkStore) -> frozenset[str]:
     from sase.bead_pages.links import known_bead_ids_for_store
 
     return known_bead_ids_for_store(store.sdd_store) or frozenset()
+
+
+_PUBLISHED_AGENT_STATUSES = frozenset({"exact", "drifted", "vcs_backed"})
+
+
+def _agents_sidecar_root(store: ArtifactLinkStore) -> Path | None:
+    if store.sdd_store is None:
+        return None
+    from sase.sdd.store import AGENTS_SIDECAR_ROLE
+
+    try:
+        root = store.sdd_store.kind_root(AGENTS_SIDECAR_ROLE)
+    except Exception:  # noqa: BLE001 - no agents sidecar, no candidates.
+        return None
+    return root if root.is_dir() else None
+
+
+def _is_agent_published(agent_name: str) -> bool:
+    try:
+        from sase.artifact_cli.references import resolve_cli_reference
+
+        result = resolve_cli_reference(f"agent:{agent_name}")
+    except Exception:  # noqa: BLE001 - unresolved agents contribute no candidate.
+        return False
+    return result.resolution.status in _PUBLISHED_AGENT_STATUSES
 
 
 __all__ = [
