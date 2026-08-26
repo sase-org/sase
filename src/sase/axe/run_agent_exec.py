@@ -12,6 +12,7 @@ from sase.axe.run_agent_exec_markers import (
     publish_phase_env as _publish_phase_env,
     write_done_marker_and_update_index as _write_done_marker_and_update_index,
 )
+from sase.axe.run_agent_exec_gate import handle_gate_marker
 from sase.axe.run_agent_exec_monitor import handle_monitor_marker
 from sase.axe.run_agent_exec_pipe import handle_pipe_marker
 from sase.axe.run_agent_exec_plan import handle_plan_marker
@@ -139,6 +140,7 @@ def _handle_killed_iteration(
         read_and_delete_marker(state.current_artifacts_dir, ".sase_plan_pending")
         read_and_delete_marker(state.current_artifacts_dir, ".sase_questions_pending")
         read_and_delete_marker(state.current_artifacts_dir, ".sase_monitor_pending")
+        read_and_delete_marker(state.current_artifacts_dir, ".sase_gate_pending")
         read_and_delete_marker(state.current_artifacts_dir, ".sase_pipe_pending")
         AGENT_KILLS.labels(reason="user").inc()
         return "killed"
@@ -155,6 +157,10 @@ def _handle_killed_iteration(
         state.current_artifacts_dir,
         ".sase_monitor_pending",
     )
+    gate_data = read_and_delete_marker(
+        state.current_artifacts_dir,
+        ".sase_gate_pending",
+    )
     pipe_data = read_and_delete_marker(
         state.current_artifacts_dir,
         ".sase_pipe_pending",
@@ -166,6 +172,8 @@ def _handle_killed_iteration(
         return handle_questions_marker(q_data, ctx, state)
     if monitor_data and _marker_predates_kill(monitor_data, kill_time):
         return handle_monitor_marker(monitor_data, ctx, state)
+    if gate_data and _marker_predates_kill(gate_data, kill_time):
+        return handle_gate_marker(gate_data, ctx, state)
     if pipe_data and _marker_predates_kill(pipe_data, kill_time):
         return handle_pipe_marker(pipe_data, ctx, state)
 

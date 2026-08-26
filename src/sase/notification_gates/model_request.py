@@ -13,6 +13,10 @@ from sase.notification_gates.model_options import (
     normalize_gate_structure,
     normalize_primary_branch,
 )
+from sase.notification_gates.model_shell import (
+    GATE_SHELL_DEFAULT_TIMEOUT_SECONDS,
+    GateShellSpec,
+)
 from sase.notification_gates.model_validation import (
     GATE_REQUEST_SCHEMA_VERSION,
     GateError,
@@ -161,6 +165,7 @@ class GateSpec:
     operations: tuple[GateOperation, ...]
     resources: tuple[GateResource, ...]
     auto: _GateAuto
+    shell: GateShellSpec | None = None
 
     @classmethod
     def from_mapping(cls, value: object) -> GateSpec:
@@ -197,6 +202,7 @@ class GateSpec:
                 "resources",
                 "assets",
                 "auto",
+                "shell",
             },
             "request",
         )
@@ -239,6 +245,13 @@ class GateSpec:
             default_feedback=adapter.default_feedback,
         )
         primary_branch = normalize_primary_branch(data.get("primary_branch"), branches)
+        shell = (
+            GateShellSpec.from_mapping(data["shell"], branches=branches)
+            if "shell" in data
+            else None
+        )
+        if shell is not None and timeout is None:
+            timeout = GATE_SHELL_DEFAULT_TIMEOUT_SECONDS
         raw_operations = data.get("operations", [])
         if not isinstance(raw_operations, list):
             raise GateError(
@@ -289,4 +302,5 @@ class GateSpec:
             operations=operations,
             resources=resources,
             auto=_GateAuto.from_value(data.get("auto")),
+            shell=shell,
         )

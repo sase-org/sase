@@ -4,6 +4,7 @@ import pytest
 
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
+    PLAN_CHAIN_GATE_SUFFIX,
     PLAN_CHAIN_MONITOR_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
     PLAN_CHAIN_QUESTION_SUFFIX,
@@ -180,6 +181,24 @@ def test_monitor_sequence_suffixes_classify_as_monitor_phase() -> None:
     assert not info.is_feedback
 
     assert plan_chain_agent_name("agent", "--mon-0") == "agent--mon-0"
+
+
+def test_gate_suffixes_classify_as_gate_phase_members() -> None:
+    assert canonical_plan_chain_suffix(PLAN_CHAIN_GATE_SUFFIX) == "--gate"
+    assert canonical_plan_chain_suffix("--gate-0") == "--gate-0"
+    assert canonical_plan_chain_suffix("--gate-alpha") == "--gate-alpha"
+    assert agent_family_role_for_suffix("--gate") == "gate"
+    assert agent_family_role_for_suffix("--gate-0") == "gate"
+
+    info = _parse_plan_chain_suffix("--gate-0")
+    assert info is not None
+    assert info.role == "gate"
+    assert info.kind == "phase"
+    assert info.token == "0"
+    assert not info.is_feedback
+
+    assert plan_chain_agent_name("agent", "--gate") == "agent--gate"
+    assert plan_chain_agent_name("agent", "--gate-0") == "agent--gate-0"
 
 
 def test_agent_family_helpers_parse_only_known_suffixes() -> None:

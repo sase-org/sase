@@ -78,6 +78,16 @@ class DoneMarkerWire:
             degraded workspace (e.g. the original claim could not transfer).
         monitor_followup_prompt_path: Durable artifact path the composed
             follow-up prompt was persisted to when it could not be launched.
+        gate_state: Terminal gate-shell outcome, mirroring the running member's
+            ``agent_meta.json::gate_state``.
+        gate_followup_outcome: The gate follow-up launch disposition, when
+            recorded.
+        gate_followup_error: Human-readable reason a gate follow-up was dropped
+            or degraded.
+        gate_followup_degraded_reason: Why a launched gate follow-up landed in
+            a degraded workspace.
+        gate_followup_prompt_path: Durable artifact path the composed gate
+            follow-up prompt was persisted to when it could not be launched.
     """
 
     outcome: str | None = None
@@ -119,6 +129,11 @@ class DoneMarkerWire:
     monitor_followup_error: str | None = None
     monitor_followup_degraded_reason: str | None = None
     monitor_followup_prompt_path: str | None = None
+    gate_state: str | None = None
+    gate_followup_outcome: str | None = None
+    gate_followup_error: str | None = None
+    gate_followup_degraded_reason: str | None = None
+    gate_followup_prompt_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -234,6 +249,29 @@ class AgentMetaWire:
     monitor_followup_error: str | None = None
     monitor_followup_degraded_reason: str | None = None
     monitor_followup_prompt_path: str | None = None
+    gate_id: str | None = None
+    gate_kind: str | None = None
+    gate_state: str | None = None
+    gate_start_status: str | None = None
+    gate_stop_status: str | None = None
+    gate_accent: str | None = None
+    gate_label: str | None = None
+    gate_reason: str | None = None
+    gate_creator_agent: str | None = None
+    gate_bundle_path: str | None = None
+    gate_notification_id: str | None = None
+    gate_timeout_seconds: float | None = None
+    gate_request_fingerprint: str | None = None
+    gate_workspace_policy: str | None = None
+    gate_followup_agent: str | None = None
+    gate_followup_outcome: str | None = None
+    gate_followup_error: str | None = None
+    gate_followup_degraded_reason: str | None = None
+    gate_followup_prompt_path: str | None = None
+    gate_next_action: str | None = None
+    gate_next_fork: str | None = None
+    gate_next_output: str | None = None
+    gate_next_model: str | None = None
     shell_kind: str | None = None
     proc_id: str | None = None
 

@@ -218,10 +218,37 @@ def _register_create_parser(gate_subparsers: argparse._SubParsersAction) -> None
             "  sase gate create < gate-request.json\n"
             "  sase gate create --panel deployments --panel-icon 🚀 "
             "< gate-request.json\n"
-            "  sase gate create --sender deploy-review --tag production "
+            "  sase gate create --shell --next 'Continue after approval' "
             "< gate-request.json"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    create_parser.add_argument(
+        "-n",
+        "--next",
+        default=None,
+        help="Follow-up prompt for a created gate shell",
+    )
+    create_parser.add_argument(
+        "-f",
+        "--next-fork",
+        default=None,
+        choices=("family", "shell", "none"),
+        help="Gate-shell follow-up fork policy",
+    )
+    create_parser.add_argument(
+        "-m",
+        "--next-model",
+        default=None,
+        help="Model selector inherited by the gate-shell follow-up",
+    )
+    create_parser.add_argument(
+        "-N",
+        "--next-output",
+        action="append",
+        default=None,
+        choices=("none", "results", "tail", "file"),
+        help="Gate-shell follow-up output channel; repeat for multiple channels",
     )
     create_parser.add_argument(
         "-o",
@@ -249,6 +276,24 @@ def _register_create_parser(gate_subparsers: argparse._SubParsersAction) -> None
         "--sender",
         default=None,
         help="Override the notification sender in the gate presentation",
+    )
+    create_parser.add_argument(
+        "-G",
+        "--shell",
+        action="store_true",
+        help="Create a gate shell that owns the decision and hands off this agent",
+    )
+    create_parser.add_argument(
+        "-g",
+        "--shell-status",
+        default=None,
+        help="Pending status label for the created gate shell",
+    )
+    create_parser.add_argument(
+        "-E",
+        "--shell-stop-status",
+        default=None,
+        help="Settled status label for the created gate shell",
     )
     create_parser.add_argument(
         "-t",

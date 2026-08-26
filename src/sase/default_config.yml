@@ -1052,6 +1052,15 @@ axe:
             carries at most 50 beads, oldest first; a larger backlog is reported in omitted_count and
             offered on later ticks. An unchanged roster leaves the pending gate alone. The gate is
             canceled when the backlog drops below the bar.
+        - name: gate_shell_reclaim
+          script: sase_chop_gate_shell_reclaim
+          timeout: "2m"
+          description: |-
+            Settle pending gate shells whose durable gates answered, cancelled, expired, or disappeared
+
+            Scans gate-shell family members across projects, reconciles already-terminal gate bundles, cancels
+            expired gates at their own deadline, and force-settles shells as lost once the configured grace period
+            after that deadline has passed.
         - name: artifact_link_backfill
           script: sase_chop_artifact_link_backfill
           timeout: "5m"
@@ -1311,6 +1320,12 @@ bead:
   #           path is printed. `sase bead work --no-push` overrides this to skip
   #           the push for a single invocation.
   push_after_commit: true
+
+gate:
+  shell:
+    # Seconds after a shell gate's own deadline before reclaim treats the
+    # pending shell as lost instead of trying to cancel it normally.
+    reclaim_grace_seconds: 3600
 
 external_mirror:
   # One shared filter surface governs which tracker issues become beads and

@@ -3440,6 +3440,26 @@
         }
       }
     },
+    "gate": {
+      "type": "object",
+      "description": "Configuration for durable command-backed gates",
+      "additionalProperties": false,
+      "properties": {
+        "shell": {
+          "type": "object",
+          "description": "Settings for processless gate-shell family members",
+          "additionalProperties": false,
+          "properties": {
+            "reclaim_grace_seconds": {
+              "type": "integer",
+              "description": "Seconds after a shell gate's own deadline before reclaim force-settles the pending shell as lost.",
+              "default": 3600,
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
     "external_mirror": {
       "type": "object",
       "description": "Configuration for the external tracker mirror (issues into beads, pull requests into Patches).",

@@ -13,6 +13,7 @@ PLAN_CHAIN_CODER_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}code"
 PLAN_CHAIN_EPIC_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}epic"
 PLAN_CHAIN_COMMIT_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}commit"
 PLAN_CHAIN_MONITOR_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}mon"
+PLAN_CHAIN_GATE_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}gate"
 PLAN_CHAIN_PARENT_TIMESTAMP_FIELD = "plan_chain_parent_timestamp"
 PLAN_CHAIN_ROOT_FIELD = "plan_chain_root"
 AGENT_FAMILY_FIELD = "agent_family"
@@ -24,6 +25,7 @@ _TOKEN_RE = re.compile(r"^[A-Za-z0-9_]+$")
 _ROOT_TOKEN_SUFFIX_RE = re.compile(r"^--([A-Za-z0-9_]+)$")
 _PLAN_FEEDBACK_SUFFIX_RE = re.compile(r"^--plan-([A-Za-z0-9_]+)$")
 _MONITOR_SEQUENCE_SUFFIX_RE = re.compile(r"^--mon-([A-Za-z0-9_]+)$")
+_GATE_SEQUENCE_SUFFIX_RE = re.compile(r"^--gate-([A-Za-z0-9_]+)$")
 _KNOWN_SUFFIXES = {
     PLAN_CHAIN_PLAN_SUFFIX,
     PLAN_CHAIN_QUESTION_SUFFIX,
@@ -31,6 +33,7 @@ _KNOWN_SUFFIXES = {
     PLAN_CHAIN_EPIC_SUFFIX,
     PLAN_CHAIN_COMMIT_SUFFIX,
     PLAN_CHAIN_MONITOR_SUFFIX,
+    PLAN_CHAIN_GATE_SUFFIX,
 }
 _LEGACY_DOTTED_SUFFIX_MAP = {
     ".plan": PLAN_CHAIN_PLAN_SUFFIX,
@@ -53,6 +56,7 @@ _PHASE_SUFFIX_ROLES = {
     PLAN_CHAIN_EPIC_SUFFIX: "epic",
     PLAN_CHAIN_COMMIT_SUFFIX: "commit",
     PLAN_CHAIN_MONITOR_SUFFIX: "monitor",
+    PLAN_CHAIN_GATE_SUFFIX: "gate",
 }
 _EXPLICIT_FAMILY_ROLES = {
     "plan",
@@ -62,6 +66,7 @@ _EXPLICIT_FAMILY_ROLES = {
     "commit",
     "feedback",
     "monitor",
+    "gate",
 }
 
 
@@ -123,6 +128,9 @@ def _canonical_plan_chain_suffix_without_phase_question(suffix: str) -> str | No
     if match is not None:
         return suffix
     match = _MONITOR_SEQUENCE_SUFFIX_RE.match(suffix)
+    if match is not None:
+        return suffix
+    match = _GATE_SEQUENCE_SUFFIX_RE.match(suffix)
     if match is not None:
         return suffix
     match = _ROOT_TOKEN_SUFFIX_RE.match(suffix)
@@ -203,6 +211,15 @@ def _parse_plan_chain_suffix(
         return _PlanChainSuffixInfo(
             suffix=suffix,
             role="monitor",
+            kind="phase",
+            token=match.group(1),
+        )
+
+    match = _GATE_SEQUENCE_SUFFIX_RE.match(suffix)
+    if match is not None:
+        return _PlanChainSuffixInfo(
+            suffix=suffix,
+            role="gate",
             kind="phase",
             token=match.group(1),
         )

@@ -66,7 +66,7 @@ def test_file_lock_with_no_timeout_still_blocks_until_released(tmp_path: Path) -
     def _hold_briefly() -> None:
         with file_lock(lock_path):
             holder_ready.set()
-            time.sleep(0.2)
+            time.sleep(0.2)  # sase-test-wait: holder releases lock after wait
 
     holder = threading.Thread(target=_hold_briefly)
     holder.start()

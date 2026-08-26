@@ -73,6 +73,7 @@ def _show(args: argparse.Namespace) -> dict[str, Any]:
         "primary_branch": list(gate.primary_branch),
         "query": gate.query,
         "request_id": bundle.request_id,
+        "shell": _shell_payload(bundle.envelope),
         "status": "pending" if poll is None else _STATUS_PROJECTION[poll.status],
     }
 
@@ -101,6 +102,11 @@ def _option_payload(option: GateOption) -> dict[str, Any]:
 
 def _action_payload(operation: GateOperation) -> dict[str, Any]:
     return operation.to_dict()
+
+
+def _shell_payload(envelope: Mapping[str, Any]) -> dict[str, Any] | None:
+    shell = envelope.get("shell")
+    return dict(shell) if isinstance(shell, Mapping) else None
 
 
 def _print_human_gate(payload: Mapping[str, Any]) -> None:
@@ -133,6 +139,10 @@ def _print_human_gate(payload: Mapping[str, Any]) -> None:
         console.print(Text("Actions", style="bold"), soft_wrap=True)
         for action in actions:
             _print_action(console, action)
+
+    shell = payload.get("shell")
+    if isinstance(shell, Mapping):
+        _print_shell(console, shell)
 
 
 def _print_option(console: Console, option: Mapping[str, Any]) -> None:
@@ -210,6 +220,35 @@ def _print_action(console: Console, action: Mapping[str, Any]) -> None:
         console.print(
             Text(f"      {action['description']}", style="dim"), soft_wrap=True
         )
+
+
+def _print_shell(console: Console, shell: Mapping[str, Any]) -> None:
+    console.print(Text("Gate Shell", style="bold"), soft_wrap=True)
+    line = Text("  ")
+    line.append(str(shell.get("pending_status") or "GATE"), style="bold")
+    line.append(" → ", style="dim")
+    line.append(str(shell.get("settled_status") or "GATED"), style="bold")
+    workspace = shell.get("workspace")
+    if workspace:
+        line.append(f" · workspace {workspace}", style="dim")
+    suffix = shell.get("suffix")
+    if suffix:
+        line.append(f" · suffix {suffix}", style="dim")
+    console.print(line, soft_wrap=True)
+    next_policy = shell.get("next")
+    if isinstance(next_policy, Mapping):
+        output = next_policy.get("output")
+        if isinstance(output, list):
+            output_text = ", ".join(str(item) for item in output)
+        else:
+            output_text = str(output or "")
+        followup = Text("      next: ", style="dim")
+        followup.append(str(next_policy.get("fork") or "family"))
+        if output_text:
+            followup.append(f" · output {output_text}", style="dim")
+        if next_policy.get("model"):
+            followup.append(f" · model {next_policy['model']}", style="dim")
+        console.print(followup, soft_wrap=True)
 
 
 def _status_style(status: str) -> str:

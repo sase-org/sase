@@ -32,6 +32,7 @@ DEFAULT_ARTIFACT_RETENTION_ENABLED = False
 DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL = 3
 DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS = 90
 DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS = 14
+DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS = 3600
 
 
 def _merged_config() -> dict[str, Any]:
@@ -263,3 +264,23 @@ def get_artifact_retention_trash_grace_days() -> int:
     if type(value) is int and value >= 0:
         return value
     return DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS
+
+
+def get_gate_shell_reclaim_grace_seconds() -> int:
+    """Return the grace period before a missed gate-shell deadline is lost."""
+    try:
+        gate = _merged_config().get("gate", {})
+    except Exception:  # noqa: BLE001 - maintenance cleanup should fail open.
+        return DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS
+    shell = gate.get("shell", {}) if isinstance(gate, dict) else {}
+    value = (
+        shell.get(
+            "reclaim_grace_seconds",
+            DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS,
+        )
+        if isinstance(shell, dict)
+        else DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS
+    )
+    if type(value) is int and value >= 0:
+        return value
+    return DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS

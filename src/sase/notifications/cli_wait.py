@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import NoReturn
@@ -15,6 +16,7 @@ from sase.notification_gates.journal import executed_operations
 from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import bundle_paths
 from sase.notification_gates.poller import GatePollResult, wait_for_gate
+from sase.notification_gates.hashing import load_and_verify_bundle
 
 _EXIT_CODES = {"answered": 0, "cancelled": 3, "timeout": 4}
 _STATUS_PROJECTION = {
@@ -30,6 +32,14 @@ def handle_gate_wait(args: argparse.Namespace) -> NoReturn:
     kind = str(args.kind)
     try:
         paths = bundle_paths(kind, request_id)
+        if os.environ.get("SASE_AGENT") and _is_shell_gate(paths.root):
+            print(
+                "sase gate wait: shell gate cannot be waited on from inside an "
+                "agent; use `sase gate create --shell` so the gate shell "
+                "publishes the decision instead",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         result = wait_for_gate(
             paths.root,
             timeout_seconds=getattr(args, "timeout", None),
@@ -55,6 +65,11 @@ def handle_gate_wait(args: argparse.Namespace) -> NoReturn:
             kind=kind,
         )
     sys.exit(_EXIT_CODES[str(payload["status"])])
+
+
+def _is_shell_gate(bundle_path: Path) -> bool:
+    envelope, _adapter = load_and_verify_bundle(bundle_path)
+    return isinstance(envelope.get("shell"), dict)
 
 
 def _terminal_payload(

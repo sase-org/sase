@@ -181,3 +181,29 @@ def test_cancelled_gate_has_empty_answer_fields_but_still_reports_operations(
     assert payload["option_inputs"] == {}
     assert payload["option_results"] == []
     assert [op["operation_id"] for op in payload["operations"]] == ["show_diff"]
+
+
+def test_agent_gate_wait_refuses_shell_gate(
+    gate_home: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_id = "wait-shell"
+    raw = _spec(request_id)
+    raw["shell"] = {}
+    create_gate(raw)
+    monkeypatch.setenv("SASE_AGENT", "1")
+
+    parser = argparse.ArgumentParser(prog="sase")
+    register_gate_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(
+        ["gate", "wait", "--id", request_id, "--kind", "custom", "--json"]
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_gate_command(args)
+
+    assert int(excinfo.value.code or 0) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "shell gate cannot be waited on from inside an agent" in captured.err

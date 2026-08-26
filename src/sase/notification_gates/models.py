@@ -15,6 +15,14 @@ from sase.notification_gates.model_results import (
     GateCreationResult,
     GateExecutionResult,
 )
+from sase.notification_gates.model_shell import (
+    GATE_SHELL_DEFAULT_TIMEOUT_SECONDS,
+    DEFAULT_GATE_SHELL_PENDING_STATUS,
+    DEFAULT_GATE_SHELL_SETTLED_STATUS,
+    GateShellBranchSpec,
+    GateShellNext,
+    GateShellSpec,
+)
 from sase.notification_gates.model_validation import (
     GATE_REQUEST_SCHEMA_VERSION,
     GATE_RESPONSE_SCHEMA_VERSION,
@@ -40,6 +48,7 @@ __all__ = [
     "GATE_REQUEST_SCHEMA_VERSION",
     "GATE_RESPONSE_SCHEMA_VERSION",
     "GATE_RESULT_SCHEMA_VERSION",
+    "GATE_SHELL_DEFAULT_TIMEOUT_SECONDS",
     "JSON_SCHEMA_DIALECT",
     "MAX_ARRAY_ITEMS",
     "MAX_INPUT_BYTES",
@@ -54,7 +63,12 @@ __all__ = [
     "GateInputField",
     "GateOption",
     "GateResource",
+    "GateShellBranchSpec",
+    "GateShellNext",
+    "GateShellSpec",
     "GateSpec",
+    "DEFAULT_GATE_SHELL_PENDING_STATUS",
+    "DEFAULT_GATE_SHELL_SETTLED_STATUS",
     "check_schema_bounds",
     "compile_gate_input_schema",
     "normalize_gate_structure",

@@ -339,6 +339,82 @@ def test_cleanup_releases_dead_monitor_claim_once_member_is_terminal() -> None:
     )
 
 
+def test_cleanup_keeps_dead_gate_claim_when_member_not_terminal() -> None:
+    """A dead-pid ace-gate claim is held while its gate shell is pending."""
+    claim = WorkspaceClaim(
+        workspace_num=10,
+        workflow="ace-gate",
+        cl_name="feature",
+        pid=33333,
+        artifacts_timestamp="20260813125344",
+    )
+    project_file = "/tmp/projects/proj/proj.sase"
+    with (
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            return_value=[project_file],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            return_value=[claim],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.core.agent_artifact_paths.resolve_agent_artifact_timestamp_path",
+            return_value=Path("/tmp/artifacts/20260813125344"),
+        ),
+        patch(
+            "sase.gate_shell.store.read_gate_shell_marker",
+            return_value=MagicMock(is_terminal=False),
+        ),
+        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+    ):
+        assert cleanup_stale_running_entries() == 0
+    release.assert_not_called()
+
+
+def test_cleanup_releases_dead_gate_claim_once_member_is_terminal() -> None:
+    """A dead-pid ace-gate claim releases only after shell settlement."""
+    claim = WorkspaceClaim(
+        workspace_num=10,
+        workflow="ace-gate",
+        cl_name="feature",
+        pid=33333,
+        artifacts_timestamp="20260813125344",
+    )
+    project_file = "/tmp/projects/proj/proj.sase"
+    with (
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            return_value=[project_file],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            return_value=[claim],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.core.agent_artifact_paths.resolve_agent_artifact_timestamp_path",
+            return_value=Path("/tmp/artifacts/20260813125344"),
+        ),
+        patch(
+            "sase.gate_shell.store.read_gate_shell_marker",
+            return_value=MagicMock(is_terminal=True),
+        ),
+        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+    ):
+        assert cleanup_stale_running_entries() == 1
+    release.assert_called_once_with(
+        project_file, 10, "ace-gate", "feature", caller_tag="stale-cleanup"
+    )
+
+
 def test_cleanup_skip_monitor_claims_leaves_ace_monitor_claims_untouched() -> None:
     """skip_monitor_claims=True never releases ace-monitor claims this sweep."""
     monitor_claim = WorkspaceClaim(
