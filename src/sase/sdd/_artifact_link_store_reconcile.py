@@ -37,32 +37,37 @@ class ArtifactLinkStoreReconcileMixin:
     def durable_sidecar_rows(self) -> tuple[dict[str, Any], ...]:
         """Return deduplicated publishable sidecar rows from known workspaces."""
 
-        context = self._artifact_ref_context_for_store()
+        context = self._resolved_pass_context()
+        cache: dict[str, bool] = {}
+        deduped = unique_rows(
+            row
+            for store in self._iter_reconciliation_stores()
+            for row in self._iter_reconciliation_sidecar_rows(store)
+        )
         return tuple(
-            unique_rows(
-                row
-                for store in self._iter_reconciliation_stores()
-                for row in self._iter_reconciliation_sidecar_rows(store)
-                if self._row_is_publishable(row, context=context)
-            )
+            row
+            for row in deduped
+            if self._row_is_publishable(row, context=context, cache=cache)
         )
 
     def preview_reconciled_aggregate(self) -> dict[str, Any]:
         """Return the cross-workspace aggregate reconciliation result."""
 
-        context = self._artifact_ref_context_for_store()
+        context = self._resolved_pass_context()
+        cache: dict[str, bool] = {}
         collected: list[dict[str, Any]] = []
         for store in self._iter_reconciliation_stores():
             collected.extend(self._iter_reconciliation_sidecar_rows(store))
             collected.extend(self._iter_reconciliation_bead_rows(store))
         collected.extend(self.load_aggregate().get("rows", []))
+        deduped = unique_rows(collected)
         return {
             "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
-            "rows": unique_rows(
+            "rows": [
                 row
-                for row in collected
-                if self._row_is_publishable(row, context=context)
-            ),
+                for row in deduped
+                if self._row_is_publishable(row, context=context, cache=cache)
+            ],
         }
 
     def reconcile_aggregate(self) -> dict[str, Any]:
@@ -108,21 +113,56 @@ class ArtifactLinkStoreReconcileMixin:
         row: Mapping[str, Any],
         *,
         context: ArtifactRefContext | None = None,
+        cache: dict[str, bool] | None = None,
     ) -> bool:
         """Return whether agent endpoints in *row* have been published."""
 
         for ref in (str(row.get("source_ref") or ""), str(row.get("target_ref") or "")):
             if kind_of_ref(ref) != "agent":
                 continue
-            try:
-                from sase.artifact_cli.references import resolve_cli_reference
-
-                result = resolve_cli_reference(ref, context=context)
-            except Exception:  # noqa: BLE001 - unresolved agents stay local.
-                return False
-            if result.resolution.status not in {"exact", "drifted", "vcs_backed"}:
+            published = None if cache is None else cache.get(ref)
+            if published is None:
+                published = self._agent_ref_is_published(ref, context=context)
+                if cache is not None:
+                    cache[ref] = published
+            if not published:
                 return False
         return True
+
+    def _agent_ref_is_published(
+        self,
+        ref: str,
+        *,
+        context: ArtifactRefContext | None,
+    ) -> bool:
+        try:
+            from sase.artifact_cli.references import resolve_cli_reference
+
+            result = resolve_cli_reference(ref, context=context)
+        except Exception:  # noqa: BLE001 - unresolved agents stay local.
+            return False
+        return result.resolution.status in {"exact", "drifted", "vcs_backed"}
+
+    def _resolved_pass_context(self) -> ArtifactRefContext | None:
+        """Resolve the artifact-ref context once for a reconciliation pass.
+
+        ``_artifact_ref_context_for_store`` returns ``None`` when the store's
+        roots carry no workspace marker, which is always true for the
+        housekeeping chop's primary-checkout cwd. Falling back here, once,
+        keeps a ``None`` context from ever reaching ``resolve_cli_reference``
+        -- which would otherwise rebuild this same context from scratch for
+        every agent-ref row in the pass.
+        """
+
+        context = self._artifact_ref_context_for_store()
+        if context is not None:
+            return context
+        try:
+            from sase.artifact_ref_context import launch_artifact_ref_context
+
+            return launch_artifact_ref_context(is_home_mode=False)
+        except Exception:  # noqa: BLE001 - a slow pass beats a failed reconcile.
+            return None
 
     def _artifact_ref_context_for_store(self) -> ArtifactRefContext | None:
         sdd_store = getattr(self, "sdd_store", None)

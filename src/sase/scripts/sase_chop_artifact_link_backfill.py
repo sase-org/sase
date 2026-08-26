@@ -49,6 +49,9 @@ _WORKSPACE_HINT_ENV = (
 # Bounds only the sweep (job 1); the drain and reconcile/repair jobs already
 # bound their own work and run for every project regardless of this budget.
 _SWEEP_WORK_BUDGET_SECONDS = 45.0
+# Bounds the whole chop, well under the axe-configured 300s timeout, so a
+# slowdown degrades into a logged deferral instead of a silent SIGKILL.
+_CHOP_WORK_BUDGET_SECONDS = 240.0
 
 
 def _enabled_project_records() -> list[ProjectRecordWire]:
@@ -168,7 +171,19 @@ class _Totals:
     outbox_dropped: int = 0
     reconciled: int = 0
     repaired_renames: int = 0
+    deferred_projects: int = 0
     warnings: list[str] = field(default_factory=list)
+
+
+def _log_project_done(
+    runtime: BuiltinChopRuntime,
+    project_key: str,
+    elapsed: dict[str, float],
+    started: float,
+) -> None:
+    jobs = ", ".join(f"{name}={value:.2f}s" for name, value in elapsed.items())
+    total = time.monotonic() - started
+    runtime.log.info(f"[{_CHOP}] {project_key}: done in {total:.2f}s ({jobs})")
 
 
 def _run_project(
@@ -178,8 +193,13 @@ def _run_project(
     swept: dict[str, list[str]],
     totals: _Totals,
     deadline: float,
+    chop_deadline: float,
     state_path: Path,
+    runtime: BuiltinChopRuntime,
 ) -> None:
+    started = time.monotonic()
+    runtime.log.info(f"[{_CHOP}] {project_key}: starting")
+    elapsed: dict[str, float] = {}
     try:
         store = resolve_artifact_link_store(cwd=Path(workspace_dir))
     except Exception as exc:  # noqa: BLE001 - one broken project cannot stall the rest.
@@ -188,6 +208,7 @@ def _run_project(
         return
 
     if time.monotonic() < deadline:
+        sweep_started = time.monotonic()
         already_swept = frozenset(swept.get(project_key, ()))
         report, updated_swept = run_artifact_link_backfill_batch(
             store,
@@ -195,6 +216,7 @@ def _run_project(
             batch_size=_SWEEP_BATCH_SIZE,
             deadline=deadline,
         )
+        elapsed["sweep"] = time.monotonic() - sweep_started
         swept[project_key] = sorted(updated_swept)
         totals.sweep_scanned += report.scanned
         totals.sweep_persisted += report.persisted
@@ -209,23 +231,46 @@ def _run_project(
                 f"{project_key}: deferred outbox/reconcile after sweep budget"
             )
             totals.projects += 1
+            _log_project_done(runtime, project_key, elapsed, started)
             return
 
+    if time.monotonic() >= chop_deadline:
+        totals.deferred_projects += 1
+        totals.warnings.append(
+            f"{project_key}: deferred outbox drain and reconcile/repair past chop budget"
+        )
+        _log_project_done(runtime, project_key, elapsed, started)
+        return
+
+    drain_started = time.monotonic()
     try:
         outbox_report = drain_artifact_link_outbox(store=store)
         totals.outbox_drained += outbox_report.drained
         totals.outbox_dropped += outbox_report.dropped
     except Exception as exc:  # noqa: BLE001 - continue with the other jobs.
         totals.warnings.append(f"{project_key}: outbox drain failed: {exc}")
+    elapsed["drain"] = time.monotonic() - drain_started
 
+    if time.monotonic() >= chop_deadline:
+        totals.deferred_projects += 1
+        totals.warnings.append(
+            f"{project_key}: deferred reconcile/repair past chop budget"
+        )
+        totals.projects += 1
+        _log_project_done(runtime, project_key, elapsed, started)
+        return
+
+    reconcile_started = time.monotonic()
     try:
         reconcile_report = reconcile_and_repair_artifact_links(store)
         totals.reconciled += 1
         totals.repaired_renames += reconcile_report.repaired_renames
     except Exception as exc:  # noqa: BLE001 - continue with the other projects.
         totals.warnings.append(f"{project_key}: reconcile/repair failed: {exc}")
+    elapsed["reconcile_repair"] = time.monotonic() - reconcile_started
 
     totals.projects += 1
+    _log_project_done(runtime, project_key, elapsed, started)
 
 
 @builtin_chop("artifact_link_backfill")
@@ -239,15 +284,26 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
 
     totals = _Totals()
     deadline = time.monotonic() + _SWEEP_WORK_BUDGET_SECONDS
-    for record in records:
+    chop_deadline = time.monotonic() + _CHOP_WORK_BUDGET_SECONDS
+    for index, record in enumerate(records):
         assert record.workspace_dir is not None
+        if time.monotonic() >= chop_deadline:
+            deferred_names = [r.project_name for r in records[index:]]
+            totals.deferred_projects += len(deferred_names)
+            totals.warnings.append(
+                "chop budget exceeded; projects not started: "
+                + ", ".join(deferred_names)
+            )
+            break
         _run_project(
             record.project_name,
             record.workspace_dir,
             swept=swept,
             totals=totals,
             deadline=deadline,
+            chop_deadline=chop_deadline,
             state_path=state_path,
+            runtime=runtime,
         )
 
     try:
@@ -274,6 +330,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "outbox_dropped": totals.outbox_dropped,
             "reconciled": totals.reconciled,
             "repaired_renames": totals.repaired_renames,
+            "deferred_projects": totals.deferred_projects,
         },
         reason="no_enabled_projects" if totals.projects == 0 else None,
     )
