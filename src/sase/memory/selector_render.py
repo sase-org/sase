@@ -127,10 +127,15 @@ def memory_selector_batch_markdown(batch: ResolvedMemorySelectorBatch) -> str:
 def _batch_markdown(batch: ResolvedMemorySelectorBatch) -> str:
     pieces: list[str] = []
     for note in batch.notes:
-        pieces.append(memory_note_markdown(note))
+        pieces.append(_note_section_markdown(note))
     for section in batch.web_sections:
         pieces.append(_web_section_markdown(section))
     return "\n".join(piece.rstrip("\n") for piece in pieces) + "\n"
+
+
+def _note_section_markdown(note: ResolvedMemoryNote) -> str:
+    header = f"MEMORY FILE: {note.content.path.canonical_path}\n"
+    return "\n".join([header, memory_note_markdown(note)])
 
 
 def _web_section_markdown(section: MemoryWebReadSection) -> str:

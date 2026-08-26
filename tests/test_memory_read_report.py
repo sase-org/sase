@@ -288,5 +288,6 @@ def test_mixed_note_and_strand_report_uses_original_selector_batch(
 
     assert "decisions:corpus-before-mechanism tui_perf.md" in report
     output = report.partition("## Output")[2]
-    assert "# Perf" in output
+    assert "MEMORY FILE: tui_perf.md" in output
+    assert output.index("MEMORY FILE: tui_perf.md") < output.index("# Perf")
     assert "MEMORY WEB: decisions" in output

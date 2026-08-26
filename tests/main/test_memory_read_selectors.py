@@ -164,6 +164,35 @@ def test_show_mixed_batch_json_includes_notes_and_webs(
     assert not memory_read_log_path(cwd=tmp_path).exists()
 
 
+def test_read_multi_note_batch_markdown_labels_each_note_before_its_body(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _prepare(tmp_path, monkeypatch)
+    write(
+        tmp_path / "sase" / "memory" / "first.md",
+        _note("# First body\n", description="First note."),
+    )
+    write(
+        tmp_path / "sase" / "memory" / "second.md",
+        _note("# Second body\n", description="Second note."),
+    )
+
+    handle_memory_read_command(
+        create_parser().parse_args(
+            ["memory", "read", "first.md", "second.md", "-r", "need it"]
+        )
+    )
+
+    out = capsys.readouterr().out
+    first_header = out.index("MEMORY FILE: first.md")
+    first_body = out.index("# First body")
+    second_header = out.index("MEMORY FILE: second.md")
+    second_body = out.index("# Second body")
+    assert first_header < first_body < second_header < second_body
+
+
 def test_show_records_no_audit_event_for_web_selector(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
