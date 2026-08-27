@@ -138,12 +138,14 @@ def _is_reserved_family_name(local_name: str) -> bool:
 
     Registry access is best-effort: every caller of this module is a
     provenance boundary that must not fail because the local reservation index
-    is missing or unreadable.
+    is missing or unreadable. It is also a labelling read rather than an
+    allocation one, so it takes the display tier and never forces a registry
+    rebuild, which would hold the name-allocation lock against live launches.
     """
     try:
-        from sase.agent.names import get_reserved_family_names
+        from sase.agent.names import get_reserved_family_names_for_display
 
-        return local_name in get_reserved_family_names()
+        return local_name in get_reserved_family_names_for_display()
     except Exception:
         return False
 

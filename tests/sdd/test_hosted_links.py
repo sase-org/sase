@@ -245,7 +245,7 @@ def test_agent_url_links_registered_family_lane(tmp_path: Path, monkeypatch) -> 
         lambda _projects: TargetSelection((target,), ()),
     )
     monkeypatch.setattr(
-        "sase.agent.names.get_reserved_family_names",
+        "sase.agent.names.get_reserved_family_names_for_display",
         lambda: {"foo.bar"},
     )
     monkeypatch.setattr(
@@ -296,7 +296,7 @@ def test_agent_url_reuses_and_refreshes_agent_name_registry_snapshot(
         return set(family_names)
 
     monkeypatch.setattr(
-        "sase.agent.names.get_reserved_family_names",
+        "sase.agent.names.get_reserved_family_names_for_display",
         reserved_family_names,
     )
     resolver = HostedLinkResolver(
@@ -335,7 +335,7 @@ def test_agent_url_finds_family_lane_page_in_local_sidecar(
         lambda _projects: TargetSelection((target,), ()),
     )
     monkeypatch.setattr(
-        "sase.agent.names.get_reserved_family_names",
+        "sase.agent.names.get_reserved_family_names_for_display",
         lambda: set(),
     )
     monkeypatch.setattr(

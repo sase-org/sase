@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 import time
 
@@ -103,7 +103,15 @@ def _snapshot_agent_name_registry(
     ):
         return
     resolver.snapshot_agent_name_registry()
-    _AGENT_PAGE_REGISTRY_SNAPSHOTS[key] = _RegistrySnapshotCacheEntry(loaded_at=now)
+    # The snapshot can bump the freshness token on its way out, because a
+    # registry rebuild invalidates it. Recording the entry under the token
+    # read before the work would then guarantee a miss on the very next
+    # lookup, so every detail worker would re-snapshot forever instead of
+    # sharing one result for the TTL.
+    settled_key = replace(key, freshness_token=agent_name_registry_freshness_token())
+    _AGENT_PAGE_REGISTRY_SNAPSHOTS[settled_key] = _RegistrySnapshotCacheEntry(
+        loaded_at=now
+    )
     if len(_AGENT_PAGE_REGISTRY_SNAPSHOTS) > _MAX_AGENT_PAGE_REGISTRY_SNAPSHOTS:
         oldest = next(iter(_AGENT_PAGE_REGISTRY_SNAPSHOTS))
         _AGENT_PAGE_REGISTRY_SNAPSHOTS.pop(oldest, None)

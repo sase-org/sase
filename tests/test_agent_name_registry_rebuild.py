@@ -14,6 +14,7 @@ import pytest
 from sase.agent.names import (
     claim_registered_name,
     get_reserved_agent_names,
+    get_reserved_family_names_for_display,
     load_name_registry,
     lookup_registered_name,
     lowest_name_suggestion,
@@ -531,6 +532,68 @@ def test_reservation_reads_skip_the_stale_proof_memo(tmp_path: Path) -> None:
             assert "bar" not in load_name_registry()["entries"]
             # Allocation must not be, or it would hand ``bar`` out a second time.
             assert "bar" in get_reserved_agent_names()
+
+
+def _make_family_agent(tmp_path: Path, suffix: str, family: str) -> Path:
+    """Create an artifact whose rebuild registers *family* as a container."""
+    artifact_dir = _make_agent(tmp_path, "proj", suffix, f"{family}--0")
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": f"{family}--0",
+                "workflow_name": family,
+                "agent_family": family,
+                "agent_family_role": "root",
+                "role_suffix": "--0",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return artifact_dir
+
+
+def test_display_family_read_never_rebuilds_a_stale_registry(tmp_path: Path) -> None:
+    """A render answers from a stale registry instead of rebuilding it.
+
+    ``rebuild_name_registry`` holds the process-wide name-allocation flock for
+    the length of a full artifact scan, so a render that rebuilds stalls every
+    concurrent ``sase run`` behind it. Link rendering only shapes a URL from
+    the answer, so it must tolerate staleness; only reservation reads, which
+    decide whether a name is free, may pay for a rebuild.
+    """
+    artifact_dir = _make_family_agent(tmp_path, "run1", "foo")
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        # Deleting the owner leaves the registry permanently stale until some
+        # caller rebuilds it, which is what makes the two tiers diverge.
+        shutil.rmtree(artifact_dir)
+        reset_name_registry_caches_for_tests()
+        assert _registry._registry_file_is_stale(
+            _registry._read_registry(_registry._registry_path())
+        )
+
+        with patch.object(
+            _registry,
+            "rebuild_name_registry",
+            wraps=_registry.rebuild_name_registry,
+        ) as rebuild:
+            assert "foo" in get_reserved_family_names_for_display()
+            assert rebuild.call_count == 0
+
+            # The reservation tier still pays for a correct answer.
+            get_reserved_agent_names()
+            assert rebuild.call_count == 1
+
+
+def test_display_family_read_rebuilds_when_no_registry_exists(
+    tmp_path: Path,
+) -> None:
+    """With nothing on disk there is no stale answer to prefer, so rebuild."""
+    _make_family_agent(tmp_path, "run1", "foo")
+    with patch.object(Path, "home", return_value=tmp_path):
+        reset_name_registry_caches_for_tests()
+        assert not _registry._registry_path().exists()
+        assert "foo" in get_reserved_family_names_for_display()
 
 
 def test_stale_proof_memo_expires_after_ttl(

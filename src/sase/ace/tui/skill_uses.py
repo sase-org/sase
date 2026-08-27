@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-import os
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 
 from sase.ace.tui.models.agent import Agent
+from sase.ace.tui.util.normalized_dirs import (
+    normalize_dir as _normalize_dir,
+)
 from sase.main.init_memory.config import project_memory_name
 from sase.skills.use_log import (
     SkillUseEvent,
@@ -85,15 +87,6 @@ def _cache_key(project: str, agent: Agent) -> tuple[str, str]:
     from sase.ace.tui.tools.cache import get_cache_key
 
     return (project, get_cache_key(agent))
-
-
-def _normalize_dir(value: str | None) -> str | None:
-    if not value:
-        return None
-    try:
-        return os.path.realpath(value)
-    except (OSError, ValueError):
-        return value
 
 
 def _filter_events_for_agent(

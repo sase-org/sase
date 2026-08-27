@@ -125,6 +125,19 @@ def get_reserved_family_names() -> set[str]:
     )
 
 
+def get_reserved_family_names_for_display() -> set[str]:
+    """Return family-container names for a render, never forcing a rebuild.
+
+    Link rendering only needs to know which names are family containers so it
+    can shape a URL. Unlike :func:`get_reserved_family_names`, which gates
+    allocation and must pay the full staleness proof, this read tolerates a
+    stale answer rather than take the name-allocation lock.
+    """
+    return _registry_queries.get_reserved_family_names(
+        load_registry=_load_registry_for_display
+    )
+
+
 def get_reserved_agent_name_map() -> dict[str, str]:
     """Return ``{name: owner_path}`` for registered names with a known owner path."""
     return _registry_queries.get_reserved_agent_name_map(
@@ -507,6 +520,37 @@ def _load_registry_for_reservations() -> dict[str, Any]:
     """
     _reset_registry_scan_caches()
     return load_name_registry(trust_stale_proof_memo=False)
+
+
+def _load_registry_for_display() -> dict[str, Any]:
+    """Load the registry for a render that must never gate a launch.
+
+    A rebuild holds the process-wide name-allocation flock for as long as a
+    full artifact scan takes, so a render that rebuilds stalls every
+    concurrent ``sase run`` behind it. A render only labels names it is
+    already showing, where a momentarily stale answer costs a stale label
+    rather than a double-allocated name, so staleness alone does not earn a
+    rebuild here: the registry file is reused exactly as written. Only a
+    missing or unreadable registry falls through to a rebuild, because then
+    there is nothing to render at all.
+    """
+    path = _registry_path()
+    # Renders run on several TUI workers at once, so read each half of the
+    # cache into a local before comparing them: a concurrent ``_set_cache``
+    # must not be observed half-applied.
+    cached_data = _CACHE_DATA
+    cached_signature = _CACHE_SIGNATURE
+    if cached_data is not None and _CACHE_PATH == path:
+        try:
+            if _file_signature(path) == cached_signature:
+                return cached_data
+        except OSError:
+            pass
+    data = _read_registry(path)
+    if data is None:
+        return rebuild_name_registry()
+    _set_cache(path, data)
+    return data
 
 
 def _stale_proof_memo_valid() -> bool:

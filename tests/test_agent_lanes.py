@@ -94,7 +94,7 @@ def test_globally_qualified_member_normalizes_to_the_bare_sase_agent() -> None:
 
 def test_reserved_family_container_name_is_a_family(monkeypatch) -> None:
     monkeypatch.setattr(
-        "sase.agent.names.get_reserved_family_names",
+        "sase.agent.names.get_reserved_family_names_for_display",
         lambda: {"pc"},
     )
 
@@ -112,7 +112,7 @@ def test_reserved_family_container_name_is_a_family(monkeypatch) -> None:
 
 def test_already_projected_solo_name_stays_solo(monkeypatch) -> None:
     monkeypatch.setattr(
-        "sase.agent.names.get_reserved_family_names",
+        "sase.agent.names.get_reserved_family_names_for_display",
         lambda: {"other"},
     )
 
@@ -128,14 +128,18 @@ def test_name_lookup_degrades_to_solo_when_the_registry_fails(
     def _explode() -> set[str]:
         raise RuntimeError("registry unreadable")
 
-    monkeypatch.setattr("sase.agent.names.get_reserved_family_names", _explode)
+    monkeypatch.setattr(
+        "sase.agent.names.get_reserved_family_names_for_display", _explode
+    )
 
     assert not sase_agent_ref_for_name("pc", _IDENTITY).is_family
     assert not lane_ref_for_lane_name("pc", _IDENTITY).is_family
 
 
 def test_name_lookup_accepts_a_member_spelling(monkeypatch) -> None:
-    monkeypatch.setattr("sase.agent.names.get_reserved_family_names", lambda: set())
+    monkeypatch.setattr(
+        "sase.agent.names.get_reserved_family_names_for_display", lambda: set()
+    )
 
     ref = sase_agent_ref_for_name("pc--code", _IDENTITY)
 
@@ -149,7 +153,7 @@ def test_name_lookup_accepts_a_member_spelling(monkeypatch) -> None:
 
 def test_legacy_machine_qualified_sase_agent_name_normalizes(monkeypatch) -> None:
     monkeypatch.setattr(
-        "sase.agent.names.get_reserved_family_names",
+        "sase.agent.names.get_reserved_family_names_for_display",
         lambda: {"sase-7r.land"},
     )
 

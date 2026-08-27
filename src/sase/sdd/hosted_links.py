@@ -105,12 +105,20 @@ class HostedLinkResolver:
         self._reserved_family_names: frozenset[str] | None = None
 
     def snapshot_agent_name_registry(self) -> None:
-        """Refresh family-name state once for a batch of agent-link lookups."""
+        """Refresh family-name state once for a batch of agent-link lookups.
+
+        This is a rendering read: the answer only shapes a URL, so it takes
+        the display-tier registry load. The reservation-tier load would force
+        a rebuild whenever the registry looks stale, and that rebuild holds
+        the name-allocation flock long enough to stall a concurrent launch.
+        """
 
         try:
-            from sase.agent.names import get_reserved_family_names
+            from sase.agent.names import get_reserved_family_names_for_display
 
-            self._reserved_family_names = frozenset(get_reserved_family_names())
+            self._reserved_family_names = frozenset(
+                get_reserved_family_names_for_display()
+            )
         except Exception:
             self._reserved_family_names = frozenset()
 

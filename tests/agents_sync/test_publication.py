@@ -342,7 +342,7 @@ def test_family_lane_and_member_requests_publish_identical_payloads(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.agent.names.get_reserved_family_names",
+        "sase.agent.names.get_reserved_family_names_for_display",
         lambda: frozenset({"foo.rootless"}),
     )
     inventory = _inventory(AgentOwnerIdentity("alice", "athena"))
@@ -382,7 +382,7 @@ def test_registered_family_lane_without_runs_is_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.agent.names.get_reserved_family_names",
+        "sase.agent.names.get_reserved_family_names_for_display",
         lambda: frozenset({"missing"}),
     )
     target = _target(tmp_path)
