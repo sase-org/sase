@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,6 +14,20 @@ from sase.sdd.artifact_link_store import (
     resolve_artifact_link_project_key,
 )
 from tests._conftest_environment import redirect_sase_home
+
+
+def _patch_marker_finder(
+    monkeypatch: pytest.MonkeyPatch,
+    finder: Callable[[str], tuple[str, SimpleNamespace] | None],
+) -> None:
+    monkeypatch.setattr(
+        "sase.workspace_provider.find_marker_from_cwd",
+        finder,
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.marker.find_marker_from_cwd",
+        finder,
+    )
 
 
 def test_assembled_relations_are_builtins_then_plugins_then_config() -> None:
@@ -45,8 +60,8 @@ def test_project_key_resolution_maps_provider_slug_to_canonical_key(
         display_name="sase",
         aliases=[],
     )
-    monkeypatch.setattr(
-        "sase.workspace_provider.marker.find_marker_from_cwd",
+    _patch_marker_finder(
+        monkeypatch,
         lambda _cwd: (str(tmp_path), marker),
     )
     monkeypatch.setattr(
@@ -81,8 +96,8 @@ def test_unresolvable_provider_slug_returns_no_project_key(
         display_name="sase",
         aliases=[],
     )
-    monkeypatch.setattr(
-        "sase.workspace_provider.marker.find_marker_from_cwd",
+    _patch_marker_finder(
+        monkeypatch,
         lambda _cwd: (str(tmp_path), marker),
     )
     monkeypatch.setattr(
@@ -97,8 +112,8 @@ def test_marker_display_name_does_not_become_direct_project_key(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     marker = SimpleNamespace(project_key="sase-org/sase", project_name="sase")
-    monkeypatch.setattr(
-        "sase.workspace_provider.marker.find_marker_from_cwd",
+    _patch_marker_finder(
+        monkeypatch,
         lambda _cwd: (str(tmp_path), marker),
     )
     monkeypatch.setattr(
