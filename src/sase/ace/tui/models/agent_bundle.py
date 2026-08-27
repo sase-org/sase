@@ -9,12 +9,27 @@ from typing import Any
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 
+_PROJECTED_RECORD_BUNDLE_FIELDS = {
+    "record_shape",
+    "index_record_dir",
+    "prompt_step_file_name",
+}
+
 
 def to_bundle_dict(agent: Agent) -> dict[str, Any]:
     """Serialize an Agent to a dict for bundle persistence.
 
     Converts AgentType to string and datetime to ISO format string.
     """
+    if agent.record_shape == "list":
+        from ._projected_record import hydrate_projected_agent
+
+        if not hydrate_projected_agent(agent):
+            raise ValueError(
+                f"cannot persist projected agent bundle without full record: "
+                f"{agent.index_record_dir or agent.identity}"
+            )
+
     result: dict[str, Any] = {}
     for f in dataclasses.fields(agent):
         if not f.init or f.name in (
@@ -37,6 +52,7 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
             "project_display_name",
             "_loaded_from_dismissed_bundle",
             "_dismissed_bundle_path",
+            *_PROJECTED_RECORD_BUNDLE_FIELDS,
         ):
             continue
         value = getattr(agent, f.name)
@@ -118,6 +134,8 @@ def from_bundle_dict(data: dict[str, Any]) -> Agent:
         if not f.init:
             continue
         if f.name in kwargs:
+            continue
+        if f.name in _PROJECTED_RECORD_BUNDLE_FIELDS:
             continue
         if f.name not in data:
             continue

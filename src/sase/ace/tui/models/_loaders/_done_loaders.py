@@ -575,6 +575,8 @@ def _build_done_agent_from_record(
         plan_path=done.plan_path,
         archived_plan_path=done.plan_path,
         step_output=done.step_output,
+        record_shape=record.record_shape,
+        index_record_dir=record.artifact_dir,
         workspace_num=done.workspace_num,
         workspace_dir=done.workspace_dir,
         bug=bug_by_cl_name.get(cl_name),

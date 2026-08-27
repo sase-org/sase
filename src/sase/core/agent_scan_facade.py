@@ -70,6 +70,7 @@ from sase.core.agent_scan_wire import (
     WaitingMarkerWire,
     WorkflowStateWire,
     WorkflowStepStateWire,
+    agent_artifact_records_from_dicts,
     agent_artifact_index_query_to_dict,
     agent_artifact_index_status_from_dict,
     agent_artifact_index_update_from_dict,
@@ -380,6 +381,21 @@ def query_agent_artifact_index(
     return agent_scan_wire_from_dict(payload)
 
 
+def load_agent_artifact_records(
+    index_path: Path | str,
+    artifact_dirs: Sequence[Path | str],
+) -> list[AgentArtifactRecordWire]:
+    """Return full index-backed records for exact artifact directories."""
+    index = Path(index_path).expanduser()
+    dirs = [str(Path(path).expanduser()) for path in artifact_dirs]
+    if not dirs:
+        return []
+    with agent_artifact_index_operation_lock():
+        rust_load = require_rust_binding("load_agent_artifact_records")
+        payload: list[dict[str, Any]] = rust_load(str(index), dirs)
+    return agent_artifact_records_from_dicts(payload)
+
+
 def query_related_agent_artifact_dirs(
     index_path: Path | str,
     artifact_dir: Path | str,
@@ -505,6 +521,7 @@ __all__ = [
     "default_agent_artifact_index_path",
     "delete_agent_artifact_index_row",
     "delete_agent_artifact_index_row_bounded",
+    "load_agent_artifact_records",
     "parse_output_variable_selector",
     "prune_hidden_terminal_agent_artifact_index_rows",
     "query_agent_alias_history",

@@ -346,6 +346,18 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
                 matched.response_path = agent.response_path
             if matched.diff_path is None and agent.diff_path is not None:
                 matched.diff_path = agent.diff_path
+            matched.record_shape = (
+                "full"
+                if matched.record_shape == "full" or agent.record_shape == "full"
+                else "list"
+            )
+            if matched.index_record_dir is None and agent.index_record_dir is not None:
+                matched.index_record_dir = agent.index_record_dir
+            if (
+                matched.prompt_step_file_name is None
+                and agent.prompt_step_file_name is not None
+            ):
+                matched.prompt_step_file_name = agent.prompt_step_file_name
             if matched.bug is None and agent.bug is not None:
                 matched.bug = agent.bug
             if matched.cl_num is None and agent.cl_num is not None:

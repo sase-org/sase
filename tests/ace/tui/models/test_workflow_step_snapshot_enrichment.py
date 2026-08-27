@@ -73,6 +73,49 @@ def test_step_enrichment_reuses_parent_record_meta_without_filesystem_read(
     assert agents[0].llm_provider == "codex"
 
 
+def test_projected_step_keeps_index_record_identity(tmp_path: Path) -> None:
+    artifact_dir = tmp_path / "20260519090000"
+    record = AgentArtifactRecordWire(
+        project_name="myproj",
+        project_dir=str(tmp_path / "myproj"),
+        project_file=str(tmp_path / "myproj" / "myproj.sase"),
+        workflow_dir_name="ace-run",
+        artifact_dir=str(artifact_dir),
+        timestamp="20260519090000",
+        agent_meta=AgentMetaWire(
+            model="gpt-test",
+            linked_repos=[
+                {
+                    "name": "sase-core",
+                    "workspace_dir": "/tmp/sase-core",
+                }
+            ],
+        ),
+        prompt_steps=[
+            PromptStepMarkerWire(
+                file_name="prompt_step_001_bash.json",
+                workflow_name="wf",
+                step_name="bash",
+                step_type="bash",
+                step_index=0,
+                total_steps=1,
+                status="completed",
+                artifacts_dir=str(artifact_dir),
+            )
+        ],
+        record_shape="list",
+    )
+
+    agents, _meta = load_workflow_agent_steps_from_snapshot(_snapshot([record]))
+
+    assert len(agents) == 1
+    assert agents[0].record_shape == "list"
+    assert agents[0].index_record_dir == str(artifact_dir)
+    assert agents[0].prompt_step_file_name == "prompt_step_001_bash.json"
+    assert agents[0].model == "gpt-test"
+    assert agents[0].linked_repos == ()
+
+
 def test_step_enrichment_falls_back_to_filesystem_for_divergent_artifacts_dir(
     tmp_path: Path,
 ) -> None:

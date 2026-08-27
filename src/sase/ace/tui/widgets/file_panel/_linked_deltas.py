@@ -16,6 +16,7 @@ from sase.linked_repos import OpenedRepoKind
 from sase.vcs_provider import VCSProviderNotFoundError
 
 from ...models.agent import Agent, LinkedRepoMetadata
+from ...models._projected_record import resolve_linked_repos
 from ._diff import (
     DIFF_CACHE_TTL_SECONDS,
     git_index_signature_for_live_diff,
@@ -95,7 +96,7 @@ def _workspace_linked_repos(agent: Agent) -> tuple[LinkedRepoMetadata, ...]:
     repos: list[LinkedRepoMetadata] = []
     seen: set[tuple[str, str]] = set()
     for metadata_agent in _linked_metadata_agents(agent):
-        for repo in metadata_agent.linked_repos:
+        for repo in resolve_linked_repos(metadata_agent):
             workspace_dir = _normalized_workspace_dir(repo.workspace_dir)
             if workspace_dir is None:
                 continue

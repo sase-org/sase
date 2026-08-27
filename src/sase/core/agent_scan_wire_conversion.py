@@ -7,6 +7,7 @@ sibling pattern used elsewhere in :mod:`sase.core`.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from typing import Any
 
@@ -30,6 +31,7 @@ from sase.core.agent_scan_wire_records import (
     AgentArtifactIndexUpdateWire,
     AgentArtifactIndexVacuumWire,
     AgentArtifactRecordWire,
+    AgentArtifactRecordShape,
     AgentArtifactScanOptionsWire,
     AgentArtifactScanStatsWire,
     AgentArtifactScanWire,
@@ -37,6 +39,10 @@ from sase.core.agent_scan_wire_records import (
 )
 from sase.core.patch_metadata import canonicalize_patch_metadata
 from sase.core.wire import known_field_kwargs
+
+
+def _record_shape_from_value(value: object) -> AgentArtifactRecordShape:
+    return "list" if value == "list" else "full"
 
 
 def agent_scan_wire_to_json_dict(record: Any) -> Any:
@@ -95,6 +101,7 @@ def agent_artifact_index_query_to_dict(
         "include_hidden": query.include_hidden,
         "freshness": query.freshness,
         "only_monitors": query.only_monitors,
+        "record_shape": query.record_shape,
     }
 
 
@@ -212,6 +219,7 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
             if isinstance(used, dict)
         ],
         has_done_marker=bool(data.get("has_done_marker", False)),
+        record_shape=_record_shape_from_value(data.get("record_shape")),
     )
 
 
@@ -298,7 +306,16 @@ def agent_scan_wire_from_dict(data: dict[str, Any]) -> AgentArtifactScanWire:
     )
 
 
+def agent_artifact_records_from_dicts(
+    records: Sequence[Mapping[str, Any]],
+) -> list[AgentArtifactRecordWire]:
+    """Rehydrate artifact records returned outside the scanner envelope."""
+
+    return [_record_from_dict(dict(record)) for record in records]
+
+
 __all__ = [
+    "agent_artifact_records_from_dicts",
     "agent_artifact_index_query_to_dict",
     "agent_artifact_index_status_from_dict",
     "agent_artifact_index_update_from_dict",

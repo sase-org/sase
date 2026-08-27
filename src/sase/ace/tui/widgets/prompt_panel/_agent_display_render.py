@@ -14,6 +14,7 @@ from sase.project_display_names import (
 
 from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, AgentType, wait_display_agent
+from ...models._projected_record import resolve_step_output
 from ...models.agent_family_members import family_roster_container
 from ...models.agent_hoods import agent_owns_sase_agent
 from ...tools.slow import slow_tool_call_threshold_ms_from_widget
@@ -493,13 +494,14 @@ class AgentDisplayRenderMixin(
                 # Fallback: for workflow step agents, try step_output if no response file
                 # Only use step_output when it has displayable content (_raw/_data),
                 # not when it only contains meta_* metadata fields.
+                step_output = resolve_step_output(agent)
                 if (
                     response_content is None
                     and agent.is_workflow_child
-                    and isinstance(agent.step_output, dict)
-                    and ("_raw" in agent.step_output or "_data" in agent.step_output)
+                    and step_output is not None
+                    and ("_raw" in step_output or "_data" in step_output)
                 ):
-                    response_content = format_output(agent.step_output)
+                    response_content = format_output(step_output)
 
                 renderables = [header_text]
                 if error_tb_syntax:

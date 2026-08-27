@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
@@ -126,6 +127,8 @@ class AgentDetailRenderMixin:
             return False
         if current_agent.is_clan_container:
             return False
+        if self._defer_projected_record_detail(current_agent):
+            return False
         if self._should_render_agent_detail_with_hints():
             self._render_agent_detail_with_hints(agent_detail, current_agent)
             return False
@@ -240,6 +243,15 @@ class AgentDetailRenderMixin:
         if current_agent is not None:
             from ._loading_helpers import hydrate_agent_attempt_history
 
+            if (
+                not current_agent.is_clan_container
+                and self._defer_projected_record_detail(current_agent)
+            ):
+                self._apply_agent_footer_update(
+                    agent_detail, footer_widget, current_agent
+                )
+                return
+
             changed = (
                 False
                 if current_agent.is_clan_container
@@ -259,6 +271,61 @@ class AgentDetailRenderMixin:
             agent_detail.show_empty()
 
         self._apply_agent_footer_update(agent_detail, footer_widget, current_agent)
+
+    def _defer_projected_record_detail(self, current_agent: Agent) -> bool:
+        """Start full-record hydration and defer detail rendering while pending."""
+        from ...models._projected_record import (
+            mark_projected_agent_hydration_attempted,
+            mark_projected_agent_hydration_pending,
+            projected_agent_needs_hydration,
+            projected_agent_waiting_for_hydration,
+        )
+        from ...util.pump_tasks import spawn_pump_free_task
+
+        if not projected_agent_waiting_for_hydration(current_agent):
+            return False
+        if not projected_agent_needs_hydration(current_agent):
+            return True
+
+        mark_projected_agent_hydration_pending(current_agent, True)
+        task = spawn_pump_free_task(
+            self,
+            self._hydrate_projected_record_detail(
+                current_agent.identity,
+                current_agent,
+            ),
+            name="agents.projected_record_hydration",
+            registry_attr="_projected_record_hydration_tasks",
+        )
+        if task is None:
+            mark_projected_agent_hydration_pending(current_agent, False)
+            mark_projected_agent_hydration_attempted(current_agent)
+            return False
+        return True
+
+    async def _hydrate_projected_record_detail(
+        self,
+        agent_identity: tuple[object, ...],
+        agent: Agent,
+    ) -> None:
+        """Hydrate a projected selected-agent record outside the message pump."""
+        from ...models._projected_record import (
+            hydrate_projected_agent,
+            mark_projected_agent_hydration_pending,
+        )
+
+        try:
+            changed = await asyncio.to_thread(hydrate_projected_agent, agent)
+        finally:
+            mark_projected_agent_hydration_pending(agent, False)
+
+        if not changed:
+            return
+        self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
+        current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if current_agent is None or current_agent.identity != agent_identity:
+            return
+        self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
 
     def _sync_selected_proc_shell_detail_proc(
         self, current_agent: Agent | None

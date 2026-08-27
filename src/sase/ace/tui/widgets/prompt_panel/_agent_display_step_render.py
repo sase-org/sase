@@ -10,6 +10,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 
 from ...models.agent import Agent
+from ...models._projected_record import resolve_step_output
 from ...models.fold_state import FoldLevel
 from ...util.lazy_syntax import lazy_renderable
 from ._agent_display_header import AgentHeader
@@ -68,8 +69,9 @@ class AgentStepDisplayMixin:
             renderables.append(error_tb_syntax)
         renderables.append(source_content)
 
-        if agent.step_output:
-            output_str = format_output(agent.step_output)
+        step_output = resolve_step_output(agent)
+        if step_output:
+            output_str = format_output(step_output)
             output_syntax = lazy_renderable(output_str, "json")
             renderables.extend([output_header, output_syntax])
         else:
@@ -91,8 +93,9 @@ class AgentStepDisplayMixin:
         if error_tb_syntax:
             renderables.append(error_tb_syntax)
 
-        if agent.step_output:
-            output_str = format_output(agent.step_output)
+        step_output = resolve_step_output(agent)
+        if step_output:
+            output_str = format_output(step_output)
             output_syntax = lazy_renderable(output_str, "json")
             renderables.append(output_syntax)
         else:

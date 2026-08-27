@@ -82,7 +82,8 @@ def enrich_agent_from_meta_wire(
         agent.epic_bead_id = meta.epic_bead_id
     if meta.phase_bead_id:
         agent.phase_bead_id = meta.phase_bead_id
-    agent.linked_repos = parse_linked_repos(meta.linked_repos)
+    if agent.record_shape != "list":
+        agent.linked_repos = parse_linked_repos(meta.linked_repos)
     if not agent.diff_path and meta.commit_diff_path:
         agent.diff_path = meta.commit_diff_path
     if not workflow_child and meta.name:

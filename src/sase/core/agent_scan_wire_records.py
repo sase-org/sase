@@ -26,7 +26,8 @@ from sase.core.agent_scan_wire_markers import (
 )
 
 AGENT_SCAN_WIRE_SCHEMA_VERSION = 7
-AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 23
+AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 24
+AgentArtifactRecordShape = Literal["full", "list"]
 
 # Workflow directory categories the Phase 3A scanner walks.
 #
@@ -129,6 +130,7 @@ class AgentArtifactIndexQueryWire:
     include_hidden: bool = False
     freshness: Literal["revalidate", "cached"] = "revalidate"
     only_monitors: bool = False
+    record_shape: AgentArtifactRecordShape = "full"
 
 
 @dataclass(frozen=True)
@@ -287,6 +289,7 @@ class AgentArtifactRecordWire:
     raw_prompt_snippet: str | None = None
     used_xprompts: list[UsedXPromptWire] = field(default_factory=list)
     has_done_marker: bool = False
+    record_shape: AgentArtifactRecordShape = "full"
 
 
 @dataclass(frozen=True)
@@ -331,6 +334,7 @@ __all__ = [
     "AGENT_ARTIFACT_INDEX_SCHEMA_VERSION",
     "AGENT_SCAN_WIRE_SCHEMA_VERSION",
     "AgentArtifactIndexQueryWire",
+    "AgentArtifactRecordShape",
     "AgentArtifactIndexStatusWire",
     "AgentArtifactIndexUpdateWire",
     "AgentArtifactIndexVerifyWire",

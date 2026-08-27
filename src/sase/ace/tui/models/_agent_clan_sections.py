@@ -18,6 +18,7 @@ from sase.agent.status_buckets import agent_status_bucket
 from sase.core.output_variable_values import VarValue, encode_var_value
 
 from ._agent_clan import clan_members
+from ._projected_record import resolve_step_output
 from .agent import Agent
 from .agent_types import AgentType
 
@@ -378,10 +379,11 @@ def aggregate_agent_workflow_variables(
     """Return non-structural ``meta_*`` workflow outputs from member rows."""
     entries: list[ClanVariableEntry] = []
     for row in rows:
-        if not isinstance(row.step_output, dict):
+        step_output = resolve_step_output(row)
+        if not isinstance(step_output, dict):
             continue
         label = (labels or {}).get(row.identity, _row_name(row))
-        for key in sorted(row.step_output):
+        for key in sorted(step_output):
             if (
                 not key.startswith("meta_")
                 or key in _SPECIAL_META_KEYS
@@ -393,7 +395,7 @@ def aggregate_agent_workflow_variables(
                     member_identity=row.identity,
                     member_label=label,
                     name=_format_meta_key(key),
-                    value=str(row.step_output[key]),
+                    value=str(step_output[key]),
                 )
             )
     return tuple(entries)

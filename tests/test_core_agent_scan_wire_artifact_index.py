@@ -15,6 +15,7 @@ from sase.core.agent_scan_wire import (
 def test_artifact_index_wire_helpers() -> None:
     assert AgentArtifactIndexQueryWire().active_limit is None
     assert AgentArtifactIndexQueryWire().freshness == "revalidate"
+    assert AgentArtifactIndexQueryWire().record_shape == "full"
 
     query = AgentArtifactIndexQueryWire(
         include_active=True,
@@ -25,6 +26,7 @@ def test_artifact_index_wire_helpers() -> None:
         include_hidden=True,
         freshness="cached",
         only_monitors=True,
+        record_shape="list",
     )
     assert agent_artifact_index_query_to_dict(query) == {
         "include_active": True,
@@ -35,6 +37,7 @@ def test_artifact_index_wire_helpers() -> None:
         "include_hidden": True,
         "freshness": "cached",
         "only_monitors": True,
+        "record_shape": "list",
     }
     assert AgentArtifactIndexQueryWire().only_monitors is False
 

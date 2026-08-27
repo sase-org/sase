@@ -151,6 +151,45 @@ def test_bundle_round_trip_empty_linked_repos() -> None:
     assert restored.linked_repos == ()
 
 
+def test_bundle_hydrates_projected_agent_and_skips_projection_fields(
+    monkeypatch,
+) -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 30, 0),
+        raw_suffix="20250615103000",
+        step_output={"meta_keep": "projected"},
+        record_shape="list",
+        index_record_dir="/tmp/artifacts/20250615103000",
+    )
+
+    def hydrate(projected: Agent) -> bool:
+        projected.record_shape = "full"
+        projected.step_output = {
+            "_raw": "full text",
+            "meta_keep": "loaded",
+        }
+        return True
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models._projected_record.hydrate_projected_agent",
+        hydrate,
+    )
+
+    bundle = agent.to_bundle_dict()
+
+    assert bundle["step_output"] == {
+        "_raw": "full text",
+        "meta_keep": "loaded",
+    }
+    assert "record_shape" not in bundle
+    assert "index_record_dir" not in bundle
+    assert "prompt_step_file_name" not in bundle
+
+
 def test_bundle_skips_retry_chain_siblings() -> None:
     """Retry-chain sibling relationships are load-time only."""
     parent = Agent(

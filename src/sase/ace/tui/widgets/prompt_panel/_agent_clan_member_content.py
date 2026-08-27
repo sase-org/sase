@@ -19,6 +19,7 @@ from ...models._agent_clan_sections import (
     ClanTextEntry,
     first_meaningful_line,
 )
+from ...models._projected_record import resolve_step_output
 from ...models.agent import Agent
 from ._agent_display_content import get_prompt_content
 from ._agent_display_header_summary import build_detail_header_summary
@@ -97,6 +98,7 @@ def clan_member_source_token(member: Agent) -> tuple[object, ...]:
             key=lambda item: item[0],
         )
     )
+    step_output = resolve_step_output(member)
     state_token = (
         member.status,
         member.stop_time.isoformat() if member.stop_time is not None else None,
@@ -110,8 +112,8 @@ def clan_member_source_token(member: Agent) -> tuple[object, ...]:
         member.phase_bead_id,
         member.workspace_dir,
         member.workspace_num,
-        json.dumps(member.step_output, sort_keys=True, default=str)
-        if member.step_output is not None
+        json.dumps(step_output, sort_keys=True, default=str)
+        if step_output is not None
         else None,
     )
     return (member.identity, state_token, path_token)
@@ -121,8 +123,9 @@ def _load_member_replies(
     member: Agent,
     member_label: str,
 ) -> tuple[ClanTextEntry, ...]:
-    if not member.is_agent_entry and member.step_output is not None:
-        body = format_output(member.step_output).strip()
+    step_output = resolve_step_output(member)
+    if not member.is_agent_entry and step_output is not None:
+        body = format_output(step_output).strip()
         if body:
             return (_text_entry(member, member_label, "STEP OUTPUT", body),)
 

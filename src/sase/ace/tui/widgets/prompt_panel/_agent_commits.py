@@ -17,6 +17,7 @@ from sase.project_display_names import project_display_name_for
 from sase.repo_inventory import RepoKind
 
 from ...models.agent import Agent
+from ...models._projected_record import resolve_linked_repos, resolve_step_output
 from ._agent_context_common import (
     COLOR_EXTERNAL_REPO_GLYPH,
     COLOR_EXTERNAL_REPO_NAME,
@@ -350,7 +351,7 @@ def _repo_attribution_for_commit_cwd(
 
     # Linked workspaces may also live below the primary workspace tree, so
     # match them before the containing primary workspace.
-    for repo in agent.linked_repos:
+    for repo in resolve_linked_repos(agent):
         repo_workspace = _norm_path(repo.workspace_dir)
         if _path_is_same_or_inside(cwd, repo_workspace):
             return _RepoAttribution(repo.name, "linked", repo_workspace or "")
@@ -497,7 +498,7 @@ def _persisted_commit_groups(
 
 def agent_commit_groups(agent: Agent) -> tuple[_AgentCommitGroup, ...]:
     """Return ordered in-memory commit rows grouped by source repository."""
-    step_output = agent.step_output if isinstance(agent.step_output, dict) else None
+    step_output = resolve_step_output(agent)
     return _persisted_commit_groups(agent, step_output)
 
 
@@ -523,7 +524,7 @@ def agent_commit_diffs(agent: Agent) -> list[CommitDiffInfo]:
     This accessor only parses in-memory metadata. It deliberately avoids
     checking file existence so render paths can call it without disk I/O.
     """
-    step_output = agent.step_output if isinstance(agent.step_output, dict) else None
+    step_output = resolve_step_output(agent)
     if step_output is None:
         return []
 

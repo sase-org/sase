@@ -251,6 +251,8 @@ def load_running_home_agents_from_snapshot(
             llm_provider=running.llm_provider,
             vcs_provider=running.vcs_provider,
             workspace_dir=running.workspace_dir,
+            record_shape=record.record_shape,
+            index_record_dir=record.artifact_dir,
         )
         enrich_agent_from_meta_wire(
             agent,

@@ -120,6 +120,7 @@ def query_artifact_index_for_loader(
         recent_completed_limit=_TIER1_RECENT_COMPLETED_LIMIT,
         include_hidden=False,
         freshness=freshness,
+        record_shape="list",
     )
     try:
         snapshot = query_index(

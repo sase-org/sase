@@ -251,6 +251,8 @@ def load_workflow_agents_from_snapshot(
             output_path=entry.output_path,
             activity=entry.activity,
             step_output=step_output,
+            record_shape=record.record_shape if record is not None else "full",
+            index_record_dir=record.artifact_dir if record is not None else None,
             workspace_num=workspace_num,
         )
         if record is not None:
@@ -358,6 +360,9 @@ def _build_workflow_agent_steps_for_record(
                 step_type=step_type,
                 step_source=step_source,
                 step_output=step_output,
+                record_shape=record.record_shape,
+                index_record_dir=record.artifact_dir,
+                prompt_step_file_name=step.file_name,
                 step_index=step_index,
                 total_steps=total_steps,
                 parent_step_index=parent_step_index,

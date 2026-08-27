@@ -8,6 +8,7 @@ import pytest
 from sase.core.agent_scan_facade import (
     agent_artifact_index_status,
     delete_agent_artifact_index_row_bounded,
+    load_agent_artifact_records,
     prune_hidden_terminal_agent_artifact_index_rows,
     query_related_agent_artifact_dirs,
     read_agent_artifact_index_meta,
@@ -347,6 +348,32 @@ def test_related_agent_artifact_dirs_calls_rust_binding(
         (str(index_path), str(artifact_dir), ["20260504120000"]),
     ]
     assert related == [artifact_dir, tmp_path / "artifacts" / "20260504120500"]
+
+
+def test_load_agent_artifact_records_calls_rust_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, list[str]]] = []
+    fake = install_fake_scan_module(
+        monkeypatch, lambda root, opts: minimal_snapshot(root, [])
+    )
+    payload = minimal_record(tmp_path / "projects", "20260504120000", "feature")
+
+    def fake_load(index: str, artifact_dirs: list[str]) -> list[dict[str, Any]]:
+        calls.append((index, artifact_dirs))
+        return [payload]
+
+    fake.load_agent_artifact_records = fake_load  # type: ignore[attr-defined]
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    artifact_dir = tmp_path / "projects/proj/artifacts/ace-run/20260504120000"
+    records = load_agent_artifact_records(index_path, [artifact_dir])
+
+    assert calls == [(str(index_path), [str(artifact_dir)])]
+    assert len(records) == 1
+    assert records[0].artifact_dir == payload["artifact_dir"]
+    assert records[0].record_shape == "full"
 
 
 def test_snapshot_workflow_hidden_maps_to_agent_hidden(tmp_path: Path) -> None:

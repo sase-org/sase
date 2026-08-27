@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.core.output_variable_values import VarValue
 
@@ -119,6 +119,12 @@ class AgentState:
 
     # Step output data
     step_output: dict[str, Any] | None = None
+
+    # Artifact-index records can be loaded in a compact list shape and
+    # hydrated on demand before detail rendering needs full outputs.
+    record_shape: Literal["full", "list"] = field(default="full", compare=False)
+    index_record_dir: str | None = field(default=None, compare=False)
+    prompt_step_file_name: str | None = field(default=None, compare=False)
 
     # Step index for ordering (0-based)
     step_index: int | None = None

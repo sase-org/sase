@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from sase.ace.patch.project_spec_path import project_spec_basename
 from sase.ace.revert_agent_models import BulkRevertIntent, RevertIntent, RevertRepo
+from sase.ace.tui.models._projected_record import resolve_linked_repos
 from sase.linked_repos import opened_external_repo_records
 from sase.plan_chain import agent_family_base
 
@@ -393,7 +394,7 @@ def _workspace_linked_repos_for_revert(
 ) -> tuple[LinkedRepoMetadata, ...]:
     repos: list[LinkedRepoMetadata] = []
     seen_names: set[str] = set()
-    for repo in agent.linked_repos:
+    for repo in resolve_linked_repos(agent, hydrate=True):
         if repo.name in seen_names:
             continue
         seen_names.add(repo.name)
