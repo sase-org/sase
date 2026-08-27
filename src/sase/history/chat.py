@@ -4,8 +4,6 @@ The implementation is split by responsibility across ``chat_storage``,
 ``chat_resume``, and ``chat_fork``. Existing imports remain available here.
 """
 
-import shutil
-import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
@@ -66,39 +64,20 @@ __all__ = [
 
 def _get_branch_or_workspace_name() -> str:
     """Get the current branch name or workspace name."""
-    helper = "branch_or_workspace_name"
-    if shutil.which(helper) is not None:
-        result = run_shell_command(helper, capture_output=True)
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"Failed to get branch_or_workspace_name: {result.stderr}"
-            )
-        name = result.stdout.strip()
-    else:
+    result = run_shell_command("branch_or_workspace_name", capture_output=True)
+    name = result.stdout.strip() if result.returncode == 0 else ""
+    if not name:
         name = _fallback_branch_or_workspace_name()
     return strip_reverted_suffix(name)
 
 
 def _fallback_branch_or_workspace_name() -> str:
-    branch = _current_git_branch_name()
-    if branch:
-        return branch
-    return Path.cwd().resolve(strict=False).name or "workspace"
+    """Return a host-independent workspace label for chat filenames.
 
-
-def _current_git_branch_name() -> str | None:
-    try:
-        result = subprocess.run(
-            ["git", "branch", "--show-current"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except (FileNotFoundError, OSError):
-        return None
-    if result.returncode != 0:
-        return None
-    return result.stdout.strip() or None
+    ``branch_or_workspace_name`` is a host dotfile helper, not a sase-shipped binary,
+    and missing it must never abort a gate-shell settlement chat write.
+    """
+    return Path.cwd().parent.name or "unknown"
 
 
 def generate_chat_filename(

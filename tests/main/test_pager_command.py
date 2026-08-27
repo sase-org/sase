@@ -84,8 +84,20 @@ def test_pager_help_documents_public_options() -> None:
         )
     )
     assert "-p, --plain" in help_text
-    assert "-t, --title TITLE" in help_text
-    assert "-w, --wrap WIDTH" in help_text
+    assert any(
+        rendering in help_text
+        for rendering in (
+            "-t, --title TITLE",
+            "-t TITLE, --title TITLE",
+        )
+    )
+    assert any(
+        rendering in help_text
+        for rendering in (
+            "-w, --wrap WIDTH",
+            "-w WIDTH, --wrap WIDTH",
+        )
+    )
     assert "REF|PATH" in help_text
 
 

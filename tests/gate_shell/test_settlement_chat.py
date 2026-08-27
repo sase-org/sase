@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -129,6 +131,35 @@ def test_settle_gate_shell_writes_decision_record_and_chat(
     done = json.loads((Path(artifacts_dir) / "done.json").read_text())
     assert done["chat_path"] == chat_path
     assert done["gate_decision_path"] == meta["gate_decision_path"]
+
+
+def test_settle_gate_shell_writes_chat_when_branch_helper_unavailable(
+    gate_home: Path,
+) -> None:
+    request_id = "reclaim-missing-helper"
+    gate = create_gate(_spec(request_id))
+    artifacts_dir = _make_gate_shell_member(gate_home, request_id, gate.bundle_path)
+    execute_gate_selection(gate.bundle_path, ["cleanup"], {}, source="test")
+    record = read_gate_shell_marker("proj", artifacts_dir)
+    assert record is not None
+
+    missing_helper = SimpleNamespace(
+        returncode=127,
+        stdout="",
+        stderr="branch_or_workspace_name: command not found",
+    )
+    with patch("sase.history.chat.run_shell_command", return_value=missing_helper):
+        settled = settle_gate_shell(
+            record, gate_state="answered", reason="gate answered"
+        )
+
+    assert settled.gate_state == "answered"
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    chat_path = meta["chat_path"]
+    assert chat_path
+
+    chat_text = Path(get_chat_file_path(chat_path)).read_text(encoding="utf-8")
+    assert "Reclaim disk space" in chat_text
 
 
 def test_settle_gate_shell_is_idempotent_once_terminal(gate_home: Path) -> None:
