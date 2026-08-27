@@ -14,10 +14,15 @@ from sase.gate_shell.settlement import settle_gate_shell
 from sase.gate_shell.start_claim import GATE_WORKSPACE_CLAIM_WORKFLOW
 from sase.gate_shell.store import read_gate_shell_marker
 from sase.notification_gates.executor import execute_gate_selection
-from sase.notification_gates.model_shell import GateShellSpec
+from sase.notification_gates.model_shell import GateShellSpec, subset_branches_allowed
 from sase.notification_gates.service import create_gate
+from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX
+from sase.plan_gate import build_plan_approval_gate_spec
+from sase.plan_shell.create import plan_gate_shell_block
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 from sase.shells.followup import FollowupLaunchResult
+from tests._plan_gate_fixtures import write_plan
+from tests.plan_validation_helpers import VALID_TALE_PLAN
 
 _ECHO_COMMAND = (
     "#!/usr/bin/env python3\n"
@@ -79,6 +84,9 @@ def _make_gate_shell_member(
     bundle_path: Path,
     *,
     shell: dict[str, Any],
+    branches: tuple[tuple[str, ...], ...] = (("cleanup",), ("reject",)),
+    gate_kind: str = "custom",
+    label: str = "Reclaim disk space",
     workspace_num: int | None = None,
 ) -> str:
     """Build the gate-shell member from the *same* shell block as the bundle.
@@ -88,7 +96,9 @@ def _make_gate_shell_member(
     test that wants a resolvable policy must give both the same shell block.
     """
     parsed_shell = GateShellSpec.from_mapping(
-        shell, branches=(("cleanup",), ("reject",))
+        shell,
+        branches=branches,
+        allow_branch_subsets=subset_branches_allowed(gate_kind),
     )
     base_meta: dict[str, Any] = {
         "name": "lane--0",
@@ -105,8 +115,8 @@ def _make_gate_shell_member(
         prev_artifacts_timestamp="20260812120000",
         workspace_num=workspace_num,
         gate_id=request_id,
-        gate_kind="custom",
-        label="Reclaim disk space",
+        gate_kind=gate_kind,
+        label=label,
         reason="wait for reviewer",
         creator_agent="lane--0",
         timeout_seconds=86400.0,
@@ -119,6 +129,25 @@ def _make_gate_shell_member(
     if workspace_num is not None:
         update_meta_field(artifacts_dir, "gate_workspace_policy", "inherit")
     return artifacts_dir
+
+
+def _write_response(
+    bundle_path: Path,
+    selected_option_ids: tuple[str, ...],
+    *,
+    result: dict[str, Any] | None = None,
+) -> None:
+    response = {
+        "selected_option_ids": list(selected_option_ids),
+        "source": "test",
+        "responded_at_unix": 1_787_000_000.0,
+        "result": result or {},
+        "option_results": [],
+    }
+    (bundle_path / "response.json").write_text(
+        json.dumps(response, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _fake_launcher(
@@ -191,10 +220,16 @@ def test_timeout_with_no_timeout_branch_launches_nothing(
     assert record is not None
 
     calls: list[str] = []
+
+    def launch_timeout_unmapped(*args: Any, **kwargs: Any) -> FollowupLaunchResult:
+        del args, kwargs
+        calls.append("called")
+        return FollowupLaunchResult(launched=True)
+
     monkeypatch.setattr(
         settlement_module,
         "launch_gate_followup_agent",
-        lambda *a, **k: calls.append("called") or FollowupLaunchResult(launched=True),
+        launch_timeout_unmapped,
     )
 
     settled = settle_gate_shell(record, gate_state="timeout", reason="gate timed out")
@@ -216,13 +251,16 @@ def test_timeout_with_a_timeout_branch_launches(
     assert record is not None
 
     calls: list[str] = []
+
+    def launch_timeout_mapped(*args: Any, **kwargs: Any) -> FollowupLaunchResult:
+        del args, kwargs
+        calls.append("called")
+        return FollowupLaunchResult(launched=True, agent_name="lane--1")
+
     monkeypatch.setattr(
         settlement_module,
         "launch_gate_followup_agent",
-        lambda *a, **k: (
-            calls.append("called")
-            or FollowupLaunchResult(launched=True, agent_name="lane--1")
-        ),
+        launch_timeout_mapped,
     )
 
     settled = settle_gate_shell(record, gate_state="timeout", reason="gate timed out")
@@ -231,6 +269,108 @@ def test_timeout_with_a_timeout_branch_launches(
     assert calls == ["called"]
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["gate_next_action"] == "handle the timeout"
+
+
+def test_unparseable_shell_block_records_followup_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_id = "reclaim-bad-shell"
+    gate = create_gate(_spec(request_id, shell=_DEFAULT_SHELL))
+    artifacts_dir = _make_gate_shell_member(
+        request_id, gate.bundle_path, shell=_DEFAULT_SHELL
+    )
+    _write_response(gate.bundle_path, ("cleanup",), result={"status": "ok"})
+    request = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    request["shell"]["branches"] = {
+        "unknown": {"prompt": "this branch cannot parse at settlement"}
+    }
+    gate.request_path.write_text(
+        json.dumps(request, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    record = read_gate_shell_marker("proj", artifacts_dir)
+    assert record is not None
+
+    monkeypatch.setattr(
+        settlement_module,
+        "launch_gate_followup_agent",
+        lambda *a, **k: pytest.fail("unparseable shell must not launch"),
+    )
+
+    settle_gate_shell(record, gate_state="answered", reason="gate answered")
+
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    done = json.loads((Path(artifacts_dir) / "done.json").read_text())
+    expected = settlement_module.SHELL_PARSE_FOLLOWUP_ERROR
+    assert meta["gate_followup_error"] == expected
+    assert done["gate_followup_error"] == expected
+    assert "gate_next_action" not in meta
+
+
+def test_tale_approve_commit_settlement_launches_coder_followup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_id = "tale-followup"
+    plan = write_plan(tmp_path, "tale.md", VALID_TALE_PLAN)
+    spec = build_plan_approval_gate_spec(
+        plan,
+        request_id,
+        auto_enabled=False,
+        auto_argument=None,
+        agent_name="lane--plan",
+        agent_model="gpt-5",
+        agent_llm_provider="openai",
+        agent_runtime="1m",
+        agent_vcs_tag=None,
+    )
+    shell = plan_gate_shell_block("tale")
+    spec["shell"] = shell
+    gate = create_gate(spec)
+    artifacts_dir = _make_gate_shell_member(
+        request_id,
+        gate.bundle_path,
+        shell=shell,
+        branches=(("approve", "commit"), ("reject",), ("feedback",)),
+        gate_kind="plan",
+        label="Tale plan approval",
+    )
+    _write_response(
+        gate.bundle_path,
+        ("approve", "commit"),
+        result={"action": "approve", "commit_plan": True, "run_coder": True},
+    )
+    record = read_gate_shell_marker("proj", artifacts_dir)
+    assert record is not None
+
+    observed: dict[str, Any] = {}
+
+    def observing_launcher(
+        called_artifacts_dir: str, meta: dict[str, Any], **kwargs: Any
+    ) -> FollowupLaunchResult:
+        observed["policy"] = kwargs["policy"]
+        return _fake_launcher(called_artifacts_dir, meta, **kwargs)
+
+    monkeypatch.setattr(
+        settlement_module, "launch_gate_followup_agent", observing_launcher
+    )
+
+    settle_gate_shell(record, gate_state="answered", reason="plan approval answered")
+
+    policy = observed["policy"]
+    assert policy.suffix == PLAN_CHAIN_CODER_SUFFIX
+    assert policy.role == "code"
+    assert policy.raw_prompt is True
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["gate_next_action"] == "Implement the approved plan."
+    assert meta["gate_next_fork"] == "none"
+    assert meta["gate_next_suffix"] == PLAN_CHAIN_CODER_SUFFIX
+    assert meta["gate_next_role"] == "code"
+    assert meta["gate_next_raw_prompt"] is True
+    assert meta["gate_stop_status"] == "TALE APPROVED"
+    assert meta["gate_accent"] == "#00D7D7"
+    assert meta["gate_followup_outcome"] == "launched"
+    assert meta["gate_followup_agent"] == "lane--1"
 
 
 def test_creator_live_suppresses_launch_and_stashes_the_prompt(

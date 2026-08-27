@@ -16,6 +16,7 @@ from sase.notification_gates.model_options import (
 from sase.notification_gates.model_shell import (
     GATE_SHELL_DEFAULT_TIMEOUT_SECONDS,
     GateShellSpec,
+    subset_branches_allowed,
 )
 from sase.notification_gates.model_validation import (
     GATE_REQUEST_SCHEMA_VERSION,
@@ -249,7 +250,7 @@ class GateSpec:
             GateShellSpec.from_mapping(
                 data["shell"],
                 branches=branches,
-                allow_branch_subsets=kind in {"epic_plan", "plan"},
+                allow_branch_subsets=subset_branches_allowed(kind),
             )
             if "shell" in data
             else None

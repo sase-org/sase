@@ -4,19 +4,26 @@ The envelope's ``shell`` block is the single source of truth for follow-up
 policy (member metadata never duplicates it -- see ``gate_shell/member.py``),
 so every function here re-parses the already-validated block through
 :class:`~sase.notification_gates.model_shell.GateShellSpec` rather than
-hand-walking raw JSON. A malformed or absent ``shell`` block always resolves
-to "no policy" -- this runs at settlement time, well after creation-time
-validation would have rejected a bad block, so raising here would turn a
-settlement into a crash instead of a quiet no-follow-up.
+hand-walking raw JSON. Settlement must parse with the same branch-key policy
+as gate creation; a present-but-unparseable shell block is a bug report to log
+and surface on the shell metadata, not an expected no-follow-up branch.
 """
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
 from sase.gate_shell.models import GateShellState
-from sase.notification_gates.model_shell import GateShellSpec
+from sase.notification_gates.model_shell import (
+    GateShellBranchSpec,
+    GateShellNext,
+    GateShellSpec,
+    subset_branches_allowed,
+)
+
+logger = logging.getLogger(__name__)
 
 #: ``gate_state`` values whose branch key is the joined selection.
 _ANSWERED_STATES = frozenset({"answered", "completed"})
@@ -45,6 +52,14 @@ class GateFollowupPolicy:
     raw_prompt: bool = False
     status: str | None = None
     accent: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _ShellParseResult:
+    """Parsed gate-shell spec plus whether a present block failed to parse."""
+
+    shell: GateShellSpec | None
+    unparseable: bool = False
 
 
 def _settlement_branch_key(
@@ -83,53 +98,27 @@ def resolve_gate_followup(
         return None
     key = _settlement_branch_key(envelope, gate_state=gate_state, response=response)
     branch = shell.branches.get(key)
-    if gate_state in _ANSWERED_STATES:
-        if branch is not None:
-            prompt, output, fork, model, suffix, role, raw_prompt = (
-                branch.prompt,
-                branch.output,
-                branch.fork,
-                branch.model,
-                branch.suffix,
-                branch.role,
-                branch.raw_prompt,
-            )
-            status, accent = branch.status, branch.accent
-        else:
-            prompt, output, fork, model, suffix, role, raw_prompt = (
-                shell.next.prompt,
-                shell.next.output,
-                shell.next.fork,
-                shell.next.model,
-                shell.next.suffix,
-                shell.next.role,
-                shell.next.raw_prompt,
-            )
-            status, accent = None, None
+    next_policy: GateShellBranchSpec | GateShellNext
+    if gate_state in _ANSWERED_STATES and branch is None:
+        status, accent = None, None
+        next_policy = shell.next
+    elif branch is None:
+        return None
     else:
-        if branch is None:
-            return None
-        prompt, output, fork, model, suffix, role, raw_prompt = (
-            branch.prompt,
-            branch.output,
-            branch.fork,
-            branch.model,
-            branch.suffix,
-            branch.role,
-            branch.raw_prompt,
-        )
         status, accent = branch.status, branch.accent
-    if not prompt:
+        next_policy = branch
+
+    if not next_policy.prompt:
         return None
     return GateFollowupPolicy(
         branch_key=key,
-        prompt=prompt,
-        output=output,
-        fork=fork,
-        model=model,
-        suffix=suffix,
-        role=role,
-        raw_prompt=raw_prompt,
+        prompt=next_policy.prompt,
+        output=next_policy.output,
+        fork=next_policy.fork,
+        model=next_policy.model,
+        suffix=next_policy.suffix,
+        role=next_policy.role,
+        raw_prompt=next_policy.raw_prompt,
         status=status,
         accent=accent,
     )
@@ -152,24 +141,51 @@ def resolve_gate_branch_presentation(
     return branch.status, branch.accent
 
 
+def shell_block_unparseable(envelope: dict[str, Any]) -> bool:
+    """Return whether a present shell block could not parse at settlement."""
+    return _parse_shell_result(envelope, log_error=False).unparseable
+
+
 def _parse_shell(envelope: dict[str, Any]) -> GateShellSpec | None:
+    return _parse_shell_result(envelope).shell
+
+
+def _parse_shell_result(
+    envelope: dict[str, Any], *, log_error: bool = True
+) -> _ShellParseResult:
+    """Parse the envelope's shell block with settlement-time diagnostics."""
     raw_shell = envelope.get("shell")
     if not isinstance(raw_shell, dict):
-        return None
+        return _ShellParseResult(None)
     raw_branches = envelope.get("branches")
     if not isinstance(raw_branches, list):
-        return None
+        return _ShellParseResult(None, unparseable=True)
     try:
         branches = tuple(
             tuple(str(option_id) for option_id in branch) for branch in raw_branches
         )
-        return GateShellSpec.from_mapping(raw_shell, branches=branches)
+        kind = envelope.get("kind")
+        return _ShellParseResult(
+            GateShellSpec.from_mapping(
+                raw_shell,
+                branches=branches,
+                allow_branch_subsets=subset_branches_allowed(kind),
+            )
+        )
     except Exception:
-        return None
+        if log_error:
+            logger.warning(
+                "failed to parse gate shell block at settlement (kind=%r, branches=%r)",
+                envelope.get("kind"),
+                raw_branches,
+                exc_info=True,
+            )
+        return _ShellParseResult(None, unparseable=True)
 
 
 __all__ = [
     "GateFollowupPolicy",
     "resolve_gate_branch_presentation",
     "resolve_gate_followup",
+    "shell_block_unparseable",
 ]

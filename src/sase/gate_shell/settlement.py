@@ -23,6 +23,7 @@ from sase.gate_shell.followup_policy import (
     GateFollowupPolicy,
     resolve_gate_branch_presentation,
     resolve_gate_followup,
+    shell_block_unparseable,
 )
 from sase.gate_shell.log import gate_shell_output_tail
 from sase.gate_shell.models import GateShellRecord, GateShellState
@@ -42,6 +43,9 @@ from sase.shells.settlement import (
 
 GATE_FOLLOWUP_DEGRADED_OUTCOME = "launched-degraded"
 LOST_FOLLOWUP_ERROR = "follow-up not launched because the gate shell was marked lost"
+SHELL_PARSE_FOLLOWUP_ERROR = (
+    "gate shell block did not parse at settlement; follow-up policy was skipped"
+)
 
 _GATE_SETTLEMENT_CONFIG = ShellSettlementConfig(
     next_action_field="gate_next_action",
@@ -89,8 +93,15 @@ def settle_gate_shell(
 
     envelope, response, cancellation = _bundle_documents(meta)
     policy = resolve_gate_followup(envelope, gate_state=gate_state, response=response)
+    status, accent = resolve_gate_branch_presentation(
+        envelope, gate_state=gate_state, response=response
+    )
     _apply_branch_policy(
-        meta, policy=policy, gate_state=gate_state, envelope=envelope, response=response
+        meta,
+        policy=policy,
+        status=status,
+        accent=accent,
+        shell_unparseable=shell_block_unparseable(envelope),
     )
     meta["gate_state"] = "settling"
     _write_meta(artifacts_dir, meta)
@@ -329,9 +340,9 @@ def _apply_branch_policy(
     meta: dict[str, Any],
     *,
     policy: GateFollowupPolicy | None,
-    gate_state: GateShellState,
-    envelope: dict[str, Any],
-    response: dict[str, Any],
+    status: str | None,
+    accent: str | None,
+    shell_unparseable: bool,
 ) -> None:
     """Write the resolved branch presentation and follow-up policy onto ``meta``.
 
@@ -341,15 +352,14 @@ def _apply_branch_policy(
     rather than leave a stale value seeded at creation time from the
     top-level ``shell.next``.
     """
-    status, accent = resolve_gate_branch_presentation(
-        envelope, gate_state=gate_state, response=response
-    )
     if status is not None:
         meta["gate_stop_status"] = status
     if accent is not None:
         meta["gate_accent"] = accent
     if policy is None:
         meta.pop("gate_next_action", None)
+        if shell_unparseable:
+            meta["gate_followup_error"] = SHELL_PARSE_FOLLOWUP_ERROR
         return
     meta["gate_next_action"] = policy.prompt
     meta["gate_next_fork"] = policy.fork

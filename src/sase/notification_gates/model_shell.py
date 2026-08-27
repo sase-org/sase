@@ -26,6 +26,7 @@ GATE_SHELL_WORKSPACES = frozenset({"inherit", "release"})
 GATE_SHELL_NEXT_FORKS = frozenset({"family", "shell", "none"})
 GATE_SHELL_NEXT_OUTPUTS = frozenset({"none", "results", "tail", "file"})
 GATE_SHELL_RESERVED_BRANCHES = frozenset({"timeout", "stopped", "failed"})
+SUBSET_BRANCH_GATE_KINDS = frozenset({"epic_plan", "plan"})
 _ROLE_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 _DEFAULT_ACCENTS: tuple[str, ...] = (
@@ -300,6 +301,11 @@ def _valid_branch_keys(
     return frozenset(keys) | GATE_SHELL_RESERVED_BRANCHES
 
 
+def subset_branches_allowed(kind: object) -> bool:
+    """Return whether *kind* may declare subset branch keys in its shell block."""
+    return isinstance(kind, str) and kind in SUBSET_BRANCH_GATE_KINDS
+
+
 def _branches(
     value: object,
     *,
@@ -427,7 +433,9 @@ __all__ = [
     "DEFAULT_GATE_SHELL_PENDING_STATUS",
     "DEFAULT_GATE_SHELL_SETTLED_STATUS",
     "GATE_SHELL_DEFAULT_TIMEOUT_SECONDS",
+    "SUBSET_BRANCH_GATE_KINDS",
     "GateShellBranchSpec",
     "GateShellNext",
     "GateShellSpec",
+    "subset_branches_allowed",
 ]
