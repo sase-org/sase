@@ -74,9 +74,7 @@ class Agent(AgentState):
     @property
     def is_family_container_row(self) -> bool:
         """Whether this root has at least one real agent-family member."""
-        return self.is_family_root_entry and any(
-            not child.is_synthetic_planner for child in self.followup_agents
-        )
+        return self.is_family_root_entry and bool(self.followup_agents)
 
     @property
     def is_plan_family_root_entry(self) -> bool:

@@ -51,11 +51,7 @@ class _ResolvedVcsTag:
 
 def _is_real_prompt_target_agent(agent: Agent) -> bool:
     """Return whether *agent* represents a real chat-bearing agent row."""
-    return (
-        not agent.is_clan_container
-        and not agent.is_synthetic_planner
-        and agent.is_agent_entry
-    )
+    return not agent.is_clan_container and agent.is_agent_entry
 
 
 def _stable_real_agents(agents: Iterable[Agent]) -> tuple[Agent, ...]:

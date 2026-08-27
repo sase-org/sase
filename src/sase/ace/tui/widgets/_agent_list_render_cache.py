@@ -128,7 +128,6 @@ def _runtime_signature(
         agent.parent_workflow,
         agent.step_type,
         agent.parent_step_index,
-        agent.is_synthetic_planner,
         agent.agent_family,
         agent.agent_family_role,
         agent.agent_family_parallel,

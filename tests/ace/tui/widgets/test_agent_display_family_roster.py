@@ -159,7 +159,7 @@ def test_loaded_plan_family_roster_uses_concrete_member_state_and_content(
         "ep--code",
     ]
     assert [entry.status for entry in entries] == [
-        "TALE APPROVED",
+        "DONE",
         "WORKING TALE",
     ]
     assert [entry.effective_bucket for entry in entries] == ["Done", "Running"]
@@ -182,7 +182,7 @@ def test_loaded_plan_family_roster_uses_concrete_member_state_and_content(
     assert "implementing the approved tale" in header.plain
     assert "ws 21" in header.plain
     assert "ws 22" in header.plain
-    assert "✓ TALE APPROVED" in header.plain
+    assert "✓ DONE" in header.plain
     assert "▶ WORKING TALE" in header.plain
 
     panel = FakePromptPanel()

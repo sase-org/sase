@@ -92,15 +92,6 @@ def test_family_identity_color_requires_a_real_member() -> None:
     lone_planner.agent_family = "solo"
     lone_planner.agent_family_role = "root"
     lone_planner.appears_as_agent = True
-    synthetic = _agent(
-        "solo--plan",
-        "synthetic-plan",
-        parent_timestamp=lone_planner.raw_suffix,
-        clan=None,
-        generation=None,
-    )
-    synthetic.is_synthetic_planner = True
-    lone_planner.followup_agents = [synthetic]
 
     plain = _agent("plain", "plain", clan=None, generation=None)
     plain.appears_as_agent = True

@@ -267,12 +267,7 @@ def _collect_tribe_member_rows(agents: list[Agent]) -> tuple[TribeMemberRow, ...
 
     rows: list[TribeMemberRow] = []
     for agent in agents:
-        if (
-            agent.is_clan_container
-            or agent.is_synthetic_planner
-            or agent.is_workflow_child
-            or not agent.raw_suffix
-        ):
+        if agent.is_clan_container or agent.is_workflow_child or not agent.raw_suffix:
             continue
         clan_key = _agent_clan_key(agent)
         effective_tribes = (

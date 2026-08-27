@@ -114,13 +114,6 @@ async def test_patch_family_root_recolors_name_with_first_real_member() -> None:
         root.agent_family = "demo"
         root.agent_family_role = "root"
         root.appears_as_agent = True
-        synthetic = _agent(
-            cl_name="demo--plan",
-            agent_name="demo--plan",
-            raw_suffix="20260425143001",
-        )
-        synthetic.is_synthetic_planner = True
-        root.followup_agents = [synthetic]
 
         widget.update_list([root], current_idx=0)
         await pilot.pause()

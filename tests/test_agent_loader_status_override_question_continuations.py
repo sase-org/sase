@@ -72,7 +72,12 @@ def _question_continuation(
 
 
 def test_apply_status_overrides_answered_question_continuation_asker() -> None:
-    """An ordinary continuation that was answered and handed off shows ANSWERED."""
+    """An ordinary continuation that was answered and handed off shows ANSWERED.
+
+    ``root_asker`` is the plan-chain root's own concrete workflow step; it now
+    keeps its raw DONE status instead of mirroring ANSWERED, since that mirror
+    was owned by the retired ``sync_planner_child_from_parent``.
+    """
     second_question_time = datetime(2026, 6, 30, 0, 12, 0)
     parent, root_asker = _question_continuation_family_root()
     first_continuation = _question_continuation(
@@ -97,7 +102,7 @@ def test_apply_status_overrides_answered_question_continuation_asker() -> None:
         [root_asker],
     )
 
-    assert root_asker.status == "ANSWERED"
+    assert root_asker.status == "DONE"
     assert first_continuation.status == "ANSWERED"
     assert first_continuation.stop_time == second_question_time
     assert active_continuation.status == "RUNNING"
@@ -254,12 +259,6 @@ def test_apply_status_overrides_question_continuation_planner_family() -> None:
 
     _apply_status_overrides(agents)
 
-    asker = next(
-        agent
-        for agent in agents
-        if agent.parent_timestamp == parent.raw_suffix and agent.role_suffix == "--0"
-    )
-    assert asker.status == "ANSWERED"
     assert continuation_planner.status == "TALE APPROVED"
     assert coder.status == "WORKING PLAN"
     assert parent.status == "WORKING PLAN"
@@ -274,12 +273,6 @@ def test_apply_status_overrides_question_continuation_planner_approve_action() -
 
     _apply_status_overrides(agents)
 
-    asker = next(
-        agent
-        for agent in agents
-        if agent.parent_timestamp == parent.raw_suffix and agent.role_suffix == "--0"
-    )
-    assert asker.status == "ANSWERED"
     assert continuation_planner.status == "PLAN APPROVED"
     assert coder.status == "WORKING PLAN"
     assert parent.status == "WORKING PLAN"

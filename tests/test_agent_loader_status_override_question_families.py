@@ -147,13 +147,7 @@ def test_apply_status_overrides_question_only_family_without_followup_is_questio
 
     _apply_status_overrides(agents)
 
-    asker = next(
-        agent
-        for agent in agents
-        if agent.parent_timestamp == parent.raw_suffix and agent.role_suffix == "--0"
-    )
     assert parent.status == "QUESTION"
-    assert asker.status == "QUESTION"
 
 
 def test_apply_status_overrides_parent_with_questioning_code_child_becomes_question() -> (

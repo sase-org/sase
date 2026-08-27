@@ -16,8 +16,6 @@ from sase.sdd.plan_tiers import cached_plan_tier
 
 from ._agent_status_family_core import (
     child_launch_time,
-    family_followup_children,
-    has_family_followup_child,
     has_later_family_continuation,
     is_main_workflow_agent_step,
     is_root_plan_workflow,
@@ -30,7 +28,6 @@ from .agent import Agent
 APPROVED_PLAN_ACTIONS = frozenset({"approve", "tale", "epic", "commit"})
 APPROVED_PLANNER_ACTIONS = frozenset({"approve", "tale"})
 PLANNER_FAMILY_ROLES = frozenset({"plan", "feedback"})
-EPIC_CREATED_STATUS = "EPIC CREATED"
 
 
 def pending_plan_status_for_agent(agent: Agent) -> str:
@@ -149,38 +146,6 @@ def is_completed_epic_followup_child(agent: Agent) -> bool:
         and agent.status == "DONE"
         and agent_family_role(agent) == "epic"
     )
-
-
-def _approved_planner_status(
-    parent: Agent,
-    all_agents: list[Agent] | None = None,
-    children_by_parent: dict[str, list[Agent]] | None = None,
-) -> str | None:
-    """Return the sticky approved status for a logical planner child."""
-    children = family_followup_children(parent, all_agents, children_by_parent)
-    code_children = [child for child in children if agent_family_role(child) == "code"]
-    if parent.plan_action not in APPROVED_PLANNER_ACTIONS and not code_children:
-        return None
-    if (
-        parent.plan_action == "tale"
-        or parent.status in {TALE_APPROVED_STATUS, "TALE DONE"}
-        or any(child.plan_action == "tale" for child in code_children)
-    ):
-        return TALE_APPROVED_STATUS
-    return PLAN_APPROVED_STATUS
-
-
-def _approved_epic_planner_status(parent: Agent) -> str | None:
-    """Return the durable host-owned epic handoff status for a planner row."""
-    is_epic_approved = parent.plan_action == "epic" or parent.status in {
-        EPIC_APPROVED_STATUS,
-        EPIC_CREATED_STATUS,
-    }
-    if not is_epic_approved:
-        return None
-    if parent.epic_bead_id:
-        return EPIC_CREATED_STATUS
-    return EPIC_APPROVED_STATUS
 
 
 def approved_followup_planner_status(agent: Agent) -> str | None:
@@ -303,63 +268,3 @@ def is_answered_root_asker_step(
     if canonical_plan_chain_suffix(agent.role_suffix) != root_child_suffix(parent):
         return False
     return has_later_family_continuation(agent, children_by_parent)
-
-
-def planner_child_status(
-    parent: Agent,
-    all_agents: list[Agent] | None = None,
-    children_by_parent: dict[str, list[Agent]] | None = None,
-    *,
-    logical_child: Agent | None = None,
-) -> str:
-    """Status for the logical planner child derived from a family root."""
-    if parent.status in {
-        "STARTING",
-        "WAITING",
-        "QUEUED",
-        "RUNNING",
-        "FAILED",
-        "PLAN REJECTED",
-    }:
-        return parent.status
-    if parent.status in {"QUESTION", "ANSWERED"}:
-        return parent.status
-    has_followup_child = all_agents is not None and has_family_followup_child(
-        parent,
-        all_agents,
-        children_by_parent,
-        exclude=logical_child,
-    )
-    if has_followup_child and parent.questions_times and not parent.plan_times:
-        return "ANSWERED"
-    epic_status = _approved_epic_planner_status(parent)
-    if epic_status is not None:
-        return epic_status
-    approved_status = _approved_planner_status(parent, all_agents, children_by_parent)
-    if approved_status is not None:
-        return approved_status
-    if has_followup_child:
-        return "DONE"
-    if has_unanswered_completed_question(parent):
-        return "QUESTION"
-    if is_awaiting_plan_review(parent):
-        return pending_plan_status_for_agent(parent)
-    return "DONE"
-
-
-def answered_asker_freeze_time(
-    parent: Agent,
-    child_status: str,
-    all_agents: list[Agent] | None = None,
-    children_by_parent: dict[str, list[Agent]] | None = None,
-) -> datetime | None:
-    """Return the answer-time stop marker for a handed-off asker row."""
-    if child_status != "ANSWERED":
-        return None
-    if not parent.questions_times:
-        return None
-    if all_agents is None:
-        return None
-    if not has_family_followup_child(parent, all_agents, children_by_parent):
-        return None
-    return max(parent.questions_times)

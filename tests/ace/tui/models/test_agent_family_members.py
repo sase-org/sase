@@ -43,12 +43,6 @@ def test_concrete_planner_replaces_aggregate_root_and_mixed_links_dedupe() -> No
         parent_timestamp=root.raw_suffix,
         start_offset=2,
     )
-    synthetic = _agent(
-        "alpha--synthetic-plan",
-        role="plan",
-        parent_timestamp=root.raw_suffix,
-    )
-    synthetic.is_synthetic_planner = True
     parallel = _agent(
         "alpha--parallel",
         role="review",
@@ -56,8 +50,8 @@ def test_concrete_planner_replaces_aggregate_root_and_mixed_links_dedupe() -> No
     )
     parallel.agent_family_parallel = True
 
-    root.runtime_children = [planner, feedback, coder, synthetic, parallel]
-    root.followup_agents = [synthetic, feedback, coder, parallel]
+    root.runtime_children = [planner, feedback, coder, parallel]
+    root.followup_agents = [feedback, coder, parallel]
 
     assert concrete_family_member_rows(root) == (planner, feedback, coder)
 
@@ -120,14 +114,8 @@ def test_plan_root_without_concrete_planner_uses_root_fallback() -> None:
         parent_timestamp=root.raw_suffix,
         start_offset=1,
     )
-    synthetic = _agent(
-        "alpha--synthetic-plan",
-        role="plan",
-        parent_timestamp=root.raw_suffix,
-    )
-    synthetic.is_synthetic_planner = True
-    root.runtime_children = [synthetic, coder]
-    root.followup_agents = [synthetic, coder]
+    root.runtime_children = [coder]
+    root.followup_agents = [coder]
 
     assert concrete_family_member_rows(root) == (root, coder)
 

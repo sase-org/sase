@@ -233,14 +233,6 @@ def test_family_header_recolors_only_real_container_name() -> None:
     family.agent_clan = None
     family.agent_family_role = "root"
     family.refresh_presented_agent_name()
-    synthetic = make_clan_agent(
-        "research.writer--plan",
-        status="DONE",
-        start=datetime(2026, 7, 17, 12, 1, 0),
-        family="research.writer",
-    )
-    synthetic.is_synthetic_planner = True
-    family.followup_agents = [synthetic]
 
     lone_header, _ = build_header_text(family, cheap=True)
 

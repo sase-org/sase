@@ -219,7 +219,7 @@ def _shell_links(row: Agent) -> tuple[Agent, ...]:
 
 def _is_excluded_family_shell(row: Agent) -> bool:
     """Return whether *row* is scaffolding rather than a concrete family shell."""
-    return row.is_synthetic_planner or row.agent_family_parallel
+    return row.agent_family_parallel
 
 
 def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
@@ -232,7 +232,6 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
     if agent.is_workflow_step_child:
         if (
             agent.step_type == "agent"
-            and not agent.is_synthetic_planner
             and not agent.agent_family_parallel
             and not row_is_family_shell(agent)
         ):
@@ -250,7 +249,6 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
                 for child in (*agent.runtime_children, *agent.followup_agents)
                 if child.is_workflow_step_child
                 and child.step_type == "agent"
-                and not child.is_synthetic_planner
                 and not child.agent_family_parallel
                 and not row_is_family_shell(child)
             )
@@ -482,7 +480,6 @@ def _concrete_planner_child(agent: Agent) -> Agent | None:
             if child.is_workflow_step_child
             and child.step_type == "agent"
             and child.parent_step_index is None
-            and not child.is_synthetic_planner
             and not child.agent_family_parallel
         ),
         None,
@@ -507,7 +504,6 @@ def _concrete_continuations(
         for row in rows
         if row is not planner
         and not row.is_workflow_step_child
-        and not row.is_synthetic_planner
         and not row.agent_family_parallel
         and not row_is_family_shell(row)
     )

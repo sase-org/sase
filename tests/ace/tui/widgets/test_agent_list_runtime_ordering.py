@@ -315,7 +315,7 @@ def test_sort_and_reorder_clears_stale_family_container_pointer() -> None:
     assert child.family_container is None
 
 
-def test_sort_and_reorder_skips_synthetic_planner_and_parallel_family_rows() -> None:
+def test_sort_and_reorder_skips_parallel_family_rows() -> None:
     parent = agent(
         status="RUNNING",
         start=datetime(2026, 8, 2, 11, 0, 0),
@@ -326,15 +326,6 @@ def test_sort_and_reorder_skips_synthetic_planner_and_parallel_family_rows() -> 
     parent.agent_name = "fam2--plan"
     parent.agent_family = "fam2"
     parent.plan_chain_root = True
-
-    synthetic = agent(
-        status="RUNNING",
-        start=datetime(2026, 8, 2, 11, 1, 0),
-        raw_suffix="20260802110100",
-        cl_name="fam2--0",
-    )
-    synthetic.parent_timestamp = parent.raw_suffix
-    synthetic.is_synthetic_planner = True
 
     parallel = agent(
         status="RUNNING",
@@ -355,12 +346,11 @@ def test_sort_and_reorder_skips_synthetic_planner_and_parallel_family_rows() -> 
     real_child.parent_timestamp = parent.raw_suffix
     real_child.agent_name = "fam2--code"
 
-    parent.followup_agents = [synthetic, parallel, real_child]
+    parent.followup_agents = [parallel, real_child]
 
-    sort_and_reorder([synthetic, parallel, real_child, parent], [])
+    sort_and_reorder([parallel, real_child, parent], [])
 
     assert parent.is_family_container_row is True
-    assert synthetic.family_container is None
     assert parallel.family_container is None
     assert real_child.family_container is parent
 

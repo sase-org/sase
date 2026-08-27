@@ -91,7 +91,6 @@ def _build_plain_agent_completion_candidates(
     for agent in all_agents:
         if (
             agent.is_clan_container
-            or agent.is_synthetic_planner
             or agent.is_family_root_entry
             or agent.is_proc_shell
             or agent.is_monitor
@@ -399,7 +398,7 @@ def _build_tribe_completion_candidates(
             for tribe in group.tribes:
                 add(tribe, group.members, clan_carrier=key)
             continue
-        if agent.is_clan_container or agent.is_synthetic_planner or not agent.tribe:
+        if agent.is_clan_container or not agent.tribe:
             continue
         members: Iterable[Agent]
         if agent.is_family_root_entry:
@@ -435,7 +434,7 @@ def _dedupe_real_member_rows(rows: Iterable[Agent]) -> tuple[Agent, ...]:
     members: list[Agent] = []
     seen: set[object] = set()
     for row in rows:
-        if row.is_clan_container or row.is_synthetic_planner or row.identity in seen:
+        if row.is_clan_container or row.identity in seen:
             continue
         seen.add(row.identity)
         members.append(row)

@@ -114,11 +114,7 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             return False
         if getattr(agent, "is_clan_container", False):
             return bool(getattr(agent, "agent_clan", None))
-        if not getattr(agent, "is_agent_entry", False) or getattr(
-            agent,
-            "is_synthetic_planner",
-            False,
-        ):
+        if not getattr(agent, "is_agent_entry", False):
             return False
         return bool(agent_prompt_name(agent))
 

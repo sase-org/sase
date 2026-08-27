@@ -250,7 +250,7 @@ def resolve_agent_prompt_target_scope(
             None,
         )
 
-    if not agent.is_agent_entry or agent.is_synthetic_planner:
+    if not agent.is_agent_entry:
         return None, "No agent, clan, or tribe selected"
 
     from ._core import DISMISSABLE_STATUSES

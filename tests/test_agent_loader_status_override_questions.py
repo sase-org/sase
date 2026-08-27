@@ -162,15 +162,8 @@ def test_apply_status_overrides_answered_question_only_family_is_done() -> None:
 
     _apply_status_overrides(agents)
 
-    asker = next(
-        agent
-        for agent in agents
-        if agent.parent_timestamp == parent.raw_suffix and agent.role_suffix == "--0"
-    )
     assert continuation.status == "DONE"
     assert parent.status == "DONE"
-    assert asker.status == "ANSWERED"
-    assert asker.stop_time == question_time
 
 
 def _rename_on_attach_root_step(
@@ -270,7 +263,12 @@ def test_apply_status_overrides_rename_on_attach_root_step_without_continuation_
 
 
 def test_apply_status_overrides_plan_chain_root_step_projection_unchanged() -> None:
-    """Plan-chain root steps retain their planner projection."""
+    """A plan-chain root's own concrete step keeps its raw DONE status.
+
+    The sticky-approved mirror used to come from the retired
+    ``sync_planner_child_from_parent``; the gate shell now owns the
+    container's and follow-up code child's approved labels instead.
+    """
     question_time = datetime(2026, 7, 29, 6, 27, 18, 856220)
     plan_time = datetime(2026, 7, 29, 6, 29, 30)
     root_start = datetime(2026, 7, 29, 6, 22, 53)
@@ -331,6 +329,6 @@ def test_apply_status_overrides_plan_chain_root_step_projection_unchanged() -> N
 
     _apply_status_overrides([root, continuation], [root_step])
 
-    assert root_step.status == "TALE APPROVED"
+    assert root_step.status == "DONE"
     assert continuation.status == "WORKING TALE"
     assert root.status == "WORKING TALE"

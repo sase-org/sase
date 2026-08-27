@@ -222,7 +222,7 @@ def test_apply_status_overrides_active_code_child_with_parent_status_tale_approv
 
 
 def test_apply_status_overrides_active_code_keeps_planner_child_tale_approved() -> None:
-    """The concrete planner child stays TALE APPROVED while code is active."""
+    """The concrete planner child keeps its raw DONE status while code is active."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="a5n",
@@ -267,7 +267,7 @@ def test_apply_status_overrides_active_code_keeps_planner_child_tale_approved() 
 
     _apply_status_overrides([parent, planner_child, code_child])
 
-    assert planner_child.status == "TALE APPROVED"
+    assert planner_child.status == "DONE"
     assert code_child.status == "WORKING TALE"
     assert parent.status == "WORKING TALE"
 
@@ -275,7 +275,7 @@ def test_apply_status_overrides_active_code_keeps_planner_child_tale_approved() 
 def test_apply_status_overrides_completed_code_keeps_planner_child_tale_approved() -> (
     None
 ):
-    """The concrete planner child stays TALE APPROVED after code completes."""
+    """The concrete planner child keeps its raw DONE status after code completes."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="a5n",
@@ -320,7 +320,7 @@ def test_apply_status_overrides_completed_code_keeps_planner_child_tale_approved
 
     _apply_status_overrides([parent, planner_child, code_child])
 
-    assert planner_child.status == "TALE APPROVED"
+    assert planner_child.status == "DONE"
     assert code_child.status == "TALE DONE"
     assert parent.status == "TALE DONE"
 

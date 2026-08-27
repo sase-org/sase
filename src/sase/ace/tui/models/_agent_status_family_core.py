@@ -177,51 +177,6 @@ def latest_non_workflow_child_launch_by_parent(
     return latest_by_parent
 
 
-def has_family_followup_child(
-    parent: Agent,
-    all_agents: list[Agent],
-    children_by_parent: dict[str, list[Agent]] | None = None,
-    *,
-    exclude: Agent | None = None,
-) -> bool:
-    if not parent.raw_suffix:
-        return False
-    children = (
-        children_by_parent.get(parent.raw_suffix, [])
-        if children_by_parent is not None
-        else all_agents
-    )
-    return any(
-        child is not parent
-        and child is not exclude
-        and child.parent_timestamp == parent.raw_suffix
-        and child.is_family_member_child
-        for child in children
-    )
-
-
-def family_followup_children(
-    parent: Agent,
-    all_agents: list[Agent] | None = None,
-    children_by_parent: dict[str, list[Agent]] | None = None,
-) -> list[Agent]:
-    """Return concrete family-member children belonging to a parent row."""
-    if not parent.raw_suffix:
-        return []
-    children = (
-        children_by_parent.get(parent.raw_suffix, [])
-        if children_by_parent is not None
-        else all_agents or []
-    )
-    return [
-        child
-        for child in children
-        if child is not parent
-        and child.parent_timestamp == parent.raw_suffix
-        and child.is_family_member_child
-    ]
-
-
 def has_later_family_continuation(
     agent: Agent,
     children_by_parent: dict[str, list[Agent]],

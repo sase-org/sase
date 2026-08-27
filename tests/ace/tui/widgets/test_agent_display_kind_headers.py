@@ -125,9 +125,6 @@ def test_unattached_family_root_opens_with_agent_shell() -> None:
         agent_family_role="root",
         plan_chain_root=True,
     )
-    planner = make_agent(agent_name="alpha--plan-step")
-    planner.is_synthetic_planner = True
-    root.followup_agents = [planner]
 
     assert root.is_family_container_row is False
     assert root.is_agent_entry is True

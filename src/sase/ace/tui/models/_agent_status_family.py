@@ -11,7 +11,6 @@ from ._agent_status_family_core import (
     append_unique_timestamps,
     child_launch_time,
     children_by_parent_timestamp,
-    has_family_followup_child,
     has_later_family_continuation,
     is_family_child,
     is_main_workflow_agent_step,
@@ -24,14 +23,11 @@ from ._agent_status_family_core import (
 from ._agent_status_family_planner import (
     copy_missing_display_metadata,
     copy_missing_plan_metadata,
-    ensure_synthetic_planner_children,
     pull_plan_metadata_from_family_members,
-    sync_planner_child_from_parent,
 )
 from ._agent_status_family_policy import (
     APPROVED_PLAN_ACTIONS,
     APPROVED_PLANNER_ACTIONS,
-    EPIC_CREATED_STATUS,
     PLANNER_FAMILY_ROLES,
     active_approved_plan_handoff_status,
     approved_followup_planner_status,
@@ -46,14 +42,12 @@ from ._agent_status_family_policy import (
     is_completed_epic_followup_child,
     is_completed_plan_handoff_child,
     pending_plan_status_for_agent,
-    planner_child_status,
     superseded_by_feedback_round,
 )
 
 __all__ = [
     "APPROVED_PLAN_ACTIONS",
     "APPROVED_PLANNER_ACTIONS",
-    "EPIC_CREATED_STATUS",
     "PLANNER_FAMILY_ROLES",
     "PLAN_CHAIN_MEMBER_ROLES",
     "active_approved_plan_handoff_status",
@@ -65,9 +59,7 @@ __all__ = [
     "copy_missing_display_metadata",
     "copy_missing_plan_metadata",
     "done_handoff_status",
-    "ensure_synthetic_planner_children",
     "feedback_child_progressed_past_review",
-    "has_family_followup_child",
     "has_inherited_family_question",
     "has_later_family_continuation",
     "has_unanswered_completed_question",
@@ -84,9 +76,7 @@ __all__ = [
     "mark_derived_plan_family_roots",
     "merge_feedback_plan_paths",
     "pending_plan_status_for_agent",
-    "planner_child_status",
     "pull_plan_metadata_from_family_members",
     "root_child_suffix",
     "superseded_by_feedback_round",
-    "sync_planner_child_from_parent",
 ]

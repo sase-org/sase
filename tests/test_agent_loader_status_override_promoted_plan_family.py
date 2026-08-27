@@ -111,8 +111,9 @@ def test_promoted_family_unreviewed_tale_projects_onto_root(tmp_path: Path) -> N
     """A promoted root whose member submitted a tale plan shows TALE, not DONE.
 
     Also covers plan_times isolation: the root must not borrow the member's
-    plan_times, or its own logical '--0' child would flip from ANSWERED to a
-    plan-approved status in ``planner_child_status``.
+    plan_times. ``main_step`` (the root's own concrete workflow step) keeps
+    its raw DONE status rather than mirroring ANSWERED, since that mirror was
+    owned by the retired ``sync_planner_child_from_parent``.
     """
     tale_path = tmp_path / "tale.md"
     tale_path.write_text("---\ntier: tale\n---\n# Tale\n", encoding="utf-8")
@@ -121,7 +122,7 @@ def test_promoted_family_unreviewed_tale_projects_onto_root(tmp_path: Path) -> N
     _apply_status_overrides([root, member], [main_step])
 
     assert root.status == "TALE"
-    assert main_step.status == "ANSWERED"
+    assert main_step.status == "DONE"
     assert member.status == "TALE"
     assert root.plan_times == []
 
@@ -247,7 +248,6 @@ def test_promoted_family_plain_question_continuation_is_unaffected() -> None:
 
     assert root.status == "DONE"
     assert not is_root_plan_workflow(root)
-    assert not any(agent.is_synthetic_planner for agent in agents)
 
 
 def test_promoted_family_derived_marker_survives_partial_reload() -> None:

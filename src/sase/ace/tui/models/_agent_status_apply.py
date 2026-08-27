@@ -22,7 +22,6 @@ from ._agent_status_family import (
     copy_missing_display_metadata,
     copy_missing_plan_metadata,
     done_handoff_status,
-    ensure_synthetic_planner_children,
     feedback_child_progressed_past_review,
     has_inherited_family_question,
     has_unanswered_completed_question,
@@ -42,7 +41,6 @@ from ._agent_status_family import (
     pull_plan_metadata_from_family_members,
     root_child_suffix,
     superseded_by_feedback_round,
-    sync_planner_child_from_parent,
 )
 from ._agent_status_roles import agent_family_role, is_coder_agent, is_feedback_agent
 from .agent import Agent, AgentType
@@ -161,14 +159,7 @@ def apply_status_overrides(
         if agent.raw_suffix and not agent.is_child_row:
             parent_by_suffix[agent.raw_suffix] = agent
 
-    ensure_synthetic_planner_children(agents, all_agents, parent_by_suffix)
     children_by_parent = children_by_parent_timestamp(all_agents)
-    # Deriving the plan-family marker after synthetic planner children are
-    # added (not before) is deliberate: ensure_synthetic_planner_children is
-    # itself gated on is_root_plan_workflow, and running the derivation first
-    # would let it synthesize a phantom "--0" planner row for a derived plan
-    # family whose concrete main workflow step is not loaded. Derived families
-    # keep the promoted-root-as-first-member projection instead.
     mark_derived_plan_family_roots(children_by_parent, parent_by_suffix)
     pull_plan_metadata_from_family_members(children_by_parent, parent_by_suffix)
     for parent_timestamp, children in children_by_parent.items():
@@ -231,37 +222,10 @@ def apply_status_overrides(
             and is_main_workflow_agent_step(agent)
         ):
             parent = parent_by_suffix.get(agent.parent_timestamp)
-            if (
-                parent
-                and is_root_plan_workflow(parent)
-                and canonical_plan_chain_suffix(agent.role_suffix)
-                == root_child_suffix(parent)
-            ):
-                sync_planner_child_from_parent(
-                    parent, agent, all_agents, children_by_parent
-                )
-            elif parent is None:
+            if parent is None:
                 approved_status = approved_followup_planner_status(agent)
                 if approved_status is not None:
                     agent.status = approved_status
-        elif (
-            agent.is_family_member_child
-            and agent.raw_suffix is None
-            and agent.parent_timestamp
-        ):
-            # Synthetic planner rows survive repeated in-memory normalization.
-            # Refresh them from the root just like concrete main-agent steps so
-            # newly reloaded durable metadata can advance their semantic state.
-            parent = parent_by_suffix.get(agent.parent_timestamp)
-            if (
-                parent
-                and is_root_plan_workflow(parent)
-                and canonical_plan_chain_suffix(agent.role_suffix)
-                == root_child_suffix(parent)
-            ):
-                sync_planner_child_from_parent(
-                    parent, agent, all_agents, children_by_parent
-                )
         elif (
             not agent.agent_family_parallel
             and is_feedback_agent(agent)

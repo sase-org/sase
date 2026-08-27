@@ -244,13 +244,6 @@ def test_cached_family_root_invalidates_when_first_real_member_is_added() -> Non
     root = _agent(agent_name="demo")
     root.agent_family = "demo"
     root.agent_family_role = "root"
-    synthetic = _agent(
-        cl_name="demo--plan",
-        agent_name="demo--plan",
-        raw_suffix="20260425143001",
-    )
-    synthetic.is_synthetic_planner = True
-    root.followup_agents = [synthetic]
 
     before = cached_format_agent_option(cache, root, 0, is_selected=False, now=None)
     member = _agent(
