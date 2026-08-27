@@ -52,7 +52,6 @@ class LinkSubjectMixin:
 
         from textual.css.query import NoMatches
 
-        from ..link_rail_flag import link_rail_enabled
         from ..widgets import LinkRail
 
         rail = getattr(self, "_w_link_rail", None)
@@ -62,9 +61,6 @@ class LinkSubjectMixin:
             except NoMatches:
                 return
             self._w_link_rail = rail
-        if not link_rail_enabled():
-            rail.clear()
-            return
         if getattr(self, "_link_index", None) is None:
             rail.clear()
             self._schedule_link_index_refresh(source="rail")
@@ -75,14 +71,6 @@ class LinkSubjectMixin:
         """Build or refresh the app-owned link index outside the message pump."""
 
         del source
-        from ..link_rail_flag import link_rail_enabled
-
-        if not link_rail_enabled():
-            self._link_index = None
-            self._link_index_errors = ()
-            self._link_index_loading = False
-            self._link_index_pending = False
-            return
         if getattr(self, "_link_index_loading", False):
             self._link_index_pending = True
             return

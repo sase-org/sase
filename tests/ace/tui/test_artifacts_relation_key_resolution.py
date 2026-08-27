@@ -8,7 +8,6 @@ from sase.ace.tui._app_action_availability import check_app_action
 from sase.ace.tui._artifact_tab_actions import keymap_actions_by_key
 from sase.ace.tui._artifact_tab_contract import compile_builtin_contract
 from sase.ace.tui.keymaps import load_keymap_registry
-from sase.feature_flags import override_flags
 
 
 class _KeyResolutionApp:
@@ -147,27 +146,11 @@ def test_follow_artifact_link_is_available_only_with_edges_to_follow() -> None:
     unlinked = _KeyResolutionApp(tab="agents")
     unlinked.link_edges_for_selection = lambda: ()  # type: ignore[attr-defined]
 
-    with override_flags(link_rail=True):
-        assert (
-            check_app_action(linked, "follow_artifact_link", (), lambda _a, _p: True)
-            is True
-        )
-        assert (
-            check_app_action(unlinked, "follow_artifact_link", (), lambda _a, _p: True)
-            is False
-        )
-
-
-def test_follow_artifact_link_flag_off_does_not_query_edges() -> None:
-    linked = _KeyResolutionApp(tab="agents")
-
-    def _unexpected_edges() -> tuple[object, ...]:
-        raise AssertionError("flag-off availability must not touch link edges")
-
-    linked.link_edges_for_selection = _unexpected_edges  # type: ignore[attr-defined]
-
-    with override_flags(link_rail=False):
-        assert (
-            check_app_action(linked, "follow_artifact_link", (), lambda _a, _p: True)
-            is False
-        )
+    assert (
+        check_app_action(linked, "follow_artifact_link", (), lambda _a, _p: True)
+        is True
+    )
+    assert (
+        check_app_action(unlinked, "follow_artifact_link", (), lambda _a, _p: True)
+        is False
+    )

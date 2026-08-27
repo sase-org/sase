@@ -10,7 +10,6 @@ from rich.text import Text
 from textual.widgets import Static
 
 from sase.ace.tui.actions.link_trail import link_trail_breadcrumb_text
-from sase.ace.tui.link_rail_flag import link_rail_enabled
 from sase.ace.tui.relations.link_index import LinkChip
 from sase.ace.tui.relations.link_keys import (
     MAX_DIRECT_LINK_KEYS,
@@ -71,9 +70,6 @@ class LinkRail(Static):
         """Refresh the rail from the app's selected subject and cached links."""
 
         host = self.app if app is None else app
-        if not link_rail_enabled():
-            self.clear()
-            return
         breadcrumb = link_trail_breadcrumb_text(host)
         subject = selected_link_subject(host)
         chips: Sequence[LinkChip] = ()

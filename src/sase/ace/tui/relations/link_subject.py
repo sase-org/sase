@@ -108,10 +108,15 @@ def _subject_from_agents(app: Any) -> LinkSubject | None:
     agent = app._get_selected_agent()
     if agent is None:
         return None
-    ref = reference_for_agent_name(agent.name)
+    name = getattr(agent, "agent_name", None)
+    if not name:
+        # A synthetic clan-container row has no ``agent_name`` of its own;
+        # it is the same "nothing to show" state as an unlinked entity.
+        return None
+    ref = reference_for_agent_name(name)
     if ref is None:
         return None
-    target = ArtifactEntryTarget("agents", (agent.name,))
+    target = ArtifactEntryTarget("agents", (name,))
     accent, icon = accent_and_icon_for_ref("agent", target)
     return LinkSubject(ref=ref, target=target, accent=accent, icon=icon)
 

@@ -1,7 +1,6 @@
 """Axe tab keybinding sections for the help modal."""
 
 from ...keymaps import KeymapRegistry, key_display_name
-from ...link_rail_flag import link_rail_enabled
 from .binding_common import (
     ADMIN_CENTER_TASKS_SECTION,
     ADMIN_CENTER_UPDATES_SECTION,
@@ -179,6 +178,4 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
 
 
 def _link_follow_row(key: str) -> list[tuple[str, str]]:
-    if not link_rail_enabled():
-        return []
     return [(f"{key}{key} / {key}1-9 / {key}0", "Follow link / open links panel")]

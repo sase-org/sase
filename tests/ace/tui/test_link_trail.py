@@ -10,7 +10,6 @@ from sase.ace.tui.relations.link_index import LinkChip
 from sase.ace.tui.widgets.bgcmd_list import ChopItem, LumberjackItem
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.artifact_relation_layout import RelationRole
-from sase.feature_flags import override_flags
 
 
 def _chip(
@@ -91,7 +90,7 @@ class _Pane:
 
 @dataclass
 class _Agent:
-    name: str
+    agent_name: str
     identity: tuple[str, str, str | None]
 
 
@@ -171,14 +170,13 @@ class _App(LinkFollowMixin, LinkTrailMixin):
 
 
 def _follow_first(app: _App) -> None:
-    with override_flags(link_rail=True):
-        app._follow_link_number(1)
+    app._follow_link_number(1)
 
 
 def test_back_and_forward_round_trip_between_artifacts_and_agents() -> None:
     origin = ArtifactEntryTarget("files", ("origin.txt",))
     agent_target = ArtifactEntryTarget("agents", ("builder",))
-    agent = _Agent(name="builder", identity=("done", "builder", None))
+    agent = _Agent(agent_name="builder", identity=("done", "builder", None))
     files_pane = _Pane(targets=(origin,), selected=origin)
     app = _App(
         chips=(_chip("agent:builder", agent_target),),

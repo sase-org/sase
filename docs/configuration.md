@@ -1202,7 +1202,6 @@ rejects every other duplicate app binding:
 | `/`                  | `slash`            | `edit_query` / `search_forward`                        | query editing excludes Agents; search is Agents-only   |
 | `a`                  | `a`                | `add_axe_item` / `open_artifact_files`                 | Axe vs Artifacts                                       |
 | `d`                  | `d`                | `show_diff` / `toggle_axe_description`                 | Patches vs Axe                                         |
-| `L`                  | `L`                | `beads_open_plan` / `plans_open_bead`                  | Beads vs Plans panes                                   |
 | `E`                  | `E`                | `beads_open_bug` / `files_open_external`               | Beads vs Files panes (the shared open-externally verb) |
 | `.`                  | `full_stop`        | `toggle_relation_panel` / `toggle_hide_reverted`       | Artifacts vs Agents/Axe                                |
 | `X`                  | `X`                | `open_agent_cleanup_panel` / `patches_toggle_reverted` | Agents vs Patches                                      |

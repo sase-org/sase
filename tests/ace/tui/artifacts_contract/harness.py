@@ -40,8 +40,6 @@ _RELATION_REACHABILITY_ACTIONS = frozenset(
         "start_child_mode",
         "start_sibling_mode",
         "toggle_relation_panel",
-        "beads_open_plan",
-        "plans_open_bead",
     }
 )
 _GROUPING_REACHABILITY_ACTIONS = frozenset(

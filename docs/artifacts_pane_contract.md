@@ -44,8 +44,7 @@ provider code.
 | `mutation`              | Built-in adapter with `can_mutate`          | Bead/Patch mutate actions                            |
 | `plan_approve`          | Built-in Plan adapter                       | `plans_approve`                                      |
 | `plan_reject`           | Built-in Plan adapter                       | `plans_reject`                                       |
-| `plan_open_bead`        | Built-in Plan adapter                       | `plans_open_bead` (`L`)                              |
-| `relations`             | At least one validated relation declaration | `<` / `>` / `~` plus link-jump aliases               |
+| `relations`             | At least one validated relation declaration | `<` / `>` / `~`                                      |
 | `grouping`              | At least one grouping mode                  | `h`/`l`/`H` plus grouping-cycle                      |
 | `status_counters`       | At least one declared status counter        | Presentation-only (relation glyphs / count lanes)    |
 | `shell`                 | Always (host)                               | Presentation-only shared chrome                      |

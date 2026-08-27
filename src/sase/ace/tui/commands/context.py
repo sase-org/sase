@@ -271,13 +271,10 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
     metadata_search = getattr(app, "_agent_metadata_search", None)
     metadata_search_active = bool(getattr(metadata_search, "is_active", False))
     link_edges_present: bool | None = None
-    from sase.ace.tui.link_rail_flag import link_rail_enabled
-
-    if link_rail_enabled():
-        try:
-            link_edges_present = bool(app.link_edges_for_selection())
-        except Exception:
-            link_edges_present = None
+    try:
+        link_edges_present = bool(app.link_edges_for_selection())
+    except Exception:
+        link_edges_present = None
 
     if tab == "axe":
         done, running = _selected_axe_slot_states(app, axe_item)

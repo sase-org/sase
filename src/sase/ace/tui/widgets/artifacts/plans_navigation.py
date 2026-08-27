@@ -232,9 +232,6 @@ class PlansNavigationMixin(_MixinBase):
                 else None
             )
         entries: list[tuple[str, str]] = []
-        first_link_target = getattr(keymap, "first_link_target", None)
-        if callable(first_link_target) and first_link_target("beads") is not None:
-            entries.append(("plans_open_bead", "linked bead"))
         relation_footer_entries = getattr(self, "relation_footer_entries", None)
         if callable(relation_footer_entries):
             entries.extend(relation_footer_entries(keymap))

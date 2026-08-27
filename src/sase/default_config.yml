@@ -453,7 +453,6 @@ ace:
       plans_filters: "f"
       plans_approve: "A"
       plans_reject: "X"
-      plans_open_bead: "L"
       # Beads sub-tab
       beads_next: "j"
       beads_prev: "k"
@@ -470,7 +469,6 @@ ace:
       beads_launch_work: "w"
       beads_open_bug: "E"
       start_bead_issue_mode: "b"
-      beads_open_plan: "L"
       # Files sub-tab
       files_next: "j"
       files_prev: "k"

@@ -39,7 +39,6 @@ def test_every_closed_capability_has_a_named_verdict() -> None:
         (PaneCapability.MUTATION, "mutation_from_builtin_adapter"),
         (PaneCapability.PLAN_APPROVE, "plan_approve_from_plan_adapter"),
         (PaneCapability.PLAN_REJECT, "plan_reject_from_plan_adapter"),
-        (PaneCapability.PLAN_OPEN_BEAD, "plan_open_bead_from_plan_adapter"),
         (PaneCapability.RELATIONS, "relations_from_declared_edges"),
         (PaneCapability.GROUPING, "grouping_from_declared_modes"),
         (PaneCapability.STATUS_COUNTERS, "status_counters_from_declaration"),
@@ -81,7 +80,6 @@ def test_mutation_is_builtin_only_and_plan_ops_are_plan_only() -> None:
     assert PaneCapability.MUTATION not in provider
     assert PaneCapability.PLAN_APPROVE in plan
     assert PaneCapability.PLAN_REJECT in plan
-    assert PaneCapability.PLAN_OPEN_BEAD in plan
     assert PaneCapability.PLAN_APPROVE not in provider
 
 

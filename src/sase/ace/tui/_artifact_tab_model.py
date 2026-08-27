@@ -93,7 +93,6 @@ class PaneCapability(StrEnum):
     MUTATION = "mutation"
     PLAN_APPROVE = "plan_approve"
     PLAN_REJECT = "plan_reject"
-    PLAN_OPEN_BEAD = "plan_open_bead"
     RELATIONS = "relations"
     GROUPING = "grouping"
     STATUS_COUNTERS = "status_counters"

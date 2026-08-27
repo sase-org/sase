@@ -36,9 +36,7 @@ def is_command_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if ctx.tab not in spec.tabs:
         return False
     if spec.id == "app.follow_artifact_link":
-        from sase.ace.tui.link_rail_flag import link_rail_enabled
-
-        return link_rail_enabled() and ctx.link_edges_present is not False
+        return ctx.link_edges_present is not False
 
     if ctx.tab == "artifacts":
         return _patches_available(spec, ctx)

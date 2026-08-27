@@ -111,7 +111,6 @@ def test_build_relation_view_keys_hidden_counts_and_flags() -> None:
     assert view.keymap.ancestors == (("<<", parent), ("<a", grandparent))
     assert view.keymap.children == ((">", child),)
     assert view.keymap.siblings == (("~", sibling),)
-    assert view.keymap.first_link_target("plans") == plan
 
     children = next(
         section for section in view.sections if section.relation == "children"
@@ -119,8 +118,8 @@ def test_build_relation_view_keys_hidden_counts_and_flags() -> None:
     assert children.hidden_count == 1
     assert children.rows[0].status == "Ready"
 
-    links = next(section for section in view.sections if section.relation == "plans")
-    assert links.rows[0].cross_pane is True
+    assert not any(section.relation == "plans" for section in view.sections)
+    assert not any(section.kind is RelationKind.LINK for section in view.sections)
 
     child_view = build_relation_view(
         index=index,

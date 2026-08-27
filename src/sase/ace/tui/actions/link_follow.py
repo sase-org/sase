@@ -15,7 +15,6 @@ from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.artifact_relation_layout import RelationRole
 
 from ..artifact_tabs import artifacts_pane_contract
-from ..link_rail_flag import link_rail_enabled
 from ..modals.numbered_link_keys import (
     LINK_FOLLOW_PREFIX,
     arm_link_prefix,
@@ -91,8 +90,6 @@ class LinkFollowMixin:
         )
 
     def _link_follow_available(self) -> bool:
-        if not link_rail_enabled():
-            return False
         if isinstance(getattr(self, "focused", None), Input):
             return False
         try:
@@ -292,7 +289,7 @@ class LinkFollowMixin:
             project_scope = getattr(self, "artifacts_project_scope", None)
         elif tab == "agents":
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
-            name = getattr(agent, "name", None) if agent is not None else None
+            name = getattr(agent, "agent_name", None) if agent is not None else None
             if isinstance(name, str) and name:
                 origin = ArtifactEntryTarget("agents", (name,))
         elif tab == "axe":

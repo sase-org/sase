@@ -265,9 +265,6 @@ class BeadsNavigationMixin(_MixinBase):
         if row is None:
             return ()
         entries: list[tuple[str, str]] = []
-        first_link_target = getattr(keymap, "first_link_target", None)
-        if callable(first_link_target) and first_link_target("plans") is not None:
-            entries.append(("beads_open_plan", "linked plan"))
         snapshot = self._snapshot
         if _can_launch_bead_row(row, snapshot):
             entries.append(("beads_launch_work", "launch"))

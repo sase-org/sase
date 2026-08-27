@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from sase.core.artifact_relation_layout import RelationRole
-
 from ._artifacts_beads_common import ArtifactsBeadsCommonMixin
 
 
@@ -50,15 +48,3 @@ class ArtifactsBeadsBrowseActionsMixin(ArtifactsBeadsCommonMixin):
     def action_beads_collapse(self) -> None:
         if (pane := self._beads_pane()) is not None:
             pane.set_selected_epic_expanded(False)
-
-    def action_beads_open_plan(self) -> None:
-        pane = self._beads_pane()
-        if pane is None:
-            return
-        target = pane.refresh_relation_panel().first_link_target("plans")
-        if target is None:
-            self.notify(  # type: ignore[attr-defined]
-                "This bead links no plan file", severity="warning"
-            )
-            return
-        self._navigate_to_relation_target(target, role=RelationRole.LINK)  # type: ignore[attr-defined]

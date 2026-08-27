@@ -99,11 +99,13 @@ def test_summary_preserves_section_order_and_counts() -> None:
     summary = build_relation_summary(view)
 
     assert summary
+    # "plans" is a RelationKind.LINK section: the Link Rail owns it at the
+    # app level now, so it never reaches the pane's collapsed rail summary
+    # (bead:sase-ug.10).
     assert [entry.relation for entry in summary.entries] == [
         "ancestors",
         "children",
         "siblings",
-        "plans",
     ]
     by_relation = {entry.relation: entry for entry in summary.entries}
     assert by_relation["ancestors"].role is RelationRole.ANCESTOR
@@ -112,8 +114,7 @@ def test_summary_preserves_section_order_and_counts() -> None:
     assert by_relation["children"].count == 1
     assert by_relation["siblings"].role is RelationRole.FAMILY
     assert by_relation["siblings"].count == 1
-    assert by_relation["plans"].role is RelationRole.LINK
-    assert by_relation["plans"].count == 1
+    assert "plans" not in by_relation
     assert summary.hidden_total == 0
 
 

@@ -180,9 +180,9 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
         """Toggle a selected-tribe fold or expand all folds on other tabs.
 
         Patches' own fold-snap moved under the ``z`` fold-mode prefix
-        (``zL``, see ``_handle_fold_key``) so this bare key is free for
-        siblings' ``artifacts_link_jump`` (``plans_open_bead`` /
-        ``beads_open_plan``) — see sase-m6.9.
+        (``zL``, see ``_handle_fold_key``) so this bare key was free for
+        Plans/Beads' now-retired bespoke link jumps — see sase-m6.9 and
+        ``bead:sase-ug.10``.
         """
         if self.current_tab == "agents":
             self.action_toggle_selected_agent_panels()  # type: ignore[attr-defined]

@@ -58,7 +58,6 @@ class AppKeymaps:
     plans_filters: str
     plans_approve: str
     plans_reject: str
-    plans_open_bead: str
     # Beads sub-tab
     beads_next: str
     beads_prev: str
@@ -75,7 +74,6 @@ class AppKeymaps:
     beads_launch_work: str
     beads_open_bug: str
     start_bead_issue_mode: str
-    beads_open_plan: str
     # Files sub-tab
     files_next: str
     files_prev: str

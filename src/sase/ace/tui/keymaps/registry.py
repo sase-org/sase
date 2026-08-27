@@ -94,7 +94,6 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         frozenset({"edit_query", "search_forward"}),
         frozenset({"add_axe_item", "open_artifact_files"}),
         frozenset({"show_diff", "toggle_axe_description"}),
-        frozenset({"beads_open_plan", "plans_open_bead"}),
         # Pane-disjoint by construction: Beads vs Files open-externally actions.
         frozenset({"beads_open_bug", "files_open_external"}),
         frozenset({"agents_revive", "beads_launch_work"}),

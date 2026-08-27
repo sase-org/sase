@@ -205,7 +205,6 @@ def check_app_action(
         required = {
             "plans_approve": PaneCapability.PLAN_APPROVE,
             "plans_reject": PaneCapability.PLAN_REJECT,
-            "plans_open_bead": PaneCapability.PLAN_OPEN_BEAD,
         }.get(action)
         if required is not None and not contract.has(required):
             return False
@@ -282,10 +281,6 @@ def check_app_action(
     if action == "toggle_relation_panel" and app.current_tab != ARTIFACTS_TAB:
         return False
     if action == "follow_artifact_link":
-        from .link_rail_flag import link_rail_enabled
-
-        if not link_rail_enabled():
-            return False
         return bool(app.link_edges_for_selection())
     if action == "toggle_hide_reverted" and app.current_tab == ARTIFACTS_TAB:
         return False
@@ -329,8 +324,8 @@ def _artifact_contract_action_available(app: Any, action: str) -> bool:
         return contract.has(PaneCapability.QUERY_HISTORY)
     if action in _ARTIFACT_SAVED_QUERY_ACTIONS:
         return contract.has(PaneCapability.SAVED_QUERIES)
-    if action == "expand_all_folds" and contract.has(PaneCapability.PLAN_OPEN_BEAD):
-        # Bare ``L`` is artifacts_link_jump on Plan. Fold-snap lives on ``zL``.
+    if action == "expand_all_folds" and contract.is_plan_adapter():
+        # Fold-snap on Plan panes lives on ``zL``, not the bare key.
         return False
     if action in _ARTIFACT_GROUP_FOLD_ACTIONS | _ARTIFACT_GROUP_CYCLE_ACTIONS:
         return contract.has(PaneCapability.GROUPING)

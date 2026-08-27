@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import cast
 
-from sase.core.artifact_relation_layout import RelationRole
-
 from ..widgets.artifacts.plans_pane import ArtifactsDocumentsPane, ArtifactsPlansPane
 
 PLANS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
@@ -16,7 +14,6 @@ PLANS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "plans_filters",
         "plans_approve",
         "plans_reject",
-        "plans_open_bead",
     }
 )
 
@@ -74,25 +71,6 @@ class ArtifactsPlansActionsMixin:
         from ..modals.preview_panel_modal import PreviewPanelModal
 
         self.push_screen(PreviewPanelModal(payload))  # type: ignore[attr-defined]
-
-    def action_plans_open_bead(self) -> None:
-        pane = self._active_documents_pane()
-        if pane is not None and pane.provider_kind != "plan":
-            self.notify(  # type: ignore[attr-defined]
-                "Linked bead navigation is only available for plans",
-                severity="warning",
-            )
-            return
-        row = None if pane is None else pane.selected_row()
-        target = (
-            None
-            if pane is None or row is None
-            else pane.refresh_relation_panel().first_link_target("beads")
-        )
-        if target is None:
-            self.notify("No bead links this plan file", severity="warning")  # type: ignore[attr-defined]
-            return
-        self._navigate_to_relation_target(target, role=RelationRole.LINK)  # type: ignore[attr-defined]
 
     def action_plans_approve(self) -> None:
         self._open_selected_plan_approval(intent="approve")

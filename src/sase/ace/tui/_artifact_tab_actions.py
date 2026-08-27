@@ -11,7 +11,7 @@ from sase.ace.tui.keymaps.key_validation import is_unbound_key, split_key_altern
 
 # Host actions that implement one closed capability. sase-m6.9 unified
 # ``refresh``/``artifacts_copy_reference`` onto a single contract action per
-# capability; entries still listed per-pane (e.g. ``plans_open_bead``) are
+# capability; entries still listed per-pane (e.g. ``plans_approve``) are
 # adapter-specific because the underlying data/verb genuinely differs by
 # pane, not because a unification is still pending.
 CAPABILITY_HOST_ACTIONS: dict[PaneCapability, tuple[str, ...]] = {
@@ -64,14 +64,11 @@ CAPABILITY_HOST_ACTIONS: dict[PaneCapability, tuple[str, ...]] = {
     ),
     PaneCapability.PLAN_APPROVE: ("plans_approve",),
     PaneCapability.PLAN_REJECT: ("plans_reject",),
-    PaneCapability.PLAN_OPEN_BEAD: ("plans_open_bead",),
     PaneCapability.RELATIONS: (
         "start_ancestor_mode",
         "start_child_mode",
         "start_sibling_mode",
         "toggle_relation_panel",
-        "beads_open_plan",
-        "plans_open_bead",
     ),
     PaneCapability.GROUPING: (
         "expand_or_layout",
@@ -93,7 +90,7 @@ def action_applies_to_contract(contract: ArtifactsPaneContract, action: str) -> 
     does not name ``plans_next``; a Plan pane does not name ``files_open_external``.
     """
 
-    if action == "expand_all_folds" and contract.has(PaneCapability.PLAN_OPEN_BEAD):
+    if action == "expand_all_folds" and contract.is_plan_adapter():
         return False
     if action in {"next_patch", "prev_patch", "patches_filters", "change_status"}:
         return contract.id == "patches"
@@ -105,7 +102,7 @@ def action_applies_to_contract(contract: ArtifactsPaneContract, action: str) -> 
         return contract.id == "agents"
     if action.startswith("files_"):
         return contract.id == "files"
-    if action in {"plans_approve", "plans_reject", "plans_open_bead"}:
+    if action in {"plans_approve", "plans_reject"}:
         return contract.is_plan_adapter()
     if action.startswith("plans_"):
         return contract.is_document_provider()

@@ -24,7 +24,6 @@ class FeatureFlag(StrEnum):
     admin_center_flags = "admin_center_flags"
     gate_shell_handoff = "gate_shell_handoff"
     link_pager = "link_pager"
-    link_rail = "link_rail"
     provider_drain = "provider_drain"
     ref_sync_gesture = "ref_sync_gesture"
     typed_launch_units = "typed_launch_units"
@@ -59,14 +58,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "jump-hint keys, and its navigation trail."
         ),
         bead="sase-ul",
-    ),
-    FeatureFlag.link_rail: FeatureFlagDefinition(
-        key=FeatureFlag.link_rail,
-        kind="beta",
-        description=(
-            "Beta gate for the ACE link rail, link-following keys, and links panel."
-        ),
-        bead="sase-un",
     ),
     FeatureFlag.provider_drain: FeatureFlagDefinition(
         key=FeatureFlag.provider_drain,

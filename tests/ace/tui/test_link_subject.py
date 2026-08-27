@@ -56,7 +56,7 @@ def _agents_app(agent: Any) -> Any:
 
 
 def test_agents_tab_resolves_the_selected_agent_to_a_ref() -> None:
-    agent = SimpleNamespace(name="bob.athena.worker")
+    agent = SimpleNamespace(agent_name="bob.athena.worker")
     subject = selected_link_subject(_agents_app(agent))
     assert subject is not None
     assert subject.ref == "agent:bob.athena.worker"
@@ -67,6 +67,11 @@ def test_agents_tab_resolves_the_selected_agent_to_a_ref() -> None:
 
 def test_agents_tab_returns_none_with_no_selection() -> None:
     assert selected_link_subject(_agents_app(None)) is None
+
+
+def test_agents_tab_returns_none_for_a_synthetic_clan_container_row() -> None:
+    clan_container = SimpleNamespace(agent_name=None)
+    assert selected_link_subject(_agents_app(clan_container)) is None
 
 
 def _axe_app(items: list[Any], current_idx: int, snapshots: dict[Any, Any]) -> Any:

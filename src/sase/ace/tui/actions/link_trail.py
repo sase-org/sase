@@ -116,7 +116,7 @@ class LinkTrailMixin:
             return False
         agents = getattr(self, "_agents", ())
         for idx, agent in enumerate(agents):
-            if getattr(agent, "name", None) != name:
+            if getattr(agent, "agent_name", None) != name:
                 continue
             if self.current_tab != "agents":
                 self._save_current_tab_position()  # type: ignore[attr-defined]

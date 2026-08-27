@@ -412,32 +412,6 @@ def _rule_plan_reject(facts: PaneDeclaredFacts) -> CapabilityVerdict:
     )
 
 
-def _rule_plan_open_bead(facts: PaneDeclaredFacts) -> CapabilityVerdict:
-    if facts.is_degraded:
-        return _verdict(
-            PaneCapability.PLAN_OPEN_BEAD,
-            enabled=False,
-            rule=_RULE_DEGRADED,
-            fact="is_degraded",
-            reason="degraded panes expose only safe host behavior",
-        )
-    if facts.is_plan_adapter:
-        return _verdict(
-            PaneCapability.PLAN_OPEN_BEAD,
-            enabled=True,
-            rule="plan_open_bead_from_plan_adapter",
-            fact="is_plan_adapter",
-            reason="bead-link operations are a built-in Plan-only capability",
-        )
-    return _verdict(
-        PaneCapability.PLAN_OPEN_BEAD,
-        enabled=False,
-        rule="plan_open_bead_from_plan_adapter",
-        fact="is_plan_adapter",
-        reason="bead-link operations are a built-in Plan-only capability",
-    )
-
-
 def _rule_status_counters(facts: PaneDeclaredFacts) -> CapabilityVerdict:
     if facts.is_degraded:
         return _verdict(
@@ -542,7 +516,6 @@ _RULES = {
     PaneCapability.MUTATION: _rule_mutation,
     PaneCapability.PLAN_APPROVE: _rule_plan_approve,
     PaneCapability.PLAN_REJECT: _rule_plan_reject,
-    PaneCapability.PLAN_OPEN_BEAD: _rule_plan_open_bead,
     PaneCapability.RELATIONS: _rule_relations,
     PaneCapability.GROUPING: _rule_grouping,
     PaneCapability.STATUS_COUNTERS: _rule_status_counters,

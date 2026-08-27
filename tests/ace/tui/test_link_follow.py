@@ -15,7 +15,6 @@ from sase.ace.tui.modals.artifact_links_panel_modal import (
 from sase.ace.tui.relations.link_index import LinkChip
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.artifact_relation_layout import RelationRole
-from sase.feature_flags import override_flags
 
 
 def _chip(
@@ -101,7 +100,7 @@ class _Pane:
 
 @dataclass
 class _Agent:
-    name: str
+    agent_name: str
     identity: tuple[str, str, str | None]
 
 
@@ -206,10 +205,9 @@ def test_action_double_dollar_follows_first_link_and_records_origin() -> None:
         },
     )
 
-    with override_flags(link_rail=True):
-        app.action_follow_artifact_link()
-        assert app._pending_link_prefix is True
-        app.action_follow_artifact_link()
+    app.action_follow_artifact_link()
+    assert app._pending_link_prefix is True
+    app.action_follow_artifact_link()
 
     assert app.current_tab == "artifacts"
     assert app.current_artifacts_pane_key == "beads"
@@ -384,7 +382,7 @@ async def test_links_panel_remove_result_uses_existing_store_remove(
 def test_loaded_agent_link_prefers_agents_tab_over_artifacts_pane() -> None:
     origin = ArtifactEntryTarget("files", ("origin.txt",))
     artifact_target = ArtifactEntryTarget("agents", ("builder",))
-    agent = _Agent(name="builder", identity=("done", "builder", None))
+    agent = _Agent(agent_name="builder", identity=("done", "builder", None))
     app = _App(
         chips=(_chip("agent:builder", artifact_target),),
         panes={

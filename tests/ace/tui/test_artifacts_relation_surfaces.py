@@ -14,8 +14,6 @@ def test_relations_capability_has_registered_host_actions() -> None:
         "start_child_mode",
         "start_sibling_mode",
         "toggle_relation_panel",
-        "beads_open_plan",
-        "plans_open_bead",
     )
 
 

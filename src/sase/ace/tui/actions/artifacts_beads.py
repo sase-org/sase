@@ -32,7 +32,6 @@ BEADS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "beads_open_bug",
         "beads_copy_bug",
         "start_bead_issue_mode",
-        "beads_open_plan",
     }
 )
 

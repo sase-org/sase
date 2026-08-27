@@ -151,7 +151,6 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("enter", "plans_view_selected", "View Plan", show=False),
     Binding("f", "plans_filters", "Plan Filters", show=False),
     Binding("X", "plans_reject", "Reject Plan", show=False),
-    Binding("L", "plans_open_bead", "Go to Linked Bead", show=False),
     Binding("R", "plans_refresh", "Refresh Plans", show=False),
     # Beads sub-tab actions.
     Binding("j", "beads_next", "Next Bead", show=False),
@@ -170,7 +169,6 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("E", "beads_open_bug", "Open Linked Issue", show=False),
     Binding("y", "beads_copy_bug", "Copy Linked Issue", show=False),
     Binding("b", "start_bead_issue_mode", "Bead Issue Mode", show=False),
-    Binding("L", "beads_open_plan", "Go to Linked Plan", show=False),
     Binding("R", "beads_refresh", "Refresh Beads", show=False),
     # Files sub-tab actions.
     Binding("j", "files_next", "Next Artifact File", show=False),

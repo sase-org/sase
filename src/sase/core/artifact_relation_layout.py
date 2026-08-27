@@ -65,12 +65,11 @@ class RelationKeymap:
     ancestors: tuple[tuple[str, ArtifactEntryTarget], ...] = ()
     children: tuple[tuple[str, ArtifactEntryTarget], ...] = ()
     siblings: tuple[tuple[str, ArtifactEntryTarget], ...] = ()
-    links: tuple[tuple[str, ArtifactEntryTarget], ...] = ()
     relation_roles: Mapping[str, RelationRole] = field(default_factory=dict)
     role_labels: Mapping[RelationRole, str] = field(default_factory=dict)
 
     def __bool__(self) -> bool:
-        return bool(self.ancestors or self.children or self.siblings or self.links)
+        return bool(self.ancestors or self.children or self.siblings)
 
     def target_for(
         self,
@@ -92,15 +91,6 @@ class RelationKeymap:
         """Return the first section label for *role*."""
         return self.role_labels.get(role, role.value)
 
-    def first_link_target(
-        self, relation: str | None = None
-    ) -> ArtifactEntryTarget | None:
-        """Return the first link target, optionally scoped to a relation name."""
-        for name, target in self.links:
-            if relation is None or name == relation:
-                return target
-        return None
-
     def _entries_for_role(
         self,
         role: RelationRole,
@@ -111,8 +101,6 @@ class RelationKeymap:
             return self.children
         if role is RelationRole.FAMILY:
             return self.siblings
-        if role is RelationRole.LINK:
-            return self.links
         return ()
 
 
@@ -216,17 +204,23 @@ def build_relation_view(
     relations: tuple[PaneRelationDecl, ...],
     facts: Mapping[ArtifactEntryTarget, RelationEntryFact] | None = None,
 ) -> RelationView:
-    """Build sections, key roles, and navigation targets for one selection."""
+    """Build sections, key roles, and navigation targets for one selection.
+
+    Typed links are an app-level concern now that the Link Rail renders them
+    on every tab (``bead:sase-ug.10``): this panel only lays out the pane's
+    own structure, so every ``RelationKind.LINK`` declaration is skipped.
+    """
     facts = facts or {}
     roles = assign_relation_roles(relations)
     sections: list[RelationSection] = []
     ancestors: list[tuple[str, ArtifactEntryTarget]] = []
     children: list[tuple[str, ArtifactEntryTarget]] = []
     siblings: list[tuple[str, ArtifactEntryTarget]] = []
-    links: list[tuple[str, ArtifactEntryTarget]] = []
     role_labels: dict[RelationRole, str] = {}
 
     for decl in relations:
+        if decl.kind is RelationKind.LINK:
+            continue
         role = roles.get(decl.name, RelationRole.LINK)
         rows: tuple[RelationRow, ...]
         hidden_count = 0
@@ -257,12 +251,6 @@ def build_relation_view(
                 facts,
             )
             siblings.extend((row.key, row.target) for row in rows if row.key)
-        elif decl.kind is RelationKind.LINK:
-            rows = tuple(
-                _row_from_edge(edge, facts=facts, key="", depth=0)
-                for edge in _edges_for_relation(index, origin, decl.name)
-            )
-            links.extend((decl.name, row.target) for row in rows)
         else:
             rows = tuple(
                 _row_from_edge(edge, facts=facts, key="", depth=0)
@@ -285,7 +273,6 @@ def build_relation_view(
         ancestors=tuple(ancestors),
         children=tuple(children),
         siblings=tuple(siblings),
-        links=tuple(links),
         relation_roles=roles,
         role_labels=role_labels,
     )

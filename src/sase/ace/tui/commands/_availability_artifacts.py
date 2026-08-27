@@ -86,7 +86,6 @@ _PLANS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.plans_filters",
         "app.plans_approve",
         "app.plans_reject",
-        "app.plans_open_bead",
     }
 )
 
@@ -107,7 +106,6 @@ _BEADS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.beads_launch_work",
         "app.beads_open_bug",
         "app.start_bead_issue_mode",
-        "app.beads_open_plan",
     }
 )
 
@@ -245,7 +243,6 @@ def artifacts_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             if spec.id in {
                 "app.plans_approve",
                 "app.plans_reject",
-                "app.plans_open_bead",
             }:
                 return ctx.artifacts_subtab in {"ref:plan", "plans"}
             return True
@@ -255,8 +252,6 @@ def artifacts_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             return contract.has(PaneCapability.PLAN_APPROVE)
         if spec.id == "app.plans_reject":
             return contract.has(PaneCapability.PLAN_REJECT)
-        if spec.id == "app.plans_open_bead":
-            return contract.has(PaneCapability.PLAN_OPEN_BEAD)
         return True
     if spec.id in _BEADS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "beads"
