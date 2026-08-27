@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from rich.console import Console, Group, RenderableType
 
 from sase.pager._chrome import section_rule
+from sase.pager._labels import PagerLabelLayer, render_section_with_labels
 from sase.pager.document import PagerDocument, PagerSection
 
 _DIVIDER_LINES = 1
@@ -33,12 +34,23 @@ class ComposedBody:
 def _measure_section_heights(
     sections: tuple[PagerSection, ...],
     width: int,
+    *,
+    label_layer: PagerLabelLayer | None = None,
+    pending_prefix: str = "",
 ) -> tuple[int, ...]:
     """Return each section's wrapped line count at ``width``, no I/O."""
     console = Console(width=max(width, 1), color_system=None, highlight=False)
     heights = []
-    for section in sections:
-        lines = console.render_lines(section.body_renderable, pad=False)
+    for index, section in enumerate(sections):
+        lines = console.render_lines(
+            _section_renderable(
+                section,
+                section_index=index,
+                label_layer=label_layer,
+                pending_prefix=pending_prefix,
+            ),
+            pad=False,
+        )
         heights.append(max(len(lines), 1))
     return tuple(heights)
 
@@ -61,13 +73,24 @@ def _section_row_offsets(heights: tuple[int, ...]) -> tuple[int, ...]:
     return tuple(offsets)
 
 
-def compose_body(document: PagerDocument, width: int) -> ComposedBody:
+def compose_body(
+    document: PagerDocument,
+    width: int,
+    *,
+    label_layer: PagerLabelLayer | None = None,
+    pending_prefix: str = "",
+) -> ComposedBody:
     """Render *document* at ``width``: section bodies plus transition rules."""
     sections = document.sections
     if not sections:
         return ComposedBody(renderable=Group(), section_offsets=(0,), total_height=0)
 
-    heights = _measure_section_heights(sections, width)
+    heights = _measure_section_heights(
+        sections,
+        width,
+        label_layer=label_layer,
+        pending_prefix=pending_prefix,
+    )
     offsets = _section_row_offsets(heights)
     total = len(sections)
 
@@ -77,7 +100,14 @@ def compose_body(document: PagerDocument, width: int) -> ComposedBody:
             parts.append(
                 section_rule(section, index=index + 1, total=total, width=width)
             )
-        parts.append(section.body_renderable)
+        parts.append(
+            _section_renderable(
+                section,
+                section_index=index,
+                label_layer=label_layer,
+                pending_prefix=pending_prefix,
+            )
+        )
 
     total_height = offsets[-1] + heights[-1]
     return ComposedBody(
@@ -119,9 +149,29 @@ def search_corpus(document: PagerDocument) -> str:
     return "".join(parts)
 
 
+def _section_renderable(
+    section: PagerSection,
+    *,
+    section_index: int,
+    label_layer: PagerLabelLayer | None,
+    pending_prefix: str,
+) -> RenderableType:
+    if label_layer is None:
+        return section.body_renderable
+    labels = label_layer.labels_by_section[section_index]
+    if not labels:
+        return section.body_renderable
+    return render_section_with_labels(
+        section,
+        labels,
+        pending_prefix=pending_prefix,
+    )
+
+
 __all__ = [
     "ComposedBody",
     "compose_body",
     "current_section_index",
+    "render_section_with_labels",
     "search_corpus",
 ]

@@ -37,6 +37,17 @@ def _multi_section_document() -> PagerDocument:
     return PagerDocument(sections=sections, title="3 files", origin=PagerOrigin.FILE)
 
 
+def _link_document(count: int) -> PagerDocument:
+    body = "\n".join(f"https://example.test/{index}" for index in range(count)) + "\n"
+    section = PagerSection(
+        identity="file:/tmp/links.txt",
+        title="links.txt",
+        kind="file",
+        body=body,
+    )
+    return PagerDocument(sections=(section,), title="links", origin=PagerOrigin.FILE)
+
+
 def _body_scroll(app: SasePager) -> VerticalScroll:
     return app.query_one("#pager-body-scroll", VerticalScroll)
 
@@ -190,3 +201,45 @@ async def test_footer_shows_entity_nav_only_for_multi_section_documents() -> Non
         await pilot.pause()
         footer = pilot.app.query_one("#pager-footer", Static)
         assert "^N/^P" in footer.visual.plain  # type: ignore[attr-defined]
+
+
+async def test_painted_link_key_records_the_selected_label() -> None:
+    app = SasePager(_link_document(2))
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("1")
+        await pilot.pause()
+
+    assert app._last_activated_label is not None
+    assert app._last_activated_label.hint == "1"
+    assert app._last_activated_label.target.text == "https://example.test/1"
+
+
+async def test_uppercase_painted_link_key_uses_event_character() -> None:
+    app = SasePager(_link_document(30))
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("A")
+        await pilot.pause()
+
+    assert app._last_activated_label is not None
+    assert app._last_activated_label.hint == "A"
+
+
+async def test_pending_prefix_is_shown_in_the_footer_and_invalid_clears_it() -> None:
+    app = SasePager(_link_document(53))
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("Z")
+        await pilot.pause()
+
+        footer = app.query_one("#pager-footer", Static)
+        assert "Z… link" in footer.visual.plain  # type: ignore[attr-defined]
+        assert app._label_pending_prefix == "Z"
+
+        await pilot.press("x")
+        await pilot.pause()
+
+        footer = app.query_one("#pager-footer", Static)
+        assert "Z… link" not in footer.visual.plain  # type: ignore[attr-defined]
+        assert app._label_pending_prefix == ""

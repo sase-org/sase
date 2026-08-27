@@ -19,6 +19,11 @@ from textual.containers import Vertical, VerticalScroll
 from textual.events import Key, Resize
 from textual.widgets import Static
 
+from sase.ace.tui.actions.navigation.jump_hints import (
+    JumpHintMatchOutcome,
+    match_jump_hint,
+    normalize_jump_key,
+)
 from sase.ace.tui.util.trace import tui_trace
 from sase.ace.tui.widgets.vim_search_controller import (
     SearchViewport,
@@ -27,6 +32,13 @@ from sase.ace.tui.widgets.vim_search_controller import (
 )
 from sase.pager._chrome import footer_legend, subject_line
 from sase.pager._help import PagerHelpScreen
+from sase.pager._labels import (
+    LabelWindowScope,
+    PAGER_LABEL_TWO_KEY_CAPACITY,
+    PagerLabel,
+    PagerLabelLayer,
+    build_label_layer,
+)
 from sase.pager._layout import (
     ComposedBody,
     compose_body,
@@ -88,6 +100,10 @@ class SasePager(App[PagerExit]):
         self.document = document
         self._body: ComposedBody | None = None
         self._body_width: int | None = None
+        self._label_layer: PagerLabelLayer | None = None
+        self._label_pending_prefix = ""
+        self._label_window_scope: LabelWindowScope | None = None
+        self._last_activated_label: PagerLabel | None = None
         self._search = VimSearchController(self)
 
     def compose(self) -> ComposeResult:
@@ -105,10 +121,8 @@ class SasePager(App[PagerExit]):
         with tui_trace("pager.open", sections=len(self.document.sections)):
             self.query_one("#pager-chrome-rule", Static).update(Rule(style="dim"))
             self.query_one("#pager-footer-rule", Static).update(Rule(style="dim"))
-            self.query_one("#pager-footer", Static).update(
-                footer_legend(section_total=len(self.document.sections))
-            )
             self._ensure_body()
+            self._update_footer()
             self._update_subject()
 
     def on_key(self, event: Key) -> None:
@@ -134,6 +148,11 @@ class SasePager(App[PagerExit]):
             allow_question_mark_reverse=False,
         )
         if disposition == "consumed":
+            event.prevent_default()
+            event.stop()
+            return
+
+        if self._handle_label_key(event):
             event.prevent_default()
             event.stop()
 
@@ -185,7 +204,12 @@ class SasePager(App[PagerExit]):
         self._after_scroll()
 
     def action_show_help(self) -> None:
-        self.push_screen(PagerHelpScreen(section_total=len(self.document.sections)))
+        self.push_screen(
+            PagerHelpScreen(
+                section_total=len(self.document.sections),
+                label_count=self._visible_label_count(),
+            )
+        )
 
     def _goto_section(self, direction: int) -> None:
         if self._body is None or len(self.document.sections) <= 1:
@@ -202,6 +226,7 @@ class SasePager(App[PagerExit]):
         self._after_scroll()
 
     def _after_scroll(self) -> None:
+        self._refresh_window_scoped_labels_if_needed()
         self.call_after_refresh(self._update_subject)
 
     def _body_scroll(self) -> _PagerBodyScroll:
@@ -220,9 +245,115 @@ class SasePager(App[PagerExit]):
         if self._body is not None and width == self._body_width:
             return
         self._body_width = width
-        body = compose_body(self.document, width)
+        self._label_layer = self._build_label_layer(width)
+        body = compose_body(
+            self.document,
+            width,
+            label_layer=self._label_layer,
+            pending_prefix=self._label_pending_prefix,
+        )
         self._body = body
         self.query_one("#pager-body", Static).update(body.renderable)
+
+    def _build_label_layer(self, width: int) -> PagerLabelLayer:
+        section_offsets = self._body.section_offsets if self._body is not None else ()
+        layer = build_label_layer(
+            self.document,
+            width=width,
+            section_offsets=section_offsets,
+        )
+        if layer.target_count <= PAGER_LABEL_TWO_KEY_CAPACITY:
+            self._label_window_scope = None
+            return layer
+
+        scope = self._current_label_window_scope()
+        return build_label_layer(
+            self.document,
+            width=width,
+            window_scope=scope,
+            section_offsets=section_offsets,
+        )
+
+    def _current_label_window_scope(self) -> LabelWindowScope:
+        scroll = self._body_scroll()
+        viewport_height = max(int(scroll.size.height), 1)
+        scroll_y = max(int(scroll.scroll_y), 0)
+        scope = self._label_window_scope
+        if (
+            scope is not None
+            and scope.start_row <= scroll_y
+            and scroll_y + viewport_height <= scope.end_row
+        ):
+            return scope
+        start = max(scroll_y - viewport_height, 0)
+        end = scroll_y + viewport_height * 2
+        scope = LabelWindowScope(start, max(end, start + 1))
+        self._label_window_scope = scope
+        return scope
+
+    def _refresh_window_scoped_labels_if_needed(self) -> None:
+        layer = self._label_layer
+        if layer is None or layer.mode != "window":
+            return
+        current_scope = self._label_window_scope
+        if current_scope is self._current_label_window_scope():
+            return
+        self._body_width = None
+        self._ensure_body()
+        self._update_footer()
+
+    def _handle_label_key(self, event: Key) -> bool:
+        layer = self._label_layer
+        if layer is None or not layer.has_labels:
+            return False
+
+        key = normalize_jump_key(event.key, event.character)
+        match = match_jump_hint(
+            layer.hint_to_label_index,
+            self._label_pending_prefix,
+            key,
+        )
+        if match.outcome is JumpHintMatchOutcome.PENDING:
+            self._label_pending_prefix = match.prefix
+            self._repaint_label_state()
+            return True
+        if match.outcome is JumpHintMatchOutcome.COMPLETE:
+            label_index = match.target
+            if label_index is None:
+                return False
+            self._label_pending_prefix = ""
+            self._activate_label(layer.labels[label_index])
+            self._repaint_label_state()
+            return True
+        if self._label_pending_prefix:
+            self._label_pending_prefix = ""
+            self._repaint_label_state()
+            self.notify("No link label matches that key.", severity="information")
+            return True
+        return False
+
+    def _activate_label(self, label: PagerLabel) -> None:
+        """Record the selected occurrence; target resolution lands next phase."""
+        self._last_activated_label = label
+
+    def _repaint_label_state(self) -> None:
+        self._body_width = None
+        self._ensure_body()
+        self._update_footer()
+
+    def _visible_label_count(self) -> int:
+        if self._label_layer is None:
+            return 0
+        return self._label_layer.visible_label_count
+
+    def _update_footer(self) -> None:
+        self.query_one("#pager-footer", Static).update(
+            footer_legend(
+                section_total=len(self.document.sections),
+                label_count=self._visible_label_count(),
+                pending_prefix=self._label_pending_prefix,
+            )
+        )
 
     def _update_subject(self) -> None:
         scroll = self._body_scroll()

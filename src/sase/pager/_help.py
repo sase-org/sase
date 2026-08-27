@@ -25,14 +25,20 @@ _BINDING_ROWS: tuple[tuple[str, str], ...] = (
     ("?", "Show this help"),
 )
 
+_LINK_BINDING_ROW: tuple[str, str] = (
+    "0-9 / a-z / A-Z",
+    "Follow a painted link",
+)
 _SECTION_BINDING_ROWS: tuple[tuple[str, str], ...] = (
     ("ctrl+n / ctrl+p", "Next / previous section"),
 )
 
 
-def _pager_help_text(*, section_total: int) -> Text:
+def _pager_help_text(*, section_total: int, label_count: int = 0) -> Text:
     """Build the full key-binding sheet, pure and Textual-free."""
     rows = list(_BINDING_ROWS)
+    if label_count:
+        rows.insert(5, _LINK_BINDING_ROW)
     if section_total > 1:
         rows[5:5] = _SECTION_BINDING_ROWS
     width = max(len(key) for key, _label in rows)
@@ -53,13 +59,19 @@ class PagerHelpScreen(ModalScreen[None]):
 
     BINDINGS = [Binding("q,escape,question_mark", "dismiss_help", "Close")]
 
-    def __init__(self, *, section_total: int) -> None:
+    def __init__(self, *, section_total: int, label_count: int = 0) -> None:
         super().__init__()
         self._section_total = section_total
+        self._label_count = label_count
 
     def compose(self) -> ComposeResult:
         with Container(id="pager-help"):
-            yield Static(_pager_help_text(section_total=self._section_total))
+            yield Static(
+                _pager_help_text(
+                    section_total=self._section_total,
+                    label_count=self._label_count,
+                )
+            )
 
     def action_dismiss_help(self) -> None:
         self.dismiss(None)

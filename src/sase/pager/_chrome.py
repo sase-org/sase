@@ -121,7 +121,12 @@ def section_rule(
     return line
 
 
-def footer_legend(*, section_total: int) -> Text:
+def footer_legend(
+    *,
+    section_total: int,
+    label_count: int = 0,
+    pending_prefix: str = "",
+) -> Text:
     """Build the availability-driven footer legend.
 
     Only verbs that would sometimes do nothing are worth a row (the ACE
@@ -129,6 +134,10 @@ def footer_legend(*, section_total: int) -> Text:
     /``ctrl+d``/``ctrl+u``) is always available so it lives in ``?`` only.
     """
     verbs: list[tuple[str, str]] = []
+    if pending_prefix:
+        verbs.append((f"{pending_prefix}…", "link"))
+    elif label_count:
+        verbs.append(("0-9a-z", "follow"))
     if section_total > 1:
         verbs.append(("^N/^P", "entity"))
     verbs.append(("/", "search"))

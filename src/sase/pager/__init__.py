@@ -8,6 +8,15 @@ from __future__ import annotations
 
 from sase.pager.app import PagerExit, SasePager
 from sase.pager.flag import link_pager_enabled
+from sase.pager._labels import (
+    LabelWindowScope,
+    PAGER_LABEL_ALPHABET,
+    PAGER_LABEL_TWO_KEY_CAPACITY,
+    PagerLabel,
+    PagerLabelLayer,
+    build_label_layer,
+    render_section_with_labels,
+)
 from sase.pager.adapters import document_from_paths, path_section, path_sections
 from sase.pager.document import (
     AttachedTarget,
@@ -31,8 +40,13 @@ __all__ = [
     "AttachedTarget",
     "LinkSpan",
     "LinkSpanKind",
+    "LabelWindowScope",
+    "PAGER_LABEL_ALPHABET",
+    "PAGER_LABEL_TWO_KEY_CAPACITY",
     "PagerDocument",
     "PagerExit",
+    "PagerLabel",
+    "PagerLabelLayer",
     "PagerOrigin",
     "PagerSection",
     "PagerTargetSpan",
@@ -42,6 +56,8 @@ __all__ = [
     "link_pager_enabled",
     "path_section",
     "path_sections",
+    "build_label_layer",
+    "render_section_with_labels",
     "scan_bounded_links",
     "scan_links",
     "section_target_spans",

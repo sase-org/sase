@@ -143,3 +143,18 @@ def test_footer_legend_shows_entity_nav_for_a_multi_section_document() -> None:
     line = footer_legend(section_total=3)
 
     assert "^N/^P entity" in line.plain
+
+
+def test_footer_legend_shows_follow_only_when_labels_exist() -> None:
+    no_labels = footer_legend(section_total=1, label_count=0)
+    labels = footer_legend(section_total=1, label_count=3)
+
+    assert "follow" not in no_labels.plain
+    assert "0-9a-z follow" in labels.plain
+
+
+def test_footer_legend_promotes_pending_prefix_over_follow_hint() -> None:
+    line = footer_legend(section_total=1, label_count=60, pending_prefix="Z")
+
+    assert "Z… link" in line.plain
+    assert "follow" not in line.plain
