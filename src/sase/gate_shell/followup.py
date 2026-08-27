@@ -213,6 +213,7 @@ def _base_prompt_kwargs(
         else None
     )
     feedback = response.get("feedback")
+    from sase.gate_shell.kind_next_action import resolve_shell_next_action
     from sase.gate_shell.settlement import gate_decision_title
 
     return {
@@ -238,7 +239,14 @@ def _base_prompt_kwargs(
         ),
         "tail_lines": 200,
         "gate_log_path": gate_log_path,
-        "next_action": policy.prompt,
+        "next_action": resolve_shell_next_action(
+            kind=_clean_str(meta.get("gate_kind")),
+            artifacts_dir=artifacts_dir,
+            meta=meta,
+            envelope=envelope,
+            response=response,
+            declared=policy.prompt,
+        ),
     }
 
 

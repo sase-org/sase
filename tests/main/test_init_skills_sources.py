@@ -221,6 +221,10 @@ def _disable_prettier_for_skill_generation(
                 "writes a durable handoff marker",
                 "sends `SIGTERM`",
                 "Do not poll question request or response files",
+                "question gate shell",
+                "Your turn ends as `DONE`",
+                "launches a follow-up agent",
+                "the runner recognizes the marker as an intentional question handoff",
             ),
         ),
         (

@@ -22,6 +22,7 @@ class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
     admin_center_flags = "admin_center_flags"
+    gate_shell_handoff = "gate_shell_handoff"
     link_pager = "link_pager"
     link_rail = "link_rail"
     provider_drain = "provider_drain"
@@ -38,6 +39,17 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "feature-flag control."
         ),
         bead="sase-rx",
+    ),
+    FeatureFlag.gate_shell_handoff: FeatureFlagDefinition(
+        key=FeatureFlag.gate_shell_handoff,
+        kind="beta",
+        description=(
+            "A /sase_questions or /sase_plan gate becomes a gate shell in the "
+            "asking agent's family: the asking agent ends as DONE, the gate "
+            "shell owns the QUESTION/TALE status, and answering it launches "
+            "the follow-up agent."
+        ),
+        bead="sase-uo",
     ),
     FeatureFlag.link_pager: FeatureFlagDefinition(
         key=FeatureFlag.link_pager,

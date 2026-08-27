@@ -10357,7 +10357,7 @@
       },
       {
         "aliases": [],
-        "default_child": null,
+        "default_child": "list",
         "description_digest": "169198d326882d0a",
         "hidden": false,
         "mutex_groups": [],
@@ -10677,6 +10677,67 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "9fc60d042986936b",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "cancel",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "reason",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-r",
+                  "--reason"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "gate",
+              "cancel"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "gate_ref",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "ID",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "8d09e12061ca3666",
             "hidden": false,
             "mutex_groups": [],
@@ -10858,7 +10919,132 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "1fe9f5398304b1b5",
+            "description_digest": "92bbb306158aa171",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "list",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "all",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-a",
+                  "--all"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "table",
+                  "markdown",
+                  "json"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "agent",
+                "hidden": false,
+                "kind": "agent",
+                "repeatable": false,
+                "strings": [
+                  "-l",
+                  "--agent"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "limit",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-n",
+                  "--limit"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": [
+                  "pending",
+                  "settling",
+                  "answered",
+                  "completed",
+                  "failed",
+                  "timeout",
+                  "stopped",
+                  "lost"
+                ],
+                "dest": "state",
+                "hidden": false,
+                "kind": null,
+                "repeatable": true,
+                "strings": [
+                  "-s",
+                  "--state"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "gate",
+              "list"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "587d3684612f576c",
             "hidden": false,
             "mutex_groups": [],
             "name": "show",
@@ -10916,7 +11102,16 @@
               "gate",
               "show"
             ],
-            "positionals": [],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "gate_ref",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "ID",
+                "nargs": "?"
+              }
+            ],
             "subcommands": []
           },
           {

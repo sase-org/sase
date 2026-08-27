@@ -3884,6 +3884,11 @@
           "default": true,
           "deprecated": true
         },
+        "gate_shell_handoff": {
+          "type": "boolean",
+          "description": "A /sase_questions or /sase_plan gate becomes a gate shell in the asking agent's family: the asking agent ends as DONE, the gate shell owns the QUESTION/TALE status, and answering it launches the follow-up agent.",
+          "default": false
+        },
         "link_pager": {
           "type": "boolean",
           "description": "Beta gate for the link-traversing SasePager surface, its jump-hint keys, and its navigation trail.",

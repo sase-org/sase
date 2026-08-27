@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -31,9 +33,11 @@ from sase.axe.run_agent_successor import SuccessorRequest, continue_as_successor
 from sase.axe.run_agent_wait_slots import wait_for_runner_slot
 from sase.axe.runner_signals import reset_killed
 from sase.core.runner_slots import normalize_wait_priority
+from sase.gate_shell.flag import gate_shell_handoff_enabled
 from sase.plan_chain import (
     AGENT_FAMILY_SEPARATOR,
     PLAN_CHAIN_PLAN_SUFFIX,
+    agent_family_base,
     agent_family_role_for_suffix,
     canonical_plan_chain_suffix,
     is_root_question_suffix,
@@ -78,41 +82,17 @@ def _update_sdd_prompt_snapshot_qa(
     state: LoopState,
     merged_qa_text: str,
 ) -> None:
-    """Update the recorded prompt artifact and commit machine-made store writes.
-
-    In-tree prompt files remain part of the agent's normal workspace commit flow.
-    External stores are committed here so a SASE-authored Q&A update never
-    becomes unclaimed work for the commit finalizer.
-    """
+    """Update the recorded prompt artifact and commit machine-made store writes."""
     if state.sdd_spec_path is None:
         return
 
-    prompt_path = Path(state.sdd_spec_path)
-    parts = prompt_path.parts
-    if len(parts) >= 3 and parts[-3] == "prompts" and parts[-2].isdigit():
-        from sase.sdd.files import set_prompt_qa
+    from sase.question_shell.followup import update_question_sdd_prompt_snapshot
 
-        # The commit finalizer recognizes Q&A-only edits at this canonical
-        # agents-sidecar path and commits them without prompting the agent.
-        set_prompt_qa(prompt_path, merged_qa_text)
-        return
-
-    # Compatibility for an interrupted run that still points at the legacy
-    # plans-sidecar prompt location during the cutover.
-    from sase.sdd.files import commit_sdd_store_files, set_prompt_qa
-    from sase.sdd.store import resolve_sdd_store
-
-    set_prompt_qa(prompt_path, merged_qa_text)
-
-    store = resolve_sdd_store(ctx.workspace_dir, ctx.workspace_num or 1)
-    if store.is_in_tree:
-        return
-
-    commit_sdd_store_files(
-        store,
-        f"Add Q&A to {prompt_path.stem} prompt",
-        auto_commit_type="sdd",
-        paths=[prompt_path],
+    update_question_sdd_prompt_snapshot(
+        state.sdd_spec_path,
+        merged_qa_text,
+        workspace_dir=ctx.workspace_dir,
+        workspace_num=ctx.workspace_num,
         artifacts_dir=state.current_artifacts_dir,
     )
 
@@ -126,6 +106,9 @@ def handle_questions_marker(
 
     Returns a loop-outcome string to break the loop, or ``None`` to continue.
     """
+    if gate_shell_handoff_enabled():
+        return _handle_questions_via_gate_shell(q_data, ctx, state)
+
     normalize_handoff_interruption_state(state.current_artifacts_dir)
     finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
     previous_role_suffix = state.current_role_suffix
@@ -280,4 +263,242 @@ def handle_questions_marker(
         except Exception:
             logger.warning("SDD prompt Q&A snapshot update failed", exc_info=True)
 
+    return None  # continue loop
+
+
+def _handle_questions_via_gate_shell(
+    q_data: dict[str, Any],
+    ctx: AgentExecContext,
+    state: LoopState,
+) -> str | None:
+    """Handle a questions marker by creating a question gate shell.
+
+    The runner creates the gate shell during marker adoption instead of
+    calling ``handle_questions_flow``: it never writes
+    ``pending_question.json``, never yields or reacquires a runner slot, and
+    never calls ``wait_for_gate``. Either the runner terminalizes as ``DONE``
+    (delegated to :func:`handle_gate_marker`, exactly as any other gate
+    shell), or -- on the ``%auto`` short-circuit, where the gate already
+    settled synchronously inside creation -- it continues in-process exactly
+    as the Off branch does, at the cost of exactly one agent.
+    """
+    normalize_handoff_interruption_state(state.current_artifacts_dir)
+    finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
+    reset_killed()
+
+    from sase.main.plan_approve_handler import is_auto_approve_active
+    from sase.question_shell import (
+        create_question_gate_shell,
+        question_base_prompt,
+        question_rounds,
+        resolve_question_chain_parent,
+    )
+
+    base_meta = _interrupted_phase_meta(state.current_artifacts_dir, ctx.agent_meta)
+    meta_name = base_meta.get("name")
+    creator_agent = (
+        meta_name
+        if isinstance(meta_name, str) and meta_name
+        else (ctx.agent_name or "")
+    )
+    meta_family = base_meta.get("agent_family")
+    lane = (
+        meta_family
+        if isinstance(meta_family, str) and meta_family
+        else agent_family_base(creator_agent) or creator_agent
+    )
+
+    parent_artifacts_dir = resolve_question_chain_parent(
+        ctx.project_name,
+        lane,
+        creator_agent,
+        hint=state.question_gate_artifacts_dir,
+    )
+    if parent_artifacts_dir is not None:
+        base_prompt = (
+            question_base_prompt(parent_artifacts_dir) or state.question_base_prompt
+        )
+        prior_rounds = question_rounds(parent_artifacts_dir)
+    else:
+        base_prompt = state.question_base_prompt
+        prior_rounds = []
+
+    session_id = str(uuid.uuid4())
+    agent_cl_name = os.environ.get("SASE_AGENT_CL_NAME")
+    agent_project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
+    agent_timestamp = os.environ.get("SASE_AGENT_TIMESTAMP")
+    agent_root_timestamp = os.environ.get("SASE_AGENT_ROOT_TIMESTAMP")
+    action_data = {
+        key: value
+        for key, value in {
+            "session_id": session_id,
+            "agent_cl_name": agent_cl_name,
+            "agent_project_file": agent_project_file,
+            "agent_timestamp": agent_timestamp,
+            "agent_root_timestamp": agent_root_timestamp,
+        }.items()
+        if value
+    }
+
+    creation = create_question_gate_shell(
+        q_data.get("questions", []),
+        session_id=session_id,
+        producer={
+            "agent": os.environ.get("SASE_AGENT"),
+            "artifacts_dir": state.current_artifacts_dir,
+            **action_data,
+        },
+        action_data=action_data,
+        auto=is_auto_approve_active(),
+        base_prompt=base_prompt,
+        prior_rounds=prior_rounds,
+        parent_artifacts_dir=parent_artifacts_dir,
+        sdd_spec_path=state.sdd_spec_path,
+    )
+
+    question_relationships = {
+        "questions_submitted_at": datetime.now(UTC).isoformat(),
+        "question_request_path": str(creation.gate.request_path),
+        "question_response_path": str(creation.gate.response_path),
+        "question_session_id": session_id,
+        "patch_name": ctx.cl_name,
+        "changespec_name": ctx.cl_name,
+    }
+    record_workflow_metadata(state.current_artifacts_dir, question_relationships)
+    state.question_gate_artifacts_dir = creation.record.artifacts_dir
+
+    if not creation.should_handoff:
+        _continue_after_auto_answered_question(
+            ctx,
+            state,
+            creation,
+            base_meta=base_meta,
+            base_prompt=base_prompt,
+            question_relationships=question_relationships,
+        )
+        return None
+
+    from sase.axe.run_agent_exec_gate import handle_gate_marker
+
+    gate_data = {
+        "gate_id": creation.record.gate_id,
+        "member_artifacts_dir": creation.record.artifacts_dir,
+        "member_agent_name": creation.record.member_agent_name,
+        "kind": "question",
+    }
+    return handle_gate_marker(gate_data, ctx, state)
+
+
+def _continue_after_auto_answered_question(
+    ctx: AgentExecContext,
+    state: LoopState,
+    creation: Any,
+    *,
+    base_meta: dict[str, Any],
+    base_prompt: str,
+    question_relationships: dict[str, Any],
+) -> None:
+    """Continue in-process after the ``%auto`` short-circuit answered a question.
+
+    Mirrors the Off branch's own successor launch -- unchanged suffix, role,
+    relationship, and artifact-label arguments -- except the merged Q&A comes
+    from the family's settled question gate shells, rebuilt here to include
+    the round the gate shell just settled, rather than from
+    ``LoopState.qa_rounds``.
+    """
+    from sase.question_shell import question_rounds
+
+    rounds = question_rounds(creation.record.artifacts_dir)
+    merged_qa_text = merge_qa_for_prompt(rounds)
+
+    previous_role_suffix = state.current_role_suffix
+    interrupted_role = _meta_family_role(base_meta)
+    first_family_agent_question = state.agent_step == 1
+    first_plan_agent_question = first_family_agent_question and (
+        canonical_plan_chain_suffix(previous_role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
+    )
+    interrupted_suffix: str | None
+    if first_plan_agent_question:
+        interrupted_suffix = PLAN_CHAIN_PLAN_SUFFIX
+    elif first_family_agent_question:
+        interrupted_suffix = f"{AGENT_FAMILY_SEPARATOR}0"
+    else:
+        interrupted_suffix = canonical_plan_chain_suffix(previous_role_suffix)
+    if interrupted_suffix is None:
+        interrupted_suffix = (
+            canonical_plan_chain_suffix(base_meta.get("role_suffix"))
+            or f"{AGENT_FAMILY_SEPARATOR}0"
+        )
+    if first_family_agent_question:
+        update_meta_suffix(state.current_artifacts_dir, interrupted_suffix)
+
+    from sase.history.chat import save_chat_history
+    from sase.history.chat_extras import format_extra_sections
+
+    _q_suffix = interrupted_suffix
+    _q_agent = agent_name_for_suffix(ctx, _q_suffix)
+    _q_extra = format_extra_sections(state.current_artifacts_dir)
+
+    _q_chat = save_chat_history(
+        prompt=state.current_prompt,
+        response=merged_qa_text,
+        workflow="ace-run",
+        agent=_q_agent,
+        timestamp=ctx.timestamp,
+        extra_sections=_q_extra,
+        branch_or_workspace=ctx.cl_name,
+        metadata_agent=_q_agent,
+        metadata_multi_agent_prompt=ctx.multi_agent_prompt_file,
+    )
+    state.saved_chat_paths.append((_q_suffix, _q_chat))
+    update_meta_field(state.current_artifacts_dir, "chat_path", _q_chat)
+    update_step_marker_chat_path(state.current_artifacts_dir, _q_chat)
+
+    root_sequence = (
+        first_family_agent_question and not first_plan_agent_question
+    ) or is_root_question_suffix(
+        interrupted_suffix,
+        agent_family_role=interrupted_role,
+    )
+    suffix_template = (
+        f"{AGENT_FAMILY_SEPARATOR}@"
+        if root_sequence
+        else question_followup_suffix_template(
+            interrupted_suffix,
+            agent_family_role=interrupted_role,
+        )
+    )
+    followup_role = (
+        "q"
+        if root_sequence
+        else agent_family_role_for_suffix(
+            render_agent_name_template(suffix_template, "0"),
+            agent_family_role=interrupted_role,
+        )
+    )
+    followup_prompt = assemble_question_followup_prompt(base_prompt, rounds)
+    continue_as_successor(
+        ctx,
+        state,
+        SuccessorRequest(
+            base_meta=base_meta,
+            prompt=followup_prompt,
+            suffix_template=suffix_template,
+            extra_reserved_suffixes=(
+                *(suffix for suffix, _path in state.saved_chat_paths if suffix),
+                interrupted_suffix,
+            ),
+            agent_family_role=followup_role,
+            relationships={
+                **question_relationships,
+                "source_plan_agent_name": _q_agent,
+            },
+            prompt_artifact_label="Full question prompt",
+            promote_role_suffix=interrupted_suffix,
+            fallback_token="1" if root_sequence else "0",
+        ),
+        create_artifacts=create_followup_artifacts,
+        promote=promote_to_workflow,
+        store_prompt=_store_followup_prompt_artifact,
+    )
     return None  # continue loop

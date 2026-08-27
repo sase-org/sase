@@ -48,6 +48,64 @@ class UserQuestionActionError(RuntimeError):
         self.target = target
 
 
+def user_question_gate_spec(
+    questions: list[dict[str, Any]],
+    *,
+    session_id: str,
+    producer: Mapping[str, Any] | None = None,
+    action_data: Mapping[str, str] | None = None,
+    auto: bool = False,
+) -> dict[str, Any]:
+    """Build the shared v3 UserQuestion gate request body.
+
+    The single source of truth for both :func:`create_user_question_gate` and
+    the question gate shell's request, so the two producers cannot drift.
+    """
+    normalized_questions = validate_user_questions(questions)
+    response_schema = question_response_schema(normalized_questions)
+    summary = "; ".join(
+        str(question.get("question") or "?") for question in normalized_questions[:3]
+    )
+    return {
+        "schema_version": 3,
+        "kind": "question",
+        "request_id": session_id,
+        "producer": dict(producer or {}),
+        "continuation_mode": QUESTION_CONTINUATION_MODE,
+        "payload": {
+            "questions": normalized_questions,
+            "session_id": session_id,
+            "timestamp": time.time(),
+        },
+        "presentation": {
+            "notes": [summary] if summary else ["Agent is asking a question"],
+            "tags": ["question"],
+            "action_data": dict(action_data or {}),
+        },
+        "query": QUESTION_OPTION_ID,
+        "primary_branch": [QUESTION_OPTION_ID],
+        "options": [
+            {
+                "id": QUESTION_OPTION_ID,
+                "label": "Submit answers",
+                "icon": "✅",
+                "command": {"argv": [QUESTION_COMMAND_PATH]},
+                "input_schema": response_schema,
+                "result_schema": response_schema,
+                "feedback": "optional",
+            }
+        ],
+        "resources": [
+            {
+                "path": QUESTION_COMMAND_PATH,
+                "role": "command",
+                "content": question_gate_command_script(),
+            }
+        ],
+        "auto": auto,
+    }
+
+
 def create_user_question_gate(
     questions: list[dict[str, Any]],
     *,
@@ -57,53 +115,16 @@ def create_user_question_gate(
     auto: bool = False,
 ) -> Any:
     """Create a neutral UserQuestion gate for the current agent continuation."""
-    normalized_questions = validate_user_questions(questions)
-    response_schema = question_response_schema(normalized_questions)
-    summary = "; ".join(
-        str(question.get("question") or "?") for question in normalized_questions[:3]
-    )
-
     from sase.notification_gates.service import create_gate
 
     return create_gate(
-        {
-            "schema_version": 3,
-            "kind": "question",
-            "request_id": session_id,
-            "producer": dict(producer or {}),
-            "continuation_mode": QUESTION_CONTINUATION_MODE,
-            "payload": {
-                "questions": normalized_questions,
-                "session_id": session_id,
-                "timestamp": time.time(),
-            },
-            "presentation": {
-                "notes": [summary] if summary else ["Agent is asking a question"],
-                "tags": ["question"],
-                "action_data": dict(action_data or {}),
-            },
-            "query": QUESTION_OPTION_ID,
-            "primary_branch": [QUESTION_OPTION_ID],
-            "options": [
-                {
-                    "id": QUESTION_OPTION_ID,
-                    "label": "Submit answers",
-                    "icon": "✅",
-                    "command": {"argv": [QUESTION_COMMAND_PATH]},
-                    "input_schema": response_schema,
-                    "result_schema": response_schema,
-                    "feedback": "optional",
-                }
-            ],
-            "resources": [
-                {
-                    "path": QUESTION_COMMAND_PATH,
-                    "role": "command",
-                    "content": question_gate_command_script(),
-                }
-            ],
-            "auto": auto,
-        }
+        user_question_gate_spec(
+            questions,
+            session_id=session_id,
+            producer=producer,
+            action_data=action_data,
+            auto=auto,
+        )
     )
 
 
@@ -124,10 +145,28 @@ def execute_user_question_response(
         response_json = normalized
         response_file = QUESTION_RESPONSE_FILE
     else:
+        from sase.gate_shell.log import bind_gate_shell_execution_callbacks
+        from sase.gate_shell.settlement import settle_gate_shell
+        from sase.gate_shell.store import find_gate_shell_by_gate_id
         from sase.notification_gates.executor import execute_gate_selection
+        from sase.notification_gates.hashing import load_and_verify_bundle
         from sase.notification_gates.models import GateError
         from sase.notification_gates.paths import RESPONSE_FILENAME
 
+        envelope, _adapter = load_and_verify_bundle(bundle.root)
+        shell_backed = isinstance(envelope.get("shell"), dict)
+        gate_shell = (
+            find_gate_shell_by_gate_id(None, str(envelope.get("request_id") or ""))
+            if shell_backed
+            else None
+        )
+        execution_kwargs: dict[str, Any] = (
+            {}
+            if gate_shell is None
+            else bind_gate_shell_execution_callbacks(
+                gate_shell.artifacts_dir
+            ).as_kwargs()
+        )
         try:
             shared_feedback = response_data.get("feedback")
             if not isinstance(shared_feedback, str):
@@ -140,6 +179,7 @@ def execute_user_question_response(
                 normalized,
                 feedback=shared_feedback,
                 source=source,
+                **execution_kwargs,
             )
         except GateError as exc:
             code = (
@@ -148,6 +188,12 @@ def execute_user_question_response(
                 else exc.code
             )
             raise UserQuestionActionError(code, exc.target, str(exc)) from exc
+        if gate_shell is not None:
+            settle_gate_shell(
+                gate_shell,
+                gate_state="answered",
+                reason="question answered",
+            )
         if execution.already_completed:
             raise UserQuestionActionError(
                 "conflict_already_handled",
@@ -559,5 +605,6 @@ __all__ = [
     "question_gate_command_script",
     "question_response_schema",
     "read_user_question_request",
+    "user_question_gate_spec",
     "validate_user_questions",
 ]
