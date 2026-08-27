@@ -80,7 +80,6 @@ def _build_kill_app(panel_widget: AgentList | None) -> Any:
             self.current_idx = 0
             self._kill_persistence_inflight: set[Any] = set()
             self._agent_status_overrides: dict[Any, Any] = {}
-            self._agent_pre_question_status: dict[Any, Any] = {}
             self._dismissed_agents: set[Any] = set()
             self._agents_with_children: list[Agent] = []
             self._agents: list[Agent] = []
@@ -228,7 +227,6 @@ def _build_dismiss_app(panel_widget: AgentList | None) -> Any:
             self._dismissed_agent_objects: list[Agent] = []
             self._agents_with_children: list[Agent] = []
             self._agent_status_overrides: dict[Any, Any] = {}
-            self._agent_pre_question_status: dict[Any, Any] = {}
             self._dismiss_persistence_inflight: set[Any] = set()
             self._scheduled: list[tuple[object, tuple[object, ...]]] = []
             self._notifications: list[tuple[str, str]] = []

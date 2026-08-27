@@ -1,4 +1,4 @@
-"""Tests for Agents-tab notification status routing."""
+"""Tests for Agents-tab notification reconciliation."""
 
 from __future__ import annotations
 
@@ -12,48 +12,44 @@ import pytest
 from sase.ace.tui.actions.agents._notification_navigation import (
     find_agent_for_notification,
 )
-from sase.ace.tui.actions.agents._notification_status_overrides import (
-    AgentNotificationStatusMixin,
+from sase.ace.tui.actions.agents._notification_plan_reconciliation import (
+    AgentNotificationPlanReconciliationMixin,
     prepare_plan_notification_reconciliation,
 )
-from sase.ace.tui.actions.agents._notifications import AgentNotificationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.notifications import Notification
 
 
-class _NotificationApp(AgentNotificationMixin):
+class _NotificationApp:
     def __init__(self, agents: list[Agent]) -> None:
         self._agents = agents
         self._agents_with_children = agents
-        self.refilter_calls = 0
-        self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
-        self._agent_pre_question_status: dict[
-            tuple[AgentType, str, str | None], str | None
-        ] = {}
-
-    def _auto_dismiss_external_plan_response(self, notification: Notification) -> bool:
-        return False
-
-    def _refilter_agents(self) -> None:
-        self.refilter_calls += 1
 
 
-class _ExternalPlanResponseApp(AgentNotificationStatusMixin):
+class _ExternalPlanResponseApp(AgentNotificationPlanReconciliationMixin):
     def __init__(self, agents: list[Agent]) -> None:
         self._agents = agents
         self._agents_with_children = agents
-        self.refilter_calls = 0
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
-        self._agent_pre_question_status: dict[
-            tuple[AgentType, str, str | None], str | None
-        ] = {}
         self.notification_count_refreshes = 0
+        self.notification_snapshot_refreshes = 0
+        self.delta_refreshes: list[tuple[tuple[Path, ...], str]] = []
+        self.broad_refreshes = 0
 
-    def _refilter_agents(self) -> None:
-        self.refilter_calls += 1
+    def _schedule_agent_artifact_delta_refresh(
+        self, artifact_dirs: tuple[Path, ...], *, source: str = "unknown"
+    ) -> None:
+        self.delta_refreshes.append((tuple(artifact_dirs), source))
+
+    def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+        del source
+        self.broad_refreshes += 1
 
     def _refresh_notification_count(self) -> None:
         self.notification_count_refreshes += 1
+
+    def _schedule_notification_snapshot_refresh(self) -> None:
+        self.notification_snapshot_refreshes += 1
 
 
 def _notification(
@@ -84,107 +80,6 @@ def _notification(
         action=action,
         action_data=action_data,
     )
-
-
-def test_plan_approval_root_timestamp_sets_parent_planning_override() -> None:
-    """A follow-up plan notification can target the visible parent row."""
-    parent = Agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="oo",
-        project_file="/tmp/test.sase",
-        status="RUNNING",
-        start_time=datetime(2026, 5, 12, 9, 0, 0),
-        raw_suffix="20260512090000",
-        role_suffix=".plan",
-    )
-    workflow_step = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="sase",
-        project_file="/tmp/test.sase",
-        status="DONE",
-        start_time=datetime(2026, 5, 12, 9, 43, 33),
-        raw_suffix="20260512094333",
-        parent_timestamp="20260512090000",
-        parent_workflow="oo.plan",
-    )
-    app = _NotificationApp([parent, workflow_step])
-
-    auto_dismissed_ids = app._apply_notification_status_overrides([_notification()])
-
-    assert auto_dismissed_ids == set()
-    assert app._agent_status_overrides[parent.identity] == "PLAN"
-    assert workflow_step.identity not in app._agent_status_overrides
-    assert app.refilter_calls == 1
-
-
-@pytest.mark.parametrize(
-    ("action", "kind", "expected_status"),
-    [("PlanApproval", "plan", "TALE"), ("EpicApproval", "epic_plan", "EPIC")],
-)
-def test_neutral_plan_notification_sets_tiered_status_without_plan_file(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    action: str,
-    kind: str,
-    expected_status: str,
-) -> None:
-    from sase.notification_gates import paths
-
-    request_id = "request-1"
-    request_dir = tmp_path / kind / request_id
-    request_dir.mkdir(parents=True)
-    (request_dir / "request.json").write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(paths, "INTERACTION_REQUESTS_DIR", tmp_path)
-    parent = Agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="oo",
-        project_file="/tmp/test.sase",
-        status="RUNNING",
-        start_time=datetime(2026, 5, 12, 9, 0, 0),
-        raw_suffix="20260512090000",
-        role_suffix=".plan",
-    )
-    app = _NotificationApp([parent])
-
-    auto_dismissed_ids = app._apply_notification_status_overrides(
-        [_notification(action=action, request_id=request_id)]
-    )
-
-    assert auto_dismissed_ids == set()
-    assert app._agent_status_overrides[parent.identity] == expected_status
-
-
-def test_worker_prepared_neutral_tier_avoids_ui_thread_bundle_resolution(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    parent = Agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="oo",
-        project_file="/tmp/test.sase",
-        status="RUNNING",
-        start_time=datetime(2026, 5, 12, 9, 0, 0),
-        raw_suffix="20260512090000",
-        role_suffix=".plan",
-    )
-    app = _NotificationApp([parent])
-    notification = _notification(request_id="request-1")
-
-    def _unexpected_ui_resolution(_notification: Notification) -> None:
-        raise AssertionError("bundle resolution reached the UI-thread apply phase")
-
-    monkeypatch.setattr(
-        "sase.notification_gates.paths.resolve_notification_bundle",
-        _unexpected_ui_resolution,
-    )
-
-    dismissed_ids = app._apply_notification_status_overrides(
-        [notification],
-        prepared_external_plan_responses={},
-        prepared_neutral_plan_notification_ids=frozenset({notification.id}),
-    )
-
-    assert dismissed_ids == set()
-    assert app._agent_status_overrides[parent.identity] == "TALE"
 
 
 def test_find_agent_for_notification_matches_root_timestamp() -> None:
@@ -227,102 +122,36 @@ def test_find_agent_for_notification_matches_agent_name_timestamp() -> None:
     )
 
 
-def test_user_question_sets_question_override_on_root_and_child() -> None:
-    """A UserQuestion referencing both timestamps marks the root AND the child.
-
-    This keeps the ask path symmetric with the answer path: both the visible
-    root/aggregate row and the child that actually asked receive QUESTION, so
-    answering can clear both.
-    """
-    parent = Agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="oo",
-        project_file="/tmp/test.sase",
-        status="RUNNING",
-        start_time=datetime(2026, 5, 12, 9, 0, 0),
-        raw_suffix="20260512090000",
-        role_suffix=".plan",
-    )
-    child = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="oo",
-        project_file="/tmp/test.sase",
-        status="RUNNING",
-        start_time=datetime(2026, 5, 12, 9, 43, 33),
-        raw_suffix="20260512094333",
-        parent_timestamp="20260512090000",
-        parent_workflow="oo.plan",
-    )
-    app = _NotificationApp([parent, child])
-
-    auto_dismissed_ids = app._apply_notification_status_overrides(
-        [_notification(action="UserQuestion")]
-    )
-
-    assert auto_dismissed_ids == set()
-    assert app._agent_status_overrides[parent.identity] == "QUESTION"
-    assert app._agent_status_overrides[child.identity] == "QUESTION"
-    assert app._agent_pre_question_status[parent.identity] == "RUNNING"
-    assert app._agent_pre_question_status[child.identity] == "RUNNING"
-
-
-def test_user_question_root_timestamp_sets_parent_question_override() -> None:
-    parent = Agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="oo",
-        project_file="/tmp/test.sase",
-        status="RUNNING",
-        start_time=datetime(2026, 5, 12, 9, 0, 0),
-        raw_suffix="20260512090000",
-        role_suffix=".plan",
-    )
-    app = _NotificationApp([parent])
-
-    auto_dismissed_ids = app._apply_notification_status_overrides(
-        [_notification(action="UserQuestion", agent_timestamp="20260512094500")]
-    )
-
-    assert auto_dismissed_ids == set()
-    assert app._agent_status_overrides[parent.identity] == "QUESTION"
-    assert app._agent_pre_question_status[parent.identity] == "RUNNING"
-    assert app.refilter_calls == 1
-
-
 @pytest.mark.parametrize(
-    ("notification_action", "response", "expected_status", "expected_action"),
+    ("notification_action", "response", "expected_action"),
     [
         (
             "PlanApproval",
             {"action": "approve", "commit_plan": False, "run_coder": True},
-            "PLAN APPROVED",
             "approve",
         ),
         (
             "PlanApproval",
             {"action": "approve", "commit_plan": True, "run_coder": True},
-            "TALE APPROVED",
             "tale",
         ),
         (
             "EpicApproval",
             {"action": "epic", "commit_plan": True, "run_coder": True},
-            "EPIC APPROVED",
             "epic",
         ),
         (
             "PlanApproval",
             {"action": "approve", "commit_plan": True, "run_coder": False},
-            "PLAN COMMITTED",
             "commit",
         ),
     ],
 )
-def test_external_plan_response_uses_canonical_action_status_and_persistence(
+def test_legacy_external_plan_response_dismisses_and_persists_action(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     notification_action: str,
     response: dict[str, object],
-    expected_status: str,
     expected_action: str,
 ) -> None:
     artifacts_dir = tmp_path / "artifacts"
@@ -354,8 +183,9 @@ def test_external_plan_response_uses_canonical_action_status_and_persistence(
         artifacts_dir=str(artifacts_dir),
     )
     app = _ExternalPlanResponseApp([agent])
+    app._agent_status_overrides[agent.identity] = "PLAN"
 
-    auto_dismissed_ids = app._apply_notification_status_overrides(
+    auto_dismissed_ids = app._reconcile_plan_notification_lifecycle(
         [
             _notification(
                 action=notification_action,
@@ -366,8 +196,9 @@ def test_external_plan_response_uses_canonical_action_status_and_persistence(
 
     assert auto_dismissed_ids == {"n1"}
     assert dismissed == ["n1"]
-    assert app._agent_status_overrides[agent.identity] == expected_status
-    assert app.refilter_calls == 1
+    assert agent.identity not in app._agent_status_overrides
+    assert app.delta_refreshes == [((artifacts_dir,), "notification")]
+    assert app.broad_refreshes == 0
     assert app.notification_count_refreshes == 1
     assert json.loads((artifacts_dir / "agent_meta.json").read_text()) == {
         "plan_approved": True,
@@ -380,34 +211,26 @@ def test_external_plan_response_uses_canonical_action_status_and_persistence(
         "notification_action",
         "request_kind",
         "selected_option_ids",
-        "expected_status",
-        "expected_action",
     ),
     [
         (
             "PlanApproval",
             "plan",
             ["approve", "commit"],
-            "TALE APPROVED",
-            "tale",
         ),
         (
             "EpicApproval",
             "epic_plan",
             ["approve"],
-            "EPIC APPROVED",
-            "epic",
         ),
     ],
 )
-def test_external_v2_plan_response_uses_canonical_gate_translation(
+def test_neutral_gate_response_is_ignored_by_legacy_reconciliation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     notification_action: str,
     request_kind: str,
     selected_option_ids: list[str],
-    expected_status: str,
-    expected_action: str,
 ) -> None:
     from sase.notification_gates import paths
 
@@ -457,6 +280,7 @@ def test_external_v2_plan_response_uses_canonical_gate_translation(
         artifacts_dir=str(artifacts_dir),
     )
     app = _ExternalPlanResponseApp([agent])
+    app._agent_status_overrides[agent.identity] = "TALE"
     notification = _notification(
         action=notification_action,
         request_id=request_id,
@@ -466,16 +290,17 @@ def test_external_v2_plan_response_uses_canonical_gate_translation(
         app,
         [notification],
     ).external_responses
-    dismissed_ids = app._apply_notification_status_overrides(
+    dismissed_ids = app._reconcile_plan_notification_lifecycle(
         [notification],
         prepared_external_plan_responses=prepared,
     )
 
-    assert dismissed_ids == {notification.id}
-    assert dismissed == [notification.id]
-    assert prepared[notification.id].plan_action == expected_action
-    assert prepared[notification.id].status == expected_status
-    assert app._agent_status_overrides[agent.identity] == expected_status
+    assert prepared == {}
+    assert dismissed_ids == set()
+    assert dismissed == []
+    assert app._agent_status_overrides[agent.identity] == "TALE"
+    assert app.delta_refreshes == []
+    assert app.notification_snapshot_refreshes == 0
     assert not (artifacts_dir / "agent_meta.json").exists()
 
 

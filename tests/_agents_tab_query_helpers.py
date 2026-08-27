@@ -64,9 +64,6 @@ class FakeAgentApp(AgentLoadingMixin):
         self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
         self._dismissed_agent_objects: list[Agent] = []
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
-        self._agent_pre_question_status: dict[
-            tuple[AgentType, str, str | None], str | None
-        ] = {}
         self._agent_search_query = query
         self._agent_search_query_seeded = False
         self._agent_search_query_seed_attempted = False

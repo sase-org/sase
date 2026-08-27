@@ -71,7 +71,6 @@ class AgentMarkingMixin(AgentMarkedKillMixin):
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _recent_dismissed_agent_groups: list[SavedAgentGroupWire]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
-    _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
     _dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]]
 
     def _marked_agent_group_candidates(self) -> list[Agent]:
@@ -143,7 +142,6 @@ class AgentMarkingMixin(AgentMarkedKillMixin):
         cache_recent_dismissed_agent_group(self, group)
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)
-            self._agent_pre_question_status.pop(identity, None)
 
         self._dismissed_agents.update(identities)
         self._reset_marked_agents()

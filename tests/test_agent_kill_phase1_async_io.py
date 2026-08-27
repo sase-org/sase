@@ -45,7 +45,6 @@ def test_kill_immediate_does_no_notification_io() -> None:
             self.current_idx = 0
             self._kill_persistence_inflight = set()
             self._agent_status_overrides = {}
-            self._agent_pre_question_status = {}
             self._dismissed_agents = set()
             self._agents_with_children = []
             self._agents = []
@@ -109,7 +108,6 @@ def test_kill_schedules_one_persistence_task() -> None:
             self.current_idx = 0
             self._kill_persistence_inflight = set()
             self._agent_status_overrides = {}
-            self._agent_pre_question_status = {}
             self._dismissed_agents = set()
             self._agents_with_children = []
             self._agents = []
@@ -254,7 +252,6 @@ def test_bulk_kill_no_sync_count_refresh() -> None:
             self.current_idx = 0
             self._kill_persistence_inflight = set()
             self._agent_status_overrides = {}
-            self._agent_pre_question_status = {}
             self._dismissed_agents = set()
             self._dismissed_agent_objects = []
             self._marked_agents = set()

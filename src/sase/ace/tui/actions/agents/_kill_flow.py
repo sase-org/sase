@@ -224,7 +224,6 @@ class AgentKillFlowMixin:
 
         for identity in dismissed_ids:
             self._agent_status_overrides.pop(identity, None)  # type: ignore[attr-defined]
-            self._agent_pre_question_status.pop(identity, None)  # type: ignore[attr-defined]
         self._dismissed_agents.update(dismissed_ids)
         self._append_dismissed_agent_objects(dismiss_candidates, dismissed_ids)  # type: ignore[attr-defined]
 

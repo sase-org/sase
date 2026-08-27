@@ -29,7 +29,6 @@ def test_neutral_question_response_runs_as_tracked_background_task() -> None:
     app = MagicMock()
     app._agents = []
     app._agent_status_overrides = {}
-    app._agent_pre_question_status = {}
 
     def submit(*args: object, **kwargs: object) -> object:
         captured["body"] = args[1]
@@ -104,7 +103,6 @@ def test_user_question_response_dismisses_notification_and_marks_answered(
     app._agents = [agent]
     app._agents_with_children = [agent]
     app._agent_status_overrides = {agent.identity: "QUESTION"}
-    app._agent_pre_question_status = {agent.identity: "PLAN APPROVED"}
 
     from sase.ace.tui.actions.agents._notification_modals import handle_user_question
 
@@ -137,10 +135,9 @@ def test_user_question_response_dismisses_notification_and_marks_answered(
         "global_note": "thanks",
     }
     mark_dismissed.assert_called_once_with("question-notif")
-    # The pre-question status is no longer restored; the row shows the
-    # transient ANSWERED state until a fresh load reconciles it away.
+    # The row shows the transient ANSWERED state until a fresh load
+    # reconciles it away.
     assert app._agent_status_overrides[agent.identity] == "ANSWERED"
-    assert agent.identity not in app._agent_pre_question_status
     app._refilter_agents.assert_called_once()
     app._schedule_agents_async_refresh.assert_not_called()
 
@@ -202,10 +199,6 @@ def test_user_question_response_marks_root_and_child_answered(
         root.identity: "QUESTION",
         child.identity: "QUESTION",
     }
-    app._agent_pre_question_status = {
-        root.identity: "RUNNING",
-        child.identity: "RUNNING",
-    }
 
     from sase.ace.tui.actions.agents._notification_modals import handle_user_question
 
@@ -229,8 +222,6 @@ def test_user_question_response_marks_root_and_child_answered(
     assert (response_dir / "question_response.json").exists()
     assert app._agent_status_overrides[root.identity] == "ANSWERED"
     assert app._agent_status_overrides[child.identity] == "ANSWERED"
-    assert root.identity not in app._agent_pre_question_status
-    assert child.identity not in app._agent_pre_question_status
     app._refilter_agents.assert_called()
 
 
@@ -279,10 +270,6 @@ def test_open_user_question_modal_from_marker_marks_root_row(tmp_path: Path) -> 
         root.identity: "QUESTION",
         child.identity: "QUESTION",
     }
-    app._agent_pre_question_status = {
-        root.identity: "RUNNING",
-        child.identity: "RUNNING",
-    }
 
     from sase.ace.tui.actions.agents._notification_modals import (
         open_user_question_modal_from_marker,
@@ -307,8 +294,6 @@ def test_open_user_question_modal_from_marker_marks_root_row(tmp_path: Path) -> 
     assert (response_dir / "question_response.json").exists()
     assert app._agent_status_overrides[child.identity] == "ANSWERED"
     assert app._agent_status_overrides[root.identity] == "ANSWERED"
-    assert child.identity not in app._agent_pre_question_status
-    assert root.identity not in app._agent_pre_question_status
 
 
 def test_open_user_question_modal_from_marker_dismissed_notification(
@@ -399,7 +384,6 @@ def test_open_user_question_modal_from_marker_marks_answered(tmp_path: Path) -> 
     app._submit_session_worker = None
     app._agents = [agent]
     app._agent_status_overrides = {agent.identity: "QUESTION"}
-    app._agent_pre_question_status = {agent.identity: "RUNNING"}
 
     from sase.ace.tui.actions.agents._notification_modals import (
         open_user_question_modal_from_marker,
@@ -423,7 +407,6 @@ def test_open_user_question_modal_from_marker_marks_answered(tmp_path: Path) -> 
 
     assert (response_dir / "question_response.json").exists()
     assert app._agent_status_overrides[agent.identity] == "ANSWERED"
-    assert agent.identity not in app._agent_pre_question_status
 
 
 def test_open_user_question_modal_from_marker_missing_request(tmp_path: Path) -> None:

@@ -326,16 +326,13 @@ def _mark_agents_answered(app: object, agents: list[Agent]) -> None:
     The user has written ``question_response.json`` but the runner has not yet
     consumed it. ANSWERED reads as an active/progress state until a fresh load
     shows the agent resuming (or a terminal status), at which point the
-    override is reconciled away. The stale ``_agent_pre_question_status`` entry
-    is dropped — the transient ANSWERED state replaces the pre-question
-    restore behavior.
+    override is reconciled away.
 
     All overrides are written before any row refresh so a refilter-based
     refresh observes every ANSWERED override at once.
     """
     for agent in agents:
         identity = agent.identity
-        app._agent_pre_question_status.pop(identity, None)  # type: ignore[attr-defined]
         app._agent_status_overrides[identity] = "ANSWERED"  # type: ignore[attr-defined]
     for agent in agents:
         refresh_notification_agent_or_request(app, agent=agent)

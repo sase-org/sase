@@ -83,9 +83,8 @@ class AgentLoadingStateMixin:
     _manual_unread_agent_ids: set[tuple[AgentType, str, str | None]]
     _agent_display_status_by_identity: dict[tuple[AgentType, str, str | None], str]
 
-    # Agent status override system (for PLAN/PLAN APPROVED/QUESTION statuses)
+    # Transient status overrides for optimistic response state.
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
-    _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
 
     # Agent search/filter query
     _agent_search_query: str

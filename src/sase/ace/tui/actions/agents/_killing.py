@@ -84,7 +84,6 @@ class AgentKillingMixin(
     _dismissed_agent_objects: list[Agent]
     _agents_with_children: list[Agent]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
-    _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
     _marked_agents: set[tuple[AgentType, str, str | None]]
     _dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]]
     _kill_persistence_inflight: set[tuple[AgentType, str, str | None]]

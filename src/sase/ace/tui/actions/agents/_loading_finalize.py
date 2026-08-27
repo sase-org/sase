@@ -188,7 +188,6 @@ def _apply_finalize_plan(
             agent.status = override
     for identity in plan.overrides.cleared_identities:
         app._agent_status_overrides.pop(identity, None)
-        app._agent_pre_question_status.pop(identity, None)
 
     saved_idx = plan.selection.restored_idx
     identity_restored = plan.selection.identity_restored
@@ -343,7 +342,6 @@ def finalize_agent_list(
             continue
         if should_clear_loaded_agent_status_override(agent, override, family_index):
             app._agent_status_overrides.pop(agent.identity, None)
-            app._agent_pre_question_status.pop(agent.identity, None)
         else:
             agent.status = override
 
@@ -351,7 +349,6 @@ def finalize_agent_list(
     for identity in list(app._agent_status_overrides):
         if identity not in loaded_identities:
             app._agent_status_overrides.pop(identity, None)
-            app._agent_pre_question_status.pop(identity, None)
 
     # Calculate the new index
     # Use current_idx when on agents tab, otherwise use saved _agents_last_idx

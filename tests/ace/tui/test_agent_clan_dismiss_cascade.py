@@ -52,7 +52,6 @@ class _ClanDismissApp(TrackedProcRecorderMixin, AgentsMixin):
         self.current_idx = 0
         self._kill_persistence_inflight: set[Any] = set()
         self._agent_status_overrides: dict[Any, Any] = {}
-        self._agent_pre_question_status: dict[Any, Any] = {}
         self._dismissed_agents: set[Any] = set()
         self._dismissed_agent_objects: list[Agent] = []
         self._marked_agents: set[Any] = set()

@@ -33,7 +33,6 @@ def test_do_bulk_kill_agents_refreshes_and_schedules_once() -> None:
             self.current_idx = 0
             self._kill_persistence_inflight = set()
             self._agent_status_overrides = {}
-            self._agent_pre_question_status = {}
             self._dismissed_agents = set()
             self._dismissed_agent_objects = []
             self._marked_agents = set()
@@ -139,7 +138,6 @@ def test_do_bulk_kill_agents_removes_workflow_children_immediately() -> None:
             self.current_idx = 0
             self._kill_persistence_inflight = set()
             self._agent_status_overrides = {}
-            self._agent_pre_question_status = {}
             self._dismissed_agents = set()
             self._dismissed_agent_objects = []
             self._marked_agents = set()
@@ -217,7 +215,6 @@ def test_do_bulk_kill_agents_failed_pid_stays_visible() -> None:
             self.current_idx = 0
             self._kill_persistence_inflight = set()
             self._agent_status_overrides = {}
-            self._agent_pre_question_status = {}
             self._dismissed_agents = set()
             self._dismissed_agent_objects = []
             self._marked_agents = set()

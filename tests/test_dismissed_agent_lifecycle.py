@@ -33,9 +33,6 @@ class FakeFullApp(TrackedProcRecorderMixin, AgentDismissingMixin, AgentRevivalMi
         self._dismissed_agent_objects: list[Agent] = []
         self._agents_with_children: list[Agent] = []
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
-        self._agent_pre_question_status: dict[
-            tuple[AgentType, str, str | None], str | None
-        ] = {}
         self._dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]] = (
             set()
         )

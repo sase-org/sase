@@ -38,11 +38,13 @@ from ._agent_loader_normalization import (
     normalize_loaded_agents as _normalize_agents,
 )
 from ._agent_ordering import get_status_priority as _get_status_priority  # noqa: F401
-from ._agent_status_overrides import (
-    apply_status_overrides as _apply_status_overrides,
+from ._agent_status_apply import apply_status_overrides as _apply_status_overrides
+from ._agent_status_family_core import (
+    is_root_plan_workflow as _is_root_plan_workflow,  # noqa: F401
+)
+from ._agent_status_roles import (
     is_coder_followup_suffix as _is_coder_followup_suffix,  # noqa: F401
     is_feedback_suffix as _is_feedback_suffix,  # noqa: F401
-    is_root_plan_workflow as _is_root_plan_workflow,  # noqa: F401
 )
 from ._loaders import (
     get_all_project_files,

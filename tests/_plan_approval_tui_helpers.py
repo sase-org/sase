@@ -38,7 +38,6 @@ def make_approval_app_and_notification(
 
     app = MagicMock()
     app._agent_status_overrides = {}
-    app._agent_pre_question_status = {}
 
     return app, notification, response_dir, mock_agent
 

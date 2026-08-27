@@ -39,7 +39,6 @@ class AgentDismissMemoryMixin:
     _revived_agent_raw_suffixes: set[str]
     _agents_with_children: list[Agent]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
-    _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
     _agent_neighbor_index_cache: tuple[Any, ...] | None
     _dismiss_revive_epoch: int
     current_tab: str

@@ -29,7 +29,6 @@ def test_do_kill_agent_removes_in_memory_before_background_persistence() -> None
             self._agents_loading = False
             self._kill_persistence_inflight = set()
             self._agent_status_overrides = {}
-            self._agent_pre_question_status = {}
             self._dismissed_agents = set()
             self._agents_with_children = []
             self._agents = []
@@ -99,7 +98,6 @@ def test_do_kill_agent_child_removes_child_only() -> None:
             self._agents_loading = False
             self._kill_persistence_inflight = set()
             self._agent_status_overrides = {}
-            self._agent_pre_question_status = {}
             self._dismissed_agents = set()
             self._agents_with_children = []
             self._agents = []
@@ -199,7 +197,6 @@ def test_do_kill_parallel_family_root_signals_and_removes_every_member() -> None
             self.current_idx = 0
             self._kill_persistence_inflight = set()
             self._agent_status_overrides = {}
-            self._agent_pre_question_status = {}
             self._dismissed_agents = set()
             self._agents_with_children = list(agents)
             self._agents = list(agents)
@@ -295,7 +292,6 @@ def test_do_kill_agent_hook_persistence_runs_async() -> None:
             self._agents_loading = False
             self._kill_persistence_inflight = set()
             self._agent_status_overrides = {}
-            self._agent_pre_question_status = {}
             self._dismissed_agents = set()
             self._agents_with_children = []
             self._agents = []

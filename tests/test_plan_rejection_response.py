@@ -39,7 +39,6 @@ def test_reject_without_feedback_writes_plan_response(tmp_path: Path) -> None:
 
     app = MagicMock()
     app._agent_status_overrides = {}
-    app._agent_pre_question_status = {}
 
     from sase.ace.tui.actions.agents._notification_modals import (
         handle_plan_approval,

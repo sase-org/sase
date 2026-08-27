@@ -118,9 +118,8 @@ class AgentsMixinCore(
     _recent_dismissed_agent_groups: list[SavedAgentGroupWire]
     _marked_agents: set[tuple[AgentType, str, str | None]]
 
-    # Agent status override system (for PLAN/PLAN APPROVED/QUESTION statuses)
+    # Transient status overrides for optimistic response state.
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
-    _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
     _dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]]
     _kill_persistence_inflight: set[tuple[AgentType, str, str | None]]
 

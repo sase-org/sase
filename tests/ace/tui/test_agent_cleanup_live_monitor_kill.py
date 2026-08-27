@@ -55,7 +55,6 @@ class _App(TrackedProcRecorderMixin, AgentsMixin):
         self._marked_agents = set()
         self._kill_persistence_inflight = set()
         self._agent_status_overrides: dict[Any, Any] = {}
-        self._agent_pre_question_status: dict[Any, Any] = {}
         self.notifications: list[tuple[str, str]] = []
         self.signaled: list[int] = []
         self.cleanup_payloads: list[dict[str, Any]] = []

@@ -323,7 +323,6 @@ def test_status_override_plan_clears_dismissable_overrides() -> None:
         running.identity: "PLAN",
         done.identity: "PLAN APPROVED",
     }
-    app._agent_pre_question_status = {done.identity: "RUNNING"}
     app._agents = [running, done]
 
     snapshot = app._make_prepared_apply_snapshot(
@@ -344,7 +343,6 @@ def test_status_override_plan_clears_dismissable_overrides() -> None:
     assert running.status == "PLAN"
     assert done.status == "DONE"
     assert done.identity not in app._agent_status_overrides
-    assert done.identity not in app._agent_pre_question_status
     assert app._agent_status_overrides[running.identity] == "PLAN"
 
 
@@ -372,7 +370,6 @@ def test_status_override_plan_clears_stale_question_for_running_root() -> None:
     )
     app = FakeAgentApp()
     app._agent_status_overrides = {root.identity: "QUESTION"}
-    app._agent_pre_question_status = {root.identity: "RUNNING"}
     app._agents = [root, followup]
 
     snapshot = app._make_prepared_apply_snapshot(
@@ -395,7 +392,6 @@ def test_status_override_plan_clears_stale_question_for_running_root() -> None:
 
     assert root.status == "RUNNING"
     assert root.identity not in app._agent_status_overrides
-    assert root.identity not in app._agent_pre_question_status
 
 
 def test_status_override_plan_applies_answered_over_loaded_question() -> None:
@@ -436,7 +432,6 @@ def test_status_override_plan_clears_answered_when_running() -> None:
     agent = _make_agent(cl_name="ask", status="RUNNING")
     app = FakeAgentApp()
     app._agent_status_overrides = {agent.identity: "ANSWERED"}
-    app._agent_pre_question_status = {agent.identity: "RUNNING"}
     app._agents = [agent]
 
     snapshot = app._make_prepared_apply_snapshot(
@@ -459,7 +454,6 @@ def test_status_override_plan_clears_answered_when_running() -> None:
 
     assert agent.status == "RUNNING"
     assert agent.identity not in app._agent_status_overrides
-    assert agent.identity not in app._agent_pre_question_status
 
 
 def test_sync_finalize_clears_stale_question_for_running_root() -> None:
@@ -486,7 +480,6 @@ def test_sync_finalize_clears_stale_question_for_running_root() -> None:
     )
     app = FakeAgentApp()
     app._agent_status_overrides = {root.identity: "QUESTION"}
-    app._agent_pre_question_status = {root.identity: "RUNNING"}
     app._agents = [root, followup]
 
     app._finalize_agent_list(
@@ -498,7 +491,6 @@ def test_sync_finalize_clears_stale_question_for_running_root() -> None:
 
     assert root.status == "RUNNING"
     assert root.identity not in app._agent_status_overrides
-    assert root.identity not in app._agent_pre_question_status
 
 
 def _make_answered_question_family() -> tuple[Agent, Agent]:
@@ -543,7 +535,6 @@ def test_status_override_plan_clears_question_answered_by_continuation() -> None
     asking, continuation = _make_answered_question_family()
     app = FakeAgentApp()
     app._agent_status_overrides = {asking.identity: "QUESTION"}
-    app._agent_pre_question_status = {asking.identity: "RUNNING"}
     app._agents = [asking, continuation]
 
     snapshot = app._make_prepared_apply_snapshot(
@@ -566,7 +557,6 @@ def test_status_override_plan_clears_question_answered_by_continuation() -> None
 
     # Override gone; the loader-derived status shows through.
     assert asking.identity not in app._agent_status_overrides
-    assert asking.identity not in app._agent_pre_question_status
     assert asking.status == "QUESTION"
 
 
@@ -575,7 +565,6 @@ def test_sync_finalize_clears_question_answered_by_continuation() -> None:
     asking, continuation = _make_answered_question_family()
     app = FakeAgentApp()
     app._agent_status_overrides = {asking.identity: "QUESTION"}
-    app._agent_pre_question_status = {asking.identity: "RUNNING"}
     app._agents = [asking, continuation]
 
     app._finalize_agent_list(
@@ -586,7 +575,6 @@ def test_sync_finalize_clears_question_answered_by_continuation() -> None:
     )
 
     assert asking.identity not in app._agent_status_overrides
-    assert asking.identity not in app._agent_pre_question_status
 
 
 def test_status_override_plan_keeps_question_without_answered_continuation() -> None:
@@ -599,7 +587,6 @@ def test_status_override_plan_keeps_question_without_answered_continuation() -> 
     asking, _continuation = _make_answered_question_family()
     app = FakeAgentApp()
     app._agent_status_overrides = {asking.identity: "QUESTION"}
-    app._agent_pre_question_status = {asking.identity: "RUNNING"}
     app._agents = [asking]
 
     snapshot = app._make_prepared_apply_snapshot(

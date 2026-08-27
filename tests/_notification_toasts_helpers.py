@@ -72,7 +72,6 @@ class _FakeApp(LifecycleMixin, AgentNotificationMixin):
         self._delivered_notification_activity_cursors: set[tuple[str, str]] = set()
         self._agents: list = []
         self._agent_status_overrides = {}
-        self._agent_pre_question_status = {}
         self.notify = MagicMock()  # type: ignore[assignment]
         self._bell_rung = 0
         self._indicator_tabs: list[NotificationTagTab] = []
@@ -82,7 +81,7 @@ class _FakeApp(LifecycleMixin, AgentNotificationMixin):
     def _ring_tmux_bell(self) -> None:  # type: ignore[override]
         self._bell_rung += 1
 
-    def _apply_notification_status_overrides(  # type: ignore[override]
+    def _reconcile_plan_notification_lifecycle(  # type: ignore[override]
         self,
         unread: list[Notification],
         **_kwargs: object,

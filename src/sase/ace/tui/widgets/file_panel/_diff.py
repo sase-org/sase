@@ -40,10 +40,8 @@ from sase.workspace_provider.store import WorkspaceStore
 from sase.workspace_provider.utils import parse_workspace_dir
 
 from ...models.agent import Agent
-from ...models._agent_status_overrides import (
-    is_coder_followup_suffix,
-    is_root_plan_workflow,
-)
+from ...models._agent_status_family_core import is_root_plan_workflow
+from ...models._agent_status_roles import is_coder_followup_suffix
 
 # Primary invalidation signal for the diff cache. ``git diff HEAD`` reflects
 # the working tree and ``.git/index`` does not change on working-tree edits,

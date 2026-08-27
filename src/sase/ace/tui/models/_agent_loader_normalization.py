@@ -7,7 +7,7 @@ from sase.core.agent_clan_context import clan_context_by_key, clan_context_for
 from sase.core.agent_scan_wire import AgentArtifactScanWire
 
 from ._agent_ordering import sort_and_reorder
-from ._agent_status_overrides import apply_status_overrides
+from ._agent_status_apply import apply_status_overrides
 from ._dedup import (
     dedup_axe_spawned_agents,
     dedup_by_pid,

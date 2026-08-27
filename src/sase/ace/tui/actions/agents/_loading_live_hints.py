@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import agent_status_bucket
 
-from ...models._agent_status_overrides import classify_live_file_change_hint
+from ...models._agent_status_diff import classify_live_file_change_hint
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
 from ._loading_state import AgentLoadingStateMixin

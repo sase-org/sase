@@ -364,7 +364,7 @@ def test_lightweight_live_plan_loader_promotes_unreviewed_done_plan(
             "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
         ) as workflow_steps,
         patch(
-            "sase.ace.tui.models._agent_status_overrides._classify_diff_badges",
+            "sase.ace.tui.models._agent_status_apply.classify_persisted_diff_badges",
             side_effect=AssertionError("diff badges should be skipped"),
         ),
     ):

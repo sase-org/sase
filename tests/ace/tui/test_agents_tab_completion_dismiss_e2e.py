@@ -113,9 +113,6 @@ class _E2EApp(TrackedProcRecorderMixin, AgentsMixinCore):
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
         self._marked_agent_order: list[tuple[AgentType, str, str | None]] = []
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
-        self._agent_pre_question_status: dict[
-            tuple[AgentType, str, str | None], str | None
-        ] = {}
         self._dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]] = (
             set()
         )

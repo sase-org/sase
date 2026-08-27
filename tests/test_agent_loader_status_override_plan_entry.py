@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.tui.models import _agent_status_overrides as status_overrides
+from sase.ace.tui.models import _agent_status_family as status_overrides
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
@@ -186,8 +186,8 @@ def test_feedback_review_progression_uses_precomputed_child_latest() -> None:
         role_suffix="-2",
     )
     all_agents = [planner, newer_feedback]
-    children_by_parent = status_overrides._children_by_parent_timestamp(all_agents)
-    latest_by_parent = status_overrides._latest_non_workflow_child_launch_by_parent(
+    children_by_parent = status_overrides.children_by_parent_timestamp(all_agents)
+    latest_by_parent = status_overrides.latest_non_workflow_child_launch_by_parent(
         children_by_parent
     )
 
@@ -195,7 +195,7 @@ def test_feedback_review_progression_uses_precomputed_child_latest() -> None:
         def __iter__(self):  # type: ignore[no-untyped-def]
             raise AssertionError("should not scan all_agents")
 
-    assert status_overrides._feedback_child_progressed_past_review(
+    assert status_overrides.feedback_child_progressed_past_review(
         planner,
         ExplodingAgents(all_agents),
         children_by_parent,

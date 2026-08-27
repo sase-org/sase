@@ -70,7 +70,6 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
     _recent_dismissed_agent_groups: list[SavedAgentGroupWire]
     _agents_with_children: list[Agent]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
-    _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
     _dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]]
 
     def _notify_after_refresh(
@@ -171,7 +170,6 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         new_identities = dismissed_identities - self._dismissed_agents
         for identity in dismissed_identities:
             self._agent_status_overrides.pop(identity, None)
-            self._agent_pre_question_status.pop(identity, None)
         self._dismissed_agents.update(dismissed_identities)
 
         count = len(agents)
@@ -317,7 +315,6 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         new_identities = identities - self._dismissed_agents
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)
-            self._agent_pre_question_status.pop(identity, None)
         self._dismissed_agents.update(identities)
         self._append_dismissed_agent_objects([agent], identities)
 

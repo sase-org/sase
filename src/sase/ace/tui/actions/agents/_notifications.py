@@ -12,7 +12,7 @@ from ._notification_deadlines import AgentNotificationDeadlineMixin
 from ._notification_modal_flow import AgentNotificationModalMixin
 from ._notification_polling import AgentNotificationPollingMixin
 from ._notification_provider import AgentNotificationProviderMixin
-from ._notification_status_overrides import AgentNotificationStatusMixin
+from ._notification_plan_reconciliation import AgentNotificationPlanReconciliationMixin
 from ._notification_unread_projection import AgentNotificationUnreadMixin
 from ._notification_utils import (
     TabName,
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 class AgentNotificationMixin(
     AgentNotificationProviderMixin,
     AgentNotificationUnreadMixin,
-    AgentNotificationStatusMixin,
+    AgentNotificationPlanReconciliationMixin,
     AgentNotificationPollingMixin,
     AgentNotificationDeadlineMixin,
     AgentNotificationModalMixin,
@@ -47,7 +47,6 @@ class AgentNotificationMixin(
     _agents: list[Agent]
     _hidden_count: int
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
-    _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
     _plan_feedback_context: PlanFeedbackContext | None
     _agent_info_metrics_cache: tuple[Any, ...] | None
 

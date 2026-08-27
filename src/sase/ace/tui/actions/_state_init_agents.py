@@ -310,9 +310,8 @@ def init_agent_state(self: Any) -> None:
     # the bulk kill-and-edit prompt stack must follow.
     self._marked_agent_order = []
 
-    # Agent status override system (for PLAN/PLAN APPROVED/QUESTION statuses)
+    # Transient status overrides for optimistic response state.
     self._agent_status_overrides = {}
-    self._agent_pre_question_status = {}
     self._dismiss_persistence_inflight = set()
     self._kill_persistence_inflight = set()
 

@@ -52,7 +52,6 @@ class _CleanupProcApp(AgentsMixin):
         self._kill_persistence_inflight = set()
         self._dismiss_persistence_inflight = set()
         self._agent_status_overrides = {}
-        self._agent_pre_question_status = {}
         self._dismissed_agents = set()
         self._dismissed_agent_objects = []
         self._marked_agents = set()

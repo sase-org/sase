@@ -120,7 +120,6 @@ def submit_neutral_plan_response(
         if agent is not None:
             if result.action == "reject" and result.feedback is None:
                 app._agent_status_overrides.pop(agent.identity, None)  # type: ignore[attr-defined]
-                app._agent_pre_question_status.pop(agent.identity, None)  # type: ignore[attr-defined]
                 app._do_kill_agent(agent)  # type: ignore[attr-defined]
             else:
                 status = plan_approval_status(result)

@@ -54,9 +54,6 @@ class _FakeMarkApp(
         self._dismissed_agent_objects: list[Agent] = []
         self._revived_agent_raw_suffixes: set[str] = set()
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
-        self._agent_pre_question_status: dict[
-            tuple[AgentType, str, str | None], str | None
-        ] = {}
         self._dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]] = (
             set()
         )

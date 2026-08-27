@@ -19,7 +19,7 @@ import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
-from sase.ace.tui.models._agent_status_overrides import (
+from sase.ace.tui.models._agent_status_diff import (
     classify_live_file_change_hint,
 )
 from sase.ace.tui.widgets._agent_list_render_cache import agent_file_change_hint

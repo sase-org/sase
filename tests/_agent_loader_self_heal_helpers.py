@@ -68,9 +68,6 @@ class FakeLoadingApp(AgentLoadingMixin):
         self._dismissed_agent_objects: list[Agent] = []
         self._revived_agent_raw_suffixes: set[str] = set()
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
-        self._agent_pre_question_status: dict[
-            tuple[AgentType, str, str | None], str | None
-        ] = {}
         self._agent_search_query = ""
         self._agents_loading = False
         self._agent_load_state: AgentLoadState | None = None

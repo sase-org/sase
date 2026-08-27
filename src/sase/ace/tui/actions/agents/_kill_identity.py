@@ -119,7 +119,6 @@ class AgentKillIdentityMixin:
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _agents_with_children: list[Agent]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
-    _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
     current_tab: str
 
     def _classify_kill_kind(self, agent: Agent) -> KillKind | None:
@@ -172,7 +171,6 @@ class AgentKillIdentityMixin:
         self._dismissed_agents.update(identities)
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)
-            self._agent_pre_question_status.pop(identity, None)
 
         # Try the incremental row-removal fast path before mutating
         # ``self._agents`` -- the panel widgets read identities off their

@@ -258,7 +258,6 @@ def handle_plan_approval(
             if agent is not None:
                 # Clear overrides before kill (_do_kill_agent calls _load_agents)
                 app._agent_status_overrides.pop(agent.identity, None)  # type: ignore[attr-defined]
-                app._agent_pre_question_status.pop(agent.identity, None)  # type: ignore[attr-defined]
                 app._do_kill_agent(agent)  # type: ignore[attr-defined]
             else:
                 app.notify("Rejected plan (agent not found)")  # type: ignore[attr-defined]

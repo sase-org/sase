@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from ._notification_status_overrides import (
+from ._notification_plan_reconciliation import (
     PreparedPlanNotificationReconciliation,
     prepare_plan_notification_reconciliation,
 )
@@ -148,13 +148,10 @@ class AgentNotificationPollingMixin:
         indicator.set_tabs(snapshot.tabs)
 
         # Muting quiets the indicator; it should not break agent lifecycle state.
-        auto_dismissed_ids = self._apply_notification_status_overrides(
+        auto_dismissed_ids = self._reconcile_plan_notification_lifecycle(
             unread_active + unread_muted,
             prepared_external_plan_responses=(
                 prepared_plan_notifications.external_responses
-            ),
-            prepared_neutral_plan_notification_ids=(
-                prepared_plan_notifications.neutral_notification_ids
             ),
         )
         if auto_dismissed_ids:

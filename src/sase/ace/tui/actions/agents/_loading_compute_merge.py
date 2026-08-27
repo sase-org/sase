@@ -169,7 +169,7 @@ def _reattach_children_after_parent_dedup(
 def _normalize_relationships_after_merge(agents: list[Agent]) -> list[Agent]:
     """Rebuild child-derived fields after the Tier-1 patch merge."""
     from ...models._agent_ordering import sort_and_reorder
-    from ...models._agent_status_overrides import apply_status_overrides
+    from ...models._agent_status_apply import apply_status_overrides
 
     top_level_and_followups: list[Agent] = []
     workflow_steps: list[Agent] = []
