@@ -14,6 +14,16 @@ from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.gate_shell.followup import (
+    GATE_FOLLOWUP_PERSISTENCE,
+    build_suppressed_gate_followup_prompt,
+    launch_gate_followup_agent,
+)
+from sase.gate_shell.followup_policy import (
+    GateFollowupPolicy,
+    resolve_gate_branch_presentation,
+    resolve_gate_followup,
+)
 from sase.gate_shell.log import gate_shell_output_tail
 from sase.gate_shell.models import GateShellRecord, GateShellState
 from sase.gate_shell.start_claim import release_gate_shell_claim
@@ -21,6 +31,7 @@ from sase.history.chat import save_chat_history
 from sase.notification_gates.branches import GateBranchData
 from sase.notification_gates.durability import read_json_object
 from sase.notification_gates.paths import CANCELLATION_FILENAME, RESPONSE_FILENAME
+from sase.shells.followup import persist_followup_prompt
 from sase.shells.settlement import (
     ShellSettlementConfig,
     finalize_shell_workflow_state,
@@ -55,37 +66,43 @@ def settle_gate_shell(
     *,
     gate_state: GateShellState,
     reason: str | None = None,
+    creator_live: bool = False,
 ) -> GateShellRecord:
-    """Settle a gate-shell member into ``gate_state``."""
+    """Settle a gate-shell member into ``gate_state``.
+
+    Never launches a follow-up, releases a claim, or notifies until the shell
+    itself is terminal and its artifact index is visible -- otherwise a
+    forked successor could resolve ``#fork`` before this shell's own
+    decision record and chat exist.
+
+    ``creator_live=True`` marks a settlement that runs inside the still-live
+    creator's own process (the ``%auto`` short-circuit, or after a failed
+    handoff): no follow-up is launched and no claim is disposed of, because
+    the creator itself still owns the lane and the workspace. A policy that
+    would otherwise have launched is stashed as an artifact instead, so
+    nothing the shell's author declared is silently lost.
+    """
     artifacts_dir = record.artifacts_dir
     meta = _read_meta(artifacts_dir)
     if _is_terminal_meta(meta):
         return record
 
-    _apply_branch_policy(meta, gate_state=gate_state)
+    envelope, response, cancellation = _bundle_documents(meta)
+    policy = resolve_gate_followup(envelope, gate_state=gate_state, response=response)
+    _apply_branch_policy(
+        meta, policy=policy, gate_state=gate_state, envelope=envelope, response=response
+    )
     meta["gate_state"] = "settling"
     _write_meta(artifacts_dir, meta)
-
-    project_name = project_name_from_artifacts_dir(artifacts_dir)
-    settle_error = settle_shell_claim_and_followup(
-        artifacts_dir,
-        meta,
-        shell_state=gate_state,
-        project_name=project_name,
-        config=_GATE_SETTLEMENT_CONFIG,
-        release_claim=release_gate_shell_claim,
-        launch_followup=None,
-        launch_kwargs={},
-        update_meta_field=update_meta_field,
-    )
-    if settle_error:
-        meta["gate_followup_error"] = settle_error
 
     decision_path, decision_text = _write_decision_record(
         artifacts_dir,
         meta,
         gate_state=gate_state,
         reason=reason,
+        envelope=envelope,
+        response=response,
+        cancellation=cancellation,
     )
     meta["gate_decision_path"] = str(decision_path)
     meta["chat_path"] = _write_settlement_chat(artifacts_dir, meta, decision_text)
@@ -94,12 +111,49 @@ def settle_gate_shell(
     done_marker = _done_marker(meta, gate_state=gate_state, reason=reason)
     write_done_marker_and_update_index(artifacts_dir, done_marker)
     finalize_shell_workflow_state(artifacts_dir)
-    touch_shell_refresh_pulse(project_name)
 
     meta = _read_meta(artifacts_dir)
     meta["gate_state"] = gate_state
     meta["stopped_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     _write_meta(artifacts_dir, meta)
+
+    project_name = project_name_from_artifacts_dir(artifacts_dir)
+    if creator_live:
+        _suppress_live_creator_followup(
+            artifacts_dir,
+            meta,
+            policy=policy,
+            gate_state=gate_state,
+            envelope=envelope,
+            response=response,
+            reason=reason,
+        )
+    else:
+        settle_error = settle_shell_claim_and_followup(
+            artifacts_dir,
+            meta,
+            shell_state=gate_state,
+            project_name=project_name,
+            config=_GATE_SETTLEMENT_CONFIG,
+            release_claim=release_gate_shell_claim,
+            launch_followup=launch_gate_followup_agent,
+            launch_kwargs={
+                "project_name": project_name,
+                "gate_state": gate_state,
+                "policy": policy,
+                "envelope": envelope,
+                "response": response,
+                "reason": reason,
+            },
+            update_meta_field=update_meta_field,
+        )
+        if settle_error:
+            meta["gate_followup_error"] = settle_error
+    _write_meta(artifacts_dir, meta)
+
+    done_marker = _done_marker(meta, gate_state=gate_state, reason=reason)
+    write_done_marker_and_update_index(artifacts_dir, done_marker)
+    touch_shell_refresh_pulse(project_name)
 
     from sase.gate_shell.store import read_gate_shell_marker
 
@@ -107,6 +161,35 @@ def settle_gate_shell(
         read_gate_shell_marker(project_name or record.project_name, artifacts_dir)
         or record
     )
+
+
+def _suppress_live_creator_followup(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    *,
+    policy: GateFollowupPolicy | None,
+    gate_state: GateShellState,
+    envelope: dict[str, Any],
+    response: dict[str, Any],
+    reason: str | None,
+) -> None:
+    if policy is None:
+        return
+    prompt = build_suppressed_gate_followup_prompt(
+        artifacts_dir,
+        meta,
+        gate_state=gate_state,
+        policy=policy,
+        envelope=envelope,
+        response=response,
+        reason=reason,
+    )
+    prompt_path = persist_followup_prompt(
+        artifacts_dir, prompt, GATE_FOLLOWUP_PERSISTENCE
+    )
+    meta["gate_followup_outcome"] = "suppressed"
+    if prompt_path:
+        meta["gate_followup_prompt_path"] = prompt_path
 
 
 def _done_marker(
@@ -133,6 +216,7 @@ def _done_marker(
         "gate_kind",
         "gate_bundle_path",
         "gate_notification_id",
+        "gate_followup_agent",
         "gate_followup_outcome",
         "gate_followup_error",
         "gate_followup_degraded_reason",
@@ -158,13 +242,12 @@ def _write_decision_record(
     *,
     gate_state: GateShellState,
     reason: str | None,
+    envelope: dict[str, Any],
+    response: dict[str, Any],
+    cancellation: dict[str, Any],
 ) -> tuple[Path, str]:
     path = Path(artifacts_dir) / "gate_decision.md"
-    bundle = _bundle_path(meta)
-    envelope = _read_json(bundle / "request.json") if bundle else {}
-    response = _read_json(bundle / RESPONSE_FILENAME) if bundle else {}
-    cancellation = _read_json(bundle / CANCELLATION_FILENAME) if bundle else {}
-    title = _title(envelope, meta)
+    title = gate_decision_title(envelope, meta)
     selected = response.get("selected_option_ids")
     selected_ids = (
         [str(item) for item in selected] if isinstance(selected, list) else []
@@ -239,48 +322,53 @@ def _write_settlement_chat(
     )
 
 
-def _apply_branch_policy(meta: dict[str, Any], *, gate_state: GateShellState) -> None:
+def _apply_branch_policy(
+    meta: dict[str, Any],
+    *,
+    policy: GateFollowupPolicy | None,
+    gate_state: GateShellState,
+    envelope: dict[str, Any],
+    response: dict[str, Any],
+) -> None:
+    """Write the resolved branch presentation and follow-up policy onto ``meta``.
+
+    ``gate_next_action`` is the field ``settle_shell_claim_and_followup`` keys
+    launch decisions off of, so a policy that resolves to ``None`` -- an
+    unmapped reserved branch, or explicit ``prompt: null`` -- must delete it
+    rather than leave a stale value seeded at creation time from the
+    top-level ``shell.next``.
+    """
+    status, accent = resolve_gate_branch_presentation(
+        envelope, gate_state=gate_state, response=response
+    )
+    if status is not None:
+        meta["gate_stop_status"] = status
+    if accent is not None:
+        meta["gate_accent"] = accent
+    if policy is None:
+        meta.pop("gate_next_action", None)
+        return
+    meta["gate_next_action"] = policy.prompt
+    meta["gate_next_fork"] = policy.fork
+    meta["gate_next_output"] = ",".join(policy.output)
+    if policy.model:
+        meta["gate_next_model"] = policy.model
+    else:
+        meta.pop("gate_next_model", None)
+
+
+def _bundle_documents(
+    meta: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Return this shell's ``(envelope, response, cancellation)`` documents."""
     bundle = _bundle_path(meta)
     if bundle is None:
-        return
-    envelope = _read_json(bundle / "request.json")
-    shell = envelope.get("shell")
-    if not isinstance(shell, dict):
-        return
-    branches = shell.get("branches")
-    if not isinstance(branches, dict):
-        return
-    branch = branches.get(_settlement_branch_key(bundle, gate_state))
-    if not isinstance(branch, dict):
-        return
-    if isinstance(branch.get("status"), str):
-        meta["gate_stop_status"] = branch["status"]
-    if isinstance(branch.get("accent"), str):
-        meta["gate_accent"] = branch["accent"]
-    next_policy = branch.get("next")
-    if isinstance(next_policy, dict):
-        if isinstance(next_policy.get("prompt"), str):
-            meta["gate_next_action"] = next_policy["prompt"]
-        if isinstance(next_policy.get("fork"), str):
-            meta["gate_next_fork"] = next_policy["fork"]
-        if isinstance(next_policy.get("model"), str):
-            meta["gate_next_model"] = next_policy["model"]
-        output = next_policy.get("output")
-        if isinstance(output, list):
-            meta["gate_next_output"] = ",".join(str(item) for item in output)
-
-
-def _settlement_branch_key(bundle: Path, gate_state: GateShellState) -> str:
-    if gate_state == "answered":
-        response = _read_json(bundle / RESPONSE_FILENAME)
-        selected = response.get("selected_option_ids")
-        if isinstance(selected, list):
-            return "+".join(str(item) for item in selected)
-    if gate_state == "timeout":
-        return "timeout"
-    if gate_state == "stopped":
-        return "stopped"
-    return "failed"
+        return {}, {}, {}
+    return (
+        _read_json(bundle / "request.json"),
+        _read_json(bundle / RESPONSE_FILENAME),
+        _read_json(bundle / CANCELLATION_FILENAME),
+    )
 
 
 def project_name_from_artifacts_dir(artifacts_dir: str) -> str | None:
@@ -288,7 +376,8 @@ def project_name_from_artifacts_dir(artifacts_dir: str) -> str | None:
     return shell_project_name_from_artifacts_dir(artifacts_dir)
 
 
-def _title(envelope: dict[str, Any], meta: dict[str, Any]) -> str:
+def gate_decision_title(envelope: dict[str, Any], meta: dict[str, Any]) -> str:
+    """Return the human-facing title for a gate's decision record and prompt."""
     presentation = envelope.get("presentation")
     if isinstance(presentation, dict) and presentation.get("title"):
         return str(presentation["title"])
@@ -341,6 +430,7 @@ def _is_terminal_meta(meta: dict[str, Any]) -> bool:
 __all__ = [
     "GATE_FOLLOWUP_DEGRADED_OUTCOME",
     "LOST_FOLLOWUP_ERROR",
+    "gate_decision_title",
     "project_name_from_artifacts_dir",
     "settle_gate_shell",
 ]

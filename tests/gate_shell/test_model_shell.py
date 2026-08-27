@@ -49,7 +49,8 @@ def test_shell_branch_keys_follow_compiled_gate_branches() -> None:
             "proceed+audit+broken": {
                 "status": "APPROVED",
                 "accent": "#00D7AF",
-                "next": {"prompt": "ship it", "output": ["results", "tail"]},
+                "prompt": "ship it",
+                "output": ["results", "tail"],
             },
             "timeout": {"status": "TIMED OUT"},
         }
@@ -61,8 +62,8 @@ def test_shell_branch_keys_follow_compiled_gate_branches() -> None:
     assert set(spec.shell.branches) == {"proceed+audit+broken", "timeout"}
     approved = spec.shell.branches["proceed+audit+broken"]
     assert approved.status == "APPROVED"
-    assert approved.next is not None
-    assert approved.next.output == ("results", "tail")
+    assert approved.prompt == "ship it"
+    assert approved.output == ("results", "tail")
 
 
 def test_shell_rejects_unknown_branch_keys() -> None:

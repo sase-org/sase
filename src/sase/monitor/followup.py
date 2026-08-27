@@ -15,25 +15,19 @@ from typing import Any
 
 from sase.agent.launcher import spawn_agent_subprocess
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
-from sase.running_field import (
-    WorkspaceClaim,
-    WorkspaceClaimError,
-    get_claimed_workspaces,
-    get_workspace_directory_for_num,
-)
 from sase.shells.followup import (
     DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
     STARTER_SETTLE_POLL_SECONDS as _STARTER_SETTLE_POLL_SECONDS,
     FollowupLaunchResult,
     FollowupPersistence,
+    ShellFollowupWorkspace,
+    launch_shell_followup,
     record_followup_launched,
     record_followup_not_launchable,
     spawn_shell_family_successor,
     starter_identity,
     wait_for_starter,
 )
-from sase.workflows.utils import get_project_file_path
-from sase.workspace_provider import resolve_consistent_workspace_pair
 
 from .followup_prompt import DEFAULT_NEXT_OUTPUT, compose_followup_prompt
 from .logs import monitor_log_path
@@ -109,151 +103,52 @@ def launch_followup_agent(
         "reasoning_effort": _clean_str(meta.get("reasoning_effort")),
         "next_model": _clean_str(meta.get("monitor_next_model")),
     }
-    raw_workspace_num = meta.get("workspace_num")
-    raw_workspace_dir = str(meta.get("workspace_dir") or "")
-    initial_degraded_reason: str | None = None
-    if isinstance(raw_workspace_num, int) and raw_workspace_num:
-        original_workspace_dir = raw_workspace_dir
-        original_workspace_num = raw_workspace_num
-    else:
-        # Defensive default matching pre-repair behavior, in case resolving the
-        # primary workspace directory itself fails below.
-        original_workspace_dir = raw_workspace_dir
-        original_workspace_num = 0
-        try:
-            primary_workspace_dir: str | None = _workspace_dir_for_num(project_name, 0)
-        except (RuntimeError, OSError, ValueError):
-            primary_workspace_dir = None
-        if primary_workspace_dir is not None:
-            resolved_pair = resolve_consistent_workspace_pair(
-                primary_workspace_dir,
-                raw_workspace_dir,
-                None,
-            )
-            if resolved_pair is None:
-                original_workspace_dir = primary_workspace_dir
-                initial_degraded_reason = _meta_pairing_degraded_reason(
-                    raw_workspace_dir,
-                    primary_workspace_dir,
-                )
-            else:
-                original_workspace_dir, original_workspace_num = resolved_pair
 
-    prompt = compose_followup_prompt(
-        **prompt_kwargs,
-        workspace_degraded_reason=initial_degraded_reason,
-    )
+    def _compose(degraded_reason: str | None) -> str:
+        return compose_followup_prompt(
+            **prompt_kwargs, workspace_degraded_reason=degraded_reason
+        )
 
-    transfer_pid = os.getpid() if transfer_from_pid is None else transfer_from_pid
-    try:
-        result = _spawn_followup(
-            meta,
-            lane=lane,
-            starter_role=starter_role,
+    def _spawn(
+        prompt: str, workspace_dir: str, workspace_num: int, transfer_pid: int | None
+    ) -> Any:
+        return spawn_shell_family_successor(
+            family=lane,
             project_name=project_name,
             prompt=prompt,
-            workspace_dir=original_workspace_dir,
-            workspace_num=original_workspace_num,
+            workspace_dir=workspace_dir,
+            workspace_num=workspace_num,
             transfer_from_pid=transfer_pid,
+            cl_name=_clean_str(meta.get("cl_name")),
+            agent_family_role=starter_role,
+            spawn_fn=spawn_agent_subprocess,
         )
-    except WorkspaceClaimError as transfer_exc:
-        fresh_reason = _fresh_claim_degraded_reason(
-            original_workspace_num,
-            transfer_exc,
-        )
-    except (RuntimeError, OSError, ValueError) as exc:
-        return _record_not_launchable(artifacts_dir, meta, str(exc), prompt)
-    else:
+
+    def _record_launched_result(
+        agent_name: str | None, *, degraded_reason: str | None = None
+    ) -> FollowupLaunchResult:
         return _record_launched(
-            artifacts_dir,
-            meta,
-            result.agent_name,
-            degraded_reason=initial_degraded_reason,
+            artifacts_dir, meta, agent_name, degraded_reason=degraded_reason
         )
 
-    degraded_prompt = compose_followup_prompt(
-        **prompt_kwargs,
-        workspace_degraded_reason=fresh_reason,
-    )
-    try:
-        result = _spawn_followup(
-            meta,
-            lane=lane,
-            starter_role=starter_role,
-            project_name=project_name,
-            prompt=degraded_prompt,
-            workspace_dir=original_workspace_dir,
-            workspace_num=original_workspace_num,
-            transfer_from_pid=None,
-        )
-    except WorkspaceClaimError as claim_exc:
-        if not _workspace_is_claimed(project_name, original_workspace_num):
-            error = (
-                f"{claim_exc}; follow-up prompt after transfer failure was prepared "
-                f"with degraded reason: {fresh_reason}"
-            )
-            return _record_not_launchable(artifacts_dir, meta, error, degraded_prompt)
-        zero_workspace_dir = _workspace_dir_for_num(project_name, 0)
-        zero_reason = _workspace_zero_degraded_reason(
-            original_workspace_num,
-            claim_exc,
-            zero_workspace_dir,
-        )
-        zero_prompt = compose_followup_prompt(
-            **prompt_kwargs,
-            workspace_degraded_reason=zero_reason,
-        )
-        try:
-            result = _spawn_followup(
-                meta,
-                lane=lane,
-                starter_role=starter_role,
-                project_name=project_name,
-                prompt=zero_prompt,
-                workspace_dir=zero_workspace_dir,
-                workspace_num=0,
-                transfer_from_pid=None,
-            )
-        except (RuntimeError, OSError, ValueError) as exc:
-            return _record_not_launchable(artifacts_dir, meta, str(exc), zero_prompt)
-        return _record_launched(
-            artifacts_dir,
-            meta,
-            result.agent_name,
-            degraded_reason=zero_reason,
-        )
-    except (RuntimeError, OSError, ValueError) as exc:
-        return _record_not_launchable(artifacts_dir, meta, str(exc), degraded_prompt)
+    def _record_not_launchable_result(error: str, prompt: str) -> FollowupLaunchResult:
+        return _record_not_launchable(artifacts_dir, meta, error, prompt)
 
-    return _record_launched(
-        artifacts_dir,
-        meta,
-        result.agent_name,
-        degraded_reason=fresh_reason,
-    )
-
-
-def _spawn_followup(
-    meta: dict[str, Any],
-    *,
-    lane: str,
-    starter_role: str | None,
-    project_name: str,
-    prompt: str,
-    workspace_dir: str,
-    workspace_num: int,
-    transfer_from_pid: int | None,
-) -> Any:
-    return spawn_shell_family_successor(
-        family=lane,
+    transfer_pid = os.getpid() if transfer_from_pid is None else transfer_from_pid
+    return launch_shell_followup(
         project_name=project_name,
-        prompt=prompt,
-        workspace_dir=workspace_dir,
-        workspace_num=workspace_num,
-        transfer_from_pid=transfer_from_pid,
-        cl_name=_clean_str(meta.get("cl_name")),
-        agent_family_role=starter_role,
-        spawn_fn=spawn_agent_subprocess,
+        meta_workspace_num=meta.get("workspace_num"),
+        meta_workspace_dir=str(meta.get("workspace_dir") or ""),
+        transfer_from_pid=transfer_pid,
+        compose_prompt=_compose,
+        spawn=_spawn,
+        workspace=ShellFollowupWorkspace(
+            meta_pairing_reason=_meta_pairing_degraded_reason,
+            fresh_claim_reason=_fresh_claim_degraded_reason,
+            workspace_zero_reason=_workspace_zero_degraded_reason,
+        ),
+        record_launched=_record_launched_result,
+        record_not_launchable=_record_not_launchable_result,
     )
 
 
@@ -328,26 +223,6 @@ def _meta_pairing_degraded_reason(
         "workspace files are present; use the monitor artifacts and log paths in "
         "this prompt."
     )
-
-
-def _workspace_is_claimed(project_name: str, workspace_num: int) -> bool:
-    try:
-        claims = get_claimed_workspaces(get_project_file_path(project_name))
-    except Exception:
-        return False
-    return any(
-        isinstance(claim, WorkspaceClaim) and claim.workspace_num == workspace_num
-        for claim in claims
-    )
-
-
-def _workspace_dir_for_num(project_name: str, workspace_num: int) -> str:
-    workspace_dir, _ = get_workspace_directory_for_num(
-        workspace_num,
-        project_name,
-        clean=False,
-    )
-    return workspace_dir
 
 
 def _clean_str(value: object) -> str | None:

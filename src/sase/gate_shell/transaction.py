@@ -142,6 +142,7 @@ def create_gate_shell(request: Mapping[str, Any] | GateSpec) -> GateShellCreatio
                 record,
                 gate_state="failed",
                 reason=claim_move.result.error or "workspace claim move failed",
+                creator_live=True,
             )
             raise GateShellError(
                 claim_move.result.error or "workspace claim move failed"
@@ -152,7 +153,10 @@ def create_gate_shell(request: Mapping[str, Any] | GateSpec) -> GateShellCreatio
         except BaseException:
             record = _read_required_record(project_name, artifacts_dir)
             settle_gate_shell(
-                record, gate_state="failed", reason="gate creation failed"
+                record,
+                gate_state="failed",
+                reason="gate creation failed",
+                creator_live=True,
             )
             restore_gate_shell_claim(
                 creator.project_file,
@@ -171,6 +175,16 @@ def create_gate_shell(request: Mapping[str, Any] | GateSpec) -> GateShellCreatio
                 record,
                 gate_state="answered",
                 reason="auto-resolved",
+                creator_live=True,
+            )
+            # The creator is still running in the workspace ``move_gate_shell_claim``
+            # retitled to this gate shell above; restore its original claim now
+            # that settlement (under ``creator_live=True``) left it untouched,
+            # rather than leaking it as an unowned gate-shell claim.
+            restore_gate_shell_claim(
+                creator.project_file,
+                move=claim_move,
+                cl_name=creator.cl_name,
             )
         return GateShellCreation(
             gate=gate_result,

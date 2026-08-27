@@ -127,7 +127,15 @@ def release_gate_shell_claim(
     meta: dict[str, object],
     project_name: str | None,
 ) -> str | None:
-    """Release this gate shell's workspace claim, if it can be resolved."""
+    """Release this gate shell's workspace claim, if it can be resolved.
+
+    A ``workspace: "release"`` gate shell never held a claim -- it was
+    released back to the free pool at creation time (``move_gate_shell_claim``)
+    -- so releasing it again here would tear down whatever unrelated claim
+    another agent has since taken on that workspace number.
+    """
+    if meta.get("gate_workspace_policy") == "release":
+        return None
     workspace_num = meta.get("workspace_num")
     cl_name = meta.get("cl_name")
     if project_name:

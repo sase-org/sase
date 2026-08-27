@@ -66,6 +66,7 @@ def _compensate_failed_handoff(creation: GateShellCreation, error: str) -> None:
         creation.record,
         gate_state="stopped",
         reason=f"handoff marker failed: {error}",
+        creator_live=True,
     )
 
 

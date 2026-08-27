@@ -84,13 +84,27 @@ class GateShellNext:
         }
 
 
+_BRANCH_NEXT_FIELDS = ("prompt", "output", "fork", "model")
+
+
 @dataclass(frozen=True, slots=True)
 class GateShellBranchSpec:
-    """Per-terminal-branch gate-shell policy."""
+    """Per-terminal-branch gate-shell policy.
+
+    ``prompt``/``output``/``fork``/``model`` accept the same shape as the
+    top-level ``shell.next`` block, but flattened directly onto the branch
+    alongside ``status``/``accent`` -- there is no nested ``next`` object at
+    the branch level. A field a branch omits inherits the top-level
+    ``shell.next`` value for that field; an explicit ``"prompt": null``
+    suppresses follow-up even when the top level declares one.
+    """
 
     status: str | None = None
     accent: str | None = None
-    next: GateShellNext | None = None
+    prompt: str | None = None
+    output: tuple[str, ...] = ("results",)
+    fork: str = "family"
+    model: str | None = None
 
     @classmethod
     def from_mapping(
@@ -101,26 +115,28 @@ class GateShellBranchSpec:
         inherited_next: GateShellNext,
     ) -> GateShellBranchSpec:
         data = json_object(value, target)
-        reject_unknown_fields(data, {"status", "accent", "next"}, target)
+        reject_unknown_fields(data, {"status", "accent", *_BRANCH_NEXT_FIELDS}, target)
+        next_data = {key: data[key] for key in _BRANCH_NEXT_FIELDS if key in data}
+        next_policy = GateShellNext.from_mapping(
+            next_data, target=target, inherited=inherited_next
+        )
         return cls(
             status=_optional_status(data.get("status"), f"{target}.status"),
             accent=validate_color(data.get("accent"), f"{target}.accent"),
-            next=(
-                None
-                if "next" not in data
-                else GateShellNext.from_mapping(
-                    data.get("next"),
-                    target=f"{target}.next",
-                    inherited=inherited_next,
-                )
-            ),
+            prompt=next_policy.prompt,
+            output=next_policy.output,
+            fork=next_policy.fork,
+            model=next_policy.model,
         )
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "status": self.status,
             "accent": self.accent,
-            "next": None if self.next is None else self.next.to_dict(),
+            "prompt": self.prompt,
+            "output": list(self.output),
+            "fork": self.fork,
+            "model": self.model,
         }
 
 

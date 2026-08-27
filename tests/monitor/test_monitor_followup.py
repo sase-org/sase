@@ -11,6 +11,7 @@ import pytest
 
 import sase.monitor.followup as followup_module
 import sase.procs.spawn as spawn_module
+import sase.shells.followup as shells_followup_module
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.artifact_file_facade import list_explicit_artifact_files
 from sase.monitor.output import OutputCapture
@@ -254,12 +255,12 @@ def test_launch_followup_agent_repairs_a_meta_workspace_num_mismatch(
 
     monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
     monkeypatch.setattr(
-        followup_module,
+        shells_followup_module,
         "_workspace_dir_for_num",
         lambda project_name, workspace_num: str(tmp_path / "primary"),
     )
     monkeypatch.setattr(
-        followup_module,
+        shells_followup_module,
         "resolve_consistent_workspace_pair",
         lambda primary_dir, workspace_dir, workspace_num: (workspace_dir, 3),
     )
@@ -303,12 +304,12 @@ def test_launch_followup_agent_falls_back_to_primary_when_meta_pairing_is_unreso
 
     monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
     monkeypatch.setattr(
-        followup_module,
+        shells_followup_module,
         "_workspace_dir_for_num",
         lambda project_name, workspace_num: str(primary),
     )
     monkeypatch.setattr(
-        followup_module,
+        shells_followup_module,
         "resolve_consistent_workspace_pair",
         lambda primary_dir, workspace_dir, workspace_num: None,
     )
@@ -409,7 +410,7 @@ def test_launch_followup_agent_falls_back_to_workspace_zero_when_workspace_taken
 
     monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
     monkeypatch.setattr(
-        followup_module,
+        shells_followup_module,
         "_workspace_dir_for_num",
         lambda project_name, workspace_num: str(primary),
     )

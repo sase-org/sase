@@ -17,6 +17,14 @@ from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_artifact_paths import canonical_agent_artifact_path
 from sase.core.artifact_file_facade import store_explicit_artifact_file
 from sase.plan_chain import agent_family_base
+from sase.running_field import (
+    WorkspaceClaim,
+    WorkspaceClaimError,
+    get_claimed_workspaces,
+    get_workspace_directory_for_num,
+)
+from sase.workflows.utils import get_project_file_path
+from sase.workspace_provider import resolve_consistent_workspace_pair
 
 #: How long to wait for the starter's own ``done.json`` before composing the
 #: follow-up prompt without a ``#fork:`` prefix.
@@ -36,6 +44,130 @@ class FollowupLaunchResult:
 
     def __bool__(self) -> bool:
         return self.launched
+
+
+@dataclass(frozen=True, slots=True)
+class ShellFollowupWorkspace:
+    """Messages a shell kind supplies for each degraded workspace outcome."""
+
+    meta_pairing_reason: Callable[[str, str], str]
+    fresh_claim_reason: Callable[[int, BaseException], str]
+    workspace_zero_reason: Callable[[int, BaseException, str], str]
+
+
+def launch_shell_followup(
+    *,
+    project_name: str,
+    meta_workspace_num: object,
+    meta_workspace_dir: str,
+    transfer_from_pid: int | None,
+    compose_prompt: Callable[[str | None], str],
+    spawn: Callable[[str, str, int, int | None], AgentLaunchResult],
+    workspace: ShellFollowupWorkspace,
+    record_launched: Callable[..., FollowupLaunchResult],
+    record_not_launchable: Callable[[str, str], FollowupLaunchResult],
+) -> FollowupLaunchResult:
+    """Launch a follow-up agent, degrading through workspace claim fallbacks.
+
+    Tries, in order: (1) transferring or freshly claiming the member's own
+    workspace, composing the prompt without a degraded-workspace note; (2) on
+    a claim failure, a fresh claim on the same workspace number, composing the
+    prompt with a degraded-workspace note explaining the transfer failed; (3)
+    on a further claim failure, workspace ``#0``, unless the original
+    workspace turns out not to be claimed at all -- an unrecoverable state
+    reported as not launchable instead. Every terminal outcome is recorded
+    through *record_launched* / *record_not_launchable*.
+    """
+    initial_degraded_reason: str | None = None
+    if isinstance(meta_workspace_num, int) and meta_workspace_num:
+        original_workspace_dir = meta_workspace_dir
+        original_workspace_num = meta_workspace_num
+    else:
+        # Defensive default matching pre-repair behavior, in case resolving
+        # the primary workspace directory itself fails below.
+        original_workspace_dir = meta_workspace_dir
+        original_workspace_num = 0
+        try:
+            primary_workspace_dir: str | None = _workspace_dir_for_num(project_name, 0)
+        except (RuntimeError, OSError, ValueError):
+            primary_workspace_dir = None
+        if primary_workspace_dir is not None:
+            resolved_pair = resolve_consistent_workspace_pair(
+                primary_workspace_dir,
+                meta_workspace_dir,
+                None,
+            )
+            if resolved_pair is None:
+                original_workspace_dir = primary_workspace_dir
+                initial_degraded_reason = workspace.meta_pairing_reason(
+                    meta_workspace_dir, primary_workspace_dir
+                )
+            else:
+                original_workspace_dir, original_workspace_num = resolved_pair
+
+    prompt = compose_prompt(initial_degraded_reason)
+
+    try:
+        result = spawn(
+            prompt, original_workspace_dir, original_workspace_num, transfer_from_pid
+        )
+    except WorkspaceClaimError as transfer_exc:
+        fresh_reason = workspace.fresh_claim_reason(
+            original_workspace_num, transfer_exc
+        )
+    except (RuntimeError, OSError, ValueError) as exc:
+        return record_not_launchable(str(exc), prompt)
+    else:
+        return record_launched(
+            result.agent_name, degraded_reason=initial_degraded_reason
+        )
+
+    degraded_prompt = compose_prompt(fresh_reason)
+    try:
+        result = spawn(
+            degraded_prompt, original_workspace_dir, original_workspace_num, None
+        )
+    except WorkspaceClaimError as claim_exc:
+        if not _workspace_is_claimed(project_name, original_workspace_num):
+            error = (
+                f"{claim_exc}; follow-up prompt after transfer failure was prepared "
+                f"with degraded reason: {fresh_reason}"
+            )
+            return record_not_launchable(error, degraded_prompt)
+        zero_workspace_dir = _workspace_dir_for_num(project_name, 0)
+        zero_reason = workspace.workspace_zero_reason(
+            original_workspace_num, claim_exc, zero_workspace_dir
+        )
+        zero_prompt = compose_prompt(zero_reason)
+        try:
+            result = spawn(zero_prompt, zero_workspace_dir, 0, None)
+        except (RuntimeError, OSError, ValueError) as exc:
+            return record_not_launchable(str(exc), zero_prompt)
+        return record_launched(result.agent_name, degraded_reason=zero_reason)
+    except (RuntimeError, OSError, ValueError) as exc:
+        return record_not_launchable(str(exc), degraded_prompt)
+
+    return record_launched(result.agent_name, degraded_reason=fresh_reason)
+
+
+def _workspace_is_claimed(project_name: str, workspace_num: int) -> bool:
+    try:
+        claims = get_claimed_workspaces(get_project_file_path(project_name))
+    except Exception:
+        return False
+    return any(
+        isinstance(claim, WorkspaceClaim) and claim.workspace_num == workspace_num
+        for claim in claims
+    )
+
+
+def _workspace_dir_for_num(project_name: str, workspace_num: int) -> str:
+    workspace_dir, _ = get_workspace_directory_for_num(
+        workspace_num,
+        project_name,
+        clean=False,
+    )
+    return workspace_dir
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,7 +246,7 @@ def record_followup_not_launchable(
     update_meta_field: UpdateMetaFieldFn,
 ) -> FollowupLaunchResult:
     """Persist an unlaunchable follow-up prompt and record the error."""
-    prompt_path = _persist_unlaunchable_prompt(artifacts_dir, prompt, persistence)
+    prompt_path = persist_followup_prompt(artifacts_dir, prompt, persistence)
     message = error
     if prompt_path:
         message = f"{error}; follow-up prompt saved to {prompt_path}"
@@ -198,11 +330,12 @@ def _read_meta_str(artifacts_dir: str, key: str) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
-def _persist_unlaunchable_prompt(
+def persist_followup_prompt(
     artifacts_dir: str,
     prompt: str,
     persistence: FollowupPersistence,
 ) -> str | None:
+    """Save *prompt* as an indexed artifact when it cannot be launched."""
     try:
         artifacts_path = Path(artifacts_dir).expanduser()
         artifacts_path.mkdir(parents=True, exist_ok=True)
@@ -231,7 +364,10 @@ __all__ = [
     "STARTER_SETTLE_POLL_SECONDS",
     "FollowupLaunchResult",
     "FollowupPersistence",
+    "ShellFollowupWorkspace",
     "fork_target_for_settled_starter",
+    "launch_shell_followup",
+    "persist_followup_prompt",
     "record_followup_launched",
     "record_followup_not_launchable",
     "spawn_shell_family_successor",
