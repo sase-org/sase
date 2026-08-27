@@ -281,6 +281,8 @@ def check_app_action(
             return False
     if action == "toggle_relation_panel" and app.current_tab != ARTIFACTS_TAB:
         return False
+    if action == "follow_artifact_link":
+        return bool(app.link_edges_for_selection())
     if action == "toggle_hide_reverted" and app.current_tab == ARTIFACTS_TAB:
         return False
     if action == "open_agent_cleanup_panel" and app.current_tab not in {

@@ -138,3 +138,19 @@ def test_toggle_relation_panel_is_artifacts_only() -> None:
         check_app_action(agents, "toggle_relation_panel", (), lambda _a, _p: True)
         is False
     )
+
+
+def test_follow_artifact_link_is_available_only_with_edges_to_follow() -> None:
+    linked = _KeyResolutionApp(tab="agents")
+    linked.link_edges_for_selection = lambda: ("chip",)  # type: ignore[attr-defined]
+    unlinked = _KeyResolutionApp(tab="agents")
+    unlinked.link_edges_for_selection = lambda: ()  # type: ignore[attr-defined]
+
+    assert (
+        check_app_action(linked, "follow_artifact_link", (), lambda _a, _p: True)
+        is True
+    )
+    assert (
+        check_app_action(unlinked, "follow_artifact_link", (), lambda _a, _p: True)
+        is False
+    )

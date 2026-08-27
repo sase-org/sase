@@ -36,6 +36,7 @@ from .actions import (
     EventHandlersMixin,
     HintActionsMixin,
     LifecycleMixin,
+    LinkSubjectMixin,
     MarkingMixin,
     NavigationMixin,
     PostUpdateToastMixin,

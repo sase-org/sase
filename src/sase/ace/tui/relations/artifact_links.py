@@ -166,20 +166,34 @@ def _edge_key(
     return (relation, source, target)
 
 
-def _target_for_ref(
-    value: str,
-    known_targets: frozenset[ArtifactEntryTarget],
-    *,
-    project_hint: str | None,
-) -> ArtifactEntryTarget | None:
+def parse_link_ref(value: str) -> tuple[str, str] | None:
+    """Split a link-graph ref string into its kind and payload.
+
+    Shared by every direction of ref/target conversion so they agree on the
+    same ``@``/``#``-stripping and ``commit`` -> ``stitch`` aliasing.
+    """
+
     ref = value.removeprefix("@").split("#", 1)[0].strip()
     kind, sep, payload = ref.partition(":")
     if not sep or not payload:
         return None
     kind = "stitch" if kind == "commit" else kind
-    exact = _known_target_for_ref(kind, payload, known_targets)
-    if exact is not None:
-        return exact
+    return kind, payload
+
+
+def target_for_ref_kind(
+    kind: str,
+    payload: str,
+    *,
+    project_hint: str | None,
+) -> ArtifactEntryTarget | None:
+    """Synthesize a target for a ref's kind/payload with no known-target lookup.
+
+    This is the half of :func:`_target_for_ref` that never needs a pane's
+    rendered rows: a pure kind-dispatch, safe to call from an app-level index
+    build with no ``known_targets`` scope at all.
+    """
+
     if kind == "stitch":
         repo, at, sha = payload.partition("@")
         if not at or not repo or not sha:
@@ -193,9 +207,27 @@ def _target_for_ref(
         return ArtifactEntryTarget("files", (payload,))
     if kind == "agent":
         return ArtifactEntryTarget("agents", (payload,))
-    if kind in {"bug", "chat"}:
+    if kind in {"bug", "chat", "chop"}:
+        # ``chop`` is a virtual link-graph subject kind (bead:sase-ug.5): it
+        # has no owning Artifacts pane and never joins the ref-kind catalog.
         return None
     return ArtifactEntryTarget(f"ref:{kind}", (project_hint or "", "archive", payload))
+
+
+def _target_for_ref(
+    value: str,
+    known_targets: frozenset[ArtifactEntryTarget],
+    *,
+    project_hint: str | None,
+) -> ArtifactEntryTarget | None:
+    parsed = parse_link_ref(value)
+    if parsed is None:
+        return None
+    kind, payload = parsed
+    exact = _known_target_for_ref(kind, payload, known_targets)
+    if exact is not None:
+        return exact
+    return target_for_ref_kind(kind, payload, project_hint=project_hint)
 
 
 def _known_target_for_ref(
@@ -276,4 +308,6 @@ __all__ = [
     "artifact_link_edges",
     "empty_artifact_links_snapshot",
     "load_artifact_links_snapshot",
+    "parse_link_ref",
+    "target_for_ref_kind",
 ]
