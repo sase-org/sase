@@ -192,10 +192,9 @@ def _done_extra_files(
             continue
         if not path:
             continue
-        key = str(Path(path).expanduser().resolve(strict=False))
-        if key in seen:
+        if path in seen:
             continue
-        seen.add(key)
+        seen.add(path)
         files.append(path)
     return files
 

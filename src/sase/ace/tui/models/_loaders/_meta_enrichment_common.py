@@ -538,3 +538,41 @@ def apply_workflow_child_identity_from_meta(
     agent.agent_family = family
     agent.agent_family_role = agent_family_role_for_suffix(child_suffix)
     agent.role_suffix = child_suffix
+
+
+def _root_family_name_from_meta_wire(meta: AgentMetaWire) -> str | None:
+    role_suffix = canonical_plan_chain_suffix(meta.role_suffix)
+    is_root = (
+        meta.plan_chain_root
+        or meta.agent_family_role == "root"
+        or role_suffix == PLAN_CHAIN_PLAN_SUFFIX
+    )
+    if not is_root:
+        return None
+    if meta.agent_family:
+        return meta.agent_family
+    if meta.name:
+        return meta.name
+    return None
+
+
+def _root_child_suffix_from_meta_wire(meta: AgentMetaWire) -> str:
+    return canonical_plan_chain_suffix(meta.role_suffix) or PLAN_CHAIN_PLAN_SUFFIX
+
+
+def apply_workflow_child_identity_from_meta_wire(
+    agent: Agent,
+    meta: AgentMetaWire,
+) -> None:
+    """Wire-aware mirror of :func:`apply_workflow_child_identity_from_meta`."""
+    if not is_main_workflow_agent_step(agent):
+        return
+    family = _root_family_name_from_meta_wire(meta)
+    if family is None:
+        return
+    child_suffix = _root_child_suffix_from_meta_wire(meta)
+    child_name = agent_family_phase_name(family, child_suffix)
+    agent.agent_name = child_name
+    agent.agent_family = family
+    agent.agent_family_role = agent_family_role_for_suffix(child_suffix)
+    agent.role_suffix = child_suffix

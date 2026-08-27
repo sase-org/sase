@@ -17,7 +17,9 @@ from ._meta_enrichment_common import (
     ACTIVE_ENRICHMENT_STATUSES,
     apply_gate_meta,
     apply_monitor_meta,
+    apply_workflow_child_identity_from_meta_wire,
     append_timestamp_values,
+    is_main_workflow_agent_step,
     parent_timestamp_from_meta,
     parse_utc_to_local,
     parse_linked_repos,
@@ -36,6 +38,7 @@ def enrich_agent_from_meta_wire(
     pending_question: PendingQuestionMarkerWire | None = None,
     *,
     plan_path_marker: str | None = None,
+    workflow_child: bool = False,
 ) -> None:
     """Snapshot-aware mirror of :func:`enrich_agent_from_meta`.
 
@@ -82,7 +85,7 @@ def enrich_agent_from_meta_wire(
     agent.linked_repos = parse_linked_repos(meta.linked_repos)
     if not agent.diff_path and meta.commit_diff_path:
         agent.diff_path = meta.commit_diff_path
-    if meta.name:
+    if not workflow_child and meta.name:
         agent.agent_name = meta.name
     if meta.tribe:
         agent.tribe = meta.tribe
@@ -91,40 +94,46 @@ def enrich_agent_from_meta_wire(
         agent.waiting_for = list(meta.wait_for)
     if meta.wait_for_beads:
         agent.waiting_for_beads = list(meta.wait_for_beads)
-    if meta.auto_approve_plan_action:
-        agent.auto_approve_plan_action = meta.auto_approve_plan_action
+    auto_action = meta.auto_approve_plan_action or None
+    meta_auto_approved = agent.approve or bool(meta.approve) or bool(auto_action)
+    apply_meta_approve = not workflow_child or is_main_workflow_agent_step(agent)
+    if apply_meta_approve and auto_action:
+        agent.auto_approve_plan_action = auto_action
         agent.approve = True
     if meta.plan_action:
         agent.plan_action = meta.plan_action
     if meta.plan_committed is not None:
         agent.plan_committed = meta.plan_committed
     refresh_agent_plan_path(agent)
-    if meta.approve:
+    if apply_meta_approve and meta.approve:
         agent.approve = True
     if meta.hidden:
         agent.hidden = True
-    if meta.role_suffix:
+    if not workflow_child and meta.role_suffix:
         agent.role_suffix = meta.role_suffix
-    if meta.agent_family:
-        agent.agent_family = meta.agent_family
-    if meta.agent_family_role:
-        agent.agent_family_role = meta.agent_family_role
-    if meta.agent_clan:
-        agent.agent_clan = meta.agent_clan
-    if meta.agent_clan_generation:
-        agent.agent_clan_generation = meta.agent_clan_generation
-    if meta.clan_tribe:
-        agent.clan_tribe = meta.clan_tribe
-    if meta.clan_summary:
-        agent.clan_summary = meta.clan_summary
-    agent.agent_family_parallel = meta.agent_family_parallel
-    if meta.plan_chain_root:
+    if not workflow_child:
+        if meta.agent_family:
+            agent.agent_family = meta.agent_family
+        if meta.agent_family_role:
+            agent.agent_family_role = meta.agent_family_role
+        if meta.agent_clan:
+            agent.agent_clan = meta.agent_clan
+        if meta.agent_clan_generation:
+            agent.agent_clan_generation = meta.agent_clan_generation
+        if meta.clan_tribe:
+            agent.clan_tribe = meta.clan_tribe
+        if meta.clan_summary:
+            agent.clan_summary = meta.clan_summary
+        agent.agent_family_parallel = meta.agent_family_parallel
+    if not workflow_child and meta.plan_chain_root:
         agent.plan_chain_root = True
+    if workflow_child:
+        apply_workflow_child_identity_from_meta_wire(agent, meta)
     if agent.parent_timestamp is None:
         parent_timestamp = parent_timestamp_from_meta(
             agent,
             meta.parent_timestamp,
-            workflow_child=False,
+            workflow_child=workflow_child,
         )
         if parent_timestamp is not None:
             agent.parent_timestamp = parent_timestamp
@@ -244,10 +253,10 @@ def enrich_agent_from_meta_wire(
             plan_approved=meta.plan_approved,
             plan_action=meta.plan_action,
             plan_submitted=plan_submitted,
-            auto_approved=agent.approve,
+            auto_approved=meta_auto_approved,
             plan_tier=(
                 cached_plan_tier(meta.plan_path)
-                if plan_submitted and not meta.plan_approved and not agent.approve
+                if plan_submitted and not meta.plan_approved and not meta_auto_approved
                 else None
             ),
         )
@@ -346,7 +355,7 @@ def enrich_agent_from_meta_wire(
         gate_notification_id=gate.notification_id if gate is not None else None,
         gate_decision_path=gate.decision_path if gate is not None else None,
         gate_member=is_real_gate_member(
-            meta.agent_family_role,
+            agent.agent_family_role,
             gate_shell.id if gate_shell is not None else None,
         ),
     )

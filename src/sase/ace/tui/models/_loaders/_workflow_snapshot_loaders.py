@@ -389,14 +389,31 @@ def _build_workflow_agent_steps_for_record(
             if parent_wf_completed and agent.status == "RUNNING":
                 agent.status = "DONE"
 
-            # The original code re-reads agent_meta.json from the step's
-            # ``artifacts_dir`` field, which points to a DIFFERENT directory
-            # than the parent record's artifact_dir. Fall back to the
-            # filesystem helper here so the same per-step enrichment
-            # behavior is preserved.
-            enrich_agent_from_meta(
-                agent, artifacts_dir_from_marker, workflow_child=True
-            )
+            # A step's ``artifacts_dir`` marker field is, in every observed
+            # writer and production sample, the same directory the parent
+            # record's own artifact_dir names -- the snapshot has therefore
+            # already parsed the exact agent_meta.json/waiting.json/
+            # pending_question.json/plan_path.json this step would otherwise
+            # re-read from disk. Reuse those parsed markers when the dirs
+            # match, and fall back to the filesystem helper for the rare
+            # case where a step's artifacts_dir genuinely diverges.
+            if artifacts_dir_from_marker == record.artifact_dir:
+                enrich_agent_from_meta_wire(
+                    agent,
+                    record.agent_meta,
+                    record.waiting,
+                    record.pending_question,
+                    plan_path_marker=(
+                        record.plan_path.plan_path
+                        if record.plan_path is not None
+                        else None
+                    ),
+                    workflow_child=True,
+                )
+            else:
+                enrich_agent_from_meta(
+                    agent, artifacts_dir_from_marker, workflow_child=True
+                )
 
             if (
                 family_progressed_past_plan
