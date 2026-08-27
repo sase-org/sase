@@ -564,6 +564,16 @@ refresh-contract-manifest: _setup
     @printf "\n---------- Regenerating contract test manifest... ----------\n"
     {{ venv_bin }}/python tools/refresh_contract_manifest
 
+# Refresh the committed whole-suite shard timing table
+# (tests/shard_timings.json) from this host's local per-test-file duration
+# recordings, used to balance the master gate's SASE_TEST_SHARD split. Pass
+# --check to verify without writing, or --print-plan N to preview an N-shard
+# split.
+[positional-arguments]
+refresh-shard-timings *args: _setup
+    @printf "\n---------- Refreshing shard timing table... ----------\n"
+    {{ venv_bin }}/python tools/refresh_shard_timings "$@"
+
 ratchet-core-window *args: _venv
     @{{ venv_bin }}/python tools/ratchet_core_window {{ args }}
 

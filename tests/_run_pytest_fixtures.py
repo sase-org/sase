@@ -60,7 +60,17 @@ GATE_EXEMPTION_ENV_VARS: tuple[str, ...] = (
 # -- fails deterministically under the soak and nowhere else. Cleared so every
 # test starts from the recording-enabled default; the tests that describe the
 # disabled case set the variable themselves.
-AMBIENT_MODE_ENV_VARS: tuple[str, ...] = ("SASE_TEST_SELECTION_HEALTH_DISABLED",)
+#
+# SASE_TEST_SHARD is the master gate's own ambient switch: this suite can run
+# *as* one of its shards, in which case the workflow's own SASE_TEST_SHARD is
+# still set in the environment these tests inherit. Cleared for the same
+# reason -- a test describing the unsharded default must not observe the
+# parent run's shard spec, and the tests that describe sharding set it
+# themselves.
+AMBIENT_MODE_ENV_VARS: tuple[str, ...] = (
+    "SASE_TEST_SELECTION_HEALTH_DISABLED",
+    "SASE_TEST_SHARD",
+)
 
 
 @pytest.fixture(autouse=True)

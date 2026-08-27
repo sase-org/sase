@@ -50,6 +50,7 @@ just selection-health  # Health of the diff-scoped test lane, including false ne
 just selection-backtest  # Replay real history and measure selection recall against coverage
 just refresh-contexts-baseline  # Cache CI's per-test coverage baseline for selection
 just refresh-contract-manifest  # Regenerate tests/contract_manifest.txt from the marker
+just refresh-shard-timings  # Refresh tests/shard_timings.json, the master gate's shard balance table
 just test-tox      # Test across Python 3.12, 3.13, 3.14
 just clean         # Remove build artifacts
 just build         # Build wheel and sdist
@@ -607,6 +608,58 @@ the shared pytest runner's private disk-backed temp root and leak guard, but it 
 always serial and never leases xdist worker tokens; `SASE_PYTEST_DIST` is therefore
 ignored. Set `SASE_PYTEST_TMPDIR` to override its scratch root while diagnosing
 temp-path behavior.
+
+### The Master Gate (`SASE_TEST_SHARD`)
+
+`.github/workflows/master-gate.yml` is a second, additive gate that runs on every push
+to `master`, grouped by `master-gate-${{ github.sha }}` with `cancel-in-progress: false`
+so every SHA gets its own bounded run that is never cancelled by a newer push — unlike
+`ci.yml`'s per-ref concurrency group, which lets a newer push replace an older one's
+pending slot. It runs the complete non-visual fast suite, split into six deterministic,
+balanced shards (`SASE_TEST_SHARD=<1-based index>/<1-based count>`, e.g. `3/6`) so no
+single job has to carry the whole suite's wall clock, and reuses a SHA-keyed `sase-core`
+wheel cache so a `sase-core` revision that has not moved costs one cache restore instead
+of a full Rust rebuild.
+
+`tests/_test_shards.py` does the splitting. It walks `tests/**/test_*.py` on disk (not
+`git ls-files`, so an uncommitted new test file is still in scope), estimates each
+file's cost from the committed `tests/shard_timings.json`, and assigns files to shards
+with longest-processing-time-first: the files are sorted once by descending cost
+estimate (ties broken by a SHA-256 digest of the path, for a fully deterministic order),
+then each one is dropped into whichever shard is lightest so far. Discovery is always
+exhaustive — an unrecognized or stale timing table can only unbalance the shards, never
+drop a file from all of them — so `SASE_TEST_SHARD` is deliberately supported only in
+`just test`'s `fast` mode and refuses an explicit test selector alongside it: sharding
+answers "which slice of everything," not "which subset."
+
+`tests/shard_timings.json` is generated from this host's local per-test-file duration
+recordings (the same store [Per-test-file timings](#per-test-file-timings) describes),
+because a fresh CI runner has no local history of its own. `tools/refresh_shard_timings`
+retains the 800 slowest measured files individually (rounded to 0.1s) and folds
+everything else into one `default_duration` — the mean of exactly the files it does not
+name, not the mean of the slow files it does. Run it after a `just test` or
+`just check-full` that already recorded fresh timings:
+
+```bash
+just refresh-shard-timings                # write tests/shard_timings.json
+just refresh-shard-timings --check        # verify it is not stale, without writing
+just refresh-shard-timings --print-plan 6 # preview a 6-shard split
+```
+
+A file the table has never seen — new, renamed, or simply outside the retained 800 —
+still runs; it just costs `default_duration` instead of a measured number, so the worst
+a stale table does is uneven shards, never a skipped test. `tests/test_test_shards.py`
+polices staleness directly: it fails if fewer than 90% of the committed table's retained
+files still exist, if the discovered file count has drifted more than 20% from the
+table's recorded count, or if six shards built from the committed table are unbalanced
+by more than 10% of their mean — every failure points back at
+`just refresh-shard-timings`.
+
+The master gate's `lint` job is kept byte-for-byte identical to `ci.yml`'s own `lint`
+job steps (a contract test in `tests/test_github_actions_ci.py` polices the equality),
+so this gate's lint signal cannot drift from what PR CI already promises. It does not
+run the diff-scoped lane, coverage, cost, slow, coverage-contexts, or visual lanes —
+those stay on `ci.yml`'s own jobs and schedule.
 
 ### Reproducing Timing Flakes (`just test-contention`)
 

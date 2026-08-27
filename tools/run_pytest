@@ -58,6 +58,17 @@ from tests._test_selection_report import (  # noqa: E402
     gear_line,
     summary_line,
 )
+from tests._test_shards import (  # noqa: E402
+    DEFAULT_TIMINGS_PATH,
+    SHARD_ENV,
+    ShardError,
+    ShardSpec,
+    discover_test_files,
+    format_shard_summary,
+    load_shard_timings,
+    parse_shard_spec,
+    shard_files,
+)
 from tests._test_cost import cost_directory  # noqa: E402
 from tests._test_cost_plugin import TEST_COST_RECORD_ENV  # noqa: E402
 from tests._test_selection_timings import (  # noqa: E402
@@ -861,6 +872,62 @@ def _apply_ace_page_group_isolation_mode(
     return _ace_page_group_manifest_paths()
 
 
+def _pytest_args_contain_selector(args: list[str]) -> bool:
+    """Whether ``args`` names an explicit test path/node ID.
+
+    Mirrors ``_normalize_args``'s own option/value distinction, since that is
+    exactly the question a shard needs answered: an option and its value
+    (``-k``, ``--durations=20``, ...) are not selectors, but a bare
+    non-flag argument is a caller-chosen path a discovered whole-suite shard
+    must refuse rather than silently ignore or union with.
+    """
+    skip_next = False
+    for arg in args:
+        if skip_next:
+            skip_next = False
+            continue
+        option_name = arg.split("=", 1)[0]
+        if option_name in NON_PATH_VALUE_OPTIONS:
+            skip_next = "=" not in arg
+            continue
+        if arg.startswith("-"):
+            continue
+        return True
+    return False
+
+
+def _apply_shard_mode(
+    mode: str, pytest_args: list[str]
+) -> tuple[list[str], ShardSpec | None]:
+    """Append this invocation's shard files to ``pytest_args``, if sharded.
+
+    Read only after normal mode and selector resolution, so an unset or
+    empty ``SASE_TEST_SHARD`` preserves every existing caller's arguments and
+    behavior exactly -- the master gate is the only caller that sets it.
+    """
+    raw_value = os.environ.get(SHARD_ENV, "")
+    if not raw_value.strip():
+        return pytest_args, None
+    if mode != "fast":
+        raise pytest.UsageError(
+            f"{SHARD_ENV} is only supported in fast mode; got mode={mode!r}"
+        )
+    if _pytest_args_contain_selector(pytest_args):
+        raise pytest.UsageError(
+            f"{SHARD_ENV} runs its own discovered whole-suite file set and "
+            "does not accept an explicit test selector"
+        )
+    try:
+        spec = parse_shard_spec(raw_value.strip())
+        files = discover_test_files(REPO_ROOT)
+        table = load_shard_timings(REPO_ROOT / DEFAULT_TIMINGS_PATH)
+        shard = shard_files(files, spec, table)
+    except ShardError as error:
+        raise pytest.UsageError(f"{SHARD_ENV}: {error}") from error
+    print(format_shard_summary(spec, shard, total_files=len(files)), file=sys.stderr)
+    return [*pytest_args, *shard.files], spec
+
+
 def _reject_scoped_worker_overrides(args: list[str]) -> None:
     """Keep rejecting the width knobs, now that scoped runs are not all serial.
 
@@ -1118,7 +1185,15 @@ def main(argv: list[str] | None = None) -> int:
                 scoped_manifest = selection.manifest
                 pytest_args = [*pytest_args, *selection.selected]
 
-        pytest_args = [*_full_lane_recording_args(mode), *pytest_args]
+        pytest_args, shard_spec = _apply_shard_mode(mode, pytest_args)
+        # A shard is partial evidence about the whole suite: recording it as
+        # a full-lane failure would poison the selection-health store with
+        # false negatives for every file another shard covers. Timing
+        # recording stays on below -- per-test seconds are just as valid from
+        # a shard as from the whole lane, and shards are the only recorder
+        # some hosts (a fresh CI runner) ever see.
+        full_lane_args = [] if shard_spec is not None else _full_lane_recording_args(mode)
+        pytest_args = [*full_lane_args, *pytest_args]
         timings_args = _timings_pytest_args(mode)
         pytest_args = [*timings_args, *pytest_args]
         cost_args = _test_cost_pytest_args(mode)

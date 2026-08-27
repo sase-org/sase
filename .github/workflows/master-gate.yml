@@ -1,0 +1,179 @@
+name: Master Gate
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# Grouped by SHA, not ref: every master push gets its own bounded, never
+# cancelled run. `ci.yml`'s master concurrency group is per-ref (one running +
+# one pending run) so CI always reaches a terminal conclusion; this gate goes
+# further and never even queues a newer SHA behind an older one -- each SHA is
+# independently attributable.
+concurrency:
+  group: master-gate-${{ github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  SHARD_COUNT: 6
+
+# Every job carries a timeout-minutes ceiling no greater than 20 minutes: a
+# wedged job here must not hold a runner slot past what a bounded, per-SHA
+# gate is supposed to guarantee.
+jobs:
+  core-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CARGO_HTTP_MULTIPLEXING: "false"
+      CARGO_NET_RETRY: "10"
+    steps:
+      - name: Resolve Rust core revision
+        id: core-sha
+        run: |
+          set -euo pipefail
+          core_sha="$(git ls-remote https://github.com/sase-org/sase-core.git HEAD | cut -f1)"
+          if [[ ! "$core_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "error: resolved sase-core HEAD SHA is not 40 hex characters: $core_sha" >&2
+            exit 1
+          fi
+          echo "sha=$core_sha" >> "$GITHUB_OUTPUT"
+          echo "Building sase-core commit $core_sha"
+      # A cache-version salt in the key lets this cache be invalidated on
+      # purpose (a payload-shape change) without waiting for sase-core to move.
+      - name: Restore cached core wheel
+        id: restore-core-wheel
+        uses: actions/cache/restore@v4
+        with:
+          path: dist/
+          key: master-gate-core-wheel-v1-${{ runner.os }}-${{ steps.core-sha.outputs.sha }}
+      - name: Check out Rust core
+        if: steps.restore-core-wheel.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: sase-org/sase-core
+          ref: ${{ steps.core-sha.outputs.sha }}
+          path: sase-core
+      - uses: astral-sh/setup-uv@v4
+        if: steps.restore-core-wheel.outputs.cache-hit != 'true'
+        with:
+          enable-cache: true
+          cache-dependency-glob: "sase-core/**/pyproject.toml"
+      - name: Set up Rust
+        if: steps.restore-core-wheel.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Rust build
+        if: steps.restore-core-wheel.outputs.cache-hit != 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sase-core -> target
+          shared-key: sase-core-${{ steps.core-sha.outputs.sha }}
+      - name: Build abi3 Rust core wheel
+        if: steps.restore-core-wheel.outputs.cache-hit != 'true'
+        working-directory: sase-core/crates/sase_core_py
+        run: uvx maturin build --release --out "$GITHUB_WORKSPACE/dist"
+      - name: Build xprompt LSP
+        if: steps.restore-core-wheel.outputs.cache-hit != 'true'
+        working-directory: sase-core
+        run: |
+          cargo build --release -p sase_xprompt_lsp
+          install -m 0755 target/release/sase-xprompt-lsp "$GITHUB_WORKSPACE/dist/sase-xprompt-lsp"
+      - name: Record wheel provenance
+        if: steps.restore-core-wheel.outputs.cache-hit != 'true'
+        run: echo "${{ steps.core-sha.outputs.sha }}" > dist/sase-core-sha.txt
+      # Saved explicitly, and only after a build the miss above required: the
+      # combined restore+save action saves unconditionally on its post step,
+      # which would re-save an already-cached payload on every hit.
+      - name: Save core wheel cache
+        if: steps.restore-core-wheel.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: dist/
+          key: master-gate-core-wheel-v1-${{ runner.os }}-${{ steps.core-sha.outputs.sha }}
+      - name: Upload Rust core artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sase-core-wheel
+          path: dist/
+          if-no-files-found: error
+
+  # Byte-for-byte the same steps as ci.yml's lint job -- policed by
+  # tests/test_github_actions_ci.py -- so this gate's lint signal cannot drift
+  # from PR CI's. Only the job-level needs/timeout differ, because this gate's
+  # core artifact comes from `core-wheel`, not `build-core`.
+  lint:
+    needs: core-wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: '3.12'
+      - name: Bootstrap SDD sidecars
+        env:
+          SASE_RELEASE_TOKEN: ${{ secrets.SASE_RELEASE_TOKEN }}
+        run: ./.venv/bin/python tools/ci_bootstrap_sidecars
+      - name: Initialize SASE home
+        run: |
+          ./.venv/bin/sase init memory --no-commit
+          ./.venv/bin/sase skill init --force
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: false
+      - name: Cache Go binaries
+        id: cache-go-bin
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: go-bin-keep-sorted-v0.8.0-linux-amd64
+      - name: Install Go tools (keep-sorted)
+        if: steps.cache-go-bin.outputs.cache-hit != 'true'
+        run: |
+          CGO_ENABLED=0 go install github.com/google/keep-sorted@v0.8.0
+      - name: Cache Prettier dependencies
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: prettier-node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Check Python formatting
+        run: just fmt-py-check
+      - name: Check Markdown formatting
+        run: just fmt-md-check
+      - name: Lint
+        run: just lint
+      - name: SASE validation
+        run: just validate
+      - name: Validate committed plans
+        run: just validate-committed-plans
+      - name: Build and verify package
+        run: just build-check
+
+  # Six deterministic shards of the whole non-visual fast suite, balanced by
+  # the committed tests/shard_timings.json. No scoped, coverage, cost, slow,
+  # contexts, or visual lane runs here -- those stay on ci.yml's own jobs and
+  # schedule; this gate exists to bound and attribute the fast suite per SHA.
+  test:
+    needs: core-wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install visual dependencies
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: '3.12'
+          install-recipe: install-visual
+      - name: Run sharded fast suite
+        env:
+          SASE_TEST_SHARD: ${{ matrix.shard }}/${{ env.SHARD_COUNT }}
+        run: just test

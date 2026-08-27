@@ -6,6 +6,7 @@
 
 [![Docs](https://img.shields.io/badge/docs-sase.sh-3b82f6?logo=readthedocs&logoColor=white)](https://sase.sh/)
 [![CI](https://github.com/sase-org/sase/actions/workflows/ci.yml/badge.svg)](https://github.com/sase-org/sase/actions/workflows/ci.yml)
+[![Master Gate](https://github.com/sase-org/sase/actions/workflows/master-gate.yml/badge.svg)](https://github.com/sase-org/sase/actions/workflows/master-gate.yml)
 [![PyPI](https://img.shields.io/pypi/v/sase?logo=pypi&logoColor=white)](https://pypi.org/project/sase/)
 [![Python versions](https://img.shields.io/pypi/pyversions/sase)](https://pypi.org/project/sase/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
