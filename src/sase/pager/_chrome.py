@@ -46,6 +46,11 @@ def _section_accent(kind: str) -> str:
     return ARTIFACTS_ACCENTS.get(tab, _DEFAULT_SECTION_ACCENT)
 
 
+def section_accent(kind: str) -> str:
+    """Return the public accent color for a pager section ``kind``."""
+    return _section_accent(kind)
+
+
 def _format_char_count(count: int) -> str:
     """Format a character count for the subject line's ``⌘`` readout."""
     if count < 1_000:
@@ -127,6 +132,9 @@ def footer_legend(
     label_count: int = 0,
     pending_prefix: str = "",
     pending_action: str = "follow",
+    trail_back_count: int = 0,
+    trail_forward_count: int = 0,
+    status: str | None = None,
 ) -> Text:
     """Build the availability-driven footer legend.
 
@@ -135,6 +143,8 @@ def footer_legend(
     /``ctrl+d``/``ctrl+u``) is always available so it lives in ``?`` only.
     """
     verbs: list[tuple[str, str]] = []
+    if status is not None:
+        verbs.append(("…", status))
     action_key = {"copy": "y", "edit": "E"}.get(pending_action)
     if action_key is not None:
         verbs.append((f"{action_key}{pending_prefix}…", pending_action))
@@ -144,6 +154,10 @@ def footer_legend(
         verbs.append(("0-9a-z", "follow"))
         verbs.append(("y", "copy"))
         verbs.append(("E", "edit"))
+    if trail_back_count:
+        verbs.append(("⌫/^O", "back"))
+    if trail_forward_count:
+        verbs.append(("^I", "forward"))
     if section_total > 1:
         verbs.append(("^N/^P", "entity"))
     verbs.append(("/", "search"))
@@ -162,5 +176,6 @@ def footer_legend(
 __all__ = [
     "footer_legend",
     "section_rule",
+    "section_accent",
     "subject_line",
 ]

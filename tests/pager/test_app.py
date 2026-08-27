@@ -75,6 +75,34 @@ def _target_document(title: str = "target") -> PagerDocument:
     return PagerDocument(sections=(section,), title=title, origin=PagerOrigin.FILE)
 
 
+def _long_link_source_document(path: Path) -> PagerDocument:
+    section = PagerSection(
+        identity="file:/tmp/source.py",
+        title="source.py",
+        kind="file",
+        body=f"{_lines('source', 80)}see {path} for details\n",
+        subject_ref="file:/tmp/source.py",
+    )
+    return PagerDocument(
+        sections=(section,), title="source.py", origin=PagerOrigin.FILE
+    )
+
+
+def _searchable_link_source_document(path: Path) -> PagerDocument:
+    section = PagerSection(
+        identity="file:/tmp/source.py",
+        title="source.py",
+        kind="file",
+        body=(
+            f"top\n{_lines('spacer', 40)}needle target line\nsee {path} for details\n"
+        ),
+        subject_ref="file:/tmp/source.py",
+    )
+    return PagerDocument(
+        sections=(section,), title="source.py", origin=PagerOrigin.FILE
+    )
+
+
 def _body_scroll(app: SasePager) -> VerticalScroll:
     return app.query_one("#pager-body-scroll", VerticalScroll)
 
@@ -86,6 +114,15 @@ async def test_q_closes_the_pager_with_a_pager_exit() -> None:
         await pilot.pause()
 
     assert app.return_value == PagerExit()
+
+
+async def test_backspace_on_empty_trail_exits_with_exhausted_marker() -> None:
+    app = SasePager(_long_document())
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("backspace")
+        await pilot.pause()
+
+    assert app.return_value == PagerExit(trail_exhausted=True)
 
 
 async def test_escape_also_closes_the_pager() -> None:
@@ -299,6 +336,95 @@ async def test_pressing_a_label_follows_it_into_a_new_document(
     assert app.document is target_document
 
 
+async def test_follow_back_and_forward_restore_the_view(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target_document = _target_document()
+    monkeypatch.setattr(
+        "sase.pager.app.resolve_ref",
+        lambda ref: LinkTarget(kind=LinkTargetKind.DOCUMENT, document=target_document),
+    )
+    source = _long_link_source_document(Path("/tmp/target.py"))
+    app = SasePager(source)
+    async with app.run_test(size=(80, 10)) as pilot:
+        await pilot.pause()
+        scroll = _body_scroll(app)
+        trail = app.query_one("#pager-trail", Static)
+        footer = app.query_one("#pager-footer", Static)
+        scroll.scroll_to(y=12, animate=False, immediate=True)
+        app._update_subject()
+        await pilot.pause()
+
+        assert "hidden" in trail.classes
+
+        await pilot.press("0")
+        await pilot.pause(0.1)
+        await pilot.pause(0.1)
+
+        assert app.document is target_document
+        assert app._back_trail
+        assert "hidden" not in trail.classes
+        assert "⌫/^O back" in footer.visual.plain  # type: ignore[attr-defined]
+
+        await pilot.press("backspace")
+        await pilot.pause()
+
+        assert app.document is source
+        assert int(scroll.scroll_y) == 12
+        assert not app._back_trail
+        assert app._forward_trail
+        assert "hidden" in trail.classes
+        assert "^I forward" in footer.visual.plain  # type: ignore[attr-defined]
+
+        await pilot.press("ctrl+i")
+        await pilot.pause()
+
+        assert app.document is target_document
+        assert app._back_trail
+        assert not app._forward_trail
+
+
+async def test_back_restores_committed_search_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target_document = _target_document()
+    source = _searchable_link_source_document(Path("/tmp/target.py"))
+    app = SasePager(source)
+    async with app.run_test(size=(80, 10)) as pilot:
+        await pilot.pause()
+        scroll = _body_scroll(app)
+        await pilot.press("slash")
+        for character in "needle":
+            await pilot.press(character)
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert app._search.mode == "committed"
+        assert app._search.last_search == ("needle", "forward")
+        source_scroll_y = int(scroll.scroll_y)
+        assert source_scroll_y > 0
+
+        app._apply_resolution(
+            "/tmp/target.py",
+            LinkTarget(kind=LinkTargetKind.DOCUMENT, document=target_document),
+            intent="follow",
+        )
+        await pilot.pause()
+
+        assert app.document is target_document
+        assert app._search.mode == "off"
+
+        await pilot.press("ctrl+o")
+        await pilot.pause()
+
+        command = app.query_one("#pager-search-command", Static)
+        assert app.document is source
+        assert int(scroll.scroll_y) == source_scroll_y
+        assert app._search.mode == "committed"
+        assert app._search.last_search == ("needle", "forward")
+        assert "hidden" not in command.classes
+
+
 async def test_unresolvable_label_toasts_marks_it_dangling_and_does_not_renavigate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -324,6 +450,7 @@ async def test_unresolvable_label_toasts_marks_it_dangling_and_does_not_renaviga
 
         assert calls == ["/tmp/target.py"]
         assert app.document.title == "source.py"
+        assert not app._back_trail
         assert ("/tmp/target.py could not be resolved.", "warning") in notifications
         assert app._label_layer is not None
         assert app._label_layer.labels[0].dangling is True

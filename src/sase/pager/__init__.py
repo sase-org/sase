@@ -34,6 +34,12 @@ from sase.pager.link_scan import (
     scan_bounded_links,
     scan_links,
 )
+from sase.pager.trail import (
+    PAGER_TRAIL_LIMIT,
+    PagerSearchState,
+    PagerTrailEntry,
+    append_bounded_trail,
+)
 
 __all__ = [
     "BoundedLinkScan",
@@ -43,15 +49,19 @@ __all__ = [
     "LabelWindowScope",
     "PAGER_LABEL_ALPHABET",
     "PAGER_LABEL_TWO_KEY_CAPACITY",
+    "PAGER_TRAIL_LIMIT",
     "PagerDocument",
     "PagerExit",
     "PagerLabel",
     "PagerLabelLayer",
     "PagerOrigin",
+    "PagerSearchState",
     "PagerSection",
     "PagerTargetSpan",
     "PagerTargetSource",
+    "PagerTrailEntry",
     "SasePager",
+    "append_bounded_trail",
     "document_from_paths",
     "link_pager_enabled",
     "path_section",

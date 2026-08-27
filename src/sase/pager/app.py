@@ -30,6 +30,7 @@ from sase.ace.tui.actions.navigation.jump_hints import (
     normalize_jump_key,
 )
 from sase.ace.tui.graphics import view_artifact_files
+from sase.ace.tui.modals.trail_strip import TrailStripEntry, build_trail_strip
 from sase.ace.tui.util.external_tool import suspend_for_external_tool
 from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks, spawn_pump_free_task
 from sase.ace.tui.util.trace import tui_trace
@@ -39,7 +40,7 @@ from sase.ace.tui.widgets.vim_search_controller import (
     VimSearchController,
     VimSearchMode,
 )
-from sase.pager._chrome import footer_legend, subject_line
+from sase.pager._chrome import footer_legend, section_accent, subject_line
 from sase.pager._help import PagerHelpScreen
 from sase.pager._labels import (
     LabelWindowScope,
@@ -69,6 +70,7 @@ from sase.pager.resolve import (
     copy_text_for_target,
     resolve_ref,
 )
+from sase.pager.trail import PagerSearchState, PagerTrailEntry, append_bounded_trail
 
 PendingAction = Literal["follow", "copy", "edit"]
 
@@ -82,10 +84,11 @@ _PENDING_ACTION_KEYS: dict[PendingAction, str] = {"copy": "y", "edit": "E"}
 class PagerExit:
     """The result of a finished ``SasePager`` run.
 
-    Empty today; the ``trail`` phase (sase-uk.6) extends this with a
-    trail-exhausted marker so a host resuming its own history can tell an
-    ordinary quit from a fully-walked-back trail.
+    ``trail_exhausted`` lets a host resume its own history when a pager-owned
+    trail has already been fully walked back.
     """
+
+    trail_exhausted: bool = False
 
 
 class _PagerBodyScroll(VerticalScroll):
@@ -120,6 +123,8 @@ class SasePager(App[PagerExit]):
         Binding("G", "scroll_bottom", "Bottom"),
         Binding("ctrl+n", "next_section", "Next Section"),
         Binding("ctrl+p", "prev_section", "Prev Section"),
+        Binding("backspace,ctrl+o", "trail_back", "Back"),
+        Binding("ctrl+i", "trail_forward", "Forward"),
         Binding("r", "refresh", "Refresh"),
         Binding("y", "arm_copy", "Copy"),
         Binding("E", "arm_edit", "Edit"),
@@ -139,6 +144,9 @@ class SasePager(App[PagerExit]):
         self._dangling_refs: set[str] = set()
         self._resolve_generation = 0
         self._search = VimSearchController(self)
+        self._back_trail: list[PagerTrailEntry] = []
+        self._forward_trail: list[PagerTrailEntry] = []
+        self._footer_status: str | None = None
 
     def on_unmount(self) -> None:
         cancel_pump_free_tasks(self)
@@ -159,6 +167,7 @@ class SasePager(App[PagerExit]):
             self.query_one("#pager-chrome-rule", Static).update(Rule(style="dim"))
             self.query_one("#pager-footer-rule", Static).update(Rule(style="dim"))
             self._ensure_body()
+            self._update_trail()
             self._update_footer()
             self._update_subject()
 
@@ -245,8 +254,26 @@ class SasePager(App[PagerExit]):
             PagerHelpScreen(
                 section_total=len(self.document.sections),
                 label_count=self._visible_label_count(),
+                trail_entries=self._trail_strip_entries(),
             )
         )
+
+    def action_trail_back(self) -> None:
+        if not self._back_trail:
+            self.exit(PagerExit(trail_exhausted=True))
+            return
+        self._resolve_generation += 1
+        target = self._back_trail.pop()
+        append_bounded_trail(self._forward_trail, self._current_view_state())
+        self._restore_view_state(target)
+
+    def action_trail_forward(self) -> None:
+        if not self._forward_trail:
+            return
+        self._resolve_generation += 1
+        target = self._forward_trail.pop()
+        append_bounded_trail(self._back_trail, self._current_view_state())
+        self._restore_view_state(target)
 
     def _goto_section(self, direction: int) -> None:
         if self._body is None or len(self.document.sections) <= 1:
@@ -264,7 +291,11 @@ class SasePager(App[PagerExit]):
 
     def _after_scroll(self) -> None:
         self._refresh_window_scoped_labels_if_needed()
-        self.call_after_refresh(self._update_subject)
+        self.call_after_refresh(self._update_chrome_position)
+
+    def _update_chrome_position(self) -> None:
+        self._update_subject()
+        self._update_trail()
 
     def _body_scroll(self) -> _PagerBodyScroll:
         return self.query_one("#pager-body-scroll", _PagerBodyScroll)
@@ -485,6 +516,7 @@ class SasePager(App[PagerExit]):
         if ref in self._dangling_refs:
             self.notify(f"{ref} could not be resolved.", severity="warning")
             return
+        self._set_footer_status("loading")
         self._resolve_generation += 1
         generation = self._resolve_generation
         document = self.document
@@ -494,6 +526,7 @@ class SasePager(App[PagerExit]):
                 target = await asyncio.to_thread(resolve_ref, ref)
             except Exception as exc:  # noqa: BLE001 - a press must never crash the pager
                 if generation == self._resolve_generation and self.document is document:
+                    self._set_footer_status(None)
                     self.notify(f"Could not resolve {ref} — {exc}", severity="error")
                 return
             if generation != self._resolve_generation or self.document is not document:
@@ -514,6 +547,7 @@ class SasePager(App[PagerExit]):
         *,
         intent: Literal["follow", "edit"],
     ) -> None:
+        self._set_footer_status(None)
         if target is None:
             self._dangling_refs.add(ref)
             self.notify(f"{ref} could not be resolved.", severity="warning")
@@ -526,6 +560,7 @@ class SasePager(App[PagerExit]):
             self._show_media(target)
             return
         if target.document is not None:
+            self._push_trail_entry()
             self._navigate_to_document(target.document, line=target.scroll_line)
 
     def _launch_editor(self, target: LinkTarget) -> None:
@@ -567,14 +602,151 @@ class SasePager(App[PagerExit]):
         self._label_window_scope = None
         self._last_activated_label = None
         self._pending_action = "follow"
+        self._reset_search_state()
         self._ensure_body()
         scroll = self._body_scroll()
         scroll.scroll_to(x=0, y=0, animate=False, immediate=True)
         row = self._row_for_document_line(line) if line is not None else None
         if row is not None:
             scroll.scroll_to(y=row, animate=False, immediate=True)
+        self._forward_trail.clear()
+        self._update_trail()
         self._update_footer()
         self._update_subject()
+
+    # -- Trail -------------------------------------------------------------
+
+    def _push_trail_entry(self) -> None:
+        append_bounded_trail(self._back_trail, self._current_view_state())
+
+    def _restore_view_state(self, state: PagerTrailEntry) -> None:
+        self.document = state.document
+        self._body = None
+        self._body_width = None
+        self._label_layer = None
+        self._label_pending_prefix = ""
+        self._label_window_scope = state.label_anchor
+        self._last_activated_label = None
+        self._pending_action = "follow"
+        self._footer_status = None
+        self._ensure_body()
+        self._restore_search_state(state.search)
+        self._update_trail()
+        self._update_footer()
+        self._update_subject()
+        self.call_after_refresh(
+            lambda: self._restore_trail_scroll(
+                x=state.scroll_x,
+                y=state.scroll_y,
+            )
+        )
+
+    def _restore_trail_scroll(self, *, x: int, y: int) -> None:
+        self._body_scroll().scroll_to(x=x, y=y, animate=False, immediate=True)
+        self._update_subject()
+        self._update_trail()
+
+    def _current_view_state(self) -> PagerTrailEntry:
+        section = self._current_section_or_none()
+        scroll = self._body_scroll()
+        return PagerTrailEntry(
+            document=self.document,
+            document_identity=self._document_identity(),
+            document_title=self.document.title,
+            section_identity=section.identity if section is not None else "",
+            section_title=section.title if section is not None else self.document.title,
+            section_kind=section.kind if section is not None else "",
+            scroll_x=int(scroll.scroll_x),
+            scroll_y=int(scroll.scroll_y),
+            search=self._current_search_state(),
+            label_anchor=self._label_window_scope,
+        )
+
+    def _current_search_state(self) -> PagerSearchState:
+        return PagerSearchState(
+            mode=self._search.mode,
+            direction=self._search.direction,
+            query=self._search.query,
+            corpus=self._search.corpus,
+            line_starts=tuple(self._search.line_starts),
+            match_spans=tuple(self._search.match_spans),
+            current_selection=self._search.current_selection,
+            origin_offset=self._search.origin_offset,
+            restore_scroll_x=self._search.restore_scroll_x,
+            restore_scroll_y=self._search.restore_scroll_y,
+            last_search=self._search.last_search,
+        )
+
+    def _reset_search_state(self) -> None:
+        if self._search.is_active:
+            self._search.exit(restore_scroll=False, refresh=False)
+        self._search = VimSearchController(self)
+        self.vim_search_hide_overlay()
+
+    def _restore_search_state(self, state: PagerSearchState) -> None:
+        if self._search.is_active:
+            self._search.exit(restore_scroll=False, refresh=False)
+        self._search.mode = state.mode
+        self._search.direction = state.direction
+        self._search.query = state.query
+        self._search.corpus = state.corpus
+        self._search.line_starts = state.line_starts
+        self._search.match_spans = state.match_spans
+        self._search.current_selection = state.current_selection
+        self._search.origin_offset = state.origin_offset
+        self._search.restore_scroll_x = state.restore_scroll_x
+        self._search.restore_scroll_y = state.restore_scroll_y
+        self._search.last_search = state.last_search
+        if state.mode == "off":
+            self.vim_search_hide_overlay()
+            return
+        self.vim_search_show_overlay()
+        self._search._render_overlay()
+        self._search._render_command_line()
+        self.vim_search_focus_overlay()
+
+    def _document_identity(self) -> str:
+        if len(self.document.sections) == 1:
+            return self.document.sections[0].identity
+        if self.document.sections:
+            return "|".join(section.identity for section in self.document.sections)
+        return self.document.title
+
+    def _current_section_or_none(self) -> PagerSection | None:
+        if not self.document.sections:
+            return None
+        return self._current_section()
+
+    def _trail_strip_entries(self) -> tuple[TrailStripEntry, ...]:
+        if not self._back_trail:
+            return ()
+        entries = [
+            TrailStripEntry(entry.section_title, kind=entry.section_kind)
+            for entry in self._back_trail
+        ]
+        current = self._current_section_or_none()
+        if current is None:
+            entries.append(TrailStripEntry(self.document.title))
+        else:
+            entries.append(TrailStripEntry(current.title, kind=current.kind))
+        return tuple(entries)
+
+    def _update_trail(self) -> None:
+        trail = self.query_one("#pager-trail", Static)
+        entries = self._trail_strip_entries()
+        if not entries:
+            trail.update("")
+            trail.add_class("hidden")
+            return
+        width = max(int(trail.size.width) - 2, 1)
+        current = self._current_section_or_none()
+        accent = "#AFAFAF" if current is None else section_accent(current.kind)
+        trail.update(build_trail_strip(entries, accent=accent, max_width=width))
+        trail.remove_class("hidden")
+
+    def _set_footer_status(self, status: str | None) -> None:
+        self._footer_status = status
+        self._update_footer()
 
     def _row_for_document_line(self, line: int) -> int | None:
         if not self.document.sections:
@@ -606,6 +778,9 @@ class SasePager(App[PagerExit]):
                 label_count=self._visible_label_count(),
                 pending_prefix=self._label_pending_prefix,
                 pending_action=self._pending_action,
+                trail_back_count=len(self._back_trail),
+                trail_forward_count=len(self._forward_trail),
+                status=self._footer_status,
             )
         )
 
