@@ -38,6 +38,13 @@ def _write_monitor_handoff(
     )
 
 
+def _write_gate_done(artifact_dir: Path, *, gate_state: str = "answered") -> None:
+    (artifact_dir / "done.json").write_text(
+        json.dumps({"outcome": "gated", "gate_state": gate_state}),
+        encoding="utf-8",
+    )
+
+
 def _monitor_handoff_wait_fixture(
     tmp_path: Path,
     *,
@@ -168,6 +175,49 @@ def test_completed_monitor_member_releases_plan_family_waiter(
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
     assert ready == {"resolved_deps": ["monitor-lane"]}
+
+
+def test_settled_gate_member_releases_plan_family_waiter_without_unknown_log(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    waiter_dir = make_waiting_agent(tmp_path, "gate-lane")
+    plan_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260827080101",
+        "gate-lane--plan",
+        workflow_name="gate-lane",
+        agent_family="gate-lane",
+        role_suffix="--plan",
+        done=True,
+        outcome="completed",
+    )
+    gate_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260827080202",
+        "gate-lane--gate",
+        workflow_name="gate-lane",
+        agent_family="gate-lane",
+        role_suffix="--gate",
+        parent_timestamp=plan_dir.name,
+        extra_meta={
+            "agent_family_role": "gate",
+            "gate_id": "gate-1",
+            "gate_state": "answered",
+        },
+    )
+    _write_gate_done(gate_dir)
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["gate-lane"]}
+    out = capsys.readouterr().out
+    assert "Unknown done outcome blocks waiter" not in out
+    assert "unknown_outcome=0" in out
 
 
 def test_running_monitor_member_keeps_plan_family_waiting(

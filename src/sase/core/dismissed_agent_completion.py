@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from sase.core.agent_scan_wire_family_shell import family_shell_from_mapping
 from sase.monitor_status import (
     DEFAULT_MONITOR_STOP_STATUS,
     clamp_monitor_status_or_default,
@@ -23,6 +24,9 @@ SUCCESS_OUTCOME = "completed"
 FAILURE_OUTCOME = "failed"
 MONITOR_OUTCOME = "monitored"
 MONITOR_SUCCESS_STATES = frozenset({"completed", "stopped"})
+GATE_OUTCOME = "gated"
+GATE_SUCCESS_STATES = frozenset({"answered", "completed", "stopped"})
+_DEFAULT_GATE_SHELL_SETTLED_STATUS = "GATED"
 WAIT_SUCCESS_OUTCOMES = frozenset(
     {"completed", "noop", "epic_approved", "plan_committed"}
 )
@@ -33,7 +37,7 @@ IDENTITY_SUCCESS_OUTCOMES = WAIT_SUCCESS_OUTCOMES | frozenset({"plan_rejected"})
 KNOWN_DONE_OUTCOMES = (
     WAIT_SUCCESS_OUTCOMES
     | FAILURE_OUTCOMES
-    | frozenset({"plan_rejected", MONITOR_OUTCOME})
+    | frozenset({"plan_rejected", MONITOR_OUTCOME, GATE_OUTCOME})
 )
 
 _STATUS_OUTCOMES = {
@@ -98,20 +102,46 @@ class _ArtifactArchiveIdentity:
 def effective_done_outcome(done_data: Mapping[str, Any]) -> str | None:
     """Return the outcome wait resolution should use for one done marker.
 
-    Monitor markers retain their distinct raw outcome for display and diagnostics,
-    while ``monitor_state`` determines whether they satisfy or fail a wait. Unknown
-    or missing monitor states fail closed.
+    Family-shell markers retain their distinct raw outcome for display and
+    diagnostics, while the shell state determines whether they satisfy or fail
+    a wait. Unknown, missing, or kind-mismatched shell states fail closed.
     """
 
     outcome = done_data.get("outcome")
     if not isinstance(outcome, str):
         return None
-    if outcome != MONITOR_OUTCOME:
-        return outcome
-    monitor_state = done_data.get("monitor_state")
+    if outcome == MONITOR_OUTCOME:
+        return _effective_shell_outcome(
+            done_data,
+            expected_kind="monitor",
+            fallback_state_field="monitor_state",
+            success_states=MONITOR_SUCCESS_STATES,
+        )
+    if outcome == GATE_OUTCOME:
+        return _effective_shell_outcome(
+            done_data,
+            expected_kind="gate",
+            fallback_state_field="gate_state",
+            success_states=GATE_SUCCESS_STATES,
+        )
+    return outcome
+
+
+def _effective_shell_outcome(
+    done_data: Mapping[str, Any],
+    *,
+    expected_kind: str,
+    fallback_state_field: str,
+    success_states: frozenset[str],
+) -> str:
+    shell = family_shell_from_mapping(done_data)
+    if shell is not None:
+        shell_state = shell.state if shell.kind == expected_kind else None
+    else:
+        shell_state = done_data.get(fallback_state_field)
     return (
         SUCCESS_OUTCOME
-        if isinstance(monitor_state, str) and monitor_state in MONITOR_SUCCESS_STATES
+        if isinstance(shell_state, str) and shell_state in success_states
         else FAILURE_OUTCOME
     )
 
@@ -244,6 +274,13 @@ def _archived_outcome_from_bundle(data: Mapping[str, Any]) -> str | None:
         return outcome
     if not isinstance(status, str):
         return None
+    if status.strip().upper() == _DEFAULT_GATE_SHELL_SETTLED_STATUS:
+        return effective_done_outcome(
+            {
+                "outcome": GATE_OUTCOME,
+                "gate_state": data.get("gate_state"),
+            }
+        )
     raw_stop = data.get("monitor_stop_status")
     recorded_stop = clamp_monitor_status_or_default(
         raw_stop if isinstance(raw_stop, str) else None,
@@ -354,6 +391,8 @@ __all__ = [
     "ArchivedAgentCompletion",
     "FAILURE_OUTCOME",
     "FAILURE_OUTCOMES",
+    "GATE_OUTCOME",
+    "GATE_SUCCESS_STATES",
     "IDENTITY_SUCCESS_OUTCOMES",
     "KNOWN_DONE_OUTCOMES",
     "MONITOR_OUTCOME",

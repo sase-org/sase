@@ -7,7 +7,12 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.agent_scan_wire_family_shell import family_shell_from_mapping
-from sase.core.dismissed_agent_completion import effective_done_outcome
+from sase.core.dismissed_agent_completion import (
+    GATE_OUTCOME,
+    MONITOR_OUTCOME,
+    effective_done_outcome,
+)
+from sase.gate_shell.state import TERMINAL_GATE_STATES, is_real_gate_member
 from sase.monitor_state import is_monitor_member_role
 from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
@@ -22,13 +27,19 @@ from ._types import (
     HANDOFF_TERMINAL_STEP_STATUSES,
     IDENTITY_SUCCESS_OUTCOMES,
     SUCCESS_OUTCOME,
-    SUCCESSFUL_MONITOR_FOLLOWUP_OUTCOMES,
+    SUCCESSFUL_SHELL_FOLLOWUP_OUTCOMES,
     WAIT_SUCCESS_OUTCOMES,
 )
 
 _TERMINAL_MONITOR_STATES = frozenset(
     {"completed", "failed", "timeout", "stopped", "lost"}
 )
+_SHELL_KIND_BY_OUTCOME = {MONITOR_OUTCOME: "monitor", GATE_OUTCOME: "gate"}
+_TERMINAL_STATES_BY_SHELL_KIND = {
+    "monitor": _TERMINAL_MONITOR_STATES,
+    "gate": TERMINAL_GATE_STATES,
+}
+_PENDING_SHELL_FOLLOWUP_AGENT = "<pending-shell-followup>"
 
 
 def done_outcome(artifact_dir: Path) -> str | None:
@@ -42,49 +53,75 @@ def done_outcome_from_data(done_data: Mapping[str, Any] | None) -> str | None:
     return effective_done_outcome(done_data)
 
 
-def _monitor_shell_field(data: Mapping[str, Any] | None, field: str) -> Any:
+def _family_shell_field(
+    data: Mapping[str, Any] | None,
+    *,
+    kind: str,
+    field: str,
+) -> Any:
     """Read a shared ``family_shell`` field from a ``meta`` / ``done_data`` mapping.
 
     ``meta`` / ``done_data`` reach this function in either shape:
     ``dataclasses.asdict()`` projections of ``AgentMetaWire`` /
     ``DoneMarkerWire`` already carry a nested ``family_shell`` (see
     ``sase.agents._wait_live_rows._index_from_snapshot``), while
-    ``WaitDependencyIndex.build()`` reads flat ``monitor_*`` on-disk marker
-    keys directly. :func:`family_shell_from_mapping` understands both.
+    ``WaitDependencyIndex.build()`` reads flat ``monitor_*`` / ``gate_*``
+    on-disk marker keys directly. :func:`family_shell_from_mapping`
+    understands both.
     """
     if data is None:
         return None
     shell = family_shell_from_mapping(data)
-    if shell is not None and shell.kind == "monitor":
+    if shell is not None and shell.kind == kind:
         return getattr(shell, field, None)
     return None
 
 
-def monitor_followup_handoff_agent(
+def shell_followup_handoff_agent(
     meta: Mapping[str, Any],
     done_data: Mapping[str, Any] | None,
 ) -> str | None:
-    if done_data is None or done_data.get("outcome") != "monitored":
+    if done_data is None:
+        return None
+    outcome = done_data.get("outcome")
+    if not isinstance(outcome, str):
+        return None
+    kind = _SHELL_KIND_BY_OUTCOME.get(outcome)
+    if kind is None:
         return None
 
-    monitor_state = _monitor_shell_field(done_data, "state") or _monitor_shell_field(
-        meta, "state"
+    state = _family_shell_field(done_data, kind=kind, field="state") or (
+        _family_shell_field(meta, kind=kind, field="state")
     )
+    if not isinstance(state, str) or state not in _TERMINAL_STATES_BY_SHELL_KIND[kind]:
+        return None
+
+    followup_outcome = _family_shell_field(
+        done_data,
+        kind=kind,
+        field="followup_outcome",
+    ) or _family_shell_field(meta, kind=kind, field="followup_outcome")
+    next_action = _family_shell_field(
+        done_data,
+        kind=kind,
+        field="next_action",
+    ) or _family_shell_field(meta, kind=kind, field="next_action")
     if (
-        not isinstance(monitor_state, str)
-        or monitor_state not in _TERMINAL_MONITOR_STATES
+        kind == "gate"
+        and state not in {"lost", "stopped"}
+        and followup_outcome is None
+        and isinstance(next_action, str)
+        and next_action.strip()
     ):
+        return _PENDING_SHELL_FOLLOWUP_AGENT
+    if followup_outcome not in SUCCESSFUL_SHELL_FOLLOWUP_OUTCOMES:
         return None
 
-    followup_outcome = _monitor_shell_field(
-        done_data, "followup_outcome"
-    ) or _monitor_shell_field(meta, "followup_outcome")
-    if followup_outcome not in SUCCESSFUL_MONITOR_FOLLOWUP_OUTCOMES:
-        return None
-
-    followup_agent = _monitor_shell_field(
-        done_data, "followup_agent"
-    ) or _monitor_shell_field(meta, "followup_agent")
+    followup_agent = _family_shell_field(
+        done_data,
+        kind=kind,
+        field="followup_agent",
+    ) or _family_shell_field(meta, kind=kind, field="followup_agent")
     if not isinstance(followup_agent, str):
         return None
     followup_agent = followup_agent.strip()
@@ -129,9 +166,16 @@ def artifact_is_resolved(
         return outcome in WAIT_SUCCESS_OUTCOMES
     if not is_plan_chain_artifact_meta(meta):
         return False
-    if _is_monitor_member_meta(meta):
+    if _is_family_shell_member_meta(meta):
         return False
     return _completed_handoff_workflow_state(artifact_dir)
+
+
+def _is_family_shell_member_meta(meta: Mapping[str, Any]) -> bool:
+    return _is_monitor_member_meta(meta) or is_real_gate_member(
+        _str_or_none(meta.get(AGENT_FAMILY_ROLE_FIELD)),
+        _str_or_none(meta.get("gate_id")),
+    )
 
 
 def _is_monitor_member_meta(meta: Mapping[str, Any]) -> bool:

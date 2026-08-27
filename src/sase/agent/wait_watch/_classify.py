@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import asdict
 
 from sase.agent.names._common import is_process_alive
 from sase.core.agent_scan_wire import (
@@ -207,16 +208,10 @@ def _retry_successor_timestamp(record: AgentArtifactRecordWire) -> str | None:
 def _record_done_outcome(record: AgentArtifactRecordWire) -> str | None:
     if record.done is None:
         return None
-    shell = record.done.family_shell
-    monitor_state = (
-        shell.state if shell is not None and shell.kind == "monitor" else None
-    )
-    return effective_done_outcome(
-        {
-            "outcome": record.done.outcome,
-            "monitor_state": monitor_state,
-        }
-    )
+    done_data: dict[str, object] = {"outcome": record.done.outcome}
+    if record.done.family_shell is not None:
+        done_data["family_shell"] = asdict(record.done.family_shell)
+    return effective_done_outcome(done_data)
 
 
 def _member(

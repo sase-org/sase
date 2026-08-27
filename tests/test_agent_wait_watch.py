@@ -19,6 +19,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
     AgentMetaWire,
     DoneMarkerWire,
+    FamilyShellWire,
     PendingQuestionMarkerWire,
     PlanPathMarkerWire,
     WaitingMarkerWire,
@@ -41,6 +42,7 @@ def _record(
     name: str,
     pid: int | None = None,
     outcome: str | None = None,
+    done_family_shell: FamilyShellWire | None = None,
     family: str | None = None,
     parent_timestamp: str | None = None,
     clan: str | None = None,
@@ -66,7 +68,9 @@ def _record(
             agent_clan_generation=clan_generation,
             run_started_at="2026-08-23T12:00:00Z" if pid is not None else None,
         ),
-        done=DoneMarkerWire(outcome=outcome) if outcome is not None else None,
+        done=DoneMarkerWire(outcome=outcome, family_shell=done_family_shell)
+        if outcome is not None
+        else None,
         waiting=waiting,
         pending_question=pending_question,
         plan_path=PlanPathMarkerWire(plan_path=plan_path) if plan_path else None,
@@ -105,6 +109,31 @@ def test_wait_watch_classifies_success_and_failure() -> None:
         WaitState.SUCCEEDED,
         WaitState.FAILED,
     ]
+
+
+def test_wait_watch_classifies_settled_gate_as_success() -> None:
+    snapshot = _snapshot(
+        _record(
+            "20260827120000",
+            name="approval--gate",
+            outcome="gated",
+            done_family_shell=FamilyShellWire(kind="gate", state="answered"),
+        )
+    )
+
+    target = resolve_wait_targets(
+        ["approval--gate"],
+        snapshot,
+        liveness_checker=_live_if_pid,
+    )[0]
+    state = classify_wait_targets(
+        (target,),
+        snapshot,
+        liveness_checker=_live_if_pid,
+    )[0]
+
+    assert state.state is WaitState.SUCCEEDED
+    assert state.members[0].outcome == "completed"
 
 
 def test_wait_watch_family_target_includes_late_successor() -> None:

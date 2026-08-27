@@ -462,3 +462,44 @@ def test_waiting_marker_fallback_waits_for_settled_monitor_without_terminal_outc
         project_name="proj",
         artifacts_dir=str(waiter_dir),
     )
+
+
+def test_waiting_marker_fallback_waits_for_settled_gate_without_terminal_outcome(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    waiter_dir = make_waiting_agent(tmp_path, "gate-lane")
+    root_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260827085800",
+        "gate-lane--plan",
+        workflow_name="gate-lane",
+        agent_family="gate-lane",
+        role_suffix="--plan",
+        done=True,
+        outcome="completed",
+    )
+    gate_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260827090000",
+        "gate-lane--gate",
+        workflow_name="gate-lane",
+        agent_family="gate-lane",
+        role_suffix="--gate",
+        parent_timestamp=root_dir.name,
+        extra_meta={
+            "agent_family_role": "gate",
+            "gate_id": "gate-1",
+            "gate_state": "answered",
+        },
+    )
+    write_workflow_state(gate_dir)
+
+    assert not waiting_marker_dependencies_resolved(
+        waiter_dir / "waiting.json",
+        project_name="proj",
+        artifacts_dir=str(waiter_dir),
+    )

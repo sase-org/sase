@@ -70,10 +70,8 @@ class WaitDependencyEntityQueries:
         if roots:
             root = max(roots, key=lambda candidate: candidate.timestamp)
             generation = tuple(self._family_generation(family_agents, root))
-            effective_generation = self._family_members_after_monitor_handoffs(
-                generation
-            )
-            handoffs_present = self._family_monitor_handoffs_have_successors(generation)
+            effective_generation = self._family_members_after_shell_handoffs(generation)
+            handoffs_present = self._family_shell_handoffs_have_successors(generation)
             newest_timestamp = max(
                 (candidate.timestamp for candidate in generation),
                 default=root.timestamp,
@@ -88,10 +86,10 @@ class WaitDependencyEntityQueries:
                 members=effective_generation,
             )
 
-        effective_family_agents = self._family_members_after_monitor_handoffs(
+        effective_family_agents = self._family_members_after_shell_handoffs(
             tuple(family_agents)
         )
-        handoffs_present = self._family_monitor_handoffs_have_successors(
+        handoffs_present = self._family_shell_handoffs_have_successors(
             tuple(family_agents)
         )
         return WaitEntity(
@@ -183,24 +181,24 @@ class WaitDependencyEntityQueries:
         return generation
 
     @staticmethod
-    def _family_members_after_monitor_handoffs(
+    def _family_members_after_shell_handoffs(
         candidates: tuple[ArtifactCandidate, ...],
     ) -> tuple[ArtifactCandidate, ...]:
         names_in_generation = {candidate.name for candidate in candidates}
         return tuple(
             candidate
             for candidate in candidates
-            if candidate.monitor_followup_agent not in names_in_generation
+            if candidate.shell_followup_agent not in names_in_generation
         )
 
     @staticmethod
-    def _family_monitor_handoffs_have_successors(
+    def _family_shell_handoffs_have_successors(
         candidates: tuple[ArtifactCandidate, ...],
     ) -> bool:
         names_in_generation = {candidate.name for candidate in candidates}
         return all(
-            candidate.monitor_followup_agent is None
-            or candidate.monitor_followup_agent in names_in_generation
+            candidate.shell_followup_agent is None
+            or candidate.shell_followup_agent in names_in_generation
             for candidate in candidates
         )
 
