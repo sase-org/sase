@@ -12,10 +12,15 @@ import signal
 import subprocess
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from enum import StrEnum
 from types import FrameType
+from typing import TYPE_CHECKING
 
 from rich.cells import cell_len
+
+if TYPE_CHECKING:
+    from sase.pager.document import PagerDocument
 
 _SGR_RE = re.compile(r"\x1b\[[0-9;]*m")
 
@@ -29,6 +34,13 @@ class PagerMode(StrEnum):
 
 
 SignalHandler = int | signal.Handlers | Callable[[int, FrameType | None], object]
+
+
+@dataclass(frozen=True, slots=True)
+class _PagingDecision:
+    argv: list[str]
+    env: dict[str, str]
+    in_process_sase_pager: bool = False
 
 
 def resolve_pager_mode(value: str) -> PagerMode:
@@ -54,7 +66,12 @@ def _resolve_pager_argv() -> list[str] | None:
     return [pager] if pager else None
 
 
-def page_or_print(text: str, *, mode: PagerMode | str) -> None:
+def page_or_print(
+    text: str,
+    *,
+    mode: PagerMode | str,
+    document: PagerDocument | None = None,
+) -> None:
     """Write *text* directly or hand it to a terminal pager."""
     resolved_mode = mode if isinstance(mode, PagerMode) else resolve_pager_mode(mode)
     decision = _paging_decision(text, mode=resolved_mode)
@@ -62,17 +79,23 @@ def page_or_print(text: str, *, mode: PagerMode | str) -> None:
         _write_direct(text)
         return
 
-    argv, env = decision
+    if decision.in_process_sase_pager:
+        try:
+            _run_sase_pager(text, document=document)
+        except Exception:
+            _write_direct(text)
+        return
+
     previous_handler = _ignore_sigint()
     try:
         try:
             process = subprocess.Popen(
-                argv,
+                decision.argv,
                 stdin=subprocess.PIPE,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                env=env,
+                env=decision.env,
             )
         except OSError:
             _write_direct(text)
@@ -96,7 +119,7 @@ def _paging_decision(
     text: str,
     *,
     mode: PagerMode,
-) -> tuple[list[str], dict[str, str]] | None:
+) -> _PagingDecision | None:
     if mode is PagerMode.NEVER:
         return None
     if not sys.stdout.isatty() or not _term_supports_paging():
@@ -118,9 +141,16 @@ def _paging_decision(
         if _estimated_display_rows(text, columns=size.columns) <= size.lines - 1:
             return None
 
+    if _link_pager_enabled() and _is_sase_pager_argv(argv):
+        return _PagingDecision(
+            argv=argv,
+            env=os.environ.copy(),
+            in_process_sase_pager=True,
+        )
+
     pager_argv = _argv_with_required_options(argv, mode=mode)
     env = _pager_env(pager_argv, mode=mode)
-    return pager_argv, env
+    return _PagingDecision(argv=pager_argv, env=env)
 
 
 def _term_supports_paging() -> bool:
@@ -142,9 +172,41 @@ def _argv_with_required_options(argv: list[str], *, mode: PagerMode) -> list[str
 
 def _pager_env(argv: list[str], *, mode: PagerMode) -> dict[str, str]:
     env = os.environ.copy()
+    env.pop("SASE_PAGER", None)
     if Path(argv[0]).name == "less" and "LESS" not in env:
         env["LESS"] = "FRX" if mode is PagerMode.AUTO else "RX"
     return env
+
+
+def _is_sase_pager_argv(argv: list[str]) -> bool:
+    return len(argv) >= 2 and Path(argv[0]).name == "sase" and argv[1] == "pager"
+
+
+def _link_pager_enabled() -> bool:
+    from sase.pager.flag import link_pager_enabled
+
+    return link_pager_enabled()
+
+
+def _run_sase_pager(text: str, *, document: PagerDocument | None) -> None:
+    from sase.pager.app import SasePager
+    from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+
+    pager_document = document
+    if pager_document is None:
+        pager_document = PagerDocument(
+            sections=(
+                PagerSection(
+                    identity="stdin",
+                    title="stdin",
+                    kind="stdin",
+                    body=text,
+                ),
+            ),
+            title="stdin",
+            origin=PagerOrigin.FILE,
+        )
+    SasePager(pager_document).run()
 
 
 def _less_has_raw_control_flag(argv: list[str]) -> bool:

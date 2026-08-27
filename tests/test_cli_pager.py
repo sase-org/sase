@@ -12,6 +12,7 @@ import pytest
 
 from sase import cli_pager
 from sase.cli_pager import PagerMode, page_or_print
+from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 
 
 class _Stream:
@@ -266,6 +267,72 @@ def test_oserror_starting_pager_falls_back_to_direct_write(
     page_or_print("body\n", mode=PagerMode.ALWAYS)
 
     assert stdout.text == "body\n"
+
+
+def test_sase_pager_env_runs_in_process_when_flag_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _terminal(monkeypatch)
+    monkeypatch.setenv("SASE_PAGER", "sase pager")
+    monkeypatch.setattr(cli_pager, "_link_pager_enabled", lambda: True)
+    document = PagerDocument(
+        sections=(
+            PagerSection(
+                identity="bead:sase-1",
+                title="sase-1",
+                kind="bead",
+                body="body\n",
+            ),
+        ),
+        title="sase-1",
+        origin=PagerOrigin.BEAD,
+    )
+    calls: list[tuple[str, PagerDocument | None]] = []
+
+    def fake_run_sase_pager(text: str, *, document: PagerDocument | None) -> None:
+        calls.append((text, document))
+
+    def fail_popen(_argv: list[str], **_kwargs: object) -> _Process:
+        raise AssertionError("sase pager should run in-process")
+
+    monkeypatch.setattr(cli_pager, "_run_sase_pager", fake_run_sase_pager)
+    monkeypatch.setattr(cli_pager.subprocess, "Popen", fail_popen)
+
+    page_or_print("body\n", mode=PagerMode.ALWAYS, document=document)
+
+    assert calls == [("body\n", document)]
+
+
+def test_sase_pager_startup_failure_falls_back_to_direct_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stdout = _terminal(monkeypatch)
+    monkeypatch.setenv("SASE_PAGER", "sase pager")
+    monkeypatch.setattr(cli_pager, "_link_pager_enabled", lambda: True)
+
+    def fail_run_sase_pager(_text: str, *, document: PagerDocument | None) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(cli_pager, "_run_sase_pager", fail_run_sase_pager)
+
+    page_or_print("body\n", mode=PagerMode.ALWAYS)
+
+    assert stdout.text == "body\n"
+
+
+def test_sase_pager_subprocess_env_does_not_recurse_when_flag_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _terminal(monkeypatch)
+    monkeypatch.setenv("SASE_PAGER", "sase pager")
+    monkeypatch.setattr(cli_pager, "_link_pager_enabled", lambda: False)
+    calls = _capture_popen(monkeypatch)
+
+    page_or_print("body\n", mode=PagerMode.ALWAYS)
+
+    argv, kwargs = calls[0]
+    assert argv == ["sase", "pager"]
+    assert "SASE_PAGER" not in kwargs["env"]  # type: ignore[operator]
 
 
 @pytest.mark.parametrize("raises", [False, True])

@@ -117,6 +117,7 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "mobile": ("sase.main.parser_mobile", "register_mobile_parser"),
     "monitor": ("sase.main.parser_monitor", "register_monitor_parser"),
     "notify": ("sase.main.parser_commands", "register_notify_parser"),
+    "pager": ("sase.main.parser_pager", "register_pager_parser"),
     "path": ("sase.main.parser_commands", "register_path_parser"),
     "patch": ("sase.main.parser_patch", "register_patch_parser"),
     "plan": ("sase.main.parser_plan", "register_plan_parser"),

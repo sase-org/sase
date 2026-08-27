@@ -1752,6 +1752,11 @@ TTY, then sends that string to `less -R`; a shell pipe such as
 `sase bead show <id> | less -R` makes stdout a pipe before rendering, so automatic color
 is disabled before `less` receives anything.
 
+When `link_pager` is enabled and the resolved pager command is `sase pager`,
+`sase bead show --format full` runs the [SASE Pager](pager.md) in-process with one
+structured section per bead. The direct-output and foreign-pager paths still use the
+same flattened bytes described above.
+
 ```bash
 sase bead show sase-64 --pager always
 ```

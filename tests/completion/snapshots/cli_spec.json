@@ -14176,6 +14176,109 @@
         ]
       },
       {
+        "aliases": [],
+        "default_child": null,
+        "description_digest": "219db3bbb3af52ae",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "pager",
+        "options": [
+          {
+            "choices": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": [
+              "auto",
+              "always",
+              "never"
+            ],
+            "dest": "color",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-c",
+              "--color"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": [
+              "auto",
+              "never"
+            ],
+            "dest": "links",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-l",
+              "--links"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "plain",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-p",
+              "--plain"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "title",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-t",
+              "--title"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "wrap",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-w",
+              "--wrap"
+            ],
+            "takes_value": true
+          }
+        ],
+        "path": [
+          "pager"
+        ],
+        "positionals": [
+          {
+            "choices": null,
+            "dest": "inputs",
+            "is_remainder": false,
+            "kind": null,
+            "metavar": "REF|PATH",
+            "nargs": "*"
+          }
+        ],
+        "subcommands": []
+      },
+      {
         "aliases": [
           "changespec"
         ],

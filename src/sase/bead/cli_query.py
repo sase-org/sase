@@ -273,6 +273,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
     )
     wrap = resolve_wrap_width(getattr(args, "wrap", markdown_print_width()))
     pager_mode: PagerMode = resolve_pager_mode(getattr(args, "pager", "auto"))
+    pager_document = None
 
     with name_registry_load_session(), get_read_view() as view:
         batch = resolve_show_batch(
@@ -293,6 +294,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                 creator_url_for=resolve_bead_creator_url,
                 page_url_for=resolve_bead_page_url,
             )
+            pager_document = document
             body = render_show_document(document, style=style, wrap=wrap)
         else:
             body = render_show_batch(
@@ -309,7 +311,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             )
 
     if body:
-        page_or_print(body, mode=pager_mode)
+        page_or_print(body, mode=pager_mode, document=pager_document)
     for failure in batch.failures:
         print(f"Error: {failure.message}", file=sys.stderr)
     if batch.failures:

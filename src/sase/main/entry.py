@@ -348,6 +348,12 @@ def main() -> NoReturn:
 
         handle_notify_command(args)
 
+    # --- pager ---
+    if args.command == "pager":
+        from .pager_handler import handle_pager_command
+
+        sys.exit(handle_pager_command(args))
+
     # --- path ---
     if args.command == "path":
         if args.name == "config-schema":

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from typing import Any
 
 import pytest
 
@@ -70,8 +71,13 @@ def test_pager_always_receives_assembled_body_once(
     _install(monkeypatch)
     calls: list[tuple[str, PagerMode | str]] = []
 
-    def fake_page_or_print(text: str, *, mode: PagerMode | str) -> None:
+    documents: list[Any] = []
+
+    def fake_page_or_print(
+        text: str, *, mode: PagerMode | str, document: object | None = None
+    ) -> None:
         calls.append((text, mode))
+        documents.append(document)
 
     monkeypatch.setattr("sase.bead.cli_query.page_or_print", fake_page_or_print)
     args = create_parser().parse_args(
@@ -84,6 +90,7 @@ def test_pager_always_receives_assembled_body_once(
     assert calls[0][1] is PagerMode.ALWAYS
     assert "── 1/2 " in calls[0][0]
     assert "── 2/2 " in calls[0][0]
+    assert documents[0].title == "2 beads"
 
 
 def test_missing_id_errors_are_printed_after_pager_returns(
@@ -101,7 +108,10 @@ def test_missing_id_errors_are_printed_after_pager_returns(
         def flush(self) -> None:
             return None
 
-    def fake_page_or_print(text: str, *, mode: PagerMode | str) -> None:
+    def fake_page_or_print(
+        text: str, *, mode: PagerMode | str, document: object | None = None
+    ) -> None:
+        assert document is not None
         assert mode is PagerMode.ALWAYS
         events.append(("pager", text))
 

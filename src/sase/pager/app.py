@@ -142,10 +142,12 @@ class SasePager(App[PagerExit]):
         self,
         document: PagerDocument,
         *,
+        links_enabled: bool = True,
         attached_handlers: Mapping[str, AttachedTargetHandler] | None = None,
     ) -> None:
         super().__init__()
         self.document = document
+        self.links_enabled = links_enabled
         self._attached_handlers: Mapping[str, AttachedTargetHandler] = (
             attached_handlers or {}
         )
@@ -339,6 +341,15 @@ class SasePager(App[PagerExit]):
         self.query_one("#pager-body", Static).update(body.renderable)
 
     def _build_label_layer(self, width: int) -> PagerLabelLayer:
+        if not self.links_enabled:
+            self._label_window_scope = None
+            return PagerLabelLayer(
+                labels=(),
+                hint_to_label_index={},
+                labels_by_section=tuple(() for _section in self.document.sections),
+                target_count=0,
+                mode="document",
+            )
         section_offsets = self._body.section_offsets if self._body is not None else ()
         layer = build_label_layer(
             self.document,

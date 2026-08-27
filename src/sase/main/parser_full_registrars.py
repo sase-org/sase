@@ -38,6 +38,7 @@ from sase.main.parser_launch import register_launch_parser
 from sase.main.parser_memory import register_memory_parser
 from sase.main.parser_mobile import register_mobile_parser
 from sase.main.parser_monitor import register_monitor_parser
+from sase.main.parser_pager import register_pager_parser
 from sase.main.parser_patch import register_patch_parser
 from sase.main.parser_plan import register_plan_parser
 from sase.main.parser_pipe import register_pipe_parser
@@ -93,6 +94,7 @@ COMMAND_REGISTRARS_BY_NAME: dict[str, Any] = {
         register_mobile_parser,
         register_monitor_parser,
         register_notify_parser,
+        register_pager_parser,
         register_path_parser,
         register_patch_parser,
         register_plan_parser,

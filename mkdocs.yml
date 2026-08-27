@@ -27,6 +27,7 @@ nav:
       - XPrompts: xprompt.md
       - Artifact References: artifact_references.md
       - Artifact Links: artifact_links.md
+      - SASE Pager: pager.md
       - Prompt History: prompt.md
   - Beyond the Basics:
       - Architecture: architecture.md
