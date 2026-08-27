@@ -7,12 +7,13 @@ from pathlib import Path
 
 import pytest
 
+from sase.notification_gates.service import create_gate
 from sase.plan_approval_actions import (
     PlanApprovalActionContext,
     execute_plan_approval_response,
 )
 from sase.plan_gate import (
-    create_plan_approval_gate,
+    build_plan_approval_gate_spec,
     plan_context_from_envelope,
     translate_plan_gate_response,
 )
@@ -34,9 +35,11 @@ def test_plan_action_api_executes_selected_approval_options(
     gate_home: Path,
     stub_host_plan_archive: Path,
 ) -> None:
-    gate = create_plan_approval_gate(
-        write_plan(gate_home, "action-api.md", VALID_TALE_PLAN),
-        "action-api",
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "action-api.md", VALID_TALE_PLAN),
+            "action-api",
+        )
     )
     envelope = json.loads(gate.request_path.read_text(encoding="utf-8"))
 
@@ -73,9 +76,11 @@ def test_plan_action_api_executes_selected_approval_options(
 def test_plan_action_api_filters_protocol_overrides_for_tale_preset(
     gate_home: Path,
 ) -> None:
-    gate = create_plan_approval_gate(
-        write_plan(gate_home, "action-tale.md", VALID_TALE_PLAN),
-        "action-tale",
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "action-tale.md", VALID_TALE_PLAN),
+            "action-tale",
+        )
     )
     envelope = json.loads(gate.request_path.read_text(encoding="utf-8"))
 
@@ -102,9 +107,11 @@ def test_plan_action_api_filters_coder_options_for_commit_preset(
     gate_home: Path,
     stub_host_plan_archive: Path,
 ) -> None:
-    gate = create_plan_approval_gate(
-        write_plan(gate_home, "action-commit.md", VALID_TALE_PLAN),
-        "action-commit",
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "action-commit.md", VALID_TALE_PLAN),
+            "action-commit",
+        )
     )
     envelope = json.loads(gate.request_path.read_text(encoding="utf-8"))
 
@@ -143,9 +150,11 @@ def test_local_action_aliases_map_to_option_selections(
     expected_commit: bool,
     expected_run: bool,
 ) -> None:
-    gate = create_plan_approval_gate(
-        write_plan(gate_home, f"preset-{choice}.md", VALID_TALE_PLAN),
-        f"preset-{choice}",
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, f"preset-{choice}.md", VALID_TALE_PLAN),
+            f"preset-{choice}",
+        )
     )
 
     envelope = json.loads(gate.request_path.read_text(encoding="utf-8"))

@@ -10,6 +10,7 @@ from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
     make_state,
+    patch_plan_gate_shell_result,
     patched_plan_deps,
 )
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
@@ -39,10 +40,7 @@ class TestPlanFollowupApprovalEffort:
 
         approval = PlanApprovalResult(action="approve", plan_file=plan_file)
         with (
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                return_value=approval,
-            ),
+            patch_plan_gate_shell_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -68,10 +66,7 @@ class TestPlanFollowupApprovalEffort:
 
         approval = PlanApprovalResult(action="epic", plan_file=plan_file)
         with (
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                return_value=approval,
-            ),
+            patch_plan_gate_shell_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_spec",
                 return_value=(tmp_path / "spec.md", tmp_path / "epic.md"),
@@ -108,10 +103,7 @@ class TestPlanFollowupApprovalEffort:
             coder_prompt="%effort:low\nUse low effort for the handoff.",
         )
         with (
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                return_value=approval,
-            ),
+            patch_plan_gate_shell_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -156,10 +148,7 @@ class TestPlanFollowupApprovalEffort:
             action="approve", plan_file=plan_file, coder_model="claude/opus"
         )
         with (
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                return_value=approval,
-            ),
+            patch_plan_gate_shell_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),

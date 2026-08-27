@@ -17,7 +17,7 @@ from sase.plan_gate import (
     PLAN_COMMIT_OPTION_ID,
     PLAN_FEEDBACK_OPTION_ID,
     PLAN_REJECT_OPTION_ID,
-    create_plan_approval_gate,
+    build_plan_approval_gate_spec,
     translate_plan_gate_response,
 )
 from sase.notifications import pending_actions
@@ -195,10 +195,12 @@ def test_e2e_tale_plan_gate_structure_and_branches(
 ) -> None:
     """Verify tale plan gate has correct branches, group submit, and runner protocol."""
     tale_path = _write_plan(gate_home, "tale.md", VALID_TALE_PLAN)
-    result = create_plan_approval_gate(
-        tale_path,
-        "e2e-tale-request",
-        agent_name="smoke.test",
+    result = create_gate(
+        build_plan_approval_gate_spec(
+            tale_path,
+            "e2e-tale-request",
+            agent_name="smoke.test",
+        )
     )
 
     request = json.loads(result.request_path.read_text(encoding="utf-8"))
@@ -251,7 +253,7 @@ def test_e2e_tale_plan_gate_structure_and_branches(
 def test_e2e_epic_plan_retains_single_approve_control(gate_home: Path) -> None:
     """Verify the Epic singleton keeps its stable approve protocol behavior."""
     epic_path = _write_plan(gate_home, "epic.md", VALID_EPIC_PLAN)
-    result = create_plan_approval_gate(epic_path, "e2e-epic-request")
+    result = create_gate(build_plan_approval_gate_spec(epic_path, "e2e-epic-request"))
 
     request = json.loads(result.request_path.read_text(encoding="utf-8"))
     options = {option["id"]: option for option in request["options"]}

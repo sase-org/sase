@@ -11,32 +11,11 @@ import pytest
 from sase.axe.run_agent_exec import run_execution_loop
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
-from tests._axe_run_agent_exec_plan_helpers import make_ctx, make_state
-
-
-def test_handle_plan_marker_returns_killed_when_poll_exits_after_kill(
-    tmp_path: Path,
-) -> None:
-    ctx = make_ctx(tmp_path)
-    state = make_state(tmp_path)
-    plan_file = tmp_path / "plan.md"
-    plan_file.write_text("# Plan\n", encoding="utf-8")
-
-    with (
-        patch("sase.axe.run_agent_exec_plan.normalize_handoff_interruption_state"),
-        patch("sase.axe.run_agent_exec_plan.finalize_handoff_artifacts_as_completed"),
-        patch("sase.axe.run_agent_exec_plan.update_meta_suffix"),
-        patch("sase.axe.run_agent_exec_plan.record_workflow_metadata"),
-        patch(
-            "sase.axe.run_agent_exec_plan.format_agent_run_runtime", return_value="1s"
-        ),
-        patch("sase.axe.run_agent_exec_plan.reset_killed"),
-        patch("sase.axe.run_agent_exec_plan.was_killed", return_value=True),
-        patch("sase.llm_provider._plan_utils.handle_plan_approval", return_value=None),
-    ):
-        outcome = handle_plan_marker({"plan_file": str(plan_file)}, ctx, state)
-
-    assert outcome == "killed"
+from tests._axe_run_agent_exec_plan_helpers import (
+    make_ctx,
+    make_state,
+    patch_plan_gate_shell_result,
+)
 
 
 def test_handle_plan_marker_does_not_persist_lifecycle_state(
@@ -56,8 +35,7 @@ def test_handle_plan_marker_does_not_persist_lifecycle_state(
             "sase.axe.run_agent_exec_plan.format_agent_run_runtime", return_value="1s"
         ),
         patch("sase.axe.run_agent_exec_plan.reset_killed"),
-        patch("sase.axe.run_agent_exec_plan.was_killed", return_value=False),
-        patch("sase.llm_provider._plan_utils.handle_plan_approval", return_value=None),
+        patch_plan_gate_shell_result(None),
     ):
         outcome = handle_plan_marker({"plan_file": str(plan_file)}, ctx, state)
 

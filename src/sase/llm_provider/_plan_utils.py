@@ -3,14 +3,11 @@
 import os
 import re
 import shutil
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
-
-# Poll interval for plan approval responses (seconds)
-_POLL_INTERVAL = 0.5
 
 
 @dataclass
@@ -154,122 +151,6 @@ def move_plan_to_sase(plan_file: str) -> Path:
             counter += 1
     shutil.move(str(src), str(dest))
     return dest
-
-
-def handle_plan_approval(
-    plan_file: str | None,
-    session_id: str,
-    *,
-    killed_check: Callable[[], bool] | None = None,
-    agent_name: str | None = None,
-    agent_model: str | None = None,
-    agent_llm_provider: str | None = None,
-    agent_runtime: str | None = None,
-    agent_vcs_tag: str | None = None,
-) -> PlanApprovalResult | None:
-    """Create and mechanically wait for a tiered command-backed plan gate.
-
-    Args:
-        plan_file: Path to the plan file.
-        session_id: Unique session ID for the approval flow.
-        killed_check: Optional callable that returns True if the process was
-            killed (SIGTERM). When provided, the poll loop checks it each
-            iteration and returns None early if killed.
-
-    Returns a ``PlanApprovalResult`` when accepted, or ``None`` if
-    rejected / missing / killed.
-    """
-    if not plan_file:
-        return None
-    from sase.main.plan_approve_handler import (
-        get_auto_plan_approval_action,
-        get_auto_plan_approval_argument,
-    )
-
-    auto_action = get_auto_plan_approval_action()
-    auto_enabled = auto_action is not None
-    auto_argument = get_auto_plan_approval_argument()
-    if auto_argument is None and auto_action in {"tale", "epic"}:
-        auto_argument = auto_action
-
-    from sase.plan_gate import create_plan_approval_gate
-
-    gate = create_plan_approval_gate(
-        plan_file,
-        session_id,
-        auto_enabled=auto_enabled,
-        auto_argument=auto_argument,
-        agent_name=agent_name,
-        agent_model=agent_model,
-        agent_llm_provider=agent_llm_provider,
-        agent_runtime=agent_runtime,
-        agent_vcs_tag=agent_vcs_tag,
-    )
-    if auto_enabled:
-        mark_auto_approved_plan_handled(
-            plan_file,
-            agent_name,
-            action=auto_action,
-        )
-
-    # Plan gates stay visually prominent without ringing the terminal.
-    from sase.main.plan_approve_handler import (
-        get_tmux_prefix,
-        send_desktop_notification,
-    )
-
-    if gate.notification_id is not None:
-        prefix = get_tmux_prefix()
-        send_desktop_notification(
-            f"{prefix} Plan Complete", "Plan ready for review in sase ace"
-        )
-
-    auto_resolved = auto_enabled
-
-    def _resolve_new_auto_setting() -> None:
-        nonlocal auto_resolved
-        if auto_resolved:
-            return
-        current_action = get_auto_plan_approval_action()
-        if current_action is None:
-            return
-        argument = get_auto_plan_approval_argument()
-        if argument is None and current_action in {"tale", "epic"}:
-            argument = current_action
-        from sase.plan_gate import execute_plan_gate_auto_choice
-
-        execute_plan_gate_auto_choice(
-            gate.bundle_path,
-            argument,
-            source="auto_approve",
-        )
-        auto_resolved = True
-        mark_auto_approved_plan_handled(
-            plan_file,
-            agent_name,
-            action=current_action,
-        )
-
-    from sase.notification_gates.poller import wait_for_gate
-
-    polled = wait_for_gate(
-        gate.bundle_path,
-        poll_interval=_POLL_INTERVAL,
-        cancelled=killed_check,
-        on_poll=_resolve_new_auto_setting,
-    )
-    if polled.status != "responded":
-        if gate.notification_id is not None:
-            from sase.notifications import mark_dismissed
-
-            mark_dismissed(gate.notification_id)
-        return None
-
-    return plan_approval_result_from_gate_response(
-        gate.bundle_path,
-        polled.payload,
-        auto_resolved=auto_resolved,
-    )
 
 
 def plan_approval_result_from_gate_response(

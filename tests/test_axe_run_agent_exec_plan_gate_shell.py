@@ -1,4 +1,4 @@
-"""Both flag states of plan marker gate-shell handoff."""
+"""Plan marker gate-shell handoff."""
 
 from __future__ import annotations
 
@@ -63,44 +63,13 @@ def _fake_creation(*, gate_state: str, artifacts_dir: str) -> GateShellCreation:
     )
 
 
-def test_flag_off_uses_existing_blocking_plan_approval(
+def test_non_auto_creates_gate_shell_and_ends_gated(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ctx = make_ctx(tmp_path)
     state = make_state(tmp_path)
     plan_file = str(tmp_path / "plan.md")
-    monkeypatch.setattr(
-        "sase.gate_shell.flag.gate_shell_handoff_enabled", lambda: False
-    )
-    blocking_calls: list[Any] = []
-
-    def fake_handle_plan_approval(*args: Any, **kwargs: Any) -> Any:
-        blocking_calls.append((args, kwargs))
-        return None
-
-    monkeypatch.setattr(
-        "sase.llm_provider._plan_utils.handle_plan_approval",
-        fake_handle_plan_approval,
-    )
-    never_called = MagicMock(side_effect=AssertionError("must not be called"))
-    monkeypatch.setattr("sase.plan_shell.create_plan_gate_shell", never_called)
-
-    outcome = plan_mod.handle_plan_marker({"plan_file": plan_file}, ctx, state)
-
-    assert outcome == "plan_rejected"
-    assert blocking_calls
-    never_called.assert_not_called()
-
-
-def test_flag_on_non_auto_creates_gate_shell_and_ends_gated(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    ctx = make_ctx(tmp_path)
-    state = make_state(tmp_path)
-    plan_file = str(tmp_path / "plan.md")
-    monkeypatch.setattr("sase.gate_shell.flag.gate_shell_handoff_enabled", lambda: True)
     creation = _fake_creation(
         gate_state="pending",
         artifacts_dir=str(tmp_path / "gate-member"),
@@ -110,9 +79,6 @@ def test_flag_on_non_auto_creates_gate_shell_and_ends_gated(
         "sase.plan_shell.create_plan_gate_shell", lambda *a, **k: creation
     )
     never_called = MagicMock(side_effect=AssertionError("must not be called"))
-    monkeypatch.setattr(
-        "sase.llm_provider._plan_utils.handle_plan_approval", never_called
-    )
     monkeypatch.setattr("sase.notification_gates.poller.wait_for_gate", never_called)
 
     gate_marker_calls: list[dict[str, Any]] = []
@@ -142,14 +108,13 @@ def test_flag_on_non_auto_creates_gate_shell_and_ends_gated(
     never_called.assert_not_called()
 
 
-def test_flag_on_auto_continues_in_process_without_gate_handoff(
+def test_auto_continues_in_process_without_gate_handoff(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ctx = make_ctx(tmp_path)
     state = make_state(tmp_path)
     plan_file = str(tmp_path / "plan.md")
-    monkeypatch.setattr("sase.gate_shell.flag.gate_shell_handoff_enabled", lambda: True)
     creation = _fake_creation(
         gate_state="answered",
         artifacts_dir=str(tmp_path / "gate-member"),

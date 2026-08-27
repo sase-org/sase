@@ -9,10 +9,11 @@ from typing import get_args
 import pytest
 
 from sase._plan_approval_protocol import EpicLaunchMode
+from sase.notification_gates.service import create_gate
 from sase.notifications.store import load_notifications
 from sase.plan_gate import (
     PlanGateTier,
-    create_plan_approval_gate,
+    build_plan_approval_gate_spec,
     plan_context_from_envelope,
     plan_gate_option_icon,
     plan_gate_option_ids,
@@ -30,15 +31,19 @@ from tests.plan_validation_helpers import (
 
 
 def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None:
-    tale = create_plan_approval_gate(
-        write_plan(gate_home, "tale.md", VALID_TALE_PLAN),
-        "tale-request",
-        agent_name="planner.tale",
+    tale = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "tale.md", VALID_TALE_PLAN),
+            "tale-request",
+            agent_name="planner.tale",
+        )
     )
-    epic = create_plan_approval_gate(
-        write_plan(gate_home, "epic.md", VALID_EPIC_PLAN),
-        "epic-request",
-        agent_name="planner.epic",
+    epic = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "epic.md", VALID_EPIC_PLAN),
+            "epic-request",
+            agent_name="planner.epic",
+        )
     )
 
     tale_request = json.loads(tale.request_path.read_text(encoding="utf-8"))
@@ -143,10 +148,12 @@ def test_epic_launch_mode_schema_admits_every_domain_mode(gate_home: Path) -> No
     A schema missing a mode the responder accepts fails the submission with a
     ``GateError`` after the agent has already done its work.
     """
-    epic = create_plan_approval_gate(
-        write_plan(gate_home, "epic.md", VALID_EPIC_PLAN),
-        "epic-request",
-        agent_name="planner.epic",
+    epic = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "epic.md", VALID_EPIC_PLAN),
+            "epic-request",
+            agent_name="planner.epic",
+        )
     )
     request = json.loads(epic.request_path.read_text(encoding="utf-8"))
     approve = request["options"][0]
@@ -156,10 +163,12 @@ def test_epic_launch_mode_schema_admits_every_domain_mode(gate_home: Path) -> No
 
 
 def test_tale_gate_note_and_action_data_are_tier_aware(gate_home: Path) -> None:
-    tale = create_plan_approval_gate(
-        write_plan(gate_home, "tale.md", VALID_TALE_PLAN),
-        "tale-request",
-        agent_name="planner.tale",
+    tale = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "tale.md", VALID_TALE_PLAN),
+            "tale-request",
+            agent_name="planner.tale",
+        )
     )
     request = json.loads(tale.request_path.read_text(encoding="utf-8"))
 
@@ -174,10 +183,12 @@ def test_tale_gate_note_and_action_data_are_tier_aware(gate_home: Path) -> None:
 def test_epic_gate_note_and_action_data_carry_phase_wave_size_counts(
     gate_home: Path,
 ) -> None:
-    epic = create_plan_approval_gate(
-        write_plan(gate_home, "epic.md", VALID_EPIC_PLAN),
-        "epic-request",
-        agent_name="planner.epic",
+    epic = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "epic.md", VALID_EPIC_PLAN),
+            "epic-request",
+            agent_name="planner.epic",
+        )
     )
     request = json.loads(epic.request_path.read_text(encoding="utf-8"))
 
@@ -196,9 +207,11 @@ def test_plan_gate_project_dir_uses_runtime_neutral_env_contract(
     active_project_dir = gate_home / "active-project"
     monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(active_project_dir))
 
-    gate = create_plan_approval_gate(
-        write_plan(gate_home, "active.md", VALID_TALE_PLAN),
-        "active-project-request",
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "active.md", VALID_TALE_PLAN),
+            "active-project-request",
+        )
     )
 
     request = json.loads(gate.request_path.read_text(encoding="utf-8"))
@@ -227,7 +240,7 @@ def test_plan_context_recovers_original_file_from_old_bundle_payload(
     gate_home: Path,
 ) -> None:
     plan = write_plan(gate_home, "old.md", VALID_TALE_PLAN)
-    gate = create_plan_approval_gate(plan, "old-request")
+    gate = create_gate(build_plan_approval_gate_spec(plan, "old-request"))
     envelope = json.loads(gate.request_path.read_text(encoding="utf-8"))
     envelope["presentation"]["action_data"].pop("original_plan_file")
 

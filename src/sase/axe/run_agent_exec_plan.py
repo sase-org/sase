@@ -22,7 +22,7 @@ from sase.axe.run_agent_helpers import (
     update_step_marker_chat_path,
 )
 from sase.axe.run_agent_successor import SuccessorRequest, continue_as_successor
-from sase.axe.runner_signals import reset_killed, was_killed
+from sase.axe.runner_signals import reset_killed
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     plan_chain_agent_name,
@@ -114,34 +114,12 @@ def handle_plan_marker(
     # Clear the killed flag set by the plan command's SIGTERM
     # so the poll loop only exits on a NEW kill signal.
     reset_killed()
-    from sase.gate_shell.flag import gate_shell_handoff_enabled
-
-    if gate_shell_handoff_enabled():
-        return _handle_plan_via_gate_shell(
-            plan_data,
-            ctx,
-            state,
-            agent_runtime=agent_runtime,
-        )
-
-    from sase.llm_provider._plan_utils import handle_plan_approval
-
-    plan_result = handle_plan_approval(
-        plan_data.get("plan_file"),
-        str(uuid.uuid4()),
-        killed_check=was_killed,
-        agent_name=ctx.agent_name,
-        agent_model=ctx.agent_model,
-        agent_llm_provider=ctx.agent_llm_provider,
+    return _handle_plan_via_gate_shell(
+        plan_data,
+        ctx,
+        state,
         agent_runtime=agent_runtime,
-        agent_vcs_tag=ctx.vcs_tag,
     )
-    if plan_result is None and was_killed():
-        return "killed"
-    if plan_result is None:
-        return "plan_rejected"
-
-    return _continue_after_plan_result(plan_result, ctx, state)
 
 
 def _handle_plan_via_gate_shell(

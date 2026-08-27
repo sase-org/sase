@@ -21,9 +21,10 @@ from sase.ace.tui.actions.agents._notification_gate_actions import (
     load_gate_actions,
 )
 from sase.notification_gates import paths
+from sase.notification_gates.service import create_gate
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
-from sase.plan_gate import PLAN_EDIT_OPERATION_ID, create_plan_approval_gate
+from sase.plan_gate import PLAN_EDIT_OPERATION_ID, build_plan_approval_gate_spec
 from tests.plan_validation_helpers import VALID_TALE_PLAN
 
 
@@ -90,7 +91,7 @@ def _edited_by(monkeypatch: pytest.MonkeyPatch, replacement: str) -> list[list[s
 def _plan_gate(gate_home: Path) -> tuple[Path, Path, Any]:
     plan = gate_home / "tale.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
-    create_plan_approval_gate(plan, "gate-actions-ace")
+    create_gate(build_plan_approval_gate_spec(plan, "gate-actions-ace"))
     [notification] = load_notifications()
     bundle = Path(str(notification.action_data["bundle_path"]))
     return plan, bundle, notification

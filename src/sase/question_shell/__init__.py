@@ -14,10 +14,6 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
         "sase.question_shell.create",
         "resolve_question_chain_parent",
     ),
-    "update_question_sdd_prompt_snapshot": (
-        "sase.question_shell.followup",
-        "update_question_sdd_prompt_snapshot",
-    ),
 }
 
 
@@ -48,5 +44,4 @@ __all__ = [
     "question_next_action",
     "question_rounds",
     "resolve_question_chain_parent",
-    "update_question_sdd_prompt_snapshot",
 ]

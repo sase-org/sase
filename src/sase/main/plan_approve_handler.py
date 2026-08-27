@@ -15,7 +15,6 @@ import sys
 from pathlib import Path
 from typing import Literal, NoReturn, cast
 
-from sase.core.shell import get_vendored_tool
 from sase.env_contracts import provider_project_dir_from_env
 from sase.main.plan_pending import (
     ensure_plan_notification_available,
@@ -229,20 +228,6 @@ def send_desktop_notification(title: str, message: str) -> None:
         try:
             subprocess.run(
                 ["notify-send", title, message],
-                check=False,
-                capture_output=True,
-            )
-        except FileNotFoundError:
-            pass
-
-
-def ring_tmux_bell() -> None:
-    """Ring the tmux bell for the window running Claude."""
-    tmux_pane = os.environ.get("TMUX_PANE")
-    if tmux_pane:
-        try:
-            subprocess.run(
-                [get_vendored_tool("tmux_ring_bell"), tmux_pane],
                 check=False,
                 capture_output=True,
             )

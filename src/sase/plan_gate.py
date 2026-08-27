@@ -8,7 +8,6 @@ import sys
 import time
 from collections.abc import Mapping
 from pathlib import Path
-from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Literal, cast, get_args
 
 from sase._plan_approval_protocol import EpicLaunchMode
@@ -34,36 +33,6 @@ TALE_PLAN_SUBMIT_GROUP = GateGroup(
 )
 
 PlanGateTier = Literal["tale", "epic"]
-
-
-def create_plan_approval_gate(
-    plan_file: str | Path,
-    session_id: str,
-    *,
-    auto_enabled: bool = False,
-    auto_argument: str | None = None,
-    agent_name: str | None = None,
-    agent_model: str | None = None,
-    agent_llm_provider: str | None = None,
-    agent_runtime: str | None = None,
-    agent_vcs_tag: str | None = None,
-) -> Any:
-    """Create a ``PlanApproval`` or ``EpicApproval`` gate by authored tier."""
-    from sase.notification_gates.service import create_gate
-
-    return create_gate(
-        build_plan_approval_gate_spec(
-            plan_file,
-            session_id,
-            auto_enabled=auto_enabled,
-            auto_argument=auto_argument,
-            agent_name=agent_name,
-            agent_model=agent_model,
-            agent_llm_provider=agent_llm_provider,
-            agent_runtime=agent_runtime,
-            agent_vcs_tag=agent_vcs_tag,
-        )
-    )
 
 
 def build_plan_approval_gate_spec(
@@ -463,57 +432,6 @@ def translate_plan_gate_response(
     return translated
 
 
-def execute_plan_gate_auto_choice(
-    bundle_path: Path,
-    argument: str | None,
-    *,
-    source: str = "auto_resolution",
-) -> dict[str, Any]:
-    """Resolve a previously-manual plan gate using its adapter auto policy."""
-    from sase.notification_gates.executor import execute_gate_selection
-    from sase.notification_gates.hashing import load_and_verify_bundle
-    from sase.notification_gates.models import GateOption, GateSpec
-
-    envelope, adapter = load_and_verify_bundle(bundle_path)
-    raw_options = envelope.get("options")
-    raw_branches = envelope.get("branches")
-    raw_primary = envelope.get("primary_branch")
-    if (
-        not isinstance(raw_options, list)
-        or not isinstance(raw_branches, list)
-        or not isinstance(raw_primary, list)
-    ):
-        raise GateError(
-            "invalid_request", str(bundle_path / "request.json"), "options are missing"
-        )
-    options = tuple(
-        GateOption.from_mapping(raw_option, index)
-        for index, raw_option in enumerate(raw_options)
-    )
-    branches = tuple(
-        tuple(str(option_id) for option_id in branch)
-        for branch in raw_branches
-        if isinstance(branch, list)
-    )
-    primary_branch = tuple(str(option_id) for option_id in raw_primary)
-    spec = cast(
-        GateSpec,
-        SimpleNamespace(
-            options=options,
-            branches=branches,
-            primary_branch=primary_branch,
-            payload=envelope.get("payload", {}),
-        ),
-    )
-    selection = adapter.resolve_auto_selection(spec, argument)
-    return execute_gate_selection(
-        bundle_path,
-        selection,
-        adapter.automatic_input(spec),
-        source=source,
-    ).response
-
-
 def _plan_action_data(
     *,
     original_plan_file: str,
@@ -708,8 +626,6 @@ __all__ = [
     "PLAN_REJECT_OPTION_ID",
     "PLAN_RESOURCE_PATH",
     "build_plan_approval_gate_spec",
-    "create_plan_approval_gate",
-    "execute_plan_gate_auto_choice",
     "execute_plan_gate_command",
     "original_plan_file_for_resource",
     "original_plan_file_from_bundle",

@@ -27,9 +27,10 @@ from sase.ace.tui.modals.plan_approval_modal import (
 from sase.ace.tui.modals.plan_approval_results import plan_approval_result_for_choice
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.notification_gates import paths
+from sase.notification_gates.service import create_gate
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
-from sase.plan_gate import create_plan_approval_gate
+from sase.plan_gate import build_plan_approval_gate_spec
 from tests._plan_gate_fixtures import (  # noqa: F401
     plan_host_archive_stub,
 )
@@ -100,7 +101,7 @@ def _has_button(modal: PlanApprovalModal, selector: str) -> bool:
 def test_plan_modal_loader_projects_tale_branch_model(gate_home: Path) -> None:
     plan = gate_home / "tale.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
-    create_plan_approval_gate(plan, "tui-branches")
+    create_gate(build_plan_approval_gate_spec(plan, "tui-branches"))
     [notification] = load_notifications()
 
     loaded = _load_neutral_plan_modal_data(notification)
@@ -123,7 +124,7 @@ async def test_plan_modal_bundle_loading_stays_off_the_message_pump(
 ) -> None:
     plan = gate_home / "async-tale.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
-    create_plan_approval_gate(plan, "tui-async-branches")
+    create_gate(build_plan_approval_gate_spec(plan, "tui-async-branches"))
     [notification] = load_notifications()
 
     async with _PlanModalApp().run_test(size=(100, 34)) as pilot:
@@ -160,7 +161,7 @@ async def test_tale_plan_modal_renders_no_raw_editor_for_host_collected_properti
     """
     plan = gate_home / "tale-no-raw.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
-    create_plan_approval_gate(plan, "tui-no-raw-tale")
+    create_gate(build_plan_approval_gate_spec(plan, "tui-no-raw-tale"))
     [notification] = load_notifications()
 
     async with _PlanModalApp().run_test(size=(100, 34)) as pilot:
@@ -183,7 +184,7 @@ async def test_epic_plan_modal_renders_canonical_singleton_label(
 ) -> None:
     plan = gate_home / "epic.md"
     plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
-    create_plan_approval_gate(plan, "tui-epic-label")
+    create_gate(build_plan_approval_gate_spec(plan, "tui-epic-label"))
     [notification] = load_notifications()
 
     async with _PlanModalApp().run_test(size=(100, 34)) as pilot:
@@ -206,7 +207,7 @@ async def test_epic_plan_modal_renders_canonical_singleton_label(
 async def test_tale_feedback_option_opens_the_input_panel(gate_home: Path) -> None:
     plan = gate_home / "tale-feedback.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
-    create_plan_approval_gate(plan, "tui-feedback-panel")
+    create_gate(build_plan_approval_gate_spec(plan, "tui-feedback-panel"))
     [notification] = load_notifications()
 
     async with _PlanModalApp().run_test(size=(100, 34)) as pilot:
@@ -248,7 +249,7 @@ def test_neutral_plan_submission_executes_actual_modal_choice(
 ) -> None:
     plan = gate_home / f"{choice}.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
-    gate = create_plan_approval_gate(plan, f"tui-{choice}")
+    gate = create_gate(build_plan_approval_gate_spec(plan, f"tui-{choice}"))
     [notification] = load_notifications()
     result = plan_approval_result_for_choice(
         choice,
@@ -284,7 +285,7 @@ def test_neutral_tale_submission_merges_shared_and_per_option_inputs(
     """
     plan = gate_home / "tale-inputs.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
-    gate = create_plan_approval_gate(plan, "tui-tale-inputs")
+    gate = create_gate(build_plan_approval_gate_spec(plan, "tui-tale-inputs"))
     [notification] = load_notifications()
     result = PlanApprovalResult(
         action="approve",
@@ -355,7 +356,7 @@ def test_neutral_epic_submission_records_ace_origin(
     monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(workspace))
     plan = gate_home / "epic-origin.md"
     plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
-    create_plan_approval_gate(plan, "tui-epic-origin")
+    create_gate(build_plan_approval_gate_spec(plan, "tui-epic-origin"))
     [notification] = load_notifications()
     result = plan_approval_result_for_choice("epic")
     app = _TrackedPlanApp()

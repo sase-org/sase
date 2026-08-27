@@ -25,7 +25,7 @@ from sase.bead.snooze_gate import create_bead_snooze_gate
 from sase.bead.task_gate import create_task_triage_gate
 from sase.notifications.models import Notification
 from sase.notifications.store import load_notifications
-from sase.user_question_actions import create_user_question_gate
+from sase.user_question_actions import user_question_gate_spec
 
 _FRESH_FIXTURE_BASE = datetime.now(UTC).replace(microsecond=0)
 
@@ -281,14 +281,16 @@ def test_mobile_bridge_includes_hitl_path_typed_outputs(tmp_path: Path) -> None:
 
 
 def test_execute_mobile_question_action_uses_neutral_gate_executor() -> None:
-    gate = create_user_question_gate(
-        [
-            {
-                "question": "Which path?",
-                "options": [{"id": "fast", "label": "Fast"}],
-            }
-        ],
-        session_id="mobile-question",
+    gate = create_gate(
+        user_question_gate_spec(
+            [
+                {
+                    "question": "Which path?",
+                    "options": [{"id": "fast", "label": "Fast"}],
+                }
+            ],
+            session_id="mobile-question",
+        )
     )
     notification = load_notifications()[0]
 

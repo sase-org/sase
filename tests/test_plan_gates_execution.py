@@ -15,13 +15,14 @@ from sase._plan_archive_approval import _ApprovedPlanArchive
 from sase.main.plan_pending import plan_context_from_notification
 from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.models import GateError
+from sase.notification_gates.service import create_gate
 from sase.notifications.store import load_notifications
 from sase.plan_approval_actions import (
     PlanApprovalActionError,
     execute_plan_approval_response,
 )
 from sase.plan_gate import (
-    create_plan_approval_gate,
+    build_plan_approval_gate_spec,
     translate_plan_gate_response,
 )
 
@@ -50,7 +51,7 @@ def test_epic_gate_host_launch_uses_durable_plan_path(
     from sase.notification_gates.registry import adapter_for_kind
 
     plan = write_plan(gate_home, "durable_epic.md", VALID_EPIC_PLAN)
-    gate = create_plan_approval_gate(plan, "durable-launch")
+    gate = create_gate(build_plan_approval_gate_spec(plan, "durable-launch"))
     response = {
         "selected_option_ids": ["approve"],
         "input": {"epic_launch_mode": "launch"},
@@ -96,7 +97,7 @@ def test_epic_gate_unresolvable_launch_raises_with_resume_hint(
         monkeypatch.delenv(env_name, raising=False)
     monkeypatch.delenv("SASE_AGENT_PROJECT_FILE", raising=False)
     plan = write_plan(gate_home, "unclaimable_epic.md", VALID_EPIC_PLAN)
-    gate = create_plan_approval_gate(plan, "unclaimable-launch")
+    gate = create_gate(build_plan_approval_gate_spec(plan, "unclaimable-launch"))
 
     with pytest.raises(GateError) as exc_info:
         execute_gate_selection(
@@ -138,11 +139,13 @@ def test_auto_uses_the_manual_executor_and_tier_owned_aliases(
             return_value=str(gate_home / "archived-plan.md"),
         ),
     ):
-        gate = create_plan_approval_gate(
-            write_plan(gate_home, f"{expected_kind}-{argument}.md", content),
-            f"auto-{expected_kind}-{argument or 'bare'}",
-            auto_enabled=True,
-            auto_argument=argument,
+        gate = create_gate(
+            build_plan_approval_gate_spec(
+                write_plan(gate_home, f"{expected_kind}-{argument}.md", content),
+                f"auto-{expected_kind}-{argument or 'bare'}",
+                auto_enabled=True,
+                auto_argument=argument,
+            )
         )
 
     response = json.loads(gate.response_path.read_text(encoding="utf-8"))
@@ -170,11 +173,13 @@ def test_auto_rejects_unknown_and_cross_tier_arguments_before_publication(
     plan = write_plan(gate_home, "conflict.md", VALID_TALE_PLAN)
     for argument in ("epic", "foo"):
         with pytest.raises(GateError) as exc_info:
-            create_plan_approval_gate(
-                plan,
-                f"conflict-{argument}",
-                auto_enabled=True,
-                auto_argument=argument,
+            create_gate(
+                build_plan_approval_gate_spec(
+                    plan,
+                    f"conflict-{argument}",
+                    auto_enabled=True,
+                    auto_argument=argument,
+                )
             )
         assert exc_info.value.code == "invalid_auto_argument"
     assert load_notifications(include_dismissed=True) == []
@@ -183,9 +188,11 @@ def test_auto_rejects_unknown_and_cross_tier_arguments_before_publication(
 def test_shared_host_executor_handles_feedback_rejection_and_races(
     gate_home: Path,
 ) -> None:
-    create_plan_approval_gate(
-        write_plan(gate_home, "feedback.md", VALID_TALE_PLAN),
-        "feedback-request",
+    create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "feedback.md", VALID_TALE_PLAN),
+            "feedback-request",
+        )
     )
     [feedback_notification] = load_notifications()
     feedback_result = execute_plan_approval_response(
@@ -206,9 +213,11 @@ def test_shared_host_executor_handles_feedback_rejection_and_races(
     ]
     assert feedback_result.response_json["feedback"] == "Add rollback coverage"
 
-    race_gate = create_plan_approval_gate(
-        write_plan(gate_home, "race.md", VALID_TALE_PLAN),
-        "race-request",
+    race_gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "race.md", VALID_TALE_PLAN),
+            "race-request",
+        )
     )
     with ThreadPoolExecutor(max_workers=2) as executor:
         outcomes = list(
@@ -226,9 +235,11 @@ def test_shared_host_executor_handles_feedback_rejection_and_races(
 def test_commit_gate_waits_for_archive_before_response_publication(
     gate_home: Path,
 ) -> None:
-    gate = create_plan_approval_gate(
-        write_plan(gate_home, "archive-paused.md", VALID_TALE_PLAN),
-        "archive-paused",
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "archive-paused.md", VALID_TALE_PLAN),
+            "archive-paused",
+        )
     )
     started = Event()
     release = Event()
@@ -269,9 +280,11 @@ def test_commit_gate_waits_for_archive_before_response_publication(
 
 
 def test_approve_only_gate_does_not_archive(gate_home: Path) -> None:
-    gate = create_plan_approval_gate(
-        write_plan(gate_home, "approve-only.md", VALID_TALE_PLAN),
-        "approve-only",
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "approve-only.md", VALID_TALE_PLAN),
+            "approve-only",
+        )
     )
 
     with patch("sase.plan_approval_actions._archive_plan_for_approval") as archive:
@@ -286,9 +299,11 @@ def test_approve_only_gate_does_not_archive(gate_home: Path) -> None:
 
 
 def test_commit_gate_archive_failure_leaves_gate_unanswered(gate_home: Path) -> None:
-    gate = create_plan_approval_gate(
-        write_plan(gate_home, "archive-fails.md", VALID_TALE_PLAN),
-        "archive-fails",
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "archive-fails.md", VALID_TALE_PLAN),
+            "archive-fails",
+        )
     )
 
     def archive(*_args: object, **_kwargs: object) -> str:
@@ -321,13 +336,15 @@ def test_tale_selection_derives_runner_protocol(
     expected_commit: bool,
     expected_run: bool,
 ) -> None:
-    gate = create_plan_approval_gate(
-        write_plan(
-            gate_home,
-            f"selection-{expected_commit}-{expected_run}.md",
-            VALID_TALE_PLAN,
-        ),
-        f"selection-{expected_commit}-{expected_run}",
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(
+                gate_home,
+                f"selection-{expected_commit}-{expected_run}.md",
+                VALID_TALE_PLAN,
+            ),
+            f"selection-{expected_commit}-{expected_run}",
+        )
     )
 
     with patch(

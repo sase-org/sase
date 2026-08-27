@@ -1,4 +1,4 @@
-"""Both flag states of ``handle_questions_marker``'s ``gate_shell_handoff`` gate."""
+"""Question marker gate-shell handoff."""
 
 from __future__ import annotations
 
@@ -72,47 +72,11 @@ def _questions() -> list[dict[str, Any]]:
     ]
 
 
-def test_flag_off_uses_the_existing_blocking_flow(
+def test_non_auto_creates_a_gate_shell_and_ends_gated(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ctx = make_ctx(tmp_path)
     state = make_state(tmp_path)
-    monkeypatch.setattr(questions_mod, "gate_shell_handoff_enabled", lambda: False)
-
-    def fake_questions_flow(
-        _questions: Any, _artifacts_dir: str, **_kwargs: Any
-    ) -> Any:
-        return {
-            "answers": [
-                {
-                    "question": "Which database?",
-                    "selected": ["SQLite"],
-                    "custom_feedback": None,
-                }
-            ],
-            "global_note": "",
-        }
-
-    monkeypatch.setattr(questions_mod, "handle_questions_flow", fake_questions_flow)
-
-    never_called = MagicMock(side_effect=AssertionError("must not be called"))
-    monkeypatch.setattr("sase.question_shell.create_question_gate_shell", never_called)
-    monkeypatch.setattr("sase.gate_shell.create_gate_shell", never_called)
-
-    outcome = questions_mod.handle_questions_marker(
-        {"questions": _questions()}, ctx, state
-    )
-
-    assert outcome is None
-    never_called.assert_not_called()
-
-
-def test_flag_on_non_auto_creates_a_gate_shell_and_ends_gated(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    ctx = make_ctx(tmp_path)
-    state = make_state(tmp_path)
-    monkeypatch.setattr(questions_mod, "gate_shell_handoff_enabled", lambda: True)
 
     creation = _fake_creation(
         gate_state="pending", artifacts_dir=str(tmp_path / "gate-member")
@@ -130,7 +94,7 @@ def test_flag_on_non_auto_creates_a_gate_shell_and_ends_gated(
     )
 
     def fail_wait_for_gate(*_args: Any, **_kwargs: Any) -> Any:
-        raise AssertionError("wait_for_gate must not be called on the On branch")
+        raise AssertionError("wait_for_gate must not be called")
 
     monkeypatch.setattr(
         "sase.notification_gates.poller.wait_for_gate", fail_wait_for_gate
@@ -165,12 +129,11 @@ def test_flag_on_non_auto_creates_a_gate_shell_and_ends_gated(
     assert not (Path(state.current_artifacts_dir) / "pending_question.json").exists()
 
 
-def test_flag_on_auto_continues_in_process_with_no_second_agent(
+def test_auto_continues_in_process_with_no_second_agent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ctx = make_ctx(tmp_path)
     state = make_state(tmp_path)
-    monkeypatch.setattr(questions_mod, "gate_shell_handoff_enabled", lambda: True)
 
     creation = _fake_creation(
         gate_state="answered", artifacts_dir=str(tmp_path / "gate-member")

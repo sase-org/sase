@@ -27,7 +27,8 @@ from sase.dev_update.code_swap_lock import (
     guarded_exec_argv,
 )
 from sase.notification_gates.executor import execute_gate_selection
-from sase.plan_gate import create_plan_approval_gate
+from sase.notification_gates.service import create_gate
+from sase.plan_gate import build_plan_approval_gate_spec
 from tests._plan_gate_fixtures import (  # noqa: F401
     plan_gate_home,
     write_plan,
@@ -59,7 +60,7 @@ def test_epic_approval_during_code_swap_creates_one_dag(
     plan.parent.mkdir()
     plan.write_text(EPIC_PLAN, encoding="utf-8")
     gate_plan = write_plan(gate_home, "rollout.md", VALID_EPIC_PLAN)
-    gate = create_plan_approval_gate(gate_plan, f"epic-{start_order}")
+    gate = create_gate(build_plan_approval_gate_spec(gate_plan, f"epic-{start_order}"))
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
     write_agent_meta_atomic(

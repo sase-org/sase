@@ -17,7 +17,7 @@ from sase.plan_approval_actions import (
 )
 from sase.plan_gate import (
     _build_plan_gate_spec,
-    create_plan_approval_gate,
+    build_plan_approval_gate_spec,
 )
 from sase.plan_shell.create import plan_gate_shell_block
 
@@ -33,7 +33,7 @@ from tests.plan_validation_helpers import (
 
 def test_edit_revalidates_tier_then_refreshes_review_hashes(gate_home: Path) -> None:
     plan = write_plan(gate_home, "edit.md", VALID_TALE_PLAN)
-    gate = create_plan_approval_gate(plan, "edit-request")
+    gate = create_gate(build_plan_approval_gate_spec(plan, "edit-request"))
     reviewed = gate.bundle_path / "plan.md"
     request_before = json.loads(gate.request_path.read_text(encoding="utf-8"))
     reviewed.write_text("# missing frontmatter\n", encoding="utf-8")
@@ -119,7 +119,7 @@ def test_plan_toctou_and_unregistered_command_contract_are_rejected(
     gate_home: Path,
 ) -> None:
     plan = write_plan(gate_home, "toctou.md", VALID_TALE_PLAN)
-    gate = create_plan_approval_gate(plan, "toctou-request")
+    gate = create_gate(build_plan_approval_gate_spec(plan, "toctou-request"))
     (gate.bundle_path / "plan.md").write_text(
         VALID_TALE_PLAN + "\nUnreviewed mutation\n", encoding="utf-8"
     )

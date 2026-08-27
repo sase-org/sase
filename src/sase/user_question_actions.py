@@ -58,8 +58,7 @@ def user_question_gate_spec(
 ) -> dict[str, Any]:
     """Build the shared v3 UserQuestion gate request body.
 
-    The single source of truth for both :func:`create_user_question_gate` and
-    the question gate shell's request, so the two producers cannot drift.
+    The single source of truth for the question gate shell's request.
     """
     normalized_questions = validate_user_questions(questions)
     response_schema = question_response_schema(normalized_questions)
@@ -104,28 +103,6 @@ def user_question_gate_spec(
         ],
         "auto": auto,
     }
-
-
-def create_user_question_gate(
-    questions: list[dict[str, Any]],
-    *,
-    session_id: str,
-    producer: Mapping[str, Any] | None = None,
-    action_data: Mapping[str, str] | None = None,
-    auto: bool = False,
-) -> Any:
-    """Create a neutral UserQuestion gate for the current agent continuation."""
-    from sase.notification_gates.service import create_gate
-
-    return create_gate(
-        user_question_gate_spec(
-            questions,
-            session_id=session_id,
-            producer=producer,
-            action_data=action_data,
-            auto=auto,
-        )
-    )
 
 
 def execute_user_question_response(
@@ -599,7 +576,6 @@ __all__ = [
     "UserQuestionActionContext",
     "UserQuestionActionError",
     "automatic_question_response",
-    "create_user_question_gate",
     "execute_user_question_gate_command",
     "execute_user_question_response",
     "question_gate_command_script",

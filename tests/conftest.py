@@ -86,7 +86,6 @@ _PLAN_CHAIN_GOLDEN_TEST_FILES = frozenset(
         "tests/test_epic_approval.py",
         "tests/test_followup_prompt_helpers.py",
         "tests/test_axe_run_agent_exec_plan_followup_questions.py",
-        "tests/test_axe_run_agent_helpers_questions.py",
         "tests/plan_chain_golden/test_marker_and_loop_golden.py",
         "tests/plan_chain_golden/test_plan_approval_response_golden.py",
     )

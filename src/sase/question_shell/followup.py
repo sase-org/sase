@@ -56,7 +56,7 @@ def _update_snapshot_if_configured(
     sdd_spec_path = meta.get("question_sdd_spec_path")
     if not isinstance(sdd_spec_path, str) or not sdd_spec_path:
         return
-    update_question_sdd_prompt_snapshot(
+    _update_question_sdd_prompt_snapshot(
         sdd_spec_path,
         merged_qa_text,
         workspace_dir=str(meta.get("workspace_dir") or ""),
@@ -65,7 +65,7 @@ def _update_snapshot_if_configured(
     )
 
 
-def update_question_sdd_prompt_snapshot(
+def _update_question_sdd_prompt_snapshot(
     sdd_spec_path: str,
     merged_qa_text: str,
     *,
@@ -77,10 +77,7 @@ def update_question_sdd_prompt_snapshot(
 
     In-tree prompt files remain part of the agent's normal workspace commit
     flow. External stores are committed here so a SASE-authored Q&A update
-    never becomes unclaimed work for the commit finalizer. Lifted from
-    ``run_agent_exec_questions._update_sdd_prompt_snapshot_qa`` to explicit
-    arguments so both the Off branch and the gate-shell settlement hook share
-    one implementation.
+    never becomes unclaimed work for the commit finalizer.
     """
     from pathlib import Path
 
@@ -114,4 +111,4 @@ def update_question_sdd_prompt_snapshot(
     )
 
 
-__all__ = ["question_next_action", "update_question_sdd_prompt_snapshot"]
+__all__ = ["question_next_action"]

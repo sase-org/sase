@@ -1,4 +1,13 @@
-"""Tests for neutral plan approval responses and notification metadata."""
+"""Tests for neutral plan approval response projection.
+
+``plan_approval_result_from_gate_response`` is the single implementation that
+projects a settled plan gate's response back into the runner's
+``PlanApprovalResult`` contract, used both by ``plan_shell.followup`` (the
+gate-shell path) and, historically, by the deleted blocking
+``handle_plan_approval`` wait loop. These tests drive it directly: build a
+real gate spec, execute a host response against it exactly as
+``execute_gate_selection`` would, then project that response.
+"""
 
 from __future__ import annotations
 
@@ -9,60 +18,59 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.llm_provider._plan_utils import PlanApprovalResult, handle_plan_approval
+from sase.llm_provider._plan_utils import (
+    PlanApprovalResult,
+    plan_approval_result_from_gate_response,
+)
 from sase.notification_gates.executor import execute_gate_selection
-from sase.plan_gate import create_plan_approval_gate as _create_plan_approval_gate
+from sase.notification_gates.service import create_gate
+from sase.plan_gate import build_plan_approval_gate_spec
 
 from tests.conftest import redirect_sase_home
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 
-def _respond_after_gate_creation(
+def _approve(
+    plan_file: str,
+    session_id: str,
     choice: str,
     *,
     input_data: dict[str, Any] | None = None,
     captured: dict[str, Any] | None = None,
+    **gate_kwargs: Any,
 ) -> Any:
-    """Patch gate creation so a host response is ready before the runner polls."""
+    """Create a plan gate, execute a host response, and project the result.
 
-    def create(*args: Any, **kwargs: Any) -> Any:
-        gate = _create_plan_approval_gate(*args, **kwargs)
-        if captured is not None:
-            captured["gate"] = gate
-            captured["request"] = json.loads(
-                gate.request_path.read_text(encoding="utf-8")
-            )
-        plan = Path(args[0]).expanduser()
-        saved = plan.parent / "sdd" / "plans" / "202608" / plan.name
+    Mirrors what the deleted ``handle_plan_approval`` did end to end, minus
+    its own notification/polling machinery (now owned by
+    ``plan_shell.create_plan_gate_shell``, tested separately).
+    """
+    spec = build_plan_approval_gate_spec(plan_file, session_id, **gate_kwargs)
+    gate = create_gate(spec)
+    if captured is not None:
+        captured["gate"] = gate
+        captured["request"] = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    plan = Path(plan_file).expanduser()
+    saved = plan.parent / "sdd" / "plans" / "202608" / plan.name
 
-        def archive(*_args: object, **_kwargs: object) -> str:
-            saved.parent.mkdir(parents=True)
-            saved.write_text(plan.read_text(encoding="utf-8"), encoding="utf-8")
-            from sase._plan_archive_approval import _ApprovedPlanArchive
+    def archive(*_args: object, **_kwargs: object) -> Any:
+        saved.parent.mkdir(parents=True)
+        saved.write_text(plan.read_text(encoding="utf-8"), encoding="utf-8")
+        from sase._plan_archive_approval import _ApprovedPlanArchive
 
-            return _ApprovedPlanArchive(saved, f"plan:202608/{plan.name}")
+        return _ApprovedPlanArchive(saved, f"plan:202608/{plan.name}")
 
-        with patch(
-            "sase.plan_approval_actions._archive_plan_for_approval",
-            side_effect=archive,
-        ):
-            execute_gate_selection(
-                gate.bundle_path,
-                ["approve" if choice == "epic" else choice],
-                input_data or {},
-                source="test_host",
-            )
-        return gate
-
-    return patch("sase.plan_gate.create_plan_approval_gate", side_effect=create)
-
-
-def _ui_patches() -> tuple[Any, Any, Any]:
-    return (
-        patch("sase.main.plan_approve_handler.send_desktop_notification"),
-        patch("sase.main.plan_approve_handler.ring_tmux_bell"),
-        patch("sase.main.plan_approve_handler.get_tmux_prefix", return_value=""),
-    )
+    with patch(
+        "sase.plan_approval_actions._archive_plan_for_approval",
+        side_effect=archive,
+    ):
+        execution = execute_gate_selection(
+            gate.bundle_path,
+            ["approve" if choice == "epic" else choice],
+            input_data or {},
+            source="test_host",
+        )
+    return plan_approval_result_from_gate_response(gate.bundle_path, execution.response)
 
 
 def test_handle_plan_approval_commit(
@@ -72,10 +80,8 @@ def test_handle_plan_approval_commit(
     plan = tmp_path / "plan.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    desktop, bell, prefix = _ui_patches()
 
-    with _respond_after_gate_creation("commit"), desktop, bell, prefix:
-        result = handle_plan_approval(str(plan), "test-commit-session")
+    result = _approve(str(plan), "test-commit-session", "commit")
 
     assert result == PlanApprovalResult(
         action="approve",
@@ -94,7 +100,6 @@ def test_handle_plan_approval_threads_saved_plan_path(
     plan = tmp_path / "plan.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    desktop, bell, prefix = _ui_patches()
     saved = str(tmp_path / "sdd" / "plans" / "202608" / "plan.md")
     from sase.plan_gate import translate_plan_gate_response as real_translate
 
@@ -103,14 +108,8 @@ def test_handle_plan_approval_threads_saved_plan_path(
         data["saved_plan_path"] = saved
         return data
 
-    with (
-        _respond_after_gate_creation("commit"),
-        desktop,
-        bell,
-        prefix,
-        patch("sase.plan_gate.translate_plan_gate_response", side_effect=translate),
-    ):
-        result = handle_plan_approval(str(plan), "saved-path-session")
+    with patch("sase.plan_gate.translate_plan_gate_response", side_effect=translate):
+        result = _approve(str(plan), "saved-path-session", "commit")
 
     assert result is not None
     assert result.saved_plan_path == saved
@@ -122,15 +121,13 @@ def test_handle_plan_approval_reads_host_epic_launch_owner(
     plan = tmp_path / "epic.md"
     plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    desktop, bell, prefix = _ui_patches()
 
-    with (
-        _respond_after_gate_creation("epic", input_data={"epic_launch_mode": "skip"}),
-        desktop,
-        bell,
-        prefix,
-    ):
-        result = handle_plan_approval(str(plan), "host-owned-epic")
+    result = _approve(
+        str(plan),
+        "host-owned-epic",
+        "epic",
+        input_data={"epic_launch_mode": "skip"},
+    )
 
     assert result is not None
     assert result.action == "epic"
@@ -155,15 +152,14 @@ def test_handle_plan_approval_forwards_agent_metadata(
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
     captured: dict[str, Any] = {}
-    desktop, bell, prefix = _ui_patches()
 
-    with (
-        _respond_after_gate_creation("approve", captured=captured),
-        desktop,
-        bell,
-        prefix,
-    ):
-        result = handle_plan_approval(str(plan), "session", **{keyword: value})
+    result = _approve(
+        str(plan),
+        "session",
+        "approve",
+        captured=captured,
+        **{keyword: value},
+    )
 
     assert result is not None
     action_data = captured["request"]["presentation"]["action_data"]
@@ -179,64 +175,13 @@ def test_handle_plan_approval_passes_agent_routing_timestamps(
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "20260512094333")
     monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "20260512090000")
     captured: dict[str, Any] = {}
-    desktop, bell, prefix = _ui_patches()
 
-    with (
-        _respond_after_gate_creation("approve", captured=captured),
-        desktop,
-        bell,
-        prefix,
-    ):
-        result = handle_plan_approval(str(plan), "session")
+    result = _approve(str(plan), "session", "approve", captured=captured)
 
     assert result is not None
     action_data = captured["request"]["presentation"]["action_data"]
     assert action_data["agent_timestamp"] == "20260512094333"
     assert action_data["agent_root_timestamp"] == "20260512090000"
-
-
-def test_handle_plan_approval_none_plan_file() -> None:
-    assert handle_plan_approval(None, "session-123") is None
-
-
-@pytest.mark.parametrize(
-    ("plan_content", "choice", "expected_action"),
-    [
-        (VALID_TALE_PLAN, "approve", "approve"),
-        (VALID_EPIC_PLAN, "epic", "epic"),
-    ],
-)
-def test_manual_plan_gate_sends_desktop_notification_without_terminal_bell(
-    plan_content: str,
-    choice: str,
-    expected_action: str,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    plan = tmp_path / "plan.md"
-    plan.write_text(plan_content, encoding="utf-8")
-    redirect_sase_home(monkeypatch, tmp_path / ".sase")
-
-    with (
-        _respond_after_gate_creation(
-            choice,
-            input_data={"epic_launch_mode": "skip"} if choice == "epic" else None,
-        ),
-        patch("sase.main.plan_approve_handler.send_desktop_notification") as desktop,
-        patch("sase.main.plan_approve_handler.ring_tmux_bell") as bell,
-        patch(
-            "sase.main.plan_approve_handler.get_tmux_prefix",
-            return_value="[test]",
-        ),
-    ):
-        result = handle_plan_approval(str(plan), f"manual-{expected_action}")
-
-    assert result is not None
-    assert result.action == expected_action
-    desktop.assert_called_once_with(
-        "[test] Plan Complete", "Plan ready for review in sase ace"
-    )
-    bell.assert_not_called()
 
 
 def test_handle_plan_approval_approve_with_options(
@@ -246,20 +191,13 @@ def test_handle_plan_approval_approve_with_options(
     plan = tmp_path / "plan.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    desktop, bell, prefix = _ui_patches()
 
-    with (
-        _respond_after_gate_creation(
-            "approve",
-            input_data={
-                "coder_prompt": "  #review+  ",
-            },
-        ),
-        desktop,
-        bell,
-        prefix,
-    ):
-        result = handle_plan_approval(str(plan), "test-options-session")
+    result = _approve(
+        str(plan),
+        "test-options-session",
+        "approve",
+        input_data={"coder_prompt": "  #review+  "},
+    )
 
     assert result is not None
     assert result.action == "approve"

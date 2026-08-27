@@ -89,10 +89,14 @@ def test_handle_questions_marker_persists_response_paths_on_interrupted_dir(
     """handle_questions_marker writes response metadata to the interrupted dir.
 
     The interrupted (asking) artifact is ``state.current_artifacts_dir`` at the
-    time the marker is handled. After the user answers, that dir must carry the
-    response paths so the asking row is self-describing.
+    time the marker is handled. Creating the question gate shell must carry
+    the request/response paths so the asking row is self-describing, before
+    the gate even settles.
     """
     from sase.axe.run_agent_exec_questions import handle_questions_marker
+    from sase.gate_shell.models import GateShellRecord
+    from sase.gate_shell.transaction import GateShellCreation
+    from sase.notification_gates.model_results import GateCreationResult
     from tests._axe_run_agent_exec_plan_helpers import make_ctx, make_state
 
     ctx = make_ctx(tmp_path)
@@ -106,13 +110,45 @@ def test_handle_questions_marker_persists_response_paths_on_interrupted_dir(
     state.current_artifacts_dir = str(interrupted_dir)
 
     session_dir = tmp_path / "user_question" / "abc"
-    response = {
-        "answers": [],
-        "global_note": "",
-        "_question_request_path": str(session_dir / "question_request.json"),
-        "_question_response_path": str(session_dir / "question_response.json"),
-        "_question_session_id": "abc",
-    }
+    gate_member_dir = tmp_path / "gate-member"
+    gate_member_dir.mkdir()
+    gate = GateCreationResult(
+        schema_version=3,
+        notification_id=None,
+        request_id="abc",
+        kind="question",
+        bundle_path=session_dir,
+        request_path=session_dir / "question_request.json",
+        response_path=session_dir / "question_response.json",
+        preview_path=None,
+        continuation_mode="agent_question",
+        auto_resolution={"state": "resolved"},
+        hashes={},
+    )
+    record = GateShellRecord(
+        gate_id="abc",
+        member_agent_name="test_agent--gate",
+        lane="test_agent",
+        project_name="test_proj",
+        artifacts_dir=str(gate_member_dir),
+        timestamp="20260827120000",
+        kind="question",
+        gate_state="answered",
+        start_status="QUESTION",
+        stop_status="ANSWERED",
+        accent="#FFAF00",
+        label="Question",
+        reason="wait for reviewer",
+        creator_agent="test_agent",
+        bundle_path=str(session_dir),
+        notification_id=None,
+        timeout_seconds=86400.0,
+        request_fingerprint=None,
+        workspace_policy="inherit",
+    )
+    creation = GateShellCreation(
+        gate=gate, record=record, project_file=None, claim_move=None, cl_name=None
+    )
 
     patches = {
         "sase.axe.run_agent_exec_questions.normalize_handoff_interruption_state": None,
@@ -130,6 +166,11 @@ def test_handle_questions_marker_persists_response_paths_on_interrupted_dir(
         "sase.history.chat_extras.format_extra_sections": lambda *a: "",
         "sase.axe.run_agent_helpers_artifacts."
         "update_agent_artifact_index_for_marker_mutation": None,
+        "sase.main.plan_approve_handler.is_auto_approve_active": lambda: True,
+        "sase.question_shell.resolve_question_chain_parent": lambda *a, **k: None,
+        "sase.question_shell.create_question_gate_shell": lambda *a, **k: creation,
+        "sase.question_shell.question_rounds": lambda *a, **k: [],
+        "sase.axe.run_agent_exec_questions.uuid.uuid4": lambda: "abc",
     }
 
     from contextlib import ExitStack
@@ -139,12 +180,6 @@ def test_handle_questions_marker_persists_response_paths_on_interrupted_dir(
             stack.enter_context(
                 patch(target, side_effect=side_effect) if side_effect else patch(target)
             )
-        stack.enter_context(
-            patch(
-                "sase.axe.run_agent_exec_questions.handle_questions_flow",
-                return_value=response,
-            )
-        )
         outcome = handle_questions_marker({"questions": []}, ctx, state)
 
     assert outcome is None

@@ -224,7 +224,7 @@ def _disable_prettier_for_skill_generation(
                 "question gate shell",
                 "Your turn ends as `DONE`",
                 "launches a follow-up agent",
-                "the runner recognizes the marker as an intentional question handoff",
+                "The runner recognizes the marker as an intentional question handoff",
             ),
         ),
         (

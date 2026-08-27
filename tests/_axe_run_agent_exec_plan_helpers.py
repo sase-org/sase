@@ -3,9 +3,13 @@
 import json
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from sase.axe.run_agent_exec import AgentExecContext, LoopState
+from sase.gate_shell.models import GateShellRecord
+from sase.gate_shell.transaction import GateShellCreation
+from sase.notification_gates.model_results import GateCreationResult
 
 
 def make_ctx(
@@ -72,7 +76,6 @@ PLAN_PATCHES = {
     "sase.axe.run_agent_exec_plan.update_meta_suffix": None,
     "sase.axe.run_agent_exec_plan.update_meta_field": None,
     "sase.axe.run_agent_exec_plan.reset_killed": None,
-    "sase.axe.run_agent_exec_plan.was_killed": lambda: False,
     "sase.axe.run_agent_exec_plan._write_plan_path_artifact": None,
     "sase.axe.run_agent_exec_plan.update_step_marker_chat_path": None,
     "sase.axe.run_agent_exec_plan.create_followup_artifacts": lambda *a, **kw: (
@@ -100,7 +103,6 @@ PLAN_PATCHES = {
     ),
     "sase.axe.run_agent_exec_questions.promote_to_workflow": None,
     "sase.axe.run_agent_exec_questions._store_followup_prompt_artifact": None,
-    "sase.llm_provider._plan_utils.handle_plan_approval": None,
     "sase.history.chat.save_chat_history": lambda **kw: "/fake/chat",
     "sase.history.chat_extras.format_extra_sections": lambda *a: "",
     "sase.history.chat_links.format_plan_as_response": lambda *a: "plan",
@@ -130,3 +132,141 @@ def patched_plan_deps():
     finally:
         for patcher in patchers:
             patcher.stop()
+
+
+def _non_handoff_plan_gate_creation() -> GateShellCreation:
+    """Return a synchronously-settled (non-handoff) plan gate-shell creation."""
+    gate = GateCreationResult(
+        schema_version=3,
+        notification_id=None,
+        request_id="plan-gate",
+        kind="plan",
+        bundle_path=Path("/tmp/plan-gate-bundle"),
+        request_path=Path("/tmp/plan-gate-bundle/request.json"),
+        response_path=Path("/tmp/plan-gate-bundle/response.json"),
+        preview_path=None,
+        continuation_mode="plan_approval",
+        auto_resolution={"state": "resolved"},
+        hashes={},
+    )
+    record = GateShellRecord(
+        gate_id="plan-gate",
+        member_agent_name="test_agent--gate",
+        lane="test_agent",
+        project_name="test_proj",
+        artifacts_dir="/tmp/plan-gate-member",
+        timestamp="20260827120000",
+        kind="plan",
+        gate_state="answered",
+        start_status="TALE",
+        stop_status="TALE APPROVED",
+        accent="#FFD75F",
+        label="Plan",
+        reason="wait for reviewer",
+        creator_agent="test_agent--plan",
+        bundle_path="/tmp/plan-gate-bundle",
+        notification_id=None,
+        timeout_seconds=86400.0,
+        request_fingerprint=None,
+        workspace_policy="inherit",
+    )
+    return GateShellCreation(
+        gate=gate, record=record, project_file=None, claim_move=None, cl_name=None
+    )
+
+
+@contextmanager
+def patch_plan_gate_shell_result(result: Any):
+    """Patch the plan gate-shell seam to settle synchronously with *result*.
+
+    Replaces the removed ``handle_plan_approval`` blocking seam: production
+    code now always creates a plan gate shell and, when it settles
+    in-process (no handoff), reads the result via
+    ``plan_shell.plan_result_from_gate_creation``. *result* is a
+    ``PlanApprovalResult`` for an accepted/feedback outcome, or ``None`` for
+    a rejected one.
+    """
+    with (
+        patch(
+            "sase.plan_shell.create_plan_gate_shell",
+            return_value=_non_handoff_plan_gate_creation(),
+        ),
+        patch(
+            "sase.plan_shell.plan_result_from_gate_creation",
+            return_value=result,
+        ),
+    ):
+        yield
+
+
+def _non_handoff_question_gate_creation() -> GateShellCreation:
+    """Return a synchronously-settled (non-handoff) question gate-shell creation."""
+    gate = GateCreationResult(
+        schema_version=3,
+        notification_id=None,
+        request_id="question-gate",
+        kind="question",
+        bundle_path=Path("/tmp/question-gate-bundle"),
+        request_path=Path("/tmp/question-gate-bundle/request.json"),
+        response_path=Path("/tmp/question-gate-bundle/response.json"),
+        preview_path=None,
+        continuation_mode="agent_question",
+        auto_resolution={"state": "resolved"},
+        hashes={},
+    )
+    record = GateShellRecord(
+        gate_id="question-gate",
+        member_agent_name="test_agent--gate",
+        lane="test_agent",
+        project_name="test_proj",
+        artifacts_dir="/tmp/question-gate-member",
+        timestamp="20260827120000",
+        kind="question",
+        gate_state="answered",
+        start_status="QUESTION",
+        stop_status="ANSWERED",
+        accent="#FFAF00",
+        label="Question",
+        reason="wait for reviewer",
+        creator_agent="test_agent",
+        bundle_path="/tmp/question-gate-bundle",
+        notification_id=None,
+        timeout_seconds=86400.0,
+        request_fingerprint=None,
+        workspace_policy="inherit",
+    )
+    return GateShellCreation(
+        gate=gate, record=record, project_file=None, claim_move=None, cl_name=None
+    )
+
+
+@contextmanager
+def patch_question_gate_shell_rounds(rounds: list[Any]):
+    """Patch the question gate-shell seam to settle in-process with *rounds*.
+
+    Replaces the removed ``handle_questions_flow`` blocking seam: production
+    code now always creates a question gate shell, and -- with auto-approval
+    active -- settles it synchronously and continues in-process, rebuilding
+    the merged Q&A from ``question_shell.question_rounds`` rather than from
+    ``LoopState.qa_rounds``. *rounds* is the full settled chain (oldest
+    first), including the round this call is answering.
+    """
+    with (
+        patch(
+            "sase.main.plan_approve_handler.is_auto_approve_active",
+            return_value=True,
+        ),
+        patch(
+            "sase.question_shell.resolve_question_chain_parent",
+            return_value=None,
+        ),
+        patch(
+            "sase.question_shell.create_question_gate_shell",
+            return_value=_non_handoff_question_gate_creation(),
+        ),
+        patch(
+            "sase.question_shell.question_rounds",
+            return_value=rounds,
+        ),
+    ):
+        yield

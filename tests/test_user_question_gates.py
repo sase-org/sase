@@ -8,13 +8,14 @@ from typing import Any
 
 import pytest
 
+from sase.notification_gates.service import create_gate
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
 from sase.user_question_actions import (
     UserQuestionActionContext,
     UserQuestionActionError,
-    create_user_question_gate,
     execute_user_question_response,
+    user_question_gate_spec,
 )
 
 
@@ -91,11 +92,13 @@ def test_question_gate_executes_complete_form_and_marks_handled(
     question_gate_home: Path,
 ) -> None:
     del question_gate_home
-    gate = create_user_question_gate(
-        _questions(),
-        session_id="question-session",
-        producer={"agent": "test"},
-        action_data={"agent_timestamp": "20260716120000"},
+    gate = create_gate(
+        user_question_gate_spec(
+            _questions(),
+            session_id="question-session",
+            producer={"agent": "test"},
+            action_data={"agent_timestamp": "20260716120000"},
+        )
     )
     notification = load_notifications()[0]
 
@@ -126,7 +129,7 @@ def test_incomplete_question_form_leaves_gate_answerable(
     question_gate_home: Path,
 ) -> None:
     del question_gate_home
-    gate = create_user_question_gate(_questions(), session_id="incomplete")
+    gate = create_gate(user_question_gate_spec(_questions(), session_id="incomplete"))
     notification = load_notifications()[0]
 
     with pytest.raises(UserQuestionActionError) as exc_info:
@@ -154,7 +157,7 @@ def test_cross_surface_duplicate_question_answer_is_write_once(
     question_gate_home: Path,
 ) -> None:
     del question_gate_home
-    create_user_question_gate(_questions(), session_id="duplicate")
+    create_gate(user_question_gate_spec(_questions(), session_id="duplicate"))
     notification = load_notifications()[0]
     context = _context(notification)
 
@@ -169,20 +172,22 @@ def test_auto_question_uses_first_options_without_publishing_pending_action(
     question_gate_home: Path,
 ) -> None:
     del question_gate_home
-    gate = create_user_question_gate(
-        [
-            {
-                "question": "Database?",
-                "options": [{"label": "SQLite"}, {"label": "PostgreSQL"}],
-            },
-            {
-                "question": "Checks?",
-                "options": [{"label": "Lint"}, {"label": "Tests"}],
-                "multiSelect": True,
-            },
-        ],
-        session_id="automatic",
-        auto=True,
+    gate = create_gate(
+        user_question_gate_spec(
+            [
+                {
+                    "question": "Database?",
+                    "options": [{"label": "SQLite"}, {"label": "PostgreSQL"}],
+                },
+                {
+                    "question": "Checks?",
+                    "options": [{"label": "Lint"}, {"label": "Tests"}],
+                    "multiSelect": True,
+                },
+            ],
+            session_id="automatic",
+            auto=True,
+        )
     )
 
     assert gate.notification_id is None
@@ -216,8 +221,6 @@ def test_shell_backed_question_settles_its_gate_shell_and_streams_output(
     from sase.gate_shell.member import create_gate_shell_member
     from sase.gate_shell.store import read_gate_shell_marker
     from sase.notification_gates.model_shell import GateShellSpec
-    from sase.notification_gates.service import create_gate
-    from sase.user_question_actions import user_question_gate_spec
 
     request = user_question_gate_spec(_questions(), session_id="shell-question")
     # No ``next.prompt`` declared: settlement must not attempt a follow-up
@@ -262,7 +265,7 @@ def test_non_shell_question_answers_exactly_as_today(
 ) -> None:
     """A gate with no ``shell`` block never touches gate-shell machinery."""
     del question_gate_home
-    create_user_question_gate(_questions(), session_id="non-shell-question")
+    create_gate(user_question_gate_spec(_questions(), session_id="non-shell-question"))
     notification = load_notifications()[0]
 
     result = execute_user_question_response(

@@ -11,15 +11,18 @@ from sase.ace.tui.modals.user_question_modal import (
     UserQuestionResult,
     _QuestionAnswer,
 )
+from sase.notification_gates.service import create_gate
 from sase.notifications import Notification
 from sase.notifications.store import load_notifications
-from sase.user_question_actions import create_user_question_gate
+from sase.user_question_actions import user_question_gate_spec
 
 
 def test_neutral_question_response_runs_as_tracked_background_task() -> None:
-    gate = create_user_question_gate(
-        [{"question": "Tracked?", "options": [{"label": "Yes"}]}],
-        session_id="tracked-question",
+    gate = create_gate(
+        user_question_gate_spec(
+            [{"question": "Tracked?", "options": [{"label": "Yes"}]}],
+            session_id="tracked-question",
+        )
     )
     notification = load_notifications()[0]
     captured: dict[str, Any] = {}

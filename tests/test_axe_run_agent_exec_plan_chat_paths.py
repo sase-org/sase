@@ -8,9 +8,12 @@ import pytest
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.axe.run_agent_exec_questions import handle_questions_marker
 from sase.llm_provider._plan_utils import PlanApprovalResult
+from sase.main.qa_prompt import build_qa_round
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
     make_state,
+    patch_plan_gate_shell_result,
+    patch_question_gate_shell_rounds,
     patched_plan_deps,
 )
 from tests.plan_validation_helpers import VALID_TALE_PLAN
@@ -50,10 +53,7 @@ class TestFeedbackRoundChatPath:
             return "/fake/chat"
 
         with (
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                return_value=approval,
-            ),
+            patch_plan_gate_shell_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -118,11 +118,10 @@ class TestFeedbackRoundChatPath:
             captured.update(kw)
             return "/fake/chat"
 
+        rounds = [build_qa_round([], {"answers": [], "global_note": ""})]
+
         with (
-            patch(
-                "sase.axe.run_agent_exec_questions.handle_questions_flow",
-                return_value={"answers": [], "global_note": ""},
-            ),
+            patch_question_gate_shell_rounds(rounds),
             patch(
                 "sase.history.chat.save_chat_history",
                 side_effect=capture,

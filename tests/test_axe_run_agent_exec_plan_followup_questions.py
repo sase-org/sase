@@ -10,6 +10,7 @@ from sase.axe import run_agent_exec_plan as plan_mod
 from sase.axe import run_agent_exec_questions as questions_mod
 from sase.axe.run_agent_exec_questions import handle_questions_marker
 from sase.llm_provider._plan_utils import PlanApprovalResult
+from sase.main.qa_prompt import build_qa_round
 from sase.sdd.store import SddStore
 from tests._axe_run_agent_exec_plan_followup_prompt_helpers import (
     approve_followup_plan,
@@ -17,7 +18,11 @@ from tests._axe_run_agent_exec_plan_followup_prompt_helpers import (
     run_plan_approval,
     write_plan_file,
 )
-from tests._axe_run_agent_exec_plan_helpers import make_ctx, make_state
+from tests._axe_run_agent_exec_plan_helpers import (
+    make_ctx,
+    make_state,
+    patch_question_gate_shell_rounds,
+)
 
 pytestmark = pytest.mark.usefixtures(
     patch_plan_deps.__name__,
@@ -26,56 +31,6 @@ pytestmark = pytest.mark.usefixtures(
 
 class TestPlanFollowupQuestions:
     """Verify feedback and question follow-up prompts."""
-
-    @pytest.mark.parametrize(
-        ("stored_priority", "expected_priority"),
-        [
-            (3, 3),
-            (None, 10),
-            (-1, 10),
-            ("3", 10),
-        ],
-    )
-    def test_question_reacquisition_keeps_normalized_authored_priority(
-        self,
-        tmp_path,
-        stored_priority,
-        expected_priority,
-    ) -> None:
-        ctx = make_ctx(tmp_path)
-        state = make_state(tmp_path)
-        meta: dict[str, object] = {"role_suffix": ".plan"}
-        if stored_priority is not None:
-            meta["wait_priority"] = stored_priority
-        (tmp_path / "artifacts" / "agent_meta.json").write_text(json.dumps(meta))
-        captured: dict[str, object] = {}
-
-        def fake_wait_for_runner_slot(*_args, **kwargs):
-            captured["wait_runners"] = kwargs["wait_runners"]
-            captured["wait_priority"] = kwargs["wait_priority"]
-            return kwargs["claim"]()
-
-        def fake_questions_flow(_questions, _artifacts_dir, **kwargs):
-            kwargs["reacquire_runner_slot"](lambda: "claimed")
-            return {"answers": [], "global_note": ""}
-
-        with (
-            patch(
-                "sase.axe.run_agent_exec_questions.handle_questions_flow",
-                side_effect=fake_questions_flow,
-            ),
-            patch(
-                "sase.axe.run_agent_exec_questions.wait_for_runner_slot",
-                side_effect=fake_wait_for_runner_slot,
-            ),
-        ):
-            outcome = handle_questions_marker({"questions": []}, ctx, state)
-
-        assert outcome is None
-        assert captured == {
-            "wait_runners": None,
-            "wait_priority": expected_priority,
-        }
 
     def test_feedback_followup_stores_full_prompt_artifact(self, tmp_path) -> None:
         """Plan feedback follow-up exposes the rebuilt prompt as an artifact."""
@@ -231,11 +186,9 @@ class TestPlanFollowupQuestions:
             ],
             "global_note": "Keep it simple",
         }
+        rounds = [build_qa_round(questions, response)]
 
-        with patch(
-            "sase.axe.run_agent_exec_questions.handle_questions_flow",
-            return_value=response,
-        ):
+        with patch_question_gate_shell_rounds(rounds):
             outcome = handle_questions_marker({"questions": questions}, ctx, state)
 
         assert outcome is None
@@ -260,11 +213,9 @@ class TestPlanFollowupQuestions:
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         state.current_role_suffix = None
+        rounds = [build_qa_round([], {"answers": [], "global_note": ""})]
 
-        with patch(
-            "sase.axe.run_agent_exec_questions.handle_questions_flow",
-            return_value={"answers": [], "global_note": ""},
-        ):
+        with patch_question_gate_shell_rounds(rounds):
             outcome = handle_questions_marker({"questions": []}, ctx, state)
 
         assert outcome is None
@@ -283,11 +234,9 @@ class TestPlanFollowupQuestions:
     ) -> None:
         ctx = replace(make_ctx(tmp_path), agent_name=None)
         state = make_state(tmp_path)
+        rounds = [build_qa_round([], {"answers": [], "global_note": ""})]
 
-        with patch(
-            "sase.axe.run_agent_exec_questions.handle_questions_flow",
-            return_value={"answers": [], "global_note": ""},
-        ):
+        with patch_question_gate_shell_rounds(rounds):
             outcome = handle_questions_marker({"questions": []}, ctx, state)
 
         assert outcome is None
@@ -300,101 +249,6 @@ class TestPlanFollowupQuestions:
             == "plan"
         )
 
-    def test_external_sdd_question_snapshot_is_committed(self, tmp_path) -> None:
-        ctx = make_ctx(tmp_path)
-        state = make_state(tmp_path)
-        prompt_path = tmp_path / "202607" / "prompts" / "test_plan.md"
-        prompt_path.parent.mkdir(parents=True)
-        prompt_path.write_text("Original prompt", encoding="utf-8")
-        state.sdd_spec_path = str(prompt_path)
-        store = SddStore(
-            storage="sidecar_repos",
-            sdd_dir=tmp_path,
-            repo_root=tmp_path,
-        )
-
-        with (
-            patch(
-                "sase.axe.run_agent_exec_questions.handle_questions_flow",
-                return_value={"answers": [], "global_note": "answer"},
-            ),
-            patch("sase.sdd.store.resolve_sdd_store", return_value=store),
-            patch("sase.sdd.files.commit_sdd_store_files") as commit,
-        ):
-            outcome = handle_questions_marker({"questions": []}, ctx, state)
-
-        assert outcome is None
-        assert "### Questions and Answers" in prompt_path.read_text(encoding="utf-8")
-        commit.assert_called_once_with(
-            store,
-            "Add Q&A to test_plan prompt",
-            auto_commit_type="sdd",
-            paths=[prompt_path],
-            artifacts_dir="/tmp/followup",
-        )
-
-    def test_in_tree_sdd_question_snapshot_is_not_committed(self, tmp_path) -> None:
-        ctx = make_ctx(tmp_path)
-        state = make_state(tmp_path)
-        prompt_path = tmp_path / "sdd" / "plans" / "202607" / "prompts" / "p.md"
-        prompt_path.parent.mkdir(parents=True)
-        prompt_path.write_text("Original prompt\n", encoding="utf-8")
-        state.sdd_spec_path = str(prompt_path)
-        store = SddStore(
-            storage="in_tree",
-            sdd_dir=tmp_path / "sdd",
-            repo_root=tmp_path,
-        )
-
-        with (
-            patch(
-                "sase.axe.run_agent_exec_questions.handle_questions_flow",
-                return_value={"answers": [], "global_note": "answer"},
-            ),
-            patch("sase.sdd.store.resolve_sdd_store", return_value=store),
-            patch("sase.sdd.files.commit_sdd_store_files") as commit,
-        ):
-            outcome = handle_questions_marker({"questions": []}, ctx, state)
-
-        assert outcome is None
-        assert "### Questions and Answers" in prompt_path.read_text(encoding="utf-8")
-        commit.assert_not_called()
-
-    def test_sdd_question_snapshot_commit_failure_warns_and_continues(
-        self,
-        tmp_path,
-        caplog: pytest.LogCaptureFixture,
-    ) -> None:
-        ctx = make_ctx(tmp_path)
-        state = make_state(tmp_path)
-        prompt_path = tmp_path / "202607" / "prompts" / "test_plan.md"
-        prompt_path.parent.mkdir(parents=True)
-        prompt_path.write_text("Original prompt\n", encoding="utf-8")
-        state.sdd_spec_path = str(prompt_path)
-        store = SddStore(
-            storage="sidecar_repos",
-            sdd_dir=tmp_path,
-            repo_root=tmp_path,
-        )
-
-        with (
-            caplog.at_level("WARNING", logger=questions_mod.__name__),
-            patch(
-                "sase.axe.run_agent_exec_questions.handle_questions_flow",
-                return_value={"answers": [], "global_note": "answer"},
-            ),
-            patch("sase.sdd.store.resolve_sdd_store", return_value=store),
-            patch(
-                "sase.sdd.files.commit_sdd_store_files",
-                side_effect=RuntimeError("commit failed"),
-            ),
-        ):
-            outcome = handle_questions_marker({"questions": []}, ctx, state)
-
-        assert outcome is None
-        assert "### Questions and Answers" in prompt_path.read_text(encoding="utf-8")
-        assert "SDD prompt Q&A snapshot update failed" in caplog.text
-
     def test_question_followup_second_round_uses_next_root_suffix(
         self, tmp_path
     ) -> None:
@@ -403,11 +257,9 @@ class TestPlanFollowupQuestions:
         state = make_state(tmp_path)
         state.agent_step = 2
         state.current_role_suffix = "--1"
+        rounds = [build_qa_round([], {"answers": [], "global_note": ""})]
 
-        with patch(
-            "sase.axe.run_agent_exec_questions.handle_questions_flow",
-            return_value={"answers": [], "global_note": ""},
-        ):
+        with patch_question_gate_shell_rounds(rounds):
             outcome = handle_questions_marker({"questions": []}, ctx, state)
 
         assert outcome is None
@@ -428,11 +280,9 @@ class TestPlanFollowupQuestions:
             json.dumps({"role_suffix": "--2", "agent_family_role": "review"}),
             encoding="utf-8",
         )
+        rounds = [build_qa_round([], {"answers": [], "global_note": ""})]
 
-        with patch(
-            "sase.axe.run_agent_exec_questions.handle_questions_flow",
-            return_value={"answers": [], "global_note": ""},
-        ):
+        with patch_question_gate_shell_rounds(rounds):
             outcome = handle_questions_marker({"questions": []}, ctx, state)
 
         assert outcome is None
@@ -490,21 +340,16 @@ class TestPlanFollowupQuestions:
             "global_note": "final note",
         }
 
-        with patch(
-            "sase.axe.run_agent_exec_questions.handle_questions_flow",
-            return_value=round1_response,
-        ):
+        rounds = [build_qa_round(round1_questions, round1_response)]
+        with patch_question_gate_shell_rounds(rounds):
             handle_questions_marker({"questions": round1_questions}, ctx, state)
 
         assert state.current_prompt.count("### Questions and Answers") == 1
         assert "#### Q1: Repro" in state.current_prompt
         assert "#### Q2: Symptom" in state.current_prompt
-        assert len(state.qa_rounds) == 1
 
-        with patch(
-            "sase.axe.run_agent_exec_questions.handle_questions_flow",
-            return_value=round2_response,
-        ):
+        rounds = [*rounds, build_qa_round(round2_questions, round2_response)]
+        with patch_question_gate_shell_rounds(rounds):
             handle_questions_marker({"questions": round2_questions}, ctx, state)
 
         assert state.current_prompt.count("### Questions and Answers") == 1
@@ -515,7 +360,6 @@ class TestPlanFollowupQuestions:
         assert state.current_prompt.count("%xprompts_enabled:false") == 1
         assert state.current_prompt.count("%xprompts_enabled:true") == 1
         assert "final note" in state.current_prompt
-        assert len(state.qa_rounds) == 2
 
     def test_question_from_code_phase_rebuilds_from_code_prompt(self, tmp_path) -> None:
         """A code-phase question keeps the code prompt + size alias, not the planner.
@@ -556,10 +400,8 @@ class TestPlanFollowupQuestions:
             ],
             "global_note": "",
         }
-        with patch(
-            "sase.axe.run_agent_exec_questions.handle_questions_flow",
-            return_value=response,
-        ):
+        rounds = [build_qa_round(questions, response)]
+        with patch_question_gate_shell_rounds(rounds):
             outcome = handle_questions_marker({"questions": questions}, ctx, state)
 
         assert outcome is None
@@ -607,10 +449,8 @@ class TestPlanFollowupQuestions:
         round1_dir = tmp_path / "code_phase_r1"
         round1_dir.mkdir()
         state.current_artifacts_dir = str(round1_dir)
-        with patch(
-            "sase.axe.run_agent_exec_questions.handle_questions_flow",
-            return_value=round1,
-        ):
+        rounds = [build_qa_round(round1_q, round1)]
+        with patch_question_gate_shell_rounds(rounds):
             handle_questions_marker({"questions": round1_q}, ctx, state)
         assert state.current_role_suffix == "--1"
         assert state.current_prompt.startswith("%model:@small\n")
@@ -620,10 +460,8 @@ class TestPlanFollowupQuestions:
         round2_dir = tmp_path / "code_phase_r2"
         round2_dir.mkdir()
         state.current_artifacts_dir = str(round2_dir)
-        with patch(
-            "sase.axe.run_agent_exec_questions.handle_questions_flow",
-            return_value=round2,
-        ):
+        rounds = [*rounds, build_qa_round(round2_q, round2)]
+        with patch_question_gate_shell_rounds(rounds):
             handle_questions_marker({"questions": round2_q}, ctx, state)
         assert state.current_role_suffix == "--2"
         assert state.current_prompt.startswith("%model:@small\n")
@@ -650,11 +488,9 @@ class TestPlanFollowupQuestions:
             )
         )
         state.current_artifacts_dir = str(code_dir)
+        rounds = [build_qa_round([], {"answers": [], "global_note": ""})]
 
-        with patch(
-            "sase.axe.run_agent_exec_questions.handle_questions_flow",
-            return_value={"answers": [], "global_note": ""},
-        ):
+        with patch_question_gate_shell_rounds(rounds):
             handle_questions_marker({"questions": []}, ctx, state)
 
         base_meta = questions_mod.create_followup_artifacts.call_args.args[1]
@@ -668,12 +504,136 @@ class TestPlanFollowupQuestions:
         ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="claude")
         state = make_state(tmp_path)
         state.current_artifacts_dir = str(tmp_path / "does_not_exist")
+        rounds = [build_qa_round([], {"answers": [], "global_note": ""})]
 
-        with patch(
-            "sase.axe.run_agent_exec_questions.handle_questions_flow",
-            return_value={"answers": [], "global_note": ""},
-        ):
+        with patch_question_gate_shell_rounds(rounds):
             handle_questions_marker({"questions": []}, ctx, state)
 
         base_meta = questions_mod.create_followup_artifacts.call_args.args[1]
         assert base_meta is ctx.agent_meta
+
+
+class TestQuestionSddPromptSnapshot:
+    """Verify the Q&A prompt snapshot shared by the code path and gate-shell settlement.
+
+    ``_update_question_sdd_prompt_snapshot`` (``sase.question_shell.followup``)
+    is the single implementation both the gate-shell settlement hook
+    (``question_next_action``) and, historically, the runner's inline
+    question handling shared. The runner no longer calls it directly -- a
+    question gate shell's settlement calls it once the gate settles -- so
+    these tests drive it directly instead of through
+    ``handle_questions_marker``.
+    """
+
+    def test_external_sdd_question_snapshot_is_committed(self, tmp_path) -> None:
+        from sase.question_shell.followup import _update_question_sdd_prompt_snapshot
+
+        prompt_path = tmp_path / "202607" / "prompts" / "test_plan.md"
+        prompt_path.parent.mkdir(parents=True)
+        prompt_path.write_text("Original prompt", encoding="utf-8")
+        store = SddStore(
+            storage="sidecar_repos",
+            sdd_dir=tmp_path,
+            repo_root=tmp_path,
+        )
+
+        with (
+            patch("sase.sdd.store.resolve_sdd_store", return_value=store),
+            patch("sase.sdd.files.commit_sdd_store_files") as commit,
+        ):
+            _update_question_sdd_prompt_snapshot(
+                str(prompt_path),
+                "### Questions and Answers\n\nanswer",
+                workspace_dir=str(tmp_path),
+                workspace_num=1,
+                artifacts_dir="/tmp/followup",
+            )
+
+        assert "### Questions and Answers" in prompt_path.read_text(encoding="utf-8")
+        commit.assert_called_once_with(
+            store,
+            "Add Q&A to test_plan prompt",
+            auto_commit_type="sdd",
+            paths=[prompt_path],
+            artifacts_dir="/tmp/followup",
+        )
+
+    def test_in_tree_sdd_question_snapshot_is_not_committed(self, tmp_path) -> None:
+        from sase.question_shell.followup import _update_question_sdd_prompt_snapshot
+
+        prompt_path = tmp_path / "sdd" / "plans" / "202607" / "prompts" / "p.md"
+        prompt_path.parent.mkdir(parents=True)
+        prompt_path.write_text("Original prompt\n", encoding="utf-8")
+        store = SddStore(
+            storage="in_tree",
+            sdd_dir=tmp_path / "sdd",
+            repo_root=tmp_path,
+        )
+
+        with (
+            patch("sase.sdd.store.resolve_sdd_store", return_value=store),
+            patch("sase.sdd.files.commit_sdd_store_files") as commit,
+        ):
+            _update_question_sdd_prompt_snapshot(
+                str(prompt_path),
+                "### Questions and Answers\n\nanswer",
+                workspace_dir=str(tmp_path),
+                workspace_num=1,
+                artifacts_dir="/tmp/followup",
+            )
+
+        assert "### Questions and Answers" in prompt_path.read_text(encoding="utf-8")
+        commit.assert_not_called()
+
+    def test_sdd_question_snapshot_commit_failure_warns_and_continues(
+        self,
+        tmp_path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        import sase.question_shell.followup as followup_mod
+
+        prompt_path = tmp_path / "202607" / "prompts" / "test_plan.md"
+        prompt_path.parent.mkdir(parents=True)
+        prompt_path.write_text("Original prompt\n", encoding="utf-8")
+        store = SddStore(
+            storage="sidecar_repos",
+            sdd_dir=tmp_path,
+            repo_root=tmp_path,
+        )
+        meta = {
+            "question_sdd_spec_path": str(prompt_path),
+            "workspace_dir": str(tmp_path),
+            "workspace_num": 1,
+        }
+
+        with (
+            caplog.at_level("WARNING", logger=followup_mod.__name__),
+            patch(
+                "sase.question_shell.rounds.question_base_prompt",
+                return_value="Original prompt",
+            ),
+            patch(
+                "sase.question_shell.rounds.question_rounds",
+                return_value=[
+                    build_qa_round(
+                        [],
+                        {"answers": [], "global_note": "answer"},
+                    )
+                ],
+            ),
+            patch("sase.sdd.store.resolve_sdd_store", return_value=store),
+            patch(
+                "sase.sdd.files.commit_sdd_store_files",
+                side_effect=RuntimeError("commit failed"),
+            ),
+        ):
+            declared = followup_mod.question_next_action(
+                artifacts_dir="/tmp/followup",
+                meta=meta,
+                envelope={},
+                response={},
+                declared="fallback",
+            )
+
+        assert declared is not None
+        assert "SDD prompt Q&A snapshot update failed" in caplog.text

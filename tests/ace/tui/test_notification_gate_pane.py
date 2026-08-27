@@ -24,7 +24,7 @@ from sase.notification_gates.summary import (
 )
 from sase.notifications.models import Notification
 from sase.notifications.store import load_notifications
-from sase.plan_gate import create_plan_approval_gate
+from sase.plan_gate import build_plan_approval_gate_spec
 from sase.xprompt.models import InputType
 
 from tests._notification_gates_fixtures import custom_gate_spec, gate_spec
@@ -96,7 +96,7 @@ def _plan_notification(
     monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
     plan = gate_home / "tale.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
-    create_plan_approval_gate(plan, "pane-plan")
+    create_gate(build_plan_approval_gate_spec(plan, "pane-plan"))
     return load_notifications(include_dismissed=True)[0]
 
 

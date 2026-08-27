@@ -22,7 +22,6 @@ def plan_gate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "sase.main.plan_approve_handler.send_desktop_notification",
         lambda _title, _message: None,
     )
-    monkeypatch.setattr("sase.main.plan_approve_handler.ring_tmux_bell", lambda: None)
     monkeypatch.setattr("sase.main.plan_approve_handler.get_tmux_prefix", lambda: "")
     monkeypatch.setattr(paths, "INTERACTION_REQUESTS_DIR", tmp_path / "requests")
     monkeypatch.setattr(store, "NOTIFICATIONS_DIR", str(tmp_path / "notifications"))

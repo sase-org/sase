@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import os
 import uuid
 from datetime import UTC, datetime
@@ -17,10 +16,8 @@ from sase.axe.run_agent_exec_plan import (
 from sase.axe.run_agent_exec_plan_artifacts import store_followup_prompt_artifact
 from sase.axe.run_agent_helpers import (
     assemble_question_followup_prompt,
-    build_qa_round,
     create_followup_artifacts,
     finalize_handoff_artifacts_as_completed,
-    handle_questions_flow,
     merge_qa_for_prompt,
     normalize_handoff_interruption_state,
     promote_to_workflow,
@@ -29,10 +26,7 @@ from sase.axe.run_agent_helpers import (
     update_step_marker_chat_path,
 )
 from sase.axe.run_agent_successor import SuccessorRequest, continue_as_successor
-from sase.axe.run_agent_wait_slots import wait_for_runner_slot
 from sase.axe.runner_signals import reset_killed
-from sase.core.runner_slots import normalize_wait_priority
-from sase.gate_shell.flag import gate_shell_handoff_enabled
 from sase.plan_chain import (
     AGENT_FAMILY_SEPARATOR,
     agent_family_base,
@@ -43,8 +37,6 @@ from sase.plan_chain import (
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
-
-logger = logging.getLogger(__name__)
 
 _store_followup_prompt_artifact = store_followup_prompt_artifact
 
@@ -112,26 +104,6 @@ def _question_successor_fallback_token(reserved_suffixes: tuple[str, ...]) -> st
     return str(token)
 
 
-def _update_sdd_prompt_snapshot_qa(
-    ctx: AgentExecContext,
-    state: LoopState,
-    merged_qa_text: str,
-) -> None:
-    """Update the recorded prompt artifact and commit machine-made store writes."""
-    if state.sdd_spec_path is None:
-        return
-
-    from sase.question_shell.followup import update_question_sdd_prompt_snapshot
-
-    update_question_sdd_prompt_snapshot(
-        state.sdd_spec_path,
-        merged_qa_text,
-        workspace_dir=ctx.workspace_dir,
-        workspace_num=ctx.workspace_num,
-        artifacts_dir=state.current_artifacts_dir,
-    )
-
-
 def handle_questions_marker(
     q_data: dict[str, Any],
     ctx: AgentExecContext,
@@ -139,149 +111,13 @@ def handle_questions_marker(
 ) -> str | None:
     """Handle a questions marker left by ``sase questions``.
 
-    Returns a loop-outcome string to break the loop, or ``None`` to continue.
-    """
-    if gate_shell_handoff_enabled():
-        return _handle_questions_via_gate_shell(q_data, ctx, state)
-
-    normalize_handoff_interruption_state(state.current_artifacts_dir)
-    finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
-    base_meta = _interrupted_phase_meta(state.current_artifacts_dir, ctx.agent_meta)
-    interrupted_suffix, interrupted_role = _question_interrupted_suffix_and_role(
-        state,
-        base_meta,
-    )
-
-    questions_submitted_at = datetime.now(UTC).isoformat()
-    update_meta_field(
-        state.current_artifacts_dir,
-        "questions_submitted_at",
-        questions_submitted_at,
-    )
-
-    # Clear the killed flag set by the questions command's
-    # SIGTERM so the poll loop only exits on a NEW kill signal.
-    reset_killed()
-    response = handle_questions_flow(
-        q_data.get("questions", []),
-        state.current_artifacts_dir,
-        reacquire_runner_slot=lambda claim: wait_for_runner_slot(
-            state.current_artifacts_dir,
-            ctx.cl_name,
-            Path(state.current_artifacts_dir).name,
-            base_meta,
-            wait_runners=None,
-            wait_priority=normalize_wait_priority(base_meta.get("wait_priority")),
-            claim=claim,
-        ),
-        run_started_at=(
-            base_meta.get("run_started_at")
-            if isinstance(base_meta.get("run_started_at"), str)
-            else None
-        ),
-    )
-    if response is None:
-        return "killed"
-    question_relationships = {
-        "questions_submitted_at": questions_submitted_at,
-        "question_request_path": response.get("_question_request_path"),
-        "question_response_path": response.get("_question_response_path"),
-        "question_session_id": response.get("_question_session_id"),
-        "patch_name": ctx.cl_name,
-        "changespec_name": ctx.cl_name,
-    }
-    record_workflow_metadata(state.current_artifacts_dir, question_relationships)
-
-    # Save a chat file for the questions step
-    from sase.history.chat import save_chat_history
-    from sase.history.chat_extras import format_extra_sections
-
-    _q_suffix = interrupted_suffix
-    _q_agent = agent_name_for_suffix(ctx, _q_suffix)
-    _q_extra = format_extra_sections(state.current_artifacts_dir)
-
-    # Append this round before rendering so the chat transcript and the
-    # follow-up prompt share the same monotonic merged section.
-    state.qa_rounds.append(build_qa_round(q_data.get("questions", []), response))
-    merged_qa_text = merge_qa_for_prompt(state.qa_rounds)
-
-    _q_chat = save_chat_history(
-        prompt=state.current_prompt,
-        response=merged_qa_text,
-        workflow="ace-run",
-        agent=_q_agent,
-        timestamp=ctx.timestamp,
-        extra_sections=_q_extra,
-        branch_or_workspace=ctx.cl_name,
-        metadata_agent=_q_agent,
-        metadata_multi_agent_prompt=ctx.multi_agent_prompt_file,
-    )
-    state.saved_chat_paths.append((_q_suffix, _q_chat))
-    update_meta_field(state.current_artifacts_dir, "chat_path", _q_chat)
-    update_step_marker_chat_path(state.current_artifacts_dir, _q_chat)
-
-    reserved_suffixes = (
-        *(suffix for suffix, _path in state.saved_chat_paths if suffix),
-        interrupted_suffix,
-    )
-    suffix_template = f"{AGENT_FAMILY_SEPARATOR}@"
-    followup_role = interrupted_role
-    fallback_token = _question_successor_fallback_token(reserved_suffixes)
-    # Rebuild from the current phase base (code/feedback/planner prompt) so a
-    # code-phase question keeps the code prompt and its ``%model`` directive.
-    followup_prompt = assemble_question_followup_prompt(
-        state.question_base_prompt,
-        state.qa_rounds,
-    )
-    continue_as_successor(
-        ctx,
-        state,
-        SuccessorRequest(
-            base_meta=base_meta,
-            prompt=followup_prompt,
-            suffix_template=suffix_template,
-            extra_reserved_suffixes=reserved_suffixes,
-            agent_family_role=followup_role,
-            relationships={
-                **question_relationships,
-                "source_plan_agent_name": _q_agent,
-            },
-            prompt_artifact_label="Full question prompt",
-            promote_role_suffix=interrupted_suffix,
-            fallback_token=fallback_token,
-        ),
-        create_artifacts=create_followup_artifacts,
-        promote=promote_to_workflow,
-        store_prompt=_store_followup_prompt_artifact,
-    )
-
-    # Update the recorded prompt artifact with the merged Q&A section so the
-    # snapshot mirrors the prompt the follow-up agent will see (one
-    # block, continuous numbering — not an appended per-round delta).
-    if state.sdd_spec_path is not None:
-        try:
-            _update_sdd_prompt_snapshot_qa(ctx, state, merged_qa_text)
-        except Exception:
-            logger.warning("SDD prompt Q&A snapshot update failed", exc_info=True)
-
-    return None  # continue loop
-
-
-def _handle_questions_via_gate_shell(
-    q_data: dict[str, Any],
-    ctx: AgentExecContext,
-    state: LoopState,
-) -> str | None:
-    """Handle a questions marker by creating a question gate shell.
-
-    The runner creates the gate shell during marker adoption instead of
-    calling ``handle_questions_flow``: it never writes
-    ``pending_question.json``, never yields or reacquires a runner slot, and
-    never calls ``wait_for_gate``. Either the runner terminalizes as ``DONE``
-    (delegated to :func:`handle_gate_marker`, exactly as any other gate
-    shell), or -- on the ``%auto`` short-circuit, where the gate already
-    settled synchronously inside creation -- it continues in-process exactly
-    as the Off branch does, at the cost of exactly one agent.
+    The runner creates a question gate shell during marker adoption: it
+    never writes ``pending_question.json``, never yields or reacquires a
+    runner slot, and never calls ``wait_for_gate``. Either the runner
+    terminalizes as ``DONE`` (delegated to :func:`handle_gate_marker`,
+    exactly as any other gate shell), or -- on the ``%auto`` short-circuit,
+    where the gate already settled synchronously inside creation -- it
+    continues in-process at the cost of exactly one agent.
     """
     normalize_handoff_interruption_state(state.current_artifacts_dir)
     finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)

@@ -12,8 +12,10 @@ from sase.axe.run_agent_exec_plan_accept import _accepted_plan_action_for_meta
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from sase.xprompt._exceptions import DirectiveError
 from tests._axe_run_agent_exec_plan_helpers import (
+    _non_handoff_plan_gate_creation,
     make_ctx,
     make_state,
+    patch_plan_gate_shell_result,
     patched_plan_deps,
 )
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
@@ -47,9 +49,13 @@ class TestPlanFollowupMetadata:
                 return_value="4m32s",
             ) as runtime_mock,
             patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
+                "sase.plan_shell.create_plan_gate_shell",
+                return_value=_non_handoff_plan_gate_creation(),
+            ) as gate_mock,
+            patch(
+                "sase.plan_shell.plan_result_from_gate_creation",
                 return_value=approval,
-            ) as approval_mock,
+            ),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -63,8 +69,8 @@ class TestPlanFollowupMetadata:
             run_started_at=run_started_at,
             completion_time=submitted_at,
         )
-        assert approval_mock.call_args.kwargs["agent_runtime"] == "4m32s"
-        assert approval_mock.call_args.kwargs["agent_vcs_tag"] == "#gh:sase "
+        assert gate_mock.call_args.kwargs["agent_runtime"] == "4m32s"
+        assert gate_mock.call_args.kwargs["ctx"].vcs_tag == "#gh:sase "
 
     def test_coder_meta_updated_when_coder_model_differs(self, tmp_path) -> None:
         """agent_meta.json reflects coder_model when it differs from planner model."""
@@ -84,10 +90,7 @@ class TestPlanFollowupMetadata:
             coder_model="gemini-3-flash-preview",
         )
         with (
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                return_value=approval,
-            ),
+            patch_plan_gate_shell_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -174,10 +177,7 @@ class TestPlanFollowupMetadata:
             coder_model="opus",
         )
         with (
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                return_value=approval,
-            ),
+            patch_plan_gate_shell_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -215,10 +215,7 @@ class TestPlanFollowupMetadata:
             coder_model=None,
         )
         with (
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                return_value=approval,
-            ),
+            patch_plan_gate_shell_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -373,10 +370,7 @@ class TestPlanFollowupMetadata:
 
         approval = PlanApprovalResult(action="epic", plan_file=plan_file)
         with (
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                return_value=approval,
-            ),
+            patch_plan_gate_shell_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -420,10 +414,7 @@ class TestPlanFollowupMetadata:
             return ("codex", "gpt-5.6-sol")
 
         with (
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                return_value=approval,
-            ),
+            patch_plan_gate_shell_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -463,10 +454,7 @@ class TestPlanFollowupMetadata:
             coder_prompt="%m:sonnet %tribe\nUse the reviewed plan.",
         )
         with (
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                return_value=approval,
-            ),
+            patch_plan_gate_shell_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),

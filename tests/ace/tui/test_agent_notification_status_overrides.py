@@ -488,8 +488,9 @@ def test_telegram_gate_resolution_dismisses_and_finalizes_pending_tale_override(
     )
     from sase.ace.tui.models._loaders._meta_enrichment import enrich_agent_from_meta
     from sase.notification_gates.executor import execute_gate_selection
+    from sase.notification_gates.service import create_gate
     from sase.notifications.store import load_notifications
-    from sase.plan_gate import create_plan_approval_gate
+    from sase.plan_gate import build_plan_approval_gate_spec
     from tests.plan_validation_helpers import VALID_TALE_PLAN
 
     artifacts_dir = gate_home / "artifacts"
@@ -505,10 +506,12 @@ def test_telegram_gate_resolution_dismisses_and_finalizes_pending_tale_override(
     monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", root_timestamp)
     plan_path = gate_home / "telegram-tale.md"
     plan_path.write_text(VALID_TALE_PLAN, encoding="utf-8")
-    gate = create_plan_approval_gate(
-        plan_path,
-        "telegram-tale",
-        agent_name="telegram-plan.plan",
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            plan_path,
+            "telegram-tale",
+            agent_name="telegram-plan.plan",
+        )
     )
     [pending_notification] = load_notifications()
 

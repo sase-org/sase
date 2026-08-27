@@ -4,25 +4,27 @@ The implementation is split by responsibility:
 - ``run_agent_helpers_state`` handles workflow output extraction.
 - ``run_agent_helpers_artifacts`` handles metadata and follow-up artifacts.
 - ``run_agent_helpers_handoff`` handles handoff marker normalization.
-- ``run_agent_helpers_questions`` handles user questions and Q&A prompt text.
+- ``sase.main.qa_prompt`` handles Q&A prompt text directly.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from sase.artifacts import create_artifacts_directory
 from sase.axe import run_agent_helpers_artifacts as _artifacts
 from sase.axe import run_agent_helpers_handoff as _handoff
-from sase.axe import run_agent_helpers_questions as _questions
 from sase.axe import run_agent_helpers_state as _state
-from sase.axe.runner_signals import was_killed
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.main.feedback_prompt import assemble_feedback_replan_prompt
-from sase.main.qa_prompt import assemble_question_followup_prompt
+from sase.main.qa_prompt import (
+    assemble_question_followup_prompt,
+    build_qa_round as _build_qa_round,
+    merge_qa_for_prompt as _merge_qa_for_prompt,
+)
 from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX
 
 if TYPE_CHECKING:
@@ -36,7 +38,6 @@ __all__ = [
     "create_followup_artifacts",
     "extract_step_output_and_diff_path",
     "finalize_handoff_artifacts_as_completed",
-    "handle_questions_flow",
     "is_workflow_noop",
     "merge_qa_for_prompt",
     "normalize_handoff_interruption_state",
@@ -60,10 +61,6 @@ def _sync_patchable_dependencies() -> None:
     _handoff.update_agent_artifact_index_for_marker_mutation = (
         update_agent_artifact_index_for_marker_mutation
     )
-    _questions.update_agent_artifact_index_for_marker_mutation = (
-        update_agent_artifact_index_for_marker_mutation
-    )
-    _questions.was_killed = was_killed
 
 
 def is_workflow_noop(artifacts_dir: str) -> bool:
@@ -163,28 +160,12 @@ def create_followup_artifacts(
     )
 
 
-def handle_questions_flow(
-    questions: list[dict[str, Any]],
-    artifacts_dir: str,
-    *,
-    reacquire_runner_slot: Callable[[Callable[[], str]], str] | None = None,
-    run_started_at: str | None = None,
-) -> dict[str, Any] | None:
-    _sync_patchable_dependencies()
-    return _questions.handle_questions_flow(
-        questions,
-        artifacts_dir,
-        reacquire_runner_slot=reacquire_runner_slot,
-        run_started_at=run_started_at,
-    )
-
-
 def build_qa_round(
     questions: list[dict[str, Any]],
     response: dict[str, Any],
 ) -> QARound:
-    return _questions.build_qa_round(questions, response)
+    return _build_qa_round(questions, response)
 
 
 def merge_qa_for_prompt(rounds: list[QARound]) -> str:
-    return _questions.merge_qa_for_prompt(rounds)
+    return _merge_qa_for_prompt(rounds)

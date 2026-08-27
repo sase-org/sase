@@ -31,14 +31,19 @@ from sase.llm_provider.commit_finalizer_git_progress import (
 )
 from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.poller import poll_gate, wait_for_gate
+from sase.notification_gates.service import create_gate
 from sase.plan_gate import (
-    create_plan_approval_gate,
+    build_plan_approval_gate_spec,
     translate_plan_gate_response,
 )
 from sase.sdd._artifact_link_commit import ARTIFACT_LINK_COMMIT_MESSAGE
 from sase.sdd.frontmatter import parse_frontmatter
 from sase.sdd.store import SddStore
-from tests._axe_run_agent_exec_plan_helpers import make_ctx, make_state
+from tests._axe_run_agent_exec_plan_helpers import (
+    make_ctx,
+    make_state,
+    patch_plan_gate_shell_result,
+)
 from tests._plan_gate_fixtures import (  # noqa: F401
     plan_gate_home,
     write_plan,
@@ -105,7 +110,9 @@ def test_combined_tale_approval_to_coder_link_lifecycle(
 ) -> None:
     origin, host, runner = plans_sidecar(tmp_path)
     plan_path = write_plan(gate_home, f"{PLAN_STEM}.md", VALID_TALE_PLAN)
-    gate = create_plan_approval_gate(plan_path, f"lifecycle-{start_order}")
+    gate = create_gate(
+        build_plan_approval_gate_spec(plan_path, f"lifecycle-{start_order}")
+    )
     saved = host / MONTH / f"{PLAN_STEM}.md"
     archived = archived_tale(HOST_CREATE_TIME)
     plan_ref = f"plan:{MONTH}/{PLAN_STEM}.md"
@@ -135,7 +142,7 @@ def test_combined_tale_approval_to_coder_link_lifecycle(
         git(["push"], host)
         return _ApprovedPlanArchive(saved, plan_ref)
 
-    def wait_then_result(*_args: object, **_kwargs: object) -> PlanApprovalResult:
+    def wait_then_result() -> PlanApprovalResult:
         poller_waiting.set()
         polled = wait_for_gate(gate.bundle_path, poll_interval=0.05)
         assert polled.status == "responded"
@@ -197,19 +204,15 @@ def test_combined_tale_approval_to_coder_link_lifecycle(
             },
             index_updater=lambda _path: None,
         )
-        return handle_plan_marker({"plan_file": str(plan_path)}, ctx, state)
+        result = wait_then_result()
+        with patch_plan_gate_shell_result(result):
+            return handle_plan_marker({"plan_file": str(plan_path)}, ctx, state)
 
     with ExitStack() as stack:
         stack.enter_context(
             patch(
                 "sase.plan_approval_actions._archive_plan_for_approval",
                 side_effect=archive,
-            )
-        )
-        stack.enter_context(
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                side_effect=wait_then_result,
             )
         )
         stack.enter_context(
@@ -245,9 +248,6 @@ def test_combined_tale_approval_to_coder_link_lifecycle(
         )
         stack.enter_context(patch("sase.axe.run_agent_exec_plan.update_meta_suffix"))
         stack.enter_context(patch("sase.axe.run_agent_exec_plan.reset_killed"))
-        stack.enter_context(
-            patch("sase.axe.run_agent_exec_plan.was_killed", return_value=False)
-        )
         stack.enter_context(
             patch("sase.axe.run_agent_exec_plan._write_plan_path_artifact")
         )
@@ -407,9 +407,11 @@ def test_archive_publication_order_survives_inverted_scheduling(
     repeat: int,
 ) -> None:
     del repeat
-    gate = create_plan_approval_gate(
-        write_plan(gate_home, f"order-{start_order}.md", VALID_TALE_PLAN),
-        f"order-{start_order}",
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, f"order-{start_order}.md", VALID_TALE_PLAN),
+            f"order-{start_order}",
+        )
     )
     started = Event()
     poller_waiting = Event()
