@@ -1,38 +1,50 @@
-"""Tiered command-backed plan approval gates."""
+"""Tiered command-backed plan approval gates.
+
+This module is the public entry point for plan gate specs; command
+execution, tier metadata, and response translation live in the sibling
+``_plan_gate_*`` modules and are re-exported here.
+"""
 
 from __future__ import annotations
 
-import json
 import os
-import sys
 import time
-from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast, get_args
+from typing import TYPE_CHECKING, Any, cast, get_args
 
 from sase._plan_approval_protocol import EpicLaunchMode
 from sase.env_contracts import provider_project_dir_from_env
-from sase.notification_gates.entrypoints import gate_command_entrypoint
-from sase.notification_gates.models import GateError, GateGroup
+from sase.notification_gates.models import GateError
+
+from ._plan_gate_command import execute_plan_gate_command, plan_gate_command_script
+from ._plan_gate_envelope import (
+    original_plan_file_for_resource,
+    original_plan_file_from_bundle,
+    plan_context_from_envelope,
+    translate_plan_gate_response,
+)
+from ._plan_gate_metadata import (
+    plan_gate_edit_operation,
+    plan_gate_option_icon,
+    plan_gate_option_ids,
+    plan_gate_option_label,
+    plan_gate_query,
+    validate_plan_auto_argument,
+)
+from ._plan_gate_shared import (
+    PLAN_APPROVE_OPTION_ID,
+    PLAN_COMMIT_OPTION_ID,
+    PLAN_CONTINUATION_MODE,
+    PLAN_EDIT_OPERATION_ID,
+    PLAN_FEEDBACK_OPTION_ID,
+    PLAN_REJECT_OPTION_ID,
+    PLAN_RESOURCE_PATH,
+    PlanGateTier,
+    TALE_PLAN_SUBMIT_GROUP,
+)
 
 if TYPE_CHECKING:
     from sase.sdd.plan_validate import PlanValidationResult
-
-PLAN_EDIT_OPERATION_ID = "edit_plan"
-PLAN_RESOURCE_PATH = "plan.md"
-PLAN_CONTINUATION_MODE = "agent_plan"
-PLAN_APPROVE_OPTION_ID = "approve"
-PLAN_COMMIT_OPTION_ID = "commit"
-PLAN_REJECT_OPTION_ID = "reject"
-PLAN_FEEDBACK_OPTION_ID = "feedback"
-
-TALE_PLAN_SUBMIT_GROUP = GateGroup(
-    options=(PLAN_APPROVE_OPTION_ID, PLAN_COMMIT_OPTION_ID),
-    label="Tale",
-    icon="✅",
-)
-
-PlanGateTier = Literal["tale", "epic"]
 
 
 def build_plan_approval_gate_spec(
@@ -181,257 +193,6 @@ def _build_plan_gate_spec(
     }
 
 
-def plan_gate_edit_operation(tier: PlanGateTier) -> dict[str, Any]:
-    """Return the declared edit action registered for a plan tier.
-
-    Both tiers declare it, and both point at ``edit_target: "origin"``: the
-    durable file under ``~/.sase/plans/`` that ``sase plan propose`` wrote, not
-    the bundle copy that approval overwrites it from.
-    """
-    return {
-        "id": PLAN_EDIT_OPERATION_ID,
-        "kind": "edit_file",
-        "target": PLAN_RESOURCE_PATH,
-        "edit_target": "origin",
-        "label": "Edit epic plan" if tier == "epic" else "Edit plan",
-        "icon": "✏️",
-        "key": "e",
-        "description": "Accepted only when `sase plan validate` passes.",
-    }
-
-
-def plan_gate_query(tier: PlanGateTier) -> str:
-    """Return the exact option query registered for a plan tier."""
-    if tier == "epic":
-        return "approve OR reject OR feedback"
-    return "(approve AND commit) OR reject OR feedback"
-
-
-def plan_gate_option_ids(tier: PlanGateTier) -> tuple[str, ...]:
-    """Return the query-ordered option ids registered for a plan tier."""
-    if tier == "epic":
-        return (
-            PLAN_APPROVE_OPTION_ID,
-            PLAN_REJECT_OPTION_ID,
-            PLAN_FEEDBACK_OPTION_ID,
-        )
-    return (
-        PLAN_APPROVE_OPTION_ID,
-        PLAN_COMMIT_OPTION_ID,
-        PLAN_REJECT_OPTION_ID,
-        PLAN_FEEDBACK_OPTION_ID,
-    )
-
-
-def validate_plan_auto_argument(tier: PlanGateTier, argument: str | None) -> None:
-    """Reject unknown or tier-changing plan auto aliases before handoff."""
-    allowed = (
-        {None, "", "epic", "epic_plan"}
-        if tier == "epic"
-        else {None, "", "plan", "tale"}
-    )
-    if argument not in allowed:
-        raise GateError(
-            "invalid_auto_argument",
-            "auto.argument",
-            f"%auto:{argument} conflicts with the authored {tier} plan tier",
-        )
-
-
-def plan_gate_command_script(option_id: str) -> str:
-    """Return the hashed adapter-owned command wrapper for *option_id*."""
-    return (
-        f"#!{sys.executable}\n"
-        "from sase.plan_gate import execute_plan_gate_command\n"
-        f"raise SystemExit(execute_plan_gate_command({option_id!r}))\n"
-    )
-
-
-@gate_command_entrypoint
-def execute_plan_gate_command(option_id: str) -> int:
-    """Entry point used by the command resources inside plan gate bundles."""
-    try:
-        raw_input = json.load(sys.stdin)
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        print(f"invalid command input: {exc}", file=sys.stderr)
-        return 2
-    if not isinstance(raw_input, dict):
-        print("plan command input must be an object", file=sys.stderr)
-        return 2
-
-    try:
-        envelope = json.loads((Path.cwd() / "request.json").read_text(encoding="utf-8"))
-        if not isinstance(envelope, dict):
-            raise ValueError("request envelope is not an object")
-        kind = envelope.get("kind")
-        tier: PlanGateTier = "epic" if kind == "epic_plan" else "tale"
-        if option_id not in plan_gate_option_ids(tier):
-            raise ValueError(f"option {option_id!r} is not valid for a {tier} plan")
-
-        if option_id not in {PLAN_REJECT_OPTION_ID, PLAN_FEEDBACK_OPTION_ID}:
-            from sase.plan_approval_actions import require_plan_approval_validation
-
-            require_plan_approval_validation(Path.cwd() / PLAN_RESOURCE_PATH, tier)
-
-        feedback = _optional_text(raw_input.get("feedback"))
-        from sase.plan_approval_actions import plan_response_json
-
-        protocol_choice = (
-            "epic"
-            if tier == "epic" and option_id == PLAN_APPROVE_OPTION_ID
-            else option_id
-        )
-        result, _message = plan_response_json(
-            protocol_choice,
-            feedback=feedback,
-            commit_plan=None,
-            run_coder=None,
-            coder_prompt=_optional_text(raw_input.get("coder_prompt")),
-            coder_model=_optional_text(raw_input.get("coder_model")),
-        )
-        if protocol_choice == "epic":
-            mode = raw_input.get("epic_launch_mode", "launch")
-            if mode not in {"launch", "detached", "skip"}:
-                raise ValueError(f"unsupported epic launch mode: {mode}")
-            # Transitional compatibility for pre-upgrade agents, which launch
-            # the epic themselves unless the host owner is explicit.
-            result["epic_launch_owner"] = "host"
-    except Exception as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-
-    print(json.dumps(result, sort_keys=True))
-    return 0
-
-
-def plan_context_from_envelope(bundle_path: Path, envelope: Mapping[str, Any]) -> Any:
-    """Build a host action context from a trusted neutral request envelope."""
-    from sase.plan_approval_actions import PlanApprovalActionContext
-
-    presentation = envelope.get("presentation")
-    action_data: dict[str, str] = {}
-    if isinstance(presentation, Mapping):
-        raw_action_data = presentation.get("action_data")
-        if isinstance(raw_action_data, Mapping):
-            action_data = {
-                str(key): str(value)
-                for key, value in raw_action_data.items()
-                if isinstance(key, str) and isinstance(value, str)
-            }
-    action_data.update(
-        {
-            "response_dir": str(bundle_path),
-            "bundle_path": str(bundle_path),
-            "request_id": str(envelope.get("request_id") or bundle_path.name),
-            "request_kind": str(envelope.get("kind") or "plan"),
-        }
-    )
-    original_plan_file = _original_plan_file_from_envelope(envelope)
-    if original_plan_file is not None:
-        action_data["original_plan_file"] = str(original_plan_file)
-    notification_id = envelope.get("notification_id")
-    return PlanApprovalActionContext(
-        id=(
-            notification_id
-            if isinstance(notification_id, str) and notification_id
-            else str(envelope.get("request_id") or bundle_path.name)
-        ),
-        host_files=(str(bundle_path / PLAN_RESOURCE_PATH),),
-        host_action_data=action_data,
-    )
-
-
-def translate_plan_gate_response(
-    bundle_path: Path, response: Mapping[str, Any]
-) -> dict[str, Any]:
-    """Derive the runner protocol from a v2 selected-option response."""
-    raw_selected = response.get("selected_option_ids")
-    if (
-        not isinstance(raw_selected, list)
-        or not raw_selected
-        or not all(isinstance(option_id, str) for option_id in raw_selected)
-    ):
-        raise GateError(
-            "invalid_response",
-            str(bundle_path / "response.json"),
-            "plan gate response has no selected options",
-        )
-    selected = tuple(raw_selected)
-    option_results = response.get("option_results")
-    if not isinstance(option_results, list):
-        raise GateError(
-            "invalid_response",
-            str(bundle_path / "response.json"),
-            "plan gate response has no option results",
-        )
-    results_by_id = {
-        entry.get("id"): entry.get("result")
-        for entry in option_results
-        if isinstance(entry, Mapping) and isinstance(entry.get("id"), str)
-    }
-    primary_result = results_by_id.get(selected[0])
-    if not isinstance(primary_result, Mapping):
-        raise GateError(
-            "invalid_response",
-            str(bundle_path / "response.json"),
-            "plan gate response is missing its primary option result",
-        )
-
-    try:
-        envelope = json.loads(
-            (bundle_path / "request.json").read_text(encoding="utf-8")
-        )
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise GateError(
-            "invalid_response",
-            str(bundle_path / "request.json"),
-            "plan gate request cannot be read",
-        ) from exc
-    if not isinstance(envelope, Mapping):
-        raise GateError(
-            "invalid_response",
-            str(bundle_path / "request.json"),
-            "plan gate request is not an object",
-        )
-
-    feedback = response.get("feedback")
-    normalized_feedback = feedback if isinstance(feedback, str) and feedback else None
-    approve_result = results_by_id.get(PLAN_APPROVE_OPTION_ID)
-    approve_result = approve_result if isinstance(approve_result, Mapping) else {}
-    from sase.plan_approval_actions import (
-        PlanApprovalActionError,
-        plan_response_json_for_selection,
-    )
-
-    try:
-        translated, _message = plan_response_json_for_selection(
-            selected,
-            tier="epic" if envelope.get("kind") == "epic_plan" else "tale",
-            feedback=normalized_feedback,
-            coder_prompt=_optional_text(approve_result.get("coder_prompt")),
-            coder_model=_optional_text(approve_result.get("coder_model")),
-            epic_launch_owner=_optional_text(primary_result.get("epic_launch_owner")),
-        )
-    except PlanApprovalActionError as exc:
-        raise GateError(exc.code, exc.target, str(exc)) from exc
-    saved_plan_path = primary_result.get("saved_plan_path")
-    if isinstance(saved_plan_path, str) and saved_plan_path:
-        translated["saved_plan_path"] = saved_plan_path
-    plan_archive_owner = primary_result.get("plan_archive_owner")
-    if isinstance(plan_archive_owner, str) and plan_archive_owner:
-        translated["plan_archive_owner"] = plan_archive_owner
-    plan_archive_state = primary_result.get("plan_archive_state")
-    if isinstance(plan_archive_state, str) and plan_archive_state:
-        translated["plan_archive_state"] = plan_archive_state
-    plan_archive_protocol = primary_result.get("plan_archive_protocol")
-    if isinstance(plan_archive_protocol, str) and plan_archive_protocol:
-        translated["plan_archive_protocol"] = plan_archive_protocol
-    plan_archive_ref = primary_result.get("plan_archive_ref")
-    if isinstance(plan_archive_ref, str) and plan_archive_ref:
-        translated["plan_archive_ref"] = plan_archive_ref
-    return translated
-
-
 def _plan_action_data(
     *,
     original_plan_file: str,
@@ -458,59 +219,6 @@ def _plan_action_data(
         "agent_vcs_tag": agent_vcs_tag,
     }
     return {key: value for key, value in values.items() if value}
-
-
-def _original_plan_file_from_envelope(
-    envelope: Mapping[str, Any],
-) -> Path | None:
-    """Return the durable proposal path carried by a plan gate envelope."""
-    payload = envelope.get("payload")
-    if not isinstance(payload, Mapping):
-        return None
-    raw_path = payload.get("original_plan_file")
-    if not isinstance(raw_path, str) or not raw_path.strip():
-        return None
-    return Path(raw_path).expanduser()
-
-
-def original_plan_file_from_bundle(bundle_path: Path) -> Path | None:
-    """Read the durable proposal path from a neutral plan gate bundle."""
-    try:
-        envelope = json.loads(
-            (bundle_path.expanduser() / "request.json").read_text(encoding="utf-8")
-        )
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return None
-    if not isinstance(envelope, Mapping) or envelope.get("kind") not in {
-        "plan",
-        "epic_plan",
-    }:
-        return None
-    return _original_plan_file_from_envelope(envelope)
-
-
-def original_plan_file_for_resource(resource_path: Path) -> Path | None:
-    """Resolve a neutral plan resource back to its durable proposal path."""
-    resource = resource_path.expanduser()
-    bundle_path = resource.parent
-    try:
-        envelope = json.loads(
-            (bundle_path / "request.json").read_text(encoding="utf-8")
-        )
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return None
-    if not isinstance(envelope, Mapping) or envelope.get("kind") not in {
-        "plan",
-        "epic_plan",
-    }:
-        return None
-    payload = envelope.get("payload")
-    if not isinstance(payload, Mapping):
-        return None
-    plan_resource = payload.get("plan_resource")
-    if not isinstance(plan_resource, str) or resource.name != plan_resource:
-        return None
-    return _original_plan_file_from_envelope(envelope)
 
 
 def _plan_gate_option(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
@@ -589,32 +297,6 @@ def _plan_result_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]
         },
         "additionalProperties": False,
     }
-
-
-def plan_gate_option_label(option_id: str, *, tier: PlanGateTier) -> str:
-    """Return the tier-aware presentation label for a plan-gate option."""
-    if option_id == PLAN_APPROVE_OPTION_ID:
-        return "Epic" if tier == "epic" else "Launch coder agent"
-    return {
-        PLAN_COMMIT_OPTION_ID: "Commit plan file to the plans sidecar",
-        PLAN_REJECT_OPTION_ID: "Reject",
-        PLAN_FEEDBACK_OPTION_ID: "Send Feedback",
-    }[option_id]
-
-
-def plan_gate_option_icon(option_id: str, *, tier: PlanGateTier) -> str:
-    """Return the tier-aware presentation icon for a plan-gate option."""
-    if option_id == PLAN_APPROVE_OPTION_ID:
-        return "✅" if tier == "epic" else "🚀"
-    return {
-        PLAN_COMMIT_OPTION_ID: "💾",
-        PLAN_REJECT_OPTION_ID: "❌",
-        PLAN_FEEDBACK_OPTION_ID: "💬",
-    }[option_id]
-
-
-def _optional_text(value: object) -> str | None:
-    return value.strip() or None if isinstance(value, str) else None
 
 
 __all__ = [
