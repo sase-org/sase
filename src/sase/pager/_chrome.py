@@ -126,6 +126,7 @@ def footer_legend(
     section_total: int,
     label_count: int = 0,
     pending_prefix: str = "",
+    pending_action: str = "follow",
 ) -> Text:
     """Build the availability-driven footer legend.
 
@@ -134,10 +135,15 @@ def footer_legend(
     /``ctrl+d``/``ctrl+u``) is always available so it lives in ``?`` only.
     """
     verbs: list[tuple[str, str]] = []
-    if pending_prefix:
+    action_key = {"copy": "y", "edit": "E"}.get(pending_action)
+    if action_key is not None:
+        verbs.append((f"{action_key}{pending_prefix}…", pending_action))
+    elif pending_prefix:
         verbs.append((f"{pending_prefix}…", "link"))
     elif label_count:
         verbs.append(("0-9a-z", "follow"))
+        verbs.append(("y", "copy"))
+        verbs.append(("E", "edit"))
     if section_total > 1:
         verbs.append(("^N/^P", "entity"))
     verbs.append(("/", "search"))

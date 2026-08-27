@@ -25,9 +25,10 @@ _BINDING_ROWS: tuple[tuple[str, str], ...] = (
     ("?", "Show this help"),
 )
 
-_LINK_BINDING_ROW: tuple[str, str] = (
-    "0-9 / a-z / A-Z",
-    "Follow a painted link",
+_LINK_BINDING_ROWS: tuple[tuple[str, str], ...] = (
+    ("0-9 / a-z / A-Z", "Follow a painted link"),
+    ("y…, yy", "Copy a link's ref or path / this section"),
+    ("E…, EE", "Edit a link in $EDITOR / this section"),
 )
 _SECTION_BINDING_ROWS: tuple[tuple[str, str], ...] = (
     ("ctrl+n / ctrl+p", "Next / previous section"),
@@ -38,7 +39,7 @@ def _pager_help_text(*, section_total: int, label_count: int = 0) -> Text:
     """Build the full key-binding sheet, pure and Textual-free."""
     rows = list(_BINDING_ROWS)
     if label_count:
-        rows.insert(5, _LINK_BINDING_ROW)
+        rows[5:5] = _LINK_BINDING_ROWS
     if section_total > 1:
         rows[5:5] = _SECTION_BINDING_ROWS
     width = max(len(key) for key, _label in rows)

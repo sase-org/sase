@@ -8,6 +8,7 @@ one compact key capsule inserted immediately before each target occurrence.
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from typing import Literal
 
@@ -24,8 +25,13 @@ from sase.ace.tui.actions.navigation.jump_hints import (
     PAGER_RESERVED_JUMP_COMMAND_KEYS,
     build_jump_hint_maps,
 )
-from sase.pager.document import PagerDocument, PagerSection, PagerTargetSpan
-from sase.pager.document import section_target_spans
+from sase.pager.document import (
+    PagerDocument,
+    PagerSection,
+    PagerTargetSpan,
+    section_target_spans,
+    target_resolution_ref,
+)
 from sase.pager.link_scan import LinkSpanKind
 
 PAGER_LABEL_ALPHABET = "".join(
@@ -36,6 +42,9 @@ PAGER_LABEL_TWO_KEY_CAPACITY = len(PAGER_LABEL_ALPHABET) ** 2
 _LABEL_STYLE = "bold black on #FFD75F"
 _LABEL_MATCH_STYLE = "bold black on #FFFFAF"
 _LABEL_DIM_STYLE = "dim"
+_LABEL_DANGLING_STYLE = "dim"
+_DANGLING_ICON = "⊘"
+_DANGLING_ACCENT = "#808080"
 _DEFAULT_LINK_ICON = "◆"
 _DEFAULT_LINK_ACCENT = "#AFAFAF"
 _URL_ICON = "↗"
@@ -88,6 +97,7 @@ class PagerLabel:
     hint: str
     section_index: int
     target: PagerTargetSpan
+    dangling: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +138,7 @@ def build_label_layer(
     width: int,
     window_scope: LabelWindowScope | None = None,
     section_offsets: Sequence[int] | None = None,
+    dangling_refs: AbstractSet[str] = frozenset(),
 ) -> PagerLabelLayer:
     """Assign stable labels to pager targets in document order.
 
@@ -163,6 +174,10 @@ def build_label_layer(
             hint=label_index_to_hint[index],
             section_index=occurrence.section_index,
             target=occurrence.target,
+            dangling=(
+                target_resolution_ref(occurrence.target, document.origin)
+                in dangling_refs
+            ),
         )
         for index, occurrence in enumerate(selected)
         if index in label_index_to_hint
@@ -202,8 +217,9 @@ def render_section_with_labels(
         output.append_text(source[cursor:start])
         output.append_text(_label_prefix(label, pending_prefix=pending_prefix))
         target = source[start:end]
-        marker = _target_marker(label.target)
-        target.stylize(f"bold {marker.accent}", 0, len(target.plain))
+        marker = _target_marker(label)
+        style = _LABEL_DANGLING_STYLE if label.dangling else f"bold {marker.accent}"
+        target.stylize(style, 0, len(target.plain))
         output.append_text(target)
         cursor = end
     output.append_text(source[cursor:])
@@ -227,20 +243,28 @@ def _group_labels_by_section(
 
 
 def _label_prefix(label: PagerLabel, *, pending_prefix: str) -> Text:
-    marker = _target_marker(label.target)
-    style = _label_style(label.hint, pending_prefix=pending_prefix)
+    marker = _target_marker(label)
+    style = _label_style(label, pending_prefix=pending_prefix)
     text = Text(f"[{label.hint}]", style=style)
-    text.append(f"{marker.icon}{_NO_BREAK_SPACE}", style=f"bold {marker.accent}")
+    icon_style = _LABEL_DANGLING_STYLE if label.dangling else f"bold {marker.accent}"
+    text.append(f"{marker.icon}{_NO_BREAK_SPACE}", style=icon_style)
     return text
 
 
-def _label_style(hint: str, *, pending_prefix: str) -> str:
+def _label_style(label: PagerLabel, *, pending_prefix: str) -> str:
+    if label.dangling:
+        return _LABEL_DANGLING_STYLE
     if not pending_prefix:
         return _LABEL_STYLE
+    hint = label.hint
     return _LABEL_MATCH_STYLE if hint.startswith(pending_prefix) else _LABEL_DIM_STYLE
 
 
-def _target_marker(target: PagerTargetSpan) -> _TargetMarker:
+def _target_marker(label: PagerLabel) -> _TargetMarker:
+    if label.dangling:
+        return _TargetMarker(_DANGLING_ICON, _DANGLING_ACCENT)
+
+    target = label.target
     if target.kind == LinkSpanKind.URL.value:
         return _TargetMarker(_URL_ICON, EXTERNAL_ACCENT)
 
@@ -274,10 +298,12 @@ def _occurrence_row(
         if occurrence.section_index < len(section_offsets)
         else 0
     )
-    return offset + _row_for_offset(section.plain_text, occurrence.target.start, width)
+    return offset + row_for_character_offset(
+        section.plain_text, occurrence.target.start, width
+    )
 
 
-def _row_for_offset(text: str, offset: int, width: int) -> int:
+def row_for_character_offset(text: str, offset: int, width: int) -> int:
     """Estimate the wrapped row containing ``offset`` with no I/O."""
     row = 0
     column = 0
@@ -303,4 +329,5 @@ __all__ = [
     "PagerLabelLayer",
     "build_label_layer",
     "render_section_with_labels",
+    "row_for_character_offset",
 ]

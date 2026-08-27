@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
+
+import pytest
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
+from sase.ace.tui.graphics import ArtifactFileViewSpec, ArtifactFileViewerResult
 from sase.pager._help import PagerHelpScreen
 from sase.pager.app import PagerExit, SasePager
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+from sase.pager.resolve import LinkTarget, LinkTargetKind
 
 
 def _lines(prefix: str, count: int) -> str:
@@ -46,6 +53,26 @@ def _link_document(count: int) -> PagerDocument:
         body=body,
     )
     return PagerDocument(sections=(section,), title="links", origin=PagerOrigin.FILE)
+
+
+def _path_link_document(path: Path) -> PagerDocument:
+    section = PagerSection(
+        identity="file:/tmp/source.py",
+        title="source.py",
+        kind="file",
+        body=f"see {path} for details\n",
+        subject_ref="file:/tmp/source.py",
+    )
+    return PagerDocument(
+        sections=(section,), title="source.py", origin=PagerOrigin.FILE
+    )
+
+
+def _target_document(title: str = "target") -> PagerDocument:
+    section = PagerSection(
+        identity="file:/tmp/target.py", title="target.py", kind="file", body="target\n"
+    )
+    return PagerDocument(sections=(section,), title=title, origin=PagerOrigin.FILE)
 
 
 def _body_scroll(app: SasePager) -> VerticalScroll:
@@ -243,3 +270,207 @@ async def test_pending_prefix_is_shown_in_the_footer_and_invalid_clears_it() -> 
         footer = app.query_one("#pager-footer", Static)
         assert "Z… link" not in footer.visual.plain  # type: ignore[attr-defined]
         assert app._label_pending_prefix == ""
+
+
+async def test_footer_offers_copy_and_edit_once_links_are_painted() -> None:
+    app = SasePager(_link_document(2))
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        footer = app.query_one("#pager-footer", Static)
+        assert "y copy" in footer.visual.plain  # type: ignore[attr-defined]
+        assert "E edit" in footer.visual.plain  # type: ignore[attr-defined]
+
+
+async def test_pressing_a_label_follows_it_into_a_new_document(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target_document = _target_document()
+    monkeypatch.setattr(
+        "sase.pager.app.resolve_ref",
+        lambda ref: LinkTarget(kind=LinkTargetKind.DOCUMENT, document=target_document),
+    )
+    app = SasePager(_path_link_document(Path("/tmp/target.py")))
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("0")
+        await pilot.pause(0.1)
+        await pilot.pause(0.1)
+
+    assert app.document is target_document
+
+
+async def test_unresolvable_label_toasts_marks_it_dangling_and_does_not_renavigate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    def fake_resolve(ref: str) -> None:
+        calls.append(ref)
+        return None
+
+    monkeypatch.setattr("sase.pager.app.resolve_ref", fake_resolve)
+    notifications: list[tuple[str, str]] = []
+
+    def notify(message: str, *, severity: str = "information", **_kwargs: Any) -> None:
+        notifications.append((message, severity))
+
+    app = SasePager(_path_link_document(Path("/tmp/target.py")))
+    monkeypatch.setattr(app, "notify", notify)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("0")
+        await pilot.pause(0.1)
+        await pilot.pause(0.1)
+
+        assert calls == ["/tmp/target.py"]
+        assert app.document.title == "source.py"
+        assert ("/tmp/target.py could not be resolved.", "warning") in notifications
+        assert app._label_layer is not None
+        assert app._label_layer.labels[0].dangling is True
+
+        # Pressing the now-dangling label again does not re-resolve.
+        await pilot.press("0")
+        await pilot.pause(0.1)
+
+    assert calls == ["/tmp/target.py"]
+
+
+async def test_pressing_a_url_label_copies_without_a_y_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    copied: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
+        lambda value: copied.append(value) or True,
+    )
+    app = SasePager(_link_document(2))
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("1")
+        await pilot.pause(0.1)
+        await pilot.pause(0.1)
+
+    assert copied == ["https://example.test/1"]
+
+
+async def test_y_then_label_copies_the_links_resolved_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    copied: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
+        lambda value: copied.append(value) or True,
+    )
+    app = SasePager(_path_link_document(Path("/tmp/target.py")))
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+        footer = app.query_one("#pager-footer", Static)
+        assert "y… copy" in footer.visual.plain  # type: ignore[attr-defined]
+
+        await pilot.press("0")
+        await pilot.pause(0.1)
+        await pilot.pause(0.1)
+
+    assert copied == ["/tmp/target.py"]
+    assert app._pending_action == "follow"
+
+
+async def test_yy_copies_the_current_sections_subject_ref(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    copied: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
+        lambda value: copied.append(value) or True,
+    )
+    app = SasePager(_path_link_document(Path("/tmp/target.py")))
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.press("y")
+        await pilot.pause(0.1)
+        await pilot.pause(0.1)
+
+    assert copied == ["file:/tmp/source.py"]
+
+
+async def test_e_then_label_opens_the_editor_at_its_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handoffs: list[dict[str, object]] = []
+
+    @contextmanager
+    def fake_suspend(_app: object, **metadata: object):  # type: ignore[no-untyped-def]
+        handoffs.append(metadata)
+        yield
+
+    run_calls: list[list[str]] = []
+    monkeypatch.setattr("sase.pager.app.suspend_for_external_tool", fake_suspend)
+    monkeypatch.setattr(
+        "sase.pager.app.subprocess.run",
+        lambda argv, **_kwargs: run_calls.append(argv),
+    )
+    monkeypatch.setenv("EDITOR", "nvim")
+    monkeypatch.setattr(
+        "sase.pager.app.resolve_ref",
+        lambda ref: LinkTarget(
+            kind=LinkTargetKind.DOCUMENT,
+            document=_target_document(),
+            edit_path=Path("/tmp/target.py"),
+            edit_line=5,
+        ),
+    )
+    app = SasePager(_path_link_document(Path("/tmp/target.py")))
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("E")
+        await pilot.press("0")
+        await pilot.pause(0.1)
+        await pilot.pause(0.1)
+
+    assert handoffs and handoffs[0]["action"] == "pager_open_editor"
+    assert run_calls == [["nvim", "-c", "call cursor(5, 1)", "/tmp/target.py"]]
+    # Following a label to edit it does not navigate the pager itself.
+    assert app.document.title == "source.py"
+
+
+async def test_media_target_suspends_the_pager_and_shows_a_viewer_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handoffs: list[dict[str, object]] = []
+
+    @contextmanager
+    def fake_suspend(_app: object, **metadata: object):  # type: ignore[no-untyped-def]
+        handoffs.append(metadata)
+        yield
+
+    monkeypatch.setattr("sase.pager.app.suspend_for_external_tool", fake_suspend)
+    monkeypatch.setattr(
+        "sase.pager.app.view_artifact_files",
+        lambda specs: ArtifactFileViewerResult(ok=False, warning="no viewer available"),
+    )
+    monkeypatch.setattr(
+        "sase.pager.app.resolve_ref",
+        lambda ref: LinkTarget(
+            kind=LinkTargetKind.MEDIA,
+            media_specs=(ArtifactFileViewSpec(Path("/tmp/target.png"), kind="image"),),
+        ),
+    )
+    notifications: list[tuple[str, str]] = []
+
+    def notify(message: str, *, severity: str = "information", **_kwargs: Any) -> None:
+        notifications.append((message, severity))
+
+    app = SasePager(_path_link_document(Path("/tmp/target.py")))
+    monkeypatch.setattr(app, "notify", notify)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("0")
+        await pilot.pause(0.1)
+        await pilot.pause(0.1)
+
+    assert handoffs and handoffs[0]["action"] == "pager_view_media"
+    assert ("no viewer available", "warning") in notifications
+    assert app.document.title == "source.py"

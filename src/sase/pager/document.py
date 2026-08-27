@@ -10,7 +10,7 @@ from typing import Literal
 from rich.console import Console, RenderableType
 from rich.text import Text
 
-from sase.pager.link_scan import LinkSpan, PagerOrigin, scan_links
+from sase.pager.link_scan import LinkSpan, LinkSpanKind, PagerOrigin, scan_links
 
 PagerTargetSource = Literal["attached", "scanned"]
 
@@ -110,6 +110,21 @@ class PagerDocument:
         for section in self.sections:
             for target in section_target_spans(section, self.origin):
                 yield section, target
+
+
+def target_resolution_ref(target: PagerTargetSpan, origin: PagerOrigin) -> str | None:
+    """Return the ref string ``resolve_ref`` should receive for *target*.
+
+    URL spans are never resolved — the press table copies them directly
+    (design doc section D6) without ever asking whether they exist. A bare
+    token's meaning depends on the document's origin, never globally
+    (section D3): a bare id only means a bead in a bead document.
+    """
+    if target.kind == LinkSpanKind.URL.value:
+        return None
+    if target.kind == LinkSpanKind.BARE_TOKEN.value:
+        return f"bead:{target.text}" if origin is PagerOrigin.BEAD else None
+    return target.text
 
 
 def section_target_spans(
@@ -233,4 +248,5 @@ __all__ = [
     "PagerTargetSpan",
     "PagerTargetSource",
     "section_target_spans",
+    "target_resolution_ref",
 ]
