@@ -37,6 +37,14 @@ class ArtifactReadDisplayEvent:
     agent_label: str | None = None
 
 
+@dataclass(frozen=True)
+class ArtifactReadRefSpec:
+    """Durable artifact-read identity carried with a hinted resolved path."""
+
+    ref: str
+    cwd: str | None
+
+
 @dataclass
 class _ArtifactReadsCacheEntry:
     events: tuple[ArtifactReadEvent, ...]

@@ -242,6 +242,10 @@ async def test_immediate_agent_hint_submission_waits_for_rendered_mapping(
         "sase.ace.tui.actions.hints._processing.build_pager_document",
         lambda files, commit_specs: document,
     )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.os.path.exists",
+        lambda _path: True,
+    )
 
     app._view_agent_files()
     assert app.detail.update_calls == 0
@@ -250,6 +254,13 @@ async def test_immediate_agent_hint_submission_waits_for_rendered_mapping(
     app.on_hint_input_bar_submitted(HintInputBar.Submitted("1", "view"))
 
     for _ in range(8):
+        await asyncio.sleep(0)
+    for _ in range(4):
+        pending = [task for task in app._workers if not task.done()]
+        if not pending:
+            await asyncio.sleep(0)
+            continue
+        await asyncio.wait_for(asyncio.gather(*pending), timeout=1.0)
         await asyncio.sleep(0)
 
     app._view_files_with_pager_screen.assert_called_once_with(document)

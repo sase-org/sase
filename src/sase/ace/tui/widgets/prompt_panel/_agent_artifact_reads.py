@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from rich.text import Text
 
-from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
+from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent, ArtifactReadRefSpec
 
 from ._agent_context_common import (
     ARTIFACT_READ_GLYPH,
@@ -49,6 +49,10 @@ def append_agent_artifact_read_rows(
         if hint_state is not None and event.resolved_path:
             hint_number = hint_state.hint_counter
             hint_state.hint_mappings[hint_number] = event.resolved_path
+            hint_state.artifact_read_refs[event.resolved_path] = ArtifactReadRefSpec(
+                ref=event.ref,
+                cwd=event.cwd,
+            )
             hint_state.hint_counter += 1
             hint_label = Text(f"[{hint_number}] ", style="bold #FFFF00")
         text.append(_SUBSECTION_ROW_PREFIX)

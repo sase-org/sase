@@ -31,6 +31,7 @@ def init_navigation_state(self: Any) -> None:
     self._hint_tool_call_reports = {}
     self._hint_glossary_reports = {}
     self._hint_memory_reports = {}
+    self._hint_artifact_read_refs = {}
     self._hint_commit_views = {}
     self._hook_hint_to_idx = {}
     self._hint_to_entry_id = {}

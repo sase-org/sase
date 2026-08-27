@@ -14,6 +14,7 @@ from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
 from sase.memory.memory_read_report import MemoryReadReportSpec
 
 from ....patch import Patch
+from ...artifact_reads import ArtifactReadRefSpec
 from ...models.agent import Agent
 from ...tools.report import SlowToolCallReportSpec
 from ...widgets import HintInputBar
@@ -42,6 +43,7 @@ class HintMixinBase:
     _hint_tool_call_reports: dict[str, SlowToolCallReportSpec]
     _hint_glossary_reports: dict[str, GlossaryReadReportSpec]
     _hint_memory_reports: dict[str, MemoryReadReportSpec]
+    _hint_artifact_read_refs: dict[str, ArtifactReadRefSpec]
     _hint_commit_views: dict[int, CommitViewSpec]
     _hook_hint_to_idx: dict[int, int]
     _hint_to_entry_id: dict[int, str]

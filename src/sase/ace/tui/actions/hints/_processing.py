@@ -24,9 +24,11 @@ from ....hints import (
     parse_test_targets,
     parse_view_input,
 )
+from ...artifact_reads import ArtifactReadRefSpec
 from ...tools.report import SlowToolCallReportSpec, write_tool_call_report
 from ...widgets import HintInputBar
 from ...widgets.prompt_panel._agent_display_state import CommitViewSpec
+from ._artifact_ref_repair import repair_artifact_read_path
 from ..clipboard import schedule_copy_delivery
 from ._files import build_pager_document
 from ._types import HintMixinBase
@@ -52,38 +54,53 @@ class _ViewRequest:
 class _MaterializedReports:
     files: tuple[str, ...]
     failed_paths: tuple[str, ...]
+    missing_paths: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class _PreparedViewRequest:
     request: _ViewRequest
     report_items: tuple[tuple[str, _HintReportSpec], ...]
+    artifact_read_ref_items: tuple[tuple[str, ArtifactReadRefSpec], ...] = ()
 
 
-def _write_selected_hint_reports(
+def _materialize_selected_view_files(
     files: tuple[str, ...],
     report_items: tuple[tuple[str, _HintReportSpec], ...],
+    artifact_read_ref_items: tuple[tuple[str, ArtifactReadRefSpec], ...],
 ) -> _MaterializedReports:
-    """Materialize selected reports without touching Textual application state."""
+    """Materialize reports, repair artifact-read paths, and drop stale files."""
     reports = dict(report_items)
+    artifact_read_refs = dict(artifact_read_ref_items)
     materialized: list[str] = []
     failed: list[str] = []
+    missing: list[str] = []
     for file_path in files:
         spec = reports.get(file_path)
         if spec is None:
-            materialized.append(file_path)
-            continue
-        if isinstance(spec, MemoryReadReportSpec):
-            report_path = write_memory_read_report(spec)
-        elif isinstance(spec, GlossaryReadReportSpec):
-            report_path = write_glossary_read_report(spec)
+            resolved_path = file_path
         else:
-            report_path = write_tool_call_report(spec)
-        if report_path is None:
-            failed.append(file_path)
+            if isinstance(spec, MemoryReadReportSpec):
+                report_path = write_memory_read_report(spec)
+            elif isinstance(spec, GlossaryReadReportSpec):
+                report_path = write_glossary_read_report(spec)
+            else:
+                report_path = write_tool_call_report(spec)
+            if report_path is None:
+                failed.append(file_path)
+                continue
+            resolved_path = report_path
+        if os.path.exists(resolved_path):
+            materialized.append(resolved_path)
             continue
-        materialized.append(report_path)
-    return _MaterializedReports(tuple(materialized), tuple(failed))
+        ref_spec = artifact_read_refs.get(file_path)
+        if ref_spec is not None:
+            repaired_path = repair_artifact_read_path(ref_spec)
+            if repaired_path is not None and os.path.exists(repaired_path):
+                materialized.append(repaired_path)
+                continue
+        missing.append(resolved_path)
+    return _MaterializedReports(tuple(materialized), tuple(failed), tuple(missing))
 
 
 def _parse_view_hint_selection(
@@ -298,19 +315,25 @@ class InputProcessingMixin(HintMixinBase):
             for file_path in request.files
             if file_path in reports
         )
-        return _PreparedViewRequest(request, selected_reports)
+        artifact_read_refs: dict[str, ArtifactReadRefSpec] = getattr(
+            self, "_hint_artifact_read_refs", {}
+        )
+        selected_ref_items = tuple(
+            (file_path, artifact_read_refs[file_path])
+            for file_path in request.files
+            if file_path in artifact_read_refs
+        )
+        return _PreparedViewRequest(request, selected_reports, selected_ref_items)
 
     async def _finish_view_request(self, prepared: _PreparedViewRequest) -> None:
         """Materialize a captured request off-thread, then route its UI action."""
         request = prepared.request
-        if prepared.report_items:
-            outcome = await asyncio.to_thread(
-                _write_selected_hint_reports,
-                request.files,
-                prepared.report_items,
-            )
-        else:
-            outcome = _MaterializedReports(request.files, ())
+        outcome = await asyncio.to_thread(
+            _materialize_selected_view_files,
+            request.files,
+            prepared.report_items,
+            prepared.artifact_read_ref_items,
+        )
 
         # The request remains valid across navigation, but no UI effects should
         # be dispatched after the application has begun shutting down.
@@ -321,6 +344,11 @@ class InputProcessingMixin(HintMixinBase):
             self.notify(  # type: ignore[attr-defined]
                 f"Failed to build hint report: {failed_path}",
                 severity="error",
+            )
+        for missing_path in outcome.missing_paths:
+            self.notify(  # type: ignore[attr-defined]
+                f"File no longer exists: {missing_path}",
+                severity="warning",
             )
 
         files = list(outcome.files)
@@ -353,9 +381,16 @@ class InputProcessingMixin(HintMixinBase):
             ):
                 self._view_files_with_artifact_file_viewer(files)  # type: ignore[attr-defined]
             else:
-                document = await asyncio.to_thread(
-                    build_pager_document, files, request.commit_specs
-                )
+                try:
+                    document = await asyncio.to_thread(
+                        build_pager_document, files, request.commit_specs
+                    )
+                except OSError as exc:
+                    self.notify(  # type: ignore[attr-defined]
+                        f"Could not open pager: {exc}",
+                        severity="error",
+                    )
+                    return
                 self._view_files_with_pager_screen(document)  # type: ignore[attr-defined]
 
     def _files_for_view_hints(self, hint_nums: Iterable[int]) -> list[str]:

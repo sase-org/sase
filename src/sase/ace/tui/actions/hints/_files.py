@@ -174,6 +174,7 @@ class FileViewingMixin(HintMixinBase):
         self._hint_tool_call_reports = {}
         self._hint_glossary_reports = {}
         self._hint_memory_reports = {}
+        self._hint_artifact_read_refs = {}
         self._hint_commit_views = {}
         if self.current_tab == "agents":
             self._view_agent_files()
@@ -259,6 +260,7 @@ class FileViewingMixin(HintMixinBase):
         self._hint_tool_call_reports = {}
         self._hint_glossary_reports = {}
         self._hint_memory_reports = {}
+        self._hint_artifact_read_refs = {}
         self._hint_commit_views = {}
         self._hint_patch_name = agent.cl_name
         self._hint_changespec_name = agent.cl_name  # type: ignore[attr-defined] # legacy compatibility alias
@@ -349,6 +351,7 @@ class FileViewingMixin(HintMixinBase):
             self._hint_tool_call_reports = hint_render.tool_call_reports
             self._hint_glossary_reports = hint_render.glossary_reports
             self._hint_memory_reports = hint_render.memory_reports
+            self._hint_artifact_read_refs = hint_render.artifact_read_refs
             self._hint_commit_views = hint_render.commit_views
             if (
                 not hint_render.file_hints

@@ -14,6 +14,7 @@ from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
+from sase.ace.tui.artifact_reads import ArtifactReadRefSpec
 from sase.ace.tui.actions.hints._files import (
     _COMMIT_TARGET_KIND,
     FileViewingMixin,
@@ -69,6 +70,7 @@ class _ViewHost(InputProcessingMixin, FileViewingMixin, App[None]):
         self._hint_tool_call_reports = {}
         self._hint_glossary_reports = {}
         self._hint_memory_reports = {}
+        self._hint_artifact_read_refs = {}
         self._hint_commit_views = {}
         self._hint_patch_name = "cs"
 
@@ -222,6 +224,126 @@ async def test_mixed_file_and_commit_selection_attaches_commit_section(
     (document,) = app._view_files_with_pager_screen.call_args.args
     assert document.sections[0].identity == "pager-commits"
     assert document.sections[1].identity == f"file:{notes}"
+
+
+async def test_missing_file_hint_warns_without_opening_pager(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.md"
+    app = _make_app(str(missing))
+
+    await app._process_view_input("1")
+
+    app.push_screen.assert_not_called()
+    app.notify.assert_any_call(
+        f"File no longer exists: {missing}",
+        severity="warning",
+    )
+    app.notify.assert_any_call(
+        "No selected files could be opened",
+        severity="warning",
+    )
+
+
+async def test_missing_file_hint_drops_only_the_stale_selection(
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "missing.md"
+    notes = tmp_path / "notes.md"
+    notes.write_text("hi", encoding="utf-8")
+    app = _make_app(str(missing), str(notes))
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
+
+    await app._process_view_input("1 2")
+
+    app.notify.assert_any_call(
+        f"File no longer exists: {missing}",
+        severity="warning",
+    )
+    app._view_files_with_pager_screen.assert_called_once()
+    (document,) = app._view_files_with_pager_screen.call_args.args
+    assert [section.identity for section in document.sections] == [f"file:{notes}"]
+
+
+async def test_pager_build_oserror_is_reported(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    notes = tmp_path / "notes.md"
+    notes.write_text("hi", encoding="utf-8")
+    app = _make_app(str(notes))
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
+
+    def fail_build(*_args: object, **_kwargs: object) -> PagerDocument:
+        raise OSError("vanished")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.build_pager_document",
+        fail_build,
+    )
+
+    await app._process_view_input("1")
+
+    app._view_files_with_pager_screen.assert_not_called()
+    app.notify.assert_any_call("Could not open pager: vanished", severity="error")
+
+
+async def test_artifact_read_hint_recovery_opens_repaired_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "stale.md"
+    recovered = tmp_path / "recovered.md"
+    recovered.write_text("recovered", encoding="utf-8")
+    spec = ArtifactReadRefSpec(
+        ref="research:202608/design.md",
+        cwd="/tmp/workspace",
+    )
+    app = _make_app(str(missing))
+    app._hint_artifact_read_refs = {str(missing): spec}
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
+    calls: list[ArtifactReadRefSpec] = []
+
+    def repair(value: ArtifactReadRefSpec) -> str | None:
+        calls.append(value)
+        return str(recovered)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.repair_artifact_read_path",
+        repair,
+    )
+
+    await app._process_view_input("1")
+
+    assert calls == [spec]
+    app.notify.assert_not_called()
+    app._view_files_with_pager_screen.assert_called_once()
+    (document,) = app._view_files_with_pager_screen.call_args.args
+    assert [section.identity for section in document.sections] == [f"file:{recovered}"]
+
+
+async def test_artifact_read_hint_recovery_none_reports_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "stale.md"
+    spec = ArtifactReadRefSpec(
+        ref="research:202608/design.md",
+        cwd="/tmp/workspace",
+    )
+    app = _make_app(str(missing))
+    app._hint_artifact_read_refs = {str(missing): spec}
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.repair_artifact_read_path",
+        lambda _spec: None,
+    )
+
+    await app._process_view_input("1")
+
+    app._view_files_with_pager_screen.assert_not_called()
+    app.notify.assert_any_call(
+        f"File no longer exists: {missing}",
+        severity="warning",
+    )
 
 
 # -- PagerScreen wiring --------------------------------------------------------

@@ -67,6 +67,7 @@ async def test_rendered_clan_commit_hint_editor_suffix_opens_raw_diff(
     tmp_path: Path,
 ) -> None:
     diff_path = tmp_path / "clan-commit.diff"
+    diff_path.write_text("diff", encoding="utf-8")
     app = _make_app()
     app._hint_commit_views = _rendered_clan_commit_hint(diff_path=str(diff_path))
     app._open_files_in_editor = MagicMock()  # type: ignore[method-assign]
@@ -171,6 +172,7 @@ async def test_multiple_commit_hint_copy_suffix_copies_all_short_shas(
 
 async def test_commit_hint_editor_suffix_opens_raw_diff_path(tmp_path: Path) -> None:
     diff_path = tmp_path / "commit.diff"
+    diff_path.write_text("diff", encoding="utf-8")
     app = _make_app()
     app._hint_commit_views = {1: _commit_spec(diff_path=str(diff_path))}
     app._open_files_in_editor = MagicMock()  # type: ignore[method-assign]
@@ -188,6 +190,8 @@ async def test_multiple_commit_hint_editor_suffix_opens_raw_diff_paths(
 ) -> None:
     first_diff = tmp_path / "first.diff"
     third_diff = tmp_path / "third.diff"
+    first_diff.write_text("first", encoding="utf-8")
+    third_diff.write_text("third", encoding="utf-8")
     app = _make_app()
     app._hint_commit_views = {
         1: _commit_spec(sha="111111111111111111111111", diff_path=str(first_diff)),

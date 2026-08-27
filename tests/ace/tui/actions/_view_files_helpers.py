@@ -39,6 +39,7 @@ class _ViewApp(InputProcessingMixin, FileViewingMixin):
         self._hint_tool_call_reports = {}
         self._hint_glossary_reports = {}
         self._hint_memory_reports = {}
+        self._hint_artifact_read_refs = {}
         self._hint_commit_views = {}
         self._hint_patch_name = "cs"
         self.notify = MagicMock()

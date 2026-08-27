@@ -320,6 +320,7 @@ class AgentHintRenderMixin:
                 commit_views=header_hint_state.commit_views,
                 glossary_reports=header_hint_state.glossary_reports,
                 memory_reports=header_hint_state.memory_reports,
+                artifact_read_refs=header_hint_state.artifact_read_refs,
                 header_enrichment_pending=not detail_header_summary_is_complete(
                     summary
                 ),
@@ -367,6 +368,7 @@ class AgentHintRenderMixin:
                 commit_views=header_hint_state.commit_views,
                 glossary_reports=header_hint_state.glossary_reports,
                 memory_reports=header_hint_state.memory_reports,
+                artifact_read_refs=header_hint_state.artifact_read_refs,
                 header_enrichment_pending=False,
             )
 
@@ -401,6 +403,7 @@ class AgentHintRenderMixin:
                 commit_views=header_hint_state.commit_views,
                 glossary_reports=header_hint_state.glossary_reports,
                 memory_reports=header_hint_state.memory_reports,
+                artifact_read_refs=header_hint_state.artifact_read_refs,
                 header_enrichment_pending=not detail_header_summary_is_complete(
                     summary
                 ),
@@ -436,6 +439,7 @@ class AgentHintRenderMixin:
                 commit_views=header_hint_state.commit_views,
                 glossary_reports=header_hint_state.glossary_reports,
                 memory_reports=header_hint_state.memory_reports,
+                artifact_read_refs=header_hint_state.artifact_read_refs,
                 header_enrichment_pending=not detail_header_summary_is_complete(
                     summary
                 ),
@@ -646,6 +650,7 @@ class AgentHintRenderMixin:
             commit_views=header_hint_state.commit_views,
             glossary_reports=header_hint_state.glossary_reports,
             memory_reports=header_hint_state.memory_reports,
+            artifact_read_refs=header_hint_state.artifact_read_refs,
             header_enrichment_pending=not detail_header_summary_is_complete(summary),
         )
 
@@ -702,5 +707,6 @@ class AgentHintRenderMixin:
             commit_views=hint_state.commit_views,
             glossary_reports=hint_state.glossary_reports,
             memory_reports=hint_state.memory_reports,
+            artifact_read_refs=hint_state.artifact_read_refs,
             header_enrichment_pending=enrichment_pending,
         )

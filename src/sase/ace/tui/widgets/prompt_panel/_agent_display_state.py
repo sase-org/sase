@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from sase.ace.patch.models import DeltaEntry
-from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
+from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent, ArtifactReadRefSpec
 from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
@@ -62,6 +62,7 @@ class HeaderHintState:
     commit_views: dict[int, CommitViewSpec] = field(default_factory=dict)
     glossary_reports: dict[str, GlossaryReadReportSpec] = field(default_factory=dict)
     memory_reports: dict[str, MemoryReadReportSpec] = field(default_factory=dict)
+    artifact_read_refs: dict[str, ArtifactReadRefSpec] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -73,6 +74,7 @@ class AgentHintRender:
     commit_views: dict[int, CommitViewSpec] = field(default_factory=dict)
     glossary_reports: dict[str, GlossaryReadReportSpec] = field(default_factory=dict)
     memory_reports: dict[str, MemoryReadReportSpec] = field(default_factory=dict)
+    artifact_read_refs: dict[str, ArtifactReadRefSpec] = field(default_factory=dict)
     header_enrichment_pending: bool = False
 
 

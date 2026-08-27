@@ -8,7 +8,7 @@ import pytest
 from rich.cells import cell_len
 from rich.text import Text
 
-from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
+from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent, ArtifactReadRefSpec
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_artifact_reads import (
     MAX_VISIBLE_READS,
@@ -163,6 +163,12 @@ def test_hint_state_maps_resolved_paths_and_skips_pathless() -> None:
     assert "← bead:sase-1" in text.plain
     assert "[4]" not in text.plain
     assert state.hint_mappings == {3: "/tmp/test/design.md"}
+    assert state.artifact_read_refs == {
+        "/tmp/test/design.md": ArtifactReadRefSpec(
+            ref="plan:202608/design.md",
+            cwd="/tmp/test",
+        )
+    }
     assert state.hint_counter == 4
 
 

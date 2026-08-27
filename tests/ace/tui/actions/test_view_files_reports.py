@@ -348,9 +348,14 @@ async def test_memory_report_hint_is_materialized_for_editor(
     app = _make_app(report_path)
     app._hint_memory_reports = {report_path: _memory_spec(report_path)}
     app._open_files_in_editor = MagicMock()  # type: ignore[method-assign]
+
+    def write_report(_spec: MemoryReadReportSpec) -> str:
+        Path(report_path).write_text("memory report", encoding="utf-8")
+        return report_path
+
     monkeypatch.setattr(
         "sase.ace.tui.actions.hints._processing.write_memory_read_report",
-        lambda _spec: report_path,
+        write_report,
     )
 
     await app._process_view_input("1@")
@@ -368,9 +373,14 @@ async def test_memory_report_hint_is_materialized_for_clipboard(
     app = _make_app(report_path)
     app._hint_memory_reports = {report_path: _memory_spec(report_path)}
     app._copy_files_to_clipboard = MagicMock()  # type: ignore[method-assign]
+
+    def write_report(_spec: MemoryReadReportSpec) -> str:
+        Path(report_path).write_text("memory report", encoding="utf-8")
+        return report_path
+
     monkeypatch.setattr(
         "sase.ace.tui.actions.hints._processing.write_memory_read_report",
-        lambda _spec: report_path,
+        write_report,
     )
 
     await app._process_view_input("1%")

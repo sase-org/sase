@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
     from sase.memory.memory_read_report import MemoryReadReportSpec
 
+    from ...artifact_reads import ArtifactReadRefSpec
     from ...models import Agent
     from ...tools.report import SlowToolCallReportSpec
     from ...util.debounce import DetailPanelDebouncer
@@ -39,6 +40,7 @@ class AgentDetailRenderMixin:
     _hint_tool_call_reports: dict[str, SlowToolCallReportSpec]
     _hint_glossary_reports: dict[str, GlossaryReadReportSpec]
     _hint_memory_reports: dict[str, MemoryReadReportSpec]
+    _hint_artifact_read_refs: dict[str, ArtifactReadRefSpec]
 
     if TYPE_CHECKING:
 
@@ -310,6 +312,7 @@ class AgentDetailRenderMixin:
             self._hint_tool_call_reports = hint_render.tool_call_reports
             self._hint_glossary_reports = hint_render.glossary_reports
             self._hint_memory_reports = hint_render.memory_reports
+            self._hint_artifact_read_refs = hint_render.artifact_read_refs
 
     def on_agent_detail_header_enriched(
         self,
