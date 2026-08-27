@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -13,6 +14,7 @@ from rich.cells import cell_len
 from sase.artifact_ref_models import ArtifactRefContext
 from sase.bead.cli_detail import render_issue_detail, resolve_issue_detail
 from sase.bead.cli_detail_json import issue_detail_wire_dict
+from sase.bead.cli_detail_links import assemble_bead_link_neighborhood
 from sase.bead.cli_detail_resolution import IssueDetail
 from sase.bead.cli_detail_style import DetailPalette, DetailStyle
 from sase.bead.cli_query_render import render_list_compact
@@ -24,6 +26,8 @@ from sase.bead.show_epic_expansion import (
 )
 from sase.markdown_width import markdown_print_width
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -56,6 +60,47 @@ DetailEnricher = Callable[[IssueDetail], IssueDetail]
 ReferenceContextFactory = Callable[[], ArtifactRefContext | None]
 CreatorUrlResolver = Callable[[str], str | None]
 PageUrlResolver = Callable[[str], str | None]
+
+#: What `assemble_bead_link_neighborhood` raises when the artifact-link store
+#: cannot be read. Each caller decides whether to report it or degrade.
+ARTIFACT_LINK_NEIGHBORHOOD_ERRORS = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+    AttributeError,
+)
+
+
+def artifact_link_neighborhood_detail(detail: IssueDetail) -> IssueDetail:
+    """Return *detail* with its typed artifact-link neighborhood attached."""
+    return replace(
+        detail,
+        artifact_links=assemble_bead_link_neighborhood(
+            bead_id=detail.issue.id,
+            bead_owned_rows=detail.bead_owned_artifact_links,
+            fallback_issue=detail.issue,
+        ),
+    )
+
+
+def enrich_with_artifact_link_neighborhood(detail: IssueDetail) -> IssueDetail:
+    """Attach the link neighborhood, or leave *detail* unchanged on failure.
+
+    `sase bead show` reports the failure and exits, which a host that is not a
+    CLI entry point must never do — the pager resolves `bead:` links from
+    inside a keypress handler. Degrading here costs that document its LINKS
+    section rather than the whole document.
+    """
+    try:
+        return artifact_link_neighborhood_detail(detail)
+    except ARTIFACT_LINK_NEIGHBORHOOD_ERRORS:
+        log.warning(
+            "could not assemble the artifact-link neighborhood for %s",
+            detail.issue.id,
+            exc_info=True,
+        )
+        return detail
 
 
 def resolve_show_batch(
@@ -366,7 +411,10 @@ def _require_detail(entry: _ShowEntry) -> IssueDetail:
 
 
 __all__ = [
+    "ARTIFACT_LINK_NEIGHBORHOOD_ERRORS",
+    "artifact_link_neighborhood_detail",
     "build_show_batch_document",
+    "enrich_with_artifact_link_neighborhood",
     "render_show_batch",
     "render_show_document",
     "resolve_show_batch",

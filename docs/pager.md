@@ -20,8 +20,8 @@ sase pager [-c auto|always|never] [-l auto|never] [-p] [-t TITLE] [-w WIDTH] [RE
 ```
 
 | Option        | Purpose                                                                                   |
-| ------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `REF          | PATH`                                                                                     | Artifact reference or file path. Omit it, or pass `-` by itself, to read stdin. |
+| ------------- | ----------------------------------------------------------------------------------------- |
+| `REF\|PATH`   | Artifact reference or file path. Omit it, or pass `-` by itself, to read stdin.           |
 | `-c, --color` | Color output mode: `auto`, `always`, or `never`.                                          |
 | `-l, --links` | Link scanning mode: `auto` or `never`. `never` opens the app without painted link labels. |
 | `-p, --plain` | Write plain text without starting the Textual pager.                                      |

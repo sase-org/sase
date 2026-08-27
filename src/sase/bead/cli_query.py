@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Sequence
-from dataclasses import replace
 
 from sase.agent.names._registry import name_registry_load_session
 from sase.bead.cli_common import created_cell, get_read_view, status_icon
@@ -19,10 +18,7 @@ from sase.bead.cli_detail import (
     resolve_bead_page_url,
     resolve_issue_detail,
 )
-from sase.bead.cli_detail_links import (
-    NO_LINKS_RECOVERY_HINT,
-    assemble_bead_link_neighborhood,
-)
+from sase.bead.cli_detail_links import NO_LINKS_RECOVERY_HINT
 from sase.bead.cli_detail_resolution import IssueDetail
 from sase.bead.cli_detail_style import DetailStyle, resolve_detail_style
 from sase.bead.cli_query_render import (
@@ -39,6 +35,8 @@ from sase.bead.cli_query_render import (
     search_field_value as _search_field_value,
 )
 from sase.bead.cli_show_batch import (
+    ARTIFACT_LINK_NEIGHBORHOOD_ERRORS,
+    artifact_link_neighborhood_detail,
     build_show_batch_document,
     render_show_batch,
     render_show_document,
@@ -327,16 +325,11 @@ def _show_ids(args: argparse.Namespace) -> list[str]:
 
 def _with_artifact_link_neighborhood(detail: IssueDetail) -> IssueDetail:
     try:
-        views = assemble_bead_link_neighborhood(
-            bead_id=detail.issue.id,
-            bead_owned_rows=detail.bead_owned_artifact_links,
-            fallback_issue=detail.issue,
-        )
-    except (OSError, RuntimeError, ValueError, TypeError, AttributeError) as exc:
+        return artifact_link_neighborhood_detail(detail)
+    except ARTIFACT_LINK_NEIGHBORHOOD_ERRORS as exc:
         print(f"Error: {exc}", file=sys.stderr)
         print(f"Hint: {NO_LINKS_RECOVERY_HINT}.", file=sys.stderr)
         sys.exit(1)
-    return replace(detail, artifact_links=views)
 
 
 def handle_bead_search(args: argparse.Namespace) -> None:

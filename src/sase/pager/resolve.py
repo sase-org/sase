@@ -191,7 +191,11 @@ def _bead_link_target(canonical_ref: str) -> LinkTarget | None:
         resolve_bead_page_url,
     )
     from sase.bead.cli_detail_style import DetailStyle
-    from sase.bead.cli_show_batch import build_show_batch_document, resolve_show_batch
+    from sase.bead.cli_show_batch import (
+        build_show_batch_document,
+        enrich_with_artifact_link_neighborhood,
+        resolve_show_batch,
+    )
 
     try:
         with name_registry_load_session(), get_read_view() as view:
@@ -200,6 +204,9 @@ def _bead_link_target(canonical_ref: str) -> LinkTarget | None:
                 [bead_id],
                 format_name="full",
                 include_links=True,
+                # `sase bead show`'s own enricher exits the process when the
+                # link store cannot be read; a keypress handler cannot.
+                detail_enricher=enrich_with_artifact_link_neighborhood,
             )
             if batch.failures or not batch.entries:
                 return None

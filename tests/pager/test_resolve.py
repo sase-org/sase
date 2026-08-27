@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -123,3 +124,34 @@ def test_target_resolution_ref_passes_through_artifact_refs_and_paths() -> None:
     path_span = _span(LinkSpanKind.FILE_PATH, "src/sase/pager/app.py")
     assert target_resolution_ref(ref_span, PagerOrigin.FILE) == "bead:sase-uk.5"
     assert target_resolution_ref(path_span, PagerOrigin.FILE) == "src/sase/pager/app.py"
+
+
+def test_bead_link_target_enriches_the_link_neighborhood_without_exiting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A followed `bead:` link must carry the LINKS block `bead show` renders.
+
+    `resolve_show_batch` leaves `IssueDetail.artifact_links` empty unless a
+    `detail_enricher` fills it, and the CLI's own enricher calls `sys.exit` on
+    failure, which a keypress handler cannot survive.
+    """
+    from contextlib import contextmanager
+
+    from sase.bead import cli_common, cli_show_batch
+    from sase.pager.resolve import _bead_link_target
+
+    seen: list[object] = []
+
+    @contextmanager
+    def fake_read_view() -> Iterator[object]:
+        yield object()
+
+    def spy(*_args: object, **kwargs: object) -> object:
+        seen.append(kwargs.get("detail_enricher"))
+        raise LookupError("stop after recording the enricher")
+
+    monkeypatch.setattr(cli_common, "get_read_view", fake_read_view)
+    monkeypatch.setattr(cli_show_batch, "resolve_show_batch", spy)
+
+    assert _bead_link_target("bead:sase-uk") is None
+    assert seen == [cli_show_batch.enrich_with_artifact_link_neighborhood]
