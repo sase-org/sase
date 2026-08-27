@@ -51,3 +51,23 @@ def _store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ArtifactLinkStore
 
 def _plan_index(tmp_path: Path, stem: str) -> Path:
     return tmp_path / "plans" / "links" / "202608" / f"{stem}.json"
+
+
+def assert_index_resolves_durable_rows(
+    store: ArtifactLinkStore,
+    index_rows: list[dict[str, object]] | tuple[dict[str, object], ...],
+) -> None:
+    """Assert that an index covers every durable store edge by stable key."""
+
+    expected = {_edge_key(row) for row in store.load_durable_rows()}
+    indexed = {_edge_key(row) for row in index_rows}
+    missing = sorted(expected - indexed)
+    assert not missing, f"index missing durable artifact-link rows: {missing!r}"
+
+
+def _edge_key(row: dict[str, object]) -> tuple[str, str, str]:
+    return (
+        str(row.get("source_ref") or ""),
+        str(row.get("relation") or ""),
+        str(row.get("target_ref") or ""),
+    )

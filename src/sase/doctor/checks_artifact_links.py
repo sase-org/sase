@@ -6,6 +6,10 @@ from typing import TYPE_CHECKING
 
 from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
 from sase.sdd._artifact_link_store_support import is_projected_row
+from sase.sdd.artifact_link_drift import (
+    build_artifact_link_index_drift,
+    format_artifact_link_index_drift,
+)
 from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
     artifact_link_aggregate_path,
@@ -75,7 +79,11 @@ def _check_artifact_links_aggregate(context: DoctorContext) -> DiagnosticCheck:
     adapter = ArtifactLinkStore.from_sdd_store(store, project_key)
     on_disk = adapter.load_aggregate()
     expected = adapter.preview_aggregate()
-    stale = _rows_signature(on_disk) != _rows_signature(expected)
+    drift = build_artifact_link_index_drift(
+        expected_rows=expected.get("rows", []),
+        indexed_rows=on_disk.get("rows", []),
+    )
+    stale = drift.has_drift
     missing = not artifact_link_aggregate_path(project_key).is_file()
     expected_count = len(expected["rows"])
     projected_count = sum(1 for row in expected["rows"] if is_projected_row(row))
@@ -96,17 +104,22 @@ def _check_artifact_links_aggregate(context: DoctorContext) -> DiagnosticCheck:
             status=status,
             title="Artifact link aggregate",
             summary=(
-                "artifact-links aggregate is missing or stale versus sidecar links/"
+                "artifact-links aggregate is missing or stale versus durable links"
             ),
             next_steps=(
                 "Rebuild ~/.sase/projects/<key>/artifact-links.json "
-                "from sidecar links/ JSON.",
+                "from durable store rows and projection rules; "
+                f"{format_artifact_link_index_drift(drift)}.",
             ),
             data={
                 "stale": True,
                 "missing": missing,
                 "rows": expected_count,
                 "projected_rows": projected_count,
+                "missing_rows": drift.missing.total,
+                "extra_rows": drift.extra.total,
+                "missing_by_relation": dict(drift.missing.by_relation),
+                "extra_by_relation": dict(drift.extra.by_relation),
             },
         )
     return DiagnosticCheck(
@@ -121,34 +134,6 @@ def _check_artifact_links_aggregate(context: DoctorContext) -> DiagnosticCheck:
             "projected_rows": projected_count,
         },
     )
-
-
-def _rows_signature(document: dict[str, object]) -> tuple[tuple[object, ...], ...]:
-    """Return a store-backed signature: HEAD moving must not read as stale.
-
-    Projected rows are recomputed on every pass, so comparing them here
-    would report staleness after every commit -- see
-    :func:`_check_artifact_links_aggregate`'s ``projected_rows`` count for
-    that information instead.
-    """
-
-    rows = document.get("rows")
-    if not isinstance(rows, list):
-        return ()
-    signatures: list[tuple[object, ...]] = []
-    for row in rows:
-        if not isinstance(row, dict) or is_projected_row(row):
-            continue
-        signatures.append(
-            (
-                str(row.get("source_ref") or ""),
-                str(row.get("relation") or ""),
-                str(row.get("target_ref") or ""),
-                str(row.get("description") or ""),
-                int(row.get("uses") or 0),
-            )
-        )
-    return tuple(sorted(signatures))
 
 
 def _project_key(context: DoctorContext) -> str | None:

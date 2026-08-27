@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -57,6 +57,8 @@ class ArtifactLinkStoreRowsMixin:
         [str, Sequence[Mapping[str, Any]]], tuple[dict[str, Any], ...]
     ]
     _load_bead_rows: Callable[[str], tuple[dict[str, Any], ...]]
+    _iter_sidecar_rows: Callable[[], Iterable[dict[str, Any]]]
+    _iter_bead_rows: Callable[[], Iterable[dict[str, Any]]]
     _upsert_aggregate_row: Callable[[Mapping[str, Any]], dict[str, Any]]
     _remove_aggregate_rows: Callable[..., list[dict[str, Any]]]
     rebuild_aggregate: Callable[[], dict[str, Any]]
@@ -178,3 +180,12 @@ class ArtifactLinkStoreRowsMixin:
             for row in self.load_aggregate().get("rows", [])
             if row_touches(row, canonical) and not is_projected_row(row)
         )
+
+    def load_durable_rows(self) -> tuple[dict[str, Any], ...]:
+        """Return every row owned by durable sidecar JSON or bead events.
+
+        This is the store-truth read path for callers that need to audit the
+        machine-local aggregate rather than trusting it.
+        """
+
+        return tuple(unique_rows((*self._iter_sidecar_rows(), *self._iter_bead_rows())))

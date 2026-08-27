@@ -181,6 +181,7 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
         "--limit",
         "--origin",
         "--relation",
+        "--source",
     ]
     assert _long_options(link_subcommands.choices["migrate-notes"]) == [
         "--apply",

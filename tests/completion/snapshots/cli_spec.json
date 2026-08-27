@@ -3179,7 +3179,7 @@
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "eb54c4614dd538be",
+                "description_digest": "838688e99f9eedec",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "list",
@@ -3257,6 +3257,21 @@
                     "strings": [
                       "-R",
                       "--relation"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": [
+                      "index",
+                      "store"
+                    ],
+                    "dest": "source",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-s",
+                      "--source"
                     ],
                     "takes_value": true
                   }

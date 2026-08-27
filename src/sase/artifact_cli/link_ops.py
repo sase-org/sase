@@ -18,6 +18,7 @@ from sase.agent.identity import discover_agent_identity
 from sase.core.rust import require_rust_binding
 from sase.core.time import format_local
 from sase.sdd._artifact_link_store_support import unique_rows
+from sase.sdd._artifact_link_store_support import row_touches
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     ArtifactLinkStore,
@@ -108,11 +109,9 @@ def handle_link_list(args: argparse.Namespace) -> int:
             None if not reference else canonicalize_artifact_link_ref(str(reference))
         )
         rows = (
-            list(store.load_artifact_rows(canonical))
-            if canonical is not None
-            else unique_rows(
-                [*store.load_aggregate().get("rows", []), *store.projected_rows()]
-            )
+            _link_rows_from_store(store, reference=canonical)
+            if str(getattr(args, "source", "index") or "index") == "store"
+            else _link_rows_from_index(store, reference=canonical)
         )
     except (RuntimeError, TypeError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -137,6 +136,26 @@ def handle_link_list(args: argparse.Namespace) -> int:
 
     _print_link_table(rows, reference=canonical)
     return 0
+
+
+def _link_rows_from_store(
+    store: ArtifactLinkStore, *, reference: str | None
+) -> list[dict[str, Any]]:
+    rows = list(store.load_durable_rows())
+    if reference is None:
+        return rows
+    return [row for row in rows if row_touches(row, reference)]
+
+
+def _link_rows_from_index(
+    store: ArtifactLinkStore, *, reference: str | None
+) -> list[dict[str, Any]]:
+    rows = unique_rows(
+        [*store.load_aggregate().get("rows", []), *store.projected_rows()]
+    )
+    if reference is None:
+        return rows
+    return [row for row in rows if row_touches(row, reference)]
 
 
 def handle_link_rm(args: argparse.Namespace) -> int:

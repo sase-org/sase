@@ -97,6 +97,12 @@ def test_inspect_fix_reconciles_aggregate(
         def load_aggregate(self) -> dict[str, object]:
             return {"schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION, "rows": []}
 
+        def preview_aggregate(self) -> dict[str, object]:
+            return {"schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION, "rows": []}
+
+        def load_durable_rows(self) -> tuple[dict[str, object], ...]:
+            return ()
+
         def durable_sidecar_rows(self) -> tuple[dict[str, object], ...]:
             return ()
 
@@ -332,6 +338,52 @@ def test_missing_sidecar_roots_are_skipped_for_head_index_check(
 
     assert report.missing_head_indexes == ()
     assert report.healthy is True
+
+
+def test_inspect_reports_row_level_aggregate_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    plans = tmp_path / "plans"
+    plans.mkdir()
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans},
+    )
+    store.upsert_row(
+        {
+            "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+            "source_ref": "agent:pending.athena.worker",
+            "relation": "cites",
+            "target_ref": "plan:202608/a.md",
+            "description": "prompt citation",
+            "origin": "prompt_ref",
+            "created_by": "agent",
+            "created_at": "2026-08-21T00:00:00Z",
+            "uses": 1,
+        }
+    )
+    store._write_aggregate({"rows": []})  # noqa: SLF001 - simulate stale index
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.resolve_artifact_link_store",
+        lambda: store,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.resolve_cli_reference",
+        lambda _ref, **_kwargs: SimpleNamespace(
+            resolution=SimpleNamespace(status="exact", resolved_path=None)
+        ),
+    )
+
+    report = inspect_artifact_link_health()
+
+    assert report.healthy is False
+    assert report.aggregate_drift.missing.total == 1
+    assert report.aggregate_drift.missing.by_relation == (("cites", 1),)
+    assert report.aggregate_drift.missing.by_origin == (("prompt_ref", 1),)
+    assert report.aggregate_drift.missing.rows[0].source_ref == (
+        "agent:pending.athena.worker"
+    )
 
 
 def test_doctor_reports_link_divergence_counters(

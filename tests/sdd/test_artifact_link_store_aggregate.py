@@ -16,7 +16,12 @@ import pytest
 
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
-from tests.sdd._artifact_link_store_helpers import _plan_index, _row, _store
+from tests.sdd._artifact_link_store_helpers import (
+    _plan_index,
+    _row,
+    _store,
+    assert_index_resolves_durable_rows,
+)
 
 _OLD_SOURCE_DATE = "2026-08-01T00:00:00+00:00"
 _ROW_CREATED_DATE = "2026-08-18T00:00:00Z"
@@ -306,6 +311,25 @@ def test_every_aggregate_writer_converges_regardless_of_publish_status(
         assert row_set(store.load_aggregate()) == expected, order
         # The publication-facing view still holds back the unpublished row.
         assert store.durable_sidecar_rows() == ()
+
+
+def test_index_harness_asserts_against_durable_store_truth(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    store.upsert_row(
+        _row(
+            source="agent:pending.athena.worker",
+            relation="cites",
+            target="plan:202608/a.md",
+            origin="prompt_ref",
+        )
+    )
+
+    assert_index_resolves_durable_rows(store, store.load_aggregate()["rows"])
+
+    with pytest.raises(AssertionError, match="missing durable artifact-link rows"):
+        assert_index_resolves_durable_rows(store, [])
 
 
 def test_stale_preview_is_rejected_and_retried_rather_than_clobbering(

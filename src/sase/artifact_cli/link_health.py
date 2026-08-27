@@ -19,6 +19,10 @@ from sase.sdd._artifact_link_store_support import (
     read_artifact_link_index,
     store_backed_rows,
 )
+from sase.sdd.artifact_link_drift import (
+    ArtifactLinkIndexDrift,
+    build_artifact_link_index_drift,
+)
 from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
     resolve_artifact_link_store,
@@ -71,8 +75,13 @@ class ArtifactLinkHealthReport:
     read_events: int = 0
     recorded_read_events: int = 0
     durable_read_rows: int = 0
+    durable_store_rows: int = 0
     durable_sidecar_rows: int = 0
     aggregate_rows: int = 0
+    expected_index_rows: int = 0
+    aggregate_drift: ArtifactLinkIndexDrift = field(
+        default_factory=ArtifactLinkIndexDrift
+    )
     outbox_entries: int = 0
     outbox_dropped: int = 0
     coverage: _ArtifactLinkCoverageReport = field(
@@ -93,6 +102,7 @@ class ArtifactLinkHealthReport:
                 self.orphaned_companions,
                 self.missing_head_indexes,
                 self.errors,
+                self.aggregate_drift.has_drift,
             )
         )
 
@@ -108,7 +118,16 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
     try:
         if fix:
             store.reconcile_aggregate()
-        rows = store_backed_rows(store.load_aggregate().get("rows", []))
+        aggregate = store.load_aggregate()
+        expected = store.preview_aggregate()
+        aggregate_rows = list(aggregate.get("rows", []))
+        expected_rows = list(expected.get("rows", []))
+        drift = build_artifact_link_index_drift(
+            expected_rows=expected_rows,
+            indexed_rows=aggregate_rows,
+        )
+        rows = store_backed_rows(expected_rows)
+        durable_rows = store.load_durable_rows()
         sidecar_rows = store.durable_sidecar_rows()
     except Exception as exc:  # noqa: BLE001 - surface unsupported v1/schema errors
         return ArtifactLinkHealthReport(skipped=False, errors=(str(exc),))
@@ -134,6 +153,16 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
                 orphaned_companions = _orphaned_link_indexes(store)
             except Exception as exc:  # noqa: BLE001 - report the failed repair.
                 return ArtifactLinkHealthReport(skipped=False, errors=(str(exc),))
+        aggregate = store.load_aggregate()
+        expected = store.preview_aggregate()
+        aggregate_rows = list(aggregate.get("rows", []))
+        expected_rows = list(expected.get("rows", []))
+        drift = build_artifact_link_index_drift(
+            expected_rows=expected_rows,
+            indexed_rows=aggregate_rows,
+        )
+        rows = store_backed_rows(expected_rows)
+        durable_rows = store.load_durable_rows()
     stale = _stale_tables(store, rows)
     missing_companions = _missing_companions(rows, context=resolution_context)
     missing_head = _missing_head_indexes(store)
@@ -164,12 +193,20 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         missing_head_indexes=tuple(missing_head),
         read_events=read_events,
         recorded_read_events=recorded_read_events,
-        durable_read_rows=_read_row_count((*sidecar_rows, *rows)),
+        durable_read_rows=_read_row_count(durable_rows),
+        durable_store_rows=len(durable_rows),
         durable_sidecar_rows=len(sidecar_rows),
-        aggregate_rows=len(rows),
+        aggregate_rows=len(aggregate_rows),
+        expected_index_rows=len(expected_rows),
+        aggregate_drift=drift,
         outbox_entries=0 if outbox is None else outbox.queued,
         outbox_dropped=0 if outbox is None else outbox.dropped,
-        coverage=_coverage_report(store, rows, context=resolution_context),
+        coverage=_coverage_report(
+            store,
+            rows,
+            context=resolution_context,
+            index_rows=expected_rows,
+        ),
         rebuilt=fix,
         repaired_renames=repaired_renames,
     )
@@ -216,11 +253,14 @@ def _coverage_report(
     rows: list[dict[str, Any]],
     *,
     context: ArtifactRefContext,
+    index_rows: list[dict[str, Any]] | None = None,
 ) -> _ArtifactLinkCoverageReport:
     # `rows` (the caller's store-backed view) excludes projected rows, but the
     # origin/relation breakdown is diagnostic, not a durable-truth read, so it
     # counts every row in the aggregate -- including projected ones.
-    all_rows = store.load_aggregate().get("rows", [])
+    all_rows = (
+        index_rows if index_rows is not None else store.load_aggregate().get("rows", [])
+    )
     origin_counts = Counter(str(row.get("origin") or "unknown") for row in all_rows)
     relation_counts = Counter(str(row.get("relation") or "unknown") for row in all_rows)
     existing = _exact_row_keys(rows)

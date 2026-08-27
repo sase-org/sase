@@ -12,6 +12,10 @@ from sase.artifact_cli.link_health import (
     ArtifactLinkHealthReport,
     inspect_artifact_link_health,
 )
+from sase.sdd.artifact_link_drift import (
+    ArtifactLinkDiffRow,
+    ArtifactLinkDiffSide,
+)
 from sase.core.artifact_file_facade import (
     ArtifactFileBackfillReport,
     ArtifactFileIndexInspection,
@@ -174,6 +178,22 @@ def _print_report(
             ),
         )
         table.add_row(
+            "Store vs index links",
+            _counter_pair(
+                link_report.durable_store_rows,
+                "store",
+                link_report.aggregate_rows,
+                "index",
+            ),
+        )
+        if link_report.aggregate_drift.has_drift:
+            _add_drift_side(
+                table,
+                "Index missing",
+                link_report.aggregate_drift.missing,
+            )
+            _add_drift_side(table, "Index extra", link_report.aggregate_drift.extra)
+        table.add_row(
             "Read events vs durable rows",
             _counter_pair(
                 link_report.recorded_read_events,
@@ -257,6 +277,25 @@ def _count_pairs(values: tuple[tuple[str, int], ...]) -> str:
     if not values:
         return "[dim]none[/dim]"
     return ", ".join(f"{name}: {count}" for name, count in values)
+
+
+def _add_drift_side(table: Table, label: str, side: ArtifactLinkDiffSide) -> None:
+    table.add_row(f"{label} rows", _count_markup(side.total, healthy=side.total == 0))
+    if not side.total:
+        return
+    table.add_row(f"{label} by relation", _count_pairs(side.by_relation))
+    table.add_row(f"{label} by origin", _count_pairs(side.by_origin))
+    table.add_row(f"{label} by endpoint", _count_pairs(side.by_endpoint_kind))
+    table.add_row(f"{label} examples", _diff_rows(side.rows))
+
+
+def _diff_rows(rows: tuple[ArtifactLinkDiffRow, ...]) -> str:
+    if not rows:
+        return "[dim]none[/dim]"
+    return "; ".join(
+        f"{row.source_ref} {row.relation} {row.target_ref} ({row.origin})"
+        for row in rows
+    )
 
 
 __all__ = ["handle_doctor"]

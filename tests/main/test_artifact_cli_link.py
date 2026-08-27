@@ -243,6 +243,64 @@ def test_list_without_reference_merges_in_projected_rows(
     assert manual_payload[0]["relation"] == "related"
 
 
+def test_list_source_store_reads_durable_rows_when_index_is_stale(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    _patch_store(monkeypatch, store)
+    store.upsert_row(
+        {
+            "schema_version": 2,
+            "source_ref": "agent:pending.athena.worker",
+            "relation": "cites",
+            "target_ref": "plan:202608/a.md",
+            "description": "prompt citation",
+            "origin": "prompt_ref",
+            "created_by": "agent",
+            "created_at": "2026-08-21T00:00:00Z",
+            "uses": 1,
+        }
+    )
+    capsys.readouterr()
+    store._write_aggregate({"rows": []})  # noqa: SLF001 - simulate stale index
+
+    assert (
+        handle_link_list(
+            argparse.Namespace(
+                reference=None,
+                direction="both",
+                json=True,
+                limit=50,
+                origin=None,
+                relation=None,
+                source="index",
+            )
+        )
+        == 0
+    )
+    assert json.loads(capsys.readouterr().out) == []
+
+    assert (
+        handle_link_list(
+            argparse.Namespace(
+                reference=None,
+                direction="both",
+                json=True,
+                limit=50,
+                origin=None,
+                relation=None,
+                source="store",
+            )
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert len(payload) == 1
+    assert payload[0]["relation"] == "cites"
+
+
 def test_add_rejects_reserved_and_machine_relations(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -426,3 +484,11 @@ def test_parser_link_add_uses_positionals() -> None:
     assert args.relation == "related"
     assert args.target_ref == "plan:b.md"
     assert args.why == "shares a root cause"
+
+
+def test_parser_link_list_accepts_source() -> None:
+    args = create_parser().parse_args(
+        ["artifact", "link", "list", "--source", "store", "-j"]
+    )
+    assert args.link_subcommand == "list"
+    assert args.source == "store"

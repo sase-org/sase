@@ -29,6 +29,7 @@ def register_artifact_link_parser(
             "  sase artifact link add plan:202608/a.md implements "
             'bead:sase-js "extends the ref contract this epic landed"\n'
             "  sase artifact link list plan:202608/a.md -d both\n"
+            "  sase artifact link list --source store -j -l 0\n"
             "  sase artifact link rm plan:202608/a.md bead:sase-js "
             "-R implements\n"
             "  sase artifact link suggest plan:202608/a.md\n"
@@ -131,6 +132,15 @@ def register_artifact_link_parser(
         "--relation",
         default=None,
         help="Only show this relation slug",
+    )
+    list_parser.add_argument(
+        "-s",
+        "--source",
+        choices=("index", "store"),
+        default="index",
+        help=(
+            "Read from the machine-local index or durable store truth (default: index)"
+        ),
     )
 
     migrate_parser = link_subparsers.add_parser(
