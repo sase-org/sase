@@ -414,6 +414,10 @@ class AgentState:
     # Follow-up agents linked to this parent (populated at load time, not serialized)
     followup_agents: list[Agent] = field(default_factory=list)
 
+    # Marks the display-only planner child synthesized for a lone plan root.
+    # The marker is derived during load and intentionally omitted from bundles.
+    is_synthetic_planner: bool = field(default=False, init=False, compare=False)
+
     # Child agents whose intervals contribute to this row's aggregate runtime
     # (populated at load time, not serialized).
     runtime_children: list[Agent] = field(default_factory=list)

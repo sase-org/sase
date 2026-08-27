@@ -11,6 +11,8 @@ from ._agent_status_family_core import (
     append_unique_timestamps,
     child_launch_time,
     children_by_parent_timestamp,
+    family_followup_children,
+    has_family_followup_child,
     has_later_family_continuation,
     is_family_child,
     is_main_workflow_agent_step,
@@ -23,7 +25,9 @@ from ._agent_status_family_core import (
 from ._agent_status_family_planner import (
     copy_missing_display_metadata,
     copy_missing_plan_metadata,
+    ensure_synthetic_planner_children,
     pull_plan_metadata_from_family_members,
+    sync_planner_child_from_parent,
 )
 from ._agent_status_family_policy import (
     APPROVED_PLAN_ACTIONS,
@@ -59,7 +63,10 @@ __all__ = [
     "copy_missing_display_metadata",
     "copy_missing_plan_metadata",
     "done_handoff_status",
+    "ensure_synthetic_planner_children",
     "feedback_child_progressed_past_review",
+    "family_followup_children",
+    "has_family_followup_child",
     "has_inherited_family_question",
     "has_later_family_continuation",
     "has_unanswered_completed_question",
@@ -79,4 +86,5 @@ __all__ = [
     "pull_plan_metadata_from_family_members",
     "root_child_suffix",
     "superseded_by_feedback_round",
+    "sync_planner_child_from_parent",
 ]
