@@ -195,6 +195,36 @@ def register_agent_index_parser(agents_sub: argparse._SubParsersAction) -> None:
         default=None,
         help="Projects artifact root (default: ~/.sase/projects)",
     )
+    vacuum_parser = index_sub.add_parser(
+        "vacuum",
+        help="Report or reclaim freelist space in the persistent artifact index",
+        description=(
+            "Report freelist pages left behind by deletes (never reclaimed by "
+            "normal SQLite operation) and dismissed-identity row counts. The "
+            "command is a dry-run report unless --apply is provided, in which "
+            "case it runs VACUUM to compact the index file. VACUUM rebuilds the "
+            "file losslessly; it never removes or alters a row."
+        ),
+    )
+    vacuum_parser.add_argument(
+        "-a",
+        "--apply",
+        action="store_true",
+        help="Run VACUUM to reclaim freelist space (default: report only)",
+    )
+    vacuum_parser.add_argument(
+        "-i",
+        "--index-path",
+        default=None,
+        help="SQLite index path (default: ~/.sase/agent_artifact_index.sqlite)",
+    )
+    vacuum_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON object",
+    )
+
     status_parser = index_sub.add_parser(
         "status",
         help="Inspect visible-inbox index health without scanning artifacts",

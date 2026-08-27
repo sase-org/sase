@@ -159,6 +159,21 @@ class AgentArtifactIndexStatusWire:
     hidden_terminal_retention_limit: int = 0
     hidden_terminal_rows_retained: int = 0
     hidden_terminal_rows_prunable: int = 0
+    freelist_pages: int = 0
+    freelist_bytes: int = 0
+    file_size_bytes: int = 0
+
+
+@dataclass(frozen=True)
+class AgentArtifactIndexVacuumWire:
+    """Outcome of one VACUUM compaction pass over the artifact index."""
+
+    index_path: str
+    freelist_pages_before: int = 0
+    freelist_pages_after: int = 0
+    file_size_bytes_before: int = 0
+    file_size_bytes_after: int = 0
+    bytes_reclaimed: int = 0
 
 
 @dataclass(frozen=True)

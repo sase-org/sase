@@ -4,9 +4,11 @@ from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,
     AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
+    AgentArtifactIndexVacuumWire,
     agent_artifact_index_query_to_dict,
     agent_artifact_index_status_from_dict,
     agent_artifact_index_update_from_dict,
+    agent_artifact_index_vacuum_from_dict,
 )
 
 
@@ -69,6 +71,9 @@ def test_artifact_index_wire_helpers() -> None:
             "hidden_terminal_retention_limit": 4096,
             "hidden_terminal_rows_retained": 3,
             "hidden_terminal_rows_prunable": 4,
+            "freelist_pages": 6,
+            "freelist_bytes": 24576,
+            "file_size_bytes": 1048576,
         }
     )
     assert status == AgentArtifactIndexStatusWire(
@@ -80,4 +85,28 @@ def test_artifact_index_wire_helpers() -> None:
         hidden_terminal_retention_limit=4096,
         hidden_terminal_rows_retained=3,
         hidden_terminal_rows_prunable=4,
+        freelist_pages=6,
+        freelist_bytes=24576,
+        file_size_bytes=1048576,
+    )
+
+
+def test_artifact_index_vacuum_wire_round_trips() -> None:
+    update = agent_artifact_index_vacuum_from_dict(
+        {
+            "index_path": "/tmp/index.sqlite",
+            "freelist_pages_before": 6,
+            "freelist_pages_after": 0,
+            "file_size_bytes_before": 1048576,
+            "file_size_bytes_after": 1024000,
+            "bytes_reclaimed": 24576,
+        }
+    )
+    assert update == AgentArtifactIndexVacuumWire(
+        index_path="/tmp/index.sqlite",
+        freelist_pages_before=6,
+        freelist_pages_after=0,
+        file_size_bytes_before=1048576,
+        file_size_bytes_after=1024000,
+        bytes_reclaimed=24576,
     )

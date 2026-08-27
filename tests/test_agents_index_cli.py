@@ -15,6 +15,7 @@ from sase.core.agent_cleanup_wire import AgentCleanupIdentityWire
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
+    AgentArtifactIndexVacuumWire,
     AgentArtifactIndexVerifyWire,
     AgentArtifactScanOptionsWire,
     AgentArtifactScanStatsWire,
@@ -213,6 +214,73 @@ def test_index_status_json_reports_visible_inbox_without_verify_scan(
     assert payload["repair_recommended"] is False
 
 
+def test_index_vacuum_dry_run_reports_freelist_without_applying(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    index_path = tmp_path / "index.sqlite"
+    index_path.touch()
+
+    args = _index_args("vacuum")
+    args.index_path = str(index_path)
+    with (
+        patch(
+            "sase.agents.cli_index.agent_artifact_index_status",
+            return_value=AgentArtifactIndexStatusWire(
+                schema_version=3,
+                index_path=str(index_path),
+                dismissed_agents_rows=38243,
+                freelist_pages=4838,
+                freelist_bytes=19_820_544,
+                file_size_bytes=194_700_000,
+            ),
+        ) as mock_status,
+        patch("sase.agents.cli_index.vacuum_agent_artifact_index") as mock_vacuum,
+    ):
+        handle_agents_index(args)
+
+    mock_status.assert_called_once_with(index_path)
+    mock_vacuum.assert_not_called()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["applied"] is False
+    assert payload["freelist_pages"] == 4838
+    assert payload["dismissed_agents_rows"] == 38243
+
+
+def test_index_vacuum_apply_runs_vacuum(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    index_path = tmp_path / "index.sqlite"
+    index_path.touch()
+
+    args = _index_args("vacuum")
+    args.index_path = str(index_path)
+    args.apply = True
+    with (
+        patch("sase.agents.cli_index.agent_artifact_index_status") as mock_status,
+        patch(
+            "sase.agents.cli_index.vacuum_agent_artifact_index",
+            return_value=AgentArtifactIndexVacuumWire(
+                index_path=str(index_path),
+                freelist_pages_before=4838,
+                freelist_pages_after=0,
+                file_size_bytes_before=194_700_000,
+                file_size_bytes_after=174_879_456,
+                bytes_reclaimed=19_820_544,
+            ),
+        ) as mock_vacuum,
+    ):
+        handle_agents_index(args)
+
+    mock_status.assert_not_called()
+    mock_vacuum.assert_called_once_with(index_path)
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["applied"] is True
+    assert payload["bytes_reclaimed"] == 19_820_544
+    assert payload["freelist_pages_after"] == 0
+
+
 def test_index_unknown_subcommand_prints_maintenance_usage(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -221,7 +289,7 @@ def test_index_unknown_subcommand_prints_maintenance_usage(
 
     assert excinfo.value.code == 1
     assert (
-        "Usage: sase agent index {gc,rebuild,repair,status,verify}"
+        "Usage: sase agent index {gc,rebuild,repair,status,vacuum,verify}"
         in capsys.readouterr().out
     )
 

@@ -28,6 +28,7 @@ from sase.core.agent_scan_wire_records import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
+    AgentArtifactIndexVacuumWire,
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
     AgentArtifactScanStatsWire,
@@ -130,6 +131,22 @@ def agent_artifact_index_status_from_dict(
         ),
         hidden_terminal_rows_retained=int(data.get("hidden_terminal_rows_retained", 0)),
         hidden_terminal_rows_prunable=int(data.get("hidden_terminal_rows_prunable", 0)),
+        freelist_pages=int(data.get("freelist_pages", 0)),
+        freelist_bytes=int(data.get("freelist_bytes", 0)),
+        file_size_bytes=int(data.get("file_size_bytes", 0)),
+    )
+
+
+def agent_artifact_index_vacuum_from_dict(
+    data: dict[str, Any],
+) -> AgentArtifactIndexVacuumWire:
+    return AgentArtifactIndexVacuumWire(
+        index_path=str(data["index_path"]),
+        freelist_pages_before=int(data.get("freelist_pages_before", 0)),
+        freelist_pages_after=int(data.get("freelist_pages_after", 0)),
+        file_size_bytes_before=int(data.get("file_size_bytes_before", 0)),
+        file_size_bytes_after=int(data.get("file_size_bytes_after", 0)),
+        bytes_reclaimed=int(data.get("bytes_reclaimed", 0)),
     )
 
 

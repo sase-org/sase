@@ -1199,6 +1199,71 @@
               {
                 "aliases": [],
                 "default_child": null,
+                "description_digest": "91668516a036eabf",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "vacuum",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "apply",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-a",
+                      "--apply"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "index_path",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-i",
+                      "--index-path"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "agent",
+                  "index",
+                  "vacuum"
+                ],
+                "positionals": [],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
                 "description_digest": "cacfd4754f5ae993",
                 "hidden": false,
                 "mutex_groups": [],

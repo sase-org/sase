@@ -153,13 +153,11 @@ class StallRecordMixin:
                 return
             self._pump_in_stall = True
             self._pump_stall_started_mono = now_mono - stall_seconds
-        try:
-            self._loop.call_soon_threadsafe(
-                self._write_pump_stall_record,
-                stall_seconds,
-            )
-        except RuntimeError:
-            self._write_pump_stall_record(stall_seconds, capture_tasks=False)
+        # Build and write the record on this worker thread, not the event
+        # loop: dispatching it via call_soon_threadsafe made stack capture
+        # and JSONL serialization run on the loop as soon as it recovered,
+        # extending the very freeze this is measuring.
+        self._write_pump_stall_record(stall_seconds)
 
     def _write_pump_stall_record(
         self,

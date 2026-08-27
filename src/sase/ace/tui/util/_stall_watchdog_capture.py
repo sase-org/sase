@@ -10,6 +10,8 @@ import traceback
 from typing import Any
 
 from ._stall_watchdog_config import (
+    MAX_ASYNCIO_TASK_STACK_DEPTH,
+    MAX_ASYNCIO_TASK_STACKS,
     MAX_WORKER_THREAD_STACK_DEPTH,
     MAX_WORKER_THREAD_STACKS,
 )
@@ -73,20 +75,34 @@ def format_worker_thread_stacks(
 
 def format_asyncio_task_stacks(
     loop: asyncio.AbstractEventLoop,
+    *,
+    max_tasks: int = MAX_ASYNCIO_TASK_STACKS,
+    max_depth: int = MAX_ASYNCIO_TASK_STACK_DEPTH,
 ) -> list[dict[str, Any]]:
+    """Return bounded stacks for live tasks on *loop*.
+
+    Unbounded task/frame capture is what produced a 2.29 MB single-line
+    stall record in practice; ``max_tasks``/``max_depth`` keep this
+    forensic snapshot proportional the way ``format_worker_thread_stacks``
+    already bounds worker threads.
+    """
     tasks: list[dict[str, Any]] = []
     try:
-        live_tasks = sorted(asyncio.all_tasks(loop), key=lambda task: task.get_name())
+        live_tasks = sorted(asyncio.all_tasks(loop), key=lambda task: task.get_name())[
+            :max_tasks
+        ]
     except Exception:
         log.debug("Failed to enumerate asyncio tasks for pump stall", exc_info=True)
         return tasks
     for task in live_tasks:
         try:
-            await_chain = format_coroutine_await_chain(task.get_coro())
+            await_chain = format_coroutine_await_chain(
+                task.get_coro(), max_depth=max_depth
+            )
             stack = [
                 line
-                for frame in task.get_stack(limit=64)
-                for line in traceback.format_stack(frame)
+                for frame in task.get_stack(limit=max_depth)
+                for line in traceback.format_stack(frame, limit=max_depth)
             ]
             stack.extend(line for awaited in await_chain for line in awaited["stack"])
             tasks.append(
@@ -103,7 +119,11 @@ def format_asyncio_task_stacks(
     return tasks
 
 
-def format_coroutine_await_chain(coro: Any) -> list[dict[str, Any]]:
+def format_coroutine_await_chain(
+    coro: Any,
+    *,
+    max_depth: int = MAX_ASYNCIO_TASK_STACK_DEPTH,
+) -> list[dict[str, Any]]:
     """Walk nested ``await`` objects so records include the actual handler."""
     chain: list[dict[str, Any]] = []
     current: Any = coro
@@ -118,7 +138,11 @@ def format_coroutine_await_chain(coro: Any) -> list[dict[str, Any]]:
         chain.append(
             {
                 "coroutine": repr(current),
-                "stack": traceback.format_stack(frame) if frame is not None else [],
+                "stack": (
+                    traceback.format_stack(frame, limit=max_depth)
+                    if frame is not None
+                    else []
+                ),
             }
         )
         current = getattr(current, "cr_await", None) or getattr(

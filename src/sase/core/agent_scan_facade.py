@@ -54,6 +54,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,
     AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
+    AgentArtifactIndexVacuumWire,
     AgentArtifactIndexVerifyWire,
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
@@ -72,6 +73,7 @@ from sase.core.agent_scan_wire import (
     agent_artifact_index_query_to_dict,
     agent_artifact_index_status_from_dict,
     agent_artifact_index_update_from_dict,
+    agent_artifact_index_vacuum_from_dict,
     agent_scan_wire_to_json_dict,
     agent_scan_wire_from_dict,
 )
@@ -290,6 +292,21 @@ def agent_artifact_index_status(
         rust_status = require_rust_binding("agent_artifact_index_status")
         payload: dict[str, Any] = rust_status(str(index_path))
     return agent_artifact_index_status_from_dict(payload)
+
+
+def vacuum_agent_artifact_index(
+    index_path: Path | str,
+) -> AgentArtifactIndexVacuumWire:
+    """Reclaim freelist pages in the persistent artifact index via VACUUM.
+
+    A tooling-only entry point: nothing in this codebase calls it
+    automatically, so running it is always an explicit, user-initiated
+    action (``sase agent index vacuum --apply``).
+    """
+    with agent_artifact_index_operation_lock():
+        rust_vacuum = require_rust_binding("vacuum_agent_artifact_index")
+        payload: dict[str, Any] = rust_vacuum(str(index_path))
+    return agent_artifact_index_vacuum_from_dict(payload)
 
 
 def query_agent_output_variable_history(

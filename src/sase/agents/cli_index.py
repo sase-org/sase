@@ -20,6 +20,7 @@ from sase.core.agent_scan_facade import (
     prune_hidden_terminal_agent_artifact_index_rows,
     rebuild_agent_artifact_index,
     replace_agent_artifact_index_dismissed_agents,
+    vacuum_agent_artifact_index,
     verify_agent_artifact_index,
 )
 from sase.core.agent_scan_wire import (
@@ -44,11 +45,14 @@ def handle_agents_index(args: argparse.Namespace) -> None:
     if sub == "status":
         _handle_agents_index_status(args)
         return
+    if sub == "vacuum":
+        _handle_agents_index_vacuum(args)
+        return
     if sub == "verify":
         _handle_agents_index_verify(args)
         return
 
-    Console().print("Usage: sase agent index {gc,rebuild,repair,status,verify}")
+    Console().print("Usage: sase agent index {gc,rebuild,repair,status,vacuum,verify}")
     raise SystemExit(1)
 
 
@@ -132,6 +136,65 @@ def _handle_agents_index_status(args: argparse.Namespace) -> None:
         f"{payload['visible_rows']} visible rows, "
         f"{payload['dismissed_projection_rows']} dismissed identities, "
         f"{payload['hidden_terminal_rows_retained']} hidden terminal rows retained "
+        f"({index_path})"
+    )
+
+
+def _handle_agents_index_vacuum(args: argparse.Namespace) -> None:
+    """Report or reclaim freelist space in the persistent artifact index."""
+    _, index_path = _agent_index_paths(args)
+    apply = bool(getattr(args, "apply", False))
+    as_json = bool(getattr(args, "json", False))
+
+    if not apply:
+        status = agent_artifact_index_status(index_path)
+        payload: dict[str, Any] = {
+            "applied": False,
+            "index_path": str(index_path),
+            "dismissed_agents_rows": status.dismissed_agents_rows,
+            "freelist_pages": status.freelist_pages,
+            "freelist_bytes": status.freelist_bytes,
+            "file_size_bytes": status.file_size_bytes,
+        }
+        if as_json:
+            print(json.dumps(payload, sort_keys=True))
+            return
+        console = Console()
+        console.print(f"Artifact index freelist report ({index_path})")
+        console.print(f"  File size          [bold]{status.file_size_bytes:,}[/bold] B")
+        console.print(
+            f"  Freelist pages     [bold]{status.freelist_pages:,}[/bold] "
+            f"({status.freelist_bytes:,} B)"
+        )
+        console.print(
+            f"  Dismissed rows     [bold]{status.dismissed_agents_rows:,}[/bold]"
+        )
+        if status.freelist_pages:
+            console.print(
+                "\nRun [bold]sase agent index vacuum --apply[/bold] to reclaim "
+                "the freelist. VACUUM rebuilds the file losslessly; it never "
+                "removes or alters a row."
+            )
+        return
+
+    update = vacuum_agent_artifact_index(index_path)
+    payload = {
+        "applied": True,
+        "index_path": update.index_path,
+        "freelist_pages_before": update.freelist_pages_before,
+        "freelist_pages_after": update.freelist_pages_after,
+        "file_size_bytes_before": update.file_size_bytes_before,
+        "file_size_bytes_after": update.file_size_bytes_after,
+        "bytes_reclaimed": update.bytes_reclaimed,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+        return
+    Console().print(
+        "Vacuumed agent artifact index: "
+        f"{update.bytes_reclaimed:,} B reclaimed, "
+        f"freelist {update.freelist_pages_before:,} -> "
+        f"{update.freelist_pages_after:,} pages "
         f"({index_path})"
     )
 

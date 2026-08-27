@@ -236,6 +236,31 @@ async def test_watchdog_keeps_hitch_and_stall_state_machines_independent(
 
 
 @pytest.mark.asyncio
+async def test_pump_stall_record_is_written_synchronously_off_the_loop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression test: recording must not hop through call_soon_threadsafe.
+
+    Dispatching stack capture and the JSONL write via call_soon_threadsafe
+    made that work run on the event loop as soon as it recovered,
+    extending the very freeze the watchdog measures. The record must be
+    fully written by the time ``_record_pump_stall`` returns, with no
+    intervening event-loop tick.
+    """
+    path = tmp_path / "tui_stalls.jsonl"
+    monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
+    watchdog = _EventLoopStallWatchdog(asyncio.get_running_loop())
+
+    watchdog._record_pump_stall(100.0, 1.0)
+
+    assert path.exists()
+    records = _read_records(path)
+    assert len(records) == 1
+    assert records[0]["event"] == "tui_pump_stall"
+
+
+@pytest.mark.asyncio
 async def test_watchdog_records_pump_stall_stack_and_recovery(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
