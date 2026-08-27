@@ -498,6 +498,7 @@ def _child_environment(
         "SASE_PYTEST_WORKERS",
         "SASE_TEST_GATE_DISABLED",
         "SASE_TEST_GATE_GOVERNED",
+        "SASE_TEST_SHARD",
     ):
         environment.pop(name, None)
     environment.update(
@@ -517,6 +518,21 @@ def _child_environment(
     if gate_timeout is not None:
         environment["SASE_TEST_GATE_TIMEOUT"] = f"{gate_timeout:g}"
     return environment
+
+
+def test_scaled_suite_child_environment_ignores_parent_shard_spec(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_TEST_SHARD", "2/6")
+
+    environment = _child_environment(
+        tmp_path / "tokens",
+        tmp_path / "sg.sock",
+        "run-0",
+        gate_timeout=None,
+    )
+
+    assert "SASE_TEST_SHARD" not in environment
 
 
 def _start_scaled_suite(
