@@ -76,6 +76,9 @@ class ArtifactsNavigationActionsMixin:
         if self.current_artifacts_pane_key == "patches":
             self._ensure_artifacts_project_choices()  # type: ignore[attr-defined]
             self._refresh_display()  # type: ignore[attr-defined]
+            refresh_link_rail = getattr(self, "refresh_link_rail", None)
+            if callable(refresh_link_rail):
+                refresh_link_rail()
             return
 
         self._ensure_artifacts_project_choices()  # type: ignore[attr-defined]
@@ -93,6 +96,9 @@ class ArtifactsNavigationActionsMixin:
             mark_count=len(self._active_artifacts_marks()),
             conditional_entries=self._artifacts_footer_entries(),
         )
+        refresh_link_rail = getattr(self, "refresh_link_rail", None)
+        if callable(refresh_link_rail):
+            refresh_link_rail()
 
     def _artifacts_entry_navigator(
         self,

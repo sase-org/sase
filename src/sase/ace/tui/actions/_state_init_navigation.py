@@ -77,6 +77,16 @@ def init_navigation_state(self: Any) -> None:
     self._w_agent_detail = None
     self._w_agent_info_panel = None
     self._w_tab_bar = None
+    self._w_link_rail = None
+
+    # App-owned link graph index for the read-only rail and later `$`
+    # surfaces. Built outside Textual's message pump; selection paints only
+    # read this cached object.
+    self._link_index = None
+    self._link_index_errors = ()
+    self._link_index_loading = False
+    self._link_index_pending = False
+    self._link_index_generation = 0
 
     # Cached graph index over ``_all_patches``; rebuilt only when the
     # list identity changes (see ``_get_patch_graph_index``).

@@ -282,6 +282,10 @@ def check_app_action(
     if action == "toggle_relation_panel" and app.current_tab != ARTIFACTS_TAB:
         return False
     if action == "follow_artifact_link":
+        from .link_rail_flag import link_rail_enabled
+
+        if not link_rail_enabled():
+            return False
         return bool(app.link_edges_for_selection())
     if action == "toggle_hide_reverted" and app.current_tab == ARTIFACTS_TAB:
         return False

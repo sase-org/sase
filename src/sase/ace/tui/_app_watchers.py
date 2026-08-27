@@ -29,6 +29,9 @@ class AppWatchersMixin:
                 self._refresh_agents_display_debounced()
             elif self.current_tab == "axe":
                 self._refresh_axe_display_debounced()
+            refresh_link_rail = getattr(self, "refresh_link_rail", None)
+            if callable(refresh_link_rail):
+                refresh_link_rail()
             if self._jk_perf is not None:
                 self.call_after_refresh(self._jk_perf.mark_painted)
 
@@ -162,6 +165,9 @@ class AppWatchersMixin:
                 ),
                 agents_plugins_installed=self._agents_onboarding_plugins_installed,
             )
+        refresh_link_rail = getattr(self, "refresh_link_rail", None)
+        if callable(refresh_link_rail):
+            refresh_link_rail()
 
     def watch_current_artifacts_subtab(
         self: Any,
@@ -187,6 +193,9 @@ class AppWatchersMixin:
         if self.current_tab != ARTIFACTS_TAB:
             return
         self._sync_active_artifacts_entry_state()
+        refresh_link_rail = getattr(self, "refresh_link_rail", None)
+        if callable(refresh_link_rail):
+            refresh_link_rail()
         from .modals import HelpModal
 
         screen = self.screen

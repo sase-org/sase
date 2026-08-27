@@ -125,6 +125,7 @@ class AceApp(
     CustomModeMixin,
     EventHandlersMixin,
     LifecycleMixin,
+    LinkSubjectMixin,
     MarkingMixin,
     NavigationMixin,
     PostUpdateToastMixin,

@@ -118,6 +118,7 @@ class StartupMixin(
     _w_relation_panel: Any
     _w_patch_info_panel: Any
     _w_footer: Any
+    _w_link_rail: Any
     _w_patch_filter_bar: Any
     _w_agent_detail: Any
     _w_agent_info_panel: Any
@@ -128,6 +129,11 @@ class StartupMixin(
     _dirty_axe: bool
     _dirty_notifications: bool
     _last_full_sanity_refresh: float
+    _link_index: Any
+    _link_index_errors: tuple[str, ...]
+    _link_index_loading: bool
+    _link_index_pending: bool
+    _link_index_generation: int
     _user_snippets: dict[str, str]
     _snippets_cache: dict[str, str] | None
     _pending_snippet_saves: dict[str, str]

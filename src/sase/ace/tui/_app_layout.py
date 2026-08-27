@@ -24,6 +24,7 @@ from .widgets import (
     BgCmdList,
     CurrentProjectIndicator,
     KeybindingFooter,
+    LinkRail,
     LLMOverrideIndicator,
     MonitorIndicator,
     NotificationIndicator,
@@ -99,4 +100,5 @@ class AppLayoutMixin:
                 with Vertical(id="axe-container"):
                     yield AxeInfoPanel(id="axe-info-panel")
                     yield AxeDashboard(id="axe-dashboard")
+        yield LinkRail(id="link-rail")
         yield KeybindingFooter(id="keybinding-footer")

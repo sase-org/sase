@@ -54,6 +54,7 @@ from .file_panel import FileLineCountChanged as FileLineCountChanged
 from .artifacts.types import FilesSubTab as FilesSubTab
 from .hint_input_bar import HintInputBar as HintInputBar
 from .keybinding_footer import KeybindingFooter as KeybindingFooter
+from .link_rail import LinkRail as LinkRail
 from .llm_override_indicator import LLMOverrideIndicator as LLMOverrideIndicator
 from .proc_indicator import MonitorIndicator as MonitorIndicator
 from .notification_indicator import NotificationIndicator as NotificationIndicator

@@ -27,6 +27,7 @@ class StartupMountMixin:
             PatchInfoPanel,
             PatchList,
             KeybindingFooter,
+            LinkRail,
             RelationPanel,
             TabBar,
         )
@@ -42,6 +43,7 @@ class StartupMountMixin:
             # Wire keymap registry to widgets.
             footer = self.query_one("#keybinding-footer", KeybindingFooter)
             footer.set_keymap_registry(self._keymap_registry)
+            link_rail = self.query_one("#link-rail", LinkRail)
             tab_bar = self.query_one("#tab-bar", TabBar)
             tab_bar.set_keymap_registry(self._keymap_registry)
             tab_bar.update_tab(self.current_tab)
@@ -82,6 +84,7 @@ class StartupMountMixin:
             # walks. Wrapped in try/except so a missing widget never blocks
             # mount; callers fall back to ``query_one`` when a ref is unset.
             self._w_footer = footer
+            self._w_link_rail = link_rail
             self._w_tab_bar = tab_bar
             self._w_agent_info_panel = info_panel
             for attr, selector, cls in (
@@ -102,6 +105,7 @@ class StartupMountMixin:
                     log.debug("widget ref cache skipped: %s not found", selector)
 
             self._apply_startup_loading_state()
+            self._schedule_link_index_refresh(source="mount")
             self.call_after_refresh(self._start_post_mount_background_loads)
             start_proc_reconciler = getattr(self, "_start_proc_reconciler", None)
             if callable(start_proc_reconciler):

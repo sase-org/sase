@@ -77,9 +77,11 @@ def _ref_for_target(target: ArtifactEntryTarget) -> str | None:
         return f"file:{payload}"
     if pane_id == "agents":
         return reference_for_agent_name(payload)
-    kind = pane_id.removeprefix("ref:")
-    if kind != pane_id and kind:
-        return f"{kind}:{payload}"
+    from ..artifact_tabs import artifacts_pane_contract
+
+    contract = artifacts_pane_contract(pane_id)
+    if contract is not None and contract.ref_kind:
+        return f"{contract.ref_kind}:{payload}"
     return None
 
 

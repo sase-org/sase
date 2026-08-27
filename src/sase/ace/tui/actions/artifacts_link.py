@@ -145,6 +145,9 @@ class ArtifactsLinkActionsMixin:
             refresh = getattr(self, "_request_active_artifacts_refresh", None)
             if callable(refresh):
                 refresh()
+            refresh_links = getattr(self, "_schedule_link_index_refresh", None)
+            if callable(refresh_links):
+                refresh_links(source="artifact_link_write")
 
         from ..util.pump_tasks import spawn_pump_free_task
 
