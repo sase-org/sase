@@ -410,23 +410,6 @@ def _apply_loaded_agent_disk_projections(
         if retry_state.status == "retrying":
             agent.status = "RETRYING"
 
-    retrying_root_suffixes = {
-        agent.raw_suffix
-        for agent in all_agents
-        if agent.raw_suffix
-        and agent.runner_is_live
-        and agent.retry_status == "retrying"
-    }
-    if retrying_root_suffixes:
-        all_agents[:] = [
-            agent
-            for agent in all_agents
-            if not (
-                agent.is_synthetic_planner
-                and agent.parent_timestamp in retrying_root_suffixes
-            )
-        ]
-
     effective_dismissed = dismissed_agents | dismissed_bundle_identities
 
     # Build secondary index for robust dismissed matching

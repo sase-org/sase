@@ -9,7 +9,6 @@ from sase.plan_chain import (
 from ._agent_status_family_core import (
     agent_family_name,
     child_launch_time,
-    has_family_followup_child,
     is_natively_recognized_plan_root,
     is_plan_chain_family_member,
     is_main_workflow_agent_step,
@@ -154,10 +153,6 @@ def ensure_synthetic_planner_children(
     for parent in list(parent_by_suffix.values()):
         if not is_root_plan_workflow(parent) or not parent.raw_suffix:
             continue
-        if parent.status == "RETRYING" or (
-            parent.runner_is_live and parent.retry_status == "retrying"
-        ):
-            continue
         child_suffix = root_child_suffix(parent)
         has_existing_child = any(
             agent.parent_timestamp == parent.raw_suffix
@@ -171,11 +166,6 @@ def ensure_synthetic_planner_children(
         planner_name = agent_family_phase_name(family, child_suffix)
         child_role = agent_family_role_for_suffix(child_suffix)
         child_status = planner_child_status(parent, all_agents)
-        if child_status in {"DONE", "FAILED", "FAILED (RETRIED)", "PLAN REJECTED"}:
-            continue
-        has_real_followup = has_family_followup_child(parent, all_agents)
-        if child_status in {"PLAN APPROVED", "TALE APPROVED"} and not has_real_followup:
-            continue
         freeze_time = answered_asker_freeze_time(parent, child_status, all_agents)
         planner = Agent(
             agent_type=AgentType.RUNNING,
