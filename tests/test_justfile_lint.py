@@ -486,10 +486,15 @@ def test_legacy_pyvision_wiring_is_absent() -> None:
     assert not list((ROOT / "tools").glob("pyvision-*"))
 
 
-def test_ci_has_scheduled_contention_job_only() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+def test_full_ci_runs_scheduled_contention_job_off_the_push_path() -> None:
+    ci_workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+    full_workflow = (ROOT / ".github" / "workflows" / "full.yml").read_text()
 
-    assert "  schedule:\n" in workflow
-    assert "contention-test:\n" in workflow
-    assert "if: github.event_name == 'schedule'" in workflow
-    assert "SASE_CONTENTION_REPEAT=3 just test-contention" in workflow
+    assert "  schedule:\n" not in ci_workflow
+    assert "  push:\n" not in ci_workflow
+    assert "contention-test:\n" in ci_workflow
+    assert "if: github.event_name == 'schedule'" in ci_workflow
+    assert "SASE_CONTENTION_REPEAT=3 just test-contention" in ci_workflow
+    assert "  schedule:\n" in full_workflow
+    assert "17 */2 * * *" in full_workflow
+    assert "uses: ./.github/workflows/ci.yml" in full_workflow

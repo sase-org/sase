@@ -1,0 +1,19 @@
+name: Full CI
+
+on:
+  schedule:
+    # Exhaustive heavy lane, off the master push path.
+    - cron: '17 */2 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: full-ci
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  full:
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit

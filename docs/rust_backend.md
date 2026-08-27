@@ -323,11 +323,11 @@ dev environment.
 #### Who owns the published version window
 
 The `sase-core-rs` requirement in `pyproject.toml` is owned by the
-`sync-release-metadata` job in `publish.yml`, not by feature agents. On every master
-push that finds a pending release-please branch, that job re-reads PyPI, selects the
-newest fully published stable `sase-core-rs`, and ratchets the requirement (and
-`uv.lock`) on the release branch in one commit. The window only ever moves at release
-time, in that one place.
+`sync-release-metadata` job in `publish.yml`, not by feature agents. On scheduled or
+manual release-generation runs that find a pending release-please branch, that job
+re-reads PyPI, selects the newest fully published stable `sase-core-rs`, and ratchets
+the requirement (and `uv.lock`) on the release branch in one commit. The window only
+ever moves at release time, in that one place.
 
 If your change calls a `sase-core` binding or depends on core behavior that has not been
 published yet: do nothing. Land the Python change as usual — a source checkout builds
@@ -673,14 +673,15 @@ just launch-perf-check       # launch fan-out regression floor against the Phase
 just phase7-perf-check       # Phase 7 regression-floor check against the recorded Rust ceilings
 ```
 
-CI runs the full test suite under CPython 3.12 / 3.13 / 3.14
-(`.github/workflows/ci.yml`). The dedicated `bead-backend` job checks the sibling Rust
-core (`just rust-check`), focused Python bead tests, cross-repo bead facade parity
-tests, and `just bead-perf-smoke`. The publish workflow's `install-smoke` job installs
-the built `sase` wheel into a fresh venv and runs `sase core health`; on failure it
-dumps `pip list`, Python/platform info, and `sase_core_rs.__file__` / `__version__` so
-missing-wheel or ABI-mismatch failures are diagnosable from the build log without a
-manual repro.
+The reusable CI workflow (`.github/workflows/ci.yml`) runs the full Python suite under
+CPython 3.12 / 3.13 / 3.14 for pull requests and for the scheduled Full CI lane. The
+per-SHA master gate (`.github/workflows/master-gate.yml`) runs the sharded Python 3.12
+fast suite on every master push, while Full CI carries the coverage-contexts, visual,
+contention, and performance-floor jobs off the push path. The publish workflow's
+`install-smoke` job installs the built `sase` wheel into a fresh venv and runs
+`sase core health`; on failure it dumps `pip list`, Python/platform info, and
+`sase_core_rs.__file__` / `__version__` so missing-wheel or ABI-mismatch failures are
+diagnosable from the build log without a manual repro.
 
 ## Golden Contract
 

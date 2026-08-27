@@ -1,24 +1,17 @@
 name: CI
 
 on:
-  push:
-    branches: [master]
   pull_request:
     branches: [master]
-  schedule:
-    # Slow, intentionally contended flake reproducer. Keep it off PRs.
-    - cron: '17 6 * * *'
+  workflow_call:
 
-# Latest-wins per ref for PRs: a newer push supersedes queued/in-flight CI for
-# the same PR ref so high push volume cannot grow the org-wide runner queue
-# without bound (the starvation that stalled the sase-core v0.6.0 wheel
-# publish). Master is exempt: cancelling in-flight master runs meant no master
-# run ever reached a terminal conclusion, so CI produced no signal at all.
-# Concurrency grouping still bounds master to one running + one pending run
-# (a newer push replaces the pending slot), so the queue stays bounded.
+# Latest-wins per ref for direct CI callers: a newer PR push supersedes
+# queued/in-flight CI for the same ref so high push volume cannot grow the
+# org-wide runner queue without bound. Scheduled master exhaustive runs enter
+# through full.yml, whose own concurrency serializes the heavy lane.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -210,8 +203,9 @@ jobs:
   # coverage alone answers the only question selection asks and costs 49 MB
   # (12 MB gzipped) at 474s — noise against the same leg without contexts.
   #
-  # Master pushes only. Baselines are looked up as ancestors of an agent's HEAD,
-  # so a per-PR run would burn a CI job to produce a database nobody resolves.
+  # Full CI master runs only. Baselines are looked up as ancestors of an agent's
+  # HEAD, so a per-PR run would burn a CI job to produce a database nobody
+  # resolves.
   coverage-contexts:
     needs: build-core
     if: github.ref == 'refs/heads/master'

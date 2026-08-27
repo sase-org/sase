@@ -28,6 +28,7 @@ def test_active_sources_and_docs_use_only_canonical_plan_paths() -> None:
         _ROOT / ".gitignore",
         _ROOT / "Justfile",
         _ROOT / ".github" / "workflows" / "ci.yml",
+        _ROOT / ".github" / "workflows" / "full.yml",
         _ROOT / "README.md",
         _ROOT / "src" / "sase" / "default_config.yml",
         *(_ROOT / "src" / "sase" / "sdd").glob("*.py"),

@@ -6,10 +6,9 @@ on:
   workflow_dispatch:
 
 # Grouped by SHA, not ref: every master push gets its own bounded, never
-# cancelled run. `ci.yml`'s master concurrency group is per-ref (one running +
-# one pending run) so CI always reaches a terminal conclusion; this gate goes
-# further and never even queues a newer SHA behind an older one -- each SHA is
-# independently attributable.
+# cancelled run. The exhaustive master lane now runs on a schedule through
+# full.yml; this gate never queues a newer SHA behind an older one, so each SHA
+# is independently attributable.
 concurrency:
   group: master-gate-${{ github.sha }}
   cancel-in-progress: false
@@ -156,8 +155,8 @@ jobs:
 
   # Six deterministic shards of the whole non-visual fast suite, balanced by
   # the committed tests/shard_timings.json. No scoped, coverage, cost, slow,
-  # contexts, or visual lane runs here -- those stay on ci.yml's own jobs and
-  # schedule; this gate exists to bound and attribute the fast suite per SHA.
+  # contexts, or visual lane runs here -- those stay on the scheduled Full CI
+  # lane; this gate exists to bound and attribute the fast suite per SHA.
   test:
     needs: core-wheel
     runs-on: ubuntu-latest

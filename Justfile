@@ -532,7 +532,8 @@ test-cov *args: _setup-visual (_header "test-cov")
 # cache it host-locally so this host stops depending on the CI artifact alone.
 # Line coverage only, no gate, no reports: `coverage_contexts.toml` explains
 # why branch coverage is off here (906 MB of artifact against 49 MB, for an
-# answer selection never asks). CI runs this on master pushes and publishes
+# answer selection never asks). Full CI runs this on scheduled master runs and
+# publishes
 # `.coverage` as `sase-coverage-contexts-<sha>`; `just refresh-contexts-baseline`
 # is how an agent gets that artifact instead. Set
 # `SASE_TEST_SELECTION_INSTALL_CONTEXTS=0` to record without caching.
@@ -581,10 +582,10 @@ audit-patch-stitch-terminology: _setup
     @printf "\n---------- Auditing Patch/stitch terminology... ----------\n"
     {{ venv_bin }}/python tools/audit_patch_stitch_terminology --repo-root .
 
-# Download the newest per-test coverage-contexts baseline published by the CI
-# coverage leg into the host-local cache. Selection itself never touches the
-# network: it reads whatever this recipe last cached, and falls back to the
-# static import closure when the cache is empty.
+# Download the newest per-test coverage-contexts baseline published by Full CI's
+# coverage-contexts job into the host-local cache. Selection itself never
+# touches the network: it reads whatever this recipe last cached, and falls back
+# to the static import closure when the cache is empty.
 [positional-arguments]
 refresh-contexts-baseline *args: _setup (_header "refresh-contexts-baseline")
     @{{ venv_bin }}/python tools/fetch_coverage_contexts "$@"

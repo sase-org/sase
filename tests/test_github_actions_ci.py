@@ -44,6 +44,11 @@ def _load_master_gate_workflow() -> dict[str, Any]:
     return yaml.safe_load(workflow_path.read_text())
 
 
+def _load_full_workflow() -> dict[str, Any]:
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "full.yml"
+    return yaml.safe_load(workflow_path.read_text())
+
+
 def _load_setup_sase_action() -> dict[str, Any]:
     action_path = REPO_ROOT / ".github" / "actions" / "setup-sase" / "action.yml"
     return yaml.safe_load(action_path.read_text())
@@ -70,6 +75,19 @@ def _write_executable(path: Path, contents: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(contents, encoding="utf-8")
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
+
+
+def test_ci_workflow_is_pull_request_and_reusable_only() -> None:
+    workflow = _load_ci_workflow()
+    triggers = _workflow_triggers(workflow)
+
+    assert set(triggers) == {"pull_request", "workflow_call"}
+    assert triggers["pull_request"] == {"branches": ["master"]}
+    assert triggers["workflow_call"] is None
+    assert workflow["concurrency"] == {
+        "group": "ci-${{ github.ref }}",
+        "cancel-in-progress": True,
+    }
 
 
 def test_lint_job_initializes_sase_home_before_lint() -> None:
@@ -260,9 +278,13 @@ def test_contexts_job_publishes_the_per_test_database_on_master_only() -> None:
     and consumer from drifting apart silently.
     """
     job = _load_ci_workflow()["jobs"]["coverage-contexts"]
+    fetcher_text = (REPO_ROOT / "tools" / "fetch_coverage_contexts").read_text(
+        encoding="utf-8"
+    )
 
     assert job["if"] == "github.ref == 'refs/heads/master'"
     assert any(step.get("run") == "just test-contexts" for step in job["steps"])
+    assert 'WORKFLOW = "full.yml"' in fetcher_text
 
     step = next(
         step
@@ -360,7 +382,7 @@ def test_ci_and_master_gate_never_run_the_diff_scoped_test_lane() -> None:
     master gate) running everything on every push; neither gate may be the
     thing that skips tests.
     """
-    for workflow_name in ("ci.yml", "master-gate.yml"):
+    for workflow_name in ("ci.yml", "master-gate.yml", "full.yml"):
         workflow_text = (
             REPO_ROOT / ".github" / "workflows" / workflow_name
         ).read_text()
@@ -918,3 +940,57 @@ def test_master_gate_lint_job_matches_ci_lint_steps_byte_for_byte() -> None:
     assert gate_job["runs-on"] == ci_job["runs-on"]
     assert gate_job["needs"] == "core-wheel"
     assert ci_job["needs"] == "build-core"
+
+
+# --------------------------------------------------------------------------
+# full.yml
+# --------------------------------------------------------------------------
+
+
+def test_full_ci_triggers_and_calls_the_reusable_ci_workflow() -> None:
+    workflow = _load_full_workflow()
+    triggers = _workflow_triggers(workflow)
+
+    assert set(triggers) == {"schedule", "workflow_dispatch"}
+    assert triggers["schedule"] == [{"cron": "17 */2 * * *"}]
+    assert workflow["concurrency"] == {
+        "group": "full-ci",
+        "cancel-in-progress": False,
+    }
+    assert workflow["permissions"] == {"contents": "read"}
+    assert workflow["jobs"] == {
+        "full": {
+            "uses": "./.github/workflows/ci.yml",
+            "secrets": "inherit",
+        }
+    }
+
+
+def test_heavy_lane_jobs_are_defined_once_in_the_reusable_workflow() -> None:
+    ci_jobs = set(_load_ci_workflow()["jobs"])
+    full_jobs = set(_load_full_workflow()["jobs"])
+    heavy_jobs = {
+        "build-core",
+        "test",
+        "coverage-contexts",
+        "visual-test",
+        "ace-page-group-isolation",
+        "contention-test",
+        "perf-floors",
+    }
+
+    assert heavy_jobs <= ci_jobs
+    for job_name in heavy_jobs:
+        assert int(job_name in ci_jobs) + int(job_name in full_jobs) == 1
+
+
+def test_readme_explains_the_three_ci_badges() -> None:
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "actions/workflows/ci.yml/badge.svg" in readme
+    assert "actions/workflows/master-gate.yml/badge.svg" in readme
+    assert "actions/workflows/full.yml/badge.svg?branch=master" in readme
+    assert (
+        "CI checks pull requests, Master Gate is the per-SHA master release gate, "
+        "and Full CI runs the scheduled exhaustive lane."
+    ) in readme

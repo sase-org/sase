@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download a per-test coverage-contexts baseline from CI into the local cache.
+"""Download a per-test coverage-contexts baseline from Full CI into the local cache.
 
 The diff-scoped selector reads the newest cached baseline that is an ancestor of
 ``HEAD`` and never touches the network itself, so a fresh workspace with no
@@ -36,7 +36,7 @@ from tests._test_selection_health_store import store_directory  # noqa: E402
 
 DEFAULT_RUN_LIMIT = 20
 DEFAULT_KEEP = 5
-WORKFLOW = "ci.yml"
+WORKFLOW = "full.yml"
 
 
 def _gh(*args: str) -> str:
@@ -119,7 +119,7 @@ def _download(run_id: str, sha: str, destination: Path) -> bool:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--branch", default="master", help="branch whose CI runs to search (master)"
+        "--branch", default="master", help="branch whose Full CI runs to search (master)"
     )
     parser.add_argument(
         "--limit",
@@ -147,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         runs = _candidate_runs(namespace.branch, namespace.limit)
     except RuntimeError as error:
-        print(f"could not list CI runs: {error}", file=sys.stderr)
+        print(f"could not list {WORKFLOW} runs: {error}", file=sys.stderr)
         return 1
 
     for run in runs:
@@ -167,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         "no coverage-contexts artifact found in the "
-        f"{len(runs)} most recent {namespace.branch} runs; "
+        f"{len(runs)} most recent {namespace.branch} {WORKFLOW} runs; "
         "`just check` continues on the static closure alone",
         file=sys.stderr,
     )

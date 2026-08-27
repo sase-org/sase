@@ -3,9 +3,9 @@
 
 ``just test-contexts`` records per-test contexts into ``.coverage``, but until
 this tool existed nothing put that database where ``resolve_baseline`` looks, so
-the only supply route for ground truth was the CI artifact — published on master
-pushes, retained 14 days. A host that never fetched, or fetched more than a
-fortnight ago, ran the scoped lane on the static import closure alone.
+the only supply route for ground truth was the Full CI artifact — published by
+scheduled master runs, retained 14 days. A host that never fetched, or fetched
+more than a fortnight ago, ran the scoped lane on the static import closure alone.
 
 This tool is the local producer. ``just test-contexts`` runs it automatically on
 success, so the expensive instrumented run a human or agent already opted into

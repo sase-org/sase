@@ -19,11 +19,11 @@ That caveat is the whole design:
   selection-health`` show whether staleness correlates with false negatives —
   which is a question only real use can answer.
 
-Baselines are the ``.coverage`` SQLite database the CI coverage leg publishes
-as the ``sase-coverage-contexts-<sha>`` artifact, cached by SHA under
+Baselines are the ``.coverage`` SQLite database the Full CI coverage-contexts job
+publishes as the ``sase-coverage-contexts-<sha>`` artifact, cached by SHA under
 ``${SASE_HOME:-~/.sase}/test-selection/contexts/``. Obtaining one is an explicit
 act, from either of two producers — ``just refresh-contexts-baseline`` fetches
-CI's artifact, and ``just test-contexts`` files its own instrumented run under
+Full CI's artifact, and ``just test-contexts`` files its own instrumented run under
 ``HEAD`` via ``tools/install_coverage_contexts`` — so a host that never fetched,
 or whose 14-day artifact expired, is not left on the static closure alone.
 Selection itself never touches the network.
