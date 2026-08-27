@@ -9,6 +9,7 @@ breadcrumb chip that makes the trail visible on the rail.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from ..relations.artifact_links import parse_link_ref
@@ -39,7 +40,11 @@ class LinkTrailMixin:
 
     def _walk_link_trail_back(self) -> bool:
         """Pop the most recent link-follow origin and land back on it."""
-        return self._walk_link_trail(self._link_trail, self._link_trail_forward)
+        return self._walk_link_trail(
+            self._link_trail,
+            self._link_trail_forward,
+            undo_fold=True,
+        )
 
     def _walk_link_trail_forward(self) -> bool:
         """Redo a link-follow origin previously undone by ``Ctrl+O``."""
@@ -49,12 +54,21 @@ class LinkTrailMixin:
         self,
         source: list[LinkTrailHop],
         other: list[LinkTrailHop],
+        *,
+        undo_fold: bool = False,
     ) -> bool:
         if not source:
             return False
         hop = source.pop()
         current = self._current_link_trail_origin()  # type: ignore[attr-defined]
-        other.append(current)
+        # The expansion belongs to the pair of positions, not to one of them,
+        # so it rides along with whichever entry is being pushed. Without this
+        # a back / forward / back sequence would leave the tree expanded.
+        other.append(replace(current, axe_fold_expanded=hop.axe_fold_expanded))
+        if undo_fold and hop.axe_fold_expanded:
+            collapse = getattr(self, "collapse_lumberjack_after_link_trail", None)
+            if callable(collapse):
+                collapse(hop.axe_fold_expanded)
         if len(other) > _LINK_TRAIL_MAX:
             del other[: len(other) - _LINK_TRAIL_MAX]
         self._link_trail_guard = True

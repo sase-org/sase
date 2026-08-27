@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from sase.ace.tui.actions.link_follow import LinkFollowMixin, LinkTrailHop
 from sase.ace.tui.actions.link_trail import LinkTrailMixin, link_trail_breadcrumb_text
 from sase.ace.tui.relations.link_index import LinkChip
+from sase.ace.tui.models.fold_state import FoldLevel, FoldStateManager
 from sase.ace.tui.widgets.bgcmd_list import ChopItem, LumberjackItem
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.artifact_relation_layout import RelationRole
@@ -261,6 +262,122 @@ def test_axe_hop_restores_across_tabs_and_expands_the_lumberjack() -> None:
     assert app._walk_link_trail_back() is True
     assert app.current_tab == "artifacts"
     assert files_pane.selected_entry_target() == origin
+
+    assert app._walk_link_trail_forward() is True
+    assert app.current_tab == "axe"
+    assert app.current_idx == 1
+    assert app._axe_last_item_key == ("chop", "hooks", "build")
+
+
+class _FoldingAxeApp(_App):
+    """An app whose AXE tree really folds, so expansion can be undone.
+
+    The plain ``_App`` has no fold manager, which is the "nothing to restore"
+    case every other AXE test exercises. This one reveals chops only while
+    their lumberjack is expanded, so a forward hop to a chop under a collapsed
+    lumberjack has to expand it -- and walking back has to put it back.
+    """
+
+    def __init__(self, **kwargs: object) -> None:
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+        self._axe_fold_manager = FoldStateManager()
+        self._build_axe_items()
+
+    def _build_axe_items(self) -> None:
+        expanded = (
+            self._axe_fold_manager.get("lumberjack:hooks") is not FoldLevel.COLLAPSED
+        )
+        self._axe_items = [LumberjackItem(name="hooks")]
+        if expanded:
+            self._axe_items.append(ChopItem("hooks", "build"))
+
+    @property
+    def hooks_expanded(self) -> bool:
+        return self._axe_fold_manager.get("lumberjack:hooks") is not FoldLevel.COLLAPSED
+
+
+def test_back_walk_re_collapses_the_lumberjack_the_forward_hop_expanded() -> None:
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    files_pane = _Pane(targets=(origin,), selected=origin)
+    app = _FoldingAxeApp(
+        chips=(_chip("chop:hooks/build", None),),
+        panes={"files": files_pane},
+    )
+    assert app.hooks_expanded is False
+
+    _follow_first(app)
+    assert app.current_tab == "axe"
+    assert app.hooks_expanded is True
+    assert app._link_trail[-1].axe_fold_expanded == "hooks"
+
+    assert app._walk_link_trail_back() is True
+    assert app.current_tab == "artifacts"
+    assert app.hooks_expanded is False, "Ctrl+O left the AXE tree expanded"
+
+    assert app._walk_link_trail_forward() is True
+    assert app.hooks_expanded is True
+
+    assert app._walk_link_trail_back() is True
+    assert app.hooks_expanded is False, (
+        "the expansion was lost on the round trip, so the second Ctrl+O "
+        "could not undo it"
+    )
+
+
+def test_back_walk_leaves_a_lumberjack_the_hop_did_not_expand_alone() -> None:
+    """A hop that changed no fold must not collapse one on the way back.
+
+    ``FoldStateManager`` has three rungs, and a lumberjack the user already
+    drove to the top rung cannot advance further, so the hop records nothing
+    and ``Ctrl+O`` must leave their tree exactly as they left it.
+    """
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    files_pane = _Pane(targets=(origin,), selected=origin)
+    app = _FoldingAxeApp(
+        chips=(_chip("chop:hooks/build", None),),
+        panes={"files": files_pane},
+    )
+    app._axe_fold_manager.expand("lumberjack:hooks")
+    app._axe_fold_manager.expand("lumberjack:hooks")
+    app._build_axe_items()
+    assert app._axe_fold_manager.get("lumberjack:hooks") is FoldLevel.FULLY_EXPANDED
+
+    _follow_first(app)
+    assert app._link_trail[-1].axe_fold_expanded is None
+
+    assert app._walk_link_trail_back() is True
+    assert app._axe_fold_manager.get("lumberjack:hooks") is FoldLevel.FULLY_EXPANDED, (
+        "walking back collapsed a lumberjack the user had opened themselves"
+    )
+
+
+def test_agents_to_axe_hop_round_trips_the_last_untested_tab_pair() -> None:
+    """The third pair: neither endpoint is the Artifacts tab.
+
+    Both other pairs start on Artifacts, whose restore path carries the pane
+    key, query, and project scope. Agents and AXE restore from an agent name
+    and an item key instead, so this is the pair that proves the walk does
+    not quietly depend on the Artifacts branch.
+    """
+    agent = _Agent(agent_name="builder", identity=("done", "builder", None))
+    axe_items = (LumberjackItem(name="hooks"), ChopItem("hooks", "build"))
+    app = _App(
+        chips=(_chip("chop:hooks/build", None),),
+        agents=(agent,),
+        axe_items=axe_items,
+    )
+    app.current_tab = "agents"
+
+    _follow_first(app)
+    assert app.current_tab == "axe"
+    assert app.current_idx == 1
+    assert [hop.tab for hop in app._link_trail] == ["agents"]
+
+    assert app._walk_link_trail_back() is True
+    assert app.current_tab == "agents"
+    assert app.current_idx == 0
+    assert app._agents_last_identity == agent.identity
+    assert app._link_trail == []
 
     assert app._walk_link_trail_forward() is True
     assert app.current_tab == "axe"

@@ -5,7 +5,11 @@ from __future__ import annotations
 from rich.cells import cell_len
 
 from sase.ace.tui.relations.link_index import LinkChip
-from sase.ace.tui.relations.link_keys import link_key_label, link_rail_items
+from sase.ace.tui.relations.link_keys import (
+    MAX_DIRECT_LINK_KEYS,
+    link_key_label,
+    link_rail_items,
+)
 from sase.ace.tui.widgets.link_rail import _render_link_rail
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 
@@ -250,3 +254,34 @@ def test_chop_neighbor_without_artifact_target_is_not_missing() -> None:
     plain = text.plain
     assert "hooks/build" in plain
     assert "(missing)" not in plain
+
+
+def test_no_link_is_dropped_when_a_subject_outgrows_the_direct_keys() -> None:
+    """Collapsing bounds the *keys*, not the graph, so nothing may vanish.
+
+    The plan expected counted-chip collapsing to keep every real subject at
+    nine or fewer items; measured against the live graph it does not -- seven
+    subjects carry 10 to 27 store-backed links that no projection rule groups.
+    The invariant that has to hold instead is this one: whatever does not fit
+    the nine direct keys is accounted for in ``$0``, never silently dropped.
+    """
+    chips = tuple(
+        _chip(
+            neighbor_ref=f"bead:sase-wide.{index:02d}",
+            why="",
+        )
+        for index in range(27)
+    )
+
+    text = _render_link_rail(chips, width=400)
+
+    assert text is not None
+    plain = text.plain
+    keyed = [
+        link_key_label(index, len(chips))
+        for index in range(1, MAX_DIRECT_LINK_KEYS + 1)
+    ]
+    assert all(key in plain for key in keyed)
+    assert f"${MAX_DIRECT_LINK_KEYS + 1}" not in plain
+    assert f"$0 +{len(chips) - MAX_DIRECT_LINK_KEYS} more" in plain
+    assert len(link_rail_items(chips)) == len(chips)

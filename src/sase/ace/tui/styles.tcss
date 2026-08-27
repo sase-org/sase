@@ -1203,13 +1203,16 @@ IssueEditModal {
     border-top: hkey $panel-lighten-2;
 }
 
+/* Textual boxes are border-box, so a `border-top` here would consume the
+   whole one-row budget and leave the chips zero rows to paint in. The rail
+   is docked directly above the footer, which draws its own `hkey` rule, so
+   the separator is already there and a second one would double it. */
 #link-rail {
     height: 1;
     max-height: 1;
     min-height: 1;
     background: $surface;
     padding: 0 1;
-    border-top: hkey $panel-lighten-1;
 }
 
 #keybinding-content {

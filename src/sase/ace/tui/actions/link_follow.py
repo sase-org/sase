@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
@@ -49,6 +49,9 @@ class LinkTrailHop:
     query_source: str | None
     project_scope: str | None = None
     axe_key: AxeItemKey | None = None
+    #: Lumberjack this hop's forward jump had to expand to reveal its chop,
+    #: recorded so walking back can put the AXE tree back the way it was.
+    axe_fold_expanded: str | None = None
 
 
 class LinkFollowMixin:
@@ -122,8 +125,14 @@ class LinkFollowMixin:
         self._link_trail_guard = True
         try:
             if kind == "chop":
-                if self._follow_chop_link(payload):
-                    self._record_link_trail(origin)
+                expanded: list[str] = []
+                if self._follow_chop_link(payload, expanded=expanded):
+                    self._record_link_trail(
+                        replace(
+                            origin,
+                            axe_fold_expanded=expanded[0] if expanded else None,
+                        )
+                    )
                 return
             if kind == "agent" and self._follow_loaded_agent(payload):
                 self._record_link_trail(origin)
@@ -408,12 +417,18 @@ class LinkFollowMixin:
                 return True
         return False
 
-    def _follow_chop_link(self, payload: str) -> bool:
+    def _follow_chop_link(
+        self,
+        payload: str,
+        *,
+        expanded: list[str] | None = None,
+    ) -> bool:
         lumberjack, sep, base_chop = payload.partition("/")
         if not sep or not lumberjack or not base_chop:
             self._notify_missing_link_target(f"chop:{payload}", None)
             return False
-        self._expand_lumberjack_for_chop(lumberjack)
+        if self._expand_lumberjack_for_chop(lumberjack) and expanded is not None:
+            expanded.append(lumberjack)
         idx = self._find_chop_index(lumberjack, base_chop)
         if idx is None:
             self._notify_missing_link_target(f"chop:{payload}", None)
@@ -430,10 +445,29 @@ class LinkFollowMixin:
         self.refresh_link_rail()  # type: ignore[attr-defined]
         return True
 
-    def _expand_lumberjack_for_chop(self, lumberjack: str) -> None:
+    def _expand_lumberjack_for_chop(self, lumberjack: str) -> bool:
+        """Reveal *lumberjack*'s chops, reporting whether that changed the fold.
+
+        ``expand`` advances at most one rung, so a single ``collapse`` is the
+        exact inverse -- which is what makes the ``Ctrl+O`` undo in
+        :mod:`.link_trail` faithful rather than approximate.
+        """
+        changed = self._step_lumberjack_fold(lumberjack, expand=True)
+        build = getattr(self, "_build_axe_items", None)
+        if callable(build):
+            build()
+        return changed
+
+    def _step_lumberjack_fold(self, lumberjack: str, *, expand: bool) -> bool:
         manager = getattr(self, "_axe_fold_manager", None)
-        if manager is not None:
-            manager.expand(f"lumberjack:{lumberjack}")
+        if manager is None:
+            return False
+        key = f"lumberjack:{lumberjack}"
+        return bool(manager.expand(key) if expand else manager.collapse(key))
+
+    def collapse_lumberjack_after_link_trail(self, lumberjack: str) -> None:
+        """Undo one :meth:`_expand_lumberjack_for_chop` step."""
+        self._step_lumberjack_fold(lumberjack, expand=False)
         build = getattr(self, "_build_axe_items", None)
         if callable(build):
             build()

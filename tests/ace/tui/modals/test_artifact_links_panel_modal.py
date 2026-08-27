@@ -168,3 +168,35 @@ async def test_remove_highlighted_returns_writable_chip() -> None:
         await pilot.pause()
 
     assert result == ArtifactLinksPanelResult(action="remove", chip=chip)
+
+
+async def test_rows_past_z_keep_a_row_and_stay_followable() -> None:
+    """The tail beyond 26 keys must still be reachable, not just present.
+
+    The live graph already has subjects past the design's measured maximum
+    degree of 26, and the panel is where the rail's ``$0`` overflow lands, so
+    a row without a letter key is the only thing standing between a real link
+    and being unreachable from the UI entirely.
+    """
+    result: object | None = None
+    chips = tuple(_chip(index) for index in range(30))
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: object | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = ArtifactLinksPanelModal(subject_ref="file:origin.txt", chips=chips)
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        option_list = modal.query_one("#artifact-links-panel-list", OptionList)
+        assert option_list.option_count == len(chips)
+        assert _artifact_link_option_text(None, chips[29]).plain.startswith("   →")
+
+        option_list.highlighted = 29
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert result == ArtifactLinksPanelResult(action="follow", chip=chips[29])
