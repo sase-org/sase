@@ -22,8 +22,9 @@ from sase.linked_repos import (
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
-    PLAN_CHAIN_QUESTION_SUFFIX,
 )
+
+HISTORICAL_Q_SUFFIX = "--q"
 
 
 def _make_agent(
@@ -195,7 +196,7 @@ def test_context_aggregates_family_with_role_labels(
         agent_name="alpha--q",
         workspace_dir=workspace_dir,
         raw_suffix="20260620-140000-q",
-        role_suffix=PLAN_CHAIN_QUESTION_SUFFIX,
+        role_suffix=HISTORICAL_Q_SUFFIX,
     )
     root.followup_agents = [coder, question]
 

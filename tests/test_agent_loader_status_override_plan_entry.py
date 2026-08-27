@@ -93,7 +93,7 @@ def test_apply_status_overrides_family_root_mirrors_plan_entry() -> None:
         agent_type=AgentType.WORKFLOW,
         start_time=datetime(2026, 5, 29, 9, 0, 0),
         raw_suffix=root_timestamp,
-        role_suffix="-q",
+        role_suffix="--0",
         agent_name="bph.cld",
         agent_family="bph.cld",
         agent_family_role="root",

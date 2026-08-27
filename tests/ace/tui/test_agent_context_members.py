@@ -51,14 +51,14 @@ def test_promoted_root_context_label_uses_suffix_token(tmp_path: Path) -> None:
     assert [member.label for member in members] == ["0", "bar"]
 
 
-def test_question_context_label_stays_q(tmp_path: Path) -> None:
-    question = _member(
+def test_historical_q_suffix_context_label_uses_suffix_token(tmp_path: Path) -> None:
+    historical = _member(
         tmp_path,
-        "question",
-        role_suffix="--0",
-        agent_family_role="q",
+        "historical",
+        role_suffix="--q",
+        agent_family_role="review",
     )
 
-    members = build_context_members(question)
+    members = build_context_members(historical)
 
     assert [member.label for member in members] == ["q"]

@@ -288,12 +288,14 @@ def _ensure_generated_family_name(
 def _family_role(role_suffix: str, suffix_arg: str) -> str:
     from sase.plan_chain import agent_family_role_for_suffix
 
+    if suffix_arg == "@":
+        return "agent"
     role = agent_family_role_for_suffix(role_suffix)
     if role is not None:
         return role
     token = role_suffix.removeprefix(AGENT_FAMILY_SEPARATOR)
-    if suffix_arg == "@" or token.isdigit():
-        return "feedback"
+    if token.isdigit():
+        return "agent"
     return token
 
 

@@ -35,7 +35,7 @@ def _promoted_family(
     promoted to ``--0`` (``plan_chain_root=False``) before ever planning.
     ``main_step`` is its own concrete workflow step. ``member`` is the
     continuation that later submitted a plan under the rewritten ``--plan``
-    role suffix while its stored ``agent_family_role`` stayed ``"q"``.
+    role suffix while its stored family role did not change.
     """
     root = Agent(
         agent_type=AgentType.WORKFLOW,
@@ -67,7 +67,6 @@ def _promoted_family(
         role_suffix="--0",
         agent_name="pv--0",
         agent_family="pv",
-        agent_family_role="q",
         questions_times=[_QUESTION_TIME],
         question_response_path="/tmp/question_response.json",
     )
@@ -83,7 +82,7 @@ def _promoted_family(
         role_suffix="--plan",
         agent_name="pv--1",
         agent_family="pv",
-        agent_family_role="q",
+        agent_family_role="agent",
         questions_times=[_QUESTION_TIME],
         plan_times=[_PLAN_TIME],
         plan_action=plan_action,
@@ -223,7 +222,6 @@ def test_promoted_family_plain_question_continuation_is_unaffected() -> None:
         role_suffix="--0",
         agent_name="pv--0",
         agent_family="pv",
-        agent_family_role="q",
         questions_times=[_QUESTION_TIME],
         question_response_path="/tmp/question_response.json",
     )
@@ -239,7 +237,7 @@ def test_promoted_family_plain_question_continuation_is_unaffected() -> None:
         role_suffix="--1",
         agent_name="pv--1",
         agent_family="pv",
-        agent_family_role="q",
+        agent_family_role="agent",
         questions_times=[_QUESTION_TIME],
         question_response_path="/tmp/question_response.json",
     )

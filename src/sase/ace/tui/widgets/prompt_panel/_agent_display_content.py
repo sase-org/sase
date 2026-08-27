@@ -14,7 +14,6 @@ from sase.plan_chain import (
     PLAN_CHAIN_COMMIT_SUFFIX,
     PLAN_CHAIN_EPIC_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
-    PLAN_CHAIN_QUESTION_SUFFIX,
     agent_family_role_for_suffix,
     agent_family_suffix_token,
     canonical_plan_chain_suffix,
@@ -28,7 +27,6 @@ from ...util.lazy_syntax import lazy_renderable
 _PHASE_SUFFIX_TOKENS = {
     PLAN_CHAIN_PLAN_SUFFIX: "plan",
     PLAN_CHAIN_CODER_SUFFIX: "code",
-    PLAN_CHAIN_QUESTION_SUFFIX: "q",
     PLAN_CHAIN_EPIC_SUFFIX: "epic",
     PLAN_CHAIN_COMMIT_SUFFIX: "commit",
 }
@@ -69,9 +67,6 @@ def get_phase_label(agent: Agent) -> str:
         agent.role_suffix,
         agent_family_role=agent.agent_family_role,
     )
-    is_promoted_root = agent.agent_family_role == "root" and not agent.plan_chain_root
-    if role == "q" and not is_promoted_root:
-        return _agent_role_label("q")
     if role == "code":
         return _agent_role_label("code")
     if role == "epic":

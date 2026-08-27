@@ -280,19 +280,19 @@ def output_variable_family_agents() -> list[Agent]:
         llm_provider="codex",
         model="gpt-5",
     )
-    question = Agent(
+    continuation = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="visual-output-vars--q",
+        cl_name="visual-output-vars--1",
         project_file="/workspace/sase/visual_project.sase",
         status="DONE",
         start_time=datetime(2026, 7, 8, 9, 3, 0),
         stop_time=datetime(2026, 7, 8, 9, 5, 0),
         raw_suffix="20260708090300",
         parent_timestamp=parent.raw_suffix,
-        role_suffix="--q",
-        agent_name="visual-output-vars--q",
+        role_suffix="--1",
+        agent_name="visual-output-vars--1",
         agent_family="visual-output-vars",
-        agent_family_role="q",
+        agent_family_role="review",
         output_variables={
             "answer_path": "/workspace/sase/out/user-answer.md",
             "summary": "approval captured",
@@ -300,6 +300,6 @@ def output_variable_family_agents() -> list[Agent]:
         llm_provider="codex",
         model="gpt-5",
     )
-    rows = [parent, coder, question]
+    rows = [parent, coder, continuation]
     _apply_status_overrides(rows)
     return rows

@@ -9,7 +9,6 @@ from sase.memory.read_log import memory_read_log_path
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
-    PLAN_CHAIN_QUESTION_SUFFIX,
 )
 
 from ._memory_reads_loader_helpers import (
@@ -19,6 +18,8 @@ from ._memory_reads_loader_helpers import (
     make_event,
     write_jsonl,
 )
+
+HISTORICAL_Q_SUFFIX = "--q"
 
 
 def test_context_single_agent_has_no_labels(fake_project: Path, tmp_path: Path) -> None:
@@ -99,7 +100,7 @@ def test_context_aggregates_family_with_role_labels(
         agent_name="alpha--q",
         workspace_dir=fake_project,
         raw_suffix="20260524-100000-q",
-        role_suffix=PLAN_CHAIN_QUESTION_SUFFIX,
+        role_suffix=HISTORICAL_Q_SUFFIX,
     )
     root.followup_agents = [coder, question]
 

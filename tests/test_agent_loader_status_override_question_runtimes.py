@@ -47,7 +47,7 @@ def test_apply_status_overrides_question_continuation_inner_approver_runtime(
         role_suffix="--plan",
         agent_name="sase-03w--1",
         agent_family="sase-03w",
-        agent_family_role="q",
+        agent_family_role="agent",
         questions_times=[question_time],
         plan_times=[plan_time],
         plan_action=plan_action,
@@ -66,7 +66,7 @@ def test_apply_status_overrides_question_continuation_inner_approver_runtime(
         role_suffix="--plan",
         agent_name="sase-03w--1",
         agent_family="sase-03w",
-        agent_family_role="q",
+        agent_family_role="agent",
         questions_times=[question_time],
         plan_times=[plan_time],
         plan_action=plan_action,
@@ -117,7 +117,6 @@ def test_apply_status_overrides_question_continuation_asker_runtime_freezes() ->
         role_suffix="--0",
         agent_name="sase-046--0",
         agent_family="sase-046",
-        agent_family_role="q",
     )
     continuation_planner = Agent(
         agent_type=AgentType.RUNNING,
@@ -131,7 +130,7 @@ def test_apply_status_overrides_question_continuation_asker_runtime_freezes() ->
         role_suffix="--plan",
         agent_name="sase-046--1",
         agent_family="sase-046",
-        agent_family_role="q",
+        agent_family_role="agent",
         questions_times=[question_time],
         plan_times=[datetime(2026, 6, 23, 9, 18, 11)],
         plan_action="tale",
@@ -194,7 +193,6 @@ def test_apply_status_overrides_answered_without_followup_keeps_runtime_live() -
         role_suffix="--0",
         agent_name="sase-live--0",
         agent_family="sase-live",
-        agent_family_role="q",
     )
 
     _apply_status_overrides([parent], [asker])

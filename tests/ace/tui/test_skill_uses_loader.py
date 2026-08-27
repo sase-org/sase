@@ -18,13 +18,14 @@ from sase.ace.tui.skill_uses import (
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
-    PLAN_CHAIN_QUESTION_SUFFIX,
 )
 from sase.skills.use_log import (
     SKILL_USE_LOG_SCHEMA_VERSION,
     SkillUseEvent,
     skill_use_log_path,
 )
+
+HISTORICAL_Q_SUFFIX = "--q"
 
 
 def _make_agent(
@@ -465,7 +466,7 @@ def test_context_aggregates_family_with_role_labels(
         agent_name="alpha--q",
         workspace_dir=fake_project,
         raw_suffix="20260614-100000-q",
-        role_suffix=PLAN_CHAIN_QUESTION_SUFFIX,
+        role_suffix=HISTORICAL_Q_SUFFIX,
     )
     root.followup_agents = [coder, question]
 

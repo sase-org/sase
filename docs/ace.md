@@ -4043,8 +4043,7 @@ reopen the question modal.
 (`questions_times` is non-empty) but has neither a persisted `question_response_path`
 nor a later follow-up child, the parent workflow row inherits `QUESTION` so the family
 still shows as waiting on you. Once the user response is persisted, the continued work
-usually appears as the next numeric phase (`--2`, `--3`, ...); `--q` identifies the
-question phase in metadata and phase labels. On the next status pass, the parent is
+appears as the next ordinary family member. On the next status pass, the parent is
 re-evaluated without the stale question override. If the parent has several active
 children, the most recently started one wins, so a newer `RUNNING` child can overtake
 the `QUESTION` override on the parent.
@@ -4371,13 +4370,12 @@ cursor.
   including a monitor started by the family root, which renders after the root's own
   phase. Agent-shell members follow one rule, `AGENT (<role>)`, derived from the
   member's family role: `--plan` renders as `AGENT (plan)`, `--code` as `AGENT (code)`,
-  `--q` as `AGENT (q)`, `--epic` as `AGENT (epic)`, `--commit` as `AGENT (commit)`, and
-  numeric feedback suffixes such as `--2` as `AGENT (plan round 2)`. Custom family
-  members render the same way with their suffix token, e.g. `AGENT (bar)`. A monitor
-  member is a proc shell, so its phase renders as an amber `⚙ MONITOR` divider followed
-  by the monitor's command, its recorded detail fields, and its full captured output —
-  the same block the monitor's own panel shows. Legacy dotted and single-dash suffixes
-  render the same way.
+  `--epic` as `AGENT (epic)`, `--commit` as `AGENT (commit)`, and numeric feedback
+  suffixes such as `--2` as `AGENT (plan round 2)`. Custom family members render the
+  same way with their suffix token, e.g. `AGENT (bar)`. A monitor member is a proc
+  shell, so its phase renders as an amber `⚙ MONITOR` divider followed by the monitor's
+  command, its recorded detail fields, and its full captured output — the same block the
+  monitor's own panel shows. Legacy dotted and single-dash suffixes render the same way.
 - **WORKFLOW VARIABLES**: xprompt workflow output variables from step outputs with
   additional `meta_*` keys are grouped under a dedicated header. The special routing
   keys `meta_project`, `meta_patch`, and `meta_workspace` are promoted into the normal

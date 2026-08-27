@@ -215,21 +215,21 @@ def test_output_variables_aggregate_two_children_distinct_keys(
         agent_family_role="code",
         output_variables={"build_report": "/tmp/build.md"},
     )
-    question = _family_child(
+    continuation = _family_child(
         tmp_path,
-        "question",
-        role_suffix="--q",
-        agent_family_role="q",
+        "continuation",
+        role_suffix="--1",
+        agent_family_role="review",
         output_variables={"answer_path": "/tmp/answer.md"},
     )
-    root.followup_agents = [coder, question]
+    root.followup_agents = [coder, continuation]
 
     header, _ = build_header_text(root, cheap=True)
     plain = header.plain
 
     assert "OUTPUT VARIABLES · 2 agents\n" in plain
     assert "coder  build_report: /tmp/build.md\n" in plain
-    assert "q      answer_path: /tmp/answer.md\n" in plain
+    assert "1      answer_path: /tmp/answer.md\n" in plain
 
 
 def test_output_variables_keep_same_key_from_multiple_children(
@@ -243,20 +243,20 @@ def test_output_variables_keep_same_key_from_multiple_children(
         agent_family_role="code",
         output_variables={"result_path": "/tmp/build-result.md"},
     )
-    question = _family_child(
+    continuation = _family_child(
         tmp_path,
-        "question",
-        role_suffix="--q",
-        agent_family_role="q",
+        "continuation",
+        role_suffix="--1",
+        agent_family_role="review",
         output_variables={"result_path": "/tmp/question-result.md"},
     )
-    root.followup_agents = [coder, question]
+    root.followup_agents = [coder, continuation]
 
     header, _ = build_header_text(root, cheap=True)
     plain = header.plain
 
     assert "coder  result_path: /tmp/build-result.md\n" in plain
-    assert "q      result_path: /tmp/question-result.md\n" in plain
+    assert "1      result_path: /tmp/question-result.md\n" in plain
 
 
 def test_output_variables_root_without_vars_aggregates_children(
@@ -344,14 +344,14 @@ def test_output_variables_multiline_value_aligns_under_role_gutter(
         agent_family_role="code",
         output_variables={"notes": "line one\nline two"},
     )
-    question = _family_child(
+    continuation = _family_child(
         tmp_path,
-        "question",
-        role_suffix="--q",
-        agent_family_role="q",
+        "continuation",
+        role_suffix="--1",
+        agent_family_role="review",
         output_variables={"answer": "ready"},
     )
-    root.followup_agents = [coder, question]
+    root.followup_agents = [coder, continuation]
 
     header, _ = build_header_text(root, cheap=True)
 
@@ -374,14 +374,14 @@ def test_attributed_structured_variables_keep_role_gutter_at_every_depth(
             }
         },
     )
-    question = _family_child(
+    continuation = _family_child(
         tmp_path,
-        "question-structured",
-        role_suffix="--q",
-        agent_family_role="q",
+        "continuation-structured",
+        role_suffix="--1",
+        agent_family_role="review",
         output_variables={"answer": "ready"},
     )
-    root.followup_agents = [coder, question]
+    root.followup_agents = [coder, continuation]
 
     header, _ = build_header_text(root, cheap=True)
 

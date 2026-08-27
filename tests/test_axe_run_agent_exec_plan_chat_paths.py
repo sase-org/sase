@@ -103,10 +103,10 @@ class TestFeedbackRoundChatPath:
         assert captured["agent"] is None
         assert captured["metadata_agent"] is None
 
-    def test_handle_questions_marker_uses_root_question_child_name(
+    def test_handle_questions_marker_uses_interrupted_child_name(
         self, tmp_path
     ) -> None:
-        """First-agent questions relabel the root logical child to '--0'."""
+        """Question chat history is saved under the interrupted member suffix."""
         ctx = make_ctx(tmp_path)
         ctx.multi_agent_prompt_file = "~/.sase/multi_prompts/202606/main.md"
         state = make_state(tmp_path)
@@ -130,8 +130,8 @@ class TestFeedbackRoundChatPath:
         ):
             handle_questions_marker({"questions": []}, ctx, state)
 
-        assert captured["agent"] == "test_agent--0"
-        assert captured["metadata_agent"] == "test_agent--0"
+        assert captured["agent"] == "test_agent--2"
+        assert captured["metadata_agent"] == "test_agent--2"
         assert captured["metadata_multi_agent_prompt"] == (
             "~/.sase/multi_prompts/202606/main.md"
         )

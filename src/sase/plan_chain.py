@@ -1,4 +1,4 @@
-"""Shared naming helpers for plan/question/feedback/coder handoff agents."""
+"""Shared naming helpers for plan/feedback/coder handoff agents."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ from dataclasses import dataclass
 
 AGENT_FAMILY_SEPARATOR = "--"
 PLAN_CHAIN_PLAN_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}plan"
-PLAN_CHAIN_QUESTION_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}q"
 PLAN_CHAIN_CODER_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}code"
 PLAN_CHAIN_EPIC_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}epic"
 PLAN_CHAIN_COMMIT_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}commit"
@@ -28,7 +27,6 @@ _MONITOR_SEQUENCE_SUFFIX_RE = re.compile(r"^--mon-([A-Za-z0-9_]+)$")
 _GATE_SEQUENCE_SUFFIX_RE = re.compile(r"^--gate-([A-Za-z0-9_]+)$")
 _KNOWN_SUFFIXES = {
     PLAN_CHAIN_PLAN_SUFFIX,
-    PLAN_CHAIN_QUESTION_SUFFIX,
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_EPIC_SUFFIX,
     PLAN_CHAIN_COMMIT_SUFFIX,
@@ -37,14 +35,12 @@ _KNOWN_SUFFIXES = {
 }
 _LEGACY_DOTTED_SUFFIX_MAP = {
     ".plan": PLAN_CHAIN_PLAN_SUFFIX,
-    ".q": PLAN_CHAIN_QUESTION_SUFFIX,
     ".code": PLAN_CHAIN_CODER_SUFFIX,
     ".epic": PLAN_CHAIN_EPIC_SUFFIX,
     ".commit": PLAN_CHAIN_COMMIT_SUFFIX,
 }
 _LEGACY_DASH_SUFFIX_MAP = {
     "-plan": PLAN_CHAIN_PLAN_SUFFIX,
-    "-q": PLAN_CHAIN_QUESTION_SUFFIX,
     "-code": PLAN_CHAIN_CODER_SUFFIX,
     "-epic": PLAN_CHAIN_EPIC_SUFFIX,
     "-commit": PLAN_CHAIN_COMMIT_SUFFIX,
@@ -60,7 +56,6 @@ _PHASE_SUFFIX_ROLES = {
 }
 _EXPLICIT_FAMILY_ROLES = {
     "plan",
-    "q",
     "code",
     "epic",
     "commit",
@@ -78,20 +73,11 @@ class _PlanChainSuffixInfo:
     role: str
     kind: str
     token: str | None = None
-    parent_suffix: str | None = None
     legacy: bool = False
 
     @property
     def is_feedback(self) -> bool:
         return self.role == "feedback"
-
-    @property
-    def is_root_question(self) -> bool:
-        return self.kind == "root_question"
-
-    @property
-    def is_phase_question(self) -> bool:
-        return self.kind == "phase_question"
 
 
 def _plan_chain_feedback_suffix(feedback_round: int) -> str:
@@ -119,7 +105,7 @@ def _plan_chain_feedback_round_from_raw_suffix(suffix: object) -> int | None:
     return round_number if round_number >= 2 else None
 
 
-def _canonical_plan_chain_suffix_without_phase_question(suffix: str) -> str | None:
+def _canonical_plan_chain_suffix(suffix: str) -> str | None:
     if suffix in _LEGACY_SUFFIX_MAP:
         return _LEGACY_SUFFIX_MAP[suffix]
     if suffix in _KNOWN_SUFFIXES:
@@ -142,28 +128,11 @@ def _canonical_plan_chain_suffix_without_phase_question(suffix: str) -> str | No
     return None
 
 
-def _split_phase_question_suffix(suffix: str) -> tuple[str, str] | None:
-    if "-" not in suffix:
-        return None
-    parent_suffix, _, token = suffix.rpartition("-")
-    if not parent_suffix or not _TOKEN_RE.match(token):
-        return None
-    if _parse_plan_chain_suffix(parent_suffix) is None:
-        return None
-    return parent_suffix, token
-
-
 def canonical_plan_chain_suffix(suffix: object) -> str | None:
     """Return the canonical plan-chain suffix, or ``None`` if unrecognized."""
     if not isinstance(suffix, str):
         return None
-    canonical = _canonical_plan_chain_suffix_without_phase_question(suffix)
-    if canonical is not None:
-        return canonical
-    phase_question = _split_phase_question_suffix(suffix)
-    if phase_question is not None:
-        return suffix
-    return None
+    return _canonical_plan_chain_suffix(suffix)
 
 
 def _parse_plan_chain_suffix(
@@ -187,14 +156,6 @@ def _parse_plan_chain_suffix(
             role=role,
             kind="phase",
             legacy=legacy_suffix,
-        )
-
-    if suffix == PLAN_CHAIN_QUESTION_SUFFIX:
-        return _PlanChainSuffixInfo(
-            suffix=suffix,
-            role="q",
-            kind="legacy_question",
-            legacy=True,
         )
 
     match = _PLAN_FEEDBACK_SUFFIX_RE.match(suffix)
@@ -231,23 +192,9 @@ def _parse_plan_chain_suffix(
             return _PlanChainSuffixInfo(
                 suffix=suffix,
                 role=stored_role,
-                kind=(
-                    "root_question"
-                    if stored_role == "q"
-                    else "legacy_feedback"
-                    if stored_role == "feedback"
-                    else "phase"
-                ),
+                kind="legacy_feedback" if stored_role == "feedback" else "phase",
                 token=token,
                 legacy=legacy_suffix or stored_role == "feedback",
-            )
-        if token in {"0", "1"}:
-            return _PlanChainSuffixInfo(
-                suffix=suffix,
-                role="q",
-                kind="root_question",
-                token=token,
-                legacy=legacy_suffix,
             )
         feedback_round = _plan_chain_feedback_round_from_raw_suffix(suffix)
         if feedback_round is not None:
@@ -270,22 +217,7 @@ def _parse_plan_chain_suffix(
             token=str(legacy_feedback_round),
             legacy=True,
         )
-
-    phase_question = _split_phase_question_suffix(suffix)
-    if phase_question is None:
-        return None
-    parent_suffix, token = phase_question
-    parent_info = _parse_plan_chain_suffix(parent_suffix)
-    if parent_info is None or parent_info.role == "q":
-        return None
-    role = parent_info.role
-    return _PlanChainSuffixInfo(
-        suffix=suffix,
-        role=role,
-        kind="phase_question",
-        token=token,
-        parent_suffix=parent_info.suffix,
-    )
+    return None
 
 
 def plan_chain_feedback_round(
@@ -409,36 +341,6 @@ def is_plan_feedback_suffix(
     """Return whether *suffix* identifies a plan-feedback row."""
     info = _parse_plan_chain_suffix(suffix, agent_family_role=agent_family_role)
     return bool(info and info.is_feedback)
-
-
-def is_root_question_suffix(
-    suffix: object,
-    *,
-    agent_family_role: object = None,
-) -> bool:
-    """Return whether *suffix* is in the root question continuation sequence."""
-    info = _parse_plan_chain_suffix(suffix, agent_family_role=agent_family_role)
-    return bool(info and info.is_root_question)
-
-
-def question_followup_suffix_template(
-    interrupted_suffix: object,
-    *,
-    agent_family_role: object = None,
-) -> str:
-    """Return the ``@`` suffix template for a question-answer follow-up."""
-    info = _parse_plan_chain_suffix(
-        interrupted_suffix,
-        agent_family_role=agent_family_role,
-    )
-    if info is not None and info.is_root_question:
-        return f"{AGENT_FAMILY_SEPARATOR}@"
-    if info is not None and info.is_phase_question and info.parent_suffix:
-        return f"{info.parent_suffix}-@"
-    canonical = canonical_plan_chain_suffix(interrupted_suffix)
-    if canonical is None:
-        canonical = PLAN_CHAIN_PLAN_SUFFIX
-    return f"{canonical}-@"
 
 
 def _reserved_agent_family_names(

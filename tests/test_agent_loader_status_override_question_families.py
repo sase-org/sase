@@ -7,7 +7,7 @@ from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
 
 def test_apply_status_overrides_plan_suffix_inherited_question_stays_done() -> None:
-    """A --plan continuation with only the inherited root question is not QUESTION."""
+    """A --plan continuation with only the inherited parent question is not QUESTION."""
     question_time = datetime(2026, 6, 23, 7, 5, 49)
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
@@ -34,7 +34,7 @@ def test_apply_status_overrides_plan_suffix_inherited_question_stays_done() -> N
         role_suffix="--plan",
         agent_name="sase-03w--1",
         agent_family="sase-03w",
-        agent_family_role="q",
+        agent_family_role="agent",
         questions_times=[question_time],
     )
     agents = [parent, continuation]
@@ -74,7 +74,7 @@ def test_apply_status_overrides_plan_suffix_new_question_round_is_question() -> 
         role_suffix="--plan",
         agent_name="sase-03w--1",
         agent_family="sase-03w",
-        agent_family_role="q",
+        agent_family_role="agent",
         questions_times=[first_question_time, second_question_time],
     )
     agents = [parent, continuation]
@@ -114,7 +114,7 @@ def test_apply_status_overrides_inherited_question_with_new_round_is_question() 
         role_suffix="--1",
         agent_name="sase-4z.5--1",
         agent_family="sase-4z.5",
-        agent_family_role="q",
+        agent_family_role="agent",
         questions_times=[first_question_time, second_question_time],
     )
     agents = [parent, continuation]
@@ -209,16 +209,16 @@ def test_apply_status_overrides_parent_with_answered_question_stays_plan_done() 
         role_suffix=".code",
         questions_times=[datetime(2026, 5, 11, 9, 30, 0)],
     )
-    q_grandchild = Agent(
+    continuation = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
         project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 11, 9, 40, 0),
         parent_timestamp="20260511091000",
-        role_suffix=".q",
+        role_suffix="--1",
     )
-    agents = [parent, code_child, q_grandchild]
+    agents = [parent, code_child, continuation]
     _apply_status_overrides(agents)
 
     assert parent.status == "PLAN DONE"
@@ -340,8 +340,8 @@ def test_apply_status_overrides_numeric_answered_continuation_is_plan_done() -> 
     assert parent.status == "PLAN DONE"
 
 
-def test_apply_status_overrides_root_numeric_question_is_not_feedback_done() -> None:
-    """A '--2' root question row with q metadata is not legacy feedback."""
+def test_apply_status_overrides_ordinary_answered_continuation_is_done() -> None:
+    """An ordinary answered continuation is not treated as plan feedback."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -363,10 +363,10 @@ def test_apply_status_overrides_root_numeric_question_is_not_feedback_done() -> 
         start_time=datetime(2026, 5, 11, 9, 40, 0),
         raw_suffix="20260511094000",
         parent_timestamp="20260511090000",
-        role_suffix="--2",
-        agent_name="aj5--2",
+        role_suffix="--1",
+        agent_name="aj5--1",
         agent_family="aj5",
-        agent_family_role="q",
+        agent_family_role="agent",
         questions_times=[datetime(2026, 5, 11, 9, 30, 0)],
         question_response_path="/tmp/question_response.json",
     )
@@ -400,10 +400,10 @@ def test_apply_status_overrides_numeric_unanswered_continuation_is_question() ->
         start_time=datetime(2026, 5, 11, 9, 40, 0),
         raw_suffix="20260511094000",
         parent_timestamp="20260511090000",
-        role_suffix="-5",
-        agent_name="aj5-5",
+        role_suffix="--1",
+        agent_name="aj5--1",
         agent_family="aj5",
-        agent_family_role="feedback",
+        agent_family_role="agent",
         questions_times=[datetime(2026, 5, 11, 9, 30, 0)],
     )
     agents = [parent, latest_child]

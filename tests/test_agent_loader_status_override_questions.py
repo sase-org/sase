@@ -9,7 +9,7 @@ from sase.ace.tui.models.agent_loader import _apply_status_overrides
 def test_apply_status_overrides_done_with_unanswered_question_becomes_question() -> (
     None
 ):
-    """A DONE agent with questions_times and no .q follow-up becomes QUESTION."""
+    """A DONE agent with questions_times and no follow-up becomes QUESTION."""
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
@@ -26,7 +26,7 @@ def test_apply_status_overrides_done_with_unanswered_question_becomes_question()
 
 
 def test_apply_status_overrides_done_with_answered_question_stays_done() -> None:
-    """A DONE agent with a .q follow-up stays DONE (question was answered)."""
+    """A DONE agent with a follow-up stays DONE (question was answered)."""
     parent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
@@ -43,7 +43,7 @@ def test_apply_status_overrides_done_with_answered_question_stays_done() -> None
         status="DONE",
         start_time=datetime(2026, 4, 21, 16, 20, 0),
         parent_timestamp="20260421160427",
-        role_suffix=".q",
+        role_suffix="--1",
     )
     agents = [parent, q_child]
     _apply_status_overrides(agents)
@@ -128,7 +128,7 @@ def test_apply_status_overrides_planner_child_with_answered_family_followup_is_d
 
 
 def test_apply_status_overrides_answered_question_only_family_is_done() -> None:
-    """An answered root-question family shows DONE with an ANSWERED asker row."""
+    """An answered question-only family shows DONE with an ANSWERED asker row."""
     question_time = datetime(2026, 6, 19, 15, 46, 14, 861080)
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
@@ -155,7 +155,7 @@ def test_apply_status_overrides_answered_question_only_family_is_done() -> None:
         role_suffix="--1",
         agent_name="sase-4z.5--1",
         agent_family="sase-4z.5",
-        agent_family_role="q",
+        agent_family_role="agent",
         questions_times=[question_time],
     )
     agents = [parent, continuation]
@@ -211,7 +211,6 @@ def _rename_on_attach_root_step(
         role_suffix="--0",
         agent_name="nr--0",
         agent_family="nr",
-        agent_family_role="q",
         questions_times=[question_time],
         question_response_path=question_response_path,
     )
@@ -235,7 +234,7 @@ def test_apply_status_overrides_rename_on_attach_root_step_is_answered() -> None
         role_suffix="--1",
         agent_name="nr--1",
         agent_family="nr",
-        agent_family_role="q",
+        agent_family_role="agent",
     )
 
     _apply_status_overrides([root, continuation], [root_step])

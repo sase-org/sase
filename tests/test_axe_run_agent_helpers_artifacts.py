@@ -115,7 +115,7 @@ def test_promote_to_workflow_renames_generic_root_to_zero_member(tmp_path) -> No
     meta_path = tmp_path / "agent_meta.json"
     meta_path.write_text(json.dumps({"name": "a", "pid": 123}))
 
-    promote_to_workflow(str(tmp_path), "a", role_suffix=".q")
+    promote_to_workflow(str(tmp_path), "a", role_suffix="--0")
 
     meta = json.loads(meta_path.read_text())
     assert meta["name"] == "a--0"
@@ -167,8 +167,8 @@ def test_create_followup_with_name_override(tmp_path) -> None:
     assert meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] == "20260326120000"
 
 
-def test_create_followup_persists_root_question_role_override(tmp_path) -> None:
-    """Ambiguous numeric root question rows persist agent_family_role='q'."""
+def test_create_followup_persists_custom_role_override(tmp_path) -> None:
+    """Ambiguous numeric rows persist the caller's custom family role."""
     new_dir = tmp_path / "new"
     new_dir.mkdir()
 
@@ -183,13 +183,13 @@ def test_create_followup_persists_root_question_role_override(tmp_path) -> None:
             "20260326120000",
             agent_name_override="a--2",
             workflow_name="a",
-            agent_family_role="q",
+            agent_family_role="reviewer",
         )
 
     meta = json.loads((tmp_path / "new" / "agent_meta.json").read_text())
     assert meta["name"] == "a--2"
     assert meta["agent_family"] == "a"
-    assert meta["agent_family_role"] == "q"
+    assert meta["agent_family_role"] == "reviewer"
     assert meta["role_suffix"] == "--2"
 
 
@@ -246,7 +246,7 @@ def test_create_followup_inherits_workspace_dir(tmp_path) -> None:
 
 
 def test_create_followup_inherits_reasoning_effort(tmp_path) -> None:
-    """Retry/question follow-ups preserve the parent's recorded effort."""
+    """Retry/follow-up agents preserve the parent's recorded effort."""
     new_dir = tmp_path / "new"
     new_dir.mkdir()
 
@@ -257,7 +257,7 @@ def test_create_followup_inherits_reasoning_effort(tmp_path) -> None:
         create_followup_artifacts(
             "proj",
             {"name": "a", "model": "test", "reasoning_effort": "xhigh"},
-            ".q",
+            "--1",
             "20260326120000",
         )
 

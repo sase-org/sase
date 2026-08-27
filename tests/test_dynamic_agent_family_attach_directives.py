@@ -15,7 +15,6 @@ from sase.agent.multi_prompt_reference_directives import extract_static_name_dir
 from sase.plan_chain import (
     agent_family_role_for_suffix,
     is_plan_chain_artifact_meta,
-    question_followup_suffix_template,
 )
 from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import extract_prompt_directives
@@ -155,16 +154,6 @@ def test_custom_family_role_classifies_plan_chain_metadata() -> None:
         "reviewer"
     )
     assert is_plan_chain_artifact_meta(meta)
-
-
-def test_arbitrary_family_role_keeps_role_for_question_followup() -> None:
-    assert (
-        question_followup_suffix_template(
-            "--reviewer",
-            agent_family_role="reviewer",
-        )
-        == "--reviewer-@"
-    )
 
 
 def test_family_attach_collision_message_suggests_auto_suffix() -> None:

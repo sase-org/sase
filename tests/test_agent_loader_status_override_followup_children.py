@@ -199,8 +199,10 @@ def test_apply_status_overrides_active_code_child_sets_working_plan() -> None:
     assert code_child.status == "WORKING PLAN"
 
 
-def test_apply_status_overrides_active_code_question_child_sets_working_plan() -> None:
-    """An active '--code-0' continuation is still a code handoff row."""
+def test_apply_status_overrides_active_code_child_continuation_sets_working_plan() -> (
+    None
+):
+    """An active code continuation remains a code handoff row."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -217,7 +219,7 @@ def test_apply_status_overrides_active_code_question_child_sets_working_plan() -
         status="RUNNING",
         start_time=datetime(2026, 4, 20, 10, 10, 0),
         parent_timestamp="20260420100000",
-        role_suffix="--code-0",
+        role_suffix="--1",
         agent_family_role="code",
     )
     agents = [parent, code_child]

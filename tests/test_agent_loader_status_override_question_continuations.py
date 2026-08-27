@@ -38,7 +38,6 @@ def _question_continuation_family_root() -> tuple[Agent, Agent]:
         role_suffix="--0",
         agent_name="0am--0",
         agent_family="0am",
-        agent_family_role="q",
     )
     return parent, root_asker
 
@@ -66,14 +65,14 @@ def _question_continuation(
         role_suffix=role_suffix,
         agent_name=f"0am{role_suffix}",
         agent_family="0am",
-        agent_family_role="q",
+        agent_family_role="agent",
         questions_times=questions_times,
         question_response_path=response_path,
     )
 
 
 def test_apply_status_overrides_answered_question_continuation_asker() -> None:
-    """A q continuation that was answered and handed off shows ANSWERED."""
+    """An ordinary continuation that was answered and handed off shows ANSWERED."""
     second_question_time = datetime(2026, 6, 30, 0, 12, 0)
     parent, root_asker = _question_continuation_family_root()
     first_continuation = _question_continuation(
@@ -108,7 +107,7 @@ def test_apply_status_overrides_answered_question_continuation_asker() -> None:
 def test_apply_status_overrides_question_continuation_before_answer_is_question() -> (
     None
 ):
-    """A completed q continuation with no response still waits for the user."""
+    """A completed continuation with no response still waits for the user."""
     second_question_time = datetime(2026, 6, 30, 0, 12, 0)
     parent, root_asker = _question_continuation_family_root()
     first_continuation = _question_continuation(
@@ -155,7 +154,7 @@ def test_apply_status_overrides_final_question_continuation_stays_done() -> None
 
 
 def test_apply_status_overrides_deep_question_continuation_chain() -> None:
-    """Each handed-off q continuation is ANSWERED in a deeper question chain."""
+    """Each handed-off continuation is ANSWERED in a deeper question chain."""
     second_question_time = datetime(2026, 6, 30, 0, 12, 0)
     third_question_time = datetime(2026, 6, 30, 0, 18, 0)
     parent, root_asker = _question_continuation_family_root()
@@ -226,7 +225,7 @@ def _question_continuation_planner_family(
         role_suffix="--plan",
         agent_name="sase-03w--1",
         agent_family="sase-03w",
-        agent_family_role="q",
+        agent_family_role="agent",
         questions_times=[question_time],
         plan_times=[plan_time],
         plan_action=plan_action,

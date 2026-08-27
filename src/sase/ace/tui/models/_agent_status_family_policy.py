@@ -64,12 +64,8 @@ def has_inherited_family_question(
     agent: Agent,
     parent_by_suffix: dict[str, Agent],
 ) -> bool:
-    """Return True when a root-question continuation only mirrors its asker."""
+    """Return True when a continuation only mirrors its parent's question."""
     if not agent.parent_timestamp or not agent.is_family_member_child:
-        return False
-    # Feedback/code rows can ask their own questions; only root-question
-    # continuations inherit the asker's question timestamp by construction.
-    if agent_family_role(agent) != "q" and agent.agent_family_role != "q":
         return False
     parent = parent_by_suffix.get(agent.parent_timestamp)
     if parent is None:
@@ -269,12 +265,10 @@ def is_answered_continuation_asker(
     agent: Agent,
     children_by_parent: dict[str, list[Agent]],
 ) -> bool:
-    """Return True for a question continuation whose answer handed off."""
+    """Return True for a family child whose answered question handed off."""
     if agent.status != "DONE":
         return False
     if not agent.parent_timestamp or not agent.is_family_member_child:
-        return False
-    if agent_family_role(agent) != "q":
         return False
     if not agent.questions_times or not agent.question_response_path:
         return False
@@ -298,8 +292,6 @@ def is_answered_root_asker_step(
     if not agent.parent_timestamp or not agent.is_workflow_step_child:
         return False
     if not is_main_workflow_agent_step(agent):
-        return False
-    if agent_family_role(agent) != "q":
         return False
     if not agent.questions_times or not agent.question_response_path:
         return False

@@ -7,7 +7,6 @@ from sase.plan_chain import (
     PLAN_CHAIN_GATE_SUFFIX,
     PLAN_CHAIN_MONITOR_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
-    PLAN_CHAIN_QUESTION_SUFFIX,
     agent_family_base,
     agent_family_phase_name,
     agent_family_role_for_suffix,
@@ -15,11 +14,9 @@ from sase.plan_chain import (
     canonical_plan_chain_suffix,
     is_agent_family_member,
     is_plan_feedback_suffix,
-    is_root_question_suffix,
     is_plan_chain_artifact_meta,
     plan_chain_agent_name,
     plan_chain_feedback_round,
-    question_followup_suffix_template,
     _parse_plan_chain_suffix,
     _plan_chain_feedback_suffix,
     _plan_chain_suffix_from_meta,
@@ -28,7 +25,6 @@ from sase.plan_chain import (
 
 def test_plan_chain_agent_names_use_canonical_suffixes() -> None:
     assert plan_chain_agent_name("agent", PLAN_CHAIN_PLAN_SUFFIX) == "agent--plan"
-    assert plan_chain_agent_name("agent", PLAN_CHAIN_QUESTION_SUFFIX) == "agent--q"
     assert plan_chain_agent_name("agent", _plan_chain_feedback_suffix(1)) == "agent--2"
     assert plan_chain_agent_name("agent", PLAN_CHAIN_CODER_SUFFIX) == "agent--code"
 
@@ -36,9 +32,11 @@ def test_plan_chain_agent_names_use_canonical_suffixes() -> None:
 def test_agent_family_role_for_suffix_accepts_new_and_legacy_suffixes() -> None:
     assert agent_family_role_for_suffix("--plan") == "plan"
     assert agent_family_role_for_suffix("-plan") == "plan"
-    assert agent_family_role_for_suffix(".q") == "q"
+    assert agent_family_role_for_suffix(".q") is None
+    assert agent_family_role_for_suffix("-q") is None
+    assert agent_family_role_for_suffix("--q") is None
     assert agent_family_role_for_suffix("--2") == "feedback"
-    assert agent_family_role_for_suffix("--2", agent_family_role="q") == "q"
+    assert agent_family_role_for_suffix("--2", agent_family_role="review") == "review"
     assert agent_family_role_for_suffix("--2", agent_family_role="phase") == "phase"
     assert agent_family_role_for_suffix("-2") == "feedback"
     assert agent_family_role_for_suffix(".code") == "code"
@@ -65,35 +63,19 @@ def test_new_plan_feedback_suffixes_classify_as_feedback() -> None:
     assert plan_chain_agent_name("agent", "--plan-0") == "agent--plan-0"
 
 
-def test_root_question_suffixes_are_role_aware() -> None:
-    assert agent_family_role_for_suffix("--0") == "q"
-    assert agent_family_role_for_suffix("--1") == "q"
+def test_numeric_suffixes_are_feedback_or_custom_members() -> None:
+    assert agent_family_role_for_suffix("--0") is None
+    assert agent_family_role_for_suffix("--1") is None
     assert agent_family_role_for_suffix("--2") == "feedback"
-    assert agent_family_role_for_suffix("--2", agent_family_role="q") == "q"
-    assert is_root_question_suffix("--2", agent_family_role="q")
-    assert not is_plan_feedback_suffix("--2", agent_family_role="q")
+    assert agent_family_role_for_suffix("--2", agent_family_role="review") == "review"
+    assert not is_plan_feedback_suffix("--2", agent_family_role="review")
 
 
-def test_phase_question_suffixes_keep_underlying_role() -> None:
-    code = _parse_plan_chain_suffix("--code-0")
-    assert code is not None
-    assert code.role == "code"
-    assert code.kind == "phase_question"
-    assert code.parent_suffix == "--code"
-
-    feedback = _parse_plan_chain_suffix("--plan-0-0")
-    assert feedback is not None
-    assert feedback.role == "feedback"
-    assert feedback.kind == "phase_question"
-    assert feedback.parent_suffix == "--plan-0"
-
-
-def test_question_followup_suffix_templates() -> None:
-    assert question_followup_suffix_template("--0") == "--@"
-    assert question_followup_suffix_template("--2", agent_family_role="q") == "--@"
-    assert question_followup_suffix_template("--code") == "--code-@"
-    assert question_followup_suffix_template("--code-0") == "--code-@"
-    assert question_followup_suffix_template("--plan-0") == "--plan-0-@"
+def test_retired_nested_question_suffixes_are_not_plan_chain_suffixes() -> None:
+    assert canonical_plan_chain_suffix("--code-0") is None
+    assert canonical_plan_chain_suffix("--plan-0-0") is None
+    assert _parse_plan_chain_suffix("--code-0") is None
+    assert _parse_plan_chain_suffix("--plan-0-0") is None
 
 
 def test_coder_suffix_classifies_as_code() -> None:
@@ -148,14 +130,29 @@ def test_plan_chain_suffix_from_meta_prefers_role_suffix() -> None:
 def test_legacy_suffixes_canonicalize_to_double_dash_suffixes() -> None:
     assert canonical_plan_chain_suffix(".plan") == "--plan"
     assert canonical_plan_chain_suffix("-plan") == "--plan"
-    assert canonical_plan_chain_suffix(".q") == "--q"
-    assert canonical_plan_chain_suffix("-q") == "--q"
+    assert canonical_plan_chain_suffix(".q") is None
+    assert canonical_plan_chain_suffix("-q") is None
     assert canonical_plan_chain_suffix(".code") == "--code"
     assert canonical_plan_chain_suffix("-code") == "--code"
     assert canonical_plan_chain_suffix(".2") == "--2"
     assert canonical_plan_chain_suffix("-2") == "--2"
     assert plan_chain_feedback_round("--10") == 10
     assert plan_chain_feedback_round("-10") == 10
+
+
+def test_historical_canonical_q_suffix_remains_readable_as_custom_token() -> None:
+    assert canonical_plan_chain_suffix("--q") == "--q"
+    assert agent_family_suffix_token("--q") == "q"
+    assert plan_chain_agent_name("agent", "--q") == "agent--q"
+    assert agent_family_base("agent--q") == "agent"
+    assert is_agent_family_member("agent--q")
+    assert is_plan_chain_artifact_meta(
+        {
+            "name": "agent--q",
+            "workflow_name": "agent",
+            "role_suffix": "--q",
+        }
+    )
 
 
 def test_monitor_suffix_classifies_as_monitor_phase() -> None:

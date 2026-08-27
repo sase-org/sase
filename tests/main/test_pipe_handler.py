@@ -105,7 +105,7 @@ def test_pipe_rejects_empty_or_whitespace_prompt(
     assert not (tmp_path / PIPE_PENDING_MARKER).exists()
 
 
-@pytest.mark.parametrize("token", ["plan", "q", "code", "epic", "commit", "mon"])
+@pytest.mark.parametrize("token", ["plan", "code", "epic", "commit", "mon"])
 def test_pipe_rejects_reserved_name_tokens(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -149,6 +149,18 @@ def test_pipe_accepts_review_name_token(
     assert killed == [str(tmp_path)]
     marker = json.loads((tmp_path / PIPE_PENDING_MARKER).read_text(encoding="utf-8"))
     assert marker["name_token"] == "review"
+
+
+def test_pipe_accepts_retired_q_name_token(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_meta(tmp_path)
+    code, killed = _run_pipe(monkeypatch, tmp_path, "continue", name="q")
+    assert code == 0
+    assert killed == [str(tmp_path)]
+    marker = json.loads((tmp_path / PIPE_PENDING_MARKER).read_text(encoding="utf-8"))
+    assert marker["name_token"] == "q"
 
 
 def test_pipe_refuses_when_next_link_exceeds_chain_bound(

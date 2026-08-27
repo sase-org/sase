@@ -233,7 +233,7 @@ def test_apply_status_overrides_root_awaiting_plan_review_mirrors_planner() -> N
     assert planner.status == "PLAN"
 
 
-def test_apply_status_overrides_root_question_synthesizes_zero_child() -> None:
+def test_apply_status_overrides_question_root_synthesizes_zero_child() -> None:
     """A first-agent question root synthesizes the logical '--0' child."""
     question_time = datetime(2026, 5, 17, 9, 0, 0)
     parent = Agent(
@@ -257,7 +257,7 @@ def test_apply_status_overrides_root_question_synthesizes_zero_child() -> None:
     assert parent.status == "QUESTION"
     question_child = next(a for a in agents if a.parent_timestamp == parent.raw_suffix)
     assert question_child.agent_name == "root--0"
-    assert question_child.agent_family_role == "q"
+    assert question_child.agent_family_role is None
     assert question_child.role_suffix == "--0"
     assert question_child.status == "QUESTION"
 

@@ -32,7 +32,6 @@ from sase.memory.read_log import (
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
-    PLAN_CHAIN_QUESTION_SUFFIX,
 )
 from sase.linked_repos import OPENED_LINKED_FILENAME
 from sase.skills.use_log import (
@@ -42,6 +41,7 @@ from sase.skills.use_log import (
 )
 
 _MAJOR_SECTION_RULE = "\u2500" * 50
+HISTORICAL_Q_SUFFIX = "--q"
 
 
 @pytest.fixture(autouse=True)
@@ -494,7 +494,7 @@ def test_family_header_renders_followup_role_attribution(tmp_path: Path) -> None
         workspace_dir=workspace_dir,
         agent_name="alpha--q",
         raw_suffix="20260524-142200-q",
-        role_suffix=PLAN_CHAIN_QUESTION_SUFFIX,
+        role_suffix=HISTORICAL_Q_SUFFIX,
     )
     root.followup_agents = [coder, question]
 

@@ -26,7 +26,6 @@ from sase.plan_chain import (
     PLAN_CHAIN_EPIC_SUFFIX,
     PLAN_CHAIN_MONITOR_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
-    PLAN_CHAIN_QUESTION_SUFFIX,
     canonical_plan_chain_suffix,
 )
 
@@ -35,7 +34,6 @@ _PIPE_NAME_TOKEN_RE = re.compile(r"^[A-Za-z0-9_]+$")
 _RESERVED_PIPE_NAME_TOKENS = frozenset(
     {
         PLAN_CHAIN_PLAN_SUFFIX.removeprefix("--"),
-        PLAN_CHAIN_QUESTION_SUFFIX.removeprefix("--"),
         PLAN_CHAIN_CODER_SUFFIX.removeprefix("--"),
         PLAN_CHAIN_EPIC_SUFFIX.removeprefix("--"),
         PLAN_CHAIN_COMMIT_SUFFIX.removeprefix("--"),

@@ -211,13 +211,13 @@ def test_compute_row_runtime_standalone_coder_active() -> None:
     assert runtime_suffix_ticks(coder, set()) is True
 
 
-def test_compute_row_runtime_standalone_coder_question_continuation_active() -> None:
+def test_compute_row_runtime_standalone_coder_continuation_active() -> None:
     start = datetime(2026, 4, 25, 14, 0, 0)
     now = datetime(2026, 4, 25, 14, 2, 5)
     coder = agent(
         start=start,
         status="TALE APPROVED",
-        role_suffix="--code-0",
+        role_suffix="--1",
     )
     coder.agent_family_role = "code"
 

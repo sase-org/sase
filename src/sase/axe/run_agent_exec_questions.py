@@ -10,7 +10,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.agent.names import render_agent_name_template
 from sase.axe.run_agent_exec_plan import (
     agent_name_for_suffix,
     record_workflow_metadata,
@@ -36,12 +35,10 @@ from sase.core.runner_slots import normalize_wait_priority
 from sase.gate_shell.flag import gate_shell_handoff_enabled
 from sase.plan_chain import (
     AGENT_FAMILY_SEPARATOR,
-    PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_base,
     agent_family_role_for_suffix,
+    agent_family_suffix_token,
     canonical_plan_chain_suffix,
-    is_root_question_suffix,
-    question_followup_suffix_template,
 )
 
 if TYPE_CHECKING:
@@ -75,6 +72,44 @@ def _interrupted_phase_meta(
 def _meta_family_role(meta: dict[str, Any]) -> str | None:
     role = meta.get("agent_family_role")
     return role if isinstance(role, str) and role else None
+
+
+def _question_interrupted_suffix_and_role(
+    state: LoopState,
+    base_meta: dict[str, Any],
+) -> tuple[str, str | None]:
+    """Return the interrupted shell suffix and role for a question handoff."""
+    interrupted_suffix = canonical_plan_chain_suffix(state.current_role_suffix)
+    if interrupted_suffix is None:
+        interrupted_suffix = canonical_plan_chain_suffix(base_meta.get("role_suffix"))
+    if interrupted_suffix is None:
+        interrupted_suffix = f"{AGENT_FAMILY_SEPARATOR}0"
+    if state.agent_step == 1:
+        update_meta_suffix(state.current_artifacts_dir, interrupted_suffix)
+
+    interrupted_role = _meta_family_role(base_meta)
+    if interrupted_role is None:
+        interrupted_role = agent_family_role_for_suffix(interrupted_suffix)
+    if interrupted_role is None:
+        token = agent_family_suffix_token(interrupted_suffix)
+        interrupted_role = (
+            token
+            if token is not None and token != "q" and not token.isdigit()
+            else "agent"
+        )
+    return interrupted_suffix, interrupted_role
+
+
+def _question_successor_fallback_token(reserved_suffixes: tuple[str, ...]) -> str:
+    """Return the first numeric suffix token not already used in this handoff."""
+    reserved = {f"{AGENT_FAMILY_SEPARATOR}0"}
+    for suffix in reserved_suffixes:
+        canonical = canonical_plan_chain_suffix(suffix)
+        reserved.add(canonical or suffix)
+    token = 0
+    while f"{AGENT_FAMILY_SEPARATOR}{token}" in reserved:
+        token += 1
+    return str(token)
 
 
 def _update_sdd_prompt_snapshot_qa(
@@ -111,27 +146,11 @@ def handle_questions_marker(
 
     normalize_handoff_interruption_state(state.current_artifacts_dir)
     finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
-    previous_role_suffix = state.current_role_suffix
     base_meta = _interrupted_phase_meta(state.current_artifacts_dir, ctx.agent_meta)
-    interrupted_role = _meta_family_role(base_meta)
-    first_family_agent_question = state.agent_step == 1
-    first_plan_agent_question = first_family_agent_question and (
-        canonical_plan_chain_suffix(previous_role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
+    interrupted_suffix, interrupted_role = _question_interrupted_suffix_and_role(
+        state,
+        base_meta,
     )
-    interrupted_suffix: str | None
-    if first_plan_agent_question:
-        interrupted_suffix = PLAN_CHAIN_PLAN_SUFFIX
-    elif first_family_agent_question:
-        interrupted_suffix = f"{AGENT_FAMILY_SEPARATOR}0"
-    else:
-        interrupted_suffix = canonical_plan_chain_suffix(previous_role_suffix)
-    if interrupted_suffix is None:
-        interrupted_suffix = (
-            canonical_plan_chain_suffix(base_meta.get("role_suffix"))
-            or f"{AGENT_FAMILY_SEPARATOR}0"
-        )
-    if first_family_agent_question:
-        update_meta_suffix(state.current_artifacts_dir, interrupted_suffix)
 
     questions_submitted_at = datetime.now(UTC).isoformat()
     update_meta_field(
@@ -201,28 +220,13 @@ def handle_questions_marker(
     update_meta_field(state.current_artifacts_dir, "chat_path", _q_chat)
     update_step_marker_chat_path(state.current_artifacts_dir, _q_chat)
 
-    root_sequence = (
-        first_family_agent_question and not first_plan_agent_question
-    ) or is_root_question_suffix(
+    reserved_suffixes = (
+        *(suffix for suffix, _path in state.saved_chat_paths if suffix),
         interrupted_suffix,
-        agent_family_role=interrupted_role,
     )
-    suffix_template = (
-        f"{AGENT_FAMILY_SEPARATOR}@"
-        if root_sequence
-        else question_followup_suffix_template(
-            interrupted_suffix,
-            agent_family_role=interrupted_role,
-        )
-    )
-    followup_role = (
-        "q"
-        if root_sequence
-        else agent_family_role_for_suffix(
-            render_agent_name_template(suffix_template, "0"),
-            agent_family_role=interrupted_role,
-        )
-    )
+    suffix_template = f"{AGENT_FAMILY_SEPARATOR}@"
+    followup_role = interrupted_role
+    fallback_token = _question_successor_fallback_token(reserved_suffixes)
     # Rebuild from the current phase base (code/feedback/planner prompt) so a
     # code-phase question keeps the code prompt and its ``%model`` directive.
     followup_prompt = assemble_question_followup_prompt(
@@ -236,10 +240,7 @@ def handle_questions_marker(
             base_meta=base_meta,
             prompt=followup_prompt,
             suffix_template=suffix_template,
-            extra_reserved_suffixes=(
-                *(suffix for suffix, _path in state.saved_chat_paths if suffix),
-                interrupted_suffix,
-            ),
+            extra_reserved_suffixes=reserved_suffixes,
             agent_family_role=followup_role,
             relationships={
                 **question_relationships,
@@ -247,7 +248,7 @@ def handle_questions_marker(
             },
             prompt_artifact_label="Full question prompt",
             promote_role_suffix=interrupted_suffix,
-            fallback_token="1" if root_sequence else "0",
+            fallback_token=fallback_token,
         ),
         create_artifacts=create_followup_artifacts,
         promote=promote_to_workflow,
@@ -400,10 +401,10 @@ def _continue_after_auto_answered_question(
 ) -> None:
     """Continue in-process after the ``%auto`` short-circuit answered a question.
 
-    Mirrors the Off branch's own successor launch -- unchanged suffix, role,
-    relationship, and artifact-label arguments -- except the merged Q&A comes
-    from the family's settled question gate shells, rebuilt here to include
-    the round the gate shell just settled, rather than from
+    Mirrors the Off branch's ordinary successor launch -- suffix allocation,
+    inherited role, relationships, and artifact-label arguments -- except the
+    merged Q&A comes from the family's settled question gate shells, rebuilt
+    here to include the round the gate shell just settled, rather than from
     ``LoopState.qa_rounds``.
     """
     from sase.question_shell import question_rounds
@@ -411,26 +412,10 @@ def _continue_after_auto_answered_question(
     rounds = question_rounds(creation.record.artifacts_dir)
     merged_qa_text = merge_qa_for_prompt(rounds)
 
-    previous_role_suffix = state.current_role_suffix
-    interrupted_role = _meta_family_role(base_meta)
-    first_family_agent_question = state.agent_step == 1
-    first_plan_agent_question = first_family_agent_question and (
-        canonical_plan_chain_suffix(previous_role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
+    interrupted_suffix, interrupted_role = _question_interrupted_suffix_and_role(
+        state,
+        base_meta,
     )
-    interrupted_suffix: str | None
-    if first_plan_agent_question:
-        interrupted_suffix = PLAN_CHAIN_PLAN_SUFFIX
-    elif first_family_agent_question:
-        interrupted_suffix = f"{AGENT_FAMILY_SEPARATOR}0"
-    else:
-        interrupted_suffix = canonical_plan_chain_suffix(previous_role_suffix)
-    if interrupted_suffix is None:
-        interrupted_suffix = (
-            canonical_plan_chain_suffix(base_meta.get("role_suffix"))
-            or f"{AGENT_FAMILY_SEPARATOR}0"
-        )
-    if first_family_agent_question:
-        update_meta_suffix(state.current_artifacts_dir, interrupted_suffix)
 
     from sase.history.chat import save_chat_history
     from sase.history.chat_extras import format_extra_sections
@@ -454,28 +439,13 @@ def _continue_after_auto_answered_question(
     update_meta_field(state.current_artifacts_dir, "chat_path", _q_chat)
     update_step_marker_chat_path(state.current_artifacts_dir, _q_chat)
 
-    root_sequence = (
-        first_family_agent_question and not first_plan_agent_question
-    ) or is_root_question_suffix(
+    reserved_suffixes = (
+        *(suffix for suffix, _path in state.saved_chat_paths if suffix),
         interrupted_suffix,
-        agent_family_role=interrupted_role,
     )
-    suffix_template = (
-        f"{AGENT_FAMILY_SEPARATOR}@"
-        if root_sequence
-        else question_followup_suffix_template(
-            interrupted_suffix,
-            agent_family_role=interrupted_role,
-        )
-    )
-    followup_role = (
-        "q"
-        if root_sequence
-        else agent_family_role_for_suffix(
-            render_agent_name_template(suffix_template, "0"),
-            agent_family_role=interrupted_role,
-        )
-    )
+    suffix_template = f"{AGENT_FAMILY_SEPARATOR}@"
+    followup_role = interrupted_role
+    fallback_token = _question_successor_fallback_token(reserved_suffixes)
     followup_prompt = assemble_question_followup_prompt(base_prompt, rounds)
     continue_as_successor(
         ctx,
@@ -484,10 +454,7 @@ def _continue_after_auto_answered_question(
             base_meta=base_meta,
             prompt=followup_prompt,
             suffix_template=suffix_template,
-            extra_reserved_suffixes=(
-                *(suffix for suffix, _path in state.saved_chat_paths if suffix),
-                interrupted_suffix,
-            ),
+            extra_reserved_suffixes=reserved_suffixes,
             agent_family_role=followup_role,
             relationships={
                 **question_relationships,
@@ -495,7 +462,7 @@ def _continue_after_auto_answered_question(
             },
             prompt_artifact_label="Full question prompt",
             promote_role_suffix=interrupted_suffix,
-            fallback_token="1" if root_sequence else "0",
+            fallback_token=fallback_token,
         ),
         create_artifacts=create_followup_artifacts,
         promote=promote_to_workflow,

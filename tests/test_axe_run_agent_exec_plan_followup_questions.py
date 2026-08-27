@@ -212,7 +212,7 @@ class TestPlanFollowupQuestions:
         assert any(item == "meta:plan_path" for item in order[:create_index])
 
     def test_plan_question_followup_stores_full_prompt_artifact(self, tmp_path) -> None:
-        """Plan-phase questions continue in the first feedback-number slot."""
+        """Plan-phase questions continue in the next ordinary family slot."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         questions = [
@@ -247,16 +247,16 @@ class TestPlanFollowupQuestions:
             state.current_prompt,
             label="Full question prompt",
         )
-        assert state.current_role_suffix == "--plan-0"
-        assert questions_mod.create_followup_artifacts.call_args.args[2] == "--plan-0"
+        assert state.current_role_suffix == "--1"
+        assert questions_mod.create_followup_artifacts.call_args.args[2] == "--1"
         assert (
             questions_mod.create_followup_artifacts.call_args.kwargs[
                 "agent_family_role"
             ]
-            == "feedback"
+            == "plan"
         )
 
-    def test_generic_root_question_followup_uses_one_slot(self, tmp_path) -> None:
+    def test_generic_question_followup_uses_one_slot(self, tmp_path) -> None:
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         state.current_role_suffix = None
@@ -274,7 +274,30 @@ class TestPlanFollowupQuestions:
             questions_mod.create_followup_artifacts.call_args.kwargs[
                 "agent_family_role"
             ]
-            == "q"
+            == "agent"
+        )
+
+    def test_unnamed_plan_question_followup_uses_ordinary_child_fallback(
+        self,
+        tmp_path,
+    ) -> None:
+        ctx = replace(make_ctx(tmp_path), agent_name=None)
+        state = make_state(tmp_path)
+
+        with patch(
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
+            return_value={"answers": [], "global_note": ""},
+        ):
+            outcome = handle_questions_marker({"questions": []}, ctx, state)
+
+        assert outcome is None
+        assert state.current_role_suffix == "--1"
+        assert questions_mod.create_followup_artifacts.call_args.args[2] == "--1"
+        assert (
+            questions_mod.create_followup_artifacts.call_args.kwargs[
+                "agent_family_role"
+            ]
+            == "plan"
         )
 
     def test_external_sdd_question_snapshot_is_committed(self, tmp_path) -> None:
@@ -391,10 +414,10 @@ class TestPlanFollowupQuestions:
         assert state.current_role_suffix == "--2"
         assert questions_mod.create_followup_artifacts.call_args.args[2] == "--2"
 
-    def test_question_followup_ambiguous_root_numeric_uses_q_metadata(
+    def test_question_followup_ambiguous_numeric_inherits_custom_metadata(
         self, tmp_path
     ) -> None:
-        """A root question '--2' row uses metadata to continue as '--3'."""
+        """A custom numeric row uses metadata to continue as an ordinary child."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         state.agent_step = 3
@@ -402,7 +425,7 @@ class TestPlanFollowupQuestions:
         state.saved_chat_paths.append(("--1", "/fake/round1.md"))
         meta_path = tmp_path / "artifacts" / "agent_meta.json"
         meta_path.write_text(
-            json.dumps({"role_suffix": "--2", "agent_family_role": "q"}),
+            json.dumps({"role_suffix": "--2", "agent_family_role": "review"}),
             encoding="utf-8",
         )
 
@@ -419,7 +442,7 @@ class TestPlanFollowupQuestions:
             questions_mod.create_followup_artifacts.call_args.kwargs[
                 "agent_family_role"
             ]
-            == "q"
+            == "review"
         )
 
     def test_multiple_question_rounds_merge_into_one_section(self, tmp_path) -> None:
@@ -540,8 +563,8 @@ class TestPlanFollowupQuestions:
             outcome = handle_questions_marker({"questions": questions}, ctx, state)
 
         assert outcome is None
-        assert state.current_role_suffix == "--code-0"
-        assert questions_mod.create_followup_artifacts.call_args.args[2] == "--code-0"
+        assert state.current_role_suffix == "--1"
+        assert questions_mod.create_followup_artifacts.call_args.args[2] == "--1"
         assert (
             questions_mod.create_followup_artifacts.call_args.kwargs[
                 "agent_family_role"
@@ -589,7 +612,7 @@ class TestPlanFollowupQuestions:
             return_value=round1,
         ):
             handle_questions_marker({"questions": round1_q}, ctx, state)
-        assert state.current_role_suffix == "--code-0"
+        assert state.current_role_suffix == "--1"
         assert state.current_prompt.startswith("%model:@small\n")
         assert state.current_prompt.count("### Questions and Answers") == 1
         assert state.question_base_prompt == code_prompt
@@ -602,7 +625,7 @@ class TestPlanFollowupQuestions:
             return_value=round2,
         ):
             handle_questions_marker({"questions": round2_q}, ctx, state)
-        assert state.current_role_suffix == "--code-1"
+        assert state.current_role_suffix == "--2"
         assert state.current_prompt.startswith("%model:@small\n")
         assert state.current_prompt.count("### Questions and Answers") == 1
         assert "#### Q1: Repro" in state.current_prompt

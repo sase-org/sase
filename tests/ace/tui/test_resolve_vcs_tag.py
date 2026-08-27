@@ -249,8 +249,9 @@ class TestCoderFollowupSuffix:
 
     def test_canonical_coder_suffix(self) -> None:
         assert _is_coder_followup_suffix(".code") is True
-        assert _is_coder_followup_suffix("--code-0") is True
+        assert _is_coder_followup_suffix("--code") is True
 
     def test_non_coder_suffix(self) -> None:
+        assert _is_coder_followup_suffix("--code-0") is False
         assert _is_coder_followup_suffix(".coder") is False
         assert _is_coder_followup_suffix(".epic") is False

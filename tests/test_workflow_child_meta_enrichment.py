@@ -75,7 +75,7 @@ def test_workflow_child_enrichment_derives_planner_identity_only_for_main_agent(
     assert bash.plan_times
 
 
-def test_workflow_child_enrichment_uses_root_question_suffix(tmp_path) -> None:
+def test_workflow_child_enrichment_uses_generic_root_suffix(tmp_path) -> None:
     (tmp_path / "agent_meta.json").write_text(
         json.dumps(
             {
@@ -94,7 +94,7 @@ def test_workflow_child_enrichment_uses_root_question_suffix(tmp_path) -> None:
 
     assert question_child.agent_name == "ap5--0"
     assert question_child.agent_family == "ap5"
-    assert question_child.agent_family_role == "q"
+    assert question_child.agent_family_role is None
     assert question_child.role_suffix == "--0"
 
 

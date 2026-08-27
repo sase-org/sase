@@ -20,7 +20,6 @@ from sase.plan_chain import (
     PLAN_CHAIN_COMMIT_SUFFIX,
     PLAN_CHAIN_EPIC_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
-    PLAN_CHAIN_QUESTION_SUFFIX,
     agent_family_role_for_suffix,
     agent_family_suffix_token,
     canonical_plan_chain_suffix,
@@ -33,7 +32,6 @@ _PLAN_FEEDBACK_SUFFIX_PREFIX = f"{PLAN_CHAIN_PLAN_SUFFIX}-"
 # Compact labels for canonical plan-chain role suffixes.
 _SUFFIX_LABELS = {
     PLAN_CHAIN_PLAN_SUFFIX: "plan",
-    PLAN_CHAIN_QUESTION_SUFFIX: "q",
     PLAN_CHAIN_CODER_SUFFIX: "coder",
     PLAN_CHAIN_EPIC_SUFFIX: "epic",
     PLAN_CHAIN_COMMIT_SUFFIX: "commit",
@@ -42,7 +40,6 @@ _SUFFIX_LABELS = {
 # Fallback labels for ``agent_family_role`` values when no suffix is present.
 _FAMILY_ROLE_LABELS = {
     "plan": "plan",
-    "q": "q",
     "code": "coder",
     "epic": "epic",
     "commit": "commit",
@@ -96,8 +93,6 @@ def compact_role_label(agent: Agent) -> str:
         token = agent_family_suffix_token(agent.role_suffix)
         if token is not None:
             return token
-    if role == "q":
-        return "q"
     if role == "code":
         return "coder"
     if role in {"epic", "commit"}:
@@ -114,6 +109,7 @@ def compact_role_label(agent: Agent) -> str:
         label = _SUFFIX_LABELS.get(suffix)
         if label is not None:
             return label
+        return _compact_suffix_label(suffix)
     if agent.plan_chain_root:
         return "plan"
     family_role = agent.agent_family_role

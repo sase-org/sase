@@ -16,8 +16,8 @@ from .agent import Agent, AgentType
 
 
 # Family-member roles/suffixes that mark a family as having entered a plan
-# chain. ``PLAN_CHAIN_QUESTION_SUFFIX`` / role "q" are deliberately excluded:
-# a question continuation on its own does not make a family a plan family.
+# chain. Ordinary question continuations are excluded: a question handoff on
+# its own does not make a family a plan family.
 PLAN_CHAIN_MEMBER_ROLES = frozenset({"plan", "code", "epic", "commit", "feedback"})
 _PLAN_CHAIN_MEMBER_SUFFIXES = frozenset(
     {
@@ -49,11 +49,9 @@ def merge_feedback_plan_paths(parent: Agent, child: Agent) -> None:
 def is_plan_chain_family_member(agent: Agent) -> bool:
     """Return True when a family member row belongs to a plan chain.
 
-    The suffix clause is what catches a rename-on-attach continuation whose
-    stored ``agent_family_role`` predates a later plan submission (e.g. a
-    root-question continuation rewritten to ``--plan`` when it submitted a
-    tale/plan): its role is still "q" but its canonical suffix already reads
-    "--plan".
+    The suffix clause catches a rename-on-attach continuation whose stored
+    ``agent_family_role`` predates a later plan submission; its canonical
+    suffix already reads ``--plan`` even if the stored role did not change.
     """
     if agent.agent_family_parallel or not agent.is_family_member_child:
         return False

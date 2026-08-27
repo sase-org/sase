@@ -383,7 +383,6 @@ def test_question_continuation_planner_approved_runtime_freezes() -> None:
         raw_suffix="20260623070550",
     )
     child.parent_timestamp = "20260623065702"
-    child.agent_family_role = "q"
 
     ts, elapsed = compute_row_runtime(child, now=datetime(2026, 6, 23, 7, 33, 38))
 

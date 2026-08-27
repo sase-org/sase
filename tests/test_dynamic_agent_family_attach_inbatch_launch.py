@@ -102,7 +102,7 @@ def test_execute_launch_plan_attaches_to_prior_in_batch_named_slot(
     assert chained_payload["parent_timestamp"] == "20260701010102"
     assert chained_payload["parent_is_running"] is True
     assert chained_payload["role_suffix"] == "--1"
-    assert chained_payload["agent_family_role"] == "q"
+    assert chained_payload["agent_family_role"] == "agent"
 
 
 def test_multi_prompt_family_attach_can_reference_earlier_named_segment(

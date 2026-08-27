@@ -157,13 +157,13 @@ def test_finalize_loop_maps_monitored_to_completed_without_resaving_chat(
     assert done["response_path"] == str(tmp_path / "starter-chat.md")
 
 
-def test_finalize_loop_uses_new_phase_question_suffix_for_agent_name(
+def test_finalize_loop_uses_ordinary_question_suffix_for_agent_name(
     tmp_path: Path,
 ) -> None:
     ctx = make_exec_ctx(tmp_path, is_home_mode=False)
     state = LoopState(
         current_prompt="prompt",
-        current_role_suffix="--code-0",
+        current_role_suffix="--1",
         current_artifacts_dir=ctx.artifacts_dir,
         loop_outcome="completed",
         sdd_spec_path=None,
@@ -194,7 +194,7 @@ def test_finalize_loop_uses_new_phase_question_suffix_for_agent_name(
             SimpleNamespace(response_text="done"),
         )
 
-    assert captured["metadata_agent"] == "agent--code-0"
+    assert captured["metadata_agent"] == "agent--1"
 
 
 def test_finalize_loop_uses_retry_fallback_model_for_transcript_metadata(

@@ -505,10 +505,10 @@ def _make_answered_question_family() -> tuple[Agent, Agent]:
     """Build the screenshot shape: an asking code row + answered continuation.
 
     The asking row (``92.f1--code``) carries a stale loader-derived ``QUESTION``
-    status (a historical artifact missing response metadata). A newer
-    same-family continuation (``92.f1--code-0``) carries
-    ``question_response_path`` and started after the asking row submitted its
-    question — proving the question was answered.
+    status (a historical artifact missing response metadata). A newer ordinary
+    same-family continuation (``92.f1--1``) carries ``question_response_path``
+    and started after the asking row submitted its question, proving the
+    question was answered.
     """
     asking = _make_agent(
         cl_name="sase",
@@ -524,11 +524,11 @@ def _make_answered_question_family() -> tuple[Agent, Agent]:
     )
     continuation = _make_agent(
         cl_name="sase",
-        agent_name="92.f1--code-0",
+        agent_name="92.f1--1",
         status="RUNNING",
         raw_suffix="20260617080041",
         parent_timestamp="20260617070857",
-        role_suffix="--code-0",
+        role_suffix="--1",
         agent_family="92.f1",
         agent_family_role="code",
         run_start_time=datetime(2026, 6, 17, 8, 0, 41),
