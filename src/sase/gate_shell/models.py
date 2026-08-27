@@ -35,6 +35,10 @@ class GateShellLaneError(GateShellError):
     """A gate shell's lane could not be resolved."""
 
 
+class GateShellRefError(ValueError):
+    """A gate-shell reference was empty, unknown, or ambiguous."""
+
+
 @dataclass(frozen=True)
 class GateShellRecord:
     """Projection of one gate-shell family member."""
@@ -132,6 +136,7 @@ __all__ = [
     "GateShellError",
     "GateShellLaneError",
     "GateShellRecord",
+    "GateShellRefError",
     "GateShellState",
     "is_gate_shell_member_record",
 ]

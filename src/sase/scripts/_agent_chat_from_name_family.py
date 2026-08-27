@@ -8,6 +8,7 @@ from sase.core.dismissed_agent_completion import (
     FAILURE_OUTCOMES,
     archived_response_path,
 )
+from sase.gate_shell.state import gate_state_is_terminal, is_real_gate_member
 from sase.monitor_state import is_real_monitor_member, monitor_state_is_terminal
 from sase.scripts._agent_chat_from_name_common import (
     json_string,
@@ -33,7 +34,11 @@ def resolve_family_member_shell(
 
     A monitor member is a proc shell, never a chat transcript: its
     ``agent_family_role``/``monitor_id`` markers route it to the durable
-    monitor+proc join instead of the agent chat-path lookup below.
+    monitor+proc join instead of the agent chat-path lookup below. A gate
+    shell has no process while pending -- it settles into a chat file
+    written at settle time, so it is resolved like an agent shell but
+    labelled ``kind="gate"`` so the injected header can tell decisions from
+    conversations.
     """
     meta = read_json_dict(member.artifacts_dir / "agent_meta.json") or {}
     if is_real_monitor_member(
@@ -41,7 +46,43 @@ def resolve_family_member_shell(
         json_string(meta, "monitor_id"),
     ):
         return _resolve_monitor_family_member_shell(member)
+    if is_real_gate_member(
+        json_string(meta, "agent_family_role"),
+        json_string(meta, "gate_id"),
+    ):
+        return _resolve_gate_shell_family_member_shell(member, meta)
     return _resolve_agent_family_member_shell(member)
+
+
+def _resolve_gate_shell_family_member_shell(
+    member: AgentFamilyMember,
+    meta: dict[str, object],
+) -> ForkFamilyMemberSource | ForkExcludedFamilyMember:
+    """Resolve a gate-shell member from its settle-time chat file.
+
+    A pending gate shell is processless and has no chat file yet, so it is
+    excluded as ``"running"`` -- the same exclusion status a still-running
+    monitor gets from the terminal check above.
+    """
+    gate_state = json_string(meta, "gate_state")
+    if not gate_state_is_terminal(gate_state):
+        return ForkExcludedFamilyMember(name=member.name, status="running")
+    meta_path = json_string(meta, "chat_path")
+    if meta_path is None:
+        return ForkExcludedFamilyMember(name=member.name, status="missing transcript")
+    try:
+        validate_readable_transcript(member.name, meta_path)
+    except OSError:
+        return ForkExcludedFamilyMember(
+            name=member.name, status="unreadable transcript"
+        )
+    return ForkFamilyMemberSource(
+        name=member.name,
+        artifact_dir=str(member.artifacts_dir),
+        outcome=gate_state or "unknown",
+        kind="gate",
+        path=meta_path,
+    )
 
 
 def _resolve_monitor_family_member_shell(

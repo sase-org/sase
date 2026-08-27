@@ -16,6 +16,13 @@ from typing import Any, NoReturn
 from rich.console import Console
 from rich.text import Text
 
+from sase.gate_shell.models import GateShellRefError
+from sase.gate_shell.projection import gate_shell_runtime_json
+from sase.gate_shell.store import (
+    find_gate_shell_by_gate_id,
+    list_gate_shells,
+    resolve_gate_shell_ref,
+)
 from sase.notification_gates.branches import GateBranchData
 from sase.notification_gates.cli_support import (
     EXIT_ERROR,
@@ -30,6 +37,10 @@ from sase.notification_gates.model_options import GateOption
 from sase.notification_gates.models import GateError
 from sase.notification_gates.poller import poll_gate
 
+#: Exit code for an unknown or ambiguous ``gate_ref`` positional argument,
+#: mirroring ``sase monitor show``'s ref-resolution failure code.
+EXIT_REF_ERROR = 2
+
 _STATUS_PROJECTION = {
     "responded": "answered",
     "cancelled": "cancelled",
@@ -40,7 +51,11 @@ _STATUS_PROJECTION = {
 def handle_gate_show(args: argparse.Namespace) -> NoReturn:
     """Print one gate's declared decision surface."""
     try:
-        payload = _show(args)
+        kind, request_id = _resolve_kind_and_id(args)
+        payload = _show(kind, request_id)
+    except GateShellRefError as exc:
+        print(f"sase gate show: {exc}", file=sys.stderr)
+        sys.exit(EXIT_REF_ERROR)
     except GateCliError as exc:
         print(f"sase gate show: {exc}", file=sys.stderr)
         sys.exit(EXIT_ERROR)
@@ -57,13 +72,34 @@ def handle_gate_show(args: argparse.Namespace) -> NoReturn:
     sys.exit(EXIT_OK)
 
 
-def _show(args: argparse.Namespace) -> dict[str, Any]:
-    bundle = resolve_gate_cli_bundle(str(args.kind), str(args.id))
+def _resolve_kind_and_id(args: argparse.Namespace) -> tuple[str, str]:
+    """Resolve the ``kind``/``request_id`` pair from ``--id``/``--kind`` or a ref.
+
+    ``gate_ref`` is the only way to address a gate shell by its short id,
+    member name, or owning agent name; ``--id`` plus ``--kind`` remain the
+    exact, surface-neutral contract every other caller (Telegram, the mobile
+    bridge, the conformance matrix) already uses.
+    """
+    request_id = getattr(args, "id", None)
+    kind = getattr(args, "kind", None)
+    gate_ref = getattr(args, "gate_ref", None)
+    if request_id and kind:
+        return str(kind), str(request_id)
+    if request_id or kind:
+        raise GateCliError("-i/--id and -k/--kind must be given together")
+    if not gate_ref:
+        raise GateCliError("pass a gate-shell reference, or -i/--id plus -k/--kind")
+    record = resolve_gate_shell_ref(str(gate_ref), list_gate_shells())
+    return record.kind, record.gate_id
+
+
+def _show(kind: str, request_id: str) -> dict[str, Any]:
+    bundle = resolve_gate_cli_bundle(kind, request_id)
     gate = GateBranchData.from_envelope(
         bundle.envelope, default_feedback=bundle.adapter.default_feedback
     )
     poll = poll_gate(bundle.root)
-    return {
+    payload: dict[str, Any] = {
         "actions": [
             _action_payload(operation) for operation in _operations(bundle.envelope)
         ],
@@ -76,6 +112,11 @@ def _show(args: argparse.Namespace) -> dict[str, Any]:
         "shell": _shell_payload(bundle.envelope),
         "status": "pending" if poll is None else _STATUS_PROJECTION[poll.status],
     }
+    if payload["shell"] is not None:
+        gate_shell = find_gate_shell_by_gate_id(None, bundle.request_id)
+        if gate_shell is not None:
+            payload["gate_shell"] = gate_shell_runtime_json(gate_shell)
+    return payload
 
 
 def _operations(envelope: Mapping[str, Any]) -> tuple[GateOperation, ...]:
@@ -143,6 +184,10 @@ def _print_human_gate(payload: Mapping[str, Any]) -> None:
     shell = payload.get("shell")
     if isinstance(shell, Mapping):
         _print_shell(console, shell)
+
+    gate_shell = payload.get("gate_shell")
+    if isinstance(gate_shell, Mapping):
+        _print_gate_shell_runtime(console, gate_shell)
 
 
 def _print_option(console: Console, option: Mapping[str, Any]) -> None:
@@ -249,6 +294,34 @@ def _print_shell(console: Console, shell: Mapping[str, Any]) -> None:
         if next_policy.get("model"):
             followup.append(f" · model {next_policy['model']}", style="dim")
         console.print(followup, soft_wrap=True)
+
+
+def _print_gate_shell_runtime(console: Console, gate_shell: Mapping[str, Any]) -> None:
+    """Print the live gate-shell state ``sase gate show`` extends onto §5."""
+    console.print(Text("Gate Shell Runtime", style="bold"), soft_wrap=True)
+    line = Text("  ")
+    line.append(str(gate_shell["gate_state"]), style="bold")
+    line.append(f" · {gate_shell['status_label']}", style="dim")
+    line.append(f" · member {gate_shell['member_agent_name']}", style="dim")
+    console.print(line, soft_wrap=True)
+    if gate_shell.get("holds_workspace_claim"):
+        console.print(
+            Text("  holds a workspace claim", style="bold yellow"), soft_wrap=True
+        )
+    if gate_shell.get("followup_agent"):
+        line = Text("  follow-up: ", style="dim")
+        line.append(str(gate_shell["followup_agent"]), style="bold")
+        if gate_shell.get("followup_outcome"):
+            line.append(f" ({gate_shell['followup_outcome']})", style="dim")
+        console.print(line, soft_wrap=True)
+    if gate_shell.get("followup_needs_attention"):
+        reason = gate_shell.get("followup_error") or gate_shell.get(
+            "followup_degraded_reason"
+        )
+        console.print(
+            Text(f"  ⚑ follow-up needs attention: {reason}", style="bold yellow"),
+            soft_wrap=True,
+        )
 
 
 def _status_style(status: str) -> str:

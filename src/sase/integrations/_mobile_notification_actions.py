@@ -53,7 +53,11 @@ def execute_mobile_gate_action(
 ) -> MobileGateActionResult:
     """Resolve any non-question mobile gate through the verified executor."""
     notification = _resolve_gate_notification(prefix)
+    from sase.gate_shell.log import bind_gate_shell_execution_callbacks
+    from sase.gate_shell.settlement import settle_gate_shell
+    from sase.gate_shell.store import find_gate_shell_by_gate_id
     from sase.notification_gates.executor import execute_gate_selection
+    from sase.notification_gates.hashing import load_and_verify_bundle
     from sase.notification_gates.models import GateError
     from sase.notification_gates.paths import RESPONSE_FILENAME, resolve_action_bundle
 
@@ -65,6 +69,26 @@ def execute_mobile_gate_action(
         raise MobileGateActionError(
             "invalid_request", "bundle_path", "v2 gate bundle is missing"
         )
+
+    # A shell-backed gate is defined by the envelope's ``shell`` block, the
+    # same source of truth ``sase gate answer`` uses, so a gate shell settles
+    # and streams live output identically no matter which surface answered
+    # it -- never by the artifact-index scan's own best-effort lookup.
+    try:
+        envelope, _adapter = load_and_verify_bundle(bundle.root)
+    except GateError as exc:
+        raise MobileGateActionError("invalid_request", "bundle_path", str(exc)) from exc
+    shell_backed = isinstance(envelope.get("shell"), dict)
+    gate_shell = (
+        find_gate_shell_by_gate_id(None, str(envelope.get("request_id")))
+        if shell_backed
+        else None
+    )
+    execution_kwargs: dict[str, Any] = (
+        {}
+        if gate_shell is None
+        else bind_gate_shell_execution_callbacks(gate_shell.artifacts_dir).as_kwargs()
+    )
     try:
         execution = execute_gate_selection(
             bundle.root,
@@ -72,6 +96,7 @@ def execute_mobile_gate_action(
             feedback=feedback,
             source="mobile",
             option_inputs=option_inputs,
+            **execution_kwargs,
         )
     except GateError as exc:
         code = (
@@ -86,6 +111,8 @@ def execute_mobile_gate_action(
             notification.id,
             "response already exists",
         )
+    if gate_shell is not None:
+        settle_gate_shell(gate_shell, gate_state="answered", reason="gate answered")
     dismiss_notification_best_effort(notification.id)
     action = notification.action or ""
     return MobileGateActionResult(

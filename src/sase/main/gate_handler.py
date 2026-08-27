@@ -23,8 +23,16 @@ def handle_gate_command(args: argparse.Namespace) -> NoReturn:
         from sase.notification_gates.cli_answer import handle_gate_answer
 
         handle_gate_answer(args)
+    if subcommand == "cancel":
+        from sase.main.gate_shell_handler import handle_gate_shell_cancel
+
+        handle_gate_shell_cancel(args)
     if subcommand == "create":
         _handle_gate_create(args)
+    if subcommand == "list":
+        from sase.main.gate_shell_handler import handle_gate_shell_list
+
+        handle_gate_shell_list(args)
     if subcommand == "show":
         from sase.notification_gates.cli_show import handle_gate_show
 
@@ -34,7 +42,7 @@ def handle_gate_command(args: argparse.Namespace) -> NoReturn:
 
         handle_gate_wait(args)
 
-    print("Usage: sase gate {act,answer,create,show,wait}", file=sys.stderr)
+    print("Usage: sase gate {act,answer,cancel,create,list,show,wait}", file=sys.stderr)
     sys.exit(1)
 
 

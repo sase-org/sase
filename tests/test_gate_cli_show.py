@@ -227,3 +227,73 @@ def test_show_reports_a_missing_bundle(
 
     assert code == 1
     assert "no gate bundle for custom/absent" in capsys.readouterr().err
+
+
+def test_show_rejects_id_without_kind(
+    gate_home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    del gate_home
+
+    code = _run("show", "-i", "show-1")
+
+    assert code == 1
+    assert "-i/--id and -k/--kind must be given together" in capsys.readouterr().err
+
+
+def test_show_rejects_neither_ref_nor_id_and_kind(
+    gate_home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    del gate_home
+
+    code = _run("show")
+
+    assert code == 1
+    assert "pass a gate-shell reference" in capsys.readouterr().err
+
+
+def test_show_resolves_a_gate_shell_by_member_name(
+    gate_home: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A shell-backed gate is also addressable by its member name or id prefix."""
+    del gate_home
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    from tests.gate_shell._cli_fixtures import (
+        make_gate_shell,
+        patch_gate_shell_project_records,
+    )
+
+    gate = create_gate({**_spec("shell-ref-1"), "shell": {}})
+    artifacts_dir = make_gate_shell(
+        "proj", "20260812120000", "acme--gate", lane="acme", gate_id="shell-ref-1"
+    )
+    meta_path = Path(artifacts_dir) / "agent_meta.json"
+    meta = json.loads(meta_path.read_text())
+    meta["gate_bundle_path"] = str(gate.bundle_path)
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+    patch_gate_shell_project_records(monkeypatch, [artifacts_dir])
+
+    code = _run("show", "acme--gate", "--json")
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["request_id"] == "shell-ref-1"
+    assert payload["gate_shell"]["gate_state"] == "pending"
+    assert payload["gate_shell"]["member_agent_name"] == "acme--gate"
+
+
+def test_show_unknown_gate_shell_reference_exits_with_ref_error(
+    gate_home: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    del gate_home
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+
+    code = _run("show", "no-such-gate")
+
+    assert code == 2
+    assert "no gate shell matches" in capsys.readouterr().err

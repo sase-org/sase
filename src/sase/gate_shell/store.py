@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +21,16 @@ from sase.core.agent_scan_wire import (
 from sase.core.agent_scan_wire_markers import AgentMetaWire, DoneMarkerWire
 from sase.core.paths import sase_projects_dir
 from sase.core.wire import known_field_kwargs
-from sase.gate_shell.models import GateShellRecord, is_gate_shell_member_record
+from sase.gate_shell.models import (
+    GateShellRecord,
+    GateShellRefError,
+    is_gate_shell_member_record,
+)
+from sase.gate_shell.naming import short_gate_shell_id
+
+#: A bare id reference must be at least this many characters, mirroring
+#: ``sase.monitor.store.MIN_MONITOR_REF_LENGTH``.
+MIN_GATE_SHELL_REF_LENGTH = 3
 
 
 def read_gate_shell_marker(
@@ -94,6 +104,50 @@ def find_gate_shell_by_gate_id(
     return matches[0] if matches else None
 
 
+def resolve_gate_shell_ref(
+    ref: str, records: Sequence[GateShellRecord]
+) -> GateShellRecord:
+    """Resolve *ref* against *records* by id prefix, member name, or lane.
+
+    Mirrors :func:`sase.monitor.store.resolve_monitor_ref`: a member agent
+    name or lane name must match exactly, with a lane resolving to its
+    active gate shell, else its newest; anything else is tried as a
+    gate-id prefix of at least :data:`MIN_GATE_SHELL_REF_LENGTH` characters.
+    """
+    query = ref.strip()
+    if not query:
+        raise GateShellRefError("gate-shell reference must not be empty")
+
+    by_name = [record for record in records if record.member_agent_name == query]
+    if len(by_name) == 1:
+        return by_name[0]
+
+    by_lane = [record for record in records if record.lane == query]
+    if by_lane:
+        active = [record for record in by_lane if not record.is_terminal]
+        if active:
+            return max(active, key=lambda record: record.timestamp)
+        return max(by_lane, key=lambda record: record.timestamp)
+
+    lowered = query.lower()
+    if len(lowered) < MIN_GATE_SHELL_REF_LENGTH:
+        raise GateShellRefError(
+            f"no gate shell matches reference {ref!r}; a bare id reference must "
+            f"be at least {MIN_GATE_SHELL_REF_LENGTH} characters"
+        )
+    by_id = [record for record in records if record.gate_id.lower().startswith(lowered)]
+    if len(by_id) == 1:
+        return by_id[0]
+    if not by_id:
+        raise GateShellRefError(f"no gate shell matches reference {ref!r}")
+    candidates = ", ".join(
+        f"{short_gate_shell_id(record.gate_id)} ({record.label})" for record in by_id
+    )
+    raise GateShellRefError(
+        f"gate-shell reference {ref!r} is ambiguous; candidates: {candidates}"
+    )
+
+
 def _read_json_object(path: str) -> dict[str, Any] | None:
     try:
         with open(path, encoding="utf-8") as f:
@@ -149,8 +203,10 @@ def _project_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
 
 
 __all__ = [
+    "MIN_GATE_SHELL_REF_LENGTH",
     "find_gate_shell_by_gate_id",
     "has_any_gate_shell",
     "list_gate_shells",
     "read_gate_shell_marker",
+    "resolve_gate_shell_ref",
 ]

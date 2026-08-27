@@ -27,14 +27,24 @@ def fork_source_failure(source: Mapping[str, object]) -> Mapping[str, object] | 
     return value
 
 
+#: Terminal gate states that read as a failure, mirroring
+#: ``sase.gate_shell.state.TERMINAL_GATE_STATES``'s failing members. Kept as a
+#: local literal so this generic history module never imports the domain
+#: gate-shell package.
+GATE_FAILURE_OUTCOMES = frozenset({"failed", "timeout", "lost"})
+
+
 def _fork_member_is_failed(member: Mapping[str, object]) -> bool:
-    """Return whether one family member (agent or proc kind) is terminal-failed."""
+    """Return whether one family member (agent, proc, or gate kind) is failed."""
     if fork_source_failure(member) is not None:
         return True
-    if member.get("kind") != "proc":
-        return False
-    proc = member.get("proc")
-    return isinstance(proc, Mapping) and bool(proc.get("failed"))
+    kind = member.get("kind")
+    if kind == "proc":
+        proc = member.get("proc")
+        return isinstance(proc, Mapping) and bool(proc.get("failed"))
+    if kind == "gate":
+        return member.get("outcome") in GATE_FAILURE_OUTCOMES
+    return False
 
 
 def fork_source_has_failure(source: Mapping[str, object]) -> bool:

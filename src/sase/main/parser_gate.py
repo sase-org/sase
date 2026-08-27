@@ -6,6 +6,20 @@ import argparse
 
 from sase.ops.cli import add_operation_io_flags
 
+# Mirrors ``sase.gate_shell.state.TERMINAL_GATE_STATES`` plus ``pending`` and
+# ``settling``, spelled out here so building the parser never imports the
+# gate-shell engine.
+GATE_SHELL_STATE_CHOICES = (
+    "pending",
+    "settling",
+    "answered",
+    "completed",
+    "failed",
+    "timeout",
+    "stopped",
+    "lost",
+)
+
 
 def register_gate_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``gate`` subcommand parser."""
@@ -26,7 +40,9 @@ def register_gate_parser(subparsers: argparse._SubParsersAction) -> None:
 
     _register_act_parser(gate_subparsers)
     _register_answer_parser(gate_subparsers)
+    _register_cancel_parser(gate_subparsers)
     _register_create_parser(gate_subparsers)
+    _register_list_parser(gate_subparsers)
     _register_show_parser(gate_subparsers)
     _register_wait_parser(gate_subparsers)
 
@@ -220,6 +236,124 @@ def _register_answer_parser(gate_subparsers: argparse._SubParsersAction) -> None
     )
 
 
+def _register_cancel_parser(gate_subparsers: argparse._SubParsersAction) -> None:
+    """Register ``sase gate cancel``."""
+    cancel_parser = gate_subparsers.add_parser(
+        "cancel",
+        help="Cancel one pending gate shell",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Cancel a pending gate shell by id (or unique id prefix), member "
+            "agent name, or owning agent name, mirroring `sase monitor stop`. "
+            "No follow-up agent is launched, even when one was recorded, "
+            "unless the gate had already been answered concurrently -- that "
+            "settles as answered instead."
+        ),
+        epilog=(
+            "exit codes:\n"
+            "  0  cancelled (or already terminal; nothing to do)\n"
+            "  2  the gate-shell reference is unknown or ambiguous\n\n"
+            "examples:\n"
+            "  sase gate cancel acme--gate\n"
+            "  sase gate cancel a1b2c3 --json"
+        ),
+    )
+    cancel_parser.add_argument(
+        "gate_ref",
+        metavar="ID",
+        help="Gate-shell id (or unique prefix), member agent name, or owning agent name",
+    )
+    cancel_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON result",
+    )
+    cancel_parser.add_argument(
+        "-r",
+        "--reason",
+        default=None,
+        metavar="TEXT",
+        help="Reason recorded on the cancellation (default: a generic CLI reason)",
+    )
+
+
+def _register_list_parser(gate_subparsers: argparse._SubParsersAction) -> None:
+    """Register ``sase gate list``."""
+    list_parser = gate_subparsers.add_parser(
+        "list",
+        help="List gate shells (rich table by default, -j/--json for JSON)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "List gate-shell family members, newest first, mirroring `sase "
+            "monitor list`. By default this shows only pending gate shells, "
+            "including any still holding a workspace claim; pass --all to "
+            "include settled ones too."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase gate list\n"
+            "  sase gate list --all --agent acme\n"
+            "  sase gate list --state failed --state timeout\n"
+            "  sase gate list --format markdown\n"
+            "  sase gate list --json"
+        ),
+    )
+    list_parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="Include settled gate shells, not just pending ones",
+    )
+    list_parser.add_argument(
+        "-f",
+        "--format",
+        choices=("table", "markdown", "json"),
+        default="table",
+        help="Output format: 'table' (default), 'markdown', or 'json'",
+    )
+    list_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON envelope (shorthand for --format json)",
+    )
+    list_parser.add_argument(
+        "-l",
+        "--agent",
+        default=None,
+        metavar="NAME",
+        help="Only gate shells belonging to this agent",
+    )
+    list_parser.add_argument(
+        "-n",
+        "--limit",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Show at most N gate shells",
+    )
+    list_parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        metavar="NAME",
+        help="Only gate shells from this project (default: every project)",
+    )
+    list_parser.add_argument(
+        "-s",
+        "--state",
+        action="append",
+        choices=GATE_SHELL_STATE_CHOICES,
+        default=None,
+        metavar="STATE",
+        help=(
+            "Only gate shells in this state; repeat to add more "
+            f"({', '.join(GATE_SHELL_STATE_CHOICES)})"
+        ),
+    )
+
+
 def _register_create_parser(gate_subparsers: argparse._SubParsersAction) -> None:
     """Register ``sase gate create``."""
     create_parser = gate_subparsers.add_parser(
@@ -329,23 +463,39 @@ def _register_show_parser(gate_subparsers: argparse._SubParsersAction) -> None:
         description=(
             "Print what a gate asks for: its branches, each option's declared "
             "input fields with their types, defaults, and choices, and every "
-            "repeatable action it declares. Use it to check that a gate you "
-            "authored asks for what you intended."
+            "repeatable action it declares. A gate shell also prints its "
+            "runtime state, workspace claim, and follow-up disposition. "
+            "Use it to check that a gate you authored asks for what you "
+            "intended."
         ),
         epilog=(
             "exit codes:\n"
             "  0  printed\n"
-            "  1  the gate could not be read\n\n"
+            "  1  the gate could not be read\n"
+            "  2  the gate-shell reference is unknown or ambiguous\n\n"
             "examples:\n"
             "  sase gate show --id custom-1 --kind custom\n"
-            "  sase gate show -i plan-123 -k plan --json"
+            "  sase gate show -i plan-123 -k plan --json\n"
+            "  sase gate show acme--gate\n"
+            "  sase gate show a1b2c3"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     show_parser.add_argument(
+        "gate_ref",
+        nargs="?",
+        default=None,
+        metavar="ID",
+        help=(
+            "Gate-shell id (or unique prefix), member agent name, or owning "
+            "agent name; an alternative to -i/--id plus -k/--kind for a "
+            "gate created with --shell"
+        ),
+    )
+    show_parser.add_argument(
         "-i",
         "--id",
-        required=True,
+        default=None,
         metavar="REQUEST_ID",
         help="Gate request id from the creation descriptor",
     )
@@ -358,7 +508,7 @@ def _register_show_parser(gate_subparsers: argparse._SubParsersAction) -> None:
     show_parser.add_argument(
         "-k",
         "--kind",
-        required=True,
+        default=None,
         help="Gate kind from the creation descriptor",
     )
 

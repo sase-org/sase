@@ -87,13 +87,28 @@ class Surface:
 
 
 def _submit_via_cli(target: SurfaceTarget, submission: Submission) -> SurfaceOutcome:
-    """Answer through ``sase gate answer``, parser and handler included."""
+    """Answer through ``sase gate answer``, parser and handler included.
+
+    ``--no-detach`` is always passed: it is a no-op for an ordinary gate
+    (already synchronous by default) and it is what makes a shell-backed
+    case answerable inline here instead of forking a real background proc --
+    ``tests/test_gate_cli_answer_detach.py`` covers the detached default on
+    its own.
+    """
     import json
 
     from sase.main.gate_handler import handle_gate_command
     from sase.main.parser_gate import register_gate_parser
 
-    argv = ["gate", "answer", "--id", target.request_id, "--kind", target.kind]
+    argv = [
+        "gate",
+        "answer",
+        "--id",
+        target.request_id,
+        "--kind",
+        target.kind,
+        "--no-detach",
+    ]
     for option_id in submission.selected:
         argv += ["--option", option_id]
     if submission.input_data is not None:

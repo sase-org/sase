@@ -212,7 +212,9 @@ def test_parser_registers_gate_create_wait_options_and_help() -> None:
     assert list(gate_subparsers.choices) == [
         "act",
         "answer",
+        "cancel",
         "create",
+        "list",
         "show",
         "wait",
     ]
