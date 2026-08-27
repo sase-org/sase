@@ -19,6 +19,7 @@ from sase.plan_gate import (
     _build_plan_gate_spec,
     create_plan_approval_gate,
 )
+from sase.plan_shell.create import plan_gate_shell_block
 
 from tests._plan_gate_fixtures import (
     plan_gate_home,  # noqa: F401 (registers the gate_home fixture)
@@ -172,6 +173,29 @@ def test_plan_adapter_rejects_non_registered_query_shape(
     with pytest.raises(GateError) as exc_info:
         create_gate(spec)
     assert exc_info.value.code == "invalid_plan_query"
+
+
+def test_plan_adapter_rejects_forged_shell_block(gate_home: Path) -> None:
+    plan = write_plan(gate_home, "forged-shell.md", VALID_TALE_PLAN)
+    spec = _build_plan_gate_spec(
+        plan,
+        "forged-shell",
+        tier="tale",
+        validation=require_plan_approval_validation(plan, "tale"),
+        auto_enabled=False,
+        auto_argument=None,
+        agent_name=None,
+        agent_model=None,
+        agent_llm_provider=None,
+        agent_runtime=None,
+        agent_vcs_tag=None,
+    )
+    spec["shell"] = plan_gate_shell_block("tale")
+    spec["shell"]["branches"]["approve+commit"]["suffix"] = "--plan-@"
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+    assert exc_info.value.code == "invalid_plan_shell"
 
 
 def test_plan_adapter_accepts_tale_group_and_rejects_stale_label(

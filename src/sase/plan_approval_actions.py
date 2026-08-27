@@ -233,6 +233,21 @@ def _execute_neutral_plan_approval_response(
     tier: Literal["tale", "epic"] = (
         "epic" if envelope.get("kind") == "epic_plan" else "tale"
     )
+    from sase.gate_shell.log import bind_gate_shell_execution_callbacks
+    from sase.gate_shell.settlement import settle_gate_shell
+    from sase.gate_shell.store import find_gate_shell_by_gate_id
+
+    shell_backed = isinstance(envelope.get("shell"), dict)
+    gate_shell = (
+        find_gate_shell_by_gate_id(None, str(envelope.get("request_id") or ""))
+        if shell_backed
+        else None
+    )
+    execution_kwargs: dict[str, Any] = (
+        {}
+        if gate_shell is None
+        else bind_gate_shell_execution_callbacks(gate_shell.artifacts_dir).as_kwargs()
+    )
     try:
         selected_option_ids = plan_approval_selection_for_choice(
             selection_choice,
@@ -282,6 +297,7 @@ def _execute_neutral_plan_approval_response(
             source="plan_response",
             epic_launch_origin=epic_launch_origin,
             option_inputs=per_option_inputs,
+            **execution_kwargs,
         )
     except GateError as exc:
         code = (
@@ -290,6 +306,12 @@ def _execute_neutral_plan_approval_response(
             else exc.code
         )
         raise PlanApprovalActionError(code, exc.target, str(exc)) from exc
+    if gate_shell is not None:
+        settle_gate_shell(
+            gate_shell,
+            gate_state="answered",
+            reason="plan approval answered",
+        )
     if execution.already_completed:
         raise PlanApprovalActionError(
             "conflict_already_handled",

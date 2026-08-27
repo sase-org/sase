@@ -175,6 +175,9 @@ def _suppress_live_creator_followup(
 ) -> None:
     if policy is None:
         return
+    if meta.get("gate_kind") in {"plan", "epic_plan"}:
+        meta["gate_followup_outcome"] = "suppressed"
+        return
     prompt = build_suppressed_gate_followup_prompt(
         artifacts_dir,
         meta,
@@ -351,10 +354,19 @@ def _apply_branch_policy(
     meta["gate_next_action"] = policy.prompt
     meta["gate_next_fork"] = policy.fork
     meta["gate_next_output"] = ",".join(policy.output)
+    meta["gate_next_raw_prompt"] = policy.raw_prompt
     if policy.model:
         meta["gate_next_model"] = policy.model
     else:
         meta.pop("gate_next_model", None)
+    if policy.suffix:
+        meta["gate_next_suffix"] = policy.suffix
+    else:
+        meta.pop("gate_next_suffix", None)
+    if policy.role:
+        meta["gate_next_role"] = policy.role
+    else:
+        meta.pop("gate_next_role", None)
 
 
 def _bundle_documents(

@@ -10,7 +10,7 @@ from typing import Any
 from sase.agent import _family_attach_candidates as _candidates
 from sase.agent import _family_attach_directives as _directives
 from sase.agent import _family_attach_types as _types
-from sase.plan_chain import AGENT_FAMILY_SEPARATOR
+from sase.plan_chain import AGENT_FAMILY_SEPARATOR, canonical_plan_chain_suffix
 
 _AgentFamilySnapshot = Callable[[str], Any]
 _DismissedIdentityDicts = Callable[[], list[dict[str, str | None]]]
@@ -229,21 +229,32 @@ def _resolve_role_suffix(
     *,
     pending_family_parents: list[_types.FamilyAttachSibling] | None = None,
 ) -> str:
+    known_suffixes = [
+        *_candidates.known_family_suffixes(records, parent_base),
+        *_candidates.known_family_suffixes_from_siblings(
+            pending_family_parents or [],
+            parent_base,
+        ),
+    ]
     if suffix_arg == "@":
         from sase.plan_chain import allocate_agent_family_child_suffix
 
-        known_suffixes = [
-            *_candidates.known_family_suffixes(records, parent_base),
-            *_candidates.known_family_suffixes_from_siblings(
-                pending_family_parents or [],
-                parent_base,
-            ),
-        ]
         return allocate_agent_family_child_suffix(
             parent_base,
             f"{AGENT_FAMILY_SEPARATOR}@",
             extra_reserved_suffixes=tuple(known_suffixes),
         )
+    if suffix_arg.startswith(AGENT_FAMILY_SEPARATOR) and suffix_arg.endswith("@"):
+        from sase.plan_chain import allocate_agent_family_child_suffix
+
+        return allocate_agent_family_child_suffix(
+            parent_base,
+            suffix_arg,
+            extra_reserved_suffixes=tuple(known_suffixes),
+        )
+    canonical = canonical_plan_chain_suffix(suffix_arg)
+    if canonical is not None:
+        return canonical
     return _directives.normalize_family_suffix_arg(suffix_arg)
 
 

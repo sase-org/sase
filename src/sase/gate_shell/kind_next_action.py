@@ -11,14 +11,29 @@ at settlement and must never turn a settlement into a crash.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from importlib import import_module
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
-_KIND_NEXT_ACTIONS: dict[str, tuple[str, str]] = {
+_NextActionHook = Callable[..., str | None]
+_NextActionTarget = tuple[str, str] | _NextActionHook
+
+
+def _plan_next_action(**kwargs: Any) -> str | None:
+    from sase.plan_shell.followup import plan_next_action
+
+    return plan_next_action(**kwargs)
+
+
+_KIND_NEXT_ACTIONS: dict[str, _NextActionTarget] = {
+    "epic_plan": _plan_next_action,
+    "plan": _plan_next_action,
     "question": ("sase.question_shell.followup", "question_next_action"),
 }
+
+_STRICT_KIND_NEXT_ACTIONS = frozenset({"epic_plan", "plan"})
 
 
 def resolve_shell_next_action(
@@ -34,9 +49,13 @@ def resolve_shell_next_action(
     target = _KIND_NEXT_ACTIONS.get(kind or "")
     if target is None:
         return declared
-    module_name, attribute = target
     try:
-        hook = getattr(import_module(module_name), attribute)
+        hook: _NextActionHook
+        if isinstance(target, tuple):
+            module_name, attribute = target
+            hook = cast(_NextActionHook, getattr(import_module(module_name), attribute))
+        else:
+            hook = target
         resolved = hook(
             artifacts_dir=artifacts_dir,
             meta=meta,
@@ -45,6 +64,8 @@ def resolve_shell_next_action(
             declared=declared,
         )
     except Exception:
+        if kind in _STRICT_KIND_NEXT_ACTIONS:
+            raise
         logger.warning(
             "Gate-shell next-action hook failed for kind %r; using declared prompt",
             kind,

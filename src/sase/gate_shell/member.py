@@ -44,6 +44,7 @@ def create_gate_shell_member(
         "gate_workspace_policy": shell.workspace,
         "gate_next_fork": shell.next.fork,
         "gate_next_output": next_output,
+        "gate_next_raw_prompt": shell.next.raw_prompt,
         "proc_id": None,
         "pid": None,
     }
@@ -51,6 +52,10 @@ def create_gate_shell_member(
         gate_metadata["gate_next_action"] = shell.next.prompt
     if shell.next.model:
         gate_metadata["gate_next_model"] = shell.next.model
+    if shell.next.suffix:
+        gate_metadata["gate_next_suffix"] = shell.next.suffix
+    if shell.next.role:
+        gate_metadata["gate_next_role"] = shell.next.role
 
     return create_family_shell_member(
         project_name,

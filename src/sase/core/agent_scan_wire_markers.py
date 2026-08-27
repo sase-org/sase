@@ -272,6 +272,9 @@ class AgentMetaWire:
     gate_next_fork: str | None = None
     gate_next_output: str | None = None
     gate_next_model: str | None = None
+    gate_next_suffix: str | None = None
+    gate_next_role: str | None = None
+    gate_next_raw_prompt: bool = False
     gate_followup_outcome: str | None = None
     gate_followup_error: str | None = None
     gate_followup_degraded_reason: str | None = None

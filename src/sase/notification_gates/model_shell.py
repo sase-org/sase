@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
+from itertools import combinations
 from typing import Any
 
 from sase.notification_gates.model_validation import (
@@ -24,6 +26,7 @@ GATE_SHELL_WORKSPACES = frozenset({"inherit", "release"})
 GATE_SHELL_NEXT_FORKS = frozenset({"family", "shell", "none"})
 GATE_SHELL_NEXT_OUTPUTS = frozenset({"none", "results", "tail", "file"})
 GATE_SHELL_RESERVED_BRANCHES = frozenset({"timeout", "stopped", "failed"})
+_ROLE_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 _DEFAULT_ACCENTS: tuple[str, ...] = (
     "#FEA775",
@@ -49,6 +52,9 @@ class GateShellNext:
     output: tuple[str, ...] = ("results",)
     fork: str = "family"
     model: str | None = None
+    suffix: str | None = None
+    role: str | None = None
+    raw_prompt: bool = False
 
     @classmethod
     def from_mapping(
@@ -61,10 +67,25 @@ class GateShellNext:
         if value is None:
             return inherited or cls()
         data = json_object(value, target)
-        reject_unknown_fields(data, {"prompt", "output", "fork", "model"}, target)
+        reject_unknown_fields(
+            data,
+            {
+                "prompt",
+                "output",
+                "fork",
+                "model",
+                "suffix",
+                "role",
+                "raw_prompt",
+            },
+            target,
+        )
         base = inherited or cls()
         prompt = _optional_str(data.get("prompt", base.prompt), f"{target}.prompt")
         model = _optional_str(data.get("model", base.model), f"{target}.model")
+        suffix = _optional_str(data.get("suffix", base.suffix), f"{target}.suffix")
+        role = _optional_role(data.get("role", base.role), f"{target}.role")
+        raw_prompt = _raw_prompt(data.get("raw_prompt", base.raw_prompt), target)
         fork = data.get("fork", base.fork)
         if fork not in GATE_SHELL_NEXT_FORKS:
             raise GateError(
@@ -73,18 +94,41 @@ class GateShellNext:
                 "next.fork must be family, shell, or none",
             )
         output = _next_output(data.get("output", list(base.output)), f"{target}.output")
-        return cls(prompt=prompt, output=output, fork=str(fork), model=model)
+        return cls(
+            prompt=prompt,
+            output=output,
+            fork=str(fork),
+            model=model,
+            suffix=suffix,
+            role=role,
+            raw_prompt=raw_prompt,
+        )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "prompt": self.prompt,
             "output": list(self.output),
             "fork": self.fork,
             "model": self.model,
         }
+        if self.suffix is not None:
+            data["suffix"] = self.suffix
+        if self.role is not None:
+            data["role"] = self.role
+        if self.raw_prompt:
+            data["raw_prompt"] = True
+        return data
 
 
-_BRANCH_NEXT_FIELDS = ("prompt", "output", "fork", "model")
+_BRANCH_NEXT_FIELDS = (
+    "prompt",
+    "output",
+    "fork",
+    "model",
+    "suffix",
+    "role",
+    "raw_prompt",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,6 +149,9 @@ class GateShellBranchSpec:
     output: tuple[str, ...] = ("results",)
     fork: str = "family"
     model: str | None = None
+    suffix: str | None = None
+    role: str | None = None
+    raw_prompt: bool = False
 
     @classmethod
     def from_mapping(
@@ -127,10 +174,13 @@ class GateShellBranchSpec:
             output=next_policy.output,
             fork=next_policy.fork,
             model=next_policy.model,
+            suffix=next_policy.suffix,
+            role=next_policy.role,
+            raw_prompt=next_policy.raw_prompt,
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "status": self.status,
             "accent": self.accent,
             "prompt": self.prompt,
@@ -138,6 +188,13 @@ class GateShellBranchSpec:
             "fork": self.fork,
             "model": self.model,
         }
+        if self.suffix is not None:
+            data["suffix"] = self.suffix
+        if self.role is not None:
+            data["role"] = self.role
+        if self.raw_prompt:
+            data["raw_prompt"] = True
+        return data
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,6 +215,7 @@ class GateShellSpec:
         value: object,
         *,
         branches: tuple[tuple[str, ...], ...],
+        allow_branch_subsets: bool = False,
     ) -> GateShellSpec:
         data = json_object(value, "shell")
         reject_unknown_fields(
@@ -202,7 +260,10 @@ class GateShellSpec:
             next=next_policy,
             branches=_branches(
                 data.get("branches", {}),
-                valid_branch_keys=_valid_branch_keys(branches),
+                valid_branch_keys=_valid_branch_keys(
+                    branches,
+                    allow_subsets=allow_branch_subsets,
+                ),
                 inherited_next=next_policy,
             ),
         )
@@ -224,11 +285,19 @@ class GateShellSpec:
         }
 
 
-def _valid_branch_keys(branches: tuple[tuple[str, ...], ...]) -> frozenset[str]:
-    return (
-        frozenset("+".join(branch) for branch in branches)
-        | GATE_SHELL_RESERVED_BRANCHES
-    )
+def _valid_branch_keys(
+    branches: tuple[tuple[str, ...], ...],
+    *,
+    allow_subsets: bool,
+) -> frozenset[str]:
+    keys: set[str] = set()
+    for branch in branches:
+        if allow_subsets:
+            for count in range(1, len(branch) + 1):
+                keys.update("+".join(subset) for subset in combinations(branch, count))
+        else:
+            keys.add("+".join(branch))
+    return frozenset(keys) | GATE_SHELL_RESERVED_BRANCHES
 
 
 def _branches(
@@ -299,6 +368,29 @@ def _optional_str(value: object, target: str) -> str | None:
         return None
     if not isinstance(value, str):
         raise GateError("invalid_shell", target, f"{target} must be a string")
+    return value
+
+
+def _optional_role(value: object, target: str) -> str | None:
+    role = _optional_str(value, target)
+    if role is None:
+        return None
+    if not _ROLE_RE.fullmatch(role):
+        raise GateError(
+            "invalid_shell",
+            target,
+            f"{target} must contain only letters, numbers, and underscores",
+        )
+    return role
+
+
+def _raw_prompt(value: object, target: str) -> bool:
+    if not isinstance(value, bool):
+        raise GateError(
+            "invalid_shell",
+            f"{target}.raw_prompt",
+            "raw_prompt must be a boolean",
+        )
     return value
 
 

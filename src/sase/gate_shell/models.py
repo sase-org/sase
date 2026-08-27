@@ -66,6 +66,9 @@ class GateShellRecord:
     next_fork: str | None = None
     next_output: str | None = None
     next_model: str | None = None
+    next_suffix: str | None = None
+    next_role: str | None = None
+    next_raw_prompt: bool = False
     followup_agent: str | None = None
     followup_outcome: str | None = None
     followup_error: str | None = None
@@ -116,6 +119,9 @@ class GateShellRecord:
             next_fork=meta.gate_next_fork,
             next_output=meta.gate_next_output,
             next_model=meta.gate_next_model,
+            next_suffix=meta.gate_next_suffix,
+            next_role=meta.gate_next_role,
+            next_raw_prompt=meta.gate_next_raw_prompt,
             followup_agent=meta.gate_followup_agent,
             followup_outcome=meta.gate_followup_outcome,
             followup_error=meta.gate_followup_error,

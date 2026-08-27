@@ -192,12 +192,13 @@ def spawn_shell_family_successor(
     workspace_num: int,
     transfer_from_pid: int | None,
     cl_name: str | None = None,
+    suffix: str | None = None,
     agent_family_role: str | None = None,
     spawn_fn: SpawnFn | None = None,
 ) -> AgentLaunchResult:
     """Spawn the next agent member in *family* using family-attach semantics."""
     return spawn_family_successor(
-        FamilyAttachDirective(parent=family, suffix="@"),
+        FamilyAttachDirective(parent=family, suffix=suffix or "@"),
         project_name=project_name,
         prompt=prompt,
         workspace_dir=workspace_dir,

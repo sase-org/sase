@@ -3,7 +3,7 @@
 import os
 import re
 import shutil
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -90,7 +90,7 @@ def add_create_time_frontmatter(
     return f"---\n{fields}\n---\n{content}"
 
 
-def _mark_auto_approved_plan_handled(
+def mark_auto_approved_plan_handled(
     plan_file: str, agent_name: str | None, *, action: str | None = None
 ) -> None:
     """Best-effort: mark PlanApproval actions for this plan handled.
@@ -205,13 +205,8 @@ def handle_plan_approval(
         agent_runtime=agent_runtime,
         agent_vcs_tag=agent_vcs_tag,
     )
-    from sase.plan_gate import original_plan_file_from_bundle
-
-    reviewed_plan = original_plan_file_from_bundle(gate.bundle_path) or (
-        gate.bundle_path / "plan.md"
-    )
     if auto_enabled:
-        _mark_auto_approved_plan_handled(
+        mark_auto_approved_plan_handled(
             plan_file,
             agent_name,
             action=auto_action,
@@ -249,7 +244,7 @@ def handle_plan_approval(
             source="auto_approve",
         )
         auto_resolved = True
-        _mark_auto_approved_plan_handled(
+        mark_auto_approved_plan_handled(
             plan_file,
             agent_name,
             action=current_action,
@@ -269,9 +264,28 @@ def handle_plan_approval(
 
             mark_dismissed(gate.notification_id)
         return None
+
+    return plan_approval_result_from_gate_response(
+        gate.bundle_path,
+        polled.payload,
+        auto_resolved=auto_resolved,
+    )
+
+
+def plan_approval_result_from_gate_response(
+    bundle_path: Path,
+    response: Mapping[str, object],
+    *,
+    auto_resolved: bool = False,
+) -> PlanApprovalResult | None:
+    """Project one neutral plan-gate response into the runner contract."""
+    from sase.plan_gate import original_plan_file_from_bundle
     from sase.plan_gate import translate_plan_gate_response
 
-    response_data = translate_plan_gate_response(gate.bundle_path, polled.payload)
+    reviewed_plan = original_plan_file_from_bundle(bundle_path) or (
+        bundle_path / "plan.md"
+    )
+    response_data = translate_plan_gate_response(bundle_path, response)
     action = response_data.get("action")
     if action in ("approve", "epic", "commit"):
         raw_commit = response_data.get("commit_plan")

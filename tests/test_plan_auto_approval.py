@@ -117,7 +117,7 @@ def test_invalid_auto_epic_does_not_consume_pending_action(tmp_path: Path) -> No
             return_value="epic",
         ),
         patch(
-            "sase.llm_provider._plan_utils._mark_auto_approved_plan_handled"
+            "sase.llm_provider._plan_utils.mark_auto_approved_plan_handled"
         ) as mark_handled,
         pytest.raises(GateError, match="conflicts with the authored tale plan tier"),
     ):

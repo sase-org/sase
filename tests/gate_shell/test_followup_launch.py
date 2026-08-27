@@ -204,6 +204,40 @@ def test_fork_none_omits_the_fork_prefix(
     assert "#fork:" not in captured["prompt"]
 
 
+def test_raw_prompt_omits_wrapper_and_inherited_model_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    member_dir, meta = _make_member(tmp_path)
+    captured: dict[str, Any] = {}
+
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        captured.update(kwargs)
+        return _fake_result()
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+
+    result = launch_gate_followup_agent(
+        member_dir,
+        meta,
+        project_name="proj",
+        gate_state="answered",
+        policy=GateFollowupPolicy(
+            branch_key="cleanup",
+            prompt="Verify the cleanup landed.",
+            output=("results",),
+            fork="none",
+            model=None,
+            raw_prompt=True,
+        ),
+        envelope=_envelope(),
+        response=_response(),
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
+
+    assert result.launched is True
+    assert captured["prompt"] == "Verify the cleanup landed."
+
+
 def test_fork_prefix_is_dropped_when_the_creator_never_settles(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

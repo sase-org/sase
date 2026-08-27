@@ -40,8 +40,11 @@ class GateFollowupPolicy:
     output: tuple[str, ...]
     fork: str
     model: str | None
-    status: str | None
-    accent: str | None
+    suffix: str | None = None
+    role: str | None = None
+    raw_prompt: bool = False
+    status: str | None = None
+    accent: str | None = None
 
 
 def _settlement_branch_key(
@@ -82,29 +85,38 @@ def resolve_gate_followup(
     branch = shell.branches.get(key)
     if gate_state in _ANSWERED_STATES:
         if branch is not None:
-            prompt, output, fork, model = (
+            prompt, output, fork, model, suffix, role, raw_prompt = (
                 branch.prompt,
                 branch.output,
                 branch.fork,
                 branch.model,
+                branch.suffix,
+                branch.role,
+                branch.raw_prompt,
             )
             status, accent = branch.status, branch.accent
         else:
-            prompt, output, fork, model = (
+            prompt, output, fork, model, suffix, role, raw_prompt = (
                 shell.next.prompt,
                 shell.next.output,
                 shell.next.fork,
                 shell.next.model,
+                shell.next.suffix,
+                shell.next.role,
+                shell.next.raw_prompt,
             )
             status, accent = None, None
     else:
         if branch is None:
             return None
-        prompt, output, fork, model = (
+        prompt, output, fork, model, suffix, role, raw_prompt = (
             branch.prompt,
             branch.output,
             branch.fork,
             branch.model,
+            branch.suffix,
+            branch.role,
+            branch.raw_prompt,
         )
         status, accent = branch.status, branch.accent
     if not prompt:
@@ -115,6 +127,9 @@ def resolve_gate_followup(
         output=output,
         fork=fork,
         model=model,
+        suffix=suffix,
+        role=role,
+        raw_prompt=raw_prompt,
         status=status,
         accent=accent,
     )

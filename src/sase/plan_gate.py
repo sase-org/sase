@@ -49,6 +49,36 @@ def create_plan_approval_gate(
     agent_vcs_tag: str | None = None,
 ) -> Any:
     """Create a ``PlanApproval`` or ``EpicApproval`` gate by authored tier."""
+    from sase.notification_gates.service import create_gate
+
+    return create_gate(
+        build_plan_approval_gate_spec(
+            plan_file,
+            session_id,
+            auto_enabled=auto_enabled,
+            auto_argument=auto_argument,
+            agent_name=agent_name,
+            agent_model=agent_model,
+            agent_llm_provider=agent_llm_provider,
+            agent_runtime=agent_runtime,
+            agent_vcs_tag=agent_vcs_tag,
+        )
+    )
+
+
+def build_plan_approval_gate_spec(
+    plan_file: str | Path,
+    session_id: str,
+    *,
+    auto_enabled: bool = False,
+    auto_argument: str | None = None,
+    agent_name: str | None = None,
+    agent_model: str | None = None,
+    agent_llm_provider: str | None = None,
+    agent_runtime: str | None = None,
+    agent_vcs_tag: str | None = None,
+) -> dict[str, Any]:
+    """Return the validated neutral plan gate request before creation."""
     plan_path = Path(plan_file).expanduser()
     from sase.sdd.plan_tiers import read_plan_tier
 
@@ -66,22 +96,18 @@ def create_plan_approval_gate(
     from sase.plan_approval_actions import require_plan_approval_validation
 
     validation = require_plan_approval_validation(plan_path, typed_tier)
-    from sase.notification_gates.service import create_gate
-
-    return create_gate(
-        _build_plan_gate_spec(
-            plan_path,
-            session_id,
-            tier=typed_tier,
-            validation=validation,
-            auto_enabled=auto_enabled,
-            auto_argument=auto_argument,
-            agent_name=agent_name,
-            agent_model=agent_model,
-            agent_llm_provider=agent_llm_provider,
-            agent_runtime=agent_runtime,
-            agent_vcs_tag=agent_vcs_tag,
-        )
+    return _build_plan_gate_spec(
+        plan_path,
+        session_id,
+        tier=typed_tier,
+        validation=validation,
+        auto_enabled=auto_enabled,
+        auto_argument=auto_argument,
+        agent_name=agent_name,
+        agent_model=agent_model,
+        agent_llm_provider=agent_llm_provider,
+        agent_runtime=agent_runtime,
+        agent_vcs_tag=agent_vcs_tag,
     )
 
 
@@ -681,6 +707,7 @@ __all__ = [
     "PLAN_FEEDBACK_OPTION_ID",
     "PLAN_REJECT_OPTION_ID",
     "PLAN_RESOURCE_PATH",
+    "build_plan_approval_gate_spec",
     "create_plan_approval_gate",
     "execute_plan_gate_auto_choice",
     "execute_plan_gate_command",

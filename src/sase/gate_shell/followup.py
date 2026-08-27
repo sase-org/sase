@@ -30,6 +30,7 @@ from sase.shells.followup import (
     starter_identity,
     wait_for_starter,
 )
+from sase.shells.prompt import shell_routing_prefix
 
 _SAVED_FOLLOWUP_PROMPT_NAME = "gate_followup_prompt.md"
 
@@ -90,8 +91,9 @@ def launch_gate_followup_agent(
     )
 
     def _compose(degraded_reason: str | None) -> str:
-        return compose_gate_followup_prompt(
+        return _compose_policy_prompt(
             fork_target=fork_target,
+            policy=policy,
             workspace_degraded_reason=degraded_reason,
             **base_kwargs,
         )
@@ -107,7 +109,8 @@ def launch_gate_followup_agent(
             workspace_num=workspace_num,
             transfer_from_pid=transfer_pid,
             cl_name=_clean_str(meta.get("cl_name")),
-            agent_family_role=starter_role,
+            suffix=policy.suffix,
+            agent_family_role=policy.role or starter_role,
             spawn_fn=spawn_agent_subprocess,
         )
 
@@ -184,8 +187,11 @@ def build_suppressed_gate_followup_prompt(
         response=response,
         reason=reason,
     )
-    return compose_gate_followup_prompt(
-        fork_target=None, workspace_degraded_reason=None, **base_kwargs
+    return _compose_policy_prompt(
+        fork_target=None,
+        policy=policy,
+        workspace_degraded_reason=None,
+        **base_kwargs,
     )
 
 
@@ -248,6 +254,31 @@ def _base_prompt_kwargs(
             declared=policy.prompt,
         ),
     }
+
+
+def _compose_policy_prompt(
+    *,
+    fork_target: str | None,
+    policy: GateFollowupPolicy,
+    model: str | None,
+    reasoning_effort: str | None,
+    next_model: str | None,
+    next_action: str,
+    **kwargs: Any,
+) -> str:
+    """Compose either the legacy gate wrapper or a kind-provided raw prompt."""
+    if policy.raw_prompt:
+        del model, reasoning_effort
+        prefix = shell_routing_prefix(fork_target, None, None, next_model)
+        return f"{prefix}\n{next_action}" if prefix else next_action
+    return compose_gate_followup_prompt(
+        fork_target=fork_target,
+        model=model,
+        reasoning_effort=reasoning_effort,
+        next_model=next_model,
+        next_action=next_action,
+        **kwargs,
+    )
 
 
 def _option_outcomes(

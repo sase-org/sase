@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -71,6 +72,14 @@ _store_followup_prompt_artifact = store_followup_prompt_artifact
 
 class _PlanArchiveProtocolError(RuntimeError):
     """Raised when a current approval response cannot identify its archive."""
+
+
+@dataclass(frozen=True)
+class _AcceptedPlanPreparation:
+    """Prepared accepted-plan outcome before any in-process successor spawn."""
+
+    outcome: str | None = None
+    successor: SuccessorRequest | None = None
 
 
 def _validate_current_archive_protocol(
@@ -194,15 +203,12 @@ def _record_epic_store_failure(
     )
 
 
-def handle_accepted_plan(
+def prepare_accepted_plan_successor(
     plan_result: Any,
     ctx: AgentExecContext,
     state: LoopState,
-) -> str | None:
-    """Persist SDD files for an accepted plan and spawn its follow-up agent.
-
-    Returns a loop-outcome string to break the loop, or ``None`` to continue.
-    """
+) -> _AcceptedPlanPreparation:
+    """Persist SDD files for an accepted plan and prepare its follow-up."""
     if plan_result.action == "epic":
         from sase.plan_approval_actions import require_plan_approval_validation
 
@@ -357,7 +363,7 @@ def handle_accepted_plan(
             plan_result, ctx, state, store_unusable_error
         )
         if outcome is not None:
-            return outcome
+            return _AcceptedPlanPreparation(outcome=outcome)
         # Host-owned: degraded, not failed. Every block between here and the
         # epic return is ``not is_epic``-gated, so the unset ``sdd_store`` /
         # ``sdd_plan_path`` are never dereferenced on the way out.
@@ -421,7 +427,7 @@ def handle_accepted_plan(
             plan_result, ctx, state, store_unusable_error
         )
         if outcome is not None:
-            return outcome
+            return _AcceptedPlanPreparation(outcome=outcome)
         store_unusable_error = None
     plan_committed = bool(
         not is_epic
@@ -452,7 +458,7 @@ def handle_accepted_plan(
             )
 
     if not plan_result.run_coder and plan_result.action != "epic":
-        return "plan_committed"
+        return _AcceptedPlanPreparation(outcome="plan_committed")
 
     if plan_result.action == "epic":
         if not required_sdd_commit_succeeded:
@@ -460,7 +466,7 @@ def handle_accepted_plan(
                 "Approved epic prompt archive entry could not be committed; "
                 "the host-owned epic launch continues independently"
             )
-        return "epic_approved"
+        return _AcceptedPlanPreparation(outcome="epic_approved")
 
     # VCS workflow tag prefix for coder follow-up agents
     vcs_prefix = ctx.vcs_tag or ""
@@ -527,10 +533,8 @@ def handle_accepted_plan(
 
     # The coder starts with a fresh context window; the approved plan file is
     # the hand-off artifact. It does not inherit the planner's chat.
-    continue_as_successor(
-        ctx,
-        state,
-        SuccessorRequest(
+    return _AcceptedPlanPreparation(
+        successor=SuccessorRequest(
             base_meta=followup_base_meta,
             prompt=(
                 f"{model_prefix}{vcs_prefix}"
@@ -553,7 +557,27 @@ def handle_accepted_plan(
             },
             prompt_artifact_label="Full coder prompt",
             model=followup_model,
-        ),
+        )
+    )
+
+
+def handle_accepted_plan(
+    plan_result: Any,
+    ctx: AgentExecContext,
+    state: LoopState,
+) -> str | None:
+    """Persist SDD files for an accepted plan and spawn its follow-up agent.
+
+    Returns a loop-outcome string to break the loop, or ``None`` to continue.
+    """
+    prepared = prepare_accepted_plan_successor(plan_result, ctx, state)
+    if prepared.outcome is not None:
+        return prepared.outcome
+    assert prepared.successor is not None
+    continue_as_successor(
+        ctx,
+        state,
+        prepared.successor,
         create_artifacts=create_followup_artifacts,
         promote=promote_to_workflow,
         store_prompt=_store_followup_prompt_artifact,

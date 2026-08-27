@@ -20,6 +20,7 @@ def validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
     _validate_plan_groups(spec, tier)
     _validate_plan_operations(spec, tier)
     _validate_plan_resources(spec, expected_commands)
+    _validate_plan_shell(spec, tier)
 
 
 def _validate_plan_payload(spec: GateSpec, tier: PlanGateTier, kind: str) -> None:
@@ -149,3 +150,23 @@ def _validate_plan_resources(spec: GateSpec, expected_commands: dict[str, str]) 
                 path,
                 "plan command does not match the registered adapter",
             )
+
+
+def _validate_plan_shell(spec: GateSpec, tier: PlanGateTier) -> None:
+    """If present, pin the additive gate-shell contract to this tier."""
+    if spec.shell is None:
+        return
+    from sase.notification_gates.model_shell import GateShellSpec
+    from sase.plan_shell.create import plan_gate_shell_block
+
+    expected = GateShellSpec.from_mapping(
+        plan_gate_shell_block(tier),
+        branches=spec.branches,
+        allow_branch_subsets=True,
+    )
+    if spec.shell != expected:
+        raise GateError(
+            "invalid_plan_shell",
+            "shell",
+            f"{tier} plan gate shell block does not match the registered adapter",
+        )

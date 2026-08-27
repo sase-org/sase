@@ -246,7 +246,11 @@ class GateSpec:
         )
         primary_branch = normalize_primary_branch(data.get("primary_branch"), branches)
         shell = (
-            GateShellSpec.from_mapping(data["shell"], branches=branches)
+            GateShellSpec.from_mapping(
+                data["shell"],
+                branches=branches,
+                allow_branch_subsets=kind in {"epic_plan", "plan"},
+            )
             if "shell" in data
             else None
         )

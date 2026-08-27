@@ -85,6 +85,9 @@ class LoopState:
     # the chain's ``gate_followup_agent`` link, since this hint does not
     # survive a runner death.
     question_gate_artifacts_dir: str | None = None
+    # In-process hint for plan gate-shell chain discovery. Durable cross-process
+    # recovery uses the settled shell's ``gate_followup_agent`` link.
+    plan_gate_artifacts_dir: str | None = None
 
     def __post_init__(self) -> None:
         if not self.question_base_prompt:

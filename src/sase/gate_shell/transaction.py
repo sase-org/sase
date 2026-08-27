@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from hashlib import sha256
 from pathlib import Path
@@ -80,7 +80,12 @@ class _CreatorContext:
     cl_name: str | None
 
 
-def create_gate_shell(request: Mapping[str, Any] | GateSpec) -> GateShellCreation:
+def create_gate_shell(
+    request: Mapping[str, Any] | GateSpec,
+    *,
+    before_auto_settle: Callable[[GateShellRecord, GateCreationResult], None]
+    | None = None,
+) -> GateShellCreation:
     """Create a gate-shell member, then create the durable gate."""
     spec = _spec_from_request(request)
     if spec.shell is None:
@@ -171,6 +176,9 @@ def create_gate_shell(request: Mapping[str, Any] | GateSpec) -> GateShellCreatio
             gate_result,
         )
         if gate_result.auto_resolution.get("state") == "resolved":
+            if before_auto_settle is not None:
+                before_auto_settle(record, gate_result)
+                record = _read_required_record(project_name, artifacts_dir)
             record = settle_gate_shell(
                 record,
                 gate_state="answered",

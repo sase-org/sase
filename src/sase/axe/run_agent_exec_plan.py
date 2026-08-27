@@ -111,11 +111,21 @@ def handle_plan_marker(
         },
     )
 
-    from sase.llm_provider._plan_utils import handle_plan_approval
-
     # Clear the killed flag set by the plan command's SIGTERM
     # so the poll loop only exits on a NEW kill signal.
     reset_killed()
+    from sase.gate_shell.flag import gate_shell_handoff_enabled
+
+    if gate_shell_handoff_enabled():
+        return _handle_plan_via_gate_shell(
+            plan_data,
+            ctx,
+            state,
+            agent_runtime=agent_runtime,
+        )
+
+    from sase.llm_provider._plan_utils import handle_plan_approval
+
     plan_result = handle_plan_approval(
         plan_data.get("plan_file"),
         str(uuid.uuid4()),
@@ -131,6 +141,52 @@ def handle_plan_marker(
     if plan_result is None:
         return "plan_rejected"
 
+    return _continue_after_plan_result(plan_result, ctx, state)
+
+
+def _handle_plan_via_gate_shell(
+    plan_data: dict[str, Any],
+    ctx: AgentExecContext,
+    state: LoopState,
+    *,
+    agent_runtime: str | None,
+) -> str | None:
+    plan_file = plan_data.get("plan_file")
+    if not isinstance(plan_file, str) or not plan_file:
+        return "plan_rejected"
+
+    from sase.plan_shell import create_plan_gate_shell, plan_result_from_gate_creation
+
+    creation = create_plan_gate_shell(
+        plan_file,
+        session_id=str(uuid.uuid4()),
+        ctx=ctx,
+        state=state,
+        agent_runtime=agent_runtime,
+    )
+    state.plan_gate_artifacts_dir = creation.record.artifacts_dir
+    if not creation.should_handoff:
+        plan_result = plan_result_from_gate_creation(creation)
+        if plan_result is None:
+            return "plan_rejected"
+        return _continue_after_plan_result(plan_result, ctx, state)
+
+    from sase.axe.run_agent_exec_gate import handle_gate_marker
+
+    gate_data = {
+        "gate_id": creation.record.gate_id,
+        "member_artifacts_dir": creation.record.artifacts_dir,
+        "member_agent_name": creation.record.member_agent_name,
+        "kind": creation.record.kind,
+    }
+    return handle_gate_marker(gate_data, ctx, state)
+
+
+def _continue_after_plan_result(
+    plan_result: Any,
+    ctx: AgentExecContext,
+    state: LoopState,
+) -> str | None:
     # Write plan_path.json so the TUI can show the plan
     # in the file panel for the .plan agent entry.
     _write_plan_path_artifact(state.current_artifacts_dir, plan_result.plan_file)
