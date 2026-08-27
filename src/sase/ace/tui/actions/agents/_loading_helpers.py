@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -20,6 +20,11 @@ from sase.agent.status_buckets import (
 
 if TYPE_CHECKING:
     from ....patch import Patch
+    from ...data_providers import (
+        AgentsDataProvider,
+        AgentsProviderSnapshot,
+        AgentsViewport,
+    )
     from ...models import Agent
     from ...models.agent import AgentType  # noqa: F401
     from ...models.agent_loader import AgentLoadState
@@ -75,6 +80,7 @@ class _AgentDiskLoadResult:
     dismissed_bundle_identities: set[tuple[AgentType, str, str | None]] = field(
         default_factory=set
     )
+    provider_snapshot: AgentsProviderSnapshot | None = None
 
 
 def is_always_visible(agent: Agent) -> bool:
@@ -236,6 +242,9 @@ def load_agents_from_disk_with_state(
     full_history: bool = False,
     use_artifact_index: bool = True,
     index_freshness: Literal["revalidate", "cached"] = "cached",
+    search_query: str | None = None,
+    viewport: AgentsViewport | None = None,
+    data_provider: AgentsDataProvider | None = None,
     source: str = "unknown",
 ) -> _AgentDiskLoadResult:
     """Load agents from disk and include the tiered load state."""
@@ -252,14 +261,25 @@ def load_agents_from_disk_with_state(
         index_freshness=index_freshness,
     ) as counters:
         dismissed_bundle_identities = dismissed_bundle_identities_snapshot()
-        result = _load_agents_from_disk_impl(
-            dismissed_agents,
-            dismissed_bundle_identities,
+        if data_provider is None:
+            from ...data_providers import make_agents_data_provider
+
+            data_provider = make_agents_data_provider()
+        provider_snapshot = data_provider.load_agents(
             patch_snapshot=patch_snapshot,
             full_history=full_history,
             use_artifact_index=use_artifact_index,
             index_freshness=index_freshness,
+            search_query=search_query,
+            viewport=viewport,
         )
+        result = _apply_loaded_agent_disk_projections(
+            provider_snapshot.agents,
+            dismissed_agents,
+            dismissed_bundle_identities,
+            provider_snapshot.load_state,
+        )
+        result = replace(result, provider_snapshot=provider_snapshot)
         state = result.load_state
         counters["data_cost"] = classify_agents_data_cost(
             full_history=full_history,
@@ -274,6 +294,10 @@ def load_agents_from_disk_with_state(
         counters["truncated"] = state.truncated
         counters["used_artifact_index"] = state.used_artifact_index
         counters["index_error"] = state.index_error
+        counters["bounded_prefix"] = state.bounded_prefix
+        counters["requested_limit"] = state.requested_limit
+        counters["returned_count"] = state.returned_count
+        counters["has_more"] = state.has_more
         return result
 
 
@@ -386,6 +410,23 @@ def _apply_loaded_agent_disk_projections(
         if retry_state.status == "retrying":
             agent.status = "RETRYING"
 
+    retrying_root_suffixes = {
+        agent.raw_suffix
+        for agent in all_agents
+        if agent.raw_suffix
+        and agent.runner_is_live
+        and agent.retry_status == "retrying"
+    }
+    if retrying_root_suffixes:
+        all_agents[:] = [
+            agent
+            for agent in all_agents
+            if not (
+                agent.is_synthetic_planner
+                and agent.parent_timestamp in retrying_root_suffixes
+            )
+        ]
+
     effective_dismissed = dismissed_agents | dismissed_bundle_identities
 
     # Build secondary index for robust dismissed matching
@@ -414,31 +455,6 @@ def _apply_loaded_agent_disk_projections(
         dismissed_from_loader=dismissed_from_loader,
         load_state=load_state,
         dismissed_bundle_identities=dismissed_bundle_identities,
-    )
-
-
-def _load_agents_from_disk_impl(
-    dismissed_agents: set[tuple[AgentType, str, str | None]],
-    dismissed_bundle_identities: set[tuple[AgentType, str, str | None]],
-    *,
-    patch_snapshot: list[Patch] | None = None,
-    full_history: bool = False,
-    use_artifact_index: bool = True,
-    index_freshness: Literal["revalidate", "cached"] = "cached",
-) -> _AgentDiskLoadResult:
-    from ...models.agent_loader import load_tiered_agents
-
-    all_agents, load_state = load_tiered_agents(
-        patch_snapshot=patch_snapshot,
-        full_history=full_history,
-        use_artifact_index=use_artifact_index,
-        index_freshness=index_freshness,
-    )
-    return _apply_loaded_agent_disk_projections(
-        all_agents,
-        dismissed_agents,
-        dismissed_bundle_identities,
-        load_state,
     )
 
 

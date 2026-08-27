@@ -30,7 +30,6 @@ from .agent import Agent
 APPROVED_PLAN_ACTIONS = frozenset({"approve", "tale", "epic", "commit"})
 APPROVED_PLANNER_ACTIONS = frozenset({"approve", "tale"})
 PLANNER_FAMILY_ROLES = frozenset({"plan", "feedback"})
-EPIC_CREATED_STATUS = "EPIC CREATED"
 
 
 def pending_plan_status_for_agent(agent: Agent) -> str:
@@ -168,19 +167,6 @@ def _approved_planner_status(
     ):
         return TALE_APPROVED_STATUS
     return PLAN_APPROVED_STATUS
-
-
-def _approved_epic_planner_status(parent: Agent) -> str | None:
-    """Return the durable host-owned epic handoff status for a planner row."""
-    is_epic_approved = parent.plan_action == "epic" or parent.status in {
-        EPIC_APPROVED_STATUS,
-        EPIC_CREATED_STATUS,
-    }
-    if not is_epic_approved:
-        return None
-    if parent.epic_bead_id:
-        return EPIC_CREATED_STATUS
-    return EPIC_APPROVED_STATUS
 
 
 def approved_followup_planner_status(agent: Agent) -> str | None:
@@ -332,12 +318,11 @@ def planner_child_status(
     )
     if has_followup_child and parent.questions_times and not parent.plan_times:
         return "ANSWERED"
-    epic_status = _approved_epic_planner_status(parent)
-    if epic_status is not None:
-        return epic_status
     approved_status = _approved_planner_status(parent, all_agents, children_by_parent)
     if approved_status is not None:
         return approved_status
+    if parent.plan_action in {"epic", "commit"}:
+        return "DONE"
     if has_followup_child:
         return "DONE"
     if has_unanswered_completed_question(parent):

@@ -1,9 +1,9 @@
 """Functions for loading and aggregating agents from all sources."""
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
@@ -116,11 +116,15 @@ def _query_artifact_index_for_loader(
     *,
     full_history: bool,
     freshness: Literal["revalidate", "cached"] = "cached",
+    requested_limit: int | None = None,
+    candidate_filter: dict[str, object] | None = None,
 ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
     """Return an index-backed snapshot when the persistent index exists."""
     return _query_artifact_index(
         full_history=full_history,
         freshness=freshness,
+        requested_limit=requested_limit,
+        candidate_filter=candidate_filter,
         default_index_path=default_agent_artifact_index_path,
         projects_root=_projects_root_for_loader,
         query_index=query_agent_artifact_index,
@@ -133,6 +137,8 @@ def _artifact_snapshot_for_tui_load(
     full_history: bool,
     use_artifact_index: bool = True,
     index_freshness: Literal["revalidate", "cached"] = "cached",
+    requested_limit: int | None = None,
+    candidate_filter: dict[str, object] | None = None,
 ) -> tuple[AgentArtifactScanWire, AgentLoadState]:
     """Return the artifact snapshot for a TUI refresh.
 
@@ -146,6 +152,8 @@ def _artifact_snapshot_for_tui_load(
         full_history=full_history,
         use_artifact_index=use_artifact_index,
         index_freshness=index_freshness,
+        requested_limit=requested_limit,
+        candidate_filter=candidate_filter,
         scan_artifacts=_scan_artifacts_for_loader,
         load_tier1_index=_query_artifact_index_for_loader,
     )
@@ -354,6 +362,8 @@ def _load_agents_with_load_state(
     full_history: bool = False,
     use_artifact_index: bool = True,
     index_freshness: Literal["revalidate", "cached"] = "cached",
+    requested_limit: int | None = None,
+    candidate_filter: dict[str, object] | None = None,
 ) -> _AgentLoadResult:
     """Load agents for the TUI and report whether history is complete."""
 
@@ -361,6 +371,8 @@ def _load_agents_with_load_state(
         full_history=full_history,
         use_artifact_index=use_artifact_index,
         index_freshness=index_freshness,
+        requested_limit=requested_limit,
+        candidate_filter=candidate_filter,
     )
     agents, workflow_agent_steps = _load_agents_from_all_sources(
         patch_snapshot=patch_snapshot,
@@ -477,19 +489,70 @@ def load_tiered_agents(
     full_history: bool = False,
     use_artifact_index: bool = True,
     index_freshness: Literal["revalidate", "cached"] = "cached",
+    search_query: str | None = None,
+    requested_limit: int | None = None,
 ) -> tuple[list[Agent], AgentLoadState]:
     """Load agents through the TUI tiered artifact path."""
 
+    from sase.ace.agent_query.pushdown import compile_agent_query_pushdown
+
+    query_plan = compile_agent_query_pushdown(search_query)
+    effective_full_history = full_history or (
+        bool(query_plan.raw_query) and not query_plan.window_safe
+    )
+    effective_limit = (
+        requested_limit
+        if requested_limit is not None
+        and not effective_full_history
+        and query_plan.window_safe
+        else None
+    )
     result = _load_agents_with_load_state(
         patch_snapshot=patch_snapshot,
-        full_history=full_history,
+        full_history=effective_full_history,
         use_artifact_index=use_artifact_index,
         index_freshness=index_freshness,
+        requested_limit=effective_limit,
+        candidate_filter=query_plan.candidate_filter if effective_limit else None,
     )
-    return (
-        _normalize_loaded_agents(result.agents, result.workflow_agent_steps),
-        result.state,
-    )
+    agents = _normalize_loaded_agents(result.agents, result.workflow_agent_steps)
+    if effective_limit is not None and result.state.bounded_prefix:
+        agents, filtered_count = _filter_and_cap_windowed_agents(
+            agents,
+            query_plan.parsed_query,
+            effective_limit,
+        )
+        state = replace(
+            result.state,
+            returned_count=len(agents),
+            has_more=result.state.has_more or filtered_count > len(agents),
+        )
+        return agents, state
+    return agents, result.state
+
+
+def _filter_and_cap_windowed_agents(
+    agents: list[Agent],
+    parsed_query: object | None,
+    requested_limit: int,
+) -> tuple[list[Agent], int]:
+    """Apply exact Python query semantics and cap a bounded provider prefix."""
+
+    filtered = list(agents)
+    if parsed_query is not None:
+        from sase.ace.agent_query import QueryExpr, evaluate_agent_query
+        from sase.core.time import local_now
+        from sase.project_display_names import attach_project_display_names
+
+        attach_project_display_names(filtered)
+        now = local_now()
+        query_expr = cast(QueryExpr, parsed_query)
+        filtered = [
+            agent
+            for agent in filtered
+            if evaluate_agent_query(query_expr, agent, now=now, content_cache=None)
+        ]
+    return filtered[: max(1, requested_limit)], len(filtered)
 
 
 def load_artifact_delta_agents(

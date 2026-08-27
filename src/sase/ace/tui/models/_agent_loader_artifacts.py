@@ -57,6 +57,10 @@ class AgentLoadState:
     truncated: bool = False
     deleted_artifact_dirs: frozenset[str] = field(default_factory=frozenset)
     record_count: int | None = None
+    bounded_prefix: bool = False
+    requested_limit: int | None = None
+    returned_count: int | None = None
+    has_more: bool = False
 
     @property
     def needs_full_history_reconcile(self) -> bool:
@@ -91,6 +95,8 @@ class _Tier1IndexLoader(Protocol):
         *,
         full_history: bool,
         freshness: Literal["revalidate", "cached"] = "cached",
+        requested_limit: int | None = None,
+        candidate_filter: dict[str, object] | None = None,
     ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None: ...
 
 
@@ -98,6 +104,8 @@ def query_artifact_index_for_loader(
     *,
     full_history: bool,
     freshness: Literal["revalidate", "cached"] = "cached",
+    requested_limit: int | None = None,
+    candidate_filter: dict[str, object] | None = None,
     default_index_path: Callable[[], Path],
     projects_root: Callable[[], Path],
     query_index: _ArtifactIndexQuery,
@@ -116,11 +124,15 @@ def query_artifact_index_for_loader(
         include_active=True,
         include_recent_completed=True,
         include_full_history=False,
-        active_limit=_TIER1_ACTIVE_LIMIT,
-        recent_completed_limit=_TIER1_RECENT_COMPLETED_LIMIT,
+        active_limit=None if requested_limit is not None else _TIER1_ACTIVE_LIMIT,
+        recent_completed_limit=(
+            None if requested_limit is not None else _TIER1_RECENT_COMPLETED_LIMIT
+        ),
         include_hidden=False,
         freshness=freshness,
         record_shape="list",
+        window_limit=requested_limit,
+        candidate_filter=candidate_filter,
     )
     try:
         snapshot = query_index(
@@ -146,6 +158,7 @@ def query_artifact_index_for_loader(
             ),
         )
 
+    index_window = snapshot.index_window
     return (
         snapshot,
         AgentLoadState(
@@ -155,6 +168,14 @@ def query_artifact_index_for_loader(
             artifact_source="artifact_index",
             used_artifact_index=True,
             record_count=len(snapshot.records),
+            bounded_prefix=index_window is not None,
+            requested_limit=(
+                None if index_window is None else index_window.requested_limit
+            ),
+            returned_count=(
+                None if index_window is None else index_window.returned_record_count
+            ),
+            has_more=False if index_window is None else index_window.has_more,
         ),
     )
 
@@ -164,6 +185,8 @@ def artifact_snapshot_for_tui_load(
     full_history: bool,
     use_artifact_index: bool,
     index_freshness: Literal["revalidate", "cached"] = "cached",
+    requested_limit: int | None = None,
+    candidate_filter: dict[str, object] | None = None,
     scan_artifacts: _ArtifactScanner,
     load_tier1_index: _Tier1IndexLoader,
 ) -> tuple[AgentArtifactScanWire, AgentLoadState]:
@@ -200,6 +223,8 @@ def artifact_snapshot_for_tui_load(
     indexed = load_tier1_index(
         full_history=full_history,
         freshness=index_freshness,
+        requested_limit=requested_limit,
+        candidate_filter=candidate_filter,
     )
     if indexed is not None:
         return indexed

@@ -20,6 +20,9 @@ from sase.ace.tui.actions.agents._loading_compute import (
 from sase.ace.tui.actions.agents._loading_helpers import (
     load_agents_from_disk_with_state,
 )
+from sase.ace.tui.data_providers import AgentsProviderSnapshot, AgentsViewport
+from sase.ace.tui.data_providers._direct import DirectAgentsDataProvider
+from sase.ace.tui.data_providers._snapshots import agent_snapshot
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.ace.tui.util import trace
@@ -333,3 +336,123 @@ def test_load_from_disk_span_carries_load_state_fields(
     assert row["truncated"] is False
     assert row["used_artifact_index"] is True
     assert row["index_error"] is None
+
+
+def test_load_agents_from_disk_uses_data_provider() -> None:
+    agent = _make_agent("sase-26")
+    load_state = AgentLoadState(
+        tier="tier1",
+        complete_history=False,
+        artifact_source="artifact_index",
+        used_artifact_index=True,
+        bounded_prefix=True,
+        requested_limit=13,
+        returned_count=1,
+        has_more=True,
+    )
+    shared_snapshot = agent_snapshot(
+        [agent],
+        provider_source="direct",
+        prefers_daemon=False,
+        fallback_reason=None,
+        fallback_message=None,
+        snapshot_id="snap-1",
+        page_count=1,
+        full_reload=True,
+    )
+    provider_snapshot = AgentsProviderSnapshot(
+        agents=[agent],
+        workflow_agent_steps=[],
+        load_state=load_state,
+        shared_snapshot=shared_snapshot,
+    )
+    calls: list[dict[str, object]] = []
+
+    class Provider:
+        prefers_daemon = False
+
+        def load_agents(self, **kwargs: object) -> AgentsProviderSnapshot:
+            calls.append(kwargs)
+            return provider_snapshot
+
+    viewport = AgentsViewport(start_row=3, visible_rows=4, prefetch_rows=6)
+    with (
+        patch(
+            "sase.ace.dismissed_agents.dismissed_bundle_identities_snapshot",
+            return_value=set(),
+        ),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
+    ):
+        result = load_agents_from_disk_with_state(
+            set(),
+            patch_snapshot=[],
+            search_query="project:sase",
+            viewport=viewport,
+            data_provider=Provider(),
+        )
+
+    assert result.provider_snapshot is provider_snapshot
+    assert result.all_agents == [agent]
+    assert calls == [
+        {
+            "patch_snapshot": [],
+            "full_history": False,
+            "use_artifact_index": True,
+            "index_freshness": "cached",
+            "search_query": "project:sase",
+            "viewport": viewport,
+        }
+    ]
+
+
+def test_direct_agents_provider_forwards_viewport_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = _make_agent("sase-26")
+    load_state = AgentLoadState(
+        tier="tier1",
+        complete_history=False,
+        artifact_source="artifact_index",
+        used_artifact_index=True,
+        bounded_prefix=True,
+        requested_limit=15,
+        returned_count=1,
+        has_more=True,
+    )
+    calls: list[dict[str, object]] = []
+
+    def fake_load_tiered_agents(**kwargs: object) -> tuple[list[Agent], AgentLoadState]:
+        calls.append(kwargs)
+        return [agent], load_state
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_loader.load_tiered_agents",
+        fake_load_tiered_agents,
+    )
+
+    viewport = AgentsViewport(start_row=5, visible_rows=4, prefetch_rows=6)
+    snapshot = DirectAgentsDataProvider().load_agents(
+        patch_snapshot=[],
+        full_history=False,
+        index_freshness="cached",
+        search_query="model:opus",
+        viewport=viewport,
+    )
+
+    assert calls == [
+        {
+            "patch_snapshot": [],
+            "full_history": False,
+            "use_artifact_index": True,
+            "index_freshness": "cached",
+            "search_query": "model:opus",
+            "requested_limit": 15,
+        }
+    ]
+    assert snapshot.load_state is load_state
+    assert snapshot.shared_snapshot.metadata["requested_limit"] == 15
+    assert snapshot.shared_snapshot.metadata["returned_count"] == 1
+    assert snapshot.shared_snapshot.metadata["has_more"] is True
+    assert snapshot.shared_snapshot.metadata["bounded_prefix"] is True
+    assert snapshot.shared_snapshot.metadata["query"] == "model:opus"
+    assert snapshot.shared_snapshot.metadata["surfaces"] == ["list"]

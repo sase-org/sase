@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from ..models.agent import Agent
 from ..models.agent_loader import AgentLoadState
@@ -56,6 +56,8 @@ class AgentsDataProvider(Protocol):
         *,
         patch_snapshot: list[Any] | None = None,
         full_history: bool = False,
+        use_artifact_index: bool = True,
+        index_freshness: Literal["revalidate", "cached"] = "cached",
         search_query: str | None = None,
         viewport: AgentsViewport | None = None,
     ) -> AgentsProviderSnapshot:

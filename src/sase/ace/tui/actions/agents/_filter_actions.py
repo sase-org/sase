@@ -31,6 +31,7 @@ class AgentFilterActionsMixin:
             self._agent_search_query = new_query
             self._agent_search_query_seeded = False
             self._refilter_agents()  # type: ignore[attr-defined]
+            self._schedule_agents_async_refresh(source="filter")  # type: ignore[attr-defined]
 
         def _validator(value: str) -> None:
             if value:

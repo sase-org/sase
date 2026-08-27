@@ -28,6 +28,7 @@ from sase.core.agent_scan_wire_markers import (
 AGENT_SCAN_WIRE_SCHEMA_VERSION = 7
 AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 24
 AgentArtifactRecordShape = Literal["full", "list"]
+AgentArtifactCandidateField = Literal["project", "cl", "model", "provider", "type"]
 
 # Workflow directory categories the Phase 3A scanner walks.
 #
@@ -131,6 +132,21 @@ class AgentArtifactIndexQueryWire:
     freshness: Literal["revalidate", "cached"] = "revalidate"
     only_monitors: bool = False
     record_shape: AgentArtifactRecordShape = "full"
+    window_limit: int | None = None
+    candidate_filter: dict[str, object] | None = None
+
+
+@dataclass(frozen=True)
+class AgentArtifactIndexWindowWire:
+    """Metadata for an intentionally bounded artifact-index window."""
+
+    requested_limit: int | None = None
+    selected_candidate_count: int = 0
+    returned_record_count: int = 0
+    active_candidate_count: int = 0
+    completed_candidate_count: int = 0
+    has_more: bool = False
+    truncated: bool = False
 
 
 @dataclass(frozen=True)
@@ -326,6 +342,7 @@ class AgentArtifactScanWire:
     projects_root: str
     options: AgentArtifactScanOptionsWire
     stats: AgentArtifactScanStatsWire
+    index_window: AgentArtifactIndexWindowWire | None = None
     records: list[AgentArtifactRecordWire] = field(default_factory=list)
     clan_context: list[AgentClanContextWire] = field(default_factory=list)
 
@@ -333,7 +350,9 @@ class AgentArtifactScanWire:
 __all__ = [
     "AGENT_ARTIFACT_INDEX_SCHEMA_VERSION",
     "AGENT_SCAN_WIRE_SCHEMA_VERSION",
+    "AgentArtifactCandidateField",
     "AgentArtifactIndexQueryWire",
+    "AgentArtifactIndexWindowWire",
     "AgentArtifactRecordShape",
     "AgentArtifactIndexStatusWire",
     "AgentArtifactIndexUpdateWire",

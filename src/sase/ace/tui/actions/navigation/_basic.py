@@ -151,6 +151,11 @@ class BasicNavigationMixin(NavigationMixinBase):
         remember = getattr(self, "_remember_focused_panel_selection", None)
         if callable(remember):
             remember((kind, payload))
+        expand_viewport = getattr(
+            self, "_maybe_schedule_agents_viewport_expansion", None
+        )
+        if callable(expand_viewport):
+            expand_viewport(source="navigation")
 
     def _navigate_visible(self, direction: int) -> None:
         """Cycle ``current_idx`` through agents in rendered order.

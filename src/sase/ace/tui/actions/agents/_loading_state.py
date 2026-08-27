@@ -164,6 +164,7 @@ class AgentLoadingStateMixin:
     # collapses into a single deferred ``_schedule_agents_async_refresh``.
     _agents_refresh_debounce_armed: bool
     _agents_refresh_debounce_source: str
+    _agents_viewport_last_requested_limit: int
     _artifact_index_maintenance_running: bool
     _artifact_index_maintenance_pending: bool
     _artifact_index_maintenance_pending_request: ArtifactIndexMaintenanceRequest | None
@@ -188,6 +189,7 @@ class AgentLoadingStateMixin:
     # `_on_auto_refresh` already apply to their refresh triggers.
     _nav_gate: NavigationGate
     _agent_load_state: AgentLoadState | None
+    _agents_provider_snapshot: object | None
     _agents_index_repair_notice_key: tuple[str | None, str | None] | None
     _agents_seen_complete_history: bool
     _agents_repro_capture: object | None

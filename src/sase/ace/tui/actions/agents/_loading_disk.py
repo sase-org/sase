@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from ...util.trace import tui_trace
+from ...data_providers import AgentsViewport
 from . import _loading_helpers
 from ._loading_compute import (
     attach_finalize_plan_to_boundary,
@@ -40,6 +41,10 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+_DEFAULT_AGENTS_VISIBLE_ROWS = 40
+_MIN_AGENTS_VISIBLE_ROWS = 12
+_MAX_AGENTS_VISIBLE_ROWS = 80
+
 
 def _resolve_load_agents_from_disk_with_state() -> Callable[..., Any]:
     """Resolve through the public facade so existing monkeypatches still work."""
@@ -50,6 +55,39 @@ def _resolve_load_agents_from_disk_with_state() -> Callable[..., Any]:
         _loading_helpers.load_agents_from_disk_with_state,
     )
     return cast(Callable[..., Any], loader)
+
+
+def _agents_viewport_for_load(app: Any) -> AgentsViewport:
+    """Capture the growing-prefix viewport for an Agents-tab provider read."""
+
+    current_tab = getattr(app, "current_tab", "")
+    index_source = (
+        getattr(app, "current_idx", 0)
+        if current_tab == "agents"
+        else getattr(app, "_agents_last_idx", 0)
+    )
+    try:
+        start_row = max(0, int(index_source))
+    except (TypeError, ValueError):
+        start_row = 0
+
+    size = getattr(app, "size", None)
+    height = getattr(size, "height", None)
+    try:
+        visible_rows = (
+            int(height) - 8 if height is not None else _DEFAULT_AGENTS_VISIBLE_ROWS
+        )
+    except (TypeError, ValueError):
+        visible_rows = _DEFAULT_AGENTS_VISIBLE_ROWS
+    visible_rows = max(
+        _MIN_AGENTS_VISIBLE_ROWS,
+        min(_MAX_AGENTS_VISIBLE_ROWS, visible_rows),
+    )
+    return AgentsViewport(
+        start_row=start_row,
+        visible_rows=visible_rows,
+        prefetch_rows=visible_rows * 2,
+    )
 
 
 def _disk_load_with_optional_current_project(
@@ -77,6 +115,36 @@ def _disk_load_with_optional_current_project(
 
 class AgentLoadingDiskMixin(AgentSearchQuerySeedMixin, AgentLoadingDiskSupportMixin):
     """Methods that read agent state from disk and prepare apply snapshots."""
+
+    def _maybe_schedule_agents_viewport_expansion(
+        self,
+        *,
+        source: str = "viewport",
+    ) -> None:
+        """Request a larger bounded prefix when focus enters the prefetch band."""
+
+        load_state = getattr(self, "_agent_load_state", None)
+        if (
+            load_state is None
+            or not load_state.bounded_prefix
+            or not load_state.has_more
+        ):
+            return
+        requested_limit = load_state.requested_limit
+        if requested_limit is None:
+            return
+        viewport = _agents_viewport_for_load(self)
+        if viewport.requested_limit <= requested_limit:
+            return
+        if self.current_idx < max(0, requested_limit - viewport.prefetch_rows):
+            return
+        last_requested = getattr(self, "_agents_viewport_last_requested_limit", 0)
+        if viewport.requested_limit <= last_requested:
+            return
+        self._agents_viewport_last_requested_limit = viewport.requested_limit
+        schedule_refresh = getattr(self, "_schedule_agents_async_refresh", None)
+        if callable(schedule_refresh):
+            schedule_refresh(source=source)
 
     def _load_agents(
         self,
@@ -113,19 +181,31 @@ class AgentLoadingDiskMixin(AgentSearchQuerySeedMixin, AgentLoadingDiskSupportMi
         dismissed_snapshot = set(self._dismissed_agents)
         patch_snapshot = find_all_patches_cached(include_states="all")
         need_seed = self._should_seed_agent_search_query()
-        load_result, current_project = _disk_load_with_optional_current_project(
+        current_project = None
+        if need_seed:
+            from sase.current_project import resolve_current_project
+
+            current_project = resolve_current_project()
+            self._maybe_seed_agent_search_query(current_project)
+        search_query = getattr(self, "_agent_search_query", "") or ""
+        viewport = _agents_viewport_for_load(self)
+        load_result, _ = _disk_load_with_optional_current_project(
             dismissed_snapshot,
-            resolve_current=need_seed,
+            resolve_current=False,
             patch_snapshot=patch_snapshot,
             full_history=full_history,
             use_artifact_index=not getattr(
                 self, "_artifact_index_schema_bypass", False
             ),
             index_freshness=index_freshness,
+            search_query=search_query,
+            viewport=viewport,
             source=source,
         )
-        if need_seed:
-            self._maybe_seed_agent_search_query(current_project)
+        self._agents_provider_snapshot = getattr(load_result, "provider_snapshot", None)
+        self._agents_viewport_last_requested_limit = (
+            load_result.load_state.requested_limit or 0
+        )
         dismissed_bundle_snapshot = set(
             getattr(load_result, "dismissed_bundle_identities", set())
         )
@@ -210,20 +290,51 @@ class AgentLoadingDiskMixin(AgentSearchQuerySeedMixin, AgentLoadingDiskSupportMi
         )
         disk_start = time.perf_counter()
         need_seed = self._should_seed_agent_search_query()
-        load_result, current_project = await asyncio.to_thread(
+        if need_seed:
+            from sase.current_project import resolve_current_project
+
+            current_project = await asyncio.to_thread(resolve_current_project)
+            self._maybe_seed_agent_search_query(current_project)
+        search_query = getattr(self, "_agent_search_query", "") or ""
+        viewport = _agents_viewport_for_load(self)
+        request_key = (
+            search_query,
+            viewport.start_row,
+            viewport.visible_rows,
+            viewport.prefetch_rows,
+        )
+        load_result, _ = await asyncio.to_thread(
             _disk_load_with_optional_current_project,
             dismissed_snapshot,
-            resolve_current=need_seed,
+            resolve_current=False,
             patch_snapshot=patch_snapshot,
             full_history=full_history,
             use_artifact_index=not getattr(
                 self, "_artifact_index_schema_bypass", False
             ),
             index_freshness=index_freshness,
+            search_query=search_query,
+            viewport=viewport,
             source=source,
         )
-        if need_seed:
-            self._maybe_seed_agent_search_query(current_project)
+        if load_result.load_state.bounded_prefix:
+            current_query = getattr(self, "_agent_search_query", "") or ""
+            current_viewport = _agents_viewport_for_load(self)
+            current_key = (
+                current_query,
+                current_viewport.start_row,
+                current_viewport.visible_rows,
+                current_viewport.prefetch_rows,
+            )
+            if current_key != request_key:
+                schedule_refresh = getattr(self, "_schedule_agents_async_refresh", None)
+                if callable(schedule_refresh):
+                    schedule_refresh(source=source)
+                return
+        self._agents_provider_snapshot = getattr(load_result, "provider_snapshot", None)
+        self._agents_viewport_last_requested_limit = (
+            load_result.load_state.requested_limit or 0
+        )
         dismissed_bundle_snapshot = set(
             getattr(load_result, "dismissed_bundle_identities", set())
         )

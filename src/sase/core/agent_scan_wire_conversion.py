@@ -30,6 +30,7 @@ from sase.core.agent_scan_wire_records import (
     AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
     AgentArtifactIndexVacuumWire,
+    AgentArtifactIndexWindowWire,
     AgentArtifactRecordWire,
     AgentArtifactRecordShape,
     AgentArtifactScanOptionsWire,
@@ -102,6 +103,8 @@ def agent_artifact_index_query_to_dict(
         "freshness": query.freshness,
         "only_monitors": query.only_monitors,
         "record_shape": query.record_shape,
+        "window_limit": query.window_limit,
+        "candidate_filter": query.candidate_filter,
     }
 
 
@@ -165,6 +168,26 @@ def _stats_from_dict(data: dict[str, Any]) -> AgentArtifactScanStatsWire:
         json_decode_errors=int(data.get("json_decode_errors", 0)),
         os_errors=int(data.get("os_errors", 0)),
         prompt_step_markers_parsed=int(data.get("prompt_step_markers_parsed", 0)),
+    )
+
+
+def _index_window_from_dict(
+    data: dict[str, Any] | None,
+) -> AgentArtifactIndexWindowWire | None:
+    if not isinstance(data, dict):
+        return None
+    return AgentArtifactIndexWindowWire(
+        requested_limit=(
+            None
+            if data.get("requested_limit") is None
+            else int(data.get("requested_limit") or 0)
+        ),
+        selected_candidate_count=int(data.get("selected_candidate_count", 0)),
+        returned_record_count=int(data.get("returned_record_count", 0)),
+        active_candidate_count=int(data.get("active_candidate_count", 0)),
+        completed_candidate_count=int(data.get("completed_candidate_count", 0)),
+        has_more=bool(data.get("has_more", False)),
+        truncated=bool(data.get("truncated", False)),
     )
 
 
@@ -301,6 +324,7 @@ def agent_scan_wire_from_dict(data: dict[str, Any]) -> AgentArtifactScanWire:
         projects_root=data["projects_root"],
         options=options,
         stats=stats,
+        index_window=_index_window_from_dict(data.get("index_window")),
         records=records,
         clan_context=clan_context,
     )

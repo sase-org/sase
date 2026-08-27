@@ -52,7 +52,7 @@ def test_filter_toggle_refilters_and_schedules_async_refresh() -> None:
     assert app.async_refresh_calls == ["filter"]
 
 
-def test_agent_search_query_refilters_without_async_agents_refresh() -> None:
+def test_agent_search_query_refilters_and_schedules_async_agents_refresh() -> None:
     app = _FilterActionApp()
 
     app._edit_agent_search_query()
@@ -62,7 +62,7 @@ def test_agent_search_query_refilters_without_async_agents_refresh() -> None:
     assert app._agent_search_query == "status:done"
     assert app._agent_search_query_seeded is False
     assert app.refilter_calls == 1
-    assert app.async_refresh_calls == []
+    assert app.async_refresh_calls == ["filter"]
 
 
 # --- Hierarchy preservation --------------------------------------------------

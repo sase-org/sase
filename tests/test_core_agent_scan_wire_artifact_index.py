@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from sase.core.agent_scan_wire import (
+    AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactIndexQueryWire,
     AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
     AgentArtifactIndexVacuumWire,
+    AgentArtifactIndexWindowWire,
     agent_artifact_index_query_to_dict,
     agent_artifact_index_status_from_dict,
     agent_artifact_index_update_from_dict,
     agent_artifact_index_vacuum_from_dict,
+    agent_scan_wire_from_dict,
 )
 
 
@@ -27,6 +30,12 @@ def test_artifact_index_wire_helpers() -> None:
         freshness="cached",
         only_monitors=True,
         record_shape="list",
+        window_limit=75,
+        candidate_filter={
+            "kind": "contains",
+            "field": "project",
+            "value": "sase",
+        },
     )
     assert agent_artifact_index_query_to_dict(query) == {
         "include_active": True,
@@ -38,8 +47,43 @@ def test_artifact_index_wire_helpers() -> None:
         "freshness": "cached",
         "only_monitors": True,
         "record_shape": "list",
+        "window_limit": 75,
+        "candidate_filter": {
+            "kind": "contains",
+            "field": "project",
+            "value": "sase",
+        },
     }
     assert AgentArtifactIndexQueryWire().only_monitors is False
+
+    snapshot = agent_scan_wire_from_dict(
+        {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": "/tmp/projects",
+            "options": {},
+            "stats": {},
+            "records": [],
+            "clan_context": [],
+            "index_window": {
+                "requested_limit": 75,
+                "selected_candidate_count": 30,
+                "returned_record_count": 28,
+                "active_candidate_count": 8,
+                "completed_candidate_count": 22,
+                "has_more": True,
+                "truncated": True,
+            },
+        }
+    )
+    assert snapshot.index_window == AgentArtifactIndexWindowWire(
+        requested_limit=75,
+        selected_candidate_count=30,
+        returned_record_count=28,
+        active_candidate_count=8,
+        completed_candidate_count=22,
+        has_more=True,
+        truncated=True,
+    )
 
     update = agent_artifact_index_update_from_dict(
         {

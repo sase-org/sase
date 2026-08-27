@@ -16,6 +16,7 @@ from .highlighting import (
     tokenize_agent_query_for_display,
 )
 from .parser import AgentQueryParseError, parse_agent_query
+from .pushdown import AgentQueryPushdownPlan, compile_agent_query_pushdown
 from .types import (
     AndExpr,
     DurationCompare,
@@ -31,6 +32,7 @@ from .types import (
 __all__ = [
     "AGENT_QUERY_TOKEN_STYLES",
     "AgentQueryParseError",
+    "AgentQueryPushdownPlan",
     "AndExpr",
     "DurationCompare",
     "NotExpr",
@@ -39,6 +41,7 @@ __all__ = [
     "QueryExpr",
     "StringMatch",
     "evaluate_agent_query",
+    "compile_agent_query_pushdown",
     "parse_agent_query",
     "project_query_term",
     "to_canonical_string",

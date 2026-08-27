@@ -54,6 +54,7 @@ def init_agent_state(self: Any) -> None:
     self._agents_refresh_scheduled_revalidate_index = False
     self._agents_refresh_active_source = "unknown"
     self._agents_refresh_async_tasks = set()
+    self._agents_viewport_last_requested_limit = 0
     self._agents_artifact_delta_scheduled = None
     self._agents_artifact_delta_pending = None
     self._loader_cleanup_running = False
@@ -109,6 +110,7 @@ def init_agent_state(self: Any) -> None:
     self._agent_search_query = ""
     self._agent_search_query_seeded = False
     self._agent_search_query_seed_attempted = False
+    self._agents_provider_snapshot = None
 
     # Cached parsed agent-query AST keyed by raw query string so
     # re-renders skip the parse. ``None`` AST means "no filter".

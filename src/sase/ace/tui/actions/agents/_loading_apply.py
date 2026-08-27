@@ -321,7 +321,9 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         preserved_revived = self._preserve_revived_agents_for_incomplete_load(
             prep, load_state
         )
-        if not incomplete_merge_already_applied:
+        if not incomplete_merge_already_applied and not (
+            load_state is not None and load_state.bounded_prefix
+        ):
             with tui_trace(
                 "agents.incomplete_load_merge",
                 incoming=len(prep.filtered_agents),
