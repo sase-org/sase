@@ -13,7 +13,7 @@ from textual.widgets import Static
 from sase.ace.tui.graphics import ArtifactFileViewSpec, ArtifactFileViewerResult
 from sase.pager._help import PagerHelpScreen
 from sase.pager.app import PagerExit, SasePager
-from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+from sase.pager.document import AttachedTarget, PagerDocument, PagerOrigin, PagerSection
 from sase.pager.resolve import LinkTarget, LinkTargetKind
 
 
@@ -101,6 +101,17 @@ def _searchable_link_source_document(path: Path) -> PagerDocument:
     return PagerDocument(
         sections=(section,), title="source.py", origin=PagerOrigin.FILE
     )
+
+
+def _attached_target_document(*, kind: str = "commit") -> PagerDocument:
+    section = PagerSection(
+        identity="pager-commits",
+        title="Selected commits",
+        kind="commit",
+        body="abc1234  a commit subject\n",
+        targets=(AttachedTarget(kind=kind, target="commit-object", start=0, end=7),),
+    )
+    return PagerDocument(sections=(section,), title="1 file", origin=PagerOrigin.FILE)
 
 
 def _body_scroll(app: SasePager) -> VerticalScroll:
@@ -601,3 +612,66 @@ async def test_media_target_suspends_the_pager_and_shows_a_viewer_warning(
     assert handoffs and handoffs[0]["action"] == "pager_view_media"
     assert ("no viewer available", "warning") in notifications
     assert app.document.title == "source.py"
+
+
+async def test_attached_handler_receives_a_caller_kind_target_on_follow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resolve_calls: list[str] = []
+    monkeypatch.setattr(
+        "sase.pager.app.resolve_ref",
+        lambda ref: resolve_calls.append(ref) or None,
+    )
+    calls: list[tuple[str, str]] = []
+    app = SasePager(
+        _attached_target_document(),
+        attached_handlers={
+            "commit": lambda target, action: calls.append((str(target.target), action))
+        },
+    )
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("0")
+        await pilot.pause()
+
+    assert calls == [("commit-object", "follow")]
+    # A registered handler owns resolution entirely — `resolve_ref` (which
+    # only understands ref strings) must never see a non-ref attached kind.
+    assert resolve_calls == []
+
+
+async def test_attached_handler_receives_the_pending_copy_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str]] = []
+    app = SasePager(
+        _attached_target_document(),
+        attached_handlers={
+            "commit": lambda target, action: calls.append((str(target.target), action))
+        },
+    )
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.press("0")
+        await pilot.pause()
+
+    assert calls == [("commit-object", "copy")]
+
+
+async def test_unregistered_attached_kind_falls_back_to_resolve_ref(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resolve_calls: list[str] = []
+    monkeypatch.setattr(
+        "sase.pager.app.resolve_ref",
+        lambda ref: resolve_calls.append(ref) or None,
+    )
+    app = SasePager(_attached_target_document(kind="other"))
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("0")
+        await pilot.pause(0.1)
+        await pilot.pause(0.1)
+
+    assert resolve_calls == ["abc1234"]

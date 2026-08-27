@@ -1,10 +1,9 @@
 """``SasePager``: the standalone Textual reading surface.
 
-Not wired to any caller yet (design doc phase `viewer`). ``sase bead show``,
-the Agents-tab ``v`` keymap, and the future ``sase pager`` command all run
-this same app in-process — the CLI calls ``.run()``, ACE runs it inside
-``with self.suspend():`` — the way ``MemoryReviewTuiApp`` already proves both
-halves of this exact pattern in this tree (design doc section D1).
+The Agents-tab ``v`` keymap runs this app inside ``with self.suspend():``
+(``sase.ace.tui.actions.hints._files``); the future ``sase pager`` command
+will call ``.run()`` directly — the way ``MemoryReviewTuiApp`` already proves
+both halves of this exact pattern in this tree (design doc section D1).
 """
 
 from __future__ import annotations
@@ -12,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import os
 import subprocess
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Literal
 
@@ -79,6 +79,13 @@ PendingAction = Literal["follow", "copy", "edit"]
 #: doc section D8) instead of an invalid label key.
 _PENDING_ACTION_KEYS: dict[PendingAction, str] = {"copy": "y", "edit": "E"}
 
+#: A caller-registered handler for one non-scanned `AttachedTarget` kind
+#: (design doc section D3: "the scanner cannot recover ... objects, not
+#: substrings"). Takes over a label press entirely — `resolve_ref` is never
+#: consulted for a kind that has a handler, since there is no ref string to
+#: resolve.
+AttachedTargetHandler = Callable[[PagerTargetSpan, PendingAction], None]
+
 
 @dataclass(frozen=True, slots=True)
 class PagerExit:
@@ -131,9 +138,17 @@ class SasePager(App[PagerExit]):
         Binding("question_mark", "show_help", "Keys"),
     ]
 
-    def __init__(self, document: PagerDocument) -> None:
+    def __init__(
+        self,
+        document: PagerDocument,
+        *,
+        attached_handlers: Mapping[str, AttachedTargetHandler] | None = None,
+    ) -> None:
         super().__init__()
         self.document = document
+        self._attached_handlers: Mapping[str, AttachedTargetHandler] = (
+            attached_handlers or {}
+        )
         self._body: ComposedBody | None = None
         self._body_width: int | None = None
         self._label_layer: PagerLabelLayer | None = None
@@ -454,6 +469,11 @@ class SasePager(App[PagerExit]):
         action = self._pending_action
         self._pending_action = "follow"
         target = label.target
+
+        handler = self._attached_handlers.get(target.kind)
+        if handler is not None:
+            handler(target, action)
+            return
 
         if target.kind == LinkSpanKind.URL.value or action == "copy":
             self._copy_target(target)
@@ -885,4 +905,4 @@ class SasePager(App[PagerExit]):
         self.notify(message, severity="information")
 
 
-__all__ = ["PagerExit", "SasePager"]
+__all__ = ["AttachedTargetHandler", "PagerExit", "SasePager"]

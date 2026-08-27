@@ -16,6 +16,7 @@ from sase.memory.memory_read_report import (
     MemoryReadReportSpec,
     write_memory_read_report,
 )
+from sase.pager import link_pager_enabled
 
 from ....hint_types import EditHooksResult, ViewFilesResult
 from ....hints import (
@@ -29,6 +30,7 @@ from ...tools.report import SlowToolCallReportSpec, write_tool_call_report
 from ...widgets import HintInputBar
 from ...widgets.prompt_panel._agent_display_state import CommitViewSpec
 from ..clipboard import schedule_copy_delivery
+from ._files import build_pager_document
 from ._types import HintMixinBase
 
 type _HintReportSpec = (
@@ -352,6 +354,11 @@ class InputProcessingMixin(HintMixinBase):
                 is_supported_image_path(f) or is_supported_video_path(f) for f in files
             ):
                 self._view_files_with_artifact_file_viewer(files)  # type: ignore[attr-defined]
+            elif link_pager_enabled():
+                document = await asyncio.to_thread(
+                    build_pager_document, files, request.commit_specs
+                )
+                self._view_files_with_sase_pager(document)  # type: ignore[attr-defined]
             else:
                 self._view_files_with_pager(files)  # type: ignore[attr-defined]
 

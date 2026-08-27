@@ -6,7 +6,7 @@ See ``plan:202608/link_traversing_pager.md`` for the full design.
 
 from __future__ import annotations
 
-from sase.pager.app import PagerExit, SasePager
+from sase.pager.app import AttachedTargetHandler, PagerExit, SasePager
 from sase.pager.flag import link_pager_enabled
 from sase.pager._labels import (
     LabelWindowScope,
@@ -44,6 +44,7 @@ from sase.pager.trail import (
 __all__ = [
     "BoundedLinkScan",
     "AttachedTarget",
+    "AttachedTargetHandler",
     "LinkSpan",
     "LinkSpanKind",
     "LabelWindowScope",

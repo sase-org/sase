@@ -4,12 +4,26 @@ from __future__ import annotations
 
 import asyncio
 import os
+import subprocess
+from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
+
+from sase.pager import (
+    AttachedTarget,
+    AttachedTargetHandler,
+    PagerDocument,
+    PagerSection,
+    PagerTargetSpan,
+    SasePager,
+    document_from_paths,
+)
+from sase.pager.app import PendingAction
 
 from ....hint_types import ViewFilesResult
 from ....hints import build_editor_args
 from ..clipboard import schedule_copy_delivery
+from ...util.external_tool import suspend_for_external_tool
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
 from ...widgets import AgentDetail, PatchDetail, HintInputBar
@@ -17,10 +31,108 @@ from ._types import HintMixinBase
 
 if TYPE_CHECKING:
     from ...models.agent import Agent
-    from ...widgets.prompt_panel._agent_display_state import AgentHintRender
+    from ...widgets.prompt_panel._agent_display_state import (
+        AgentHintRender,
+        CommitViewSpec,
+    )
 
 
 _AGENT_HINT_RENDER_REGISTRY = "_agent_hint_render_tasks"
+
+#: `AttachedTarget` kind for a commit hint listed in `_commit_manifest_section`.
+_COMMIT_TARGET_KIND = "commit"
+
+
+def build_pager_document(
+    files: Sequence[str],
+    commit_specs: Sequence[CommitViewSpec] = (),
+) -> PagerDocument:
+    """Read every selected file and assemble one `PagerDocument`.
+
+    Does real file I/O (design doc phase `ace` step 1) and so must run off
+    the event loop (`tui_perf` rule 1) — callers dispatch this through
+    ``asyncio.to_thread`` before ever touching ``suspend()``.
+    """
+    document = document_from_paths(files)
+    if not commit_specs:
+        return document
+    sections = (_commit_manifest_section(commit_specs), *document.sections)
+    return PagerDocument(
+        sections=sections, title=document.title, origin=document.origin
+    )
+
+
+def _commit_manifest_section(commit_specs: Sequence[CommitViewSpec]) -> PagerSection:
+    """One small section listing selected commits, keyed via `AttachedTarget`.
+
+    A `CommitViewSpec` has no rendered text a scanner could ever discover
+    (design doc section D3: "the scanner cannot recover ... objects, not
+    substrings") — this is the one caller-cooperation point the `document`
+    phase built `AttachedTarget` for. Materialized report hints need no such
+    treatment: their written content already contains scannable typed refs.
+    """
+    lines: list[str] = []
+    targets: list[AttachedTarget] = []
+    offset = 0
+    for spec in commit_specs:
+        label = spec.short_sha or spec.sha
+        line = f"{label}  {spec.subject}".rstrip()
+        targets.append(
+            AttachedTarget(
+                kind=_COMMIT_TARGET_KIND,
+                target=spec,
+                start=offset,
+                end=offset + len(label),
+            )
+        )
+        lines.append(line)
+        offset += len(line) + 1
+    body = "\n".join(lines) + "\n"
+    return PagerSection(
+        identity="pager-commits",
+        title="Selected commits",
+        kind=_COMMIT_TARGET_KIND,
+        body=body,
+        targets=tuple(targets),
+    )
+
+
+def _handle_commit_attached_target(
+    pager: SasePager,
+    target: PagerTargetSpan,
+    action: PendingAction,
+) -> None:
+    """Dispatch a pressed commit label from inside the pager (design doc D8)."""
+    from ...modals.commit_view_modal import CommitViewModal
+
+    spec = cast("CommitViewSpec", target.target)
+    if action == "copy":
+        schedule_copy_delivery(
+            pager,
+            spec.sha or spec.short_sha,
+            copied_label="commit SHA",
+            task_name="sase-pager-copy-commit",
+        )
+        return
+    if action == "edit":
+        if not spec.diff_path:
+            pager.notify(
+                f"No raw diff path for commit {spec.short_sha or spec.sha}",
+                severity="warning",
+            )
+            return
+        editor = os.environ.get("EDITOR") or "nvim"
+        argv = build_editor_args(editor, [os.path.expanduser(spec.diff_path)])
+        with suspend_for_external_tool(
+            pager,
+            action="pager_open_editor",
+            tool_kind="editor",
+            command=argv[0],
+            path_count=1,
+        ):
+            subprocess.run(argv, check=False)
+        return
+    pager.push_screen(CommitViewModal((spec,)))
 
 
 class FileViewingMixin(HintMixinBase):
@@ -280,6 +392,24 @@ class FileViewingMixin(HintMixinBase):
 
         with self.suspend():  # type: ignore[attr-defined]
             run_viewer()
+
+    def _view_files_with_sase_pager(self, document: PagerDocument) -> None:
+        """View *document* through `SasePager` (requires suspend).
+
+        Replaces the `bat`/`less` shell-out of `_view_files_with_pager`
+        behind the `link_pager` flag (design doc phase `ace` step 1 and D1).
+        `_view_files_with_pager` stays as the flag-off path until the epic's
+        `land` phase deletes it. Resuming `suspend()` leaves this app's own
+        tab and selection exactly as they were — a trail-exhausted
+        `backspace` in the pager needs no extra handling to land back here.
+        """
+        handlers: dict[str, AttachedTargetHandler] = {}
+        pager = SasePager(document, attached_handlers=handlers)
+        handlers[_COMMIT_TARGET_KIND] = lambda target, action: (
+            _handle_commit_attached_target(pager, target, action)
+        )
+        with self.suspend():  # type: ignore[attr-defined]
+            pager.run()
 
     def _view_files_with_artifact_file_viewer(self, files: list[str]) -> None:
         """View selected files through the terminal artifact viewer.
