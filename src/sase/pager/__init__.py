@@ -7,7 +7,6 @@ See ``plan:202608/link_traversing_pager.md`` for the full design.
 from __future__ import annotations
 
 from sase.pager.app import AttachedTargetHandler, PagerExit, SasePager
-from sase.pager.flag import link_pager_enabled
 from sase.pager._labels import (
     LabelWindowScope,
     PAGER_LABEL_ALPHABET,
@@ -64,7 +63,6 @@ __all__ = [
     "SasePager",
     "append_bounded_trail",
     "document_from_paths",
-    "link_pager_enabled",
     "path_section",
     "path_sections",
     "build_label_layer",

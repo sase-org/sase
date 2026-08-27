@@ -29,10 +29,6 @@ def test_open_text_falls_back_without_bat_and_preserves_safe_path(
         lambda _value: result,
     )
     monkeypatch.setattr(
-        "sase.artifact_cli.open.shutil.which",
-        lambda _command: None,
-    )
-    monkeypatch.setattr(
         "sase.artifact_cli.open.subprocess.run",
         lambda command, **_kwargs: (
             commands.append(list(command)) or subprocess.CompletedProcess(command, 0)
@@ -44,7 +40,8 @@ def test_open_text_falls_back_without_bat_and_preserves_safe_path(
         [
             sys.executable,
             "-m",
-            "sase.ace.tui.graphics.artifact_text_dump",
+            "sase",
+            "pager",
             "--",
             str(path.resolve()),
         ]
@@ -72,10 +69,6 @@ def test_open_entity_pages_use_text_viewer(
         lambda _value: result,
     )
     monkeypatch.setattr(
-        "sase.artifact_cli.open.shutil.which",
-        lambda _command: None,
-    )
-    monkeypatch.setattr(
         "sase.artifact_cli.open.subprocess.run",
         lambda command, **_kwargs: (
             commands.append(list(command)) or subprocess.CompletedProcess(command, 0)
@@ -87,7 +80,8 @@ def test_open_entity_pages_use_text_viewer(
         [
             sys.executable,
             "-m",
-            "sase.ace.tui.graphics.artifact_text_dump",
+            "sase",
+            "pager",
             "--",
             str(path.resolve()),
         ]

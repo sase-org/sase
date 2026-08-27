@@ -18,9 +18,9 @@ def register_pager_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Read refs, paths, or stdin in the SASE link-traversing pager",
         description=(
             "Open artifact references, file paths, or stdin as one navigable "
-            "SASE pager document. With redirected stdout, --plain, no "
-            "controlling terminal, or the link_pager feature flag disabled, "
-            "the command writes plain text instead of starting the Textual app."
+            "SASE pager document. With redirected stdout, --plain, or no "
+            "controlling terminal, the command writes plain text instead of "
+            "starting the Textual app."
         ),
     )
     pager_parser.add_argument(

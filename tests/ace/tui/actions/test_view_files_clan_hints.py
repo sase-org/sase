@@ -38,6 +38,21 @@ from tests.ace.tui.widgets._agent_display_clan_helpers import rich_clan_snapshot
 from tests.ace.tui.widgets._agent_display_helpers import FakePromptPanel
 
 
+def _assert_pager_document_paths(app: object, paths: list[str]) -> None:
+    pager = app._view_files_with_sase_pager  # type: ignore[attr-defined]
+    pager.assert_called_once()
+    (document,) = pager.call_args.args
+    assert [section.title for section in document.sections] == paths
+
+
+async def _settle_workers(app: object) -> None:
+    for _ in range(8):
+        await asyncio.sleep(0)
+    workers = tuple(app._workers)  # type: ignore[attr-defined]
+    if workers:
+        await asyncio.gather(*workers)
+
+
 class _HintContainer:
     is_attached = True
 
@@ -66,7 +81,7 @@ class _ClanViewApp(InputProcessingMixin, FileViewingMixin):
         self._hint_patch_name = ""
         self.notify = MagicMock()
         self._refresh_agents_display = MagicMock()
-        self._view_files_with_pager = MagicMock()
+        self._view_files_with_sase_pager = MagicMock()
         self._workers: list[asyncio.Task[object]] = []
 
     def _get_selected_agent(self) -> Agent:
@@ -119,7 +134,10 @@ def _clan_app(
     else:
         mark_clan_snapshot_loading(detail, container, CLAN_DISK_SECTIONS)
 
-    return _ClanViewApp(container, detail), str(tmp_path / "docs" / "clan_report.md")
+    report = tmp_path / "docs" / "clan_report.md"
+    report.parent.mkdir()
+    report.write_text("clan report\n", encoding="utf-8")
+    return _ClanViewApp(container, detail), str(report)
 
 
 @pytest.mark.asyncio
@@ -136,10 +154,9 @@ async def test_clan_view_hint_submission_opens_the_summary_path(
     assert app._hint_mappings == {1: expected}
 
     app.on_hint_input_bar_submitted(HintInputBar.Submitted("1", "view"))
-    for _ in range(8):
-        await asyncio.sleep(0)
+    await _settle_workers(app)
 
-    app._view_files_with_pager.assert_called_once_with([expected])
+    _assert_pager_document_paths(app, [expected])
     app.notify.assert_not_called()
 
 
@@ -255,10 +272,9 @@ async def test_clan_view_hint_parent_plan_uses_logical_plan_resolver(
     assert str(fallback) not in app._hint_mappings.values()
 
     app.on_hint_input_bar_submitted(HintInputBar.Submitted(str(parent_hint), "view"))
-    for _ in range(8):
-        await asyncio.sleep(0)
+    await _settle_workers(app)
 
-    app._view_files_with_pager.assert_called_once_with([str(parent_path)])
+    _assert_pager_document_paths(app, [str(parent_path)])
     app.notify.assert_not_called()
     resolve.assert_any_call(
         "plan:202608/child.md",
@@ -283,8 +299,7 @@ async def test_clan_hint_submitted_during_enrichment_waits_for_mappings(
     assert app._hint_mappings == {}
 
     app.on_hint_input_bar_submitted(HintInputBar.Submitted("1", "view"))
-    for _ in range(8):
-        await asyncio.sleep(0)
+    await _settle_workers(app)
 
-    app._view_files_with_pager.assert_called_once_with([expected])
+    _assert_pager_document_paths(app, [expected])
     app.notify.assert_not_called()

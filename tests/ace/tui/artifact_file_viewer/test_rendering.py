@@ -436,51 +436,41 @@ def test_video_suffix_helper_matches_axe_attachment_constant() -> None:
     assert not is_supported_video_path("render.gif")
 
 
-def test_artifact_text_viewer_command_prefers_bat(tmp_path: Path, monkeypatch) -> None:
+def test_artifact_text_viewer_command_uses_sase_pager(tmp_path: Path) -> None:
     artifact = tmp_path / "data.json"
     artifact.write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "bat" else None,
-    )
-
-    assert artifact_text_viewer_command(artifact) == [
-        "bat",
-        "--paging=always",
-        "--color=always",
-        "--decorations=always",
-        "--",
-        str(artifact.resolve(strict=False)),
-    ]
-
-
-def test_artifact_text_viewer_command_falls_back_to_safe_dump(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    artifact = tmp_path / "data.json"
-    artifact.write_text("{}", encoding="utf-8")
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.shutil.which", lambda _tool: None)
 
     assert artifact_text_viewer_command(artifact) == [
         sys.executable,
         "-m",
-        "sase.ace.tui.graphics.artifact_text_dump",
+        "sase",
+        "pager",
         "--",
         str(artifact.resolve(strict=False)),
     ]
 
 
-def test_artifact_text_viewer_safe_dump_waits_for_quit_key(
+def test_artifact_text_viewer_command_preserves_safe_path(tmp_path: Path) -> None:
+    artifact = tmp_path / "-leading name.json"
+    artifact.write_text("{}", encoding="utf-8")
+
+    assert artifact_text_viewer_command(artifact) == [
+        sys.executable,
+        "-m",
+        "sase",
+        "pager",
+        "--",
+        str(artifact.resolve(strict=False)),
+    ]
+
+
+def test_artifact_text_viewer_does_not_wait_for_extra_quit_key(
     tmp_path: Path,
-    monkeypatch,
     capsys,
 ) -> None:
     artifact = tmp_path / "data.json"
     artifact.write_text("{}", encoding="utf-8")
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.shutil.which", lambda _tool: None)
     commands: list[list[str]] = []
-    keys = iter(["x", "q"])
 
     def fake_run(cmd):
         commands.append(list(cmd))
@@ -488,7 +478,6 @@ def test_artifact_text_viewer_safe_dump_waits_for_quit_key(
 
     result = run_artifact_text_viewer(
         ArtifactFileViewSpec(artifact, "file"),
-        read_key=lambda: next(keys),
         run_command=fake_run,
     )
 
@@ -498,13 +487,13 @@ def test_artifact_text_viewer_safe_dump_waits_for_quit_key(
         [
             sys.executable,
             "-m",
-            "sase.ace.tui.graphics.artifact_text_dump",
+            "sase",
+            "pager",
             "--",
             str(artifact.resolve(strict=False)),
         ],
-        ["clear"],
     ]
-    assert "q: quit" in capsys.readouterr().out
+    assert "q: quit" not in capsys.readouterr().out
 
 
 def test_view_artifact_file_returns_first_structured_warning(

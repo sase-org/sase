@@ -1,19 +1,18 @@
 # SASE Pager
 
 `sase pager` opens artifact references, file paths, or stdin in the SASE link-traversing
-pager when the `link_pager` feature flag is enabled. The same surface is used by
-`sase bead show` when `$SASE_PAGER` resolves to `sase pager`.
+pager. The same surface is used by `sase bead show`, `sase artifact read`, and text
+artifacts opened through the artifact viewer.
 
-With redirected stdout, `--plain`, no controlling terminal, or the feature flag
-disabled, the command writes plain text. That makes it safe in pipelines and safe as an
-unconditional pager command.
+With redirected stdout, `--plain`, or no controlling terminal, the command writes plain
+text. That makes it safe in pipelines and safe as an unconditional pager command.
 
 ## Usage
 
 ```bash
-sase -f link_pager pager bead:sase-uk.7 src/sase/cli_pager.py
-git show --stat | sase -f link_pager pager -t "git show"
-SASE_PAGER="sase pager" sase -f link_pager bead show sase-uk.7
+sase pager bead:sase-uk.7 src/sase/cli_pager.py
+git show --stat | sase pager -t "git show"
+sase bead show sase-uk.7
 ```
 
 ```text
@@ -29,13 +28,13 @@ sase pager [-c auto|always|never] [-l auto|never] [-p] [-t TITLE] [-w WIDTH] [RE
 | `-t, --title` | Title for stdin input.                                                                    |
 | `-w, --wrap`  | Prose wrap width; accepts an integer, `auto`, `none`, or `0`.                             |
 
-## Pager Environment
+## CLI Paging
 
-`page_or_print()` still resolves `$SASE_PAGER`, then `$PAGER`, then `less`. When that
-resolved command is `sase pager` and `link_pager` is enabled, SASE runs the pager
-in-process and passes the structured document directly. Foreign pagers still run as
-subprocesses, and `SASE_PAGER` is removed from the child environment so a nested SASE
-command cannot recurse back into itself.
+`page_or_print()` preserves the shared print-vs-page decision for CLI output: `never`
+writes directly, `auto` pages only on a real terminal when output is taller than the
+terminal and `SASE_AGENT` is unset, and `always` pages whenever the terminal can host
+the Textual app. Paging runs the SASE pager in-process and passes the structured
+document directly; SASE no longer shells out to `$PAGER` or `less` for this path.
 
 ## Keys
 

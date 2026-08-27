@@ -16,8 +16,6 @@ from sase.memory.memory_read_report import (
     MemoryReadReportSpec,
     write_memory_read_report,
 )
-from sase.pager import link_pager_enabled
-
 from ....hint_types import EditHooksResult, ViewFilesResult
 from ....hints import (
     is_rerun_input,
@@ -354,13 +352,11 @@ class InputProcessingMixin(HintMixinBase):
                 is_supported_image_path(f) or is_supported_video_path(f) for f in files
             ):
                 self._view_files_with_artifact_file_viewer(files)  # type: ignore[attr-defined]
-            elif link_pager_enabled():
+            else:
                 document = await asyncio.to_thread(
                     build_pager_document, files, request.commit_specs
                 )
                 self._view_files_with_sase_pager(document)  # type: ignore[attr-defined]
-            else:
-                self._view_files_with_pager(files)  # type: ignore[attr-defined]
 
     def _files_for_view_hints(self, hint_nums: Iterable[int]) -> list[str]:
         hint_input = " ".join(str(hint_num) for hint_num in hint_nums)

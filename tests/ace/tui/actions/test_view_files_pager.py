@@ -1,4 +1,4 @@
-"""Tests for the `link_pager`-gated `SasePager` dispatch in the view-file flow."""
+"""Tests for `SasePager` dispatch in the view-file flow."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sase.ace.tui.actions.hints import _processing as processing_mod
 from sase.ace.tui.actions.hints._files import (
     _COMMIT_TARGET_KIND,
     _handle_commit_attached_target,
@@ -83,48 +82,26 @@ def test_build_pager_document_prepends_commit_manifest_section(tmp_path: Path) -
 # -- _finish_view_request dispatch --------------------------------------------
 
 
-async def test_flag_off_dispatches_to_legacy_pager(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+async def test_dispatches_to_sase_pager_with_built_document(tmp_path: Path) -> None:
     notes = tmp_path / "notes.md"
     notes.write_text("hi", encoding="utf-8")
     app = _make_app(str(notes))
-    app._view_files_with_pager = MagicMock()  # type: ignore[method-assign]
     app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
-    monkeypatch.setattr(processing_mod, "link_pager_enabled", lambda: False)
 
     await app._process_view_input("1")
 
-    app._view_files_with_pager.assert_called_once_with([str(notes)])
-    app._view_files_with_sase_pager.assert_not_called()
-
-
-async def test_flag_on_dispatches_to_sase_pager_with_built_document(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    notes = tmp_path / "notes.md"
-    notes.write_text("hi", encoding="utf-8")
-    app = _make_app(str(notes))
-    app._view_files_with_pager = MagicMock()  # type: ignore[method-assign]
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
-    monkeypatch.setattr(processing_mod, "link_pager_enabled", lambda: True)
-
-    await app._process_view_input("1")
-
-    app._view_files_with_pager.assert_not_called()
     app._view_files_with_sase_pager.assert_called_once()
     (document,) = app._view_files_with_sase_pager.call_args.args
     assert [section.identity for section in document.sections] == [f"file:{notes}"]
 
 
-async def test_flag_on_builds_the_document_off_the_event_loop_thread(
+async def test_builds_the_document_off_the_event_loop_thread(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     notes = tmp_path / "notes.md"
     notes.write_text("hi", encoding="utf-8")
     app = _make_app(str(notes))
     app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
-    monkeypatch.setattr(processing_mod, "link_pager_enabled", lambda: True)
     event_loop_thread = threading.get_ident()
     build_threads: list[int] = []
     real_build_pager_document = build_pager_document
@@ -133,7 +110,10 @@ async def test_flag_on_builds_the_document_off_the_event_loop_thread(
         build_threads.append(threading.get_ident())
         return real_build_pager_document(*args, **kwargs)  # type: ignore[arg-type]
 
-    monkeypatch.setattr(processing_mod, "build_pager_document", spy)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.build_pager_document",
+        spy,
+    )
 
     await app._process_view_input("1")
 
@@ -141,7 +121,7 @@ async def test_flag_on_builds_the_document_off_the_event_loop_thread(
     assert all(thread_id != event_loop_thread for thread_id in build_threads)
 
 
-async def test_flag_on_mixed_file_and_commit_selection_attaches_commit_section(
+async def test_mixed_file_and_commit_selection_attaches_commit_section(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     notes = tmp_path / "notes.md"
@@ -150,7 +130,6 @@ async def test_flag_on_mixed_file_and_commit_selection_attaches_commit_section(
     app = _make_app(str(notes))
     app._hint_commit_views = {2: spec}
     app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
-    monkeypatch.setattr(processing_mod, "link_pager_enabled", lambda: True)
 
     await app._process_view_input("1 2")
 

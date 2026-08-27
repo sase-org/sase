@@ -203,7 +203,7 @@ class _ImmediateSubmitAgentViewApp(InputProcessingMixin, FileViewingMixin):
         self._hint_patch_name = ""
         self.notify = MagicMock()
         self._refresh_agents_display = MagicMock()
-        self._view_files_with_pager = MagicMock()
+        self._view_files_with_sase_pager = MagicMock()
         self._workers: list[asyncio.Task[object]] = []
 
     def _get_selected_agent(self) -> object:
@@ -233,8 +233,15 @@ class _ImmediateSubmitAgentViewApp(InputProcessingMixin, FileViewingMixin):
 
 
 @pytest.mark.asyncio
-async def test_immediate_agent_hint_submission_waits_for_rendered_mapping() -> None:
+async def test_immediate_agent_hint_submission_waits_for_rendered_mapping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     app = _ImmediateSubmitAgentViewApp()
+    document = object()
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.build_pager_document",
+        lambda files, commit_specs: document,
+    )
 
     app._view_agent_files()
     assert app.detail.update_calls == 0
@@ -245,5 +252,5 @@ async def test_immediate_agent_hint_submission_waits_for_rendered_mapping() -> N
     for _ in range(8):
         await asyncio.sleep(0)
 
-    app._view_files_with_pager.assert_called_once_with(["/tmp/family-report.txt"])
+    app._view_files_with_sase_pager.assert_called_once_with(document)
     app.notify.assert_not_called()

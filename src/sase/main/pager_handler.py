@@ -10,7 +10,6 @@ import sys
 from typing import TextIO
 
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
-from sase.pager.flag import link_pager_enabled
 from sase.pager.resolve import LinkTarget, LinkTargetKind, resolve_ref
 
 
@@ -140,7 +139,7 @@ def _should_write_plain(args: argparse.Namespace) -> bool:
         return True
     if not _term_supports_pager_app():
         return True
-    return not link_pager_enabled()
+    return False
 
 
 def _term_supports_pager_app() -> bool:

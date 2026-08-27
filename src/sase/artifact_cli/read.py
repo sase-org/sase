@@ -8,8 +8,6 @@ from datetime import UTC, datetime
 import json
 import os
 from pathlib import Path
-import shutil
-import subprocess
 import sys
 from typing import cast
 
@@ -32,6 +30,7 @@ from sase.artifact_read_log import (
     build_artifact_read_event,
 )
 from sase.artifact_refs import render_artifact_ref
+from sase.cli_pager import PagerMode, page_or_print
 from sase.core.artifact_consumption import (
     ArtifactConsumptionResolutionStatus,
     append_artifact_consumption_events,
@@ -51,6 +50,7 @@ from sase.sdd.artifact_link_store import (
 )
 from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_entry
 from sase.sdd.frontmatter import parse_frontmatter
+from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 
 
 _NON_TEXT_POINTER = "Open with `sase artifact open {ref}`."
@@ -130,7 +130,7 @@ def handle_read(args: argparse.Namespace) -> int:
     if output_format == "rich":
         _print_rich(result, body)
         return 0
-    _print_or_page(body)
+    _page_markdown(result, body)
     return 0
 
 
@@ -335,26 +335,41 @@ def _print_rich(result: ResolvedArtifactReference, body: str) -> None:
     )
 
 
-def _print_or_page(body: str) -> None:
-    if not sys.stdout.isatty():
-        sys.stdout.write(body if body.endswith("\n") else body + "\n")
-        return
-    pager = shutil.which("less") or shutil.which("bat")
-    if pager is None:
-        sys.stdout.write(body if body.endswith("\n") else body + "\n")
-        return
-    command = (
-        [pager, "-R", "-F"]
-        if Path(pager).name == "less"
-        else [pager, "--paging=always", "--color=always", "--style=plain"]
+def _page_markdown(result: ResolvedArtifactReference, body: str) -> None:
+    body = _ensure_trailing_newline(body)
+    page_or_print(
+        body,
+        mode=PagerMode.ALWAYS,
+        document=PagerDocument(
+            sections=(
+                PagerSection(
+                    identity=result.canonical_reference,
+                    title=result.canonical_reference,
+                    kind=_pager_section_kind(result),
+                    body=body,
+                    subject_ref=result.canonical_reference,
+                ),
+            ),
+            title=result.canonical_reference,
+            origin=_pager_origin(result),
+        ),
     )
-    try:
-        completed = subprocess.run(command, input=body, text=True, check=False)
-    except OSError:
-        sys.stdout.write(body if body.endswith("\n") else body + "\n")
-        return
-    if completed.returncode != 0:
-        sys.stdout.write(body if body.endswith("\n") else body + "\n")
+
+
+def _pager_section_kind(result: ResolvedArtifactReference) -> str:
+    if result.parsed.kind_type == "bead":
+        return "bead"
+    return "file"
+
+
+def _pager_origin(result: ResolvedArtifactReference) -> PagerOrigin:
+    if result.parsed.kind_type == "bead":
+        return PagerOrigin.BEAD
+    return PagerOrigin.FILE
+
+
+def _ensure_trailing_newline(text: str) -> str:
+    return text if text.endswith("\n") else f"{text}\n"
 
 
 __all__ = ["handle_read"]

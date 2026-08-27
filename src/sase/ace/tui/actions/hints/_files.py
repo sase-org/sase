@@ -394,33 +394,12 @@ class FileViewingMixin(HintMixinBase):
         with self.suspend():  # type: ignore[attr-defined]
             run_editor()
 
-    def _view_files_with_pager(self, files: list[str]) -> None:
-        """View files using bat/cat with less (requires suspend)."""
-        import shlex
-        import shutil
-        import subprocess
-
-        def run_viewer() -> None:
-            viewer = "bat" if shutil.which("bat") else "cat"
-            quoted_files = " ".join(shlex.quote(f) for f in files)
-            if viewer == "bat":
-                cmd = f"bat --color=always {quoted_files} | less -R"
-            else:
-                cmd = f"cat {quoted_files} | less"
-            subprocess.run(cmd, shell=True, check=False)
-
-        with self.suspend():  # type: ignore[attr-defined]
-            run_viewer()
-
     def _view_files_with_sase_pager(self, document: PagerDocument) -> None:
         """View *document* through `SasePager` (requires suspend).
 
-        Replaces the `bat`/`less` shell-out of `_view_files_with_pager`
-        behind the `link_pager` flag (design doc phase `ace` step 1 and D1).
-        `_view_files_with_pager` stays as the flag-off path until the epic's
-        `land` phase deletes it. Resuming `suspend()` leaves this app's own
-        tab and selection exactly as they were — a trail-exhausted
-        `backspace` in the pager needs no extra handling to land back here.
+        Resuming `suspend()` leaves this app's own tab and selection exactly
+        as they were — a trail-exhausted `backspace` in the pager needs no
+        extra handling to land back here.
         """
         handlers: dict[str, AttachedTargetHandler] = {}
         pager = SasePager(

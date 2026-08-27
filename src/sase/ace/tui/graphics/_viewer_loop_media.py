@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import shlex
-import shutil
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
@@ -27,23 +26,12 @@ from ._viewer_types import (
     ArtifactFileViewSpec,
 )
 
-_ARTIFACT_TEXT_DUMP_MODULE = "sase.ace.tui.graphics.artifact_text_dump"
-
 
 def artifact_text_viewer_command(path: str | Path) -> list[str]:
     """Build the terminal command for displaying a raw artifact file."""
 
     expanded = Path(path).expanduser().resolve(strict=False)
-    if shutil.which("bat") is not None:
-        return [
-            "bat",
-            "--paging=always",
-            "--color=always",
-            "--decorations=always",
-            "--",
-            str(expanded),
-        ]
-    return [sys.executable, "-m", _ARTIFACT_TEXT_DUMP_MODULE, "--", str(expanded)]
+    return [sys.executable, "-m", "sase", "pager", "--", str(expanded)]
 
 
 def artifact_video_player_command(
@@ -228,8 +216,4 @@ def display_video_artifact(
 
 
 def text_viewer_command_needs_quit_key(command: Sequence[str]) -> bool:
-    if not command:
-        return False
-    if Path(command[0]).name == "cat":
-        return True
-    return list(command[1:3]) == ["-m", _ARTIFACT_TEXT_DUMP_MODULE]
+    return False

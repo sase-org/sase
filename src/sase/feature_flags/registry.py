@@ -23,7 +23,6 @@ class FeatureFlag(StrEnum):
 
     admin_center_flags = "admin_center_flags"
     gate_shell_handoff = "gate_shell_handoff"
-    link_pager = "link_pager"
     provider_drain = "provider_drain"
     ref_sync_gesture = "ref_sync_gesture"
     typed_launch_units = "typed_launch_units"
@@ -49,15 +48,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "the follow-up agent."
         ),
         bead="sase-uo",
-    ),
-    FeatureFlag.link_pager: FeatureFlagDefinition(
-        key=FeatureFlag.link_pager,
-        kind="beta",
-        description=(
-            "Beta gate for the link-traversing SasePager surface, its "
-            "jump-hint keys, and its navigation trail."
-        ),
-        bead="sase-ul",
     ),
     FeatureFlag.provider_drain: FeatureFlagDefinition(
         key=FeatureFlag.provider_drain,

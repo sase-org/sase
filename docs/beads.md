@@ -1735,27 +1735,18 @@ sase bead show sase-64 --style rich --color always
 
 `-p/--pager` controls paging for long terminal output:
 
-| `--pager` | Meaning                                                                        |
-| --------- | ------------------------------------------------------------------------------ |
-| `auto`    | Default. Page only on a real terminal when output is taller than the terminal. |
-| `always`  | Page on a real terminal whenever a pager resolves, even when the output fits.  |
-| `never`   | Write directly to stdout.                                                      |
+| `--pager` | Meaning                                                                         |
+| --------- | ------------------------------------------------------------------------------- |
+| `auto`    | Default. Page only on a real terminal when output is taller than the terminal.  |
+| `always`  | Page on a real terminal whenever the SASE pager can run, even when output fits. |
+| `never`   | Write directly to stdout.                                                       |
 
-The pager command resolves from `SASE_PAGER`, then `PAGER`, then `less` on `PATH`.
-Setting either environment variable to an empty value disables paging. When the pager is
-`less`, SASE passes ANSI through with `-R` and defaults `LESS` to Git-like values only
-when `LESS` is unset. `auto` also refuses to page when `TERM` is unset or `dumb`, stdout
-is redirected, `SASE_AGENT` is set, or the output fits the terminal. The `SASE_AGENT`
-guard prevents launched agents with a TTY from blocking on an interactive pager. Paging
-preserves color because SASE renders the whole detail string while stdout is still a
-TTY, then sends that string to `less -R`; a shell pipe such as
-`sase bead show <id> | less -R` makes stdout a pipe before rendering, so automatic color
-is disabled before `less` receives anything.
-
-When `link_pager` is enabled and the resolved pager command is `sase pager`,
+`auto` refuses to page when `TERM` is unset or `dumb`, stdout is redirected,
+`SASE_AGENT` is set, or the output fits the terminal. The `SASE_AGENT` guard prevents
+launched agents with a TTY from blocking on an interactive pager. When output pages,
 `sase bead show --format full` runs the [SASE Pager](pager.md) in-process with one
-structured section per bead. The direct-output and foreign-pager paths still use the
-same flattened bytes described above.
+structured section per bead. Direct output still uses the same flattened bytes, so shell
+pipelines remain plain stdout.
 
 ```bash
 sase bead show sase-64 --pager always

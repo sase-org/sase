@@ -181,7 +181,8 @@ def test_run_artifact_sequence_loop_routes_raw_file_through_text_viewer(
         [
             sys.executable,
             "-m",
-            "sase.ace.tui.graphics.artifact_text_dump",
+            "sase",
+            "pager",
             "--",
             str(raw.resolve(strict=False)),
         ],

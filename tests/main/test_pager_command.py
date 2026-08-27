@@ -96,7 +96,6 @@ def test_stdin_non_tty_writes_plain_without_launching_app(
     stdout = _Stream(tty=False)
     monkeypatch.setattr(pager_handler.sys, "stdin", stdin)
     monkeypatch.setattr(pager_handler.sys, "stdout", stdout)
-    monkeypatch.setattr(pager_handler, "link_pager_enabled", lambda: True)
 
     def fail_run_app(_document: PagerDocument, *, links_enabled: bool) -> None:
         raise AssertionError("non-tty stdout should not launch the app")
@@ -116,7 +115,6 @@ def test_enabled_tty_launches_app_with_links_option(
     monkeypatch.setattr(pager_handler.sys, "stdin", stdin)
     monkeypatch.setattr(pager_handler.sys, "stdout", stdout)
     monkeypatch.setenv("TERM", "xterm-256color")
-    monkeypatch.setattr(pager_handler, "link_pager_enabled", lambda: True)
     monkeypatch.setattr(
         pager_handler,
         "_run_pager_app",
