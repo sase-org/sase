@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import replace
+from functools import cache
 import re
 from typing import Any
 
@@ -61,6 +62,7 @@ _PROVIDER_ACCENTS: tuple[str, ...] = (
 _ARTIFACTS_DIGIT_KEYS: tuple[str, ...] = tuple(str(digit) for digit in range(1, 10))
 
 
+@cache
 def fixed_descriptor(subtab: ArtifactsSubTab) -> ArtifactsTabDescriptor:
     """Return the descriptor for one of the built-in Artifacts panes."""
 

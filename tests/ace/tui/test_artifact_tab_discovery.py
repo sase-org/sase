@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from threading import Event
 
 import pytest
 
 from sase.ace.tui._artifact_tab_descriptors import provider_descriptors
 from sase.ace.tui._artifact_tab_model import (
+    ProviderLoadResult,
     ProjectProviderRecord,
     ProviderDiscoveryIssue,
 )
@@ -180,6 +182,87 @@ def test_provider_source_token_cache_invalidates_on_project_file_change(
     second = discovery.provider_source_token()
     assert second is not None
     assert second != first
+
+
+def test_provider_source_token_returns_stale_while_revalidating(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui import _artifact_tab_discovery as discovery
+
+    started = Event()
+    release = Event()
+    calls = 0
+
+    def _compute() -> tuple[object, ...]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return ("providers", 1)
+        started.set()
+        release.wait(timeout=1.0)
+        return ("providers", 2)
+
+    monkeypatch.setattr(
+        discovery,
+        "_PROVIDER_SOURCE_TOKEN_REFRESH_INTERVAL_SECONDS",
+        0.001,
+    )
+    monkeypatch.setattr(discovery, "_compute_provider_source_token", _compute)
+    discovery.reset_provider_source_token_cache()
+
+    assert discovery.provider_source_token() == ("providers", 1)
+    discovery._provider_source_token_cache_deadline = 0.0
+    assert discovery.provider_source_token() == ("providers", 1)
+    assert started.wait(timeout=1.0)
+
+    thread = discovery._provider_source_token_refresh_thread
+    assert thread is not None
+    release.set()
+    thread.join(timeout=1.0)
+    assert not thread.is_alive()
+    assert discovery.provider_source_token() == ("providers", 2)
+
+
+def test_resolve_artifacts_subtabs_serves_stale_while_rebuilding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui import artifact_tabs
+
+    started = Event()
+    release = Event()
+    calls = 0
+    token: tuple[object, ...] = ("providers", 1)
+
+    def _token() -> tuple[object, ...]:
+        return token
+
+    def _load(*, project: str | None) -> ProviderLoadResult:
+        nonlocal calls
+        del project
+        calls += 1
+        if calls == 2:
+            started.set()
+            release.wait(timeout=1.0)
+        return ProviderLoadResult(records=(), issues=())
+
+    monkeypatch.setattr(artifact_tabs, "provider_source_token", _token)
+    monkeypatch.setattr(artifact_tabs, "load_project_provider_records", _load)
+    artifact_tabs.reset_artifacts_subtabs_cache()
+
+    first = artifact_tabs.resolve_artifacts_subtabs()
+    token = ("providers", 2)
+    second = artifact_tabs.resolve_artifacts_subtabs()
+
+    assert second is first
+    assert started.wait(timeout=1.0)
+    thread = artifact_tabs._ARTIFACTS_TAB_REFRESH_THREAD
+    assert thread is not None
+    release.set()
+    thread.join(timeout=1.0)
+    assert not thread.is_alive()
+    cached = artifact_tabs._ARTIFACTS_TAB_CACHE
+    assert cached is not None
+    assert cached[0] == ("providers", 2)
 
 
 def test_provider_source_token_does_not_cache_a_none_result(

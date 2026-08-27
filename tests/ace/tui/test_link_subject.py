@@ -6,10 +6,13 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from sase.ace.tui._artifact_tab_model import ARTIFACTS_ACCENTS, ARTIFACTS_ICONS
 from sase.ace.tui.relations.link_subject import (
     _CHOP_ACCENT,
     _CHOP_ICON,
+    accent_and_icon_for_ref,
     selected_link_subject,
 )
 from sase.ace.tui.widgets.bgcmd_list import BgCmdItem, ChopItem, LumberjackItem
@@ -41,6 +44,43 @@ def test_artifacts_tab_resolves_the_selected_pane_row_to_a_ref() -> None:
     assert subject.target == ArtifactEntryTarget("beads", ("alpha", "task", "sase-1"))
     assert subject.accent == ARTIFACTS_ACCENTS["beads"]
     assert subject.icon == ARTIFACTS_ICONS["beads"]
+
+
+def test_fixed_pane_style_does_not_resolve_dynamic_artifacts_tabs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui import artifact_tabs
+
+    def _boom(_pane_id: str) -> None:
+        raise AssertionError("fixed panes must not reach provider discovery")
+
+    monkeypatch.setattr(artifact_tabs, "descriptor_for_artifacts_pane_id", _boom)
+
+    assert accent_and_icon_for_ref(
+        "agent",
+        ArtifactEntryTarget("agents", ("bob.athena.worker",)),
+    ) == (ARTIFACTS_ACCENTS["agents"], ARTIFACTS_ICONS["agents"])
+
+
+def test_provider_pane_style_still_uses_dynamic_descriptor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui import artifact_tabs
+
+    descriptor = SimpleNamespace(accent="#123456", icon="R")
+    monkeypatch.setattr(
+        artifact_tabs,
+        "descriptor_for_artifacts_pane_id",
+        lambda _pane_id: descriptor,
+    )
+
+    assert accent_and_icon_for_ref(
+        "research",
+        ArtifactEntryTarget(
+            "ref:research",
+            ("sase", "archive", "202608/report.md"),
+        ),
+    ) == ("#123456", "R")
 
 
 def test_artifacts_tab_returns_none_with_no_pane_or_no_selection() -> None:

@@ -12,6 +12,8 @@ rendered panes).  Import from here, not from them.
 
 from __future__ import annotations
 
+import logging
+import threading
 from typing import Any
 
 from sase.sidecar_ref_config import DEFAULT_DOCUMENT_TAB_ICON
@@ -51,8 +53,15 @@ from ._artifact_tab_model import (
     PaneDeclaredFacts,
 )
 
+log = logging.getLogger(__name__)
+
 
 _ARTIFACTS_TAB_CACHE: tuple[object, tuple[ArtifactsTabDescriptor, ...]] | None = None
+_ARTIFACTS_TAB_CACHE_EPOCH = 0
+_ARTIFACTS_TAB_REFRESH_LOCK = threading.Lock()
+_ARTIFACTS_TAB_REFRESH_THREAD: threading.Thread | None = None
+_ARTIFACTS_TAB_REFRESH_TOKEN: tuple[object, ...] | None = None
+ARTIFACTS_TAB_REFRESH_THREAD_NAME = "sase-artifacts-tab-refresh"
 _PROVIDER_ROOTS_CACHE: dict[
     tuple[str, str | None], tuple[DocumentProviderProjectRoot, ...]
 ] = {}
@@ -61,28 +70,52 @@ _PROVIDER_ROOTS_CACHE: dict[
 def reset_artifacts_subtabs_cache() -> None:
     """Clear cached provider descriptors and document roots."""
 
-    global _ARTIFACTS_TAB_CACHE
-    _ARTIFACTS_TAB_CACHE = None
+    global _ARTIFACTS_TAB_CACHE, _ARTIFACTS_TAB_CACHE_EPOCH
+    global _ARTIFACTS_TAB_REFRESH_THREAD, _ARTIFACTS_TAB_REFRESH_TOKEN
+    with _ARTIFACTS_TAB_REFRESH_LOCK:
+        _ARTIFACTS_TAB_CACHE = None
+        _ARTIFACTS_TAB_CACHE_EPOCH += 1
+        _ARTIFACTS_TAB_REFRESH_THREAD = None
+        _ARTIFACTS_TAB_REFRESH_TOKEN = None
     _PROVIDER_ROOTS_CACHE.clear()
     reset_provider_source_token_cache()
 
 
 def resolve_artifacts_subtabs() -> tuple[ArtifactsTabDescriptor, ...]:
-    """Return fixed and configured provider tabs in visual order."""
+    """Return fixed and configured provider tabs in visual order.
+
+    The first lookup after process start or explicit cache reset performs a
+    real discovery pass. Later lookups serve the last known descriptors
+    immediately; when the provider source token changes, a daemon thread
+    rebuilds the descriptors and publishes them for a later call.
+    """
 
     global _ARTIFACTS_TAB_CACHE
     token = provider_source_token()
     cache_token = None if token is None else token
-    if (
-        cache_token is not None
-        and _ARTIFACTS_TAB_CACHE is not None
-        and _ARTIFACTS_TAB_CACHE[0] == cache_token
-    ):
-        return _ARTIFACTS_TAB_CACHE[1]
+    with _ARTIFACTS_TAB_REFRESH_LOCK:
+        cached = _ARTIFACTS_TAB_CACHE
+        cache_epoch = _ARTIFACTS_TAB_CACHE_EPOCH
+    if cached is not None:
+        if cache_token is None or cached[0] == cache_token:
+            return cached[1]
+        _schedule_artifacts_subtabs_refresh(cache_token, cache_epoch=cache_epoch)
+        return cached[1]
+
+    descriptors = _build_artifacts_subtabs()
+    if cache_token is not None:
+        with _ARTIFACTS_TAB_REFRESH_LOCK:
+            if cache_epoch == _ARTIFACTS_TAB_CACHE_EPOCH:
+                _ARTIFACTS_TAB_CACHE = (cache_token, descriptors)
+    return descriptors
+
+
+def _build_artifacts_subtabs() -> tuple[ArtifactsTabDescriptor, ...]:
+    """Discover providers and build the complete Artifacts descriptor list."""
 
     loaded = load_project_provider_records(project=None)
     providers = provider_descriptors(loaded.records, loaded.issues)
-    descriptors = assign_artifacts_digit_shortcuts(
+    return assign_artifacts_digit_shortcuts(
         (
             fixed_descriptor("agents"),
             fixed_descriptor("stitches"),
@@ -92,9 +125,56 @@ def resolve_artifacts_subtabs() -> tuple[ArtifactsTabDescriptor, ...]:
             fixed_descriptor("files"),
         )
     )
-    if cache_token is not None:
-        _ARTIFACTS_TAB_CACHE = (cache_token, descriptors)
-    return descriptors
+
+
+def _schedule_artifacts_subtabs_refresh(
+    cache_token: tuple[object, ...],
+    *,
+    cache_epoch: int,
+) -> None:
+    """Rebuild changed provider descriptors without blocking the caller."""
+
+    global _ARTIFACTS_TAB_REFRESH_THREAD, _ARTIFACTS_TAB_REFRESH_TOKEN
+    with _ARTIFACTS_TAB_REFRESH_LOCK:
+        cached = _ARTIFACTS_TAB_CACHE
+        if cached is not None and cached[0] == cache_token:
+            return
+        if _ARTIFACTS_TAB_REFRESH_THREAD is not None:
+            return
+        refresh_thread = threading.Thread(
+            target=_refresh_artifacts_subtabs,
+            args=(cache_token, cache_epoch),
+            name=ARTIFACTS_TAB_REFRESH_THREAD_NAME,
+            daemon=True,
+        )
+        _ARTIFACTS_TAB_REFRESH_THREAD = refresh_thread
+        _ARTIFACTS_TAB_REFRESH_TOKEN = cache_token
+        refresh_thread.start()
+
+
+def _refresh_artifacts_subtabs(
+    cache_token: tuple[object, ...],
+    cache_epoch: int,
+) -> None:
+    """Publish a refreshed descriptor cache from a daemon worker."""
+
+    global _ARTIFACTS_TAB_CACHE, _ARTIFACTS_TAB_REFRESH_THREAD
+    global _ARTIFACTS_TAB_REFRESH_TOKEN
+    try:
+        descriptors = _build_artifacts_subtabs()
+    except Exception:
+        log.debug("Background Artifacts tab refresh failed", exc_info=True)
+        descriptors = None
+    with _ARTIFACTS_TAB_REFRESH_LOCK:
+        if (
+            cache_epoch == _ARTIFACTS_TAB_CACHE_EPOCH
+            and _ARTIFACTS_TAB_REFRESH_TOKEN == cache_token
+            and descriptors is not None
+        ):
+            _ARTIFACTS_TAB_CACHE = (cache_token, descriptors)
+        if _ARTIFACTS_TAB_REFRESH_THREAD is threading.current_thread():
+            _ARTIFACTS_TAB_REFRESH_THREAD = None
+            _ARTIFACTS_TAB_REFRESH_TOKEN = None
 
 
 def artifacts_subtab_order() -> tuple[ArtifactsSubTab, ...]:

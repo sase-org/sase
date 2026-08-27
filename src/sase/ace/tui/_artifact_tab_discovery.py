@@ -211,32 +211,53 @@ def _select_project_records(
     )
 
 
-# Matches sase.config.core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS: computing
-# this token walks every configured project's record and stats its config
-# file, so callers on the render path (``resolve_artifacts_subtabs`` per
-# link-graph chip) must not pay that cost on every lookup.
-_PROVIDER_SOURCE_TOKEN_REFRESH_INTERVAL_SECONDS = 0.75
+# Computing this token walks every configured project's record and stats its
+# config file, so UI callers must receive a cached answer while a daemon worker
+# revalidates on a much longer cadence.
+_PROVIDER_SOURCE_TOKEN_REFRESH_INTERVAL_SECONDS = 30.0
+PROVIDER_SOURCE_TOKEN_REFRESH_THREAD_NAME = "sase-provider-source-token-refresh"
 _provider_source_token_cache_value: tuple[object, ...] | None = None
 _provider_source_token_cache_deadline = 0.0
-_provider_source_token_cache_lock = threading.Lock()
+_provider_source_token_cache_epoch = 0
+_provider_source_token_cache_lock = threading.RLock()
+_provider_source_token_refresh_thread: threading.Thread | None = None
 
 
 def reset_provider_source_token_cache() -> None:
     """Force the next :func:`provider_source_token` call to recompute."""
 
     global _provider_source_token_cache_value, _provider_source_token_cache_deadline
+    global _provider_source_token_cache_epoch, _provider_source_token_refresh_thread
     with _provider_source_token_cache_lock:
         _provider_source_token_cache_value = None
         _provider_source_token_cache_deadline = 0.0
+        _provider_source_token_cache_epoch += 1
+        _provider_source_token_refresh_thread = None
+
+
+def _refresh_provider_source_token(cache_epoch: int) -> None:
+    """Recompute and publish a provider source token from a daemon worker."""
+
+    global _provider_source_token_cache_value, _provider_source_token_cache_deadline
+    global _provider_source_token_refresh_thread
+    token = _compute_provider_source_token()
+    with _provider_source_token_cache_lock:
+        if cache_epoch == _provider_source_token_cache_epoch:
+            if token is not None:
+                _provider_source_token_cache_value = token
+            _provider_source_token_cache_deadline = (
+                time.monotonic() + _PROVIDER_SOURCE_TOKEN_REFRESH_INTERVAL_SECONDS
+            )
+        if _provider_source_token_refresh_thread is threading.current_thread():
+            _provider_source_token_refresh_thread = None
 
 
 def provider_source_token() -> tuple[object, ...] | None:
     """Return a cache key for configured providers, or ``None`` if listing failed.
 
-    Cached for `_PROVIDER_SOURCE_TOKEN_REFRESH_INTERVAL_SECONDS` seconds. An
-    expired cache is recomputed synchronously on the next call rather than
-    kicking off a background refresh like ``current_config_token()`` does:
-    the cost here is one project-lifecycle scan, not a full config merge.
+    The first lookup after process start or explicit invalidation is
+    synchronous. An expired cached token is returned stale while a single
+    daemon worker revalidates it off-thread.
 
     A ``None`` token is uncacheable so a transient discovery failure cannot
     pin a degraded four-tab answer the way the old ``("unavailable",)``
@@ -244,20 +265,34 @@ def provider_source_token() -> tuple[object, ...] | None:
     """
 
     global _provider_source_token_cache_value, _provider_source_token_cache_deadline
+    global _provider_source_token_refresh_thread
     with _provider_source_token_cache_lock:
         cached = _provider_source_token_cache_value
+        if cached is None:
+            token = _compute_provider_source_token()
+            if token is not None:
+                _provider_source_token_cache_value = token
+                _provider_source_token_cache_deadline = (
+                    time.monotonic() + _PROVIDER_SOURCE_TOKEN_REFRESH_INTERVAL_SECONDS
+                )
+            return token
+
         if (
-            cached is not None
-            and time.monotonic() < _provider_source_token_cache_deadline
+            time.monotonic() >= _provider_source_token_cache_deadline
+            and _provider_source_token_refresh_thread is None
         ):
-            return cached
-        token = _compute_provider_source_token()
-        if token is not None:
-            _provider_source_token_cache_value = token
+            refresh_thread = threading.Thread(
+                target=_refresh_provider_source_token,
+                args=(_provider_source_token_cache_epoch,),
+                name=PROVIDER_SOURCE_TOKEN_REFRESH_THREAD_NAME,
+                daemon=True,
+            )
+            _provider_source_token_refresh_thread = refresh_thread
+            refresh_thread.start()
             _provider_source_token_cache_deadline = (
                 time.monotonic() + _PROVIDER_SOURCE_TOKEN_REFRESH_INTERVAL_SECONDS
             )
-        return token
+        return cached
 
 
 def _compute_provider_source_token() -> tuple[object, ...] | None:

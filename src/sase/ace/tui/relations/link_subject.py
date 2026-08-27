@@ -15,7 +15,12 @@ from typing import Any
 from sase.artifact_ref_entries import reference_for_agent_name
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 
-from .._artifact_tab_model import EXTERNAL_ACCENT
+from .._artifact_tab_model import (
+    ARTIFACTS_ACCENTS,
+    ARTIFACTS_ICONS,
+    EXTERNAL_ACCENT,
+    FIXED_ARTIFACTS_PANE_IDS,
+)
 from .artifact_links import parse_link_ref
 
 # Chops are a virtual link-graph subject kind (no owning Artifacts pane, no
@@ -50,6 +55,11 @@ def accent_and_icon_for_ref(
     if ref_kind == "chop":
         return _CHOP_ACCENT, _CHOP_ICON
     if target is not None:
+        if target.pane_id in FIXED_ARTIFACTS_PANE_IDS:
+            return (
+                ARTIFACTS_ACCENTS[target.pane_id],
+                ARTIFACTS_ICONS[target.pane_id],
+            )
         from ..artifact_tabs import descriptor_for_artifacts_pane_id
 
         descriptor = descriptor_for_artifacts_pane_id(target.pane_id)

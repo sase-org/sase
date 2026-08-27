@@ -96,6 +96,9 @@ class LinkFollowMixin:
         if isinstance(getattr(self, "focused", None), Input):
             return False
         try:
+            available = getattr(self, "link_follow_available_for_selection", None)
+            if callable(available):
+                return bool(available())
             return bool(self.link_edges_for_selection())  # type: ignore[attr-defined]
         except Exception:
             return False

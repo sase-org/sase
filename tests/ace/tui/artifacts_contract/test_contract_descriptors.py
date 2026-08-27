@@ -104,6 +104,10 @@ def test_digit_assignment_synchronizes_contract() -> None:
         assert descriptor.contract.label == descriptor.label
 
 
+def test_fixed_descriptor_is_memoized() -> None:
+    assert fixed_descriptor("agents") is fixed_descriptor("agents")
+
+
 def test_exact_lookup_does_not_normalize_unknown_ids(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

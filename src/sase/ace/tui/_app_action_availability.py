@@ -281,6 +281,9 @@ def check_app_action(
     if action == "toggle_relation_panel" and app.current_tab != ARTIFACTS_TAB:
         return False
     if action == "follow_artifact_link":
+        available = getattr(app, "link_follow_available_for_selection", None)
+        if callable(available):
+            return bool(available())
         return bool(app.link_edges_for_selection())
     if action == "toggle_hide_reverted" and app.current_tab == ARTIFACTS_TAB:
         return False

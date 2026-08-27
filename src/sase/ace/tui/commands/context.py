@@ -272,7 +272,11 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
     metadata_search_active = bool(getattr(metadata_search, "is_active", False))
     link_edges_present: bool | None = None
     try:
-        link_edges_present = bool(app.link_edges_for_selection())
+        available = getattr(app, "link_follow_available_for_selection", None)
+        if callable(available):
+            link_edges_present = bool(available())
+        else:
+            link_edges_present = bool(app.link_edges_for_selection())
     except Exception:
         link_edges_present = None
 
