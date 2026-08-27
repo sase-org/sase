@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING
-
-from rich.text import Text
 
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
 from sase.ace.tui.tools.slow import slow_tool_call_threshold_ms_from_widget
 
 from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, AgentType, wait_display_agent
-from ...models._projected_record import resolve_step_output
 from ...models.agent_family_members import family_roster_container
 from ...models.agent_hoods import agent_owns_sase_agent
 from ._agent_clan_aggregation import (
@@ -23,47 +19,21 @@ from ._agent_display_clan import (
     clan_disk_sections_for_fold_state,
     panel_fold_state_from_widget,
 )
-from ._agent_display_content import (
-    get_phase_label,
-    get_prompt_content,
-    render_phase_divider,
-    render_timestamp_divider,
-)
 from ._agent_display_context import runner_capacity_for_app
-from ._agent_display_header import AgentHeader, build_header_text
+from ._agent_display_header import build_header_text
 from ._agent_display_header_summary import (
     detail_header_summary_is_complete,
     get_cached_detail_header_summary,
     publish_opened_workspaces_cache,
 )
+from ._agent_display_hint_body import render_agent_prompt_hint_body
+from ._agent_display_hint_sections import (
+    render_gate_hint_document,
+    render_monitor_hint_document,
+    render_proc_shell_hint_document,
+)
 from ._agent_display_state import AgentHintRender, HeaderHintState
-from ._agent_gate_section import (
-    GATE_SECTION_ID,
-    GateTextAnnotator,
-    build_gate_output,
-    build_gate_section,
-)
-from ._agent_monitor_section import (
-    MONITOR_SECTION_ID,
-    MonitorTextAnnotator,
-    build_monitor_output,
-    build_monitor_section,
-    monitor_phase_text,
-)
-from ._agent_proc_shell_section import (
-    PROC_SHELL_SECTION_ID,
-    ProcShellTextAnnotator,
-    build_proc_shell_output,
-    build_proc_shell_preview,
-    build_proc_shell_section,
-)
-from ._agent_xprompt_highlighting import (
-    agent_prompt_highlight_context,
-    apply_authored_prompt_overlays,
-)
 from ._file_path_hints import resolve_agent_workspace_dir
-from ._file_path_hints import iter_xprompt_file_path_matches
-from ._helpers import append_section_heading, format_output
 from ._hint_caps import append_bounded_text_with_file_hints
 from ._member_roster import member_jump_map_publisher_for
 
@@ -71,123 +41,6 @@ if TYPE_CHECKING:
     from rich.console import RenderableType
 
     from ...util.lazy_syntax import CachedRenderable
-
-
-def _render_reply_with_hints(
-    agent: Agent,
-    target: AgentHeader,
-    hint_counter: int,
-    hint_mappings: dict[int, str],
-    workspace_dir: str | None,
-    humanize_text: Callable[[str], str],
-) -> int:
-    """Render one agent's reply content with file hints into a Text."""
-    chunks = agent.get_timestamped_reply_chunks()
-    if chunks:
-        for ts, chunk_text in chunks:
-            target.append_text(render_timestamp_divider(ts))
-            content = chunk_text.strip()
-            if content:
-                content = humanize_text(content)
-                hint_counter = append_bounded_text_with_file_hints(
-                    target,
-                    content + "\n",
-                    hint_counter,
-                    hint_mappings,
-                    workspace_dir,
-                )
-                target.append("\n")
-        return hint_counter
-    live_reply = agent.get_live_reply_content()
-    if live_reply:
-        live_reply = humanize_text(live_reply)
-        return append_bounded_text_with_file_hints(
-            target,
-            live_reply + "\n",
-            hint_counter,
-            hint_mappings,
-            workspace_dir,
-        )
-    response_content = agent.get_response_content()
-    if response_content:
-        response_content = humanize_text(response_content)
-        return append_bounded_text_with_file_hints(
-            target,
-            response_content + "\n",
-            hint_counter,
-            hint_mappings,
-            workspace_dir,
-        )
-    return hint_counter
-
-
-def _hint_monitor_annotator(
-    hint_counter: int,
-    hint_mappings: dict[int, str],
-    workspace_dir: str | None,
-) -> tuple[MonitorTextAnnotator, Callable[[], int]]:
-    """Annotate free-form monitor text and expose the updated hint counter."""
-
-    def annotate(content: str | Text) -> Text:
-        nonlocal hint_counter
-        target = Text(end="")
-        raw = content.plain if isinstance(content, Text) else content
-        hint_counter = append_bounded_text_with_file_hints(
-            target,
-            raw,
-            hint_counter,
-            hint_mappings,
-            workspace_dir,
-        )
-        return target
-
-    return annotate, lambda: hint_counter
-
-
-def _hint_gate_annotator(
-    hint_counter: int,
-    hint_mappings: dict[int, str],
-    workspace_dir: str | None,
-) -> tuple[GateTextAnnotator, Callable[[], int]]:
-    """Annotate free-form gate text and expose the updated hint counter."""
-
-    def annotate(content: str | Text) -> Text:
-        nonlocal hint_counter
-        target = Text(end="")
-        raw = content.plain if isinstance(content, Text) else content
-        hint_counter = append_bounded_text_with_file_hints(
-            target,
-            raw,
-            hint_counter,
-            hint_mappings,
-            workspace_dir,
-        )
-        return target
-
-    return annotate, lambda: hint_counter
-
-
-def _hint_proc_shell_annotator(
-    hint_counter: int,
-    hint_mappings: dict[int, str],
-    workspace_dir: str | None,
-) -> tuple[ProcShellTextAnnotator, Callable[[], int]]:
-    """Annotate free-form proc-shell text and expose the updated hint counter."""
-
-    def annotate(content: str | Text) -> Text:
-        nonlocal hint_counter
-        target = Text(end="")
-        raw = content.plain if isinstance(content, Text) else content
-        hint_counter = append_bounded_text_with_file_hints(
-            target,
-            raw,
-            hint_counter,
-            hint_mappings,
-            workspace_dir,
-        )
-        return target
-
-    return annotate, lambda: hint_counter
 
 
 class AgentHintRenderMixin:
@@ -338,310 +191,58 @@ class AgentHintRenderMixin:
             )
 
         if agent.is_proc_shell:
-            annotate, hint_count = _hint_proc_shell_annotator(
+            return render_proc_shell_hint_document(
+                self,
+                agent,
+                header_text,
                 hint_counter,
                 hint_mappings,
                 workspace_dir,
-            )
-            section_level = (
-                lane_fold_overrides.get(PROC_SHELL_SECTION_ID, lane_fold_level)
-                if isinstance(lane_fold_overrides, Mapping)
-                else lane_fold_level
-            )
-            for part in build_proc_shell_preview(agent, annotate=annotate):
-                if isinstance(part, Text):
-                    header_text.append_text(part)
-            for part in build_proc_shell_section(
-                agent,
-                panel_level=section_level,
-                annotate=annotate,
-            ):
-                if isinstance(part, Text):
-                    header_text.append_text(part)
-            for part in build_proc_shell_output(agent, annotate=annotate):
-                if isinstance(part, Text):
-                    header_text.append_text(part)
-            hint_counter = hint_count()
-            self.update(self._prepare_cached_hint_renderable(header_text))  # type: ignore[attr-defined]
-            return AgentHintRender(
-                file_hints=hint_mappings,
-                tool_call_reports=tool_call_reports,
-                commit_views=header_hint_state.commit_views,
-                glossary_reports=header_hint_state.glossary_reports,
-                memory_reports=header_hint_state.memory_reports,
-                artifact_read_refs=header_hint_state.artifact_read_refs,
-                header_enrichment_pending=False,
+                lane_fold_level,
+                lane_fold_overrides,
+                header_hint_state,
+                tool_call_reports,
             )
 
         if agent.is_monitor:
-            annotate, hint_count = _hint_monitor_annotator(
+            return render_monitor_hint_document(
+                self,
+                agent,
+                header_text,
                 hint_counter,
                 hint_mappings,
                 workspace_dir,
-            )
-            section_level = (
-                lane_fold_overrides.get(MONITOR_SECTION_ID, lane_fold_level)
-                if isinstance(lane_fold_overrides, Mapping)
-                else lane_fold_level
-            )
-            for part in build_monitor_section(
-                agent,
-                panel_level=section_level,
-                annotate=annotate,
-            ):
-                if isinstance(part, Text):
-                    header_text.append_text(part)
-            for part in build_monitor_output(agent, annotate=annotate):
-                if isinstance(part, Text):
-                    header_text.append_text(part)
-            hint_counter = hint_count()
-            self.update(self._prepare_cached_hint_renderable(header_text))  # type: ignore[attr-defined]
-            if summary is None:
-                self._start_agent_detail_header_enrichment_from_context(agent)  # type: ignore[attr-defined]
-            return AgentHintRender(
-                file_hints=hint_mappings,
-                tool_call_reports=tool_call_reports,
-                commit_views=header_hint_state.commit_views,
-                glossary_reports=header_hint_state.glossary_reports,
-                memory_reports=header_hint_state.memory_reports,
-                artifact_read_refs=header_hint_state.artifact_read_refs,
-                header_enrichment_pending=not detail_header_summary_is_complete(
-                    summary
-                ),
+                lane_fold_level,
+                lane_fold_overrides,
+                header_hint_state,
+                tool_call_reports,
+                summary,
             )
 
         if agent.is_gate:
-            annotate, hint_count = _hint_gate_annotator(
+            return render_gate_hint_document(
+                self,
+                agent,
+                header_text,
                 hint_counter,
                 hint_mappings,
                 workspace_dir,
-            )
-            section_level = (
-                lane_fold_overrides.get(GATE_SECTION_ID, lane_fold_level)
-                if isinstance(lane_fold_overrides, Mapping)
-                else lane_fold_level
-            )
-            for part in build_gate_section(
-                agent,
-                panel_level=section_level,
-            ):
-                if isinstance(part, Text):
-                    header_text.append_text(part)
-            for part in build_gate_output(agent, annotate=annotate):
-                if isinstance(part, Text):
-                    header_text.append_text(part)
-            hint_counter = hint_count()
-            self.update(self._prepare_cached_hint_renderable(header_text))  # type: ignore[attr-defined]
-            if summary is None:
-                self._start_agent_detail_header_enrichment_from_context(agent)  # type: ignore[attr-defined]
-            return AgentHintRender(
-                file_hints=hint_mappings,
-                tool_call_reports=tool_call_reports,
-                commit_views=header_hint_state.commit_views,
-                glossary_reports=header_hint_state.glossary_reports,
-                memory_reports=header_hint_state.memory_reports,
-                artifact_read_refs=header_hint_state.artifact_read_refs,
-                header_enrichment_pending=not detail_header_summary_is_complete(
-                    summary
-                ),
+                lane_fold_level,
+                lane_fold_overrides,
+                header_hint_state,
+                tool_call_reports,
+                summary,
             )
 
-        # AGENT XPROMPT section (with file path hints)
-        raw_xprompt = agent.get_raw_xprompt_content()
-        highlight_context = agent_prompt_highlight_context(
+        hint_counter = render_agent_prompt_hint_body(
             self,
             agent,
-            raw_xprompt or "",
+            header_text,
+            humanize_text,
+            hint_counter,
+            hint_mappings,
+            workspace_dir,
         )
-        if raw_xprompt:
-            source_xprompt = raw_xprompt
-            raw_xprompt = humanize_text(source_xprompt)
-            append_section_heading(header_text, "AGENT XPROMPT")
-            xprompt_start = len(header_text.plain)
-            hint_counter = append_bounded_text_with_file_hints(
-                header_text,
-                raw_xprompt + "\n",
-                hint_counter,
-                hint_mappings,
-                workspace_dir,
-                matcher=iter_xprompt_file_path_matches,
-            )
-            xprompt_source = header_text.plain[xprompt_start:]
-            hint_spans = tuple(
-                span for span in header_text.spans if span.end > xprompt_start
-            )
-            apply_authored_prompt_overlays(
-                header_text,
-                xprompt_source,
-                highlight_context,
-                region_start=xprompt_start,
-                include_xprompt=True,
-                hint_spans=hint_spans,
-            )
-            header_text.append("\n")
-            header_text.append("\u2500" * 50 + "\n", style="dim")
-            header_text.append("\n")
-
-        # AGENT PROMPT section (with file path hints, Text instead of Syntax)
-        append_section_heading(header_text, "AGENT PROMPT")
-
-        prompt_content = get_prompt_content(agent)
-        if prompt_content:
-            prompt_content = humanize_text(prompt_content)
-            prompt_start = len(header_text.plain)
-            hint_counter = append_bounded_text_with_file_hints(
-                header_text,
-                prompt_content + "\n",
-                hint_counter,
-                hint_mappings,
-                workspace_dir,
-            )
-            prompt_source = header_text.plain[prompt_start:]
-            prompt_hint_spans = tuple(
-                span for span in header_text.spans if span.end > prompt_start
-            )
-            apply_authored_prompt_overlays(
-                header_text,
-                prompt_source,
-                highlight_context,
-                region_start=prompt_start,
-                hint_spans=prompt_hint_spans,
-            )
-
-            # Consolidated AGENT REPLY for agents with follow-ups (with hints)
-            if agent.followup_agents:
-                header_text.append("\n")
-                header_text.append("\u2500" * 50 + "\n", style="dim")
-                header_text.append("\n")
-                append_section_heading(header_text, "AGENT REPLY")
-
-                # Main agent's phase
-                header_text.append_text(
-                    render_phase_divider(
-                        get_phase_label(agent),
-                        agent.run_start_time or agent.start_time,
-                    )
-                )
-                hint_counter = _render_reply_with_hints(
-                    agent,
-                    header_text,
-                    hint_counter,
-                    hint_mappings,
-                    workspace_dir,
-                    humanize_text,
-                )
-
-                # Follow-up phases
-                for followup in agent.followup_agents:
-                    if followup.is_monitor:
-                        annotate, hint_count = _hint_monitor_annotator(
-                            hint_counter,
-                            hint_mappings,
-                            workspace_dir,
-                        )
-                        header_text.append_text(
-                            monitor_phase_text(followup, annotate=annotate)
-                        )
-                        hint_counter = hint_count()
-                        continue
-                    header_text.append_text(
-                        render_phase_divider(
-                            get_phase_label(followup),
-                            followup.run_start_time or followup.start_time,
-                        )
-                    )
-                    hint_counter = _render_reply_with_hints(
-                        followup,
-                        header_text,
-                        hint_counter,
-                        hint_mappings,
-                        workspace_dir,
-                        humanize_text,
-                    )
-            # AGENT CHAT section for completed agents (with hints)
-            elif agent.status in ("DONE", "FAILED"):
-                response_content = agent.get_response_content()
-                # Only use step_output when it has displayable content (_raw/_data),
-                # not when it only contains meta_* metadata fields.
-                step_output = resolve_step_output(agent)
-                if (
-                    response_content is None
-                    and agent.is_workflow_child
-                    and step_output is not None
-                    and ("_raw" in step_output or "_data" in step_output)
-                ):
-                    response_content = format_output(step_output)
-
-                header_text.append("\n")
-                header_text.append("\u2500" * 50 + "\n", style="dim")
-                header_text.append("\n")
-                append_section_heading(header_text, "AGENT CHAT")
-
-                chunks = agent.get_timestamped_reply_chunks()
-                if chunks:
-                    for ts, chunk_text in chunks:
-                        header_text.append_text(render_timestamp_divider(ts))
-                        content = chunk_text.strip()
-                        if content:
-                            content = humanize_text(content)
-                            hint_counter = append_bounded_text_with_file_hints(
-                                header_text,
-                                content + "\n",
-                                hint_counter,
-                                hint_mappings,
-                                workspace_dir,
-                            )
-                            header_text.append("\n")
-                elif response_content:
-                    response_content = humanize_text(response_content)
-                    hint_counter = append_bounded_text_with_file_hints(
-                        header_text,
-                        response_content + "\n",
-                        hint_counter,
-                        hint_mappings,
-                        workspace_dir,
-                    )
-                else:
-                    header_text.append("No response file found.\n", style="dim italic")
-            else:
-                # AGENT REPLY section for running agents (with hints)
-                header_text.append("\n")
-                header_text.append("\u2500" * 50 + "\n", style="dim")
-                header_text.append("\n")
-                append_section_heading(header_text, "AGENT REPLY")
-
-                live_reply = agent.get_live_reply_content()
-                chunks = agent.get_timestamped_reply_chunks()
-                if chunks:
-                    for ts, chunk_text in chunks:
-                        header_text.append_text(render_timestamp_divider(ts))
-                        content = chunk_text.strip()
-                        if content:
-                            content = humanize_text(content)
-                            hint_counter = append_bounded_text_with_file_hints(
-                                header_text,
-                                content + "\n",
-                                hint_counter,
-                                hint_mappings,
-                                workspace_dir,
-                            )
-                            header_text.append("\n")
-                elif live_reply:
-                    live_reply = humanize_text(live_reply)
-                    hint_counter = append_bounded_text_with_file_hints(
-                        header_text,
-                        live_reply + "\n",
-                        hint_counter,
-                        hint_mappings,
-                        workspace_dir,
-                    )
-                else:
-                    header_text.append(
-                        "Waiting for agent response...\n",
-                        style="dim italic",
-                    )
-        else:
-            header_text.append("No prompt file found.\n", style="dim italic")
 
         self.update(self._prepare_cached_hint_renderable(header_text))  # type: ignore[attr-defined]
         if summary is None:
