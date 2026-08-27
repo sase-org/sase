@@ -1,4 +1,4 @@
-"""Host-owned epic launch metadata regressions for plan-family rows."""
+"""Host-owned epic launch status regressions for plan-family rows."""
 
 from __future__ import annotations
 
@@ -59,31 +59,35 @@ def test_host_owned_epic_metadata_advances_concrete_planner_family() -> None:
 
     _apply_status_overrides([root], [planner])
 
-    assert root.status == "DONE"
-    assert planner.status == "DONE"
+    assert root.status == "EPIC APPROVED"
+    assert planner.status == "EPIC APPROVED"
 
     root.epic_bead_id = "sase-64"
     _apply_status_overrides([root], [planner])
 
-    assert root.status == "DONE"
-    assert planner.status == "DONE"
+    assert root.status == "EPIC CREATED"
+    assert planner.status == "EPIC CREATED"
     assert planner.epic_bead_id == "sase-64"
 
 
-def test_plan_root_without_concrete_child_does_not_synthesize_planner() -> None:
+def test_host_owned_epic_metadata_advances_synthetic_planner_family() -> None:
     root = _root(status="DONE")
     agents = [root]
 
     _apply_status_overrides(agents)
 
-    assert agents == [root]
-    assert root.status == "DONE"
+    planner = next(
+        agent for agent in agents if agent.parent_timestamp == ROOT_TIMESTAMP
+    )
+    assert root.status == "EPIC APPROVED"
+    assert planner.status == "EPIC APPROVED"
 
     root.epic_bead_id = "sase-64"
     _apply_status_overrides(agents)
 
-    assert agents == [root]
-    assert root.status == "DONE"
+    assert root.status == "EPIC CREATED"
+    assert planner.status == "EPIC CREATED"
+    assert planner.epic_bead_id == "sase-64"
 
 
 def test_epic_bead_id_without_epic_approval_does_not_create_epic_status() -> None:
@@ -94,8 +98,11 @@ def test_epic_bead_id_without_epic_approval_does_not_create_epic_status() -> Non
 
     _apply_status_overrides(agents)
 
-    assert agents == [root]
-    assert root.status == "DONE"
+    planner = next(
+        agent for agent in agents if agent.parent_timestamp == ROOT_TIMESTAMP
+    )
+    assert root.status == "PLAN APPROVED"
+    assert planner.status == "PLAN APPROVED"
 
 
 def test_host_epic_metadata_reload_crosses_real_artifact_loader_boundary(
@@ -151,7 +158,8 @@ def test_host_epic_metadata_reload_crosses_real_artifact_loader_boundary(
         update_index=False,
     )
     assert {agent.agent_name: agent.status for agent in before} == {
-        "a1": "DONE",
+        "a1": "EPIC APPROVED",
+        "a1--plan": "EPIC APPROVED",
     }
 
     _update_epic_launch_metadata(
@@ -166,6 +174,7 @@ def test_host_epic_metadata_reload_crosses_real_artifact_loader_boundary(
     )
 
     assert {agent.agent_name: agent.status for agent in after} == {
-        "a1": "DONE",
+        "a1": "EPIC CREATED",
+        "a1--plan": "EPIC CREATED",
     }
     assert all(agent.epic_bead_id == "sase-64" for agent in after)
