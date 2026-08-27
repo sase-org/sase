@@ -69,8 +69,20 @@ def test_parser_registers_pager_options_and_positionals() -> None:
 def test_pager_help_documents_public_options() -> None:
     help_text = flat_help(parser_for(("sase", "pager")).format_help())
 
-    assert "-c, --color {auto,always,never}" in help_text
-    assert "-l, --links {auto,never}" in help_text
+    assert any(
+        rendering in help_text
+        for rendering in (
+            "-c, --color {auto,always,never}",
+            "-c {auto,always,never}, --color {auto,always,never}",
+        )
+    )
+    assert any(
+        rendering in help_text
+        for rendering in (
+            "-l, --links {auto,never}",
+            "-l {auto,never}, --links {auto,never}",
+        )
+    )
     assert "-p, --plain" in help_text
     assert "-t, --title TITLE" in help_text
     assert "-w, --wrap WIDTH" in help_text

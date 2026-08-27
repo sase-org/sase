@@ -4,7 +4,10 @@ The implementation is split by responsibility across ``chat_storage``,
 ``chat_resume``, and ``chat_fork``. Existing imports remain available here.
 """
 
+import shutil
+import subprocess
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 
 from sase.core.patch import strip_reverted_suffix
 from sase.core.shell import run_shell_command
@@ -63,10 +66,39 @@ __all__ = [
 
 def _get_branch_or_workspace_name() -> str:
     """Get the current branch name or workspace name."""
-    result = run_shell_command("branch_or_workspace_name", capture_output=True)
+    helper = "branch_or_workspace_name"
+    if shutil.which(helper) is not None:
+        result = run_shell_command(helper, capture_output=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Failed to get branch_or_workspace_name: {result.stderr}"
+            )
+        name = result.stdout.strip()
+    else:
+        name = _fallback_branch_or_workspace_name()
+    return strip_reverted_suffix(name)
+
+
+def _fallback_branch_or_workspace_name() -> str:
+    branch = _current_git_branch_name()
+    if branch:
+        return branch
+    return Path.cwd().resolve(strict=False).name or "workspace"
+
+
+def _current_git_branch_name() -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError):
+        return None
     if result.returncode != 0:
-        raise RuntimeError(f"Failed to get branch_or_workspace_name: {result.stderr}")
-    return strip_reverted_suffix(result.stdout.strip())
+        return None
+    return result.stdout.strip() or None
 
 
 def generate_chat_filename(

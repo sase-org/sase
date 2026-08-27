@@ -9,7 +9,6 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from rich.text import Text
 
 from sase.ace.patch import Patch
 from sase.ace.testing import AcePage
@@ -197,25 +196,24 @@ def test_collapsed_empty_view_stays_hidden() -> None:
     assert _build_collapsed_rail(view, accent="#87D7FF") is None
 
 
-def test_expanded_link_row_renders_edge_metadata() -> None:
+def test_link_only_relation_view_leaves_the_panel_empty() -> None:
     origin = _target("current")
     linked = _target("linked")
     relations = (_decl("implements", RelationKind.LINK, label="implements"),)
+    edge = RelationEdge(
+        kind=RelationKind.LINK,
+        relation="implements",
+        label="implements",
+        source=origin,
+        target=linked,
+        description="extends requirement",
+        origin="derived",
+        uses=2,
+    )
     index = build_relation_index(
         pane_id="patches",
         relations=relations,
-        edges=(
-            RelationEdge(
-                kind=RelationKind.LINK,
-                relation="implements",
-                label="implements",
-                source=origin,
-                target=linked,
-                description="extends requirement",
-                origin="derived",
-                uses=2,
-            ),
-        ),
+        edges=(edge,),
         known_targets={origin, linked},
     )
     view = build_relation_view(
@@ -224,13 +222,11 @@ def test_expanded_link_row_renders_edge_metadata() -> None:
         relations=relations,
         facts={linked: RelationEntryFact("linked.md")},
     )
-    row = view.sections[0].rows[0]
-    text = Text()
 
-    RelationPanel()._render_name(text, row)  # noqa: SLF001
-
-    plain = text.plain
-    assert "linked.md — extends requirement · derived · 2 uses" in plain
+    assert index.edges_for_relation(origin, "implements") == (edge,)
+    assert view.sections == ()
+    assert view.roles == {"implements": RelationRole.LINK}
+    assert not view.keymap
 
 
 def test_patches_footer_appends_toggle_when_keymap_is_live() -> None:
@@ -374,11 +370,11 @@ async def test_dot_collapses_and_expands_on_each_relations_pane(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     cases = (
-        ("patches", "#artifacts-patches-pane", ArtifactsPatchesPane),
-        ("beads", "#artifacts-beads-pane", ArtifactsBeadsPane),
-        ("ref:plan", "#artifacts-plans-pane", ArtifactsPlansPane),
-        ("files", "#artifacts-files-pane", ArtifactsFilesPane),
-        ("stitches", "#artifacts-stitches-pane", CommitsPane),
+        ("patches", "#artifacts-patches-pane", ArtifactsPatchesPane, True),
+        ("beads", "#artifacts-beads-pane", ArtifactsBeadsPane, True),
+        ("ref:plan", "#artifacts-plans-pane", ArtifactsPlansPane, False),
+        ("files", "#artifacts-files-pane", ArtifactsFilesPane, True),
+        ("stitches", "#artifacts-stitches-pane", CommitsPane, True),
     )
 
     async with AcePage(query='"feature"', patches=_parent_child_patches()) as page:
@@ -396,7 +392,7 @@ async def test_dot_collapses_and_expands_on_each_relations_pane(
         await page.pause()
 
         seen: list[str] = []
-        for pane_id, selector, widget_type in cases:
+        for pane_id, selector, widget_type, expects_panel in cases:
             pane = await _open_pane(page, pane_id, widget_type, selector)
             if pane_id == "beads":
                 await page.wait_for(
@@ -426,6 +422,23 @@ async def test_dot_collapses_and_expands_on_each_relations_pane(
             pane.refresh_relation_panel()
             await page.pause()
             panel = _relation_panel_for(pane)
+            if not expects_panel:
+                selected_target = pane.selected_entry_target()
+                assert selected_target is not None
+                assert pane._relation_index is not None  # noqa: SLF001
+                view = build_relation_view(
+                    index=pane._relation_index,  # noqa: SLF001
+                    origin=selected_target,
+                    relations=pane._relation_index.relations,  # noqa: SLF001
+                )
+                assert [section.relation for section in view.sections] == [
+                    "parent",
+                    "children",
+                ]
+                assert not view
+                assert not panel.display
+                seen.append(pane_id)
+                continue
             assert panel.display, f"{pane_id} relation panel stayed hidden"
             assert panel.has_class("-collapsed"), (
                 f"{pane_id} relation panel should start collapsed"
@@ -451,7 +464,7 @@ async def test_dot_collapses_and_expands_on_each_relations_pane(
                 assert len(pane.entry_targets()) == before_rows
             assert load_counts == loads_before
             seen.append(pane_id)
-        assert seen == [pane_id for pane_id, _selector, _widget_type in cases]
+        assert seen == [pane_id for pane_id, _selector, _widget_type, _ in cases]
 
 
 @pytest.mark.asyncio

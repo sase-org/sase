@@ -171,6 +171,7 @@ def _miniature_pool_environment(
         "SASE_TEST_SELECTION_SCOPED_WORKER_CEILING",
         "SASE_TEST_SELECTION_TIMINGS_DIR",
         "SASE_TEST_SELECTION_TIMINGS_DISABLED",
+        "SASE_TEST_SHARD",
     ):
         environment.pop(name, None)
     environment.update(
@@ -286,6 +287,22 @@ def test_scoped_run_takes_no_token_while_the_pool_is_exhausted(
     # Nothing escalated, so the gear was never offered anything and the
     # manifest says nothing about it.
     assert "gear" not in manifest
+
+
+def test_scoped_run_ignores_parent_shard_spec(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nested scoped subprocesses must not inherit the gate's fast-lane shard."""
+    monkeypatch.setenv("SASE_TEST_SHARD", "2/6")
+    root = tmp_path / "repo"
+    pool_dir = tmp_path / "tokens"
+    _build_scoped_repo(root)
+
+    scoped = _run_miniature_runner(root, pool_dir, "scoped")
+
+    assert scoped.returncode == 0, f"stdout:\n{scoped.stdout}\nstderr:\n{scoped.stderr}"
+    assert "selected 1 of 10 test files" in scoped.stderr
+    assert "1 passed" in scoped.stdout
 
 
 def test_ungoverned_bypass_is_bounded_by_the_host_budget(tmp_path: Path) -> None:

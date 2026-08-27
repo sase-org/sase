@@ -6,13 +6,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from sase.history.chat import (
+    build_fork_injected_history,
     _get_branch_or_workspace_name,
     _load_chat_history,
     find_chat_by_timestamp,
     generate_chat_filename,
     get_chat_file_path,
     list_chat_histories,
+    load_chat_for_resume,
     resolve_chat_file_path,
+    save_chat_history,
 )
 from sase.history.chat_storage import iter_chat_files
 
@@ -25,22 +28,77 @@ def test_get_branch_or_workspace_name_strips_reverted_suffix() -> None:
     mock_result.returncode = 0
     mock_result.stdout = "feature_branch__3\n"
 
-    with patch("sase.history.chat.run_shell_command", return_value=mock_result):
+    with (
+        patch("sase.history.chat.shutil.which", return_value="/usr/bin/helper"),
+        patch("sase.history.chat.run_shell_command", return_value=mock_result),
+    ):
         result = _get_branch_or_workspace_name()
         assert result == "feature_branch"  # suffix stripped
 
 
-def test_get_branch_or_workspace_name_failure() -> None:
-    """Test _get_branch_or_workspace_name with failed command."""
+def test_get_branch_or_workspace_name_helper_failure() -> None:
+    """Test _get_branch_or_workspace_name with failed helper command."""
     mock_result = MagicMock()
     mock_result.returncode = 1
-    mock_result.stderr = "command not found"
+    mock_result.stderr = "helper failed"
 
-    with patch("sase.history.chat.run_shell_command", return_value=mock_result):
+    with (
+        patch("sase.history.chat.shutil.which", return_value="/usr/bin/helper"),
+        patch("sase.history.chat.run_shell_command", return_value=mock_result),
+    ):
         with pytest.raises(
             RuntimeError, match="Failed to get branch_or_workspace_name"
         ):
             _get_branch_or_workspace_name()
+
+
+def test_get_branch_or_workspace_name_missing_helper_uses_git_branch() -> None:
+    """A missing developer helper falls back to the current git branch."""
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = "feature_branch__3\n"
+
+    with (
+        patch("sase.history.chat.shutil.which", return_value=None),
+        patch("sase.history.chat.subprocess.run", return_value=mock_result),
+        patch("sase.history.chat.run_shell_command") as helper,
+    ):
+        result = _get_branch_or_workspace_name()
+
+    assert result == "feature_branch"
+    helper.assert_not_called()
+
+
+def test_missing_helper_workspace_fallback_round_trips_chat_refs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fallback-derived chat basenames still resolve for resume and fork lookups."""
+    redirect_sase_home(monkeypatch, tmp_path)
+    workspace = tmp_path / "feature branch__2"
+    workspace.mkdir()
+    monkeypatch.chdir(workspace)
+    mock_result = MagicMock()
+    mock_result.returncode = 128
+    mock_result.stdout = ""
+
+    with (
+        patch("sase.history.chat.shutil.which", return_value=None),
+        patch("sase.history.chat.subprocess.run", return_value=mock_result),
+        patch("sase.history.chat.generate_timestamp", return_value="260827_120000"),
+    ):
+        saved = save_chat_history(
+            prompt="Continue from fallback",
+            response="Fallback works",
+            workflow="ace-run",
+        )
+
+    basename = Path(saved).stem
+    assert basename == "feature_branch-ace_run-260827_120000"
+    assert "Continue from fallback" in load_chat_for_resume(basename)
+    rendered = build_fork_injected_history(
+        [{"kind": "agent", "name": "fallback", "path": basename}]
+    )
+    assert "Continue from fallback" in rendered
 
 
 def testgenerate_chat_filename_with_agent() -> None:
