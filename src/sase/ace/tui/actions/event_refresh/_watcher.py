@@ -125,9 +125,9 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
                 targets.update({"artifacts", "axe"})
                 continue
             if projects_root in (path, *path.parents):
-                targets.update({"artifacts", "agents", "axe"})
+                targets.update({"artifacts", "axe"})
                 continue
-            targets.update({"artifacts", "agents", "axe"})
+            targets.update({"artifacts", "axe"})
         if targets:
             return targets
         if ignored_artifact_path:

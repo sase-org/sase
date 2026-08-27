@@ -17,7 +17,7 @@ PROMPT_INPUT_DEFER_SECONDS = 0.25
 # this floor caps the worst case to one load per window regardless of how
 # often the dirty flag is re-armed by inotify. Sanity refreshes bypass it.
 AGENTS_LOAD_MIN_INTERVAL_SECONDS = 5.0
-AGENT_ARTIFACT_DELTA_QUEUE_LIMIT = 64
+AGENT_ARTIFACT_DELTA_QUEUE_LIMIT = 256
 EXPECTED_AGENT_ARTIFACT_DELETION_TTL_SECONDS = 30.0
 
 _AGENTS_RELEVANT_ARTIFACT_MARKERS = frozenset(

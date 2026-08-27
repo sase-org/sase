@@ -133,6 +133,52 @@ async def test_artifact_delta_queue_overflow_uses_broad_fallback() -> None:
     )
 
 
+@pytest.mark.asyncio
+async def test_artifact_delta_queue_accepts_large_runner_burst() -> None:
+    app = _FakeApp(watcher_active=True)
+    paths = tuple(
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / f"20260528{i:06d}"
+        / "done.json"
+        for i in range(96)
+    )
+
+    app._on_artifact_change(paths)
+    await app._run_auto_refresh()
+
+    assert AGENT_ARTIFACT_DELTA_QUEUE_LIMIT >= len(paths)
+    assert app.refresh_calls == ["delta:watcher:96"]
+    assert app.delta_requests == [("watcher", tuple(path.parent for path in paths))]
+    assert app._dirty_agents is False
+    assert app._dirty_agent_artifact_fallback_reason is None
+
+
+@pytest.mark.asyncio
+async def test_mixed_unmapped_artifact_path_keeps_mapped_delta() -> None:
+    app = _FakeApp(watcher_active=True)
+    artifacts_root = Path.home() / ".sase" / "projects" / "sase" / "artifacts"
+    unmapped_shard = artifacts_root / "ace-run" / "202605"
+    mapped_marker = artifacts_root / "ace-run" / "20260528120000" / "done.json"
+
+    app._on_artifact_change((unmapped_shard, mapped_marker))
+    await app._run_auto_refresh()
+
+    assert app.refresh_calls == ["delta:watcher:1"]
+    assert app.delta_requests == [("watcher", (mapped_marker.parent,))]
+    assert app._dirty_agents is False
+    assert app._dirty_agent_artifact_dirs == ()
+    assert app._dirty_agent_artifact_fallback_reason is None
+    assert all(
+        record.fallback_reason != "unknown_watcher_path"
+        for record in app._agents_refresh_trace_records
+    )
+
+
 @pytest.mark.parametrize(
     "path",
     [
@@ -347,6 +393,19 @@ def test_artifact_change_schedules_only_patches_for_project_file() -> None:
     assert app._dirty_patches is True
     assert app._dirty_axe is True
     assert app._dirty_agents is False
+    assert app.refresh_calls == ["schedule_patches"]
+
+
+def test_artifact_change_schedules_only_patches_for_project_directory_noise() -> None:
+    app = _FakeApp(watcher_active=True)
+    path = Path.home() / ".sase" / "projects" / "sase" / "scratch"
+
+    app._on_artifact_change((path,))
+
+    assert app._dirty_patches is True
+    assert app._dirty_axe is True
+    assert app._dirty_agents is False
+    assert app._dirty_agent_artifact_dirs == ()
     assert app.refresh_calls == ["schedule_patches"]
 
 

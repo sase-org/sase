@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from sase.core.paths import sase_projects_dir, sase_subdir
+from sase.core.paths import sase_subdir
 
 from .._event_base import EventHandlersBase
 from ..agents._refresh_trace import (
@@ -52,10 +52,7 @@ class EventArtifactDeltaMixin(EventHandlersBase):
                 return None, True, False
             deleted_dir = not path.exists()
             return directory_dir, True, deleted_dir
-        projects_root = sase_projects_dir()
-        if projects_root in (path, *path.parents):
-            return None, True, False
-        return None, True, False
+        return None, False, False
 
     def _agent_artifact_delta_dirs_for_paths(
         self, changed_paths: tuple[Path, ...] | None
@@ -80,7 +77,7 @@ class EventArtifactDeltaMixin(EventHandlersBase):
             if deleted_dir:
                 deleted_artifact_dirs.append(artifact_dir)
 
-        if unmapped_agents_path:
+        if unmapped_agents_path and not artifact_dirs:
             return [], [], "unknown_watcher_path"
         if not artifact_dirs:
             return [], [], None
