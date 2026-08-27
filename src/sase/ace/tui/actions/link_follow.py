@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
 from textual.widgets import Input
@@ -32,18 +32,24 @@ from ..relations.link_keys import (
 )
 from ..relations.link_subject import selected_link_subject
 from ..tab_order import ARTIFACTS_TAB
+from .axe_display._loader_items import selected_axe_item_key
+
+if TYPE_CHECKING:
+    from .axe_display._loader_state import AxeItemKey
 
 _LINK_TRAIL_MAX = 32
 
 
 @dataclass(frozen=True, slots=True)
-class _LinkTrailHop:
+class LinkTrailHop:
     """One successful link-follow origin, retained for future backtracking."""
 
     tab: str
     pane_key: str | None
     origin: ArtifactEntryTarget | None
     query_source: str | None
+    project_scope: str | None = None
+    axe_key: AxeItemKey | None = None
 
 
 class LinkFollowMixin:
@@ -52,7 +58,9 @@ class LinkFollowMixin:
     current_tab: Any
     current_idx: int
     _pending_link_prefix: bool
-    _link_trail: list[_LinkTrailHop]
+    _link_trail: list[LinkTrailHop]
+    _link_trail_forward: list[LinkTrailHop]
+    _link_trail_guard: bool
 
     def action_follow_artifact_link(self) -> None:
         """Arm ``$`` link selection, or follow the lead chip on ``$$``."""
@@ -114,19 +122,23 @@ class LinkFollowMixin:
             return
         kind, payload = parsed
         origin = self._current_link_trail_origin()
-        if kind == "chop":
-            if self._follow_chop_link(payload):
+        self._link_trail_guard = True
+        try:
+            if kind == "chop":
+                if self._follow_chop_link(payload):
+                    self._record_link_trail(origin)
+                return
+            if kind == "agent" and self._follow_loaded_agent(payload):
                 self._record_link_trail(origin)
-            return
-        if kind == "agent" and self._follow_loaded_agent(payload):
-            self._record_link_trail(origin)
-            return
-        target = chip.neighbor_target
-        if target is None:
-            self._notify_missing_link_target(chip.neighbor_ref, None)
-            return
-        if self._follow_artifacts_target(chip.neighbor_ref, target):
-            self._record_link_trail(origin)
+                return
+            target = chip.neighbor_target
+            if target is None:
+                self._notify_missing_link_target(chip.neighbor_ref, None)
+                return
+            if self._follow_artifacts_target(chip.neighbor_ref, target):
+                self._record_link_trail(origin)
+        finally:
+            self._link_trail_guard = False
 
     def _open_artifact_links_panel(
         self, scope_item: LinkRailItem | None = None
@@ -264,30 +276,40 @@ class LinkFollowMixin:
             registry_attr="_link_rail_tasks",
         )
 
-    def _current_link_trail_origin(self) -> _LinkTrailHop:
+    def _current_link_trail_origin(self) -> LinkTrailHop:
         tab = str(getattr(self, "current_tab", ""))
         pane_key: str | None = None
         origin: ArtifactEntryTarget | None = None
         query_source: str | None = None
+        project_scope: str | None = None
+        axe_key: AxeItemKey | None = None
         if tab == ARTIFACTS_TAB:
             pane_key = str(getattr(self, "current_artifacts_pane_key", ""))
             pane = self._artifacts_entry_navigator()  # type: ignore[attr-defined]
             if pane is not None:
                 origin = pane.selected_entry_target()
                 query_source = _pane_limit_query(pane)
+            project_scope = getattr(self, "artifacts_project_scope", None)
         elif tab == "agents":
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
             name = getattr(agent, "name", None) if agent is not None else None
             if isinstance(name, str) and name:
                 origin = ArtifactEntryTarget("agents", (name,))
-        return _LinkTrailHop(
+        elif tab == "axe":
+            axe_key = selected_axe_item_key(
+                getattr(self, "_axe_items", []),
+                getattr(self, "current_idx", -1),
+            )
+        return LinkTrailHop(
             tab=tab,
             pane_key=pane_key or None,
             origin=origin,
             query_source=query_source,
+            project_scope=project_scope,
+            axe_key=axe_key,
         )
 
-    def _record_link_trail(self, hop: _LinkTrailHop) -> None:
+    def _record_link_trail(self, hop: LinkTrailHop) -> None:
         trail = getattr(self, "_link_trail", None)
         if not isinstance(trail, list):
             trail = []
@@ -295,6 +317,9 @@ class LinkFollowMixin:
         trail.append(hop)
         if len(trail) > _LINK_TRAIL_MAX:
             del trail[: len(trail) - _LINK_TRAIL_MAX]
+        forward = getattr(self, "_link_trail_forward", None)
+        if isinstance(forward, list):
+            forward.clear()
 
     def _follow_artifacts_target(self, ref: str, target: ArtifactEntryTarget) -> bool:
         if self._select_current_artifacts_target(target):
@@ -396,8 +421,6 @@ class LinkFollowMixin:
         if idx is None:
             self._notify_missing_link_target(f"chop:{payload}", None)
             return False
-        from .axe_display._loader_items import selected_axe_item_key
-
         self._save_current_tab_position()  # type: ignore[attr-defined]
         self.current_tab = "axe"
         self.current_idx = idx
@@ -622,4 +645,4 @@ def _chop_matches(
     )
 
 
-__all__ = ["LinkFollowMixin"]
+__all__ = ["LinkFollowMixin", "LinkTrailHop"]

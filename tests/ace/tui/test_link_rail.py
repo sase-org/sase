@@ -180,6 +180,57 @@ def test_dangling_link_stays_visible_and_marks_missing_target() -> None:
     assert "(missing)" in plain
 
 
+def test_breadcrumb_chip_leads_the_rail_when_a_trail_is_present() -> None:
+    text = _render_link_rail(
+        (_chip(),),
+        width=120,
+        breadcrumb="⟨ ▤ origin.txt ⟩",
+    )
+
+    assert text is not None
+    plain = text.plain
+    assert plain.startswith(" ⟨ ▤ origin.txt ⟩ · LINKS")
+
+
+def test_no_breadcrumb_matches_the_original_leading_space() -> None:
+    with_breadcrumb = _render_link_rail((_chip(),), width=120, breadcrumb=None)
+    without_breadcrumb = _render_link_rail((_chip(),), width=120)
+
+    assert with_breadcrumb is not None
+    assert without_breadcrumb is not None
+    assert with_breadcrumb.plain == without_breadcrumb.plain
+    assert with_breadcrumb.plain.startswith(" LINKS")
+
+
+def test_width_pressure_collapses_the_breadcrumb_before_the_header_count() -> None:
+    chips = tuple(
+        _chip(
+            neighbor_ref=f"plan:202608/link_rail_{index}.md",
+            why="a deliberately long reason that drops before keys move",
+        )
+        for index in range(1, 5)
+    )
+    breadcrumb = (
+        "⟨ a very long breadcrumb label that will not possibly fit in this "
+        "narrow rail width ⟩"
+    )
+
+    text = _render_link_rail(chips, width=82, breadcrumb=breadcrumb)
+
+    assert text is not None
+    plain = text.plain
+    assert cell_len(plain) <= 82
+    assert breadcrumb not in plain
+    assert "$1" in plain
+
+
+def test_breadcrumb_only_rail_when_the_selection_has_no_links() -> None:
+    text = _render_link_rail((), width=120, breadcrumb="⟨ ▤ origin.txt ⟩")
+
+    assert text is not None
+    assert text.plain == " ⟨ ▤ origin.txt ⟩"
+
+
 def test_chop_neighbor_without_artifact_target_is_not_missing() -> None:
     text = _render_link_rail(
         (

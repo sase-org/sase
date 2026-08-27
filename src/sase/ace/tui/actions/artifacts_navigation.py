@@ -73,6 +73,9 @@ class ArtifactsNavigationActionsMixin:
         """Align footer and lazy scope setup with the visible Artifacts pane."""
         if self.current_tab != ARTIFACTS_TAB:
             return
+        note_selection = getattr(self, "_note_artifacts_selection_for_link_trail", None)
+        if callable(note_selection):
+            note_selection()
         if self.current_artifacts_pane_key == "patches":
             self._ensure_artifacts_project_choices()  # type: ignore[attr-defined]
             self._refresh_display()  # type: ignore[attr-defined]

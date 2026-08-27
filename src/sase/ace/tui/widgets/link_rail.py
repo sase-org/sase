@@ -3,21 +3,21 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from pathlib import PurePosixPath
 from typing import Any
 
 from rich.cells import cell_len
 from rich.text import Text
 from textual.widgets import Static
 
+from sase.ace.tui.actions.link_trail import link_trail_breadcrumb_text
 from sase.ace.tui.link_rail_flag import link_rail_enabled
-from sase.ace.tui.relations.artifact_links import parse_link_ref
 from sase.ace.tui.relations.link_index import LinkChip
 from sase.ace.tui.relations.link_keys import (
     MAX_DIRECT_LINK_KEYS,
     LinkRailItem,
     link_key_label,
     link_rail_items,
+    short_ref_label,
 )
 from sase.ace.tui.relations.link_subject import selected_link_subject
 from sase.ace.tui.util.trace import tui_trace
@@ -52,6 +52,7 @@ class LinkRail(Static):
         super().__init__(**kwargs)
         self._chips: tuple[LinkChip, ...] = ()
         self._subject_accent = "#87D7FF"
+        self._breadcrumb: str | None = None
         self._last_signature: tuple[Any, ...] | None = None
 
     def on_mount(self) -> None:
@@ -63,7 +64,7 @@ class LinkRail(Static):
     def on_resize(self) -> None:
         """Re-run the width ladder without changing chip ordering."""
 
-        if self._chips:
+        if self._chips or self._breadcrumb:
             self._refresh()
 
     def refresh_from_app(self, app: Any | None = None) -> None:
@@ -73,33 +74,37 @@ class LinkRail(Static):
         if not link_rail_enabled():
             self.clear()
             return
+        breadcrumb = link_trail_breadcrumb_text(host)
         subject = selected_link_subject(host)
-        if subject is None:
+        chips: Sequence[LinkChip] = ()
+        if subject is not None:
+            edges_for_selection = getattr(host, "link_edges_for_selection", None)
+            chips = edges_for_selection() if callable(edges_for_selection) else ()
+        if not chips and breadcrumb is None:
             self.clear()
             return
-        edges_for_selection = getattr(host, "link_edges_for_selection", None)
-        chips = edges_for_selection() if callable(edges_for_selection) else ()
-        if not chips:
-            self.clear()
-            return
-        self.update_links(chips, subject_accent=subject.accent)
+        accent = subject.accent if subject is not None else "#87D7FF"
+        self.update_links(chips, subject_accent=accent, breadcrumb=breadcrumb)
 
     def update_links(
         self,
         chips: Sequence[LinkChip],
         *,
         subject_accent: str,
+        breadcrumb: str | None = None,
     ) -> None:
         """Show *chips* using *subject_accent* for the header."""
 
         self._chips = tuple(chips)
         self._subject_accent = subject_accent or "#87D7FF"
+        self._breadcrumb = breadcrumb
         self._refresh()
 
     def clear(self) -> None:
         """Clear the rail and remove it from the layout."""
 
         self._chips = ()
+        self._breadcrumb = None
         self._last_signature = None
         self.display = False
         self.update("")
@@ -111,6 +116,7 @@ class LinkRail(Static):
                 self._chips,
                 subject_accent=self._subject_accent,
                 width=width,
+                breadcrumb=self._breadcrumb,
             )
             if text is None:
                 self.clear()
@@ -131,12 +137,17 @@ def _render_link_rail(
     *,
     subject_accent: str = "#87D7FF",
     width: int = 0,
+    breadcrumb: str | None = None,
 ) -> Text | None:
     """Render *chips* as the one-line rail, or ``None`` when there is no rail."""
 
     items = link_rail_items(tuple(chips))
     if not items:
-        return None
+        if not breadcrumb:
+            return None
+        text = Text(no_wrap=True, overflow="ellipsis")
+        text.append(f" {breadcrumb}", style="dim")
+        return text
     visible = min(len(items), MAX_DIRECT_LINK_KEYS)
     attempts = (
         (True, True, True, visible),
@@ -151,20 +162,26 @@ def _render_link_rail(
             lead_full_label=lead_full_label,
             include_count=include_count,
             visible_count=visible_count,
+            breadcrumb=breadcrumb,
         )
         if _fits(text, width):
             return text
-    for visible_count in range(visible - 1, -1, -1):
-        text = _compose_rail(
-            items,
-            subject_accent=subject_accent,
-            include_why=False,
-            lead_full_label=False,
-            include_count=True,
-            visible_count=visible_count,
-        )
-        if _fits(text, width):
-            return text
+    # Degradation ladder, continued: drop trailing chips into "+k more" with
+    # the breadcrumb still shown, then again with the breadcrumb collapsed,
+    # before the final no-count fallback below.
+    for candidate_breadcrumb in (breadcrumb, None):
+        for visible_count in range(visible - 1, -1, -1):
+            text = _compose_rail(
+                items,
+                subject_accent=subject_accent,
+                include_why=False,
+                lead_full_label=False,
+                include_count=True,
+                visible_count=visible_count,
+                breadcrumb=candidate_breadcrumb,
+            )
+            if _fits(text, width):
+                return text
     text = _compose_rail(
         items,
         subject_accent=subject_accent,
@@ -172,6 +189,7 @@ def _render_link_rail(
         lead_full_label=False,
         include_count=False,
         visible_count=0,
+        breadcrumb=None,
     )
     text.overflow = "ellipsis"
     return text
@@ -185,10 +203,16 @@ def _compose_rail(
     lead_full_label: bool,
     include_count: bool,
     visible_count: int,
+    breadcrumb: str | None = None,
 ) -> Text:
     total_links = sum(item.count for item in items)
     text = Text(no_wrap=True, overflow="ellipsis")
-    text.append(" LINKS", style=f"{_HEADER_STYLE} {subject_accent}")
+    if breadcrumb:
+        text.append(f" {breadcrumb}", style="dim")
+        text.append(_SEPARATOR, style="dim")
+        text.append("LINKS", style=f"{_HEADER_STYLE} {subject_accent}")
+    else:
+        text.append(" LINKS", style=f"{_HEADER_STYLE} {subject_accent}")
     if include_count and total_links > 1:
         text.append(f" {total_links}", style=f"{_HEADER_STYLE} {subject_accent}")
     for index, item in enumerate(items[:visible_count], start=1):
@@ -266,17 +290,7 @@ def _relation_sigil(chip: LinkChip) -> str:
 def _target_label(item: LinkRailItem) -> str:
     if item.projected_group:
         return f"{item.count} {_plural_kind(item.neighbor_kind)}"
-    parsed = parse_link_ref(item.chip.neighbor_ref)
-    if parsed is None:
-        return item.chip.neighbor_ref or "unknown"
-    kind, payload = parsed
-    if kind == "stitch":
-        repo, sep, sha = payload.partition("@")
-        repo_label = PurePosixPath(repo).name or repo
-        return f"{repo_label}@{sha[:7]}" if sep and sha else payload
-    if kind == "file":
-        return PurePosixPath(payload).name or payload
-    return payload
+    return short_ref_label(item.chip.neighbor_ref)
 
 
 def _plural_kind(kind: str) -> str:

@@ -58,7 +58,7 @@ def accent_and_icon_for_ref(
     return EXTERNAL_ACCENT, _DEFAULT_ICON
 
 
-def _ref_for_target(target: ArtifactEntryTarget) -> str | None:
+def ref_for_target(target: ArtifactEntryTarget) -> str | None:
     """Invert :func:`target_for_ref_kind`: a real target back to a ref string."""
 
     if not target.parts:
@@ -88,7 +88,7 @@ def _ref_for_target(target: ArtifactEntryTarget) -> str | None:
 def _subject_from_target(target: ArtifactEntryTarget | None) -> LinkSubject | None:
     if target is None:
         return None
-    ref = _ref_for_target(target)
+    ref = ref_for_target(target)
     if ref is None:
         return None
     parsed = parse_link_ref(ref)
@@ -160,5 +160,6 @@ def selected_link_subject(app: Any) -> LinkSubject | None:
 __all__ = [
     "LinkSubject",
     "accent_and_icon_for_ref",
+    "ref_for_target",
     "selected_link_subject",
 ]

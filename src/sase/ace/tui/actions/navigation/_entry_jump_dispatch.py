@@ -13,7 +13,16 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
     # --- Jump To Entry ---
 
     def action_jump_to_entry_fast(self) -> None:
-        """Jump as if ``'`` then ``'`` were pressed, without painting hints."""
+        """Jump as if ``'`` then ``'`` were pressed, without painting hints.
+
+        A non-empty link trail means the most recent navigation was a ``$``
+        link-follow, so this walks back along it instead; otherwise it falls
+        through to the per-surface anchor stacks below, unchanged
+        (bead:sase-ug.8).
+        """
+        walk_back = getattr(self, "_walk_link_trail_back", None)
+        if callable(walk_back) and walk_back():
+            return
         if self.current_tab == "agents":
             prepared = self._prepare_agents_jump_maps()
         elif self.current_tab in {
@@ -33,7 +42,15 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
         self._handle_entry_jump_key("apostrophe")
 
     def action_jump_to_entry_forward(self) -> None:
-        """Walk forward through jump points after a back-jump."""
+        """Walk forward through jump points after a back-jump.
+
+        Redoes a link-trail back-hop first when one is pending; otherwise
+        falls through to the per-surface forward stacks below, unchanged
+        (bead:sase-ug.8).
+        """
+        walk_forward = getattr(self, "_walk_link_trail_forward", None)
+        if callable(walk_forward) and walk_forward():
+            return
         if self.current_tab == "agents":
             forward_stack = self._entry_jump_agents_forward_stack()
             guard = getattr(

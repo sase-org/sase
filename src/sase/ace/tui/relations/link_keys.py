@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 from typing import Literal, cast
 
 from .artifact_links import parse_link_ref
@@ -88,6 +89,27 @@ def link_key_label(index: int, total_links: int) -> str:
     return "$$" if index == 1 and total_links == 1 else f"${index}"
 
 
+def short_ref_label(ref: str) -> str:
+    """Return *ref* with its kind prefix removed and shortened for display.
+
+    ``bead:sase-u3`` -> ``sase-u3``; ``stitch:sase-org/sase@f4b827af6`` ->
+    ``sase@f4b827a``. Shared by the rail's chip labels and the link trail's
+    breadcrumb so a target reads the same wherever it is shown.
+    """
+
+    parsed = parse_link_ref(ref)
+    if parsed is None:
+        return ref or "unknown"
+    kind, payload = parsed
+    if kind == "stitch":
+        repo, sep, sha = payload.partition("@")
+        repo_label = PurePosixPath(repo).name or repo
+        return f"{repo_label}@{sha[:7]}" if sep and sha else payload
+    if kind == "file":
+        return PurePosixPath(payload).name or payload
+    return payload
+
+
 def _projected_group_key(
     chip: LinkChip,
 ) -> _GroupKey | None:
@@ -113,4 +135,5 @@ __all__ = [
     "link_item_chips",
     "link_key_label",
     "link_rail_items",
+    "short_ref_label",
 ]

@@ -14,6 +14,7 @@ from .hints import HintActionsMixin as HintActionsMixin
 from .lifecycle import LifecycleMixin as LifecycleMixin
 from .link_follow import LinkFollowMixin as LinkFollowMixin
 from .link_subject import LinkSubjectMixin as LinkSubjectMixin
+from .link_trail import LinkTrailMixin as LinkTrailMixin
 from .marking import MarkingMixin as MarkingMixin
 from .navigation import NavigationMixin as NavigationMixin
 from .patch import PatchMixin as PatchMixin

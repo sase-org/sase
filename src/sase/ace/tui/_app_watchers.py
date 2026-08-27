@@ -20,6 +20,9 @@ class AppWatchersMixin:
     def watch_current_idx(self: Any, old_idx: int, new_idx: int) -> None:
         """React to current_idx changes."""
         if old_idx != new_idx:
+            clear_link_trail = getattr(self, "_clear_link_trail_if_unguarded", None)
+            if callable(clear_link_trail):
+                clear_link_trail()
             if (
                 self.current_tab == ARTIFACTS_TAB
                 and self.current_artifacts_subtab == "patches"
@@ -43,6 +46,10 @@ class AppWatchersMixin:
         """React to tab changes by showing/hiding views."""
         if old_tab == new_tab:
             return
+
+        clear_link_trail = getattr(self, "_clear_link_trail_if_unguarded", None)
+        if callable(clear_link_trail):
+            clear_link_trail()
 
         cancel_member_jump = getattr(self, "_cancel_member_jump_pending", None)
         if callable(cancel_member_jump):
@@ -177,6 +184,9 @@ class AppWatchersMixin:
         """Switch Artifacts panes and preserve PR detail/refresh isolation."""
         if old_subtab == new_subtab:
             return
+        clear_link_trail = getattr(self, "_clear_link_trail_if_unguarded", None)
+        if callable(clear_link_trail):
+            clear_link_trail()
         if new_subtab != "patches":
             self._fold_mode_active = False
         if self._entry_jump_mode_active:
