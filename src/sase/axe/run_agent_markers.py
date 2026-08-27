@@ -9,6 +9,7 @@ from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.process_identity import process_identity_token
 
 
 def persist_refreshed_clan_summary(
@@ -28,8 +29,8 @@ def persist_refreshed_clan_summary(
         pass
 
     merged_meta = {**disk_meta, **agent_meta, "clan_summary": clan_summary}
-    agent_meta.update(merged_meta)
     write_agent_meta(artifacts_dir, merged_meta)
+    agent_meta.update(merged_meta)
     return merged_meta
 
 
@@ -191,6 +192,9 @@ def record_stop_time(
 
 
 def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
+    pid = agent_meta.get("pid")
+    if "process_identity" not in agent_meta and isinstance(pid, int):
+        agent_meta["process_identity"] = process_identity_token(pid)
     write_agent_meta_atomic(
         artifacts_dir,
         agent_meta,

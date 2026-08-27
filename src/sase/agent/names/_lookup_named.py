@@ -24,9 +24,9 @@ if TYPE_CHECKING:
 def _meta_dict(record: AgentArtifactRecordWire) -> dict[str, Any]:
     """Project the record's ``agent_meta`` fields needed by ``is_process_alive``.
 
-    ``is_process_alive`` only reads ``pid`` and ``stopped_at``; the wire
-    carries both. Returning a dict keeps the helper untouched and avoids
-    re-reading ``agent_meta.json`` from disk.
+    Returning a dict keeps the helper untouched and avoids re-reading
+    ``agent_meta.json`` from disk when the scan already carried the
+    liveness fields.
     """
     meta = record.agent_meta
     if meta is None:
@@ -36,6 +36,9 @@ def _meta_dict(record: AgentArtifactRecordWire) -> dict[str, Any]:
         out["pid"] = meta.pid
     if meta.stopped_at is not None:
         out["stopped_at"] = meta.stopped_at
+    process_identity = getattr(meta, "process_identity", None)
+    if process_identity is not None:
+        out["process_identity"] = process_identity
     return out
 
 

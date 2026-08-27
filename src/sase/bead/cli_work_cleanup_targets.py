@@ -469,6 +469,9 @@ def _record_is_live(record: AgentArtifactRecordWire) -> bool:
     stopped_at = getattr(meta, "stopped_at", None)
     if stopped_at is not None:
         meta_dict["stopped_at"] = stopped_at
+    process_identity = getattr(meta, "process_identity", None)
+    if process_identity is not None:
+        meta_dict["process_identity"] = process_identity
     from sase.agent.names import is_process_alive
 
     return is_process_alive(meta_dict, Path(str(record.artifact_dir)))

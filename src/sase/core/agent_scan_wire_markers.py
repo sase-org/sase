@@ -154,6 +154,7 @@ class AgentMetaWire:
     output_variables: dict[str, Any] = field(default_factory=dict)
     output_path: str | None = None
     pid: int | None = None
+    process_identity: str | None = None
     model: str | None = None
     llm_provider: str | None = None
     reasoning_effort: str | None = None
@@ -208,6 +209,7 @@ class RunningMarkerWire:
     """
 
     pid: int | None = None
+    process_identity: str | None = None
     patch_name: str | None = None
     cl_name: str | None = None
     model: str | None = None

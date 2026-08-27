@@ -42,6 +42,7 @@ from sase.core.agent_scan_wire import (
     PlanPathMarkerWire,
     WaitingMarkerWire,
 )
+from sase.core.process_identity import process_identity_token
 
 
 def _snapshot(*records: AgentArtifactRecordWire) -> AgentArtifactScanWire:
@@ -130,6 +131,7 @@ def _record(
         agent_meta=AgentMetaWire(
             name=name,
             pid=pid,
+            process_identity=process_identity_token(pid) if pid is not None else None,
             model=model,
             workspace_num=workspace_num,
             run_started_at="2026-08-23T12:00:00Z" if pid is not None else None,

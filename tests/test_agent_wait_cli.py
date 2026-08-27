@@ -22,6 +22,7 @@ from sase.core.agent_scan_wire import (
     DoneMarkerWire,
     PlanPathMarkerWire,
 )
+from sase.core.process_identity import process_identity_token
 
 
 def _snapshot(*records: AgentArtifactRecordWire) -> AgentArtifactScanWire:
@@ -53,6 +54,7 @@ def _record(
         agent_meta=AgentMetaWire(
             name=name,
             pid=pid,
+            process_identity=process_identity_token(pid) if pid is not None else None,
             agent_family=family,
             workflow_name=family,
         ),

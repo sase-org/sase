@@ -495,12 +495,21 @@ def _process_meta(record: AgentArtifactRecordWire) -> dict[str, object]:
             meta["pid"] = record.agent_meta.pid
         if record.agent_meta.stopped_at is not None:
             meta["stopped_at"] = record.agent_meta.stopped_at
+        process_identity = getattr(record.agent_meta, "process_identity", None)
+        if process_identity is not None:
+            meta["process_identity"] = process_identity
     if (
         "pid" not in meta
         and record.running is not None
         and record.running.pid is not None
     ):
         meta["pid"] = record.running.pid
+    if (
+        "process_identity" not in meta
+        and record.running is not None
+        and getattr(record.running, "process_identity", None) is not None
+    ):
+        meta["process_identity"] = record.running.process_identity
     return meta
 
 

@@ -166,10 +166,22 @@ def _record_is_live(record: AgentArtifactRecordWire) -> bool:
     pid = None if meta is None else meta.pid
     if pid is None and record.running is not None:
         pid = record.running.pid
-    return is_process_alive(
-        {"pid": pid, "stopped_at": None if meta is None else meta.stopped_at},
-        Path(record.artifact_dir),
-    )
+    liveness: dict[str, object] = {}
+    if pid is not None:
+        liveness["pid"] = pid
+    if meta is not None:
+        if meta.stopped_at is not None:
+            liveness["stopped_at"] = meta.stopped_at
+        process_identity = getattr(meta, "process_identity", None)
+        if process_identity is not None:
+            liveness["process_identity"] = process_identity
+    if (
+        "process_identity" not in liveness
+        and record.running is not None
+        and getattr(record.running, "process_identity", None) is not None
+    ):
+        liveness["process_identity"] = record.running.process_identity
+    return is_process_alive(liveness, Path(record.artifact_dir))
 
 
 def _runner_slot_holder_dirs(

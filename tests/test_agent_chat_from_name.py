@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.core.process_identity import process_identity_token
 from sase.scripts.agent_chat_from_name import (
     _resolve_agent_chat_path,
     _resolve_agent_chat_sources,
@@ -92,7 +93,11 @@ def test_agent_name_template_excludes_current_agent(
         tmp_path,
         "20260504020202",
         "build-2",
-        meta={"chat_path": str(tmp_path / "current-chat.md"), "pid": os.getpid()},
+        meta={
+            "chat_path": str(tmp_path / "current-chat.md"),
+            "pid": os.getpid(),
+            "process_identity": process_identity_token(os.getpid()),
+        },
     )
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
 
@@ -108,7 +113,11 @@ def test_explicit_running_agent_falls_back_to_meta_chat_path(
         tmp_path,
         "20260504010101",
         "bravo",
-        meta={"chat_path": str(chat), "pid": os.getpid()},
+        meta={
+            "chat_path": str(chat),
+            "pid": os.getpid(),
+            "process_identity": process_identity_token(os.getpid()),
+        },
     )
 
     assert _resolve_agent_chat_path("bravo") == str(chat)

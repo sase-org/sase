@@ -113,7 +113,13 @@ def test_generic_and_specialized_agent_meta_writers_use_atomic_publication(
     ):
         meta = {"name": "agent-a", "tag": "review"}
         run_agent_markers.write_agent_meta(str(generic_dir), meta)
-        with patch("sase.axe.runner_artifacts.os.getpid", return_value=123):
+        with (
+            patch("sase.axe.runner_artifacts.os.getpid", return_value=123),
+            patch(
+                "sase.axe.runner_artifacts.process_identity_token",
+                return_value="boot-a:123",
+            ),
+        ):
             runner_artifacts.write_agent_meta(
                 str(specialized_dir),
                 model="model-a",
@@ -137,5 +143,6 @@ def test_generic_and_specialized_agent_meta_writers_use_atomic_publication(
         "llm_provider": "provider-a",
         "vcs_provider": "Git",
         "tribe": "review",
+        "process_identity": "boot-a:123",
     }
     assert calls == [str(generic_dir), str(specialized_dir)]

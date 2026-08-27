@@ -58,8 +58,14 @@ def test_refreshed_summary_merge_preserves_current_disk_and_memory_metadata(
         "memory_only": "preserved",
     }
 
-    with patch(
-        "sase.axe.run_agent_markers.update_agent_artifact_index_for_marker_mutation"
+    with (
+        patch(
+            "sase.axe.run_agent_markers.update_agent_artifact_index_for_marker_mutation"
+        ),
+        patch(
+            "sase.axe.run_agent_markers.process_identity_token",
+            return_value="boot-a:200",
+        ),
     ):
         merged = persist_refreshed_clan_summary(
             str(artifacts_dir),
@@ -72,6 +78,7 @@ def test_refreshed_summary_merge_preserves_current_disk_and_memory_metadata(
     assert merged["wait_completed_at"] == "after-wait"
     assert merged["disk_only"] == "preserved"
     assert merged["memory_only"] == "preserved"
+    assert merged["process_identity"] == "boot-a:200"
     assert json.loads((artifacts_dir / "agent_meta.json").read_text()) == merged
 
 

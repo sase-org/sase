@@ -410,6 +410,9 @@ def _agent_process_is_alive(meta: AgentMetaWire, artifact_dir: Path) -> bool:
         liveness["pid"] = meta.pid
     if meta.stopped_at is not None:
         liveness["stopped_at"] = meta.stopped_at
+    process_identity = getattr(meta, "process_identity", None)
+    if process_identity is not None:
+        liveness["process_identity"] = process_identity
     return is_process_alive(liveness, artifact_dir)
 
 

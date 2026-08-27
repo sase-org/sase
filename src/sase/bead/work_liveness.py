@@ -42,6 +42,7 @@ def _agent_pid_is_alive(
     *,
     pid: int | None,
     stopped_at: str | None,
+    process_identity: str | None,
     artifact_dir: Path | str,
 ) -> bool:
     """Return whether ``pid`` / ``stopped_at`` still describe a live process."""
@@ -50,6 +51,8 @@ def _agent_pid_is_alive(
         meta["pid"] = pid
     if stopped_at is not None:
         meta["stopped_at"] = stopped_at
+    if process_identity is not None:
+        meta["process_identity"] = process_identity
     return is_process_alive(meta, Path(artifact_dir))
 
 
@@ -59,6 +62,9 @@ def agent_record_is_alive(record: AgentArtifactRecordWire) -> bool:
     return _agent_pid_is_alive(
         pid=None if meta is None else meta.pid,
         stopped_at=None if meta is None else meta.stopped_at,
+        process_identity=None
+        if meta is None
+        else getattr(meta, "process_identity", None),
         artifact_dir=record.artifact_dir,
     )
 

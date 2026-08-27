@@ -36,6 +36,7 @@ from sase.core.agent_scan_wire import (
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
 )
+from sase.core import process_identity
 from sase.core.runner_slots import running_agent_slot_count
 from tests.agent_scan_golden.fixture_builder import (
     TS_ACE_RUN_DONE,
@@ -85,6 +86,7 @@ def _fixture_processes(home: Path, *, alive: bool) -> Iterator[None]:
     with (
         patch("pathlib.Path.home", return_value=home),
         patch("sase.ace.hooks.processes.is_process_running", is_process_running),
+        patch.object(process_identity, "current_boot_time_utc", return_value=None),
         patch.object(Path, "read_bytes", read_bytes),
     ):
         yield

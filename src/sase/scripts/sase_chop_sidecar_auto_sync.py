@@ -213,6 +213,9 @@ def _waiting_agent_is_alive(record: AgentArtifactRecordWire) -> bool | None:
             meta["pid"] = record.agent_meta.pid
         if record.agent_meta.stopped_at is not None:
             meta["stopped_at"] = record.agent_meta.stopped_at
+        process_identity = getattr(record.agent_meta, "process_identity", None)
+        if process_identity is not None:
+            meta["process_identity"] = process_identity
     try:
         return is_process_alive(meta, Path(record.artifact_dir))
     except Exception:  # noqa: BLE001 - uncertain liveness must fail open.

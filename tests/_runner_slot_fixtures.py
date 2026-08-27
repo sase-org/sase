@@ -42,6 +42,11 @@ def record(
         timestamp=path.name,
         agent_meta=AgentMetaWire(
             pid=int(meta["pid"]),
+            process_identity=(
+                meta["process_identity"]
+                if isinstance(meta.get("process_identity"), str)
+                else None
+            ),
             agent_family=meta.get("agent_family"),
             agent_family_role=meta.get("agent_family_role"),
             agent_family_parallel=bool(meta.get("agent_family_parallel", False)),
