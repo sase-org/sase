@@ -5,9 +5,19 @@ from __future__ import annotations
 from sase.ace.tui.actions.agents._display_panel_titles import agent_panel_counts
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent
-from sase.ace.tui.models.agent_family_members import monitor_lane_counts
+from sase.ace.tui.models.agent_family_members import (
+    shell_lane_counts,
+)
 
 from ._agent_panel_title_helpers import _agent
+
+
+def _monitor_lane_counts(agent: Agent):
+    return shell_lane_counts(agent).monitor
+
+
+def _gate_lane_counts(agent: Agent):
+    return shell_lane_counts(agent).gate
 
 
 def _monitor_agent(name: str, *, family: str, state: str | None) -> Agent:
@@ -23,6 +33,23 @@ def _monitor_agent(name: str, *, family: str, state: str | None) -> Agent:
     monitor.monitor_id = name
     monitor.monitor_state = state
     return monitor
+
+
+def _gate_agent(name: str, *, family: str, state: str | None) -> Agent:
+    settled = state in {"answered", "completed", "stopped"}
+    failed = state in {"failed", "timeout", "lost"}
+    gate = _agent(
+        name=name,
+        suffix=name,
+        status="GATED" if settled or failed else "GATE",
+    )
+    gate.agent_family = family
+    gate.agent_family_role = "gate"
+    gate.role_suffix = "--gate"
+    gate.gate_id = name
+    gate.gate_kind = "test"
+    gate.gate_state = state
+    return gate
 
 
 def _sequential_family(
@@ -138,6 +165,24 @@ def test_agent_panel_counts_is_fold_independent_for_running_monitors() -> None:
     assert counts.settled_monitors == 0
 
 
+def test_agent_panel_counts_is_fold_independent_for_gates() -> None:
+    container = _agent(name="alpha--0", suffix="alpha-0", status="RUNNING")
+    container.agent_family = "alpha"
+    container.agent_family_role = "root"
+    pending_gate = _gate_agent("alpha--gate-pending", family="alpha", state="pending")
+    settled_gate = _gate_agent("alpha--gate-done", family="alpha", state="answered")
+    failed_gate = _gate_agent("alpha--gate-failed", family="alpha", state="failed")
+    container.runtime_children = [pending_gate, settled_gate, failed_gate]
+    container.followup_agents = [pending_gate, settled_gate, failed_gate]
+
+    counts = agent_panel_counts([container], set())
+
+    assert counts.running_gates == 1
+    assert counts.settled_gates == 1
+    assert counts.failed_gates == 1
+    assert sum(value for _name, value in counts.metric_items()) == counts.lane_count
+
+
 def test_agent_panel_counts_does_not_double_count_clan_and_family_rows() -> None:
     clan = _agent(name="workers", suffix="workers", status="RUNNING")
     clan.is_clan_container = True
@@ -182,14 +227,38 @@ def test_panel_monitor_lanes_match_sum_of_container_row_badges() -> None:
     counts = agent_panel_counts(agents, set())
 
     expected_settled = (
-        monitor_lane_counts(family_a_root).settled
-        + monitor_lane_counts(family_b_root).settled
+        _monitor_lane_counts(family_a_root).settled
+        + _monitor_lane_counts(family_b_root).settled
     )
     expected_running = (
-        monitor_lane_counts(family_a_root).running
-        + monitor_lane_counts(family_b_root).running
+        _monitor_lane_counts(family_a_root).running
+        + _monitor_lane_counts(family_b_root).running
     )
     assert expected_settled == 2
     assert expected_running == 1
     assert counts.settled_monitors == expected_settled
     assert counts.running_monitors == expected_running
+
+
+def test_panel_gate_lanes_match_sum_of_container_row_badges() -> None:
+    family_a_root, family_a_child = _sequential_family("alpha")
+    gate_a_pending = _gate_agent("alpha--gate-pending", family="alpha", state="pending")
+    gate_a_done = _gate_agent("alpha--gate-done", family="alpha", state="answered")
+    family_a_root.followup_agents.extend([gate_a_pending, gate_a_done])
+    family_a_root.runtime_children.extend([gate_a_pending, gate_a_done])
+
+    family_b_root, family_b_child = _sequential_family("beta")
+    gate_b_failed = _gate_agent("beta--gate-failed", family="beta", state="timeout")
+    family_b_root.followup_agents.append(gate_b_failed)
+    family_b_root.runtime_children.append(gate_b_failed)
+
+    agents = [family_a_root, family_a_child, family_b_root, family_b_child]
+    counts = agent_panel_counts(agents, set())
+
+    expected = (
+        _gate_lane_counts(family_a_root).running,
+        _gate_lane_counts(family_a_root).settled,
+        _gate_lane_counts(family_b_root).failed,
+    )
+    assert expected == (1, 1, 1)
+    assert (counts.running_gates, counts.settled_gates, counts.failed_gates) == expected

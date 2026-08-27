@@ -46,7 +46,7 @@ from ._agent_status_family import (
 )
 from ._agent_status_roles import agent_family_role, is_coder_agent, is_feedback_agent
 from .agent import Agent, AgentType
-from .agent_family_members import agent_row_is_in_flight
+from .agent_family_members import agent_row_is_in_flight, row_is_family_shell
 
 
 DiffBadgeClassifier = Callable[[list[Agent]], None]
@@ -61,13 +61,27 @@ def _mirror_root_from_child(parent: Agent, child: Agent) -> None:
         parent.monitor_start_status = child.monitor_start_status
         parent.monitor_stop_status = child.monitor_stop_status
         parent.monitor_state = child.monitor_state
+        parent.gate_start_status = None
+        parent.gate_stop_status = None
+        parent.gate_state = None
+    elif child.is_gate:
+        parent.gate_start_status = child.gate_start_status
+        parent.gate_stop_status = child.gate_stop_status
+        parent.gate_state = child.gate_state
+        parent.gate_accent = child.gate_accent
+        parent.monitor_start_status = None
+        parent.monitor_stop_status = None
+        parent.monitor_state = None
     else:
-        # A later non-monitor child must not keep a previously mirrored pair
+        # A later non-shell child must not keep a previously mirrored pair
         # on the container; agents-tab styling keys off status matching a
         # half of that pair.
         parent.monitor_start_status = None
         parent.monitor_stop_status = None
         parent.monitor_state = None
+        parent.gate_start_status = None
+        parent.gate_stop_status = None
+        parent.gate_state = None
 
 
 def _is_active_root_mirror_candidate(parent: Agent, agent: Agent) -> bool:
@@ -83,11 +97,11 @@ def _is_active_root_mirror_candidate(parent: Agent, agent: Agent) -> bool:
     return True
 
 
-def _descendant_monitors(
+def _descendant_family_shells(
     roots: list[Agent],
     children_by_parent: dict[str, list[Agent]],
 ) -> list[Agent]:
-    """Return monitor rows beneath *roots*, walking ``parent_timestamp`` links.
+    """Return non-agent shell rows beneath *roots*, walking parent links.
 
     ``Agent`` is mutable and unhashable, so traversal cycle-guards on
     ``id(row)`` while the collected list dedupes by ``row.identity``.
@@ -100,7 +114,7 @@ def _descendant_monitors(
         if id(row) in seen_ids:
             return
         seen_ids.add(id(row))
-        if row.is_monitor and row.identity not in seen_identities:
+        if row_is_family_shell(row) and row.identity not in seen_identities:
             seen_identities.add(row.identity)
             found.append(row)
         suffix = row.raw_suffix
@@ -434,7 +448,7 @@ def apply_status_overrides(
             continue
 
         is_plan_root = is_root_plan_workflow(parent)
-        descendant_monitors = _descendant_monitors(children, children_by_parent)
+        descendant_shells = _descendant_family_shells(children, children_by_parent)
         candidates = list(children)
         if not is_plan_root and parent.agent_type == AgentType.RUNNING:
             candidates.append(parent)
@@ -444,11 +458,9 @@ def apply_status_overrides(
             for agent in candidates
             if _is_active_root_mirror_candidate(parent, agent)
         ]
-        for monitor in descendant_monitors:
-            if monitor not in active and _is_active_root_mirror_candidate(
-                parent, monitor
-            ):
-                active.append(monitor)
+        for shell in descendant_shells:
+            if shell not in active and _is_active_root_mirror_candidate(parent, shell):
+                active.append(shell)
         if active:
             newest_active = max(active, key=child_launch_time)
             if newest_active is not parent:
@@ -467,9 +479,9 @@ def apply_status_overrides(
                 copy_missing_display_metadata(parent, next_waiting)
             continue
 
-        newest_pool = [*children, *descendant_monitors]
+        newest_pool = [*children, *descendant_shells]
         newest = max(newest_pool, key=child_launch_time)
-        if is_plan_root or newest.is_monitor:
+        if is_plan_root or row_is_family_shell(newest):
             _mirror_root_from_child(parent, newest)
 
     # Spawn-on-retry: build the retry-chain linkage. Each retry child has a

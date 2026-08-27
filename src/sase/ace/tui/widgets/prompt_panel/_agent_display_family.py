@@ -8,6 +8,7 @@ from typing import Any
 
 from rich.text import Text
 
+from sase.gate_shell.state import GATE_GLYPH
 from sase.monitor_state import MONITOR_GLYPH
 
 from ...models._agent_clan_sections import first_meaningful_line
@@ -15,6 +16,7 @@ from ...models.agent import Agent
 from ...models.agent_family_members import (
     concrete_family_shell_rows as family_shell_rows,
     family_member_status_buckets,
+    gate_row_is_settled,
     monitor_row_is_settled,
 )
 from ...models.fold_scale import (
@@ -23,7 +25,11 @@ from ...models.fold_scale import (
     effective_fold_level,
 )
 from ...models.fold_state import FoldLevel
-from ._agent_display_content import MONITOR_PHASE_LABEL, get_phase_label
+from ._agent_display_content import (
+    GATE_PHASE_LABEL,
+    MONITOR_PHASE_LABEL,
+    get_phase_label,
+)
 from ._fold_language import append_fold_section_heading
 from ._member_roster import (
     MemberJumpMap,
@@ -38,6 +44,9 @@ _FAMILY_ROSTER_TITLE = "FAMILY SHELLS"
 _MONITOR_DESCRIPTOR_MAX_CHARS = 40
 _MONITOR_FAILURE_STATES = frozenset({"failed", "timeout", "lost"})
 _MONITOR_COMMAND_FALLBACK = "command"
+_GATE_DESCRIPTOR_MAX_CHARS = 40
+_GATE_FAILURE_STATES = frozenset({"failed", "timeout", "lost"})
+_GATE_TITLE_FALLBACK = "decision"
 
 
 def effective_family_fold_level(
@@ -95,6 +104,30 @@ def _monitor_roster_bucket(member: Agent) -> str:
     return "Running"
 
 
+def _gate_roster_descriptor(member: Agent) -> str:
+    """Return a bounded one-line gate descriptor for the roster model slot."""
+    label = first_meaningful_line(
+        member.gate_label or "",
+        max_chars=_GATE_DESCRIPTOR_MAX_CHARS,
+    )
+    if label:
+        return label
+    kind = first_meaningful_line(
+        member.gate_kind or "",
+        max_chars=_GATE_DESCRIPTOR_MAX_CHARS,
+    )
+    return kind or _GATE_TITLE_FALLBACK
+
+
+def _gate_roster_bucket(member: Agent) -> str:
+    """Return the agent-status bucket used to style one gate roster row."""
+    if member.gate_state in _GATE_FAILURE_STATES:
+        return "Failed"
+    if gate_row_is_settled(member):
+        return "Done"
+    return "Stopped"
+
+
 def family_roster_entries(
     agent: Agent,
     *,
@@ -104,7 +137,9 @@ def family_roster_entries(
     """Adapt a family chain into shared numbered roster entries."""
     family_name = agent.presented_agent_name or ""
     shells = family_shell_rows(agent)
-    agent_shells = tuple(shell for shell in shells if not shell.is_monitor)
+    agent_shells = tuple(
+        shell for shell in shells if not (shell.is_monitor or shell.is_gate)
+    )
     agent_buckets = {
         shell.identity: bucket
         for shell, bucket in zip(
@@ -123,6 +158,10 @@ def family_roster_entries(
             kind = f"{MONITOR_GLYPH} {MONITOR_PHASE_LABEL}"
             model = _monitor_roster_descriptor(member)
             bucket = _monitor_roster_bucket(member)
+        elif member.is_gate:
+            kind = f"{GATE_GLYPH} {GATE_PHASE_LABEL}"
+            model = _gate_roster_descriptor(member)
+            bucket = _gate_roster_bucket(member)
         else:
             phase_label = get_phase_label(member)
             kind = "agent" if phase_label == "AGENT" else phase_label

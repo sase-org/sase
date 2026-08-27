@@ -24,6 +24,7 @@ from ._agent_display_family import (
 )
 from ._agent_display_header import AgentHeader
 from ._agent_display_state import HeaderHintState
+from ._agent_gate_section import GateTextAnnotator, build_gate_phase
 from ._agent_monitor_section import MonitorTextAnnotator, build_monitor_phase
 from ._agent_xprompt_highlighting import (
     AgentPromptHighlightContext,
@@ -200,6 +201,20 @@ class AgentFamilyDisplayMixin:
                     )
                 )
                 continue
+            if phase.is_gate:
+                renderables.extend(
+                    build_gate_phase(
+                        phase,
+                        annotate=(
+                            None
+                            if hint_state is None
+                            else self._gate_phase_annotator(
+                                phase, hint_state, hint_budget
+                            )
+                        ),
+                    )
+                )
+                continue
             renderables.append(
                 render_phase_divider(
                     get_phase_label(phase),
@@ -300,6 +315,25 @@ class AgentFamilyDisplayMixin:
         budget: HintContentBudget | None,
     ) -> MonitorTextAnnotator:
         """Annotate a monitor command or log against the phase workspace."""
+
+        def annotate(content: str | Text) -> Text:
+            text = content if isinstance(content, Text) else Text(content)
+            return self._family_text_with_hints(
+                text,
+                hint_state,
+                workspace_dir=self._family_member_hint_workspace(phase, text.plain),
+                budget=budget,
+            )
+
+        return annotate
+
+    def _gate_phase_annotator(
+        self,
+        phase: Agent,
+        hint_state: HeaderHintState,
+        budget: HintContentBudget | None,
+    ) -> GateTextAnnotator:
+        """Annotate a gate decision or log against the phase workspace."""
 
         def annotate(content: str | Text) -> Text:
             text = content if isinstance(content, Text) else Text(content)

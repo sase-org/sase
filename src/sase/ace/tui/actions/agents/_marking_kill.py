@@ -13,6 +13,23 @@ if TYPE_CHECKING:
     from ._confirmation_sase_agents import AgentConfirmationSummary
 
 
+def _gate_is_dismissable(agent: Agent) -> bool:
+    if not getattr(agent, "is_gate", False):
+        return False
+    from sase.gate_shell.state import gate_state_is_terminal
+
+    return bool(gate_state_is_terminal(agent.gate_state) or agent.stop_time)
+
+
+def _gate_is_waiting(agent: Agent) -> bool:
+    return bool(getattr(agent, "is_gate", False) and not _gate_is_dismissable(agent))
+
+
+def _gate_count_phrase(count: int) -> str:
+    noun = "gate" if count == 1 else "gates"
+    return f"{count} {noun} waiting for a decision"
+
+
 class AgentMarkedKillMixin(AgentMarkNavigationMixin):
     """Kill, dismiss, and edit marked agent sets."""
 
@@ -119,13 +136,16 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                 killable = [
                     agent
                     for agent in exact_agents
-                    if agent.pid is not None
+                    if not getattr(agent, "is_gate", False)
+                    and agent.pid is not None
                     and agent.status not in DISMISSABLE_STATUSES
                 ]
                 dismissable = [
                     agent
                     for agent in exact_agents
-                    if agent.status in DISMISSABLE_STATUSES or agent.pid is None
+                    if agent.status in DISMISSABLE_STATUSES
+                    or (agent.pid is None and not getattr(agent, "is_gate", False))
+                    or _gate_is_dismissable(agent)
                 ]
 
                 def mount_prompt_stack() -> None:
@@ -207,14 +227,22 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
         )
 
         agents, proc_dismissable, active_proc_shells = partition_proc_shells(agents)
+        waiting_gates = [agent for agent in agents if _gate_is_waiting(agent)]
+        agents = [agent for agent in agents if agent not in waiting_gates]
 
         killable: list[Agent] = [
             a
             for a in agents
-            if a.pid is not None and a.status not in DISMISSABLE_STATUSES
+            if not getattr(a, "is_gate", False)
+            and a.pid is not None
+            and a.status not in DISMISSABLE_STATUSES
         ]
         dismissable: list[Agent] = [
-            a for a in agents if a.status in DISMISSABLE_STATUSES or a.pid is None
+            a
+            for a in agents
+            if a.status in DISMISSABLE_STATUSES
+            or (a.pid is None and not getattr(a, "is_gate", False))
+            or _gate_is_dismissable(a)
         ]
 
         desc_parts: list[str] = []
@@ -246,6 +274,11 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                 len(active_proc_shells), running=True
             )
             desc_parts.append(skip_line)
+        if waiting_gates:
+            gate_skip_line = "Skipping " + _gate_count_phrase(len(waiting_gates))
+            desc_parts.append(gate_skip_line)
+            if not skip_line:
+                skip_line = gate_skip_line
         agent_description = "\n".join(desc_parts)
 
         from ...modals import ConfirmDismissAllModal, ConfirmKillAllModal

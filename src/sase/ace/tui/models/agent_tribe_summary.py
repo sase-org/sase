@@ -204,6 +204,8 @@ def _member_kind(agent: Agent) -> str:
         return "family"
     if agent.is_monitor:
         return "monitor"
+    if agent.is_gate:
+        return "gate"
     if agent.is_workflow_step_child or agent.agent_type == AgentType.WORKFLOW:
         return "step"
     return "agent"

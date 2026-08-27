@@ -11,6 +11,9 @@ from sase.shells.state import (
 )
 
 GATE_FAMILY_ROLE = "gate"
+GATE_GLYPH = "⋔"
+GATE_SETTLED_GLYPH_COLOR = "#9E9E9E"
+GATE_FAILURE_GLYPH_COLOR = "#FF5F5F"
 GATE_STATE_BUCKETS: dict[str, str] = {
     "pending": "Stopped",
     "settling": "Running",
@@ -58,6 +61,9 @@ def is_real_gate_member(agent_family_role: str | None, gate_id: str | None) -> b
 
 __all__ = [
     "GATE_FAMILY_ROLE",
+    "GATE_FAILURE_GLYPH_COLOR",
+    "GATE_GLYPH",
+    "GATE_SETTLED_GLYPH_COLOR",
     "GATE_STATE_BUCKETS",
     "TERMINAL_GATE_STATES",
     "gate_state_bucket",

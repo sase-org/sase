@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from sase.ace.tui.models.agent_family_members import (
-    MonitorLaneCounts,
-    panel_monitor_lane_counts,
+    _MonitorLaneCounts,
+    panel_shell_lane_counts,
 )
 
 from ._agent_family_members_helpers import _agent, _monitor_member
+
+
+def _panel_monitor_lane_counts(rows):
+    return panel_shell_lane_counts(rows).monitor
 
 
 def test_panel_monitor_lane_counts_partitions_across_top_level_rows() -> None:
@@ -28,7 +32,7 @@ def test_panel_monitor_lane_counts_partitions_across_top_level_rows() -> None:
         )
     ]
 
-    assert panel_monitor_lane_counts([root_a, root_b]) == MonitorLaneCounts(
+    assert _panel_monitor_lane_counts([root_a, root_b]) == _MonitorLaneCounts(
         running=1, settled=1
     )
 
@@ -43,7 +47,7 @@ def test_panel_monitor_lane_counts_dedupes_monitor_reachable_from_two_roots() ->
     root_b = _agent("alpha--1", role="root")
     root_b.followup_agents = [monitor]
 
-    assert panel_monitor_lane_counts([root_a, root_b]) == MonitorLaneCounts(
+    assert _panel_monitor_lane_counts([root_a, root_b]) == _MonitorLaneCounts(
         running=1, settled=0
     )
 
@@ -58,7 +62,7 @@ def test_panel_monitor_lane_counts_counts_a_top_level_monitor_row() -> None:
         stop_offset=5,
     )
 
-    assert panel_monitor_lane_counts([monitor]) == MonitorLaneCounts(
+    assert _panel_monitor_lane_counts([monitor]) == _MonitorLaneCounts(
         running=0, settled=1
     )
 
@@ -77,7 +81,9 @@ def test_panel_monitor_lane_counts_reaches_monitor_nested_two_levels_down() -> N
     family.followup_agents = [monitor]
     clan.runtime_children = [family]
 
-    assert panel_monitor_lane_counts([clan]) == MonitorLaneCounts(running=0, settled=1)
+    assert _panel_monitor_lane_counts([clan]) == _MonitorLaneCounts(
+        running=0, settled=1
+    )
 
 
 def test_panel_monitor_lane_counts_stop_time_without_state_counts_settled() -> None:
@@ -94,14 +100,16 @@ def test_panel_monitor_lane_counts_stop_time_without_state_counts_settled() -> N
     )
     root.followup_agents = [settled, running]
 
-    assert panel_monitor_lane_counts([root]) == MonitorLaneCounts(running=1, settled=1)
+    assert _panel_monitor_lane_counts([root]) == _MonitorLaneCounts(
+        running=1, settled=1
+    )
 
 
 def test_panel_monitor_lane_counts_empty_and_monitor_free_input() -> None:
-    assert panel_monitor_lane_counts([]) == MonitorLaneCounts()
+    assert _panel_monitor_lane_counts([]) == _MonitorLaneCounts()
 
     plain = _agent("alpha--code", role="code")
-    assert panel_monitor_lane_counts([plain]) == MonitorLaneCounts()
+    assert _panel_monitor_lane_counts([plain]) == _MonitorLaneCounts()
 
 
 def test_panel_monitor_lane_counts_terminates_on_a_cycle() -> None:
@@ -112,4 +120,6 @@ def test_panel_monitor_lane_counts_terminates_on_a_cycle() -> None:
     root.runtime_children = [monitor]
     monitor.runtime_children = [root]
 
-    assert panel_monitor_lane_counts([root]) == MonitorLaneCounts(running=1, settled=0)
+    assert _panel_monitor_lane_counts([root]) == _MonitorLaneCounts(
+        running=1, settled=0
+    )

@@ -17,10 +17,10 @@ from ..models._agent_clan import ClanStatusCounts, clan_member_counts
 from ..models.agent import Agent, AgentType
 from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_family_members import (
-    NO_MONITOR_LANES,
-    MonitorLaneCounts,
+    NO_SHELL_LANES,
+    ShellLaneCounts,
     is_sequential_family_container,
-    monitor_lane_counts,
+    shell_lane_counts,
 )
 from ..models.agent_nodes import is_agents_tab_agent_node
 from ..models.agent_panels import normalize_panel_key
@@ -45,6 +45,10 @@ from ._agent_list_styling import (
     _FILE_CHANGE_GLYPH_STYLE,
     _FOLD_RESTORE_GLYPH,
     _FOLD_RESTORE_GLYPH_STYLE,
+    _GATE_COUNT_GLYPH_STYLE,
+    _GATE_FAILED_COUNT_GLYPH_STYLE,
+    _GATE_GLYPH,
+    _GATE_SETTLED_COUNT_GLYPH_STYLE,
     _MONITOR_COUNT_GLYPH_STYLE,
     _MONITOR_GLYPH,
     _MONITOR_SETTLED_COUNT_GLYPH_STYLE,
@@ -77,7 +81,7 @@ def format_agent_option(
     has_unresolvable_wait_target: bool = False,
     clan_counts: ClanStatusCounts | None = None,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
-    monitor_lanes: MonitorLaneCounts | None = None,
+    shell_lanes: ShellLaneCounts | None = None,
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
     text = append_agent_row_prefix(
@@ -137,20 +141,36 @@ def format_agent_option(
 
     is_container_row = agent.is_clan_container or is_sequential_family_container(agent)
     lanes = (
-        (monitor_lane_counts(agent) if is_container_row else NO_MONITOR_LANES)
-        if monitor_lanes is None
-        else monitor_lanes
+        (shell_lane_counts(agent) if is_container_row else NO_SHELL_LANES)
+        if shell_lanes is None
+        else shell_lanes
     )
-    if lanes.running and is_container_row:
+    if lanes.monitor.running and is_container_row:
         text.append(" ")
         text.append(
-            f"{_MONITOR_GLYPH}{lanes.running}", style=_MONITOR_COUNT_GLYPH_STYLE
+            f"{_MONITOR_GLYPH}{lanes.monitor.running}",
+            style=_MONITOR_COUNT_GLYPH_STYLE,
         )
-    if lanes.settled and is_container_row:
+    if lanes.monitor.settled and is_container_row:
         text.append(" ")
         text.append(
-            f"{_MONITOR_GLYPH}{lanes.settled}",
+            f"{_MONITOR_GLYPH}{lanes.monitor.settled}",
             style=_MONITOR_SETTLED_COUNT_GLYPH_STYLE,
+        )
+    if lanes.gate.running and is_container_row:
+        text.append(" ")
+        text.append(f"{_GATE_GLYPH}{lanes.gate.running}", style=_GATE_COUNT_GLYPH_STYLE)
+    if lanes.gate.settled and is_container_row:
+        text.append(" ")
+        text.append(
+            f"{_GATE_GLYPH}{lanes.gate.settled}",
+            style=_GATE_SETTLED_COUNT_GLYPH_STYLE,
+        )
+    if lanes.gate.failed and is_container_row:
+        text.append(" ")
+        text.append(
+            f"{_GATE_GLYPH}{lanes.gate.failed}",
+            style=_GATE_FAILED_COUNT_GLYPH_STYLE,
         )
 
     # Authoritative-only: modern phase launch metadata renders immediately;
@@ -267,7 +287,7 @@ def cached_format_agent_option(
         else None
     )
     is_container_row = agent.is_clan_container or is_sequential_family_container(agent)
-    lanes = monitor_lane_counts(agent) if is_container_row else NO_MONITOR_LANES
+    lanes = shell_lane_counts(agent) if is_container_row else NO_SHELL_LANES
     key = agent_render_key(
         agent,
         index,
@@ -288,7 +308,7 @@ def cached_format_agent_option(
         has_unresolvable_wait_target=has_unresolvable_wait_target,
         clan_counts=visible_clan_counts,
         unread_agent_ids=unread_agent_ids,
-        monitor_lanes=lanes,
+        shell_lanes=lanes,
     )
     hit = cache.get_agent(key)
     if hit is not None:
@@ -313,7 +333,7 @@ def cached_format_agent_option(
         has_unresolvable_wait_target=has_unresolvable_wait_target,
         clan_counts=visible_clan_counts,
         unread_agent_ids=unread_agent_ids,
-        monitor_lanes=lanes,
+        shell_lanes=lanes,
     )
     cache.put_agent(key, parts)
     return parts

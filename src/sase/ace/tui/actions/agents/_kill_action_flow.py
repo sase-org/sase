@@ -76,6 +76,16 @@ class AgentKillActionFlowMixin:
                 self._dismiss_proc_shell_rows([agent])  # type: ignore[attr-defined]
             return
 
+        if agent.is_gate:
+            from sase.gate_shell.state import gate_state_is_terminal
+
+            if not (gate_state_is_terminal(agent.gate_state) or agent.stop_time):
+                self.notify(  # type: ignore[attr-defined]
+                    "Gate is waiting for a decision",
+                    severity="warning",
+                )
+                return
+
         if agent.is_clan_container:
             from ._clan_cleanup import clan_members_for_container
 

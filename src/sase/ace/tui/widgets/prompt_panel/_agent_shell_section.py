@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from rich.cells import cell_len
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.table import Table
 from rich.text import Text
 
+from sase.ace.hooks.timestamps import format_duration
+from sase.core.time import local_now
+from sase.gate_shell.state import GATE_FAILURE_GLYPH_COLOR, GATE_GLYPH
 from sase.llm_provider.model_label import model_value_text
 from sase.monitor_state import MONITOR_GLYPH, MONITOR_GLYPH_COLOR
 
@@ -39,6 +43,13 @@ _SHELL_MONITOR_COMMAND_STYLE = _STEP_TYPE_COLORS["bash"]
 _SHELL_MONITOR_REASON_MARKER_STYLE = f"bold {COLOR_REASON}"
 _SHELL_MONITOR_COMMAND_MARKER_STYLE = f"bold {_SHELL_MONITOR_COMMAND_STYLE}"
 _SHELL_MONITOR_PLACEHOLDER = "unavailable"
+_SHELL_GATE_GLYPH_STYLE = "bold #0BCDEC"
+_SHELL_GATE_SETTLED_GLYPH_STYLE = "#9E9E9E"
+_SHELL_GATE_FAILED_GLYPH_STYLE = f"bold {GATE_FAILURE_GLYPH_COLOR}"
+_SHELL_GATE_TITLE_STYLE = "#0BCDEC"
+_SHELL_GATE_STATE_STYLE = "dim #9E9E9E"
+_SHELL_GATE_DEADLINE_STYLE = "#D7D7AF"
+_SHELL_GATE_PLACEHOLDER = "decision"
 _SHELL_CONTINUATION_INDENT = 2
 
 
@@ -59,7 +70,18 @@ class _MonitorShellLane:
     reason: str | None
 
 
-type ShellLane = _AgentShellLane | _MonitorShellLane
+@dataclass(frozen=True, slots=True)
+class _GateShellLane:
+    """One human-decision gate lane in a family metadata lane."""
+
+    label: str
+    title: str | None
+    gate_state: str | None
+    timeout_seconds: float | None
+    start_time: datetime | None
+
+
+type ShellLane = _AgentShellLane | _MonitorShellLane | _GateShellLane
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,6 +104,17 @@ def build_family_shell_lanes(agent: Agent) -> tuple[ShellLane, ...]:
                     label=label,
                     command=member.monitor_command,
                     reason=member.monitor_reason,
+                )
+            )
+            continue
+        if member.is_gate:
+            lanes.append(
+                _GateShellLane(
+                    label=label,
+                    title=member.gate_label or member.gate_kind or member.gate_id,
+                    gate_state=member.gate_state,
+                    timeout_seconds=member.gate_timeout_seconds,
+                    start_time=member.run_start_time or member.start_time,
                 )
             )
             continue
@@ -155,6 +188,63 @@ def _monitor_reason_payload_width(total_width: int) -> int:
         + 1
     )
     return max(1, total_width - payload_prefix_width)
+
+
+def _gate_glyph_style(lane: _GateShellLane) -> str:
+    if lane.gate_state in {"failed", "timeout", "lost"}:
+        return _SHELL_GATE_FAILED_GLYPH_STYLE
+    if lane.gate_state in {"answered", "completed", "stopped"}:
+        return _SHELL_GATE_SETTLED_GLYPH_STYLE
+    return _SHELL_GATE_GLYPH_STYLE
+
+
+def _gate_status_label(lane: _GateShellLane) -> str:
+    return lane.gate_state or "pending"
+
+
+def _gate_deadline_label(lane: _GateShellLane) -> str | None:
+    if _gate_row_is_settled_like(lane) or lane.timeout_seconds is None:
+        return None
+    if lane.start_time is None:
+        return None
+    try:
+        deadline = lane.start_time + timedelta(seconds=lane.timeout_seconds)
+        remaining = max(0.0, (deadline - local_now()).total_seconds())
+    except Exception:
+        return None
+    return f"due in {format_duration(remaining)}"
+
+
+def _gate_row_is_settled_like(lane: _GateShellLane) -> bool:
+    return lane.gate_state in {
+        "answered",
+        "completed",
+        "failed",
+        "timeout",
+        "stopped",
+        "lost",
+    }
+
+
+def _gate_title_width(total_width: int, gutter_width: int) -> int:
+    prefix_width = _lane_prefix_width(gutter_width)
+    glyph_width = cell_len(f"{GATE_GLYPH} ")
+    status_budget = 18
+    return max(1, total_width - prefix_width - glyph_width - status_budget)
+
+
+def _bounded_gate_title(
+    title: str | None,
+    *,
+    total_width: int,
+    gutter_width: int,
+) -> str:
+    normalized = normalize_context_display(title or "") or _SHELL_GATE_PLACEHOLDER
+    width = _gate_title_width(total_width, gutter_width)
+    if cell_len(normalized) <= width:
+        return normalized
+    wrapped = wrap_text_by_cells(normalized, max(1, width - 1))
+    return (wrapped[0] if wrapped else normalized[:width]).rstrip() + "…"
 
 
 def _monitor_selection(
@@ -240,6 +330,33 @@ def _append_monitor_lane(
         text.append("\n")
 
 
+def _append_gate_lane(
+    text: Text,
+    *,
+    index: int,
+    lane: _GateShellLane,
+    gutter_width: int,
+    total_width: int,
+) -> None:
+    text.append_text(_lane_prefix(index, lane.label, gutter_width))
+    text.append(GATE_GLYPH, style=_gate_glyph_style(lane))
+    text.append(" ")
+    text.append(
+        _bounded_gate_title(
+            lane.title,
+            total_width=total_width,
+            gutter_width=gutter_width,
+        ),
+        style=_SHELL_GATE_TITLE_STYLE,
+    )
+    text.append(" · ", style=_SHELL_LANE_SEPARATOR_STYLE)
+    text.append(_gate_status_label(lane), style=_SHELL_GATE_STATE_STYLE)
+    deadline = _gate_deadline_label(lane)
+    if deadline:
+        text.append(f" {deadline}", style=_SHELL_GATE_DEADLINE_STYLE)
+    text.append("\n")
+
+
 def _append_agent_lane(
     text: Text,
     *,
@@ -268,8 +385,16 @@ def _logical_shell_text(
                 lane=lane,
                 gutter_width=gutter_width,
             )
-        else:
+        elif isinstance(lane, _MonitorShellLane):
             _append_monitor_lane(
+                text,
+                index=index,
+                lane=lane,
+                gutter_width=gutter_width,
+                total_width=total_width,
+            )
+        else:
+            _append_gate_lane(
                 text,
                 index=index,
                 lane=lane,
@@ -312,6 +437,17 @@ class ResponsiveShellSection:
             if isinstance(lane, _MonitorShellLane):
                 text = Text(end="")
                 _append_monitor_lane(
+                    text,
+                    index=index,
+                    lane=lane,
+                    gutter_width=gutter_width,
+                    total_width=options.max_width,
+                )
+                yield text
+                continue
+            if isinstance(lane, _GateShellLane):
+                text = Text(end="")
+                _append_gate_lane(
                     text,
                     index=index,
                     lane=lane,

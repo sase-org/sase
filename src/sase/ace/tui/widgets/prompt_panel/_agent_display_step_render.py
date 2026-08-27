@@ -13,6 +13,11 @@ from ...models.agent import Agent
 from ...models.fold_state import FoldLevel
 from ...util.lazy_syntax import lazy_renderable
 from ._agent_display_header import AgentHeader
+from ._agent_gate_section import (
+    GATE_SECTION_ID,
+    build_gate_output,
+    build_gate_section,
+)
 from ._agent_monitor_section import (
     MONITOR_SECTION_ID,
     build_monitor_output,
@@ -118,6 +123,27 @@ class AgentStepDisplayMixin:
             renderables.append(error_tb_syntax)
         renderables.extend(build_monitor_section(agent, panel_level=section_level))
         renderables.extend(build_monitor_output(agent))
+
+        self.update(Group(*renderables))  # type: ignore[attr-defined]
+
+    def _update_gate_display(
+        self,
+        agent: Agent,
+        header_text: AgentHeader,
+        error_tb_syntax: Syntax | None = None,
+        *,
+        panel_level: FoldLevel = FoldLevel.COLLAPSED,
+        section_fold_overrides: Mapping[str, FoldLevel] | None = None,
+    ) -> None:
+        """Display a gate member's decision detail and captured output."""
+        overrides = section_fold_overrides or {}
+        section_level = overrides.get(GATE_SECTION_ID, panel_level)
+
+        renderables: list[Any] = [header_text]
+        if error_tb_syntax:
+            renderables.append(error_tb_syntax)
+        renderables.extend(build_gate_section(agent, panel_level=section_level))
+        renderables.extend(build_gate_output(agent))
 
         self.update(Group(*renderables))  # type: ignore[attr-defined]
 

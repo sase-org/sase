@@ -180,6 +180,36 @@ class AgentState:
     monitor_followup_outcome: str | None = None
     monitor_followup_error: str | None = None
 
+    # Gate-member projection. Gate rows are ordinary agent-family members whose
+    # work is a durable human decision rather than an LLM turn.
+    gate_id: str | None = None
+    gate_kind: str | None = None
+    gate_state: str | None = None
+    gate_start_status: str | None = None
+    gate_stop_status: str | None = None
+    gate_accent: str | None = None
+    gate_label: str | None = None
+    gate_reason: str | None = None
+    gate_timeout_seconds: float | None = None
+    gate_elapsed_seconds: float | None = None
+    gate_output_path: str | None = None
+    gate_output_truncated: bool = False
+    gate_bundle_path: str | None = None
+    gate_notification_id: str | None = None
+    gate_decision_path: str | None = None
+    gate_creator_agent: str | None = None
+    gate_request_fingerprint: str | None = None
+    gate_workspace_policy: str | None = None
+    gate_next_action: str | None = None
+    gate_next_fork: str | None = None
+    gate_next_output: str | None = None
+    gate_next_model: str | None = None
+    gate_followup_agent: str | None = None
+    gate_followup_outcome: str | None = None
+    gate_followup_error: str | None = None
+    gate_followup_degraded_reason: str | None = None
+    gate_followup_prompt_path: str | None = None
+
     # Stand-alone proc-shell projection. These rows come from the durable proc
     # store and are presentation-only: they are not SASE agents, do not own
     # artifacts, and must not flow into ordinary agent cleanup/dismiss paths.

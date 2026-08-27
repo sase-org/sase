@@ -20,10 +20,10 @@ from ..models.agent_nodes import is_agents_tab_agent_node
 from ..models.agent import Agent, AgentType
 from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_family_members import (
-    NO_MONITOR_LANES,
-    MonitorLaneCounts,
+    NO_SHELL_LANES,
+    ShellLaneCounts,
     is_sequential_family_container,
-    monitor_lane_counts,
+    shell_lane_counts,
 )
 from ..models.agent_groups import GroupingMode, GroupRow
 from ..models.agent_time import row_runtime_or_wait_ticks, wait_display_agent
@@ -140,6 +140,12 @@ def _runtime_signature(
         agent.agent_name,
         agent.monitor_id,
         agent.monitor_state,
+        agent.gate_id,
+        agent.gate_state,
+        agent.gate_start_status,
+        agent.gate_stop_status,
+        agent.gate_accent,
+        agent.gate_label,
         agent.proc_id,
         tuple(agent.plan_times),
         tuple(agent.feedback_times),
@@ -182,7 +188,7 @@ def agent_render_key(
     has_unresolvable_wait_target: bool = False,
     clan_counts: ClanStatusCounts | None = None,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
-    monitor_lanes: MonitorLaneCounts | None = None,
+    shell_lanes: ShellLaneCounts | None = None,
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
 
@@ -223,9 +229,9 @@ def agent_render_key(
     )
     is_container_row = agent.is_clan_container or is_sequential_family_container(agent)
     lanes = (
-        (monitor_lane_counts(agent) if is_container_row else NO_MONITOR_LANES)
-        if monitor_lanes is None
-        else monitor_lanes
+        (shell_lane_counts(agent) if is_container_row else NO_SHELL_LANES)
+        if shell_lanes is None
+        else shell_lanes
     )
     return (
         agent.identity,
@@ -258,6 +264,14 @@ def agent_render_key(
         agent.monitor_start_status,
         agent.monitor_stop_status,
         agent.monitor_exit_code,
+        agent.gate_id,
+        agent.gate_state,
+        agent.gate_start_status,
+        agent.gate_stop_status,
+        agent.gate_accent,
+        agent.gate_label,
+        agent.gate_followup_outcome,
+        agent.gate_followup_error,
         tuple(wait_agent.waiting_for),
         tuple(wait_agent.waiting_for_beads),
         wait_deps_satisfied,

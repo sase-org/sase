@@ -51,8 +51,8 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
 
         Returns:
             The row's owned descendant key, the gating family/workflow key
-            when selected as a monitor, its immediate parent's key when
-            selected as any other child, or ``None`` when no edge is
+            when selected as a durable family shell, its immediate parent's
+            key when selected as any other child, or ``None`` when no edge is
             foldable.
         """
         from ...models._agent_tree import (
@@ -67,7 +67,7 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
         fold_key = agent_fold_key(agent)
         if fold_key in self._fold_counts:
             return fold_key
-        if agent.is_monitor:
+        if agent.is_monitor or agent.is_gate:
             return agent_gating_fold_key(agent, tree_parent_lookup(self._agents))
         if agent.is_child_row:
             return agent_parent_fold_key(agent)
@@ -343,7 +343,7 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
             level = self._fold_manager.get(fold_key)
             gating_key = (
                 agent_gating_fold_key(agent, tree_parent_lookup(self._agents))
-                if agent.is_monitor
+                if agent.is_monitor or agent.is_gate
                 else agent_parent_fold_key(agent)
             )
             selected_is_child = gating_key == fold_key and agent.is_child_row

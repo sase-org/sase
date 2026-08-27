@@ -18,6 +18,7 @@ from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets import AgentList
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
+from sase.gate_shell.state import gate_state_bucket
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     pin_agents_visual_now,
@@ -165,6 +166,132 @@ def _family_agents(
         )
     _apply_status_overrides(rows)
     return sort_and_reorder(rows, [])
+
+
+def _gate_family_agents(tmp_path: Path) -> list[Agent]:
+    rows = _family_agents(tmp_path, member_count=2, with_content=False)
+    starter = next(row for row in rows if row.agent_family_role == "code")
+    gate_root = tmp_path / "family-gates"
+    gate_root.mkdir()
+    output_path = gate_root / "run-output.log"
+    output_path.write_text(
+        "\n".join(
+            f"gate output line {index:02d}: validated shard {index}"
+            for index in range(1, 24)
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    def gate(
+        slug: str,
+        *,
+        state: str,
+        start_status: str,
+        stop_status: str,
+        label: str,
+        minutes: int,
+        output: Path | None = None,
+        truncated: bool = False,
+        followup_error: str | None = None,
+    ) -> Agent:
+        started = _STARTED + timedelta(minutes=minutes)
+        terminal = state in {
+            "answered",
+            "completed",
+            "failed",
+            "timeout",
+            "stopped",
+            "lost",
+        }
+        return Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"visual-gate-{slug}",
+            project_file="/workspace/sase/visual_project.sase",
+            status=stop_status if terminal else start_status,
+            status_bucket=gate_state_bucket(state),
+            start_time=started,
+            run_start_time=started,
+            stop_time=started + timedelta(minutes=1) if terminal else None,
+            raw_suffix=f"2026071813{minutes:02d}00-family-gate-{slug}",
+            parent_timestamp=starter.raw_suffix,
+            role_suffix=f"--gate-{slug}",
+            agent_name=f"{_FAMILY_NAME}--gate-{slug}",
+            agent_family=_FAMILY_NAME,
+            agent_family_role="gate",
+            gate_id=f"gate-{slug}-visual-1234567890",
+            gate_kind="approval",
+            gate_state=state,
+            gate_start_status=start_status,
+            gate_stop_status=stop_status,
+            gate_accent="#0BCDEC",
+            gate_label=label,
+            gate_reason="Human confirmation before the next family shell",
+            gate_timeout_seconds=2700.0,
+            gate_elapsed_seconds=75.0 if terminal else 35.0,
+            gate_output_path=str(output) if output is not None else None,
+            gate_output_truncated=truncated,
+            gate_bundle_path=f"/workspace/sase/family-gates/{slug}",
+            gate_decision_path=f"/workspace/sase/family-gates/{slug}/response.json",
+            gate_next_action="Continue with the selected branch.",
+            gate_followup_outcome="not-launchable" if followup_error else None,
+            gate_followup_error=followup_error,
+            workspace_num=8 + minutes,
+        )
+
+    rows.extend(
+        [
+            gate(
+                "pending",
+                state="pending",
+                start_status="WAITING",
+                stop_status="ANSWERED",
+                label="Approve plan handoff",
+                minutes=6,
+            ),
+            gate(
+                "run",
+                state="settling",
+                start_status="RUNNING",
+                stop_status="SETTLED",
+                label="Run deployment preview",
+                minutes=7,
+                output=output_path,
+                truncated=True,
+            ),
+            gate(
+                "answered",
+                state="answered",
+                start_status="WAITING",
+                stop_status="APPROVED",
+                label="Accept reviewer branch",
+                minutes=8,
+            ),
+            gate(
+                "failed",
+                state="failed",
+                start_status="RUNNING",
+                stop_status="FAILED",
+                label="Apply cleanup branch",
+                minutes=9,
+                followup_error="Selected branch could not launch",
+            ),
+        ]
+    )
+    _apply_status_overrides(rows)
+    return sort_and_reorder(rows, [])
+
+
+def _selected_gate_agent(tmp_path: Path) -> Agent:
+    gate = next(
+        row for row in _gate_family_agents(tmp_path) if row.cl_name == "visual-gate-run"
+    )
+    gate.cl_name = "visual-standalone-gate-run"
+    gate.raw_suffix = "20260718130700-standalone-gate-run"
+    gate.parent_timestamp = None
+    gate.agent_family = "visual-standalone-gate"
+    gate.agent_name = "visual-standalone-gate--gate-run"
+    return gate
 
 
 async def test_family_panel_fold_levels_and_member_override_png_snapshots(
@@ -413,7 +540,7 @@ async def test_family_panel_shells_monitor_metadata_png_snapshot(
     )
 
     async with AcePage(
-        query='"visual-family"',
+        query='"visual-family-root"',
         size=(120, 40),
         patches=patches(),
     ) as page:
@@ -509,4 +636,124 @@ async def test_family_conversation_monitor_phase_png_snapshot(
             page,
             "agents_family_conversation_monitor_120x40",
             title="ACE family conversation with monitor phase",
+        )
+
+
+async def test_family_gate_shells_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
+    patch_startup_loaders(
+        monkeypatch,
+        agents=_gate_family_agents(tmp_path),
+    )
+
+    async with AcePage(
+        query='"visual-family-root"',
+        size=(120, 40),
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        container = page.app._agents[page.app.current_idx]
+        assert container.is_family_container_row is True
+        shells = concrete_family_shell_rows(container)
+        assert [shell.is_gate for shell in shells] == [
+            False,
+            False,
+            True,
+            True,
+            True,
+            True,
+        ]
+        assert [shell.gate_state for shell in shells if shell.is_gate] == [
+            "pending",
+            "settling",
+            "answered",
+            "failed",
+        ]
+        assert_page_svg_contains(page, "Shells:")
+        assert_page_svg_contains(page, "pending")
+        assert_page_svg_contains(page, "settling")
+        assert_page_svg_contains(page, "answered")
+        assert_page_svg_contains(page, "failed")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_family_panel_shells_gate_120x40",
+            title="ACE family panel shell metadata with gate rows",
+        )
+
+
+async def test_family_gate_shells_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
+    patch_startup_loaders(
+        monkeypatch,
+        agents=_gate_family_agents(tmp_path),
+    )
+
+    async with AcePage(
+        query='"visual-family-root"',
+        size=(90, 40),
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "visual-family")
+        assert_page_svg_contains(page, "⋔")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_family_panel_shells_gate_90x40",
+            title="ACE family panel gate shells narrow",
+        )
+
+
+async def test_selected_gate_shell_output_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[_selected_gate_agent(tmp_path)],
+    )
+
+    async with AcePage(
+        query='"visual-standalone-gate-run"',
+        size=(120, 40),
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        selected = page.app._agents[page.app.current_idx]
+        assert selected.is_gate is True
+        assert selected.gate_state == "settling"
+        assert_page_svg_contains(page, "Run deployment preview")
+        scroll = page.query_one_widget("#agent-prompt-scroll", VerticalScroll)
+        scroll.scroll_to(y=16, animate=False, immediate=True)
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "gate output line 01")
+        assert_page_svg_contains(page, "truncated")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_family_gate_output_120x40",
+            title="ACE selected gate shell with long output",
         )

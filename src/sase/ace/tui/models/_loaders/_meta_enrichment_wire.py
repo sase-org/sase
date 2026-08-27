@@ -9,11 +9,13 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.output_variable_values import coerce_var_map
 from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
+from sase.gate_shell.state import is_real_gate_member
 from sase.monitor_state import is_monitor_member_role
 from sase.sdd.plan_tiers import cached_plan_tier
 
 from ._meta_enrichment_common import (
     ACTIVE_ENRICHMENT_STATUSES,
+    apply_gate_meta,
     apply_monitor_meta,
     append_timestamp_values,
     parent_timestamp_from_meta,
@@ -273,6 +275,37 @@ def enrich_agent_from_meta_wire(
             agent.agent_family_role,
             agent.role_suffix,
         ),
+    )
+    apply_gate_meta(
+        agent,
+        gate_id=meta.gate_id,
+        gate_kind=meta.gate_kind,
+        gate_state=meta.gate_state,
+        gate_start_status=meta.gate_start_status,
+        gate_stop_status=meta.gate_stop_status,
+        gate_accent=meta.gate_accent,
+        gate_output_path=meta.gate_output_path,
+        gate_output_truncated=meta.gate_output_truncated,
+        gate_creator_agent=meta.gate_creator_agent,
+        gate_followup_agent=meta.gate_followup_agent,
+        gate_next_action=meta.gate_next_action,
+        gate_next_fork=meta.gate_next_fork,
+        gate_next_output=meta.gate_next_output,
+        gate_next_model=meta.gate_next_model,
+        gate_followup_outcome=meta.gate_followup_outcome,
+        gate_followup_error=meta.gate_followup_error,
+        gate_followup_degraded_reason=meta.gate_followup_degraded_reason,
+        gate_followup_prompt_path=meta.gate_followup_prompt_path,
+        gate_elapsed_seconds=meta.gate_elapsed_seconds,
+        gate_label=meta.gate_label,
+        gate_reason=meta.gate_reason,
+        gate_timeout_seconds=meta.gate_timeout_seconds,
+        gate_request_fingerprint=meta.gate_request_fingerprint,
+        gate_workspace_policy=meta.gate_workspace_policy,
+        gate_bundle_path=meta.gate_bundle_path,
+        gate_notification_id=meta.gate_notification_id,
+        gate_decision_path=meta.gate_decision_path,
+        gate_member=is_real_gate_member(meta.agent_family_role, meta.gate_id),
     )
 
     agent.refresh_raw_presented_agent_name()

@@ -10,7 +10,7 @@ from rich.text import Text
 
 from ..models._agent_tree import agent_is_tree_child, agent_tree_depth, agent_tree_title
 from ..models.agent import Agent, AgentType
-from ..models.agent_family_members import monitor_row_is_settled
+from ..models.agent_family_members import gate_row_is_settled, monitor_row_is_settled
 from ..models.tribe_display import (
     TRIBE_IDENTITY_FALLBACK_COLOR,
     compose_tribe_identity_style,
@@ -22,6 +22,10 @@ from ._agent_list_styling import (
     _AGENT_TYPE_COLORS,
     _APPROVE_ICON,
     _CHILD_INDENT,
+    _GATE_FAILED_COUNT_GLYPH_STYLE,
+    _GATE_GLYPH,
+    _GATE_ROW_STYLE,
+    _GATE_SETTLED_COUNT_GLYPH_STYLE,
     _HIDDEN_ICON,
     _MONITOR_GLYPH,
     _MONITOR_GLYPH_STYLE,
@@ -59,6 +63,17 @@ def _monitor_glyph_style(agent: Agent) -> str:
         if monitor_row_is_settled(agent)
         else _MONITOR_GLYPH_STYLE
     )
+
+
+def _gate_glyph_style(agent: Agent) -> str:
+    """Return the row glyph style for a gate shell."""
+    if agent.gate_state in {"failed", "timeout", "lost"}:
+        return _GATE_FAILED_COUNT_GLYPH_STYLE
+    if gate_row_is_settled(agent):
+        return _GATE_SETTLED_COUNT_GLYPH_STYLE
+    if agent.gate_accent:
+        return f"bold {agent.gate_accent}"
+    return _GATE_ROW_STYLE
 
 
 def _tree_depth_style(depth: int, *, is_selected: bool) -> str:
@@ -147,6 +162,8 @@ def append_agent_row_prefix(
             text.append(f"{approve_icon} ", style="bold #00FFFF")
         if agent.is_monitor:
             text.append(f"{_MONITOR_GLYPH} ", style=_monitor_glyph_style(agent))
+        elif agent.is_gate:
+            text.append(f"{_GATE_GLYPH} ", style=_gate_glyph_style(agent))
         elif agent.is_workflow_step_child:
             step_glyph = _STEP_TYPE_GLYPHS.get(agent.step_type or "")
             if step_glyph is not None:
@@ -154,6 +171,8 @@ def append_agent_row_prefix(
                 text.append(f"{step_glyph} ", style=f"bold {glyph_color}")
     elif agent.is_monitor:
         text.append(f"{_MONITOR_GLYPH} ", style=_monitor_glyph_style(agent))
+    elif agent.is_gate:
+        text.append(f"{_GATE_GLYPH} ", style=_gate_glyph_style(agent))
     elif agent.is_proc_shell:
         text.append(f"{_PROC_SHELL_GLYPH} ", style=_PROC_SHELL_GLYPH_STYLE)
 
@@ -179,6 +198,8 @@ def append_agent_row_prefix(
     )
     if agent.is_monitor:
         color = _MONITOR_ROW_STYLE
+    elif agent.is_gate:
+        color = _gate_glyph_style(agent).removeprefix("bold ")
     elif agent.is_proc_shell:
         color = _PROC_SHELL_ROW_STYLE
     elif is_appears_as_agent:
@@ -197,6 +218,7 @@ def append_agent_row_prefix(
         is_appears_as_agent
         or agent_is_tree_child(agent)
         or agent.is_monitor
+        or agent.is_gate
         or agent.is_proc_shell
     ):
         type_glyph = _TYPE_GLYPHS.get(dt)

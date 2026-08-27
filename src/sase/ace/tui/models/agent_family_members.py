@@ -9,6 +9,7 @@ from sase.agent.status_buckets import (
     agent_is_active,
     agent_status_bucket,
 )
+from sase.gate_shell.state import gate_state_is_terminal
 from sase.monitor_state import monitor_state_is_terminal
 from .agent import Agent, AgentType
 
@@ -27,6 +28,8 @@ class ConcreteAgentStatus:
 
 def agent_row_is_in_flight(agent: Agent) -> bool:
     """Return whether one row represents work that is still executing."""
+    if agent.is_gate:
+        return agent.gate_state == "settling" and agent.stop_time is None
     if agent.is_monitor:
         return agent.monitor_state == "running" and agent.stop_time is None
     return agent_is_active(agent.status) and agent.stop_time is None
@@ -48,31 +51,67 @@ def monitor_row_is_settled(row: Agent) -> bool:
     return monitor_state_is_terminal(row.monitor_state) or row.stop_time is not None
 
 
+def gate_row_is_settled(row: Agent) -> bool:
+    """Return whether one gate row belongs in the settled (grey) lane."""
+    return gate_state_is_terminal(row.gate_state) or row.stop_time is not None
+
+
 @dataclass(frozen=True, slots=True)
-class MonitorLaneCounts:
+class _MonitorLaneCounts:
     """Running vs. settled monitor counts for one container row's subtree."""
 
     running: int = 0
     settled: int = 0
 
 
-NO_MONITOR_LANES = MonitorLaneCounts()
+NO_MONITOR_LANES = _MonitorLaneCounts()
 
 
-class _MonitorLaneTally:
-    """Shared traversal state for partitioning monitor rows into two lanes.
+@dataclass(frozen=True, slots=True)
+class _GateLaneCounts:
+    """Pending/running vs. settled gate counts for one container row's subtree."""
+
+    running: int = 0
+    settled: int = 0
+    failed: int = 0
+
+
+NO_GATE_LANES = _GateLaneCounts()
+
+
+@dataclass(frozen=True, slots=True)
+class ShellLaneCounts:
+    """Per-kind shell lane counts for one container row's subtree."""
+
+    monitor: _MonitorLaneCounts = NO_MONITOR_LANES
+    gate: _GateLaneCounts = NO_GATE_LANES
+
+
+NO_SHELL_LANES = ShellLaneCounts()
+
+
+def row_is_family_shell(row: Agent) -> bool:
+    """Return whether *row* is a non-agent family shell."""
+    return row.is_monitor or row.is_gate
+
+
+class _ShellLaneTally:
+    """Shared traversal state for partitioning shell rows into two lanes.
 
     ``Agent`` is mutable and unhashable, and ``runtime_children`` /
     ``followup_agents`` overlap, so traversal cycle-guards on ``id(row)``
     while the count itself dedupes by ``row.identity``. Every distinct
-    monitor row increments exactly one lane, never both, never neither.
+    shell row increments exactly one lane, never both, never neither.
     """
 
     def __init__(self) -> None:
         self._visited_ids: set[int] = set()
         self._seen_identities: set[tuple[AgentType, str, str | None]] = set()
-        self.running = 0
-        self.settled = 0
+        self.monitor_running = 0
+        self.monitor_settled = 0
+        self.gate_running = 0
+        self.gate_settled = 0
+        self.gate_failed = 0
 
     def visit(self, row: Agent) -> None:
         if id(row) in self._visited_ids:
@@ -82,46 +121,62 @@ class _MonitorLaneTally:
             self._seen_identities.add(row.identity)
             if row.is_monitor:
                 if monitor_row_is_settled(row):
-                    self.settled += 1
+                    self.monitor_settled += 1
                 else:
-                    self.running += 1
+                    self.monitor_running += 1
+            elif row.is_gate:
+                if row.gate_state in {"failed", "timeout", "lost"}:
+                    self.gate_failed += 1
+                elif gate_row_is_settled(row):
+                    self.gate_settled += 1
+                else:
+                    self.gate_running += 1
         for child in (*row.runtime_children, *row.followup_agents):
             self.visit(child)
 
-    def counts(self) -> MonitorLaneCounts:
-        return MonitorLaneCounts(running=self.running, settled=self.settled)
+    def shell_counts(self) -> ShellLaneCounts:
+        return ShellLaneCounts(
+            monitor=_MonitorLaneCounts(
+                running=self.monitor_running,
+                settled=self.monitor_settled,
+            ),
+            gate=_GateLaneCounts(
+                running=self.gate_running,
+                settled=self.gate_settled,
+                failed=self.gate_failed,
+            ),
+        )
+
+    def counts(self) -> _MonitorLaneCounts:
+        return self.shell_counts().monitor
 
 
-def monitor_lane_counts(agent: Agent) -> MonitorLaneCounts:
-    """Partition monitor shells beneath one container row into two lanes.
-
-    The container row itself is excluded: only its ``runtime_children`` and
-    ``followup_agents`` are visited.
-    """
-    tally = _MonitorLaneTally()
+def shell_lane_counts(agent: Agent) -> ShellLaneCounts:
+    """Partition monitor and gate shells beneath one container row."""
+    tally = _ShellLaneTally()
     for child in (*agent.runtime_children, *agent.followup_agents):
         tally.visit(child)
-    return tally.counts()
+    return tally.shell_counts()
 
 
-def panel_monitor_lane_counts(rows: Iterable[Agent]) -> MonitorLaneCounts:
-    """Partition monitor rows reachable from a whole panel's top-level rows.
+def panel_shell_lane_counts(rows: Iterable[Agent]) -> ShellLaneCounts:
+    """Partition shell rows reachable from a whole panel's top-level rows.
 
-    Differs from :func:`monitor_lane_counts` in two ways, both required to
+    Differs from :func:`shell_lane_counts` in two ways, both required to
     make a panel-level total rather than a per-container one: each row in
     ``rows`` is itself visited rather than excluded, so a top-level row that
-    is itself a monitor is counted (a monitor nests under its starter today,
+    is itself a shell is counted (a shell nests under its starter today,
     so this should never fire, but it keeps the partition total honest
     instead of silently dropping a row if that projection ever changes); and
     dedupe spans all roots in one shared tally rather than one tally per
-    root, so a monitor reachable from two different top-level rows (a clan
-    container and a member family can both reach the same monitor) is
+    root, so a shell reachable from two different top-level rows (a clan
+    container and a member family can both reach the same shell) is
     counted exactly once.
     """
-    tally = _MonitorLaneTally()
+    tally = _ShellLaneTally()
     for row in rows:
         tally.visit(row)
-    return tally.counts()
+    return tally.shell_counts()
 
 
 def is_sequential_family_container(agent: Agent) -> bool:
@@ -179,11 +234,11 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
             agent.step_type == "agent"
             and not agent.is_synthetic_planner
             and not agent.agent_family_parallel
-            and not agent.is_monitor
+            and not row_is_family_shell(agent)
         ):
             return (agent,)
         return ()
-    if agent.is_monitor:
+    if row_is_family_shell(agent):
         return ()
     if agent.is_proc_shell:
         return ()
@@ -197,7 +252,7 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
                 and child.step_type == "agent"
                 and not child.is_synthetic_planner
                 and not child.agent_family_parallel
-                and not child.is_monitor
+                and not row_is_family_shell(child)
             )
         )
         if agent_steps:
@@ -240,20 +295,20 @@ def _family_shell_anchors(agent: Agent) -> _FamilyShellAnchors:
     )
 
 
-def _expand_nested_monitor_shells(
+def _expand_nested_family_shells(
     container: Agent,
     anchors: Sequence[Agent],
     container_proxy: Agent | None,
 ) -> tuple[Agent, ...]:
-    """Insert nested monitor shells immediately after their causal starter.
+    """Insert nested non-agent shells immediately after their causal starter.
 
-    A monitor attached to the container row is emitted after the anchor that
+    A shell attached to the container row is emitted after the anchor that
     represents that container (its planner step when one is loaded). Traverses
     both ``runtime_children`` and ``followup_agents`` because loaded shapes
     expose overlapping but not always identical links. Dedupes by durable row
     identity, cycle-guards by object identity, and keeps each collection's
     already-normalized order rather than sorting by timestamp. Later
-    agent-shell continuations stay in the anchor sequence; their monitors are
+    agent-shell continuations stay in the anchor sequence; their shells are
     not stolen while walking an earlier starter.
     """
     result: list[Agent] = []
@@ -269,9 +324,9 @@ def _expand_nested_monitor_shells(
             return
         emitted.add(row.identity)
         result.append(row)
-        walk_monitors(row)
+        walk_shells(row)
 
-    def walk_monitors(row: Agent) -> None:
+    def walk_shells(row: Agent) -> None:
         for child in _shell_links(row):
             child_id = id(child)
             if child_id in walked_ids:
@@ -282,20 +337,20 @@ def _expand_nested_monitor_shells(
             if _is_excluded_family_shell(child):
                 walked_ids.add(child_id)
                 continue
-            if child.is_monitor:
+            if row_is_family_shell(child):
                 emit(child)
                 continue
             if child.identity in anchor_identities:
                 continue
             walked_ids.add(child_id)
-            walk_monitors(child)
+            walk_shells(child)
 
     proxy = container_proxy
     if proxy is not None and proxy.identity == container.identity:
-        proxy = None  # emit(container) already walks the container's monitors
+        proxy = None  # emit(container) already walks the container's shells
     pending_container_walk = proxy is not None
     if proxy is None and container.identity not in anchor_identities:
-        walk_monitors(container)  # nothing represents the container
+        walk_shells(container)  # nothing represents the container
     for anchor in anchors:
         emit(anchor)
         if (
@@ -303,23 +358,23 @@ def _expand_nested_monitor_shells(
             and proxy is not None
             and anchor.identity == proxy.identity
         ):
-            walk_monitors(container)
+            walk_shells(container)
             pending_container_walk = False
     if pending_container_walk:
-        walk_monitors(container)  # proxy absent from anchors: never drop a row
+        walk_shells(container)  # proxy absent from anchors: never drop a row
     return tuple(result)
 
 
 def concrete_family_shell_rows(agent: Agent) -> tuple[Agent, ...]:
-    """Return ordered concrete family shells: agent shells and nested monitors.
+    """Return ordered concrete family shells: agent shells and nested non-agent shells.
 
     Plan workflow roots are aggregate rows. When their concrete main agent
     step is loaded, that step owns the planner phase; otherwise the root stays
     as the compatibility fallback. Rename-on-attach roots remain the first
     real shell for families that do not have a concrete planner step.
 
-    A monitor is emitted immediately after the shell that started it. A
-    monitor attached to the container row is emitted after the anchor that
+    A non-agent shell is emitted immediately after the shell that started it. A
+    shell attached to the container row is emitted after the anchor that
     represents that container (its planner step when one is loaded). Synthetic
     planners, non-agent workflow steps, and parallel-family rows stay
     excluded. The walk is a pure in-memory projection: linear in the loaded
@@ -327,7 +382,7 @@ def concrete_family_shell_rows(agent: Agent) -> tuple[Agent, ...]:
     placement rather than timestamp.
     """
     projection = _family_shell_anchors(agent)
-    return _expand_nested_monitor_shells(
+    return _expand_nested_family_shells(
         agent,
         projection.anchors,
         projection.container_proxy,
@@ -351,7 +406,9 @@ def concrete_family_member_rows(agent: Agent) -> tuple[Agent, ...]:
     counts stay agent-only. See :func:`concrete_family_shell_rows` for the
     roster sequence that includes them.
     """
-    return tuple(row for row in concrete_family_shell_rows(agent) if not row.is_monitor)
+    return tuple(
+        row for row in concrete_family_shell_rows(agent) if not row_is_family_shell(row)
+    )
 
 
 def family_roster_container(agent: Agent) -> Agent | None:
@@ -410,7 +467,7 @@ def concrete_agent_statuses(agent: Agent) -> tuple[ConcreteAgentStatus, ...]:
     pairs = tuple(
         (row, bucket)
         for row, bucket in zip(rows, buckets, strict=True)
-        if not row.is_monitor
+        if not row_is_family_shell(row)
     )
     return tuple(ConcreteAgentStatus(agent=row, bucket=bucket) for row, bucket in pairs)
 
@@ -452,7 +509,7 @@ def _concrete_continuations(
         and not row.is_workflow_step_child
         and not row.is_synthetic_planner
         and not row.agent_family_parallel
-        and not row.is_monitor
+        and not row_is_family_shell(row)
     )
 
 
@@ -481,8 +538,10 @@ def _dedupe_by_identity(rows: Sequence[Agent]) -> tuple[Agent, ...]:
 
 __all__ = [
     "ConcreteAgentStatus",
-    "MonitorLaneCounts",
+    "NO_GATE_LANES",
     "NO_MONITOR_LANES",
+    "NO_SHELL_LANES",
+    "ShellLaneCounts",
     "agent_row_is_in_flight",
     "concrete_agent_statuses",
     "concrete_family_member_rows",
@@ -490,8 +549,10 @@ __all__ = [
     "current_family_shell_row",
     "family_member_status_buckets",
     "family_roster_container",
+    "gate_row_is_settled",
     "is_sequential_family_container",
-    "monitor_lane_counts",
     "monitor_row_is_settled",
-    "panel_monitor_lane_counts",
+    "panel_shell_lane_counts",
+    "row_is_family_shell",
+    "shell_lane_counts",
 ]

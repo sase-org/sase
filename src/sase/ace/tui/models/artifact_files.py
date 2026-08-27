@@ -327,6 +327,10 @@ def get_live_reply_content(agent: Agent) -> str | None:
     Returns:
         Live reply content string, or None if not available.
     """
+    if agent.is_gate and agent.gate_output_path:
+        return get_global_cache().read_live_reply(
+            os.path.expanduser(agent.gate_output_path)
+        )
     artifacts_dir = get_artifacts_dir(agent)
     if artifacts_dir is None:
         return None

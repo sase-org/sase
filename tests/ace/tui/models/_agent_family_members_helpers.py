@@ -93,3 +93,28 @@ def _monitor_member(
     monitor.monitor_id = monitor_id
     monitor.monitor_state = monitor_state
     return monitor
+
+
+def _gate_member(
+    name: str,
+    *,
+    root: Agent,
+    gate_id: str,
+    gate_state: str | None,
+    stop_offset: int | None = None,
+) -> Agent:
+    gate = _agent(
+        name,
+        role="gate",
+        parent_timestamp=root.raw_suffix,
+        status="GATE" if gate_state in {None, "pending", "settling"} else "GATED",
+        status_bucket="Running" if gate_state == "settling" else "Done",
+        stop_offset=stop_offset,
+    )
+    gate.gate_id = gate_id
+    gate.gate_kind = "test"
+    gate.gate_state = gate_state
+    gate.gate_start_status = "GATE"
+    gate.gate_stop_status = "GATED"
+    gate.gate_label = name
+    return gate

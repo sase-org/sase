@@ -129,6 +129,31 @@ def _done_agent(cl_name: str = "feature") -> Agent:
     )
 
 
+def _gate_agent(
+    *,
+    cl_name: str = "gate",
+    gate_state: str = "pending",
+    raw_suffix: str = "20260823130000",
+) -> Agent:
+    status = "GATED" if gate_state == "pending" else "GATE DONE"
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=cl_name,
+        project_file="/tmp/test.sase",
+        status=status,
+        start_time=_NOW,
+        raw_suffix=raw_suffix,
+        agent_name=cl_name,
+    )
+    agent.agent_family_role = "gate"
+    agent.role_suffix = "--gate"
+    agent.gate_id = f"{cl_name}-gate"
+    agent.gate_kind = "approval"
+    agent.gate_state = gate_state
+    assert agent.is_gate is True
+    return agent
+
+
 def test_action_kill_agent_dismisses_terminal_proc_shell() -> None:
     agent = _proc_shell()
     app = _KillDispatchApp(agent)
@@ -194,6 +219,41 @@ def test_marked_bulk_kill_dismisses_terminal_proc_shell() -> None:
     assert "Dismiss 1 proc shell" in description
     save_bundle.assert_not_called()
     delete_artifacts.assert_not_called()
+
+
+def test_marked_bulk_kill_skips_pending_gate() -> None:
+    pending_gate = _gate_agent(gate_state="pending")
+    app = _BulkDismissApp([pending_gate])
+
+    app._present_bulk_kill_modal([pending_gate])
+
+    assert app.bulk_killed == []
+    assert app.pushed == []
+    assert app._notifications == [("Skipping 1 gate waiting for a decision", "warning")]
+
+
+def test_marked_bulk_kill_dismisses_terminal_gate() -> None:
+    terminal_gate = _gate_agent(gate_state="answered")
+    app = _BulkDismissApp([terminal_gate])
+
+    app._present_bulk_kill_modal([terminal_gate])
+
+    assert app.bulk_killed == [([], [terminal_gate])]
+    assert [agent.identity for agent in app._dismissed_agent_objects] == [
+        terminal_gate.identity
+    ]
+
+
+def test_marked_bulk_kill_mixed_batch_skips_pending_gate() -> None:
+    done = _done_agent()
+    pending_gate = _gate_agent(gate_state="pending")
+    app = _BulkDismissApp([done, pending_gate])
+
+    app._present_bulk_kill_modal([done, pending_gate])
+
+    assert app.bulk_killed == [([], [done])]
+    assert [agent.identity for agent in app._dismissed_agent_objects] == [done.identity]
+    assert "Skipping 1 gate waiting for a decision" in app.pushed[0].agent_description
 
 
 def test_marked_bulk_kill_skips_active_proc_shell() -> None:

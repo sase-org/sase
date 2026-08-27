@@ -59,6 +59,14 @@ class TestGetPhaseLabel:
         agent = make_agent(role_suffix="--weird", agent_family_role="monitor")
         assert get_phase_label(agent) == "MONITOR"
 
+    def test_gate(self) -> None:
+        agent = make_agent(
+            role_suffix="--gate",
+            agent_family_role="gate",
+            gate_id="g123",
+        )
+        assert get_phase_label(agent) == "GATE"
+
     def test_feedback_round_2(self) -> None:
         agent = make_agent(role_suffix=".2")
         assert get_phase_label(agent) == "AGENT (plan round 2)"

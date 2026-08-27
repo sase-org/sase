@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from sase.ace.tui.models.agent_family_members import (
-    MonitorLaneCounts,
-    monitor_lane_counts,
+    _MonitorLaneCounts,
     monitor_row_is_settled,
+    shell_lane_counts,
 )
 
 from ._agent_family_members_helpers import _agent, _monitor_member
+
+
+def _monitor_lane_counts(agent):
+    return shell_lane_counts(agent).monitor
 
 
 def test_monitor_row_is_settled_matches_lane_partition() -> None:
@@ -65,9 +69,9 @@ def test_monitor_lane_counts_partitions_running_and_every_terminal_state() -> No
     ]
     root.followup_agents = monitors
 
-    lanes = monitor_lane_counts(root)
+    lanes = _monitor_lane_counts(root)
 
-    assert lanes == MonitorLaneCounts(running=1, settled=5)
+    assert lanes == _MonitorLaneCounts(running=1, settled=5)
     assert lanes.running + lanes.settled == len(monitors)
 
 
@@ -78,7 +82,7 @@ def test_monitor_lane_counts_unknown_state_without_stop_time_counts_running() ->
     )
     root.followup_agents = [monitor]
 
-    assert monitor_lane_counts(root) == MonitorLaneCounts(running=1, settled=0)
+    assert _monitor_lane_counts(root) == _MonitorLaneCounts(running=1, settled=0)
 
 
 def test_monitor_lane_counts_unknown_state_with_stop_time_counts_settled() -> None:
@@ -92,7 +96,7 @@ def test_monitor_lane_counts_unknown_state_with_stop_time_counts_settled() -> No
     )
     root.followup_agents = [monitor]
 
-    assert monitor_lane_counts(root) == MonitorLaneCounts(running=0, settled=1)
+    assert _monitor_lane_counts(root) == _MonitorLaneCounts(running=0, settled=1)
 
 
 def test_monitor_lane_counts_running_state_with_stop_time_counts_settled() -> None:
@@ -106,7 +110,7 @@ def test_monitor_lane_counts_running_state_with_stop_time_counts_settled() -> No
     )
     root.followup_agents = [monitor]
 
-    assert monitor_lane_counts(root) == MonitorLaneCounts(running=0, settled=1)
+    assert _monitor_lane_counts(root) == _MonitorLaneCounts(running=0, settled=1)
 
 
 def test_monitor_lane_counts_aggregates_clan_members_at_depth_two() -> None:
@@ -131,7 +135,7 @@ def test_monitor_lane_counts_aggregates_clan_members_at_depth_two() -> None:
 
     clan.runtime_children = [family_a, family_b]
 
-    assert monitor_lane_counts(clan) == MonitorLaneCounts(running=1, settled=1)
+    assert _monitor_lane_counts(clan) == _MonitorLaneCounts(running=1, settled=1)
 
 
 def test_monitor_lane_counts_dedupes_overlap_and_terminates_on_cycles() -> None:
@@ -146,10 +150,10 @@ def test_monitor_lane_counts_dedupes_overlap_and_terminates_on_cycles() -> None:
     # forever.
     monitor.runtime_children = [root]
 
-    assert monitor_lane_counts(root) == MonitorLaneCounts(running=1, settled=0)
+    assert _monitor_lane_counts(root) == _MonitorLaneCounts(running=1, settled=0)
 
 
 def test_monitor_lane_counts_returns_zero_for_plain_agent() -> None:
     agent = _agent("alpha--code", role="code")
 
-    assert monitor_lane_counts(agent) == MonitorLaneCounts()
+    assert _monitor_lane_counts(agent) == _MonitorLaneCounts()

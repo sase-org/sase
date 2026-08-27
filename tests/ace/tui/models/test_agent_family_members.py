@@ -16,6 +16,7 @@ from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
 from ._agent_family_members_helpers import (
     _agent,
+    _gate_member,
     _monitor_member,
     _plan_root,
     _plan_root_with_main_step,
@@ -195,6 +196,62 @@ def test_monitor_family_member_rows_do_not_count_as_agents() -> None:
     assert concrete_family_shell_rows(root) == (root, monitor)
     assert concrete_family_member_rows(root) == (root,)
     assert [entry.agent for entry in concrete_agent_statuses(root)] == [root]
+
+
+def test_gate_family_member_rows_do_not_count_as_agents() -> None:
+    root = _agent("alpha--0", role="root")
+    gate = _gate_member(
+        "alpha--gate",
+        root=root,
+        gate_id="g123",
+        gate_state="pending",
+    )
+    root.followup_agents = [gate]
+
+    assert gate.is_gate is True
+    assert concrete_family_shell_rows(root) == (root, gate)
+    assert concrete_family_member_rows(root) == (root,)
+    assert [entry.agent for entry in concrete_agent_statuses(root)] == [root]
+
+
+def test_gate_starter_root_still_counts_as_concrete_agent() -> None:
+    root = _agent("alpha--0", role="root", status="DONE", status_bucket="Done")
+    root.gate_id = "g123"
+    gate = _gate_member(
+        "alpha--gate",
+        root=root,
+        gate_id="g123",
+        gate_state="answered",
+        stop_offset=5,
+    )
+    root.followup_agents = [gate]
+
+    assert root.is_gate is False
+    assert concrete_family_shell_rows(root) == (root, gate)
+    assert concrete_family_member_rows(root) == (root,)
+    assert [entry.agent for entry in concrete_agent_statuses(root)] == [root]
+
+
+def test_settling_gate_can_be_current_family_shell() -> None:
+    root = _agent("alpha--0", role="root")
+    coder = _agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        status="DONE",
+        status_bucket="Done",
+        stop_offset=2,
+    )
+    gate = _gate_member(
+        "alpha--gate",
+        root=root,
+        gate_id="g123",
+        gate_state="settling",
+        stop_offset=None,
+    )
+    root.followup_agents = [coder, gate]
+
+    assert current_family_shell_row(root) is gate
 
 
 def test_monitor_starter_root_still_counts_as_concrete_agent() -> None:

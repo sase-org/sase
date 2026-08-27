@@ -485,12 +485,12 @@ def _parent_key(parent: MemoryNote | str | Path) -> str:
 
 def _parent_keys(parent: MemoryNote | str | Path) -> frozenset[str]:
     key = _parent_key(parent)
-    if not isinstance(parent, MemoryNote):
-        return frozenset({key})
-    prefix = "sase/memory/"
+    prefix = f"{MEMORY_DIR}/"
     keys = {key}
     if key.startswith(prefix):
         keys.add(key[len(prefix) :])
+    elif key.endswith(".md") and key != AGENTS_PARENT and "/" not in key:
+        keys.add(f"{prefix}{key}")
     return frozenset(keys)
 
 

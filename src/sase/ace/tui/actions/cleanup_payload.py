@@ -51,6 +51,13 @@ def serialize_agent(agent: Agent) -> dict[str, Any]:
         "cl_name": agent.cl_name,
         "clan_tribe": agent.clan_tribe,
         "from_patch": bool(agent._from_patch),
+        "gate_accent": agent.gate_accent,
+        "gate_id": agent.gate_id,
+        "gate_kind": agent.gate_kind,
+        "gate_label": agent.gate_label,
+        "gate_start_status": agent.gate_start_status,
+        "gate_state": agent.gate_state,
+        "gate_stop_status": agent.gate_stop_status,
         "hook_command": agent.hook_command,
         "mentor_name": agent.mentor_name,
         "mentor_profile": agent.mentor_profile,
@@ -149,6 +156,31 @@ def agent_from_json(data: Mapping[str, Any]) -> Agent:
             data.get("role_suffix")
             if isinstance(data.get("role_suffix"), str)
             else None
+        ),
+        gate_id=data.get("gate_id") if isinstance(data.get("gate_id"), str) else None,
+        gate_kind=(
+            data.get("gate_kind") if isinstance(data.get("gate_kind"), str) else None
+        ),
+        gate_state=(
+            data.get("gate_state") if isinstance(data.get("gate_state"), str) else None
+        ),
+        gate_start_status=(
+            data.get("gate_start_status")
+            if isinstance(data.get("gate_start_status"), str)
+            else None
+        ),
+        gate_stop_status=(
+            data.get("gate_stop_status")
+            if isinstance(data.get("gate_stop_status"), str)
+            else None
+        ),
+        gate_accent=(
+            data.get("gate_accent")
+            if isinstance(data.get("gate_accent"), str)
+            else None
+        ),
+        gate_label=(
+            data.get("gate_label") if isinstance(data.get("gate_label"), str) else None
         ),
         monitor_id=(
             data.get("monitor_id") if isinstance(data.get("monitor_id"), str) else None

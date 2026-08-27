@@ -5,6 +5,16 @@ from __future__ import annotations
 from typing import Protocol
 
 from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
+from sase.gate_shell.state import (
+    GATE_FAILURE_GLYPH_COLOR,
+    GATE_GLYPH,
+    GATE_SETTLED_GLYPH_COLOR,
+)
+from sase.gate_shell.status import (
+    gate_status_glyph,
+    gate_status_pair,
+    gate_status_style,
+)
 from sase.monitor_state import (
     MONITOR_GLYPH,
     MONITOR_GLYPH_COLOR,
@@ -146,6 +156,15 @@ _MONITOR_FOLLOWUP_ERROR_GLYPH_STYLE = "bold #FFAF00"
 # so the flag has to key off the outcome as well.
 _MONITOR_FOLLOWUP_DEGRADED_OUTCOME = "launched-degraded"
 
+_GATE_GLYPH = GATE_GLYPH
+_GATE_COUNT_GLYPH_STYLE = "bold #0BCDEC"
+_GATE_SETTLED_COUNT_GLYPH_STYLE = GATE_SETTLED_GLYPH_COLOR
+_GATE_FAILED_COUNT_GLYPH_STYLE = f"bold {GATE_FAILURE_GLYPH_COLOR}"
+_GATE_ROW_STYLE = "#0BCDEC"
+_GATE_FAILURE_GLYPH_STYLE = f"bold {GATE_FAILURE_GLYPH_COLOR}"
+_GATE_FOLLOWUP_ERROR_GLYPH = _MONITOR_FOLLOWUP_ERROR_GLYPH
+_GATE_FOLLOWUP_ERROR_GLYPH_STYLE = _MONITOR_FOLLOWUP_ERROR_GLYPH_STYLE
+
 _PROC_SHELL_GLYPH = "⚙"
 _PROC_SHELL_GLYPH_STYLE = "bold #5FD7FF"
 _PROC_SHELL_ROW_STYLE = "#5FD7FF"
@@ -230,6 +249,14 @@ class _MonitorStatusPresentationRow(Protocol):
     monitor_state: str | None
 
 
+class _GateStatusPresentationRow(Protocol):
+    status: str
+    gate_start_status: str | None
+    gate_stop_status: str | None
+    gate_state: str | None
+    gate_accent: str | None
+
+
 def monitor_status_presentation(
     row: _MonitorStatusPresentationRow,
 ) -> tuple[str, str] | None:
@@ -257,3 +284,23 @@ def monitor_status_presentation(
     if row.monitor_state == "failed":
         glyph = ""
     return monitor_status_style(pair, monitor_state=row.monitor_state), glyph
+
+
+def gate_status_presentation(
+    row: _GateStatusPresentationRow,
+) -> tuple[str, str] | None:
+    """Return ``(style, glyph)`` when *row* is displaying a gate status."""
+    start = row.gate_start_status
+    stop = row.gate_stop_status
+    if not start and not stop:
+        return None
+    pair = gate_status_pair(start, stop)
+    if row.status.casefold() not in {pair.start.casefold(), pair.stop.casefold()}:
+        return None
+    glyph = gate_status_glyph(row.gate_state)
+    if row.gate_state == "failed":
+        glyph = ""
+    return (
+        gate_status_style(pair, gate_state=row.gate_state, accent=row.gate_accent),
+        glyph,
+    )

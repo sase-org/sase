@@ -7,6 +7,11 @@ from typing import TYPE_CHECKING
 
 from rich.text import Text
 
+from sase.gate_shell.state import (
+    GATE_FAILURE_GLYPH_COLOR,
+    GATE_GLYPH,
+    GATE_SETTLED_GLYPH_COLOR,
+)
 from sase.monitor_state import (
     MONITOR_GLYPH,
     MONITOR_GLYPH_COLOR,
@@ -22,7 +27,7 @@ from ...agent_count_chip import (
 )
 from ...models._agent_clan import sase_agent_status_counts
 from ...models._agent_tree import agent_is_tree_child
-from ...models.agent_family_members import panel_monitor_lane_counts
+from ...models.agent_family_members import panel_shell_lane_counts
 from ...models.agent_panels import agent_panel_label
 from ...models.tribe_display import compose_tribe_identity_style
 
@@ -48,6 +53,10 @@ _PANEL_METRIC_LABELS: tuple[tuple[str, str], ...] = tuple(
 _PANEL_MONITOR_GLYPH = MONITOR_GLYPH
 _PANEL_MONITOR_RUNNING_STYLE = f"bold {MONITOR_GLYPH_COLOR}"
 _PANEL_MONITOR_SETTLED_STYLE = MONITOR_SETTLED_GLYPH_COLOR
+_PANEL_GATE_GLYPH = GATE_GLYPH
+_PANEL_GATE_RUNNING_STYLE = "bold #0BCDEC"
+_PANEL_GATE_SETTLED_STYLE = GATE_SETTLED_GLYPH_COLOR
+_PANEL_GATE_FAILED_STYLE = f"bold {GATE_FAILURE_GLYPH_COLOR}"
 _PANEL_PROC_GLYPH = "⚙"
 _PANEL_PROC_STYLE = "bold #5FD7FF"
 
@@ -56,12 +65,9 @@ _PANEL_PROC_STYLE = "bold #5FD7FF"
 class AgentPanelCounts:
     """Lane total and status counts for one rendered panel.
 
-    ``running_monitors`` and ``settled_monitors`` count the running and
-    finished monitors across the panel's subtrees, respectively. Together
-    they partition the panel's monitors exactly. Both are intentionally
-    absent from :meth:`metric_items`: monitors are not agents, so folding
-    them in would break the disjoint-status invariant that the metric
-    counts sum to ``lane_count``.
+    Durable shell counts are intentionally absent from :meth:`metric_items`:
+    monitors and gates are not agents, so folding them in would break the
+    disjoint-status invariant that the metric counts sum to ``lane_count``.
     """
 
     lane_count: int = 0
@@ -74,6 +80,9 @@ class AgentPanelCounts:
     read: int = 0
     running_monitors: int = 0
     settled_monitors: int = 0
+    running_gates: int = 0
+    settled_gates: int = 0
+    failed_gates: int = 0
     proc_shells: int = 0
 
     def metric_items(self) -> list[tuple[str, int]]:
@@ -96,7 +105,7 @@ def agent_panel_counts(
         visible_top_level_agents,
         unread_ids,
     )
-    monitor_lanes = panel_monitor_lane_counts(visible_top_level_agents)
+    shell_lanes = panel_shell_lane_counts(visible_top_level_agents)
     proc_shells = sum(1 for agent in visible_top_level_agents if agent.is_proc_shell)
     return AgentPanelCounts(
         lane_count=projected.total,
@@ -107,8 +116,11 @@ def agent_panel_counts(
         failed=projected.failed,
         unread=projected.unread,
         read=projected.done,
-        running_monitors=monitor_lanes.running,
-        settled_monitors=monitor_lanes.settled,
+        running_monitors=shell_lanes.monitor.running,
+        settled_monitors=shell_lanes.monitor.settled,
+        running_gates=shell_lanes.gate.running,
+        settled_gates=shell_lanes.gate.settled,
+        failed_gates=shell_lanes.gate.failed,
         proc_shells=proc_shells,
     )
 
@@ -189,5 +201,23 @@ def agent_panel_border_title(
             title.append(
                 f"{_PANEL_MONITOR_GLYPH}{counts.settled_monitors}",
                 style=_PANEL_MONITOR_SETTLED_STYLE,
+            )
+        if counts.running_gates:
+            title.append(" ", style=_PANEL_COUNT_STYLE)
+            title.append(
+                f"{_PANEL_GATE_GLYPH}{counts.running_gates}",
+                style=_PANEL_GATE_RUNNING_STYLE,
+            )
+        if counts.settled_gates:
+            title.append(" ", style=_PANEL_COUNT_STYLE)
+            title.append(
+                f"{_PANEL_GATE_GLYPH}{counts.settled_gates}",
+                style=_PANEL_GATE_SETTLED_STYLE,
+            )
+        if counts.failed_gates:
+            title.append(" ", style=_PANEL_COUNT_STYLE)
+            title.append(
+                f"{_PANEL_GATE_GLYPH}{counts.failed_gates}",
+                style=_PANEL_GATE_FAILED_STYLE,
             )
     return title

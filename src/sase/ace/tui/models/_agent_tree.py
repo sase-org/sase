@@ -44,15 +44,15 @@ def agent_gating_fold_key(
 ) -> str | None:
     """Return the fold key whose expansion reveals *agent*.
 
-    Non-monitor rows are gated by their own immediate parent, same as
-    :func:`agent_parent_fold_key`. A monitor row instead climbs its
+    Non-shell rows are gated by their own immediate parent, same as
+    :func:`agent_parent_fold_key`. A family shell row instead climbs its
     immediate-parent chain to the nearest ancestor that is not itself a
     child row -- the family/workflow container whose fold actually reveals
-    the monitor, skipping past any mid-family starter that owns no fold of
+    the shell, skipping past any mid-family starter that owns no fold of
     its own. Returns ``None`` when a link in that chain is missing or the
     chain does not resolve within the number of known fold owners.
     """
-    if not agent.is_monitor:
+    if not (agent.is_monitor or agent.is_gate):
         return agent_parent_fold_key(agent)
 
     current: Agent = agent
@@ -110,7 +110,7 @@ def agent_tree_title(agent: Agent) -> str | None:
 def _is_untitled_sase_shell(agent: Agent) -> bool:
     if agent.is_clan_container or agent.is_family_container_row:
         return False
-    if agent.is_monitor:
+    if agent.is_monitor or agent.is_gate:
         return True
     if agent.is_workflow_step_child and agent.step_type == "agent":
         return True

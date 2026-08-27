@@ -129,6 +129,15 @@ def copy_missing_display_metadata(parent: Agent, child: Agent) -> None:
             parent.monitor_stop_status = child.monitor_stop_status
         if parent.monitor_state is None:
             parent.monitor_state = child.monitor_state
+    if child.is_gate:
+        if parent.gate_start_status is None:
+            parent.gate_start_status = child.gate_start_status
+        if parent.gate_stop_status is None:
+            parent.gate_stop_status = child.gate_stop_status
+        if parent.gate_state is None:
+            parent.gate_state = child.gate_state
+        if parent.gate_accent is None:
+            parent.gate_accent = child.gate_accent
     copy_missing_plan_metadata(parent, child)
 
 

@@ -9,11 +9,13 @@ from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.output_variable_values import coerce_var_map
 from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
 from sase.monitor_state import is_monitor_member_role
+from sase.gate_shell.state import is_real_gate_member
 from sase.sdd.plan_tiers import cached_plan_tier
 
 from ._json_cache import load_json_cached
 from ._meta_enrichment_common import (
     ACTIVE_ENRICHMENT_STATUSES,
+    apply_gate_meta,
     apply_monitor_meta,
     append_timestamp_field,
     apply_workflow_child_identity_from_meta,
@@ -398,6 +400,40 @@ def enrich_agent_from_meta(
         monitor_member=is_monitor_member_role(
             agent.agent_family_role,
             agent.role_suffix,
+        ),
+    )
+    apply_gate_meta(
+        agent,
+        gate_id=data.get("gate_id"),
+        gate_kind=data.get("gate_kind"),
+        gate_state=data.get("gate_state"),
+        gate_start_status=data.get("gate_start_status"),
+        gate_stop_status=data.get("gate_stop_status"),
+        gate_accent=data.get("gate_accent"),
+        gate_output_path=data.get("gate_output_path"),
+        gate_output_truncated=data.get("gate_output_truncated"),
+        gate_creator_agent=data.get("gate_creator_agent"),
+        gate_followup_agent=data.get("gate_followup_agent"),
+        gate_next_action=data.get("gate_next_action"),
+        gate_next_fork=data.get("gate_next_fork"),
+        gate_next_output=data.get("gate_next_output"),
+        gate_next_model=data.get("gate_next_model"),
+        gate_followup_outcome=data.get("gate_followup_outcome"),
+        gate_followup_error=data.get("gate_followup_error"),
+        gate_followup_degraded_reason=data.get("gate_followup_degraded_reason"),
+        gate_followup_prompt_path=data.get("gate_followup_prompt_path"),
+        gate_elapsed_seconds=data.get("gate_elapsed_seconds"),
+        gate_label=data.get("gate_label"),
+        gate_reason=data.get("gate_reason"),
+        gate_timeout_seconds=data.get("gate_timeout_seconds"),
+        gate_request_fingerprint=data.get("gate_request_fingerprint"),
+        gate_workspace_policy=data.get("gate_workspace_policy"),
+        gate_bundle_path=data.get("gate_bundle_path"),
+        gate_notification_id=data.get("gate_notification_id"),
+        gate_decision_path=data.get("gate_decision_path"),
+        gate_member=is_real_gate_member(
+            agent.agent_family_role,
+            data.get("gate_id") if isinstance(data.get("gate_id"), str) else None,
         ),
     )
 

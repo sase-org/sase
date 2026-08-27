@@ -492,6 +492,19 @@ def _monitor_starter_agent() -> Agent:
     return agent
 
 
+def _gate_agent(*, gate_state: str = "pending") -> Agent:
+    status = "GATED" if gate_state == "pending" else "GATE DONE"
+    agent = _make_agent(status=status)
+    agent.agent_family_role = "gate"
+    agent.role_suffix = "--gate"
+    agent.gate_id = "g123"
+    agent.gate_kind = "approval"
+    agent.gate_state = gate_state
+    agent.gate_label = "Approve deploy"
+    assert agent.is_gate is True
+    return agent
+
+
 def test_keybinding_footer_running_monitor_advertises_stop_monitor() -> None:
     footer = KeybindingFooter()
     agent = _monitor_agent(monitor_state="running")
@@ -531,6 +544,46 @@ def test_keybinding_footer_terminal_monitor_omits_stop_monitor() -> None:
     labels = [label for _key, label in bindings]
     assert "retry" not in labels
     assert "name" not in labels
+
+
+def test_keybinding_footer_pending_gate_is_not_dismissable() -> None:
+    footer = KeybindingFooter()
+    agent = _gate_agent(gate_state="pending")
+
+    bindings = footer._compute_agent_bindings(agent)
+
+    binding_keys = [key for key, _label in bindings]
+    labels = [label for _key, label in bindings]
+    assert "x" not in binding_keys
+    assert "retry" not in labels
+    assert "name" not in labels
+
+
+def test_keybinding_footer_terminal_gate_advertises_dismiss_gate() -> None:
+    footer = KeybindingFooter()
+    agent = _gate_agent(gate_state="answered")
+
+    bindings = footer._compute_agent_bindings(agent)
+
+    assert ("x", "dismiss gate") in bindings
+    labels = [label for _key, label in bindings]
+    assert "retry" not in labels
+    assert "name" not in labels
+
+
+def test_keybinding_footer_family_gate_advertises_shell_digits() -> None:
+    footer = KeybindingFooter()
+    root = _make_agent()
+    root.agent_name = "alpha--0"
+    root.agent_family = "alpha"
+    root.plan_chain_root = True
+    root.role_suffix = "--0"
+    gate = _gate_agent(gate_state="pending")
+    gate.family_container = root
+
+    bindings = footer._compute_agent_bindings(gate)
+
+    assert ("0-9", "shell") in bindings
 
 
 def test_keybinding_footer_monitor_starter_advertises_normal_agent_bindings() -> None:

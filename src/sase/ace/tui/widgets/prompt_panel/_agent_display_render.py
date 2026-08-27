@@ -50,6 +50,7 @@ from ._agent_display_header_summary import (
 )
 from ._agent_display_hints import clear_agent_hint_render_cache
 from ._agent_display_step_render import AgentStepDisplayMixin
+from ._agent_gate_section import build_gate_phase
 from ._agent_monitor_section import build_monitor_phase
 from ._agent_xprompt_highlighting import (
     AgentPromptHighlightContext,
@@ -381,6 +382,16 @@ class AgentDisplayRenderMixin(
             )
             return
 
+        if agent.is_gate:
+            self._update_gate_display(
+                agent,
+                header_text,
+                error_tb_syntax,
+                panel_level=lane_fold_level,
+                section_fold_overrides=lane_fold_overrides,
+            )
+            return
+
         # Check if this is a bash/python workflow step - display differently
         if agent.is_workflow_child and agent.step_type in ("bash", "python"):
             self._update_bash_python_display(agent, header_text, error_tb_syntax)
@@ -454,6 +465,9 @@ class AgentDisplayRenderMixin(
                 for followup in agent.followup_agents:
                     if followup.is_monitor:
                         renderables.extend(build_monitor_phase(followup))
+                        continue
+                    if followup.is_gate:
+                        renderables.extend(build_gate_phase(followup))
                         continue
                     renderables.append(
                         render_phase_divider(

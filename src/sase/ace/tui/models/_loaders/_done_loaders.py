@@ -25,6 +25,7 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.paths import sase_projects_dir
 from sase.ace.revert_agent import agent_is_reverted
+from sase.gate_shell.status import DEFAULT_GATE_SHELL_SETTLED_STATUS
 from sase.monitor_status import (
     DEFAULT_MONITOR_STOP_STATUS,
     clamp_monitor_status_or_default,
@@ -37,7 +38,7 @@ from ._meta_enrichment import (
     enrich_agent_from_meta,
     enrich_agent_from_meta_wire,
 )
-from ._meta_enrichment_common import apply_monitor_done
+from ._meta_enrichment_common import apply_gate_done, apply_monitor_done
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 
@@ -283,6 +284,16 @@ def _load_done_agent_for_dir(
                 data.get("error") if isinstance(data.get("error"), str) else None
             )
             error_traceback = None
+        elif outcome == "gated":
+            status = (
+                data.get("status_label")
+                if isinstance(data.get("status_label"), str)
+                else DEFAULT_GATE_SHELL_SETTLED_STATUS
+            )
+            error_message = (
+                data.get("error") if isinstance(data.get("error"), str) else None
+            )
+            error_traceback = None
         elif outcome == "stopped" or data.get("repeat_stopped"):
             # Repeat-chain STOP: the slot was skipped by a predecessor's STOP
             # output variable. It keeps ``outcome: "completed"`` (so %wait
@@ -355,6 +366,7 @@ def _load_done_agent_for_dir(
             hidden=bool(data.get("hidden")),
             approve=bool(data.get("approve")),
             monitor_stop_status=status if outcome == "monitored" else None,
+            gate_stop_status=status if outcome == "gated" else None,
         )
 
         # Retry-chain lineage from done.json (parent-side: forward pointer
@@ -379,6 +391,23 @@ def _load_done_agent_for_dir(
                 status_label=data.get("status_label"),
                 monitor_followup_outcome=data.get("monitor_followup_outcome"),
                 monitor_followup_error=data.get("monitor_followup_error"),
+            )
+        elif outcome == "gated":
+            apply_gate_done(
+                agent,
+                gate_id=data.get("gate_id"),
+                gate_kind=data.get("gate_kind"),
+                gate_state=data.get("gate_state"),
+                gate_elapsed_seconds=data.get("gate_elapsed_seconds"),
+                gate_output_path=data.get("gate_output_path"),
+                gate_output_truncated=data.get("gate_output_truncated"),
+                gate_bundle_path=data.get("gate_bundle_path"),
+                gate_notification_id=data.get("gate_notification_id"),
+                status_label=data.get("status_label"),
+                gate_followup_outcome=data.get("gate_followup_outcome"),
+                gate_followup_error=data.get("gate_followup_error"),
+                gate_followup_degraded_reason=data.get("gate_followup_degraded_reason"),
+                gate_followup_prompt_path=data.get("gate_followup_prompt_path"),
             )
         enrich_agent_from_prompt_markers(agent, str(artifact_dir))
         _enrich_missing_commit_metadata(agent, artifact_dir)
@@ -500,6 +529,10 @@ def _build_done_agent_from_record(
         )
         error_message = done.error
         error_traceback = None
+    elif outcome == "gated":
+        status = done.status_label or DEFAULT_GATE_SHELL_SETTLED_STATUS
+        error_message = done.error
+        error_traceback = None
     elif outcome == "stopped" or done.repeat_stopped:
         # Repeat-chain STOP: skipped by a predecessor's STOP output variable.
         # Keeps ``outcome: "completed"`` for %wait cascading but renders as a
@@ -557,6 +590,7 @@ def _build_done_agent_from_record(
         hidden=bool(done.hidden),
         approve=bool(done.approve),
         monitor_stop_status=status if outcome == "monitored" else None,
+        gate_stop_status=status if outcome == "gated" else None,
     )
 
     if done.retried_as_timestamp:
@@ -583,6 +617,23 @@ def _build_done_agent_from_record(
             status_label=done.status_label,
             monitor_followup_outcome=done.monitor_followup_outcome,
             monitor_followup_error=done.monitor_followup_error,
+        )
+    elif outcome == "gated":
+        apply_gate_done(
+            agent,
+            gate_id=done.gate_id,
+            gate_kind=done.gate_kind,
+            gate_state=done.gate_state,
+            gate_elapsed_seconds=done.gate_elapsed_seconds,
+            gate_output_path=done.gate_output_path,
+            gate_output_truncated=done.gate_output_truncated,
+            gate_bundle_path=done.gate_bundle_path,
+            gate_notification_id=done.gate_notification_id,
+            status_label=done.status_label,
+            gate_followup_outcome=done.gate_followup_outcome,
+            gate_followup_error=done.gate_followup_error,
+            gate_followup_degraded_reason=done.gate_followup_degraded_reason,
+            gate_followup_prompt_path=done.gate_followup_prompt_path,
         )
     enrich_agent_from_prompt_markers_wire(agent, record.prompt_steps)
     _enrich_missing_commit_metadata(agent, record.artifact_dir)

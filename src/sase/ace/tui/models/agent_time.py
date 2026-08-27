@@ -361,15 +361,19 @@ def _leaf_runtime_interval(agent: "Agent", now: datetime) -> _RuntimeInterval | 
     return None
 
 
-def _aggregates_monitor_shells(agent: "Agent") -> bool:
-    """Return whether *agent*'s aggregate owns monitor-shell runtime.
+def _aggregates_family_shells(agent: "Agent") -> bool:
+    """Return whether *agent*'s aggregate owns durable family-shell runtime.
 
     This is container-ness, not ``stop_time``. A settled family container
     still records ``stopped_at`` on the root artifacts dir, but it must keep
-    spanning a running monitor grandchild. Concrete agent shells only own
-    their own interval; the monitor already has its own roster row.
+    spanning a running shell grandchild. Concrete agent shells only own their
+    own interval; the shell already has its own roster row.
     """
     return agent.is_clan_container or agent.is_family_container_row
+
+
+def _is_family_shell(agent: "Agent") -> bool:
+    return agent.is_monitor or agent.is_gate
 
 
 def _aggregate_runtime(
@@ -380,7 +384,7 @@ def _aggregate_runtime(
     if not children:
         return None
 
-    include_monitor_shells = _aggregates_monitor_shells(agent)
+    include_family_shells = _aggregates_family_shells(agent)
     runtime_members: list[ClanRuntimeMemberWire] = []
     terminal_times: list[datetime] = []
 
@@ -392,7 +396,7 @@ def _aggregate_runtime(
         return value.isoformat()
 
     def append_runtime_member(child: "Agent") -> None:
-        if child.is_monitor and not include_monitor_shells:
+        if _is_family_shell(child) and not include_family_shells:
             return
         child_id = id(child)
         if child_id in seen:
@@ -565,7 +569,7 @@ def runtime_suffix_ticks(
     _seen.add(agent_id)
 
     include_monitor_shells = (
-        _aggregates_monitor_shells(agent)
+        _aggregates_family_shells(agent)
         if _include_monitor_shells is None
         else _include_monitor_shells
     )
@@ -573,7 +577,7 @@ def runtime_suffix_ticks(
     if not should_display_runtime_suffix(agent):
         return False
     for child in getattr(agent, "runtime_children", ()):
-        if child.is_monitor and not include_monitor_shells:
+        if _is_family_shell(child) and not include_monitor_shells:
             continue
         if runtime_suffix_ticks(
             child, _seen, _include_monitor_shells=include_monitor_shells
@@ -582,6 +586,8 @@ def runtime_suffix_ticks(
     if agent.stop_time is not None:
         return False
     if agent.is_monitor and agent.monitor_state == "running":
+        return agent.run_start_time is not None
+    if agent.is_gate and agent.gate_state == "settling":
         return agent.run_start_time is not None
     if agent.status in APPROVED_PLAN_STATUSES and agent.plan_times:
         return False
@@ -636,7 +642,7 @@ def row_runtime_or_wait_ticks(
     _seen.add(agent_id)
 
     include_monitor_shells = (
-        _aggregates_monitor_shells(agent)
+        _aggregates_family_shells(agent)
         if _include_monitor_shells is None
         else _include_monitor_shells
     )
@@ -646,7 +652,7 @@ def row_runtime_or_wait_ticks(
     if wait_countdown_ticks(agent):
         return True
     for child in getattr(agent, "runtime_children", ()):
-        if child.is_monitor and not include_monitor_shells:
+        if _is_family_shell(child) and not include_monitor_shells:
             continue
         if row_runtime_or_wait_ticks(
             child, _seen, _include_monitor_shells=include_monitor_shells

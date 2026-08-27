@@ -8,6 +8,7 @@ from typing import Any
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, present_agent_name
 from sase.core.paths import shorten_path
 from sase.core.time import local_now
+from sase.gate_shell.state import is_real_gate_member
 from sase.monitor_state import is_monitor_member_role
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
@@ -206,6 +207,8 @@ class Agent(AgentState):
             if self.is_anonymous:
                 return "workflow"
             return self.workflow if self.workflow else "agent"
+        if self.is_gate:
+            return "gate"
         if self.is_proc_shell:
             return "proc"
         if self.is_workflow_child and self.step_type:
@@ -236,6 +239,15 @@ class Agent(AgentState):
                 or self.proc_id
                 or "proc shell"
             )
+        if self.is_gate:
+            return (
+                self.gate_label
+                or self.gate_kind
+                or self.presented_agent_name
+                or self.agent_name
+                or self.gate_id
+                or "gate shell"
+            )
         if (
             self.agent_type == AgentType.WORKFLOW
             and not self.appears_as_agent
@@ -261,6 +273,11 @@ class Agent(AgentState):
     def is_monitor(self) -> bool:
         """Whether this row is the monitor member, not the starter back-reference."""
         return is_monitor_member_role(self.agent_family_role, self.role_suffix)
+
+    @property
+    def is_gate(self) -> bool:
+        """Whether this row is the durable gate-shell member."""
+        return is_real_gate_member(self.agent_family_role, self.gate_id)
 
     @property
     def is_proc_shell(self) -> bool:
@@ -450,6 +467,8 @@ class Agent(AgentState):
         if self.is_clan_container:
             return False
         if self.is_monitor:
+            return False
+        if self.is_gate:
             return False
         if self.is_proc_shell:
             return False

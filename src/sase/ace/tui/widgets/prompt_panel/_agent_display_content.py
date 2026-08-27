@@ -34,6 +34,7 @@ _PHASE_SUFFIX_TOKENS = {
 }
 
 MONITOR_PHASE_LABEL = "MONITOR"
+GATE_PHASE_LABEL = "GATE"
 PHASE_DIVIDER_ACCENT = "#AF87FF"
 
 
@@ -60,8 +61,8 @@ def render_timestamp_divider(iso_timestamp: str) -> Text:
 def get_phase_label(agent: Agent) -> str:
     """Map a member's family role to its phase header.
 
-    Agent shells render as ``AGENT (<role>)``. A monitor is a proc shell and
-    keeps ``MONITOR``.
+    Agent shells render as ``AGENT (<role>)``. Monitor and gate shells keep
+    their shell-kind labels.
     """
     suffix = canonical_plan_chain_suffix(agent.role_suffix)
     role = agent_family_role_for_suffix(
@@ -79,6 +80,8 @@ def get_phase_label(agent: Agent) -> str:
         return _agent_role_label("commit")
     if role == "monitor":
         return MONITOR_PHASE_LABEL
+    if role == "gate":
+        return GATE_PHASE_LABEL
     if role == "plan":
         return _agent_role_label("plan")
     if suffix in _PHASE_SUFFIX_TOKENS:

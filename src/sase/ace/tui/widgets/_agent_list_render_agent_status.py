@@ -37,6 +37,9 @@ from ..models.agent_status import (
 from ..wait_status_presentation import format_wait_dependency_status_counts
 from ._agent_list_helpers import short_model_name
 from ._agent_list_styling import (
+    _GATE_FAILURE_GLYPH_STYLE,
+    _GATE_FOLLOWUP_ERROR_GLYPH,
+    _GATE_FOLLOWUP_ERROR_GLYPH_STYLE,
     _MONITOR_FOLLOWUP_DEGRADED_OUTCOME,
     _MONITOR_FOLLOWUP_ERROR_GLYPH,
     _MONITOR_FOLLOWUP_ERROR_GLYPH_STYLE,
@@ -44,6 +47,7 @@ from ._agent_list_styling import (
     _MONITOR_STALLED_GLYPH_STYLE,
     _UNRESOLVABLE_WAIT_TARGET_GLYPH,
     _UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE,
+    gate_status_presentation,
     monitor_status_presentation,
 )
 
@@ -63,7 +67,7 @@ def append_agent_row_status(
     row_prefix = text.plain
     status_opener = "(" if not row_prefix or row_prefix[-1].isspace() else " ("
     text.append(status_opener, style="dim")
-    presentation = monitor_status_presentation(agent)
+    presentation = gate_status_presentation(agent) or monitor_status_presentation(agent)
     if presentation is not None:
         style, glyph = presentation
         text.append(display_status, style=style)
@@ -210,6 +214,8 @@ def append_agent_row_status(
         # outcome is unknown): distinct from the "✗ <code>"/"⧖" badges
         # above, which mean the command itself ran and reported.
         text.append(f" {_MONITOR_STALLED_GLYPH}", style=_MONITOR_STALLED_GLYPH_STYLE)
+    if agent.is_gate and agent.gate_state == "failed":
+        text.append(" ✗", style=_GATE_FAILURE_GLYPH_STYLE)
     text.append(")", style="dim")
     if agent.is_monitor and (
         agent.monitor_followup_error
@@ -218,6 +224,14 @@ def append_agent_row_status(
         text.append(
             f" {_MONITOR_FOLLOWUP_ERROR_GLYPH}",
             style=_MONITOR_FOLLOWUP_ERROR_GLYPH_STYLE,
+        )
+    if agent.is_gate and (
+        agent.gate_followup_error
+        or agent.gate_followup_outcome == _MONITOR_FOLLOWUP_DEGRADED_OUTCOME
+    ):
+        text.append(
+            f" {_GATE_FOLLOWUP_ERROR_GLYPH}",
+            style=_GATE_FOLLOWUP_ERROR_GLYPH_STYLE,
         )
     # Retry/fallback annotations for RUNNING agents that have retried
     if agent.status == "RUNNING" and agent.retry_count > 0:

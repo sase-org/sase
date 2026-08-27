@@ -131,14 +131,14 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # overhead from four modules reloading the same script rather than added test
 # weight. The next candidate should displace an entry rather than add one.
 #
-# Re-curated to 58 on 2026-08-26 when `test_config_schema_gate_shell.py`
-# split the gate-shell schema contract out of the existing config-schema
-# guard. Like the prior schema splits, the added path redistributes config
-# coverage for data files no import edge reaches rather than introducing a new
-# behavioral surface. The set remains over the plan's nominal 30 s serial
-# budget, so the next candidate should displace an entry rather than add one.
+# Re-curated to 58 on 2026-08-27 for `test_config_schema_gate_shell.py`, which
+# keeps the gate-shell schema/default-config contract beside the other split
+# config-schema domains. Like those files, it validates data files no import
+# edge reaches rather than expanding behavioral test weight. The whole 58-entry
+# set measured 31.1 s under the command above on this host; the next candidate
+# should displace an entry rather than add one.
 _MANIFEST_ENTRY_BUDGET = 58
-_MEASURED_SERIAL_COST = "30.7 serial seconds across 58 entries"
+_MEASURED_SERIAL_COST = "31.1 serial seconds across 58 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

@@ -13,6 +13,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_shell_section import (
     SHELL_LANE_LIMIT,
     ResponsiveShellSection,
     _AgentShellLane,
+    _GateShellLane,
     _MonitorShellLane,
     build_family_shell_lanes,
 )
@@ -59,6 +60,23 @@ def _monitor_member(**overrides: object) -> Agent:
     return _family_member(
         "--mon",
         "monitor",
+        **values,
+    )
+
+
+def _gate_member(**overrides: object) -> Agent:
+    values: dict[str, object] = {
+        "gate_id": "gate-123456",
+        "gate_kind": "approval",
+        "gate_label": "Approve deploy",
+        "gate_reason": "Release needs confirmation",
+        "gate_state": "pending",
+        "gate_timeout_seconds": 300.0,
+    }
+    values.update(overrides)
+    return _family_member(
+        "--gate",
+        "gate",
         **values,
     )
 
@@ -174,6 +192,33 @@ def test_mixed_agent_and_monitor_family_keeps_shell_order_and_alignment() -> Non
     assert lines == [
         "Shells: --plan · CLAUDE(opus)",
         "        --mon  · ⚙ just check",
+        "        --code · CLAUDE(sonnet)",
+    ]
+    dot_positions = {line.index("·") for line in lines}
+    assert len(dot_positions) == 1
+
+
+def test_mixed_agent_monitor_and_gate_family_keeps_shell_order_and_alignment() -> None:
+    agent = _family(
+        _family_root(model="opus", llm_provider="claude"),
+        _monitor_member(),
+        _gate_member(),
+        _family_member("--code", "code", model="sonnet", llm_provider="claude"),
+    )
+
+    lanes = build_family_shell_lanes(agent)
+    lines = ResponsiveShellSection(lanes).logical_text.plain.splitlines()
+
+    assert [type(lane) for lane in lanes] == [
+        _AgentShellLane,
+        _MonitorShellLane,
+        _GateShellLane,
+        _AgentShellLane,
+    ]
+    assert lines == [
+        "Shells: --plan · CLAUDE(opus)",
+        "        --mon  · ⚙ just check",
+        "        --gate · ⋔ Approve deploy · pending due in 0s",
         "        --code · CLAUDE(sonnet)",
     ]
     dot_positions = {line.index("·") for line in lines}

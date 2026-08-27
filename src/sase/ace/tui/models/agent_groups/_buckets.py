@@ -11,6 +11,7 @@ from sase.agent.status_buckets import (
     _TERMINAL_STATUSES,
     agent_status_bucket,
 )
+from sase.gate_shell.state import gate_state_is_terminal
 from sase.monitor_state import monitor_state_is_terminal
 
 from ..agent import Agent
@@ -79,7 +80,7 @@ def date_anchor_time(agent: Agent) -> datetime | None:
 
     Terminal agents anchor on ``stop_time`` (falling back to
     ``start_time`` when missing); everything else anchors on ``start_time``.
-    Monitor rows key terminality on ``monitor_state`` rather than the
+    Durable shell rows key terminality on their shell state rather than the
     displayed status label, so a custom stop label such as ``TESTED`` still
     anchors on ``stop_time``. The same anchor decides the L0 bucket, L1
     subgroup label, and sort position so the BY_DATE tree remains internally
@@ -89,6 +90,12 @@ def date_anchor_time(agent: Agent) -> datetime | None:
         return (
             (agent.stop_time or agent.start_time)
             if monitor_state_is_terminal(agent.monitor_state)
+            else agent.start_time
+        )
+    if agent.is_gate:
+        return (
+            (agent.stop_time or agent.start_time)
+            if gate_state_is_terminal(agent.gate_state)
             else agent.start_time
         )
     if (agent.status or "") in _TERMINAL_STATUSES:

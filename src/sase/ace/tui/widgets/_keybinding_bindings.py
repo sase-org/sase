@@ -13,6 +13,7 @@ from rich.cells import cell_len
 from rich.text import Text
 
 from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
+from sase.gate_shell.state import gate_state_is_terminal
 from sase.procs import ACTIVE_PROC_STATUSES
 
 from .._artifact_tab_model import DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED
@@ -313,6 +314,29 @@ class KeybindingBindingsMixin:
                     bindings.append((x, "dismiss proc"))
                 if agent.proc_id:
                     bindings.append((self._kd("edit_hooks"), "fork"))
+            if completed_count > 0:
+                bindings.append(
+                    (
+                        self._kd("open_agent_cleanup_panel"),
+                        f"cleanup ({completed_count} done)",
+                    )
+                )
+            return bindings
+
+        if getattr(agent, "is_gate", False):
+            if (
+                marked_count == 0
+                and not panel_focused
+                and not group_focused
+                and (gate_state_is_terminal(agent.gate_state) or agent.stop_time)
+            ):
+                bindings.append((x, "dismiss gate"))
+            if (
+                not panel_focused
+                and not group_focused
+                and family_roster_container(agent) is not None
+            ):
+                bindings.append(("0-9", "shell"))
             if completed_count > 0:
                 bindings.append(
                     (

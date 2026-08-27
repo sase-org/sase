@@ -51,14 +51,16 @@ def is_agents_tab_agent_node(agent: Agent) -> bool:
     """Return whether *agent* is an Agents-tab agent node.
 
     Agent nodes are standalone root rows and sequential-family containers.
-    Clan containers, family-member shells, workflow/step children, and monitor
-    proc-shell rows are rendered nodes but not unread/countable agent nodes.
+    Clan containers, family-member shells, workflow/step children, and durable
+    shell rows are rendered nodes but not unread/countable agent nodes.
     The decision intentionally ignores visual tree depth: a standalone agent
     nested under a clan remains a direct agent node.
     """
     if getattr(agent, "is_clan_container", False):
         return False
     if getattr(agent, "is_monitor", False):
+        return False
+    if getattr(agent, "is_gate", False):
         return False
     if getattr(agent, "is_proc_shell", False):
         return False
