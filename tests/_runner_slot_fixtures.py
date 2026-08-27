@@ -11,6 +11,7 @@ from sase.core.agent_scan_wire import (
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
     WorkflowStateWire,
+    family_shell_from_mapping,
 )
 
 
@@ -45,7 +46,7 @@ def record(
             agent_family_role=meta.get("agent_family_role"),
             agent_family_parallel=bool(meta.get("agent_family_parallel", False)),
             parent_timestamp=meta.get("parent_timestamp"),
-            monitor_id=meta.get("monitor_id"),
+            family_shell=family_shell_from_mapping(meta),
             wait_priority=meta_wait_priority,
             run_started_at=("2026-07-12T12:00:00+00:00" if started else None),
         ),

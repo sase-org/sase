@@ -6,12 +6,23 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sase.core.agent_scan_wire import AgentArtifactRecordWire
+from sase.core.agent_scan_wire import (
+    AgentArtifactRecordWire,
+    AgentMetaWire,
+    FamilyShellWire,
+)
 from sase.monitor_state import is_real_monitor_member
 
 RecordLiveness = Callable[[AgentArtifactRecordWire], bool]
 DEFAULT_WAIT_PRIORITY = 10
 GATE_FAMILY_ROLE = "gate"
+
+
+def _family_shell_of_kind(
+    meta: AgentMetaWire | None, kind: str
+) -> FamilyShellWire | None:
+    shell = None if meta is None else meta.family_shell
+    return shell if shell is not None and shell.kind == kind else None
 
 
 def normalize_wait_priority(value: object) -> int:
@@ -220,12 +231,16 @@ def is_runner_slot_occupying_record(
     meta = record.agent_meta
     if meta is None:
         return False
+    gate_shell = _family_shell_of_kind(meta, "gate")
     if (
         is_real_gate_member_record(record)
-        and (meta.gate_state or "").strip() == "pending"
+        and gate_shell is not None
+        and (gate_shell.state or "").strip() == "pending"
     ):
         return False
-    monitor = is_real_monitor_member(meta.agent_family_role, meta.monitor_id)
+    monitor_shell = _family_shell_of_kind(meta, "monitor")
+    monitor_id = monitor_shell.id if monitor_shell is not None else None
+    monitor = is_real_monitor_member(meta.agent_family_role, monitor_id)
     started = meta.pid is not None if monitor else bool(meta.run_started_at)
     if not started:
         return False
@@ -235,11 +250,11 @@ def is_runner_slot_occupying_record(
 def is_real_gate_member_record(record: AgentArtifactRecordWire) -> bool:
     """Return whether *record* is the durable gate-shell member."""
     meta = record.agent_meta
-    return (
-        meta is not None
-        and (meta.agent_family_role or "").strip() == GATE_FAMILY_ROLE
-        and bool((meta.gate_id or "").strip())
-    )
+    if meta is None or (meta.agent_family_role or "").strip() != GATE_FAMILY_ROLE:
+        return False
+    gate_shell = _family_shell_of_kind(meta, "gate")
+    gate_id = gate_shell.id if gate_shell is not None else None
+    return bool((gate_id or "").strip())
 
 
 def runner_slot_family_key(record: AgentArtifactRecordWire) -> tuple[str, str]:

@@ -7,7 +7,11 @@ from datetime import datetime
 from sase.ace.tui.models.agent import Agent as TuiAgent
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
-from sase.core.agent_scan_wire import AgentMetaWire, PendingQuestionMarkerWire
+from sase.core.agent_scan_wire import (
+    AgentMetaWire,
+    FamilyShellWire,
+    PendingQuestionMarkerWire,
+)
 from sase.core.agent_scan_wire import WaitingMarkerWire
 from sase.core.runner_slots import (
     is_real_gate_member_record,
@@ -406,8 +410,7 @@ def test_pending_gate_member_frees_runner_slot() -> None:
         agent_meta=AgentMetaWire(
             agent_family="fam",
             agent_family_role="gate",
-            gate_id="gate-1",
-            gate_state="pending",
+            family_shell=FamilyShellWire(kind="gate", id="gate-1", state="pending"),
             pid=1234,
             run_started_at="2026-07-09T12:00:00Z",
         )
@@ -423,8 +426,7 @@ def test_inherited_gate_id_without_gate_role_uses_ordinary_started_rule() -> Non
         agent_meta=AgentMetaWire(
             agent_family="fam",
             agent_family_role="code",
-            gate_id="gate-1",
-            gate_state="pending",
+            family_shell=FamilyShellWire(kind="gate", id="gate-1", state="pending"),
             pid=1234,
         )
     )

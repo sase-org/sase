@@ -24,8 +24,10 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
     DoneMarkerWire,
+    FamilyShellWire,
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
+    family_shell_from_mapping,
 )
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.patch_metadata import canonicalize_patch_metadata
@@ -60,10 +62,8 @@ class _AgentListStatusRow:
 def record_status_bucket(record: AgentArtifactRecordWire) -> str:
     meta = _record_meta(record)
     if _is_monitor(meta, record.done):
-        state = record.done.monitor_state if record.done is not None else None
-        return monitor_state_bucket(
-            state or (meta.monitor_state if meta is not None else None)
-        )
+        state = _monitor_str(record.done, "state")
+        return monitor_state_bucket(state or _monitor_str(meta, "state"))
     status = _derive_status(
         _base_record_status(record),
         meta,
@@ -117,7 +117,7 @@ def build_agent_list_entry(
     status_bucket: str | None
     if _is_monitor(meta, done):
         status_bucket = monitor_state_bucket(
-            _text(done, "monitor_state") or _text(meta, "monitor_state")
+            _monitor_str(done, "state") or _monitor_str(meta, "state")
         )
     else:
         status_bucket = valid_status_bucket(agent.status_bucket) or (
@@ -225,30 +225,30 @@ def build_agent_list_entry(
         has_done_marker=(
             record.has_done_marker if record is not None else done is not None
         ),
-        monitor_id=_first_text(agent.monitor_id, _text(meta, "monitor_id")),
+        monitor_id=_first_text(agent.monitor_id, _monitor_str(meta, "id")),
         monitor_state=_first_text(
             agent.monitor_state,
-            _text(done, "monitor_state"),
-            _text(meta, "monitor_state"),
+            _monitor_str(done, "state"),
+            _monitor_str(meta, "state"),
         ),
-        monitor_label=_first_text(agent.monitor_label, _text(meta, "monitor_label")),
+        monitor_label=_first_text(agent.monitor_label, _monitor_str(meta, "label")),
         monitor_command=_first_text(
             agent.monitor_command,
-            _text(meta, "monitor_command"),
+            _monitor_command(meta),
         ),
         monitor_exit_code=_first_int(
             agent.monitor_exit_code,
-            _int(done, "monitor_exit_code"),
-            _int(meta, "monitor_exit_code"),
+            _monitor_exit_code(done),
+            _monitor_exit_code(meta),
         ),
         monitor_start_status=_recorded_monitor_status(
             agent.monitor_start_status,
-            _text(meta, "monitor_start_status"),
+            _monitor_str(meta, "start_status"),
         ),
         monitor_stop_status=_recorded_monitor_status(
             agent.monitor_stop_status,
             _text(done, "status_label"),
-            _text(meta, "monitor_stop_status"),
+            _monitor_str(meta, "stop_status"),
         ),
     )
 
@@ -295,13 +295,12 @@ def _derive_status(
     if _is_monitor(meta, done):
         if done is not None and done.outcome == "monitored":
             return clamp_monitor_status_or_default(
-                done.status_label
-                or (meta.monitor_stop_status if meta is not None else None),
+                done.status_label or _monitor_str(meta, "stop_status"),
                 default=DEFAULT_MONITOR_STOP_STATUS,
             )
         if meta is not None and (meta.run_started_at or meta.wait_completed_at):
             return clamp_monitor_status_or_default(
-                meta.monitor_start_status,
+                _monitor_str(meta, "start_status"),
                 default=DEFAULT_MONITOR_START_STATUS,
             )
         return "STARTING"
@@ -314,7 +313,9 @@ def _is_monitor(meta: AgentMetaWire | None, done: DoneMarkerWire | None) -> bool
         meta.role_suffix,
     ):
         return False
-    return bool(meta.monitor_id or (done is not None and done.outcome == "monitored"))
+    return bool(
+        _monitor_str(meta, "id") or (done is not None and done.outcome == "monitored")
+    )
 
 
 def _plan_status(meta: AgentMetaWire) -> str | None:
@@ -491,6 +492,7 @@ def _read_meta(artifacts_dir: str | None) -> AgentMetaWire | None:
     if data is not None:
         canonicalize_patch_metadata(data)
         data = canonicalize_agent_tribe_metadata(dict(data))
+        data["family_shell"] = family_shell_from_mapping(data)
     return _wire_from_dict(AgentMetaWire, data)
 
 
@@ -510,6 +512,7 @@ def _read_done(artifacts_dir: str | None) -> DoneMarkerWire | None:
     data = _read_json_dict(artifacts_dir, "done.json")
     if data is not None:
         canonicalize_patch_metadata(data)
+        data["family_shell"] = family_shell_from_mapping(data)
     return _wire_from_dict(DoneMarkerWire, data)
 
 
@@ -549,6 +552,30 @@ def _workflow_traceback(record: AgentArtifactRecordWire | None) -> str | None:
     if record is None or record.workflow_state is None:
         return None
     return record.workflow_state.traceback
+
+
+def _monitor_shell(
+    source: AgentMetaWire | DoneMarkerWire | None,
+) -> FamilyShellWire | None:
+    shell = source.family_shell if source is not None else None
+    return shell if shell is not None and shell.kind == "monitor" else None
+
+
+def _monitor_str(
+    source: AgentMetaWire | DoneMarkerWire | None, attr: str
+) -> str | None:
+    """Read a shared ``family_shell`` string field, only for a monitor shell."""
+    return _text(_monitor_shell(source), attr)
+
+
+def _monitor_command(source: AgentMetaWire | DoneMarkerWire | None) -> str | None:
+    shell = _monitor_shell(source)
+    return _text(shell.monitor if shell is not None else None, "command")
+
+
+def _monitor_exit_code(source: AgentMetaWire | DoneMarkerWire | None) -> int | None:
+    shell = _monitor_shell(source)
+    return _int(shell.monitor if shell is not None else None, "exit_code")
 
 
 def _text(obj: object | None, attr: str) -> str | None:

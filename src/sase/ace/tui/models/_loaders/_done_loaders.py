@@ -609,31 +609,78 @@ def _build_done_agent_from_record(
             record.plan_path.plan_path if record.plan_path is not None else None
         ),
     )
+    done_shell = done.family_shell
+    done_monitor_shell = (
+        done_shell if done_shell is not None and done_shell.kind == "monitor" else None
+    )
+    done_monitor = (
+        done_monitor_shell.monitor if done_monitor_shell is not None else None
+    )
+    done_gate_shell = (
+        done_shell if done_shell is not None and done_shell.kind == "gate" else None
+    )
+    done_gate = done_gate_shell.gate if done_gate_shell is not None else None
     if outcome == "monitored":
         apply_monitor_done(
             agent,
-            monitor_state=done.monitor_state,
-            monitor_exit_code=done.monitor_exit_code,
+            monitor_state=(
+                done_monitor_shell.state if done_monitor_shell is not None else None
+            ),
+            monitor_exit_code=done_monitor.exit_code
+            if done_monitor is not None
+            else None,
             status_label=done.status_label,
-            monitor_followup_outcome=done.monitor_followup_outcome,
-            monitor_followup_error=done.monitor_followup_error,
+            monitor_followup_outcome=(
+                done_monitor_shell.followup_outcome
+                if done_monitor_shell is not None
+                else None
+            ),
+            monitor_followup_error=(
+                done_monitor_shell.followup_error
+                if done_monitor_shell is not None
+                else None
+            ),
         )
     elif outcome == "gated":
         apply_gate_done(
             agent,
-            gate_id=done.gate_id,
-            gate_kind=done.gate_kind,
-            gate_state=done.gate_state,
-            gate_elapsed_seconds=done.gate_elapsed_seconds,
-            gate_output_path=done.gate_output_path,
-            gate_output_truncated=done.gate_output_truncated,
-            gate_bundle_path=done.gate_bundle_path,
-            gate_notification_id=done.gate_notification_id,
+            gate_id=done_gate_shell.id if done_gate_shell is not None else None,
+            gate_kind=done_gate.kind if done_gate is not None else None,
+            gate_state=done_gate_shell.state if done_gate_shell is not None else None,
+            gate_elapsed_seconds=(
+                done_gate_shell.elapsed_seconds if done_gate_shell is not None else None
+            ),
+            gate_output_path=(
+                done_gate_shell.output_path if done_gate_shell is not None else None
+            ),
+            gate_output_truncated=(
+                done_gate_shell.output_truncated
+                if done_gate_shell is not None
+                else None
+            ),
+            gate_bundle_path=done_gate.bundle_path if done_gate is not None else None,
+            gate_notification_id=(
+                done_gate.notification_id if done_gate is not None else None
+            ),
             status_label=done.status_label,
-            gate_followup_outcome=done.gate_followup_outcome,
-            gate_followup_error=done.gate_followup_error,
-            gate_followup_degraded_reason=done.gate_followup_degraded_reason,
-            gate_followup_prompt_path=done.gate_followup_prompt_path,
+            gate_followup_outcome=(
+                done_gate_shell.followup_outcome
+                if done_gate_shell is not None
+                else None
+            ),
+            gate_followup_error=(
+                done_gate_shell.followup_error if done_gate_shell is not None else None
+            ),
+            gate_followup_degraded_reason=(
+                done_gate_shell.followup_degraded_reason
+                if done_gate_shell is not None
+                else None
+            ),
+            gate_followup_prompt_path=(
+                done_gate_shell.followup_prompt_path
+                if done_gate_shell is not None
+                else None
+            ),
         )
     enrich_agent_from_prompt_markers_wire(agent, record.prompt_steps)
     _enrich_missing_commit_metadata(agent, record.artifact_dir)

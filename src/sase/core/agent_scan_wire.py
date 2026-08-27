@@ -90,6 +90,12 @@ from sase.core.agent_scan_wire_conversion import (
     agent_scan_wire_from_dict,
     agent_scan_wire_to_json_dict,
 )
+from sase.core.agent_scan_wire_family_shell import (
+    FamilyShellGateWire,
+    FamilyShellMonitorWire,
+    FamilyShellWire,
+    family_shell_from_mapping,
+)
 from sase.core.agent_scan_wire_markers import (
     AgentMetaWire,
     DoneMarkerWire,
@@ -138,6 +144,9 @@ __all__ = [
     "AgentClanContextWire",
     "AgentMetaWire",
     "DoneMarkerWire",
+    "FamilyShellGateWire",
+    "FamilyShellMonitorWire",
+    "FamilyShellWire",
     "PendingQuestionMarkerWire",
     "PlanPathMarkerWire",
     "PromptStepMarkerWire",
@@ -151,4 +160,5 @@ __all__ = [
     "agent_artifact_index_update_from_dict",
     "agent_scan_wire_from_dict",
     "agent_scan_wire_to_json_dict",
+    "family_shell_from_mapping",
 ]

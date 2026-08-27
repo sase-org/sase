@@ -277,9 +277,14 @@ def _record_status(record: Any) -> str:
     if record.has_done_marker and done is not None:
         if done.outcome == "monitored":
             meta = record.agent_meta
+            meta_shell = meta.family_shell if meta is not None else None
+            monitor_stop_status = (
+                meta_shell.stop_status
+                if meta_shell is not None and meta_shell.kind == "monitor"
+                else None
+            )
             return clamp_monitor_status_or_default(
-                done.status_label
-                or (meta.monitor_stop_status if meta is not None else None),
+                done.status_label or monitor_stop_status,
                 default=DEFAULT_MONITOR_STOP_STATUS,
             )
         if done.outcome in {"failed", "epic_launch_failed"}:

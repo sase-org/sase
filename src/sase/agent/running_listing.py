@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from collections.abc import Iterable, Mapping
 
 from sase.agent.names import is_process_alive
@@ -217,6 +218,24 @@ def _is_monitor_member_meta(meta: object | None) -> bool:
     )
 
 
+def _monitor_shell_field(source: object | None, field: str) -> Any:
+    """Read a shared ``family_shell`` field, only when *source* is a monitor shell."""
+    shell = getattr(source, "family_shell", None)
+    if shell is not None and getattr(shell, "kind", None) == "monitor":
+        return getattr(shell, field, None)
+    return None
+
+
+def _monitor_sub_field(source: object | None, field: str) -> Any:
+    """Read a monitor-only ``family_shell.monitor`` field."""
+    shell = getattr(source, "family_shell", None)
+    if shell is not None and getattr(shell, "kind", None) == "monitor":
+        monitor = getattr(shell, "monitor", None)
+        if monitor is not None:
+            return getattr(monitor, field, None)
+    return None
+
+
 def active_status_for_record(record: AgentArtifactRecordWire) -> str:
     if record.waiting is not None:
         return "WAITING"
@@ -234,7 +253,7 @@ def active_status_for_record(record: AgentArtifactRecordWire) -> str:
     if meta is not None and _is_monitor_member_meta(meta):
         if meta.run_started_at or meta.wait_completed_at:
             return clamp_monitor_status_or_default(
-                meta.monitor_start_status,
+                _monitor_shell_field(meta, "start_status"),
                 default=DEFAULT_MONITOR_START_STATUS,
             )
         return "STARTING"
@@ -357,13 +376,17 @@ def _running_info_from_running_record(
         agent_family=meta.agent_family,
         agent_family_role=meta.agent_family_role,
         role_suffix=meta.role_suffix,
-        monitor_id=meta.monitor_id,
-        monitor_state=meta.monitor_state,
-        monitor_label=meta.monitor_label,
-        monitor_command=meta.monitor_command,
-        monitor_exit_code=meta.monitor_exit_code,
-        monitor_start_status=_recorded_monitor_status(meta.monitor_start_status),
-        monitor_stop_status=_recorded_monitor_status(meta.monitor_stop_status),
+        monitor_id=_monitor_shell_field(meta, "id"),
+        monitor_state=_monitor_shell_field(meta, "state"),
+        monitor_label=_monitor_shell_field(meta, "label"),
+        monitor_command=_monitor_sub_field(meta, "command"),
+        monitor_exit_code=_monitor_sub_field(meta, "exit_code"),
+        monitor_start_status=_recorded_monitor_status(
+            _monitor_shell_field(meta, "start_status")
+        ),
+        monitor_stop_status=_recorded_monitor_status(
+            _monitor_shell_field(meta, "stop_status")
+        ),
     )
 
 
@@ -429,7 +452,7 @@ def _is_visible_monitor_record(record: AgentArtifactRecordWire) -> bool:
     return bool(
         record.workflow_dir_name == "ace-run"
         and meta is not None
-        and meta.monitor_id
+        and _monitor_shell_field(meta, "id")
         and _is_monitor_member_meta(meta)
         and not record.has_done_marker
     )
@@ -439,9 +462,9 @@ def _record_is_running_monitor(record: AgentArtifactRecordWire) -> bool:
     meta = record.agent_meta
     return bool(
         meta is not None
-        and meta.monitor_id
+        and _monitor_shell_field(meta, "id")
         and _is_monitor_member_meta(meta)
-        and meta.monitor_state == "running"
+        and _monitor_shell_field(meta, "state") == "running"
     )
 
 
@@ -450,8 +473,8 @@ def _record_status_bucket(
     meta: object | None,
     done: object | None,
 ) -> str | None:
-    monitor_state = getattr(done, "monitor_state", None) or getattr(
-        meta, "monitor_state", None
+    monitor_state = _monitor_shell_field(done, "state") or _monitor_shell_field(
+        meta, "state"
     )
     if _is_monitor_member_meta(meta):
         return monitor_state_bucket(monitor_state)
@@ -486,8 +509,7 @@ def _done_info_from_record(
         status = EPIC_APPROVED_STATUS
     elif outcome == "monitored":
         status = clamp_monitor_status_or_default(
-            done.status_label
-            or (meta.monitor_stop_status if meta is not None else None),
+            done.status_label or _monitor_shell_field(meta, "stop_status"),
             default=DEFAULT_MONITOR_STOP_STATUS,
         )
     elif outcome in {"failed", "epic_launch_failed"}:
@@ -511,6 +533,7 @@ def _done_info_from_record(
     model = (meta.model if meta is not None else None) or done.model
     provider = (meta.llm_provider if meta is not None else None) or done.llm_provider
     approve = bool((meta.approve if meta is not None else False) or done.approve)
+    done_monitor_exit_code = _monitor_sub_field(done, "exit_code")
     status_bucket = _record_status_bucket(
         meta.status_bucket if meta is not None else None,
         meta,
@@ -559,21 +582,21 @@ def _done_info_from_record(
         agent_family=meta.agent_family if meta is not None else None,
         agent_family_role=meta.agent_family_role if meta is not None else None,
         role_suffix=meta.role_suffix if meta is not None else None,
-        monitor_id=meta.monitor_id if meta is not None else None,
-        monitor_state=done.monitor_state or (meta.monitor_state if meta else None),
-        monitor_label=meta.monitor_label if meta is not None else None,
-        monitor_command=meta.monitor_command if meta is not None else None,
-        monitor_exit_code=done.monitor_exit_code
-        if done.monitor_exit_code is not None
-        else meta.monitor_exit_code
-        if meta is not None
-        else None,
+        monitor_id=_monitor_shell_field(meta, "id"),
+        monitor_state=_monitor_shell_field(done, "state")
+        or _monitor_shell_field(meta, "state"),
+        monitor_label=_monitor_shell_field(meta, "label"),
+        monitor_command=_monitor_sub_field(meta, "command"),
+        monitor_exit_code=(
+            done_monitor_exit_code
+            if done_monitor_exit_code is not None
+            else _monitor_sub_field(meta, "exit_code")
+        ),
         monitor_start_status=_recorded_monitor_status(
-            meta.monitor_start_status if meta is not None else None
+            _monitor_shell_field(meta, "start_status")
         ),
         monitor_stop_status=_recorded_monitor_status(
-            done.status_label
-            or (meta.monitor_stop_status if meta is not None else None)
+            done.status_label or _monitor_shell_field(meta, "stop_status")
         ),
     )
 

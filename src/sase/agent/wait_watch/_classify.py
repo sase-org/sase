@@ -207,10 +207,14 @@ def _retry_successor_timestamp(record: AgentArtifactRecordWire) -> str | None:
 def _record_done_outcome(record: AgentArtifactRecordWire) -> str | None:
     if record.done is None:
         return None
+    shell = record.done.family_shell
+    monitor_state = (
+        shell.state if shell is not None and shell.kind == "monitor" else None
+    )
     return effective_done_outcome(
         {
             "outcome": record.done.outcome,
-            "monitor_state": record.done.monitor_state,
+            "monitor_state": monitor_state,
         }
     )
 

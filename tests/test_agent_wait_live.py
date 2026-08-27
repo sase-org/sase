@@ -36,6 +36,8 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
     AgentMetaWire,
     DoneMarkerWire,
+    FamilyShellMonitorWire,
+    FamilyShellWire,
     PendingQuestionMarkerWire,
     PlanPathMarkerWire,
     WaitingMarkerWire,
@@ -76,16 +78,46 @@ def _record(
 ) -> AgentArtifactRecordWire:
     done = None
     if outcome is not None:
+        done_family_shell = (
+            FamilyShellWire(
+                kind="monitor",
+                state=monitor_state,
+                monitor=FamilyShellMonitorWire(exit_code=monitor_exit_code),
+            )
+            if monitor_state is not None or monitor_exit_code is not None
+            else None
+        )
         done = DoneMarkerWire(
             outcome=outcome,
             name=name,
             error=error,
             workspace_num=workspace_num,
             model=model,
-            monitor_state=monitor_state,
-            monitor_exit_code=monitor_exit_code,
+            family_shell=done_family_shell,
             status_label=monitor_stop_status,
         )
+    meta_family_shell = (
+        FamilyShellWire(
+            kind="monitor",
+            state=monitor_state,
+            start_status=monitor_start_status,
+            stop_status=monitor_stop_status,
+            monitor=FamilyShellMonitorWire(
+                command=monitor_command, exit_code=monitor_exit_code
+            ),
+        )
+        if any(
+            value is not None
+            for value in (
+                monitor_command,
+                monitor_state,
+                monitor_exit_code,
+                monitor_start_status,
+                monitor_stop_status,
+            )
+        )
+        else None
+    )
     return AgentArtifactRecordWire(
         project_name=project_name,
         project_dir=f"/tmp/sase/projects/{project_name}",
@@ -103,11 +135,7 @@ def _record(
             run_started_at="2026-08-23T12:00:00Z" if pid is not None else None,
             wait_for=wait_for or [],
             agent_family_role=family_role,
-            monitor_command=monitor_command,
-            monitor_state=monitor_state,
-            monitor_exit_code=monitor_exit_code,
-            monitor_start_status=monitor_start_status,
-            monitor_stop_status=monitor_stop_status,
+            family_shell=meta_family_shell,
         ),
         done=done,
         waiting=waiting,

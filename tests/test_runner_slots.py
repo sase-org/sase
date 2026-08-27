@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
+    FamilyShellWire,
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
     WorkflowStateWire,
@@ -59,7 +60,11 @@ def _record(
             agent_family=agent_family,
             agent_family_role=agent_family_role,
             agent_family_parallel=agent_family_parallel,
-            monitor_id=monitor_id,
+            family_shell=(
+                FamilyShellWire(kind="monitor", id=monitor_id)
+                if monitor_id is not None
+                else None
+            ),
             wait_priority=meta_wait_priority,
             run_started_at=("2026-07-12T12:00:00+00:00" if run_started else None),
         ),

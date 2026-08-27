@@ -7,7 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from sase.core.agent_scan_wire import AgentArtifactRecordWire, AgentMetaWire
+from sase.core.agent_scan_wire import (
+    AgentArtifactRecordWire,
+    AgentMetaWire,
+    FamilyShellGateWire,
+    FamilyShellWire,
+)
 from sase.gate_shell.member import create_gate_shell_member
 import sase.gate_shell.store as gate_store
 from sase.gate_shell.store import read_gate_shell_marker
@@ -98,9 +103,12 @@ def test_list_gate_shells_orders_tied_timestamps_deterministically(
                 name=Path(path).name,
                 agent_family="lane",
                 agent_family_role="gate",
-                gate_id="gate-1",
-                gate_kind="custom",
-                gate_state="pending",
+                family_shell=FamilyShellWire(
+                    kind="gate",
+                    id="gate-1",
+                    state="pending",
+                    gate=FamilyShellGateWire(kind="custom"),
+                ),
             ),
         )
 

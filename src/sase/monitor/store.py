@@ -27,6 +27,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
+from sase.core.agent_scan_wire_family_shell import family_shell_from_mapping
 from sase.core.agent_scan_wire_markers import AgentMetaWire, DoneMarkerWire
 from sase.core.paths import sase_projects_dir
 from sase.core.wire import known_field_kwargs
@@ -351,6 +352,12 @@ def read_monitor_marker(project_name: str, artifacts_dir: str) -> MonitorRecord 
         return None
     raw_done = _read_json_object(os.path.join(artifacts_dir, "done.json"))
 
+    meta_kwargs = known_field_kwargs(AgentMetaWire, raw_meta)
+    meta_kwargs["family_shell"] = family_shell_from_mapping(raw_meta)
+    done_kwargs = None
+    if raw_done is not None:
+        done_kwargs = known_field_kwargs(DoneMarkerWire, raw_done)
+        done_kwargs["family_shell"] = family_shell_from_mapping(raw_done)
     record = AgentArtifactRecordWire(
         project_name=project_name,
         project_dir="",
@@ -358,12 +365,8 @@ def read_monitor_marker(project_name: str, artifacts_dir: str) -> MonitorRecord 
         workflow_dir_name="",
         artifact_dir=artifacts_dir,
         timestamp=os.path.basename(artifacts_dir.rstrip("/")),
-        agent_meta=AgentMetaWire(**known_field_kwargs(AgentMetaWire, raw_meta)),
-        done=(
-            DoneMarkerWire(**known_field_kwargs(DoneMarkerWire, raw_done))
-            if raw_done is not None
-            else None
-        ),
+        agent_meta=AgentMetaWire(**meta_kwargs),
+        done=DoneMarkerWire(**done_kwargs) if done_kwargs is not None else None,
     )
     try:
         projected = MonitorRecord.from_record(record)

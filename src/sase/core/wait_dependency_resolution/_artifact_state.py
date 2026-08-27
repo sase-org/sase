@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from sase.core.agent_scan_wire_family_shell import family_shell_from_mapping
 from sase.core.dismissed_agent_completion import effective_done_outcome
 from sase.monitor_state import is_monitor_member_role
 from sase.plan_chain import (
@@ -41,6 +42,24 @@ def done_outcome_from_data(done_data: Mapping[str, Any] | None) -> str | None:
     return effective_done_outcome(done_data)
 
 
+def _monitor_shell_field(data: Mapping[str, Any] | None, field: str) -> Any:
+    """Read a shared ``family_shell`` field from a ``meta`` / ``done_data`` mapping.
+
+    ``meta`` / ``done_data`` reach this function in either shape:
+    ``dataclasses.asdict()`` projections of ``AgentMetaWire`` /
+    ``DoneMarkerWire`` already carry a nested ``family_shell`` (see
+    ``sase.agents._wait_live_rows._index_from_snapshot``), while
+    ``WaitDependencyIndex.build()`` reads flat ``monitor_*`` on-disk marker
+    keys directly. :func:`family_shell_from_mapping` understands both.
+    """
+    if data is None:
+        return None
+    shell = family_shell_from_mapping(data)
+    if shell is not None and shell.kind == "monitor":
+        return getattr(shell, field, None)
+    return None
+
+
 def monitor_followup_handoff_agent(
     meta: Mapping[str, Any],
     done_data: Mapping[str, Any] | None,
@@ -48,22 +67,24 @@ def monitor_followup_handoff_agent(
     if done_data is None or done_data.get("outcome") != "monitored":
         return None
 
-    monitor_state = done_data.get("monitor_state") or meta.get("monitor_state")
+    monitor_state = _monitor_shell_field(done_data, "state") or _monitor_shell_field(
+        meta, "state"
+    )
     if (
         not isinstance(monitor_state, str)
         or monitor_state not in _TERMINAL_MONITOR_STATES
     ):
         return None
 
-    followup_outcome = done_data.get("monitor_followup_outcome") or meta.get(
-        "monitor_followup_outcome"
-    )
+    followup_outcome = _monitor_shell_field(
+        done_data, "followup_outcome"
+    ) or _monitor_shell_field(meta, "followup_outcome")
     if followup_outcome not in SUCCESSFUL_MONITOR_FOLLOWUP_OUTCOMES:
         return None
 
-    followup_agent = done_data.get("monitor_followup_agent") or meta.get(
-        "monitor_followup_agent"
-    )
+    followup_agent = _monitor_shell_field(
+        done_data, "followup_agent"
+    ) or _monitor_shell_field(meta, "followup_agent")
     if not isinstance(followup_agent, str):
         return None
     followup_agent = followup_agent.strip()

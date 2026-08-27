@@ -89,53 +89,60 @@ class GateShellRecord:
     def from_record(cls, record: AgentArtifactRecordWire) -> GateShellRecord:
         """Build a gate-shell record from an agent-artifact scan row."""
         meta = record.agent_meta
-        if meta is None or not meta.gate_id:
+        shell = meta.family_shell if meta is not None else None
+        if meta is None or shell is None or shell.kind != "gate" or not shell.id:
             raise ValueError(
                 f"artifact record at {record.artifact_dir!r} is not a gate member"
             )
-        pair = gate_status_pair(meta.gate_start_status, meta.gate_stop_status)
-        state = meta.gate_state or "pending"
+        gate = shell.gate
+        pair = gate_status_pair(shell.start_status, shell.stop_status)
+        state = shell.state or "pending"
+        gate_kind = gate.kind if gate is not None else None
         return cls(
-            gate_id=meta.gate_id,
+            gate_id=shell.id,
             member_agent_name=meta.name or "",
             lane=meta.agent_family or "",
             project_name=record.project_name,
             artifacts_dir=record.artifact_dir,
             timestamp=record.timestamp,
-            kind=meta.gate_kind or "",
+            kind=gate_kind or "",
             gate_state=state,  # type: ignore[arg-type]
             start_status=pair.start,
             stop_status=pair.stop,
-            accent=meta.gate_accent or "#0BCDEC",
-            label=meta.gate_label or meta.gate_kind or meta.gate_id,
-            reason=meta.gate_reason or "",
-            creator_agent=meta.gate_creator_agent,
-            bundle_path=meta.gate_bundle_path,
-            notification_id=meta.gate_notification_id,
-            timeout_seconds=meta.gate_timeout_seconds or 0.0,
-            request_fingerprint=meta.gate_request_fingerprint,
-            workspace_policy=meta.gate_workspace_policy or "inherit",
-            next_action=meta.gate_next_action,
-            next_fork=meta.gate_next_fork,
-            next_output=meta.gate_next_output,
-            next_model=meta.gate_next_model,
-            next_suffix=meta.gate_next_suffix,
-            next_role=meta.gate_next_role,
-            next_raw_prompt=meta.gate_next_raw_prompt,
-            followup_agent=meta.gate_followup_agent,
-            followup_outcome=meta.gate_followup_outcome,
-            followup_error=meta.gate_followup_error,
-            followup_degraded_reason=meta.gate_followup_degraded_reason,
-            followup_prompt_path=meta.gate_followup_prompt_path,
+            accent=(gate.accent if gate is not None else None) or "#0BCDEC",
+            label=shell.label or gate_kind or shell.id,
+            reason=shell.reason or "",
+            creator_agent=gate.creator_agent if gate is not None else None,
+            bundle_path=gate.bundle_path if gate is not None else None,
+            notification_id=gate.notification_id if gate is not None else None,
+            timeout_seconds=shell.timeout_seconds or 0.0,
+            request_fingerprint=shell.request_fingerprint,
+            workspace_policy=(
+                (gate.workspace_policy if gate is not None else None) or "inherit"
+            ),
+            next_action=shell.next_action,
+            next_fork=gate.next_fork if gate is not None else None,
+            next_output=shell.next_output,
+            next_model=shell.next_model,
+            next_suffix=gate.next_suffix if gate is not None else None,
+            next_role=gate.next_role if gate is not None else None,
+            next_raw_prompt=bool(gate.next_raw_prompt) if gate is not None else False,
+            followup_agent=shell.followup_agent,
+            followup_outcome=shell.followup_outcome,
+            followup_error=shell.followup_error,
+            followup_degraded_reason=shell.followup_degraded_reason,
+            followup_prompt_path=shell.followup_prompt_path,
         )
 
 
 def is_gate_shell_member_record(record: AgentArtifactRecordWire) -> bool:
     """Return whether ``record`` is a real gate-shell family member."""
     meta = record.agent_meta
-    return meta is not None and is_real_gate_member(
-        meta.agent_family_role, meta.gate_id
-    )
+    if meta is None:
+        return False
+    shell = meta.family_shell
+    gate_id = shell.id if shell is not None and shell.kind == "gate" else None
+    return is_real_gate_member(meta.agent_family_role, gate_id)
 
 
 __all__ = [

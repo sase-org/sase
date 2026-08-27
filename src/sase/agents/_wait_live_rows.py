@@ -25,6 +25,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
     AgentMetaWire,
     DoneMarkerWire,
+    FamilyShellWire,
 )
 from sase.core.runner_slots import (
     live_runner_slot_waiters,
@@ -281,7 +282,7 @@ def _display_status(
         if record.has_done_marker:
             status = clamp_monitor_status_or_default(
                 (None if done is None else done.status_label)
-                or (None if meta is None else meta.monitor_stop_status),
+                or _monitor_shared(meta, "stop_status"),
                 default=DEFAULT_MONITOR_STOP_STATUS,
             )
         else:
@@ -463,15 +464,31 @@ def _is_monitor(meta: AgentMetaWire | None) -> bool:
     return is_monitor_member_role(meta.agent_family_role, meta.role_suffix)
 
 
+def _monitor_shell(
+    source: AgentMetaWire | DoneMarkerWire | None,
+) -> FamilyShellWire | None:
+    shell = None if source is None else source.family_shell
+    return shell if shell is not None and shell.kind == "monitor" else None
+
+
+def _monitor_shared(
+    source: AgentMetaWire | DoneMarkerWire | None, attr: str
+) -> str | None:
+    """Read a shared ``family_shell`` field, only for a monitor shell."""
+    shell = _monitor_shell(source)
+    value = getattr(shell, attr, None) if shell is not None else None
+    return value if isinstance(value, str) else None
+
+
 def _monitor_pair(
     meta: AgentMetaWire | None, done: DoneMarkerWire | None
 ) -> MonitorStatusPair | None:
     if not _is_monitor(meta):
         return None
-    start = None if meta is None else meta.monitor_start_status
+    start = _monitor_shared(meta, "start_status")
     stop = None if done is None else done.status_label
-    if not stop and meta is not None:
-        stop = meta.monitor_stop_status
+    if not stop:
+        stop = _monitor_shared(meta, "stop_status")
     if not start and not stop:
         return None
     return monitor_status_pair(start, stop)
@@ -480,27 +497,25 @@ def _monitor_pair(
 def _monitor_state(
     meta: AgentMetaWire | None, done: DoneMarkerWire | None
 ) -> str | None:
-    if done is not None and done.monitor_state:
-        return done.monitor_state
-    if meta is not None:
-        return meta.monitor_state
-    return None
+    return _monitor_shared(done, "state") or _monitor_shared(meta, "state")
 
 
 def _monitor_command(record: AgentArtifactRecordWire) -> str | None:
-    meta = record.agent_meta
-    if meta is None:
+    shell = _monitor_shell(record.agent_meta)
+    if shell is None or shell.monitor is None:
         return None
-    return meta.monitor_command
+    return shell.monitor.command
 
 
 def _monitor_exit_code(record: AgentArtifactRecordWire) -> int | None:
-    done = record.done
-    if done is not None and done.monitor_exit_code is not None:
-        return done.monitor_exit_code
-    meta = record.agent_meta
-    if meta is not None:
-        return meta.monitor_exit_code
+    done_shell = _monitor_shell(record.done)
+    if done_shell is not None and done_shell.monitor is not None:
+        exit_code = done_shell.monitor.exit_code
+        if exit_code is not None:
+            return exit_code
+    meta_shell = _monitor_shell(record.agent_meta)
+    if meta_shell is not None and meta_shell.monitor is not None:
+        return meta_shell.monitor.exit_code
     return None
 
 

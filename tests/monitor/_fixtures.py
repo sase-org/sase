@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from sase.core.agent_scan_wire import AgentMetaWire, DoneMarkerWire
+from sase.core.agent_scan_wire_family_shell import family_shell_from_mapping
 from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
 from sase.core.paths import sase_projects_dir
 from sase.core.wire import known_field_kwargs
@@ -164,4 +165,7 @@ def wait_for_path(path: Path, *, timeout: float = POLL_TIMEOUT) -> None:
 
 def _load[WireT](path: Path, cls: type[WireT]) -> WireT:
     data = json.loads(path.read_text(encoding="utf-8"))
-    return cls(**known_field_kwargs(cls, data))
+    kwargs = known_field_kwargs(cls, data)
+    if cls in (AgentMetaWire, DoneMarkerWire):
+        kwargs["family_shell"] = family_shell_from_mapping(data)
+    return cls(**kwargs)

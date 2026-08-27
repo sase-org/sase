@@ -15,6 +15,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from sase.core.agent_scan_wire_family_shell import FamilyShellWire
+
 
 @dataclass(frozen=True)
 class DoneMarkerWire:
@@ -62,34 +64,12 @@ class DoneMarkerWire:
             recorded.
         imported_transaction_key: Project-scoped journal key used to keep
             transactional imports hidden until their whole hood is complete.
-        monitor_state: Terminal monitor outcome (``completed`` / ``failed`` /
-            ``timeout`` / ``stopped`` / ``lost``), mirroring the running member's
-            ``agent_meta.json::monitor_state``.
-        monitor_exit_code: The monitored command's exit code, when recorded.
-        monitor_elapsed_seconds: Wall-clock seconds the monitored command ran.
         status_label: The configured stop-status label to display
             (e.g. ``MONITORED``), overriding the raw ``outcome``.
-        monitor_followup_outcome: The ``--next`` launch disposition
-            (``launched`` / ``launched-degraded`` / ``not-launchable``), when
-            the monitor carried a follow-up action.
-        monitor_followup_error: Human-readable reason a ``--next`` action was
-            dropped or degraded, mirroring ``agent_meta.json``.
-        monitor_followup_degraded_reason: Why a launched follow-up landed in a
-            degraded workspace (e.g. the original claim could not transfer).
-        monitor_followup_prompt_path: Durable artifact path the composed
-            follow-up prompt was persisted to when it could not be launched.
-        gate_state: Terminal gate-shell outcome, mirroring the running member's
-            ``agent_meta.json::gate_state``.
-        gate_output_path: Path to gate-shell output, when recorded.
-        gate_output_truncated: Whether the gate-shell output was truncated.
-        gate_followup_outcome: The gate follow-up launch disposition, when
-            recorded.
-        gate_followup_error: Human-readable reason a gate follow-up was dropped
-            or degraded.
-        gate_followup_degraded_reason: Why a launched gate follow-up landed in
-            a degraded workspace.
-        gate_followup_prompt_path: Durable artifact path the composed gate
-            follow-up prompt was persisted to when it could not be launched.
+        family_shell: Terminal monitor or gate-shell projection, folding the
+            marker's flat ``monitor_*`` / ``gate_*`` fields (mirroring the
+            running member's ``agent_meta.json::family_shell``). ``None``
+            when the record is neither.
     """
 
     outcome: str | None = None
@@ -123,26 +103,8 @@ class DoneMarkerWire:
     repeat_stopped: bool = False
     stopped_by: str | None = None
     imported_transaction_key: str | None = None
-    monitor_state: str | None = None
-    monitor_exit_code: int | None = None
-    monitor_elapsed_seconds: float | None = None
     status_label: str | None = None
-    monitor_followup_outcome: str | None = None
-    monitor_followup_error: str | None = None
-    monitor_followup_degraded_reason: str | None = None
-    monitor_followup_prompt_path: str | None = None
-    gate_id: str | None = None
-    gate_kind: str | None = None
-    gate_state: str | None = None
-    gate_elapsed_seconds: float | None = None
-    gate_output_path: str | None = None
-    gate_output_truncated: bool = False
-    gate_bundle_path: str | None = None
-    gate_notification_id: str | None = None
-    gate_followup_outcome: str | None = None
-    gate_followup_error: str | None = None
-    gate_followup_degraded_reason: str | None = None
-    gate_followup_prompt_path: str | None = None
+    family_shell: FamilyShellWire | None = None
 
 
 @dataclass(frozen=True)
@@ -231,63 +193,7 @@ class AgentMetaWire:
     retry_terminal: bool = False
     retry_error_category: str | None = None
     status_bucket: str | None = None
-    monitor_id: str | None = None
-    monitor_command: str | None = None
-    monitor_cwd: str | None = None
-    monitor_label: str | None = None
-    monitor_reason: str | None = None
-    monitor_next_action: str | None = None
-    monitor_start_status: str | None = None
-    monitor_stop_status: str | None = None
-    monitor_timeout_seconds: float | None = None
-    monitor_state: str | None = None
-    monitor_exit_code: int | None = None
-    monitor_output_path: str | None = None
-    monitor_output_truncated: bool = False
-    monitor_starter_agent: str | None = None
-    monitor_followup_agent: str | None = None
-    monitor_tail_lines: int | None = None
-    monitor_pgid: int | None = None
-    monitor_supervisor_identity: str | None = None
-    monitor_settled: bool = False
-    monitor_idle_timeout_seconds: float | None = None
-    monitor_next_output: str | None = None
-    monitor_next_model: str | None = None
-    monitor_request_fingerprint: str | None = None
-    monitor_followup_outcome: str | None = None
-    monitor_followup_error: str | None = None
-    monitor_followup_degraded_reason: str | None = None
-    monitor_followup_prompt_path: str | None = None
-    gate_id: str | None = None
-    gate_kind: str | None = None
-    gate_state: str | None = None
-    gate_start_status: str | None = None
-    gate_stop_status: str | None = None
-    gate_accent: str | None = None
-    gate_output_path: str | None = None
-    gate_output_truncated: bool = False
-    gate_creator_agent: str | None = None
-    gate_followup_agent: str | None = None
-    gate_next_action: str | None = None
-    gate_next_fork: str | None = None
-    gate_next_output: str | None = None
-    gate_next_model: str | None = None
-    gate_next_suffix: str | None = None
-    gate_next_role: str | None = None
-    gate_next_raw_prompt: bool = False
-    gate_followup_outcome: str | None = None
-    gate_followup_error: str | None = None
-    gate_followup_degraded_reason: str | None = None
-    gate_followup_prompt_path: str | None = None
-    gate_elapsed_seconds: float | None = None
-    gate_label: str | None = None
-    gate_reason: str | None = None
-    gate_timeout_seconds: float | None = None
-    gate_request_fingerprint: str | None = None
-    gate_workspace_policy: str | None = None
-    gate_bundle_path: str | None = None
-    gate_notification_id: str | None = None
-    gate_decision_path: str | None = None
+    family_shell: FamilyShellWire | None = None
     shell_kind: str | None = None
     proc_id: str | None = None
 

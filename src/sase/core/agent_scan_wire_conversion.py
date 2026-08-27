@@ -11,6 +11,7 @@ from dataclasses import asdict
 from typing import Any
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
+from sase.core.agent_scan_wire_family_shell import family_shell_from_mapping
 from sase.core.agent_scan_wire_markers import (
     AgentMetaWire,
     DoneMarkerWire,
@@ -208,13 +209,16 @@ def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
     payload["plan_committed"] = (
         raw_plan_committed if type(raw_plan_committed) is bool else None
     )
-    return AgentMetaWire(**known_field_kwargs(AgentMetaWire, payload))
+    kwargs = known_field_kwargs(AgentMetaWire, payload)
+    kwargs["family_shell"] = family_shell_from_mapping(payload)
+    return AgentMetaWire(**kwargs)
 
 
 def _done_marker_from_dict(data: dict[str, Any]) -> DoneMarkerWire:
-    return DoneMarkerWire(
-        **known_field_kwargs(DoneMarkerWire, _dual_patch_name_payload(data))
-    )
+    payload = _dual_patch_name_payload(data)
+    kwargs = known_field_kwargs(DoneMarkerWire, payload)
+    kwargs["family_shell"] = family_shell_from_mapping(payload)
+    return DoneMarkerWire(**kwargs)
 
 
 def _running_marker_from_dict(data: dict[str, Any]) -> RunningMarkerWire:

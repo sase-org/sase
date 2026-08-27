@@ -28,51 +28,61 @@ def test_gate_shell_marker_fields_round_trip() -> None:
                         "name": "acme--gate",
                         "agent_family": "acme",
                         "agent_family_role": "gate",
-                        "gate_id": "gate-1",
-                        "gate_kind": "approval",
-                        "gate_state": "pending",
-                        "gate_start_status": "WAITING",
-                        "gate_stop_status": "ANSWERED",
-                        "gate_accent": "#0BCDEC",
-                        "gate_output_path": "gate.out",
-                        "gate_output_truncated": True,
-                        "gate_creator_agent": "acme--0",
-                        "gate_followup_agent": "acme--1",
-                        "gate_next_action": "Resume after gate.",
-                        "gate_next_fork": "family",
-                        "gate_next_output": "summary",
-                        "gate_next_model": "@large",
-                        "gate_followup_outcome": "launched",
-                        "gate_followup_error": "claim moved late",
-                        "gate_followup_degraded_reason": "workspace unavailable",
-                        "gate_followup_prompt_path": "gate_followup.md",
-                        "gate_elapsed_seconds": 2.5,
-                        "gate_label": "approval/gate-1",
-                        "gate_reason": "Need owner approval",
-                        "gate_timeout_seconds": 600.0,
-                        "gate_request_fingerprint": "sha256:cafe",
-                        "gate_workspace_policy": "inherit",
-                        "gate_bundle_path": "gate_bundle.json",
-                        "gate_notification_id": "notif-1",
-                        "gate_decision_path": "gate_decision.md",
+                        "family_shell": {
+                            "kind": "gate",
+                            "id": "gate-1",
+                            "state": "pending",
+                            "start_status": "WAITING",
+                            "stop_status": "ANSWERED",
+                            "output_path": "gate.out",
+                            "output_truncated": True,
+                            "followup_agent": "acme--1",
+                            "next_action": "Resume after gate.",
+                            "next_output": "summary",
+                            "next_model": "@large",
+                            "followup_outcome": "launched",
+                            "followup_error": "claim moved late",
+                            "followup_degraded_reason": "workspace unavailable",
+                            "followup_prompt_path": "gate_followup.md",
+                            "elapsed_seconds": 2.5,
+                            "label": "approval/gate-1",
+                            "reason": "Need owner approval",
+                            "timeout_seconds": 600.0,
+                            "request_fingerprint": "sha256:cafe",
+                            "gate": {
+                                "kind": "approval",
+                                "accent": "#0BCDEC",
+                                "creator_agent": "acme--0",
+                                "next_fork": "family",
+                                "workspace_policy": "inherit",
+                                "bundle_path": "gate_bundle.json",
+                                "notification_id": "notif-1",
+                                "decision_path": "gate_decision.md",
+                            },
+                        },
                         "shell_kind": "gate",
                         "proc_id": "proc-gate",
                     },
                     "done": {
                         "outcome": "gated",
-                        "gate_id": "gate-1",
-                        "gate_kind": "approval",
-                        "gate_state": "answered",
-                        "gate_elapsed_seconds": 2.5,
+                        "family_shell": {
+                            "kind": "gate",
+                            "id": "gate-1",
+                            "state": "answered",
+                            "elapsed_seconds": 2.5,
+                            "output_path": "gate.out",
+                            "output_truncated": True,
+                            "followup_outcome": "launched",
+                            "followup_error": "claim moved late",
+                            "followup_degraded_reason": "workspace unavailable",
+                            "followup_prompt_path": "gate_followup.md",
+                            "gate": {
+                                "kind": "approval",
+                                "bundle_path": "gate_bundle.json",
+                                "notification_id": "notif-1",
+                            },
+                        },
                         "status_label": "ANSWERED",
-                        "gate_output_path": "gate.out",
-                        "gate_output_truncated": True,
-                        "gate_bundle_path": "gate_bundle.json",
-                        "gate_notification_id": "notif-1",
-                        "gate_followup_outcome": "launched",
-                        "gate_followup_error": "claim moved late",
-                        "gate_followup_degraded_reason": "workspace unavailable",
-                        "gate_followup_prompt_path": "gate_followup.md",
                     },
                     "running": None,
                     "waiting": None,
@@ -90,20 +100,26 @@ def test_gate_shell_marker_fields_round_trip() -> None:
     record = snapshot.records[0]
     assert record.agent_meta is not None
     assert record.done is not None
-    assert record.agent_meta.gate_id == "gate-1"
-    assert record.agent_meta.gate_next_model == "@large"
-    assert record.agent_meta.gate_output_truncated is True
-    assert record.agent_meta.gate_decision_path == "gate_decision.md"
-    assert record.done.gate_state == "answered"
-    assert record.done.gate_elapsed_seconds == 2.5
-    assert record.done.gate_output_truncated is True
+    meta_shell = record.agent_meta.family_shell
+    assert meta_shell is not None
+    assert meta_shell.id == "gate-1"
+    assert meta_shell.next_model == "@large"
+    assert meta_shell.output_truncated is True
+    assert meta_shell.gate is not None
+    assert meta_shell.gate.decision_path == "gate_decision.md"
+    done_shell = record.done.family_shell
+    assert done_shell is not None
+    assert done_shell.state == "answered"
+    assert done_shell.elapsed_seconds == 2.5
+    assert done_shell.output_truncated is True
+
     payload = agent_scan_wire_to_json_dict(snapshot)
-    meta_payload = payload["records"][0]["agent_meta"]
-    done_payload = payload["records"][0]["done"]
-    assert meta_payload["gate_request_fingerprint"] == "sha256:cafe"
-    assert meta_payload["gate_decision_path"] == "gate_decision.md"
-    assert done_payload["gate_notification_id"] == "notif-1"
-    assert done_payload["gate_followup_prompt_path"] == "gate_followup.md"
+    meta_payload = payload["records"][0]["agent_meta"]["family_shell"]
+    done_payload = payload["records"][0]["done"]["family_shell"]
+    assert meta_payload["request_fingerprint"] == "sha256:cafe"
+    assert meta_payload["gate"]["decision_path"] == "gate_decision.md"
+    assert done_payload["gate"]["notification_id"] == "notif-1"
+    assert done_payload["followup_prompt_path"] == "gate_followup.md"
 
 
 def test_monitor_marker_fields_round_trip() -> None:
@@ -120,35 +136,41 @@ def test_monitor_marker_fields_round_trip() -> None:
                         "name": "acme--mon",
                         "agent_family": "acme",
                         "agent_family_role": "monitor",
-                        "monitor_id": "m4kq",
-                        "monitor_command": "just check-full",
-                        "monitor_cwd": "/home/bryan/workspaces/acme",
-                        "monitor_label": "just check-full",
-                        "monitor_reason": "Verify the refactor",
-                        "monitor_next_action": "Reply to the user.",
-                        "monitor_start_status": "MONITORING",
-                        "monitor_stop_status": "MONITORED",
-                        "monitor_timeout_seconds": 2700.0,
-                        "monitor_state": "running",
-                        "monitor_exit_code": None,
-                        "monitor_output_path": "live_reply.md",
-                        "monitor_output_truncated": True,
-                        "monitor_starter_agent": "acme--0",
-                        "monitor_followup_agent": None,
-                        "monitor_tail_lines": 200,
-                        "monitor_pgid": 4242,
-                        "monitor_supervisor_identity": "boot-abc123:98765",
-                        "monitor_settled": True,
-                        "monitor_idle_timeout_seconds": 600.0,
-                        "monitor_next_output": "tail",
-                        "monitor_next_model": "@small",
-                        "monitor_request_fingerprint": "sha256:deadbeef",
+                        "family_shell": {
+                            "kind": "monitor",
+                            "id": "m4kq",
+                            "label": "just check-full",
+                            "reason": "Verify the refactor",
+                            "next_action": "Reply to the user.",
+                            "start_status": "MONITORING",
+                            "stop_status": "MONITORED",
+                            "timeout_seconds": 2700.0,
+                            "state": "running",
+                            "output_path": "live_reply.md",
+                            "output_truncated": True,
+                            "next_output": "tail",
+                            "next_model": "@small",
+                            "request_fingerprint": "sha256:deadbeef",
+                            "monitor": {
+                                "command": "just check-full",
+                                "cwd": "/home/bryan/workspaces/acme",
+                                "starter_agent": "acme--0",
+                                "tail_lines": 200,
+                                "pgid": 4242,
+                                "supervisor_identity": "boot-abc123:98765",
+                                "settled": True,
+                                "idle_timeout_seconds": 600.0,
+                            },
+                        },
                     },
                     done={
                         "outcome": "monitored",
-                        "monitor_state": "completed",
-                        "monitor_exit_code": 0,
-                        "monitor_elapsed_seconds": 17.5,
+                        "family_shell": {
+                            "kind": "monitor",
+                            "state": "completed",
+                            "elapsed_seconds": 17.5,
+                            "monitor": {"exit_code": 0},
+                        },
                         "status_label": "MONITORED",
                     },
                 )
@@ -158,42 +180,46 @@ def test_monitor_marker_fields_round_trip() -> None:
 
     record = snapshot.records[0]
     assert record.agent_meta is not None
-    assert record.agent_meta.monitor_start_status == "MONITORING"
-    assert record.agent_meta.monitor_stop_status == "MONITORED"
-    assert record.agent_meta.monitor_id == "m4kq"
-    assert record.agent_meta.monitor_command == "just check-full"
-    assert record.agent_meta.monitor_state == "running"
-    assert record.agent_meta.monitor_output_truncated is True
-    assert record.agent_meta.monitor_tail_lines == 200
-    assert record.agent_meta.monitor_pgid == 4242
-    assert record.agent_meta.monitor_supervisor_identity == "boot-abc123:98765"
-    assert record.agent_meta.monitor_settled is True
-    assert record.agent_meta.monitor_idle_timeout_seconds == 600.0
-    assert record.agent_meta.monitor_next_output == "tail"
-    assert record.agent_meta.monitor_next_model == "@small"
-    assert record.agent_meta.monitor_request_fingerprint == "sha256:deadbeef"
+    meta_shell = record.agent_meta.family_shell
+    assert meta_shell is not None
+    assert meta_shell.start_status == "MONITORING"
+    assert meta_shell.stop_status == "MONITORED"
+    assert meta_shell.id == "m4kq"
+    assert meta_shell.state == "running"
+    assert meta_shell.output_truncated is True
+    assert meta_shell.request_fingerprint == "sha256:deadbeef"
+    assert meta_shell.monitor is not None
+    assert meta_shell.monitor.command == "just check-full"
+    assert meta_shell.monitor.tail_lines == 200
+    assert meta_shell.monitor.pgid == 4242
+    assert meta_shell.monitor.supervisor_identity == "boot-abc123:98765"
+    assert meta_shell.monitor.settled is True
+    assert meta_shell.monitor.idle_timeout_seconds == 600.0
     assert record.done is not None
-    assert record.done.monitor_state == "completed"
-    assert record.done.monitor_exit_code == 0
-    assert record.done.monitor_elapsed_seconds == 17.5
+    done_shell = record.done.family_shell
+    assert done_shell is not None
+    assert done_shell.state == "completed"
+    assert done_shell.elapsed_seconds == 17.5
+    assert done_shell.monitor is not None
+    assert done_shell.monitor.exit_code == 0
     assert record.done.status_label == "MONITORED"
 
     payload = agent_scan_wire_to_json_dict(snapshot)
-    meta_payload = payload["records"][0]["agent_meta"]
-    assert meta_payload["monitor_id"] == "m4kq"
-    assert meta_payload["monitor_state"] == "running"
-    assert meta_payload["monitor_pgid"] == 4242
-    assert meta_payload["monitor_supervisor_identity"] == "boot-abc123:98765"
-    assert meta_payload["monitor_settled"] is True
-    assert meta_payload["monitor_idle_timeout_seconds"] == 600.0
-    assert meta_payload["monitor_next_output"] == "tail"
-    assert meta_payload["monitor_next_model"] == "@small"
-    assert meta_payload["monitor_request_fingerprint"] == "sha256:deadbeef"
+    meta_payload = payload["records"][0]["agent_meta"]["family_shell"]
+    assert meta_payload["id"] == "m4kq"
+    assert meta_payload["state"] == "running"
+    assert meta_payload["monitor"]["pgid"] == 4242
+    assert meta_payload["monitor"]["supervisor_identity"] == "boot-abc123:98765"
+    assert meta_payload["monitor"]["settled"] is True
+    assert meta_payload["monitor"]["idle_timeout_seconds"] == 600.0
+    assert meta_payload["next_output"] == "tail"
+    assert meta_payload["next_model"] == "@small"
+    assert meta_payload["request_fingerprint"] == "sha256:deadbeef"
     done_payload = payload["records"][0]["done"]
-    assert done_payload["monitor_state"] == "completed"
+    assert done_payload["family_shell"]["state"] == "completed"
     assert done_payload["status_label"] == "MONITORED"
-    assert meta_payload["monitor_start_status"] == "MONITORING"
-    assert meta_payload["monitor_stop_status"] == "MONITORED"
+    assert meta_payload["start_status"] == "MONITORING"
+    assert meta_payload["stop_status"] == "MONITORED"
 
 
 def test_monitor_custom_stop_status_round_trips() -> None:
@@ -210,14 +236,17 @@ def test_monitor_custom_stop_status_round_trips() -> None:
                         "name": "acme--mon",
                         "agent_family": "acme",
                         "agent_family_role": "monitor",
-                        "monitor_id": "m4kq",
-                        "monitor_start_status": "TESTING",
-                        "monitor_stop_status": "TESTED",
-                        "monitor_state": "completed",
+                        "family_shell": {
+                            "kind": "monitor",
+                            "id": "m4kq",
+                            "start_status": "TESTING",
+                            "stop_status": "TESTED",
+                            "state": "completed",
+                        },
                     },
                     done={
                         "outcome": "monitored",
-                        "monitor_state": "completed",
+                        "family_shell": {"kind": "monitor", "state": "completed"},
                         "status_label": "TESTED",
                     },
                 )
@@ -227,15 +256,17 @@ def test_monitor_custom_stop_status_round_trips() -> None:
 
     record = snapshot.records[0]
     assert record.agent_meta is not None
-    assert record.agent_meta.monitor_start_status == "TESTING"
-    assert record.agent_meta.monitor_stop_status == "TESTED"
+    meta_shell = record.agent_meta.family_shell
+    assert meta_shell is not None
+    assert meta_shell.start_status == "TESTING"
+    assert meta_shell.stop_status == "TESTED"
     assert record.done is not None
     assert record.done.status_label == "TESTED"
 
     payload = agent_scan_wire_to_json_dict(snapshot)
-    meta_payload = payload["records"][0]["agent_meta"]
-    assert meta_payload["monitor_start_status"] == "TESTING"
-    assert meta_payload["monitor_stop_status"] == "TESTED"
+    meta_payload = payload["records"][0]["agent_meta"]["family_shell"]
+    assert meta_payload["start_status"] == "TESTING"
+    assert meta_payload["stop_status"] == "TESTED"
     assert payload["records"][0]["done"]["status_label"] == "TESTED"
 
 
@@ -258,17 +289,7 @@ def test_monitor_marker_fields_default_for_older_records() -> None:
 
     record = snapshot.records[0]
     assert record.agent_meta is not None
-    assert record.agent_meta.monitor_id is None
-    assert record.agent_meta.monitor_state is None
-    assert record.agent_meta.monitor_output_truncated is False
-    assert record.agent_meta.monitor_pgid is None
-    assert record.agent_meta.monitor_supervisor_identity is None
-    assert record.agent_meta.monitor_settled is False
-    assert record.agent_meta.monitor_idle_timeout_seconds is None
-    assert record.agent_meta.monitor_next_output is None
-    assert record.agent_meta.monitor_next_model is None
-    assert record.agent_meta.monitor_request_fingerprint is None
+    assert record.agent_meta.family_shell is None
     assert record.done is not None
-    assert record.done.monitor_state is None
-    assert record.done.monitor_exit_code is None
+    assert record.done.family_shell is None
     assert record.done.status_label is None

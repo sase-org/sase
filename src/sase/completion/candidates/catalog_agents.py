@@ -85,10 +85,15 @@ def monitor_candidates(project: str | None) -> list[Candidate]:
         if project is not None and record.project_name != project:
             continue
         meta = record.agent_meta
-        if meta is None or meta.agent_family_role != "monitor" or not meta.monitor_id:
+        shell = None if meta is None else meta.family_shell
+        monitor_shell = shell if shell is not None and shell.kind == "monitor" else None
+        if meta is None or meta.agent_family_role != "monitor" or monitor_shell is None:
             continue
-        description = meta.monitor_label or meta.name or ""
-        candidates.append(Candidate(meta.monitor_id, description))
+        monitor_id = monitor_shell.id
+        if not monitor_id:
+            continue
+        description = monitor_shell.label or meta.name or ""
+        candidates.append(Candidate(monitor_id, description))
     return dedupe(candidates)
 
 
