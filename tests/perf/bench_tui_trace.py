@@ -53,6 +53,17 @@ from .tui_trace.view_hints import (
 
 pytestmark = pytest.mark.slow
 
+# `plans/202608/ace_tui_responsiveness.md` epic budget: keystroke-to-paint
+# p95 < 16 ms. `test_full_baseline` spans fixture sizes up to 2000 Patches /
+# 1000 Agents, an order of magnitude past what `bench_tui_jk.py` holds to
+# the tight steady-state budget, so this ceiling is deliberately generous
+# per the baseline phase's own guidance -- "where a budget cannot be
+# asserted deterministically in CI, assert a generous ceiling locally" --
+# it exists to catch an order-of-magnitude regression, not to hold every
+# fixture size to the steady-state number. The printed baseline JSON keeps
+# the tight per-scenario p95.
+_JK_PAINT_P95_CEILING_MS = 200.0
+
 
 @pytest.fixture
 def _trace_env(
@@ -201,6 +212,13 @@ async def test_full_baseline(
     )
     assert baseline["scenarios"], "baseline produced no scenarios"
     assert output.exists()
+    for scenario in baseline["scenarios"]:
+        for action, stats in scenario.get("jk_paint", {}).items():
+            assert stats["p95_ms"] < _JK_PAINT_P95_CEILING_MS, (
+                f"{scenario['cs_count']} patches / {scenario['agent_count']} "
+                f"agents jk_burst {action!r} exceeded "
+                f"{_JK_PAINT_P95_CEILING_MS:g} ms p95: {stats}"
+            )
     print(f"\nbaseline written to {output}", file=sys.stderr)
     print(json.dumps(baseline, indent=2), file=sys.stderr)
 

@@ -19,6 +19,7 @@ import asyncio
 import json
 import os
 import statistics
+import subprocess
 import sys
 from collections.abc import Iterator
 from datetime import datetime
@@ -28,6 +29,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.patch import Patch
+from sase.ace.tui import artifact_tabs
 from sase.ace.tui.actions.axe_display._data import (
     AxeCollectedData,
     ChopSnapshot,
@@ -49,6 +51,18 @@ pytestmark = pytest.mark.slow
 
 _KEYS_PER_SCENARIO = 20
 _AXE_P95_BUDGET_MS = 16.0
+# The Patches tab fixture (50 rows) is comparable in scale to the AXE cached
+# fixture, so it is held to the same tight epic budget
+# (`plans/202608/ace_tui_responsiveness.md`: keystroke-to-paint p95 < 16 ms).
+_PATCHES_P95_BUDGET_MS = 16.0
+# The 240-agent synthetic list (plus fold groups) is the largest fixture any
+# j/k bench here drives, and `J`/`K` panel-group navigation repaints more
+# chrome than a plain row move. This ceiling is deliberately generous per
+# `plans/202608/ace_tui_responsiveness.md` baseline step 2 -- "where a budget
+# cannot be asserted deterministically in CI, assert a generous ceiling
+# locally" -- so it catches an order-of-magnitude regression without flaking
+# under host contention; the printed table carries the tight number.
+_AGENTS_LARGE_LIST_P95_BUDGET_MS = 100.0
 # A selected-panel hop repaints two disjoint panel chrome regions (departed
 # and destination), unlike a row move's single cursor region. Keep that path
 # within two 60 Hz frames while the ordinary row/clan budget remains 16 ms.
@@ -163,7 +177,7 @@ def _install_link_index_fixture(app: AceApp, *, links_per_agent: int = 3) -> Non
             )
             for index in range(links_per_agent)
         )
-    app._link_index = LinkIndex(by_ref=by_ref, source_key=("bench",))
+    app._link_index = LinkIndex(by_ref=by_ref, targets_by_ref={}, source_key=("bench",))
     app._link_index_loading = False
     app._link_index_pending = False
 
@@ -359,6 +373,9 @@ async def test_bench_patches_jk(_perf_jsonl: Path, tmp_path: Path) -> None:
     summary = _summarize(samples)
     _print_table("Patches tab j/k baseline:", summary)
     assert samples, "perf JSONL captured no samples; instrumentation may be broken"
+    assert all(stats["p95"] < _PATCHES_P95_BUDGET_MS for stats in summary.values()), (
+        f"Patches j/k exceeded {_PATCHES_P95_BUDGET_MS:g} ms p95: {summary}"
+    )
 
 
 async def test_bench_axe_jk(_perf_jsonl: Path) -> None:
@@ -423,6 +440,12 @@ async def test_bench_agents_jk_and_panel_navigation(_perf_jsonl: Path) -> None:
     summary = _summarize(samples)
     _print_table("Agents tab j/k/J/K synthetic large-list baseline:", summary)
     assert any(s.get("tab") == "agents" for s in samples)
+    assert all(
+        stats["p95"] < _AGENTS_LARGE_LIST_P95_BUDGET_MS for stats in summary.values()
+    ), (
+        f"Agents tab j/k/J/K exceeded {_AGENTS_LARGE_LIST_P95_BUDGET_MS:g} ms p95: "
+        f"{summary}"
+    )
 
 
 async def test_bench_clan_jk_at_each_panel_fold_level(_perf_jsonl: Path) -> None:
@@ -620,6 +643,73 @@ async def test_bench_agents_jk_with_and_without_the_link_rail(
             f"(absent {baseline['p95']:.2f} ms, present {stats['p95']:.2f} ms); "
             f"budget is {_LINK_RAIL_P95_DELTA_BUDGET_MS:g} ms"
         )
+    stall_path = _perf_jsonl.with_name("tui_stalls.jsonl")
+    assert not stall_path.exists() or not stall_path.read_text().strip()
+
+
+async def test_bench_keystroke_reaches_no_provider_discovery_or_subprocess(
+    _perf_jsonl: Path,
+) -> None:
+    """Regression gate for the `keypath` phase (``bead:sase-uv.1``).
+
+    Today, every key press on the Agents tab reaches ``on_key`` ->
+    ``_handle_link_prefix_key`` -> ``_link_follow_available`` ->
+    ``link_edges_for_selection`` -> ``selected_link_subject`` ->
+    ``_subject_from_agents`` -> ``accent_and_icon_for_ref`` ->
+    ``descriptor_for_artifacts_pane_id`` -> ``resolve_artifacts_subtabs``,
+    which can fork a git subprocess on a provider-discovery cache miss
+    (``tui_perf.md`` rules 8 and 11; see the research report linked from
+    ``plans/202608/ace_tui_responsiveness.md``). This is a behavioural
+    assertion, not a timing one, so it cannot flake -- and it is expected to
+    fail until `keypath` resolves fixed panes (Agents included) straight
+    from the static ``ARTIFACTS_ACCENTS``/``ARTIFACTS_ICONS`` tables instead
+    of routing through discovery.
+
+    ``_link_follow_available`` swallows any exception raised inside it
+    (``except Exception: return False``), so this spies on
+    ``resolve_artifacts_subtabs`` and counts calls rather than raising --
+    counting survives that swallow, a raise would not.
+    """
+    discovery_calls: list[None] = []
+    real_resolve = artifact_tabs.resolve_artifacts_subtabs
+
+    def _spy_resolve() -> tuple[object, ...]:
+        discovery_calls.append(None)
+        return real_resolve()
+
+    subprocess_calls: list[str] = []
+
+    def _guard_subprocess(*args: object, **kwargs: object) -> None:
+        subprocess_calls.append(f"{args!r} {kwargs!r}")
+        raise AssertionError("a keystroke spawned a subprocess")
+
+    app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)
+    async with app.run_test() as pilot:
+        await _wait_for_startup(app, pilot)
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+        _install_agents_fixture(app)
+        app._refresh_agents_display(list_changed=True, defer_detail=True)
+        await pilot.pause()
+
+        with (
+            patch.object(artifact_tabs, "resolve_artifacts_subtabs", _spy_resolve),
+            patch.object(subprocess, "run", side_effect=_guard_subprocess),
+            patch.object(subprocess, "Popen", side_effect=_guard_subprocess),
+        ):
+            for _ in range(_KEYS_PER_SCENARIO):
+                await pilot.press("j")
+                await pilot.pause(0.01)
+            for _ in range(_KEYS_PER_SCENARIO):
+                await pilot.press("k")
+                await pilot.pause(0.01)
+
+    assert not discovery_calls, (
+        f"{len(discovery_calls)} of {_KEYS_PER_SCENARIO * 2} keystroke(s) reached "
+        "resolve_artifacts_subtabs(); keypath must resolve fixed panes from the "
+        "static accent/icon tables instead of provider discovery"
+    )
+    assert not subprocess_calls, f"a keystroke spawned a subprocess: {subprocess_calls}"
     stall_path = _perf_jsonl.with_name("tui_stalls.jsonl")
     assert not stall_path.exists() or not stall_path.read_text().strip()
 
