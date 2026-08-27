@@ -15,6 +15,10 @@ if TYPE_CHECKING:
         ArtifactLinkRelationChoice as ArtifactLinkRelationChoice,
         ArtifactLinkResult as ArtifactLinkResult,
     )
+    from .artifact_links_panel_modal import (
+        ArtifactLinksPanelModal as ArtifactLinksPanelModal,
+        ArtifactLinksPanelResult as ArtifactLinksPanelResult,
+    )
     from .command_input_modal import CommandInputModal as CommandInputModal
     from .config_transaction import (
         ConfigTransactionConflict as ConfigTransactionConflict,
@@ -97,6 +101,14 @@ _LAZY_EXPORTS = {
         "ArtifactLinkRelationChoice",
     ),
     "ArtifactLinkResult": (".artifact_link_modal", "ArtifactLinkResult"),
+    "ArtifactLinksPanelModal": (
+        ".artifact_links_panel_modal",
+        "ArtifactLinksPanelModal",
+    ),
+    "ArtifactLinksPanelResult": (
+        ".artifact_links_panel_modal",
+        "ArtifactLinksPanelResult",
+    ),
     "AutoApproveChoice": (".auto_approve_modal", "AutoApproveChoice"),
     "AutoApproveModal": (".auto_approve_modal", "AutoApproveModal"),
     "AxeAddChooserModal": (".axe_add_modals", "AxeAddChooserModal"),
@@ -516,6 +528,11 @@ __all__ = [
     "AgentRunLogModal",
     "AgentTribeModal",
     "AgentTribeModalResult",
+    "ArtifactLinkModal",
+    "ArtifactLinkRelationChoice",
+    "ArtifactLinkResult",
+    "ArtifactLinksPanelModal",
+    "ArtifactLinksPanelResult",
     "CommandHistoryModal",
     "ConfirmActionModal",
     "CommandInputModal",

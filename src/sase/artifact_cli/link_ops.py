@@ -162,26 +162,16 @@ def handle_link_rm(args: argparse.Namespace) -> int:
     """Remove stored edges between two artifacts."""
 
     try:
-        relation = getattr(args, "relation", None)
-        if relation:
-            relation = str(
-                require_rust_binding("artifact_relation_lookup")(str(relation))["slug"]
-            )
-        store = _store()
-        removed = store.remove_rows(
-            args.source_ref,
-            args.target_ref,
-            relation=None if not relation else str(relation),
-        )
-        _persist_link_mutation(
-            store,
-            changed_indexes=removed.changed_indexes,
-            beads_changed=removed.beads_changed,
+        outcome = remove_artifact_link(
+            source_ref=args.source_ref,
+            target_ref=args.target_ref,
+            relation=getattr(args, "relation", None),
         )
     except (RuntimeError, TypeError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
+    removed = tuple(outcome.get("rows") or ())
     if not removed:
         print("removed 0 links")
         return 0
@@ -191,6 +181,36 @@ def handle_link_rm(args: argparse.Namespace) -> int:
             f"{row.get('relation')} {row.get('source_ref')} -> {row.get('target_ref')}"
         )
     return 0
+
+
+def remove_artifact_link(
+    *,
+    source_ref: str,
+    target_ref: str,
+    relation: str | None = None,
+) -> dict[str, Any]:
+    """Remove stored typed artifact links and persist the mutation."""
+
+    if relation:
+        relation = str(
+            require_rust_binding("artifact_relation_lookup")(str(relation))["slug"]
+        )
+    store = _store()
+    removed = store.remove_rows(
+        source_ref,
+        target_ref,
+        relation=None if not relation else str(relation),
+    )
+    _persist_link_mutation(
+        store,
+        changed_indexes=removed.changed_indexes,
+        beads_changed=removed.beads_changed,
+    )
+    return {
+        "rows": tuple(dict(row) for row in removed),
+        "changed_indexes": removed.changed_indexes,
+        "beads_changed": removed.beads_changed,
+    }
 
 
 def _store() -> ArtifactLinkStore:
@@ -354,4 +374,10 @@ def _print_link_table(rows: list[dict[str, Any]], *, reference: str | None) -> N
     console.print(Panel(table, title=title, border_style="cyan"))
 
 
-__all__ = ["handle_link_add", "handle_link_list", "handle_link_rm"]
+__all__ = [
+    "add_artifact_link",
+    "handle_link_add",
+    "handle_link_list",
+    "handle_link_rm",
+    "remove_artifact_link",
+]

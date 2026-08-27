@@ -2443,6 +2443,47 @@ AgentNeighborModal {
     padding-top: 1;
 }
 
+/* Artifact Links Panel styling */
+ArtifactLinksPanelModal {
+    align: center middle;
+}
+
+#artifact-links-panel-container {
+    width: 96;
+    max-width: 96%;
+    height: auto;
+    max-height: 32;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#artifact-links-panel-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#artifact-links-panel-staleness.notice {
+    color: $warning;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#artifact-links-panel-list {
+    height: auto;
+    max-height: 22;
+}
+
+#artifact-links-panel-hints {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
 
 /* Agent Workspace Tmux Modal styling (echoes the WORKSPACES lane accent) */
 AgentWorkspaceTmuxModal {

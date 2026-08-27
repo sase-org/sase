@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -23,7 +24,13 @@ from ..modals.numbered_link_keys import (
 )
 from ..relations.artifact_links import parse_link_ref
 from ..relations.link_index import LinkChip
-from ..relations.link_keys import MAX_DIRECT_LINK_KEYS, LinkRailItem, link_rail_items
+from ..relations.link_keys import (
+    MAX_DIRECT_LINK_KEYS,
+    LinkRailItem,
+    link_item_chips,
+    link_rail_items,
+)
+from ..relations.link_subject import selected_link_subject
 from ..tab_order import ARTIFACTS_TAB
 
 _LINK_TRAIL_MAX = 32
@@ -96,9 +103,11 @@ class LinkFollowMixin:
 
     def _follow_link_item(self, item: LinkRailItem) -> None:
         if item.count > 1:
-            self._open_artifact_links_panel()
+            self._open_artifact_links_panel(item)
             return
-        chip = item.chip
+        self._follow_single_link_chip(item.chip)
+
+    def _follow_single_link_chip(self, chip: LinkChip) -> None:
         parsed = parse_link_ref(chip.neighbor_ref)
         if parsed is None:
             self._notify_missing_link_target(chip.neighbor_ref, None)
@@ -119,10 +128,140 @@ class LinkFollowMixin:
         if self._follow_artifacts_target(chip.neighbor_ref, target):
             self._record_link_trail(origin)
 
-    def _open_artifact_links_panel(self) -> None:
-        self.notify(  # type: ignore[attr-defined]
-            "Links panel is not yet available",
-            severity="warning",
+    def _open_artifact_links_panel(
+        self, scope_item: LinkRailItem | None = None
+    ) -> None:
+        chips = tuple(self.link_edges_for_selection())  # type: ignore[attr-defined]
+        subject = selected_link_subject(self)
+        if subject is None or not chips:
+            self.notify(  # type: ignore[attr-defined]
+                "No links for the current selection",
+                severity="warning",
+            )
+            return
+        panel_chips = (
+            link_item_chips(chips, scope_item) if scope_item is not None else chips
+        )
+        if not panel_chips:
+            self.notify(  # type: ignore[attr-defined]
+                "No links for the current selection",
+                severity="warning",
+            )
+            return
+        from ..modals.artifact_links_panel_modal import (
+            ArtifactLinksPanelModal,
+            ArtifactLinksPanelResult,
+        )
+
+        subject_ref = subject.ref
+
+        def _on_result(result: ArtifactLinksPanelResult | None) -> None:
+            if result is None:
+                return
+            if result.action == "follow" and result.chip is not None:
+                self._follow_single_link_chip(result.chip)
+                return
+            if result.action == "add":
+                add = getattr(self, "action_artifacts_link_marked", None)
+                if callable(add):
+                    add()
+                else:
+                    self.notify(  # type: ignore[attr-defined]
+                        "Artifact link authoring is unavailable",
+                        severity="warning",
+                    )
+                return
+            if result.action == "remove" and result.chip is not None:
+                self._remove_artifact_link_chip(subject_ref, result.chip)
+
+        initial_notice = _cached_link_panel_staleness_notice(self)
+        modal = ArtifactLinksPanelModal(
+            subject_ref=subject_ref,
+            chips=panel_chips,
+            scoped_label=_scope_label(scope_item) if scope_item is not None else None,
+            add_enabled=_artifact_link_add_enabled(self),
+            staleness_notice=initial_notice,
+        )
+        push_screen = getattr(self, "push_screen", None)
+        if not callable(push_screen):
+            self.notify(  # type: ignore[attr-defined]
+                "Links panel is unavailable",
+                severity="warning",
+            )
+            return
+        push_screen(modal, _on_result)
+        self._schedule_artifact_links_panel_staleness_refresh(
+            modal,
+            initial_notice=initial_notice,
+        )
+
+    def _remove_artifact_link_chip(self, subject_ref: str, chip: LinkChip) -> None:
+        if not chip.writable:
+            self.notify(  # type: ignore[attr-defined]
+                f"Cannot remove {_readonly_link_source(chip)} link from the store",
+                severity="warning",
+            )
+            return
+        source_ref, target_ref = _link_chip_endpoints(subject_ref, chip)
+
+        async def _runner() -> None:
+            try:
+                outcome = await asyncio.to_thread(
+                    _remove_artifact_link,
+                    source_ref,
+                    target_ref,
+                    chip.relation,
+                )
+            except Exception as exc:  # noqa: BLE001 - surfaced as a TUI notification
+                self.notify(str(exc), severity="error")  # type: ignore[attr-defined]
+                return
+            removed = tuple(outcome.get("rows") or ())
+            count = len(removed)
+            plural = "" if count == 1 else "s"
+            self.notify(  # type: ignore[attr-defined]
+                f"removed {count} {chip.relation} link{plural} "
+                f"@{source_ref} -> @{target_ref}"
+            )
+            refresh = getattr(self, "_request_active_artifacts_refresh", None)
+            if callable(refresh):
+                refresh()
+            refresh_links = getattr(self, "_schedule_link_index_refresh", None)
+            if callable(refresh_links):
+                refresh_links(source="artifact_link_remove")
+
+        from ..util.pump_tasks import spawn_pump_free_task
+
+        task = spawn_pump_free_task(
+            self,
+            _runner(),
+            name="sase-artifacts-link-remove",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self.notify(  # type: ignore[attr-defined]
+                "Unable to start artifact link removal",
+                severity="error",
+            )
+
+    def _schedule_artifact_links_panel_staleness_refresh(
+        self,
+        modal: Any,
+        *,
+        initial_notice: str,
+    ) -> None:
+        async def _runner() -> None:
+            notice = await asyncio.to_thread(_artifact_link_index_drift_notice)
+            update = getattr(modal, "update_staleness_notice", None)
+            if callable(update):
+                update(_combine_notices(initial_notice, notice))
+
+        from ..util.pump_tasks import spawn_pump_free_task
+
+        spawn_pump_free_task(
+            self,
+            _runner(),
+            name="sase-artifacts-link-panel-staleness",
+            registry_attr="_link_rail_tasks",
         )
 
     def _current_link_trail_origin(self) -> _LinkTrailHop:
@@ -338,6 +477,92 @@ def _pane_label(target: ArtifactEntryTarget | None) -> str:
 
     descriptor = descriptor_for_artifacts_pane_id(target.pane_id)
     return descriptor.label if descriptor is not None else target.pane_id
+
+
+def _artifact_link_add_enabled(app: Any) -> bool:
+    if getattr(app, "current_tab", None) != ARTIFACTS_TAB:
+        return False
+    return str(getattr(app, "current_artifacts_pane_key", "")) != "patches"
+
+
+def _cached_link_panel_staleness_notice(app: Any) -> str:
+    notices: list[str] = []
+    loading = bool(getattr(app, "_link_index_loading", False))
+    if loading and getattr(app, "_link_index", None) is not None:
+        notices.append("Link index refresh in progress; showing the previous index.")
+    elif loading:
+        notices.append("Link index refresh in progress.")
+    errors = tuple(str(error) for error in getattr(app, "_link_index_errors", ()))
+    if errors:
+        joined = "; ".join(errors[:3])
+        suffix = "" if len(errors) <= 3 else f"; +{len(errors) - 3} more"
+        notices.append(f"Some project link indexes were skipped: {joined}{suffix}")
+    return "\n".join(notices)
+
+
+def _artifact_link_index_drift_notice() -> str:
+    try:
+        from sase.artifact_cli.link_health import inspect_artifact_link_health
+        from sase.sdd.artifact_link_drift import format_artifact_link_index_drift
+
+        report = inspect_artifact_link_health(fix=False)
+    except Exception as exc:  # noqa: BLE001 - panel notice, not modal failure
+        return f"Index drift unavailable: {exc}"
+    if report.skipped:
+        return ""
+    if report.errors:
+        joined = "; ".join(report.errors[:3])
+        suffix = "" if len(report.errors) <= 3 else f"; +{len(report.errors) - 3} more"
+        return f"Index drift unavailable: {joined}{suffix}"
+    if not report.aggregate_drift.has_drift:
+        return ""
+    return f"Index stale: {format_artifact_link_index_drift(report.aggregate_drift)}"
+
+
+def _combine_notices(*notices: str) -> str:
+    return "\n".join(notice for notice in notices if notice)
+
+
+def _scope_label(item: LinkRailItem | None) -> str:
+    if item is None:
+        return ""
+    if item.projected_group:
+        return f"{item.count} {_plural_kind(item.neighbor_kind)}"
+    return item.chip.label
+
+
+def _plural_kind(kind: str) -> str:
+    if kind == "stitch":
+        return "stitches"
+    if kind.endswith("s"):
+        return kind
+    return f"{kind}s" if kind else "links"
+
+
+def _readonly_link_source(chip: LinkChip) -> str:
+    if chip.origin == "projected" and chip.created_by.startswith("projection:"):
+        return chip.created_by
+    return chip.origin or "read-only"
+
+
+def _link_chip_endpoints(subject_ref: str, chip: LinkChip) -> tuple[str, str]:
+    if chip.this_is_source:
+        return subject_ref, chip.neighbor_ref
+    return chip.neighbor_ref, subject_ref
+
+
+def _remove_artifact_link(
+    source_ref: str,
+    target_ref: str,
+    relation: str,
+) -> dict[str, Any]:
+    from sase.artifact_cli.link_ops import remove_artifact_link
+
+    return remove_artifact_link(
+        source_ref=source_ref,
+        target_ref=target_ref,
+        relation=relation,
+    )
 
 
 def _agent_matches_ref(agent: Any, payload: str) -> bool:

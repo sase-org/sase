@@ -68,6 +68,20 @@ def link_rail_items(chips: tuple[LinkChip, ...]) -> tuple[LinkRailItem, ...]:
     return tuple(items)
 
 
+def link_item_chips(
+    chips: tuple[LinkChip, ...],
+    item: LinkRailItem,
+) -> tuple[LinkChip, ...]:
+    """Return the concrete chips represented by one addressable rail item."""
+
+    if item.count <= 1:
+        return (item.chip,)
+    group_key = _projected_group_key(item.chip)
+    if group_key is None:
+        return (item.chip,)
+    return tuple(chip for chip in chips if _projected_group_key(chip) == group_key)
+
+
 def link_key_label(index: int, total_links: int) -> str:
     """Return the displayed shortcut for an item at 1-based *index*."""
 
@@ -96,6 +110,7 @@ def _projected_group_key(
 __all__ = [
     "MAX_DIRECT_LINK_KEYS",
     "LinkRailItem",
+    "link_item_chips",
     "link_key_label",
     "link_rail_items",
 ]
