@@ -94,6 +94,7 @@ def _build_link_index(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
     label_fn = require_rust_binding("artifact_relation_label")
     lookup_fn = require_rust_binding("artifact_relation_lookup")
     identity = AgentIdentitySnapshot.current()
+    accent_icon_cache: dict[tuple[str, str | None], tuple[str, str]] = {}
 
     best_rows: dict[tuple[str, ...], dict[str, Any]] = {}
     order: list[tuple[str, ...]] = []
@@ -136,6 +137,7 @@ def _build_link_index(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
                 this_is_source=True,
                 neighbor_ref=target_ref,
                 project_hint=project_hint,
+                accent_icon_cache=accent_icon_cache,
             )
         )
         grouped.setdefault(target_ref, []).append(
@@ -147,6 +149,7 @@ def _build_link_index(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
                 this_is_source=False,
                 neighbor_ref=source_ref,
                 project_hint=project_hint,
+                accent_icon_cache=accent_icon_cache,
             )
         )
 
@@ -170,6 +173,7 @@ def _build_chip(
     this_is_source: bool,
     neighbor_ref: str,
     project_hint: str | None,
+    accent_icon_cache: dict[tuple[str, str | None], tuple[str, str]],
 ) -> LinkChip:
     label = str(label_fn(relation, this_is_source))
     parsed = parse_link_ref(neighbor_ref)
@@ -179,7 +183,15 @@ def _build_chip(
         if parsed is not None
         else None
     )
-    accent, icon = accent_and_icon_for_ref(neighbor_kind, neighbor_target)
+    accent_icon_key = (
+        neighbor_kind,
+        None if neighbor_target is None else neighbor_target.pane_id,
+    )
+    accent_icon = accent_icon_cache.get(accent_icon_key)
+    if accent_icon is None:
+        accent_icon = accent_and_icon_for_ref(neighbor_kind, neighbor_target)
+        accent_icon_cache[accent_icon_key] = accent_icon
+    accent, icon = accent_icon
     origin = str(row.get("origin") or "").strip()
     return LinkChip(
         relation=relation,

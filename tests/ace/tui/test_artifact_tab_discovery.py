@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -129,3 +130,70 @@ def test_discovery_failure_keeps_a_degraded_plan_tab(
     assert "sase_core_rs" in (plan.error or "")
     assert [descriptor.id for descriptor in second] == [d.id for d in first]
     assert ARTIFACTS_ACCENTS.get("ref:plan") == "#AF87FF"
+
+
+def _fake_project_record(project_file: Path) -> object:
+    from sase.core.project_lifecycle_wire import ProjectRecordWire
+
+    return ProjectRecordWire(
+        schema_version=1,
+        project_name="proj",
+        project_dir=str(project_file.parent),
+        project_file=str(project_file),
+        archive_file=None,
+        workspace_dir=None,
+        state="enabled",
+        state_explicit=True,
+        system_managed=False,
+        active_claim_count=0,
+        launchable=True,
+    )
+
+
+def test_provider_source_token_cache_invalidates_on_project_file_change(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sase.ace.tui import _artifact_tab_discovery as discovery
+
+    project_file = tmp_path / "proj.sase"
+    project_file.write_text("PROJECT_NAME: proj\n")
+
+    monkeypatch.setattr(
+        discovery,
+        "list_project_records",
+        lambda *args, **kwargs: (_fake_project_record(project_file),),
+    )
+    monkeypatch.setattr(discovery, "current_config_token", lambda: ("config", 1))
+
+    discovery.reset_provider_source_token_cache()
+    first = discovery.provider_source_token()
+    assert first is not None
+
+    # Still within the refresh window: the cache wins even though the file
+    # underneath it just changed.
+    stat = project_file.stat()
+    os.utime(project_file, ns=(stat.st_mtime_ns + 10**9, stat.st_mtime_ns + 10**9))
+    assert discovery.provider_source_token() == first
+
+    reset_artifacts_subtabs_cache()
+    second = discovery.provider_source_token()
+    assert second is not None
+    assert second != first
+
+
+def test_provider_source_token_does_not_cache_a_none_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui import _artifact_tab_discovery as discovery
+
+    def _boom(*_args: object, **_kwargs: object) -> tuple[object, ...]:
+        raise ImportError("sase_core_rs is not importable in this environment")
+
+    discovery.reset_provider_source_token_cache()
+    monkeypatch.setattr(discovery, "list_project_records", _boom)
+    assert discovery.provider_source_token() is None
+
+    monkeypatch.setattr(discovery, "list_project_records", lambda *args, **kwargs: ())
+    monkeypatch.setattr(discovery, "current_config_token", lambda: ("config", 1))
+    assert discovery.provider_source_token() is not None

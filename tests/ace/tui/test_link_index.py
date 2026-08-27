@@ -144,6 +144,46 @@ def test_fixed_pane_kinds_paint_their_pane_accent_and_icon() -> None:
     assert chip.icon == ARTIFACTS_ICONS["beads"]
 
 
+def test_accent_lookup_count_does_not_scale_with_row_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Guards the fix for the mount-time startup regression (105s -> <1s).
+
+    ``_build_link_index`` used to resolve an accent/icon pair per chip via a
+    call chain that bottoms out in ``provider_source_token()``. That chain is
+    cheap per call, but at thousands of chips it dominated startup. The fix
+    memoizes the lookup per distinct ``(neighbor_kind, pane_id)`` pair for the
+    duration of one build, so the call count must stay flat as row count
+    grows instead of scaling with it.
+    """
+    from sase.ace.tui import artifact_tabs
+
+    reset_artifacts_subtabs_cache()
+    calls = 0
+    original = artifact_tabs.provider_source_token
+
+    def counting() -> tuple[object, ...] | None:
+        nonlocal calls
+        calls += 1
+        return original()
+
+    monkeypatch.setattr(artifact_tabs, "provider_source_token", counting)
+
+    rows = tuple(
+        {
+            "source_ref": "bead:anchor",
+            "relation": "related",
+            "target_ref": f"bead:sase-{i}",
+            "uses": 1,
+        }
+        for i in range(300)
+    )
+    index = _build_link_index(_snapshot(rows))
+
+    assert len(index.chips_for("bead:anchor")) == 300
+    assert calls <= 3
+
+
 def test_chop_neighbor_has_no_target_but_gets_the_virtual_chop_style() -> None:
     index = _build_link_index(
         _snapshot(

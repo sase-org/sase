@@ -7,6 +7,8 @@ degraded tabs.  Callers go through :mod:`sase.ace.tui.artifact_tabs`.
 
 from __future__ import annotations
 
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -209,12 +211,60 @@ def _select_project_records(
     )
 
 
+# Matches sase.config.core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS: computing
+# this token walks every configured project's record and stats its config
+# file, so callers on the render path (``resolve_artifacts_subtabs`` per
+# link-graph chip) must not pay that cost on every lookup.
+_PROVIDER_SOURCE_TOKEN_REFRESH_INTERVAL_SECONDS = 0.75
+_provider_source_token_cache_value: tuple[object, ...] | None = None
+_provider_source_token_cache_deadline = 0.0
+_provider_source_token_cache_lock = threading.Lock()
+
+
+def reset_provider_source_token_cache() -> None:
+    """Force the next :func:`provider_source_token` call to recompute."""
+
+    global _provider_source_token_cache_value, _provider_source_token_cache_deadline
+    with _provider_source_token_cache_lock:
+        _provider_source_token_cache_value = None
+        _provider_source_token_cache_deadline = 0.0
+
+
 def provider_source_token() -> tuple[object, ...] | None:
     """Return a cache key for configured providers, or ``None`` if listing failed.
+
+    Cached for `_PROVIDER_SOURCE_TOKEN_REFRESH_INTERVAL_SECONDS` seconds. An
+    expired cache is recomputed synchronously on the next call rather than
+    kicking off a background refresh like ``current_config_token()`` does:
+    the cost here is one project-lifecycle scan, not a full config merge.
 
     A ``None`` token is uncacheable so a transient discovery failure cannot
     pin a degraded four-tab answer the way the old ``("unavailable",)``
     sentinel did.
+    """
+
+    global _provider_source_token_cache_value, _provider_source_token_cache_deadline
+    with _provider_source_token_cache_lock:
+        cached = _provider_source_token_cache_value
+        if (
+            cached is not None
+            and time.monotonic() < _provider_source_token_cache_deadline
+        ):
+            return cached
+        token = _compute_provider_source_token()
+        if token is not None:
+            _provider_source_token_cache_value = token
+            _provider_source_token_cache_deadline = (
+                time.monotonic() + _PROVIDER_SOURCE_TOKEN_REFRESH_INTERVAL_SECONDS
+            )
+        return token
+
+
+def _compute_provider_source_token() -> tuple[object, ...] | None:
+    """Inspect every configured project and return the discovery cache key.
+
+    A ``None`` result (transient discovery failure) MUST NOT be cached; see
+    :func:`provider_source_token`.
     """
 
     try:

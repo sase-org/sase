@@ -24,6 +24,7 @@ from ._artifact_tab_descriptors import (
 from ._artifact_tab_discovery import (
     load_project_provider_records,
     provider_source_token,
+    reset_provider_source_token_cache,
 )
 from ._artifact_tab_contract import (
     GENERIC_DOCUMENT_COPY_KEYMAP_GROUP,
@@ -63,6 +64,7 @@ def reset_artifacts_subtabs_cache() -> None:
     global _ARTIFACTS_TAB_CACHE
     _ARTIFACTS_TAB_CACHE = None
     _PROVIDER_ROOTS_CACHE.clear()
+    reset_provider_source_token_cache()
 
 
 def resolve_artifacts_subtabs() -> tuple[ArtifactsTabDescriptor, ...]:

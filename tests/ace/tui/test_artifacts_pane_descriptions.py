@@ -215,7 +215,9 @@ def test_provider_source_token_changes_with_merged_config_token(
     monkeypatch.setattr(discovery, "list_project_records", lambda *args, **kwargs: ())
     monkeypatch.setattr(discovery, "current_config_token", lambda: next(tokens))
 
+    discovery.reset_provider_source_token_cache()
     first = discovery.provider_source_token()
+    discovery.reset_provider_source_token_cache()
     second = discovery.provider_source_token()
 
     assert first is not None

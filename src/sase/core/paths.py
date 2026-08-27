@@ -141,22 +141,20 @@ _PROJECT_NAME_PATH_SEPARATORS = ("/", "\\")
 
 
 def is_valid_sase_project_name(project_name: str) -> bool:
-    """Return True if *project_name* is safe as one SASE projects child."""
+    """Return True if *project_name* is safe as one SASE projects child.
+
+    Pure string inspection: rejecting empty names, ``.``/``..``, dotfiles,
+    NUL, and both path separators is what enforces containment under
+    ``sase_projects_dir()`` for a single path component. Nothing that passes
+    these checks can escape that directory, so no filesystem check is needed.
+    """
     if not project_name or project_name in {".", ".."}:
         return False
     if project_name.startswith(".") or "\x00" in project_name:
         return False
     if any(separator in project_name for separator in _PROJECT_NAME_PATH_SEPARATORS):
         return False
-
-    projects_root = sase_projects_dir()
-    project_dir = projects_root / project_name
-    try:
-        root_resolved = projects_root.expanduser().resolve(strict=False)
-        parent_resolved = project_dir.parent.expanduser().resolve(strict=False)
-    except (OSError, RuntimeError, ValueError):
-        return False
-    return project_dir.name == project_name and parent_resolved == root_resolved
+    return True
 
 
 def validate_sase_project_name(project_name: str) -> None:
