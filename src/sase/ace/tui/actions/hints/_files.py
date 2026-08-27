@@ -19,6 +19,11 @@ from sase.pager import (
     document_from_paths,
 )
 from sase.pager.app import PendingAction
+from sase.pager.resolve import (
+    LinkTarget,
+    link_target_for_artifact_entry_target,
+    resolve_ref,
+)
 
 from ....hint_types import ViewFilesResult
 from ....hints import build_editor_args
@@ -133,6 +138,20 @@ def _handle_commit_attached_target(
             subprocess.run(argv, check=False)
         return
     pager.push_screen(CommitViewModal((spec,)))
+
+
+def _resolve_ref_from_link_index(app: object, ref: str) -> LinkTarget | None:
+    index = getattr(app, "_link_index", None)
+    targets_by_ref = getattr(index, "targets_by_ref", None)
+    target_for = getattr(index, "target_for", None)
+    if targets_by_ref is not None and callable(target_for) and ref in targets_by_ref:
+        target = target_for(ref)
+        if target is None:
+            return None
+        resolved = link_target_for_artifact_entry_target(ref, target)
+        if resolved is not None:
+            return resolved
+    return resolve_ref(ref)
 
 
 class FileViewingMixin(HintMixinBase):
@@ -404,7 +423,11 @@ class FileViewingMixin(HintMixinBase):
         `backspace` in the pager needs no extra handling to land back here.
         """
         handlers: dict[str, AttachedTargetHandler] = {}
-        pager = SasePager(document, attached_handlers=handlers)
+        pager = SasePager(
+            document,
+            attached_handlers=handlers,
+            resolve_ref_fn=lambda ref: _resolve_ref_from_link_index(self, ref),
+        )
         handlers[_COMMIT_TARGET_KIND] = lambda target, action: (
             _handle_commit_attached_target(pager, target, action)
         )

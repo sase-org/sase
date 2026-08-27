@@ -25,6 +25,7 @@ from sase.artifact_cli.references import (
 )
 from sase.artifact_ref_models import ArtifactRefFragment
 from sase.artifact_ref_operations import parse_artifact_ref
+from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.pager.adapters import path_section
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.link_scan import LinkSpanKind
@@ -87,6 +88,27 @@ def resolve_ref(ref: str) -> LinkTarget | None:
     except (ImportError, RuntimeError, ValueError):
         return _resolve_file_path_target(stripped)
     return _resolve_artifact_ref_target(stripped)
+
+
+def link_target_for_artifact_entry_target(
+    ref: str,
+    target: ArtifactEntryTarget,
+) -> LinkTarget | None:
+    """Resolve an already-indexed ACE artifact target into a pager landing.
+
+    The ACE link rail's ``LinkIndex`` has already paid the graph lookup cost
+    and synthesized the destination ``ArtifactEntryTarget``.  This adapter
+    skips the artifact-reference discovery path for common concrete panes and
+    falls back to the canonical ref resolver only when the target has no direct
+    pager document shape.
+    """
+
+    if target.pane_id == "files" and target.parts:
+        return _resolve_file_path_target(str(target.parts[-1]))
+    if target.pane_id == "beads" and target.parts:
+        return _bead_link_target(f"bead:{target.parts[-1]}")
+    canonical_ref = _ref_for_artifact_entry_target(target) or ref
+    return _resolve_artifact_ref_target(canonical_ref)
 
 
 def _resolve_artifact_ref_target(ref: str) -> LinkTarget | None:
@@ -296,6 +318,16 @@ def _guess_mime(path: Path) -> str | None:
     return mimetypes.guess_type(str(path))[0]
 
 
+def _ref_for_artifact_entry_target(target: ArtifactEntryTarget) -> str | None:
+    try:
+        from sase.ace.tui.relations.link_subject import ref_for_target
+
+        return ref_for_target(target)
+    except Exception:
+        log.exception("pager: could not convert artifact target %r to ref", target)
+        return None
+
+
 def copy_text_for_target(ref: str, kind: str) -> str:
     """Return the text ``y`` should copy for a scanned/attached target.
 
@@ -314,5 +346,6 @@ __all__ = [
     "LinkTarget",
     "LinkTargetKind",
     "copy_text_for_target",
+    "link_target_for_artifact_entry_target",
     "resolve_ref",
 ]

@@ -85,6 +85,7 @@ _PENDING_ACTION_KEYS: dict[PendingAction, str] = {"copy": "y", "edit": "E"}
 #: consulted for a kind that has a handler, since there is no ref string to
 #: resolve.
 AttachedTargetHandler = Callable[[PagerTargetSpan, PendingAction], None]
+ResolveRef = Callable[[str], LinkTarget | None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +145,7 @@ class SasePager(App[PagerExit]):
         *,
         links_enabled: bool = True,
         attached_handlers: Mapping[str, AttachedTargetHandler] | None = None,
+        resolve_ref_fn: ResolveRef | None = None,
     ) -> None:
         super().__init__()
         self.document = document
@@ -151,6 +153,7 @@ class SasePager(App[PagerExit]):
         self._attached_handlers: Mapping[str, AttachedTargetHandler] = (
             attached_handlers or {}
         )
+        self._resolve_ref = resolve_ref if resolve_ref_fn is None else resolve_ref_fn
         self._body: ComposedBody | None = None
         self._body_width: int | None = None
         self._label_layer: PagerLabelLayer | None = None
@@ -554,7 +557,7 @@ class SasePager(App[PagerExit]):
 
         async def resolve_task() -> None:
             try:
-                target = await asyncio.to_thread(resolve_ref, ref)
+                target = await asyncio.to_thread(self._resolve_ref, ref)
             except Exception as exc:  # noqa: BLE001 - a press must never crash the pager
                 if generation == self._resolve_generation and self.document is document:
                     self._set_footer_status(None)

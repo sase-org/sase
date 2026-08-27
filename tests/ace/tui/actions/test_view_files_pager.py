@@ -13,15 +13,18 @@ from sase.ace.tui.actions.hints import _processing as processing_mod
 from sase.ace.tui.actions.hints._files import (
     _COMMIT_TARGET_KIND,
     _handle_commit_attached_target,
+    _resolve_ref_from_link_index,
     build_pager_document,
 )
 from sase.ace.tui.modals.commit_view_modal import CommitViewModal
+from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.pager.document import (
     PagerDocument,
     PagerOrigin,
     PagerSection,
     PagerTargetSpan,
 )
+from sase.pager.resolve import LinkTarget, LinkTargetKind
 
 from ._view_files_helpers import _commit_spec, _make_app
 
@@ -178,9 +181,16 @@ def test_view_files_with_sase_pager_runs_under_suspend(
     captured: dict[str, object] = {}
 
     class _FakeSasePager:
-        def __init__(self, doc: PagerDocument, *, attached_handlers=None) -> None:
+        def __init__(
+            self,
+            doc: PagerDocument,
+            *,
+            attached_handlers=None,
+            resolve_ref_fn=None,
+        ) -> None:
             captured["document"] = doc
             captured["handlers"] = attached_handlers
+            captured["resolve_ref_fn"] = resolve_ref_fn
 
         def run(self) -> None:
             captured["ran"] = True
@@ -194,6 +204,59 @@ def test_view_files_with_sase_pager_runs_under_suspend(
     assert captured["document"] is document
     assert captured["ran"] is True
     assert _COMMIT_TARGET_KIND in captured["handlers"]  # type: ignore[operator]
+    assert callable(captured["resolve_ref_fn"])
+
+
+def test_link_index_backed_pager_resolver_prefers_indexed_file_target(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "indexed.md"
+    path.write_text("indexed\n", encoding="utf-8")
+    ref = f"file:{path}"
+
+    class _Index:
+        targets_by_ref = {ref: ArtifactEntryTarget("files", (str(path),))}
+
+        def target_for(self, value: str) -> ArtifactEntryTarget | None:
+            return self.targets_by_ref[value]
+
+    class _App:
+        _link_index = _Index()
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._files.resolve_ref",
+        lambda value: (_ for _ in ()).throw(AssertionError(value)),
+    )
+
+    target = _resolve_ref_from_link_index(_App(), ref)
+
+    assert target is not None
+    assert target.kind is LinkTargetKind.DOCUMENT
+    assert target.document is not None
+    assert target.document.sections[0].plain_text == "indexed\n"
+
+
+def test_link_index_backed_pager_resolver_falls_back_for_unknown_ref(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fallback = LinkTarget(kind=LinkTargetKind.DOCUMENT)
+
+    class _Index:
+        targets_by_ref: dict[str, ArtifactEntryTarget | None] = {}
+
+        def target_for(self, value: str) -> ArtifactEntryTarget | None:
+            raise AssertionError(value)
+
+    class _App:
+        _link_index = _Index()
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._files.resolve_ref",
+        lambda value: fallback if value == "bead:unknown" else None,
+    )
+
+    assert _resolve_ref_from_link_index(_App(), "bead:unknown") is fallback
 
 
 # -- _handle_commit_attached_target --------------------------------------------

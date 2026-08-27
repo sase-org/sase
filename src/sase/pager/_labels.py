@@ -45,8 +45,9 @@ _LABEL_DIM_STYLE = "dim"
 _LABEL_DANGLING_STYLE = "dim"
 _DANGLING_ICON = "⊘"
 _DANGLING_ACCENT = "#808080"
-_DEFAULT_LINK_ICON = "◆"
-_DEFAULT_LINK_ACCENT = "#AFAFAF"
+_DANGLING_TEXT = "(missing)"
+_DEFAULT_LINK_ICON = "•"
+_DEFAULT_LINK_ACCENT = EXTERNAL_ACCENT
 _URL_ICON = "↗"
 _NO_BREAK_SPACE = "\u00a0"
 
@@ -55,7 +56,6 @@ _REF_KIND_TABS: Mapping[str, str] = {
     "bead": "beads",
     "file": "files",
     "patch": "patches",
-    "plan": "ref:plan",
     "stitch": "stitches",
 }
 _DIRECT_KIND_TABS: Mapping[str, str] = {
@@ -221,6 +221,8 @@ def render_section_with_labels(
         style = _LABEL_DANGLING_STYLE if label.dangling else f"bold {marker.accent}"
         target.stylize(style, 0, len(target.plain))
         output.append_text(target)
+        if label.dangling:
+            output.append(f" {_DANGLING_TEXT}", style=_LABEL_DANGLING_STYLE)
         cursor = end
     output.append_text(source[cursor:])
     return output

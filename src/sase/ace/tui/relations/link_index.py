@@ -56,12 +56,18 @@ class LinkIndex:
     """App-owned O(1) index from a canonical ref to its ordered chips."""
 
     by_ref: Mapping[str, tuple[LinkChip, ...]]
+    targets_by_ref: Mapping[str, ArtifactEntryTarget | None]
     source_key: tuple[object, ...]
 
     def chips_for(self, ref: str) -> tuple[LinkChip, ...]:
         """Return *ref*'s ordered chips, or an empty tuple when it has none."""
 
         return self.by_ref.get(ref, ())
+
+    def target_for(self, ref: str) -> ArtifactEntryTarget | None:
+        """Return *ref*'s indexed destination target, when the graph knows one."""
+
+        return self.targets_by_ref.get(ref)
 
 
 _INDEX_CACHE_LOCK = RLock()
@@ -121,6 +127,7 @@ def _build_link_index(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
             best_rows[identity_key] = candidate
 
     grouped: dict[str, list[LinkChip]] = {}
+    targets_by_ref: dict[str, ArtifactEntryTarget | None] = {}
     for key in order:
         row = best_rows[key]
         source_ref = str(row["source_ref"])
@@ -128,6 +135,8 @@ def _build_link_index(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
         relation = str(row.get("relation") or "")
         directed = key[0] == "d"
         project_hint = row.get("_project")
+        _record_indexed_target(targets_by_ref, source_ref, project_hint=project_hint)
+        _record_indexed_target(targets_by_ref, target_ref, project_hint=project_hint)
         grouped.setdefault(source_ref, []).append(
             _build_chip(
                 row,
@@ -160,8 +169,31 @@ def _build_link_index(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
     for ref, chips in canonical.items():
         for alias in _aliases_for_ref(ref, identity):
             index.setdefault(alias, chips)
+    for ref, target in tuple(targets_by_ref.items()):
+        for alias in _aliases_for_ref(ref, identity):
+            targets_by_ref.setdefault(alias, target)
 
-    return LinkIndex(by_ref=index, source_key=snapshot.source_key)
+    return LinkIndex(
+        by_ref=index,
+        targets_by_ref=targets_by_ref,
+        source_key=snapshot.source_key,
+    )
+
+
+def _record_indexed_target(
+    targets_by_ref: dict[str, ArtifactEntryTarget | None],
+    ref: str,
+    *,
+    project_hint: str | None,
+) -> None:
+    if ref in targets_by_ref:
+        return
+    parsed = parse_link_ref(ref)
+    if parsed is None:
+        targets_by_ref[ref] = None
+        return
+    kind, payload = parsed
+    targets_by_ref[ref] = target_for_ref_kind(kind, payload, project_hint=project_hint)
 
 
 def _build_chip(
