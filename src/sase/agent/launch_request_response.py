@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-import signal
-import threading
+import time
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -29,29 +28,11 @@ def wait_for_launch_approval(
 ) -> LaunchRequestOutcome:
     """Wait mechanically for a launch gate and translate its neutral response."""
     from sase.notification_gates.models import GateError
-    from sase.notification_gates.poller import wait_for_gate
 
-    terminated = False
-    previous_sigterm: Any = None
-
-    def on_sigterm(signum: int, frame: object) -> None:
-        del signum, frame
-        nonlocal terminated
-        terminated = True
-
-    if threading.current_thread() is threading.main_thread():
-        previous_sigterm = signal.signal(signal.SIGTERM, on_sigterm)
     try:
-        result = wait_for_gate(
-            request.response_dir,
-            poll_interval=poll_interval,
-            cancelled=lambda: terminated,
-        )
+        result = _wait_for_terminal_gate(request.response_dir, poll_interval)
     except GateError as exc:
         raise LaunchRequestError(exc.code, exc.target, str(exc)) from exc
-    finally:
-        if previous_sigterm is not None:
-            signal.signal(signal.SIGTERM, previous_sigterm)
     if result.status != "responded":
         status: LaunchRequestStatus = (
             "timed_out" if result.status == "timed_out" else "cancelled"
@@ -69,6 +50,50 @@ def wait_for_launch_approval(
             response=result.payload,
         )
     return _launch_outcome_from_response(request, result.payload)
+
+
+def _wait_for_terminal_gate(bundle_path: Path, poll_interval: float) -> Any:
+    from sase.notification_gates.executor import cancel_gate
+    from sase.notification_gates.hashing import load_and_verify_bundle
+    from sase.notification_gates.models import GateError
+    from sase.notification_gates.poller import GatePollResult, poll_gate
+
+    if poll_interval <= 0:
+        raise GateError(
+            "invalid_poll_interval", "poll_interval", "poll_interval must be positive"
+        )
+    envelope, _adapter = load_and_verify_bundle(bundle_path)
+    deadline = _gate_deadline(envelope)
+    while True:
+        result = poll_gate(bundle_path)
+        if result is not None:
+            return result
+        if deadline is not None and time.monotonic() >= deadline:
+            try:
+                payload = cancel_gate(
+                    bundle_path, reason="timeout", source="launch_requester"
+                )
+            except GateError as exc:
+                if exc.code != "already_answered":
+                    raise
+                response = poll_gate(bundle_path)
+                if response is not None:
+                    return response
+                raise
+            return GatePollResult("timed_out", payload)
+        sleep_for = poll_interval
+        if deadline is not None:
+            sleep_for = min(sleep_for, max(0.0, deadline - time.monotonic()))
+        time.sleep(sleep_for)
+
+
+def _gate_deadline(envelope: Mapping[str, Any]) -> float | None:
+    configured = envelope.get("gate_timeout_seconds")
+    if configured is None:
+        return None
+    created = float(envelope.get("created_at_unix", time.time()))
+    remaining = max(0.0, created + float(configured) - time.time())
+    return time.monotonic() + remaining
 
 
 def cancel_launch_approval_request(

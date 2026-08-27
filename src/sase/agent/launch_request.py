@@ -44,7 +44,9 @@ from sase.agent.launch_request_types import (
     LaunchRequestError,
     LaunchRequestStatus,
 )
+from sase.gate_shell.models import GateShellError
 from sase.notification_gates.entrypoints import gate_command_entrypoint
+from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import RESPONSE_FILENAME
 
 
@@ -122,20 +124,28 @@ def create_launch_approval_request(
                 f"launch request plans {slot_count} slot(s), max_slots is {max_slots}",
             )
 
-    from sase.notification_gates.models import GateError
-    from sase.notification_gates.service import create_gate
+    gate_spec = _launch_gate_spec(
+        request,
+        preview=render_launch_preview_markdown(request),
+        source_surface=source,
+        slot_count=slot_count,
+    )
 
     try:
-        gate = create_gate(
-            _launch_gate_spec(
-                request,
-                preview=render_launch_preview_markdown(request),
-                source_surface=source,
-                slot_count=slot_count,
-            )
-        )
+        if running_agent_context_requires_launch_approval():
+            from sase.gate_shell import create_gate_shell
+
+            gate_shell_creation = create_gate_shell(_launch_shell_gate_spec(gate_spec))
+            gate = gate_shell_creation.gate
+        else:
+            from sase.notification_gates.service import create_gate
+
+            gate_shell_creation = None
+            gate = create_gate(gate_spec)
     except GateError as exc:
         raise LaunchRequestError(exc.code, exc.target, str(exc)) from exc
+    except GateShellError as exc:
+        raise LaunchRequestError("gate_shell_failed", "shell", str(exc)) from exc
     if gate.notification_id is None:  # Launch auto-resolution is forbidden.
         raise LaunchRequestError(
             "invalid_state",
@@ -156,7 +166,74 @@ def create_launch_approval_request(
         preview_path=gate.preview_path,
         response_path=gate.response_path,
         request=request,
+        gate_shell_creation=gate_shell_creation,
     )
+
+
+def maybe_handoff_launch_approval_from_agent(
+    request: LaunchRequestCreationResult,
+    *,
+    artifacts_dir: str | None = None,
+) -> bool:
+    """Hand an agent-side LaunchApproval request to its gate shell, if any."""
+    creation = request.gate_shell_creation
+    if creation is None or not creation.should_handoff:
+        return False
+    from sase.gate_shell import (
+        maybe_handoff_gate_from_agent,
+        will_handoff_gate_to_agent_runner,
+    )
+
+    if not will_handoff_gate_to_agent_runner():
+        return False
+    try:
+        return maybe_handoff_gate_from_agent(creation, artifacts_dir=artifacts_dir)
+    except GateShellError as exc:
+        raise LaunchRequestError(
+            "gate_shell_handoff_failed", "shell", str(exc)
+        ) from exc
+
+
+def _launch_shell_gate_spec(spec: dict[str, Any]) -> dict[str, Any]:
+    shell_spec = dict(spec)
+    shell_spec["shell"] = {
+        "pending_status": "LAUNCH",
+        "settled_status": "LAUNCHED",
+        "accent": "#00D7D7",
+        "workspace": "inherit",
+        "next": {
+            "fork": "family",
+            "output": ["results"],
+        },
+        "branches": {
+            "approve": {
+                "status": "LAUNCHED",
+                "accent": "#00D7D7",
+                "prompt": None,
+            },
+            "reject": {
+                "status": "LAUNCH REJECTED",
+                "accent": "#FF5F5F",
+                "prompt": None,
+            },
+            "timeout": {
+                "status": "LAUNCH TIMED OUT",
+                "accent": "#FFAF00",
+                "prompt": None,
+            },
+            "stopped": {
+                "status": "LAUNCH CANCELLED",
+                "accent": "#FFAF00",
+                "prompt": None,
+            },
+            "failed": {
+                "status": "LAUNCH FAILED",
+                "accent": "#FF5F5F",
+                "prompt": None,
+            },
+        },
+    }
+    return shell_spec
 
 
 def _typed_plan_payload(prompt: str) -> dict[str, Any] | None:
@@ -198,6 +275,7 @@ __all__ = [
     "dispatch_approved_launch_request",
     "execute_launch_gate_command",
     "launch_gate_command_script",
+    "maybe_handoff_launch_approval_from_agent",
     "read_launch_request",
     "running_agent_context_requires_launch_approval",
     "stop_launch_admission",

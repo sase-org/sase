@@ -82,16 +82,19 @@ def test_launch_public_long_options_have_short_aliases() -> None:
             )
 
 
-def test_agent_launch_request_waits_and_prints_terminal_json(
+def test_agent_launch_request_hands_off_and_prints_request_json(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    request = SimpleNamespace(request_id="launch-1")
-    outcome = SimpleNamespace(
+    request = SimpleNamespace(
+        request_id="launch-1",
         to_dict=lambda: {
-            "status": "feedback",
             "request_id": "launch-1",
-            "message": "Launch rejected with feedback",
-        }
+            "notification_id": "note-1",
+            "response_dir": "/tmp/launch-1",
+            "request_file": "/tmp/launch-1/request.json",
+            "preview_file": "/tmp/launch-1/launch_preview.md",
+            "response_file": "/tmp/launch-1/response.json",
+        },
     )
     args = argparse.Namespace(
         launch_subcommand="request",
@@ -107,13 +110,13 @@ def test_agent_launch_request_waits_and_prints_terminal_json(
             return_value=True,
         ),
         patch(
-            "sase.agent.launch_request.wait_for_launch_approval",
-            return_value=outcome,
-        ) as wait,
+            "sase.agent.launch_request.maybe_handoff_launch_approval_from_agent",
+            return_value=True,
+        ) as handoff,
         pytest.raises(SystemExit) as exc_info,
     ):
         handle_launch_command(args)
 
     assert exc_info.value.code == 0
-    wait.assert_called_once_with(request)
-    assert json.loads(capsys.readouterr().out)["status"] == "feedback"
+    handoff.assert_called_once_with(request)
+    assert json.loads(capsys.readouterr().out)["request_id"] == "launch-1"

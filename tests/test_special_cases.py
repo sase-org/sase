@@ -194,13 +194,11 @@ def test_launch_query_from_agent_context_requests_approval(
     request = SimpleNamespace(
         request_id="launch-test",
         response_path=Path("/tmp/launch_response.json"),
-    )
-    outcome = SimpleNamespace(
         to_dict=lambda: {
-            "status": "rejected",
             "request_id": "launch-test",
-            "message": "Launch rejected",
-        }
+            "response_dir": "/tmp/interaction_requests/launch/launch-test",
+            "gate_shell": {"state": "pending"},
+        },
     )
     with (
         patch(
@@ -216,9 +214,8 @@ def test_launch_query_from_agent_context_requests_approval(
             return_value=request,
         ) as mock_request,
         patch(
-            "sase.agent.launch_request.wait_for_launch_approval",
-            return_value=outcome,
-        ) as mock_wait,
+            "sase.agent.launch_request.maybe_handoff_launch_approval_from_agent",
+        ) as mock_handoff,
         patch("sase.main.query_handler._launch.launch_agents_from_cwd") as mock_launch,
         pytest.raises(SystemExit) as excinfo,
     ):
@@ -230,9 +227,11 @@ def test_launch_query_from_agent_context_requests_approval(
         reason="Running agent requested a detached launch.",
         source_surface="agent_skill",
     )
-    mock_wait.assert_called_once_with(request)
+    mock_handoff.assert_called_once_with(request)
     mock_launch.assert_not_called()
-    assert json.loads(capsys.readouterr().out)["status"] == "rejected"
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["request_id"] == "launch-test"
+    assert printed["gate_shell"]["state"] == "pending"
 
 
 def test_entry_run_known_prompt_falls_through_to_run_branch(

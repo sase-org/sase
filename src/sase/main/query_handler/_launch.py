@@ -55,10 +55,9 @@ def launch_query(query: str) -> None:
 
     from sase.agent.launch_request import (
         LaunchRequestError,
-        cancel_launch_approval_request,
         create_launch_approval_request_from_prompt,
+        maybe_handoff_launch_approval_from_agent,
         running_agent_context_requires_launch_approval,
-        wait_for_launch_approval,
     )
 
     if running_agent_context_requires_launch_approval():
@@ -71,16 +70,9 @@ def launch_query(query: str) -> None:
         except LaunchRequestError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        try:
-            outcome = wait_for_launch_approval(approval_request)
-        except KeyboardInterrupt:
-            try:
-                cancel_launch_approval_request(approval_request)
-            except LaunchRequestError:
-                pass
-            print("Launch request cancelled", file=sys.stderr)
-            sys.exit(130)
-        print(json.dumps(outcome.to_dict(), sort_keys=True))
+        print(json.dumps(approval_request.to_dict(), sort_keys=True))
+        sys.stdout.flush()
+        maybe_handoff_launch_approval_from_agent(approval_request)
         sys.exit(0)
 
     segment_extra_env = None

@@ -134,7 +134,11 @@ def _execute_neutral_launch_approval_response(
     feedback: str | None,
 ) -> LaunchApprovalActionResult:
     """Execute one registered launch option through the common gate executor."""
+    from sase.gate_shell.log import bind_gate_shell_execution_callbacks
+    from sase.gate_shell.settlement import settle_gate_shell
+    from sase.gate_shell.store import find_gate_shell_by_gate_id
     from sase.notification_gates.executor import execute_gate_selection
+    from sase.notification_gates.hashing import load_and_verify_bundle
     from sase.notification_gates.models import GateError
     from sase.notification_gates.paths import RESPONSE_FILENAME
 
@@ -142,12 +146,25 @@ def _execute_neutral_launch_approval_response(
     # is a declared input on `reject`, and the executor injects the note into
     # every selected option whose schema declares it.
     option_id = choice
+    envelope, _adapter = load_and_verify_bundle(bundle_path)
+    shell_backed = isinstance(envelope.get("shell"), dict)
+    gate_shell = (
+        find_gate_shell_by_gate_id(None, str(envelope.get("request_id") or ""))
+        if shell_backed
+        else None
+    )
+    execution_kwargs: dict[str, Any] = (
+        {}
+        if gate_shell is None
+        else bind_gate_shell_execution_callbacks(gate_shell.artifacts_dir).as_kwargs()
+    )
     try:
         execution = execute_gate_selection(
             bundle_path,
             [option_id],
             feedback=feedback,
             source="launch_response",
+            **execution_kwargs,
         )
     except GateError as exc:
         code = (
@@ -156,6 +173,12 @@ def _execute_neutral_launch_approval_response(
             else exc.code
         )
         raise LaunchApprovalActionError(code, exc.target, str(exc)) from exc
+    if gate_shell is not None:
+        settle_gate_shell(
+            gate_shell,
+            gate_state="answered",
+            reason="launch approval answered",
+        )
     if execution.already_completed:
         raise LaunchApprovalActionError(
             "conflict_already_handled",

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
+import time
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -41,54 +43,238 @@ def create_workflow_hitl_gate(
     timeout_seconds: float,
 ) -> Any:
     """Create a singleton-branch gate for a workflow review."""
-    option_ids = _hitl_gate_option_ids(step_type, has_output=has_output)
+    spec = _workflow_hitl_gate_spec(
+        step_name=step_name,
+        step_type=step_type,
+        output=output,
+        workflow_name=workflow_name,
+        artifacts_dir=artifacts_dir,
+        has_output=has_output,
+        output_types=output_types,
+        timeout_seconds=timeout_seconds,
+    )
     from sase.notification_gates.service import create_gate
 
-    return create_gate(
-        {
-            "schema_version": 3,
-            "kind": "hitl",
-            "request_id": f"hitl-{uuid4()}",
-            "producer": {"artifacts_dir": artifacts_dir},
-            "continuation_mode": HITL_CONTINUATION_MODE,
-            "gate_timeout_seconds": timeout_seconds,
-            "payload": {
-                "step_name": step_name,
-                "step_type": step_type,
-                "output": _json_safe(output),
-                "workflow_name": workflow_name,
-                "has_output": has_output,
-                "output_types": dict(output_types or {}),
-            },
-            "presentation": {
-                "notes": [f"HITL waiting: step '{step_name}' in {workflow_name}"],
-                "tags": ["hitl"],
-                "action_data": {"workflow_name": workflow_name},
-            },
-            "query": " OR ".join(option_ids),
-            "primary_branch": ["accept"],
-            "options": [_hitl_gate_option(option_id) for option_id in option_ids],
-            "resources": [
-                {
-                    "path": f"commands/{option_id}",
-                    "role": "command",
-                    "content": _hitl_gate_command_script(option_id),
-                }
-                for option_id in option_ids
-            ],
-            "auto": False,
-        }
+    return create_gate(spec)
+
+
+def create_workflow_hitl_shell_gate(
+    *,
+    step_name: str,
+    step_type: str,
+    output: Any,
+    workflow_name: str,
+    artifacts_dir: str,
+    has_output: bool,
+    output_types: Mapping[str, str] | None,
+    timeout_seconds: float,
+) -> Any:
+    """Create a shell-backed HITL gate whose follow-up continues the workflow."""
+    spec = _workflow_hitl_gate_spec(
+        step_name=step_name,
+        step_type=step_type,
+        output=output,
+        workflow_name=workflow_name,
+        artifacts_dir=artifacts_dir,
+        has_output=has_output,
+        output_types=output_types,
+        timeout_seconds=timeout_seconds,
     )
+    spec["shell"] = _workflow_hitl_shell_spec(
+        step_name=step_name,
+        step_type=step_type,
+        workflow_name=workflow_name,
+        option_ids=tuple(str(option["id"]) for option in spec["options"]),
+    )
+    from sase.gate_shell import create_gate_shell
+
+    return create_gate_shell(spec)
+
+
+def maybe_handoff_workflow_hitl_from_agent(creation: Any) -> bool:
+    """Hand a shell-backed workflow HITL gate to the agent runner."""
+    if not getattr(creation, "should_handoff", False):
+        return False
+    from sase.gate_shell import (
+        maybe_handoff_gate_from_agent,
+        will_handoff_gate_to_agent_runner,
+    )
+
+    if not will_handoff_gate_to_agent_runner():
+        return False
+    return maybe_handoff_gate_from_agent(creation)
+
+
+def _workflow_hitl_gate_spec(
+    *,
+    step_name: str,
+    step_type: str,
+    output: Any,
+    workflow_name: str,
+    artifacts_dir: str,
+    has_output: bool,
+    output_types: Mapping[str, str] | None,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    """Return the durable gate specification for one workflow HITL review."""
+    option_ids = _hitl_gate_option_ids(step_type, has_output=has_output)
+    return {
+        "schema_version": 3,
+        "kind": "hitl",
+        "request_id": f"hitl-{uuid4()}",
+        "producer": {"artifacts_dir": artifacts_dir},
+        "continuation_mode": HITL_CONTINUATION_MODE,
+        "gate_timeout_seconds": timeout_seconds,
+        "payload": {
+            "step_name": step_name,
+            "step_type": step_type,
+            "output": _json_safe(output),
+            "workflow_name": workflow_name,
+            "has_output": has_output,
+            "output_types": dict(output_types or {}),
+        },
+        "presentation": {
+            "notes": [f"HITL waiting: step '{step_name}' in {workflow_name}"],
+            "tags": ["hitl"],
+            "action_data": {"workflow_name": workflow_name},
+        },
+        "query": " OR ".join(option_ids),
+        "primary_branch": ["accept"],
+        "options": [_hitl_gate_option(option_id) for option_id in option_ids],
+        "resources": [
+            {
+                "path": f"commands/{option_id}",
+                "role": "command",
+                "content": _hitl_gate_command_script(option_id),
+            }
+            for option_id in option_ids
+        ],
+        "auto": False,
+    }
 
 
 def wait_for_workflow_hitl_gate(bundle_path: Path) -> HITLResult:
     """Wait for a workflow gate and translate its selected option."""
-    from sase.notification_gates.poller import wait_for_gate
+    from sase.notification_gates.models import GateError
+    from sase.notification_gates.poller import poll_gate
 
-    result = wait_for_gate(bundle_path)
+    poll_interval = 0.2
+    if poll_interval <= 0:
+        raise GateError(
+            "invalid_poll_interval", "poll_interval", "poll_interval must be positive"
+        )
+    while True:
+        result = poll_gate(bundle_path)
+        if result is not None:
+            break
+        time.sleep(poll_interval)
     if result.status != "responded":
         return HITLResult(action="reject", approved=False)
     return _translate_workflow_hitl_response(result.payload)
+
+
+def workflow_hitl_should_handoff_from_agent() -> bool:
+    """Return whether workflow HITL should be represented as a gate shell."""
+    return bool(os.environ.get("SASE_AGENT"))
+
+
+def _workflow_hitl_shell_spec(
+    *,
+    step_name: str,
+    step_type: str,
+    workflow_name: str,
+    option_ids: tuple[str, ...],
+) -> dict[str, Any]:
+    branches = {
+        option_id: _workflow_hitl_branch(
+            option_id,
+            step_name=step_name,
+            step_type=step_type,
+            workflow_name=workflow_name,
+        )
+        for option_id in option_ids
+    }
+    branches.update(
+        {
+            "timeout": {
+                "status": "HITL TIMED OUT",
+                "accent": "#FFAF00",
+                "prompt": None,
+            },
+            "stopped": {
+                "status": "HITL CANCELLED",
+                "accent": "#FFAF00",
+                "prompt": None,
+            },
+            "failed": {
+                "status": "HITL FAILED",
+                "accent": "#FF5F5F",
+                "prompt": None,
+            },
+        }
+    )
+    return {
+        "pending_status": "HITL",
+        "settled_status": "HITL DONE",
+        "accent": "#F8AD08",
+        "workspace": "inherit",
+        "next": {"fork": "family", "output": ["results"]},
+        "branches": branches,
+    }
+
+
+def _workflow_hitl_branch(
+    option_id: str,
+    *,
+    step_name: str,
+    step_type: str,
+    workflow_name: str,
+) -> dict[str, Any]:
+    status, accent = {
+        "accept": ("HITL ACCEPTED", "#00D7AF"),
+        "edit": ("HITL EDITED", "#00D7AF"),
+        "feedback": ("HITL FEEDBACK", "#6FC4FF"),
+        "rerun": ("HITL RERUN", "#6FC4FF"),
+        "reject": ("HITL REJECTED", "#FF5F5F"),
+    }[option_id]
+    branch: dict[str, Any] = {"status": status, "accent": accent}
+    if option_id == "reject":
+        branch["prompt"] = None
+    else:
+        branch["prompt"] = _workflow_hitl_followup_prompt(
+            option_id,
+            step_name=step_name,
+            step_type=step_type,
+            workflow_name=workflow_name,
+        )
+    return branch
+
+
+def _workflow_hitl_followup_prompt(
+    option_id: str,
+    *,
+    step_name: str,
+    step_type: str,
+    workflow_name: str,
+) -> str:
+    action = {
+        "accept": "Continue with the accepted step output.",
+        "edit": "Continue with the edited output in the selected option result.",
+        "feedback": "Continue from the reviewer feedback in the gate result.",
+        "rerun": "Rerun the reviewed command step, then continue.",
+    }[option_id]
+    return "\n".join(
+        [
+            f"Continue workflow `{workflow_name}` after HITL review.",
+            "",
+            f"Step: `{step_name}`",
+            f"Step type: `{step_type}`",
+            f"HITL action: `{option_id}`",
+            "",
+            action,
+            "Use the gate Results section as the authoritative HITL result.",
+        ]
+    )
 
 
 def _translate_workflow_hitl_response(response: Mapping[str, Any]) -> HITLResult:
@@ -235,6 +421,9 @@ def _json_safe(value: Any) -> Any:
 __all__ = [
     "HITL_CONTINUATION_MODE",
     "create_workflow_hitl_gate",
+    "create_workflow_hitl_shell_gate",
     "execute_hitl_gate_command",
+    "maybe_handoff_workflow_hitl_from_agent",
     "wait_for_workflow_hitl_gate",
+    "workflow_hitl_should_handoff_from_agent",
 ]

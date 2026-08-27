@@ -8,10 +8,17 @@ from pathlib import Path
 import pytest
 
 from sase.notification_gates.executor import execute_gate_selection
+from sase.gate_shell.followup_policy import (
+    resolve_gate_branch_presentation,
+    resolve_gate_followup,
+)
 from sase.notifications import pending_actions
+from sase.notification_gates.models import GateSpec
 from sase.xprompt.workflow_hitl_gate import (
-    create_workflow_hitl_gate,
     _translate_workflow_hitl_response,
+    _workflow_hitl_gate_spec,
+    _workflow_hitl_shell_spec,
+    create_workflow_hitl_gate,
 )
 
 
@@ -101,3 +108,51 @@ def test_command_hitl_gate_keeps_rerun_and_edit_actions(
     result = _translate_workflow_hitl_response(execution.response)
     assert result.action == "edit"
     assert result.edited_output == {"artifact": "fixed.json"}
+
+
+def test_hitl_shell_maps_answered_cancelled_and_timeout_outcomes() -> None:
+    raw = _workflow_hitl_gate_spec(
+        step_name="review",
+        step_type="agent",
+        output={"answer": 42},
+        workflow_name="demo",
+        artifacts_dir="/tmp/artifacts",
+        has_output=True,
+        output_types=None,
+        timeout_seconds=60,
+    )
+    option_ids = tuple(str(option["id"]) for option in raw["options"])
+    raw["shell"] = _workflow_hitl_shell_spec(
+        step_name="review",
+        step_type="agent",
+        workflow_name="demo",
+        option_ids=option_ids,
+    )
+
+    spec = GateSpec.from_mapping(raw)
+    assert spec.shell is not None
+    envelope = {
+        "shell": spec.shell.to_dict(),
+        "branches": [list(branch) for branch in spec.branches],
+        "gate_timeout_seconds": spec.gate_timeout_seconds,
+    }
+
+    followup = resolve_gate_followup(
+        envelope,
+        gate_state="answered",
+        response={"selected_option_ids": ["accept"]},
+    )
+    assert followup is not None
+    assert followup.branch_key == "accept"
+    assert "Continue workflow `demo`" in followup.prompt
+
+    assert resolve_gate_branch_presentation(
+        envelope,
+        gate_state="stopped",
+        response={},
+    ) == ("HITL CANCELLED", "#FFAF00")
+    assert resolve_gate_branch_presentation(
+        envelope,
+        gate_state="timeout",
+        response={},
+    ) == ("HITL TIMED OUT", "#FFAF00")

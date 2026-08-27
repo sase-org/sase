@@ -75,10 +75,18 @@ class TUIHITLHandler:
         """
         from sase.xprompt.workflow_hitl_gate import (
             create_workflow_hitl_gate,
+            create_workflow_hitl_shell_gate,
+            maybe_handoff_workflow_hitl_from_agent,
             wait_for_workflow_hitl_gate,
+            workflow_hitl_should_handoff_from_agent,
         )
 
-        gate = create_workflow_hitl_gate(
+        create = (
+            create_workflow_hitl_shell_gate
+            if workflow_hitl_should_handoff_from_agent()
+            else create_workflow_hitl_gate
+        )
+        gate = create(
             step_name=step_name,
             step_type=step_type,
             output=output,
@@ -88,6 +96,9 @@ class TUIHITLHandler:
             output_types=output_types,
             timeout_seconds=_TUI_HITL_TIMEOUT,
         )
+        if workflow_hitl_should_handoff_from_agent():
+            maybe_handoff_workflow_hitl_from_agent(gate)
+            return HITLResult(action="reject", approved=False)
         return wait_for_workflow_hitl_gate(gate.bundle_path)
 
 

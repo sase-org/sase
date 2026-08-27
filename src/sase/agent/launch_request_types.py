@@ -25,6 +25,22 @@ class LaunchRequestCreationResult:
     preview_path: Path
     response_path: Path
     request: dict[str, Any]
+    gate_shell_creation: Any | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "request_id": self.request_id,
+            "notification_id": self.notification_id,
+            "response_dir": str(self.response_dir),
+            "request_file": str(self.request_path),
+            "preview_file": str(self.preview_path),
+            "response_file": str(self.response_path),
+        }
+        if self.gate_shell_creation is not None:
+            gate_shell = self.gate_shell_creation.to_dict().get("gate_shell")
+            if isinstance(gate_shell, dict):
+                payload["gate_shell"] = gate_shell
+        return payload
 
 
 LaunchRequestStatus = Literal[

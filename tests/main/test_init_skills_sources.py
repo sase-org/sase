@@ -254,9 +254,9 @@ def _disable_prettier_for_skill_generation(
             "sase_run",
             (
                 "sase launch request",
-                '"status": "approved"',
-                '"selected_option_ids": ["approve"]',
-                "do not poll request files yourself",
+                '"gate_shell"',
+                '"state": "pending"',
+                "does not return a terminal approval outcome",
                 "%i(reviewer, family=parent)",
                 "Do not run `sase run`",
                 "#git:home",

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -15,11 +17,13 @@ from sase.agent.launch_request import (
     wait_for_launch_approval,
 )
 from sase.agent.launch_types import AgentLaunchResult
+from sase.gate_shell.followup_policy import resolve_gate_branch_presentation
 from sase.launch_approval_actions import (
     _LaunchApprovalActionContext,
     LaunchApprovalActionError,
     execute_launch_approval_response,
 )
+from sase.notification_gates.service import create_gate
 
 
 def test_execute_launch_approval_response_writes_once(tmp_path: Path) -> None:
@@ -103,6 +107,134 @@ def test_create_launch_request_writes_preview_and_notification(
     assert notifications[0].action_data["request_id"] == result.request_id
     assert notifications[0].action_data["request_path"] == str(result.request_path)
     assert notifications[0].action_data["response_path"] == str(result.response_path)
+
+
+def test_agent_launch_request_uses_shell_gate_outcome_branches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.chdir(tmp_path)
+    captured: dict[str, Any] = {}
+
+    class _Creation:
+        should_handoff = True
+
+        def __init__(self, spec: dict[str, Any]) -> None:
+            self.gate = create_gate(spec)
+
+        def to_dict(self) -> dict[str, Any]:
+            payload = self.gate.to_dict()
+            payload["gate_shell"] = {
+                "gate_id": self.gate.request_id,
+                "member_agent_name": "agent--gate",
+                "artifacts_dir": str(tmp_path / "agent--gate"),
+                "state": "pending",
+                "workspace_policy": "inherit",
+            }
+            return payload
+
+    def fake_create_gate_shell(spec: dict[str, Any]) -> _Creation:
+        captured["spec"] = spec
+        return _Creation(spec)
+
+    monkeypatch.setattr("sase.gate_shell.create_gate_shell", fake_create_gate_shell)
+
+    result = create_launch_approval_request(
+        {
+            "schema_version": 1,
+            "prompt": "%i(reviewer, family=parent)\nReview",
+            "reason": "Need reviewer",
+            "max_slots": 1,
+        }
+    )
+
+    assert result.gate_shell_creation is not None
+    assert result.to_dict()["gate_shell"]["workspace_policy"] == "inherit"
+    envelope = json.loads(result.request_path.read_text(encoding="utf-8"))
+    shell = envelope["shell"]
+    assert shell["pending_status"] == "LAUNCH"
+    assert shell["branches"]["approve"]["status"] == "LAUNCHED"
+    assert shell["branches"]["reject"]["status"] == "LAUNCH REJECTED"
+    assert resolve_gate_branch_presentation(
+        envelope,
+        gate_state="stopped",
+        response={},
+    ) == ("LAUNCH CANCELLED", "#FFAF00")
+    assert resolve_gate_branch_presentation(
+        envelope,
+        gate_state="timeout",
+        response={},
+    ) == ("LAUNCH TIMED OUT", "#FFAF00")
+    assert captured["spec"]["shell"]["workspace"] == "inherit"
+
+
+def test_neutral_launch_shell_response_settles_gate_shell(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.chdir(tmp_path)
+
+    class _Creation:
+        should_handoff = True
+
+        def __init__(self, spec: dict[str, Any]) -> None:
+            self.gate = create_gate(spec)
+
+        def to_dict(self) -> dict[str, Any]:
+            return self.gate.to_dict()
+
+    monkeypatch.setattr(
+        "sase.gate_shell.create_gate_shell",
+        lambda spec: _Creation(spec),
+    )
+    request = create_launch_approval_request(
+        {
+            "schema_version": 1,
+            "prompt": "Do work",
+            "reason": "Need approval",
+            "max_slots": 1,
+        }
+    )
+    context = _LaunchApprovalActionContext(
+        id=request.notification_id,
+        host_files=(str(request.preview_path),),
+        host_action_data={
+            "request_id": request.request_id,
+            "request_kind": "launch",
+            "response_dir": str(request.response_dir),
+        },
+    )
+    fake_record = SimpleNamespace(artifacts_dir=str(tmp_path / "gate-shell"))
+    settled: dict[str, Any] = {}
+
+    monkeypatch.setattr(
+        "sase.gate_shell.store.find_gate_shell_by_gate_id",
+        lambda project, gate_id: fake_record,
+    )
+    monkeypatch.setattr(
+        "sase.gate_shell.log.bind_gate_shell_execution_callbacks",
+        lambda artifacts_dir: SimpleNamespace(as_kwargs=lambda: {}),
+    )
+    monkeypatch.setattr(
+        "sase.gate_shell.settlement.settle_gate_shell",
+        lambda record, **kwargs: settled.update(kwargs) or record,
+    )
+
+    result = execute_launch_approval_response(
+        context,
+        "reject",
+        feedback="Too broad",
+    )
+
+    assert result.response_json["selected_option_ids"] == ["reject"]
+    assert settled == {
+        "gate_state": "answered",
+        "reason": "launch approval answered",
+    }
 
 
 def test_neutral_launch_feedback_wait_and_cancellation_are_deterministic(

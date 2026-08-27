@@ -53,24 +53,14 @@ def handle_launch_command(args: argparse.Namespace) -> None:
         if subcommand == "request":
             launch_request = _create_request_from_cli(args)
             from sase.agent.launch_request import (
-                cancel_launch_approval_request,
+                maybe_handoff_launch_approval_from_agent,
                 running_agent_context_requires_launch_approval,
-                wait_for_launch_approval,
             )
 
             if running_agent_context_requires_launch_approval():
-                try:
-                    outcome = wait_for_launch_approval(launch_request)
-                except KeyboardInterrupt:
-                    try:
-                        cancel_launch_approval_request(launch_request)
-                    except LaunchRequestError:
-                        pass
-                    Console(stderr=True).print(
-                        "[yellow]Launch request cancelled[/yellow]"
-                    )
-                    sys.exit(130)
-                _print_wait_result(outcome.to_dict(), args.output)
+                _print_request_result(launch_request, args.output)
+                sys.stdout.flush()
+                maybe_handoff_launch_approval_from_agent(launch_request)
             else:
                 _print_request_result(launch_request, args.output)
             sys.exit(0)
@@ -249,14 +239,7 @@ def _print_request_result(result: LaunchRequestCreationResult, output: str) -> N
     from rich.console import Console
 
     request_id = result.request_id
-    payload = {
-        "request_id": request_id,
-        "notification_id": result.notification_id,
-        "response_dir": str(result.response_dir),
-        "request_file": str(result.request_path),
-        "preview_file": str(result.preview_path),
-        "response_file": str(result.response_path),
-    }
+    payload = result.to_dict()
     if output == "json":
         print(json.dumps(payload, sort_keys=True))
         return
@@ -264,17 +247,6 @@ def _print_request_result(result: LaunchRequestCreationResult, output: str) -> N
         f"[green]Launch approval requested[/green] "
         f"[bold]{request_id}[/bold] [dim]{_display_path(Path(payload['response_dir']))}[/dim]"
     )
-
-
-def _print_wait_result(payload: dict[str, Any], output: str) -> None:
-    from rich.console import Console
-
-    if output == "json":
-        print(json.dumps(payload, sort_keys=True))
-        return
-    status = str(payload.get("status") or "resolved").replace("_", " ")
-    message = str(payload.get("message") or status)
-    Console().print(f"[green]{status.title()}[/green] [dim]{message}[/dim]")
 
 
 def _display_path(path: Path) -> str:
