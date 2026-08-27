@@ -12,6 +12,7 @@ from .custom_modes import CustomModeMixin as CustomModeMixin
 from .event_handlers import EventHandlersMixin as EventHandlersMixin
 from .hints import HintActionsMixin as HintActionsMixin
 from .lifecycle import LifecycleMixin as LifecycleMixin
+from .link_follow import LinkFollowMixin as LinkFollowMixin
 from .link_subject import LinkSubjectMixin as LinkSubjectMixin
 from .marking import MarkingMixin as MarkingMixin
 from .navigation import NavigationMixin as NavigationMixin

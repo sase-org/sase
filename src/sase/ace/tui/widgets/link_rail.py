@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Any, Literal, cast
+from typing import Any
 
 from rich.cells import cell_len
 from rich.text import Text
@@ -14,6 +13,12 @@ from textual.widgets import Static
 from sase.ace.tui.link_rail_flag import link_rail_enabled
 from sase.ace.tui.relations.artifact_links import parse_link_ref
 from sase.ace.tui.relations.link_index import LinkChip
+from sase.ace.tui.relations.link_keys import (
+    MAX_DIRECT_LINK_KEYS,
+    LinkRailItem,
+    link_key_label,
+    link_rail_items,
+)
 from sase.ace.tui.relations.link_subject import selected_link_subject
 from sase.ace.tui.util.trace import tui_trace
 
@@ -23,7 +28,6 @@ _KEY_STYLE = "bold #FFAF00"
 _DIM_STYLE = "dim #808080"
 _WHY_STYLE = "dim #A8A8A8"
 _MISSING_STYLE = "dim #808080"
-_MAX_DIRECT_KEYS = 9
 _MAX_TARGET_LABEL_CELLS = 34
 _MAX_WHY_CELLS = 42
 
@@ -37,17 +41,6 @@ _RELATION_SIGILS = {
     "related": "rel",
     "supersedes": "sup",
 }
-
-_GroupKey = tuple[str, str, str, str, bool, bool]
-_OrderEntry = tuple[Literal["single"], int] | tuple[Literal["group"], _GroupKey]
-
-
-@dataclass(frozen=True, slots=True)
-class _RailItem:
-    chip: LinkChip
-    count: int = 1
-    projected_group: bool = False
-    neighbor_kind: str = ""
 
 
 class LinkRail(Static):
@@ -141,10 +134,10 @@ def _render_link_rail(
 ) -> Text | None:
     """Render *chips* as the one-line rail, or ``None`` when there is no rail."""
 
-    items = _rail_items(chips)
+    items = link_rail_items(tuple(chips))
     if not items:
         return None
-    visible = min(len(items), _MAX_DIRECT_KEYS)
+    visible = min(len(items), MAX_DIRECT_LINK_KEYS)
     attempts = (
         (True, True, True, visible),
         (False, True, True, visible),
@@ -184,69 +177,8 @@ def _render_link_rail(
     return text
 
 
-def _rail_items(chips: Sequence[LinkChip]) -> tuple[_RailItem, ...]:
-    singles: dict[int, LinkChip] = {}
-    groups: dict[_GroupKey, list[LinkChip]] = {}
-    order: list[_OrderEntry] = []
-    for index, chip in enumerate(chips):
-        group_key = _projected_group_key(chip)
-        if group_key is None:
-            singles[index] = chip
-            order.append(("single", index))
-            continue
-        if group_key not in groups:
-            groups[group_key] = []
-            order.append(("group", group_key))
-        groups[group_key].append(chip)
-
-    items: list[_RailItem] = []
-    for kind, key in order:
-        if kind == "single":
-            chip = singles[cast(int, key)]
-            parsed = parse_link_ref(chip.neighbor_ref)
-            items.append(
-                _RailItem(
-                    chip=chip,
-                    neighbor_kind="" if parsed is None else parsed[0],
-                )
-            )
-            continue
-        grouped = groups[cast(_GroupKey, key)]
-        representative = grouped[0]
-        parsed = parse_link_ref(representative.neighbor_ref)
-        neighbor_kind = "" if parsed is None else parsed[0]
-        items.append(
-            _RailItem(
-                chip=representative,
-                count=len(grouped),
-                projected_group=len(grouped) > 1,
-                neighbor_kind=neighbor_kind,
-            )
-        )
-    return tuple(items)
-
-
-def _projected_group_key(
-    chip: LinkChip,
-) -> _GroupKey | None:
-    if chip.origin != "projected" or not chip.created_by.startswith("projection:"):
-        return None
-    parsed = parse_link_ref(chip.neighbor_ref)
-    if parsed is None:
-        return None
-    neighbor_kind = parsed[0]
-    return (
-        chip.created_by,
-        neighbor_kind,
-        chip.relation,
-        chip.label,
-        chip.directed,
-        chip.this_is_source,
-    )
-
-
 def _compose_rail(
-    items: tuple[_RailItem, ...],
+    items: tuple[LinkRailItem, ...],
     *,
     subject_accent: str,
     include_why: bool,
@@ -283,7 +215,7 @@ def _compose_rail(
 
 def _append_item(
     text: Text,
-    item: _RailItem,
+    item: LinkRailItem,
     *,
     index: int,
     total_link_count: int,
@@ -292,7 +224,7 @@ def _append_item(
     lead_full_label: bool,
 ) -> None:
     chip = item.chip
-    _append_key(text, "$$" if total_link_count == 1 and index == 1 else f"${index}")
+    _append_key(text, link_key_label(index, total_link_count))
     text.append(f" {_direction_glyph(chip)} ", style="dim")
     relation_label = chip.label if lead and lead_full_label else _relation_sigil(chip)
     text.append(relation_label, style="dim")
@@ -331,7 +263,7 @@ def _relation_sigil(chip: LinkChip) -> str:
     return _RELATION_SIGILS.get(chip.relation, chip.label[:4] or chip.relation[:4])
 
 
-def _target_label(item: _RailItem) -> str:
+def _target_label(item: LinkRailItem) -> str:
     if item.projected_group:
         return f"{item.count} {_plural_kind(item.neighbor_kind)}"
     parsed = parse_link_ref(item.chip.neighbor_ref)
@@ -355,7 +287,7 @@ def _plural_kind(kind: str) -> str:
     return f"{kind}s" if kind else "links"
 
 
-def _item_is_missing(item: _RailItem) -> bool:
+def _item_is_missing(item: LinkRailItem) -> bool:
     return item.chip.neighbor_target is None and item.neighbor_kind != "chop"
 
 

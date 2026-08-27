@@ -87,6 +87,8 @@ def init_navigation_state(self: Any) -> None:
     self._link_index_loading = False
     self._link_index_pending = False
     self._link_index_generation = 0
+    self._pending_link_prefix = False
+    self._link_trail = []
 
     # Cached graph index over ``_all_patches``; rebuilt only when the
     # list identity changes (see ``_get_patch_graph_index``).

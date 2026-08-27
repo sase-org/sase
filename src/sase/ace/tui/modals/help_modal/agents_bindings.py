@@ -1,6 +1,7 @@
 """Agents tab keybinding sections for the help modal."""
 
 from ...keymaps import KeymapRegistry, key_display_name, leader_key_display
+from ...link_rail_flag import link_rail_enabled
 from .binding_common import (
     ADMIN_CENTER_TASKS_SECTION,
     ADMIN_CENTER_UPDATES_SECTION,
@@ -28,6 +29,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
     assert isinstance(ag_copy, dict)
     ag_fold = fm.keys["agents"]
     assert isinstance(ag_fold, dict)
+    link_follow_row = _link_follow_row(d(a.follow_artifact_link))
 
     sections: Sections = [
         (
@@ -72,6 +74,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(a.scroll_prompt_down)} / {d(a.scroll_prompt_up)}",
                     "Scroll prompt panel down / up",
                 ),
+                *link_follow_row,
             ],
         ),
         (
@@ -512,3 +515,9 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
         ),
     )
     return sections
+
+
+def _link_follow_row(key: str) -> list[tuple[str, str]]:
+    if not link_rail_enabled():
+        return []
+    return [(f"{key}{key} / {key}1-9 / {key}0", "Follow link / open links panel")]

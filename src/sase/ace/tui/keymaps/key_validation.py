@@ -6,6 +6,7 @@ UNBOUND_KEY = "unbound"
 # Textual special key names -> display characters.
 _KEY_DISPLAY: dict[str, str] = {
     "full_stop": ".",
+    "dollar_sign": "$",
     "exclamation_mark": "!",
     "percent_sign": "%",
     "comma": ",",
@@ -68,6 +69,8 @@ _KEY_ALIASES: dict[str, str] = {
     # Textual normalizes the printable ``-`` key to the name ``minus``; accept
     # the raw glyph as a friendly config spelling for it.
     "-": "minus",
+    # Textual normalizes the printable ``$`` key to the name ``dollar_sign``.
+    "$": "dollar_sign",
 }
 
 

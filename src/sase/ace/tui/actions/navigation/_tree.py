@@ -334,9 +334,18 @@ class TreeNavigationMixin(NavigationMixinBase):
         )
         if target.pane_id != pane_id:
             request = getattr(self, "_request_artifacts_entry", None)
+            selected = False
             if callable(request):
-                request(target)
-            return
+                selected = bool(request(target))
+            if selected:
+                return
+            pane = self._relation_navigator()
+            if pane is None:
+                return
+            if getattr(pane, "_loading", False) or getattr(
+                pane, "_loading_full", False
+            ):
+                return
         if pane.select_entry_target(target):
             sync = getattr(self, "_sync_active_artifacts_entry_state", None)
             if callable(sync):

@@ -5,6 +5,7 @@ from __future__ import annotations
 from rich.cells import cell_len
 
 from sase.ace.tui.relations.link_index import LinkChip
+from sase.ace.tui.relations.link_keys import link_key_label, link_rail_items
 from sase.ace.tui.widgets.link_rail import _render_link_rail
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 
@@ -131,6 +132,35 @@ def test_projected_same_rule_same_kind_edges_collapse_to_counted_chip() -> None:
     assert "12 stitches" in plain
     assert "$2" not in plain
     assert "$0 all" in plain
+
+
+def test_shared_link_key_order_collapses_projected_groups() -> None:
+    grouped = tuple(
+        _chip(
+            relation="implements",
+            label="implemented-by",
+            this_is_source=False,
+            neighbor_ref=f"stitch:sase@0123456789abcdef0123456789abcde{index:03d}",
+            neighbor_target=ArtifactEntryTarget(
+                "stitches",
+                ("sase", f"0123456789abcdef0123456789abcde{index:03d}"),
+            ),
+            origin="projected",
+            created_by="projection:stitch-bead",
+        )
+        for index in range(3)
+    )
+    direct = _chip(neighbor_ref="bead:sase-ug.7")
+
+    items = link_rail_items((*grouped, direct))
+
+    assert len(items) == 2
+    assert items[0].count == 3
+    assert items[0].projected_group is True
+    assert items[0].neighbor_kind == "stitch"
+    assert items[1].chip == direct
+    assert link_key_label(1, 1) == "$$"
+    assert link_key_label(1, 2) == "$1"
 
 
 def test_dangling_link_stays_visible_and_marks_missing_target() -> None:

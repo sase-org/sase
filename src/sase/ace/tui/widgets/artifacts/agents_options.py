@@ -58,6 +58,7 @@ class AgentsOptionsMixin(_MixinBase):
     _pending_entry_target: ArtifactEntryTarget | None
     _syncing_options: bool
     _filter_session_open: bool
+    _live_query_source: str | None
     _filter_query_error: ProfileQueryError | None
     _filtered_count: int | None
     _display_count: int | None
@@ -179,14 +180,14 @@ class AgentsOptionsMixin(_MixinBase):
         if pending_target is not None:
             if highlighted is not None:
                 self._pending_entry_target = None
+            elif (
+                self._query_has_active_filter() and self._clear_filter_for_entry_jump()
+            ):
+                self._notify_filter_cleared_for_entry_jump()
+                self._refresh_options(preferred_target=pending_target)
+                return
             elif self._current_snapshot() is not None:
-                self._pending_entry_target = None
-                notify = getattr(self, "notify", None)
-                if callable(notify):
-                    notify(
-                        "Linked agent is no longer visible in Agent",
-                        severity="warning",
-                    )
+                self._notify_pending_entry_missing()
         if highlighted is None:
             highlighted = next(
                 (index for index, option in enumerate(options) if not option.disabled),
@@ -212,6 +213,30 @@ class AgentsOptionsMixin(_MixinBase):
             coverage_label="capped" if truncated else None,
             lower_bound=truncated,
         )
+
+    def _clear_filter_for_entry_jump(self) -> bool:
+        if not self._query_has_active_filter() and not self._filter_session_open:
+            return False
+        self.query_source = ""  # type: ignore[attr-defined]
+        self._live_query_source = None  # type: ignore[attr-defined]
+        self._filter_query_error = None
+        if self._filter_session_open:
+            self._close_agent_filter_session()  # type: ignore[attr-defined]
+        cancel = getattr(self, "_cancel_jump_mode_for_filter_change", None)
+        if callable(cancel):
+            cancel()
+        return True
+
+    def _notify_filter_cleared_for_entry_jump(self) -> None:
+        notify = getattr(self, "notify", None)
+        if callable(notify):
+            notify("Cleared Agent filter to show linked agent")
+
+    def _notify_pending_entry_missing(self) -> None:
+        self._pending_entry_target = None
+        notify = getattr(self, "notify", None)
+        if callable(notify):
+            notify("Linked agent is no longer visible in Agent", severity="warning")
 
     def _update_empty(self) -> None:
         if not self.is_mounted:

@@ -72,6 +72,7 @@ class FilesOptionsMixin(_MixinBase):
     _syncing_options: bool
     filters: FilesFilterValues
     _filter_session_open: bool
+    _live_filter_values: FilesFilterValues | None
     _filter_query_error: FilesFilterQueryError | None
     _filtered_count: int | None
     _query_index: ArtifactQueryIndex | None
@@ -192,14 +193,17 @@ class FilesOptionsMixin(_MixinBase):
         if pending_target is not None:
             if highlighted is not None:
                 self._pending_entry_target = None
-            elif self._current_snapshot() is not None:
-                self._pending_entry_target = None
-                notify = getattr(self, "notify", None)
-                if callable(notify):
-                    notify(
-                        "Linked file is no longer visible in Files",
-                        severity="warning",
-                    )
+            elif registry is not None and self._expand_group_for_pending_target(
+                pending_target, registry
+            ):
+                self._refresh_options(preferred_target=pending_target)
+                return
+            elif not values.is_empty and self._clear_filter_for_entry_jump():
+                self._notify_filter_cleared_for_entry_jump()
+                self._refresh_options(preferred_target=pending_target)
+                return
+            elif self._pending_entry_resolution_complete():
+                self._notify_pending_entry_missing()
         if highlighted is None:
             highlighted = next(
                 (index for index, option in enumerate(options) if not option.disabled),
@@ -226,6 +230,54 @@ class FilesOptionsMixin(_MixinBase):
             lower_bound=truncated,
         )
         self._schedule_detail()
+
+    def _expand_group_for_pending_target(
+        self,
+        target: ArtifactEntryTarget,
+        registry: GroupFoldRegistry,
+    ) -> bool:
+        result = self._group_build_result(fold_registry=registry)
+        changed = False
+        for row in result.rows:
+            if (
+                row.kind == "banner"
+                and row.banner is not None
+                and row.banner.collapsed
+                and target in row.banner.member_targets
+            ):
+                if registry.expand(row.banner.group_key):
+                    changed = True
+        return changed
+
+    def _clear_filter_for_entry_jump(self) -> bool:
+        if self.filters.is_empty and not self._filter_session_open:
+            return False
+        self.filters = FilesFilterValues()
+        self._filter_query_error = None
+        if self._filter_session_open:
+            self._close_filter_session()  # type: ignore[attr-defined]
+        else:
+            self._live_filter_values = None  # type: ignore[attr-defined]
+        return True
+
+    def _notify_filter_cleared_for_entry_jump(self) -> None:
+        notify = getattr(self, "notify", None)
+        if callable(notify):
+            notify("Cleared Files filter to show linked file")
+
+    def _notify_pending_entry_missing(self) -> None:
+        self._pending_entry_target = None
+        notify = getattr(self, "notify", None)
+        if callable(notify):
+            notify("Linked file is no longer visible in Files", severity="warning")
+
+    def _pending_entry_resolution_complete(self) -> bool:
+        if self._loading or self._loading_full:
+            return False
+        snapshot = self._current_snapshot()
+        if snapshot is None:
+            return False
+        return snapshot.complete or snapshot.load_error is not None
 
     def _filtered_snapshot(
         self, values: FilesFilterValues

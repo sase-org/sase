@@ -141,6 +141,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("start_child_mode", "Child", False),
     ("start_sibling_mode", "Sibling", False),
     ("toggle_relation_panel", "Relations Panel", False),
+    ("follow_artifact_link", "Follow Link", False),
     ("toggle_hide_reverted", "Toggle Reverted", False),
     ("patches_toggle_reverted", "Toggle Reverted", False),
     ("toggle_hide_submitted", "Toggle Submitted", False),

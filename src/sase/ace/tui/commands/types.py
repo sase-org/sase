@@ -208,6 +208,7 @@ class CommandContext:
     # command catalog's conservative legacy behavior.
     artifact_selection_present: bool | None = None
     artifact_available_targets: frozenset[str] | None = None
+    link_edges_present: bool | None = None
     # Patches tab state
     mark_count: int = 0
     # Agents tab state

@@ -251,6 +251,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding(">", "start_child_mode", "Child", show=False),
     Binding("~", "start_sibling_mode", "Sibling", show=False),
     Binding("full_stop", "toggle_relation_panel", "Relations Panel", show=False),
+    Binding("dollar_sign", "follow_artifact_link", "Follow Link", show=False),
     # Hide/show reverted/submitted
     Binding("full_stop", "toggle_hide_reverted", "Toggle Reverted", show=False),
     Binding("X", "patches_toggle_reverted", "Toggle Reverted", show=False),

@@ -597,6 +597,7 @@ ace:
       # Shares `.` with toggle_hide_reverted; disambiguated by tab availability
       # (the same arrangement `x` already uses for kill_agent/toggle_hide_submitted).
       toggle_relation_panel: "full_stop"
+      follow_artifact_link: "dollar_sign"
       # Mode activation prefixes
       start_fold_mode: "z"
       zoom_panel: "Z"

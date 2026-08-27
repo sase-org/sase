@@ -29,6 +29,7 @@ class EventKeyboardMixin(EventHandlersBase):
             event.prevent_default()
             event.stop()
             return
+        link_prefix_handler = getattr(self, "_handle_link_prefix_key", None)
         member_jump_handler = getattr(self, "_handle_member_jump_key", None)
         key = normalize_jump_key(event.key, event.character)
         if (
@@ -43,6 +44,9 @@ class EventKeyboardMixin(EventHandlersBase):
             if self._handle_entry_jump_key(key):  # type: ignore[attr-defined]
                 event.prevent_default()
                 event.stop()
+        elif callable(link_prefix_handler) and link_prefix_handler(event):
+            event.prevent_default()
+            event.stop()
         elif getattr(self, "_panel_fold_hint_mode_active", False):
             if self._handle_panel_fold_hint_key(key):  # type: ignore[attr-defined]
                 event.prevent_default()

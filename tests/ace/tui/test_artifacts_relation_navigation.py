@@ -26,19 +26,26 @@ class _Pane:
         self.origin = ArtifactEntryTarget("beads", ("demo", "phase", "origin"))
         self.select_result = select_result
         self.reveal_result = reveal_result
+        self.current = self.origin
         self.selected: ArtifactEntryTarget | None = None
         self.recorded: ArtifactEntryTarget | None = None
         self.revealed: tuple[ArtifactEntryTarget, RelationRole] | None = None
 
     def selected_entry_target(self) -> ArtifactEntryTarget:
-        return self.origin
+        return self.current
 
     def record_relation_origin(self, origin: ArtifactEntryTarget) -> None:
         self.recorded = origin
 
     def select_entry_target(self, target: ArtifactEntryTarget) -> bool:
         self.selected = target
-        return self.select_result
+        if self.select_result:
+            self.current = target
+            return True
+        return False
+
+    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        return self.select_entry_target(target)
 
     def reveal_entry_target(
         self,
@@ -67,15 +74,19 @@ class _App(TreeNavigationMixin):
         self._sibling_mode_active = False
         self._child_key_buffer = ""
         self.pane = pane or _Pane()
+        self.panes = {"beads": self.pane, "ref:plan": _Pane()}
         self.requested: ArtifactEntryTarget | None = None
         self.synced = 0
 
     def _artifacts_entry_navigator(self, pane_key: str | None = None) -> _Pane:
-        assert pane_key is None
-        return self.pane
+        return self.panes[pane_key or self.current_artifacts_pane_key]
 
-    def _request_artifacts_entry(self, target: ArtifactEntryTarget) -> None:
+    def _request_artifacts_entry(self, target: ArtifactEntryTarget) -> bool:
         self.requested = target
+        self.current_artifacts_pane_key = target.pane_id
+        return self._artifacts_entry_navigator(target.pane_id).request_entry_target(
+            target
+        )
 
     def _sync_active_artifacts_entry_state(self) -> None:
         self.synced += 1

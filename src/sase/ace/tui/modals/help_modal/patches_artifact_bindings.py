@@ -3,6 +3,7 @@
 from ..._artifact_tab_actions import action_applies_to_contract
 from ...artifact_tabs import PaneCapability, resolve_artifacts_subtabs
 from ...keymaps import KeymapRegistry, key_display_name
+from ...link_rail_flag import link_rail_enabled
 from sase.core.artifact_relation_layout import (
     RelationRole,
     assign_relation_roles,
@@ -40,6 +41,11 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             "Load more / unload one page",
         ),
     ]
+    if link_rail_enabled():
+        key = d(a.follow_artifact_link)
+        artifact_list_navigation.append(
+            (f"{key}{key} / {key}1-9 / {key}0", "Follow link / open links panel")
+        )
 
     return [
         (

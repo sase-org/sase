@@ -10,6 +10,7 @@ from sase.ace.tui.commands import (
     is_command_available,
 )
 from sase.ace.tui.keymaps import load_keymap_registry
+from sase.feature_flags import override_flags
 from tests._command_availability_helpers import catalog_by_id as _catalog_by_id
 
 
@@ -27,6 +28,27 @@ def test_command_hidden_when_tab_not_in_spec_tabs() -> None:
     show_diff = catalog["app.show_diff"]
     ctx = CommandContext(tab="agents")
     assert not is_command_available(show_diff, ctx)
+
+
+def test_follow_artifact_link_palette_requires_flag_and_edges() -> None:
+    spec = _catalog_by_id()["app.follow_artifact_link"]
+
+    with override_flags(link_rail=False):
+        assert not is_command_available(
+            spec,
+            CommandContext(tab="agents", link_edges_present=True),
+        )
+
+    with override_flags(link_rail=True):
+        assert not is_command_available(
+            spec,
+            CommandContext(tab="agents", link_edges_present=False),
+        )
+        assert is_command_available(
+            spec,
+            CommandContext(tab="agents", link_edges_present=True),
+        )
+        assert is_command_available(spec, CommandContext(tab="agents"))
 
 
 def test_metadata_sections_are_agents_only_and_forward_jump_is_all_tab() -> None:

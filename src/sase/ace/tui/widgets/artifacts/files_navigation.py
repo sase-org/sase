@@ -205,6 +205,8 @@ class FilesNavigationMixin(_MixinBase):
             self._pending_entry_target = None
             return True
         self._pending_entry_target = target
+        if self._current_snapshot() is not None:  # type: ignore[attr-defined]
+            self._refresh_options()  # type: ignore[attr-defined]
         return False
 
     def clear_pending_entry_target(self) -> None:

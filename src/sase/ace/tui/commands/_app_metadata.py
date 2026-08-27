@@ -67,6 +67,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("jump", "forward", "ctrl+shift+o"),
     ),
     ("jump_to_all_entries", "Jump to any entry", "Navigation", ALL_TABS, ("hint",)),
+    (
+        "follow_artifact_link",
+        "Follow artifact link",
+        "Navigation",
+        ALL_TABS,
+        ("link", "links", "$"),
+    ),
     # Tab switching
     ("next_tab", "Next tab", "Tabs", ALL_TABS, ()),
     ("prev_tab", "Previous tab", "Tabs", ALL_TABS, ()),

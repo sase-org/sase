@@ -10,9 +10,11 @@ from textual.widgets import OptionList
 from sase.ace.testing import wait_for
 from sase.ace.tui.modals.base import FilterInput
 from sase.ace.tui.modals.numbered_link_keys import (
+    LINK_FOLLOW_PREFIX,
     NUMBERED_LINK_BINDING,
     arm_numbered_link,
     clear_numbered_link_prefix,
+    handle_link_prefix_key,
     handle_numbered_link_key,
 )
 
@@ -59,6 +61,29 @@ class _NumberedLinkApp(App[None]):
 
     def pane(self) -> _NumberedLinkPane:
         return self.query_one(_NumberedLinkPane)
+
+
+class _PrefixHarness:
+    focused = None
+
+    def __init__(self) -> None:
+        self.app = self
+        self._pending_link_prefix = False
+        self.followed: list[int] = []
+        self.opened = 0
+
+    def dispatch(self, key: str, character: str | None = None) -> bool:
+        return handle_link_prefix_key(
+            self,
+            Key(key, character),
+            LINK_FOLLOW_PREFIX,
+            follow=self.followed.append,
+            on_double=lambda: self.followed.append(1),
+            on_zero=self._open_panel,
+        )
+
+    def _open_panel(self) -> None:
+        self.opened += 1
 
 
 async def test_repeated_prefix_stays_armed_then_follows() -> None:
@@ -140,3 +165,22 @@ async def test_pending_prefix_clears_when_hidden() -> None:
         await pilot.pause()
         assert pane.followed == []
         assert pane._pending_numbered_link is False
+
+
+def test_generic_link_prefix_supports_double_digit_and_zero() -> None:
+    pane = _PrefixHarness()
+
+    assert pane.dispatch("dollar_sign", "$")
+    assert pane._pending_link_prefix is True
+    assert pane.dispatch("dollar_sign", "$")
+    assert pane.followed == [1]
+    assert pane._pending_link_prefix is False
+
+    assert pane.dispatch("dollar_sign", "$")
+    assert pane.dispatch("4", "4")
+    assert pane.followed == [1, 4]
+
+    assert pane.dispatch("dollar_sign", "$")
+    assert pane.dispatch("0", "0")
+    assert pane.opened == 1
+    assert pane._pending_link_prefix is False
