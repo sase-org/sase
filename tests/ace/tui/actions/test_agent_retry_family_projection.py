@@ -86,9 +86,8 @@ def test_live_failed_plan_family_projects_retry_immediately(
     assert root.retry_wait_seconds == 300
     assert agent_status_bucket(root) == "Running"
 
-    planner = next(agent for agent in agents if agent.agent_family_role == "plan")
     coder = next(agent for agent in agents if agent.agent_family_role == "code")
-    assert planner.status == "TALE APPROVED"
+    assert not any(agent.agent_family_role == "plan" for agent in agents)
     assert coder.status == "FAILED"
 
 

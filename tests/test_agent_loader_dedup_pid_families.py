@@ -151,7 +151,7 @@ def test_live_family_root_survives_shared_pid_for_runner_slot_context() -> None:
 
 
 def test_pid_dedup_preserves_followup_workflow_agents() -> None:
-    """Separate plan and code phases survive when their runner PID is shared."""
+    """Separate plan and code phases survive without synthetic planner rows."""
     plan_agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="sase",
@@ -182,7 +182,7 @@ def test_pid_dedup_preserves_followup_workflow_agents() -> None:
     ):
         result = load_all_agents()
 
-    assert len(result) == 3
+    assert len(result) == 2
     suffixes = {agent.raw_suffix for agent in result}
     assert "20260315213215" in suffixes
     assert "20260315214530" in suffixes

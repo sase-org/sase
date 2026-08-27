@@ -333,8 +333,8 @@ def apply_status_overrides(
                 # Propagate diff_path from follow-up child to parent so the
                 # file panel can display the code diff (more relevant than
                 # the planner's own diff). Planner rows only fill a missing
-                # parent diff; synthetic planner rows copy the parent diff and
-                # must not clobber a coder diff propagated earlier in the pass.
+                # parent diff and must not clobber a coder diff propagated
+                # earlier in the pass.
                 if agent.diff_path and (role != "plan" or not parent.diff_path):
                     parent.diff_path = agent.diff_path
 
