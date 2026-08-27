@@ -42,6 +42,7 @@ class _ViewApp(InputProcessingMixin, FileViewingMixin):
         self._hint_commit_views = {}
         self._hint_patch_name = "cs"
         self.notify = MagicMock()
+        self.push_screen = MagicMock()
         self.app = SimpleNamespace(push_screen=MagicMock())
         self.suspend_recorder = _SuspendRecorder()
 

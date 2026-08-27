@@ -34,7 +34,7 @@ class _Signature:
 
 
 def _assert_pager_document_paths(app: object, paths: list[str]) -> None:
-    pager = app._view_files_with_sase_pager  # type: ignore[attr-defined]
+    pager = app._view_files_with_pager_screen  # type: ignore[attr-defined]
     pager.assert_called_once()
     (document,) = pager.call_args.args
     assert [section.title for section in document.sections] == paths
@@ -102,7 +102,7 @@ async def test_tool_call_report_hint_is_materialized_for_pager(
     app._hint_tool_call_reports = {
         report_path: _report_spec(report_path, status="success")
     }
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
 
     await app._process_view_input("1")
 
@@ -118,7 +118,7 @@ async def test_tool_call_report_materialization_runs_off_event_loop_thread(
     report_path = str(tmp_path / "report.md")
     app = _make_app(report_path)
     app._hint_tool_call_reports = {report_path: _report_spec(report_path)}
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     event_loop_thread = threading.get_ident()
     writer_threads: list[int] = []
 
@@ -149,7 +149,7 @@ async def test_mixed_report_and_file_selection_preserves_order(
     notes.write_text("notes", encoding="utf-8")
     app = _make_app(str(notes), report_path)
     app._hint_tool_call_reports = {report_path: _report_spec(report_path)}
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
 
     await app._process_view_input("2 1")
 
@@ -198,7 +198,7 @@ async def test_tool_call_report_materialization_failure_drops_path(
     report_path = str(tmp_path / ".sase" / "tool_call_reports" / "report.md")
     app = _make_app(report_path)
     app._hint_tool_call_reports = {report_path: _report_spec(report_path)}
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     monkeypatch.setattr(
         "sase.ace.tui.actions.hints._processing.write_tool_call_report",
         lambda _spec: None,
@@ -206,7 +206,7 @@ async def test_tool_call_report_materialization_failure_drops_path(
 
     await app._process_view_input("1")
 
-    app._view_files_with_sase_pager.assert_not_called()
+    app._view_files_with_pager_screen.assert_not_called()
     app.notify.assert_any_call(
         f"Failed to build hint report: {report_path}",
         severity="error",
@@ -225,7 +225,7 @@ async def test_glossary_hint_is_materialized_for_pager(
     report_path = str(tmp_path / ".sase" / "glossary_read_reports" / "report.md")
     app = _make_app(report_path)
     app._hint_glossary_reports = {report_path: _glossary_spec(report_path)}
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
 
     await app._process_view_input("1")
 
@@ -243,7 +243,7 @@ async def test_glossary_report_materialization_runs_off_event_loop_thread(
     report_path = str(tmp_path / "glossary-report.md")
     app = _make_app(report_path)
     app._hint_glossary_reports = {report_path: _glossary_spec(report_path)}
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     event_loop_thread = threading.get_ident()
     writer_threads: list[int] = []
 
@@ -280,7 +280,7 @@ async def test_mixed_glossary_tool_call_and_file_selection_preserves_order(
     app = _make_app(str(notes), glossary_path, tool_path)
     app._hint_glossary_reports = {glossary_path: _glossary_spec(glossary_path)}
     app._hint_tool_call_reports = {tool_path: _report_spec(tool_path)}
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
 
     await app._process_view_input("3 1 2")
 
@@ -294,7 +294,7 @@ async def test_memory_report_hint_is_materialized_for_pager(
     report_path = str(tmp_path / ".sase" / "memory_read_reports" / "memory.md")
     app = _make_app(report_path)
     app._hint_memory_reports = {report_path: _memory_spec(report_path)}
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
 
     def write_report(_spec: MemoryReadReportSpec) -> str:
         Path(report_path).parent.mkdir(parents=True, exist_ok=True)
@@ -319,7 +319,7 @@ async def test_memory_report_materialization_runs_off_event_loop_thread(
     report_path = str(tmp_path / "memory-report.md")
     app = _make_app(report_path)
     app._hint_memory_reports = {report_path: _memory_spec(report_path)}
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     event_loop_thread = threading.get_ident()
     writer_threads: list[int] = []
 
@@ -391,7 +391,7 @@ async def test_mixed_memory_glossary_tool_call_and_file_selection_preserves_orde
     app._hint_memory_reports = {memory_path: _memory_spec(memory_path)}
     app._hint_glossary_reports = {glossary_path: _glossary_spec(glossary_path)}
     app._hint_tool_call_reports = {tool_path: _report_spec(tool_path)}
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
 
     def write_memory(_spec: MemoryReadReportSpec) -> str:
         Path(memory_path).write_text("memory", encoding="utf-8")
@@ -432,7 +432,7 @@ async def test_memory_report_materialization_failure_drops_path(
     report_path = str(tmp_path / "memory-report.md")
     app = _make_app(report_path)
     app._hint_memory_reports = {report_path: _memory_spec(report_path)}
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     monkeypatch.setattr(
         "sase.ace.tui.actions.hints._processing.write_memory_read_report",
         lambda _spec: None,
@@ -440,7 +440,7 @@ async def test_memory_report_materialization_failure_drops_path(
 
     await app._process_view_input("1")
 
-    app._view_files_with_sase_pager.assert_not_called()
+    app._view_files_with_pager_screen.assert_not_called()
     app.notify.assert_any_call(
         f"Failed to build hint report: {report_path}",
         severity="error",

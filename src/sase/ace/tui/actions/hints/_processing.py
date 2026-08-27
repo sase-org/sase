@@ -356,7 +356,7 @@ class InputProcessingMixin(HintMixinBase):
                 document = await asyncio.to_thread(
                     build_pager_document, files, request.commit_specs
                 )
-                self._view_files_with_sase_pager(document)  # type: ignore[attr-defined]
+                self._view_files_with_pager_screen(document)  # type: ignore[attr-defined]
 
     def _files_for_view_hints(self, hint_nums: Iterable[int]) -> list[str]:
         hint_input = " ".join(str(hint_num) for hint_num in hint_nums)

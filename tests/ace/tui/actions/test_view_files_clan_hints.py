@@ -39,7 +39,7 @@ from tests.ace.tui.widgets._agent_display_helpers import FakePromptPanel
 
 
 def _assert_pager_document_paths(app: object, paths: list[str]) -> None:
-    pager = app._view_files_with_sase_pager  # type: ignore[attr-defined]
+    pager = app._view_files_with_pager_screen  # type: ignore[attr-defined]
     pager.assert_called_once()
     (document,) = pager.call_args.args
     assert [section.title for section in document.sections] == paths
@@ -81,7 +81,7 @@ class _ClanViewApp(InputProcessingMixin, FileViewingMixin):
         self._hint_patch_name = ""
         self.notify = MagicMock()
         self._refresh_agents_display = MagicMock()
-        self._view_files_with_sase_pager = MagicMock()
+        self._view_files_with_pager_screen = MagicMock()
         self._workers: list[asyncio.Task[object]] = []
 
     def _get_selected_agent(self) -> Agent:

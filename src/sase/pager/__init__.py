@@ -7,6 +7,7 @@ See ``plan:202608/link_traversing_pager.md`` for the full design.
 from __future__ import annotations
 
 from sase.pager.app import AttachedTargetHandler, PagerExit, SasePager
+from sase.pager.screen import PagerScreen
 from sase.pager._labels import (
     LabelWindowScope,
     PAGER_LABEL_ALPHABET,
@@ -57,6 +58,7 @@ __all__ = [
     "PagerOrigin",
     "PagerSearchState",
     "PagerSection",
+    "PagerScreen",
     "PagerTargetSpan",
     "PagerTargetSource",
     "PagerTrailEntry",

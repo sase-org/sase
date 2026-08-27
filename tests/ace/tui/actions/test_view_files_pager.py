@@ -1,23 +1,32 @@
-"""Tests for `SasePager` dispatch in the view-file flow."""
+"""Tests for `PagerScreen` dispatch in the view-file flow."""
 
 from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 import threading
 from unittest.mock import MagicMock
 
 import pytest
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import VerticalScroll
+from textual.widgets import Static
 
 from sase.ace.tui.actions.hints._files import (
     _COMMIT_TARGET_KIND,
+    FileViewingMixin,
     _handle_commit_attached_target,
     _resolve_ref_from_link_index,
     build_pager_document,
 )
+from sase.ace.tui.actions.hints._processing import InputProcessingMixin
 from sase.ace.tui.modals.commit_view_modal import CommitViewModal
 from sase.core.artifact_entry_target import ArtifactEntryTarget
+from sase.pager import PagerExit, PagerScreen
 from sase.pager.document import (
+    AttachedTarget,
     PagerDocument,
     PagerOrigin,
     PagerSection,
@@ -28,10 +37,43 @@ from sase.pager.resolve import LinkTarget, LinkTargetKind
 from ._view_files_helpers import _commit_spec, _make_app
 
 
-class _FakePager:
+class _FakeScreen:
     def __init__(self) -> None:
         self.notify = MagicMock()
-        self.push_screen = MagicMock()
+        self.app = SimpleNamespace(push_screen=MagicMock())
+
+
+class _PagerHost(App[None]):
+    """Minimal Textual host used to exercise nested pager-screen behavior."""
+
+    BINDINGS = [Binding("a", "host_a", "Host A", show=False)]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.dismissed: list[PagerExit] = []
+        self.host_a_count = 0
+
+    def compose(self) -> ComposeResult:
+        yield Static("host")
+
+    def action_host_a(self) -> None:
+        self.host_a_count += 1
+
+
+class _ViewHost(InputProcessingMixin, FileViewingMixin, App[None]):
+    """A real Textual host for the ACE view-file mixins."""
+
+    def __init__(self, hint_mappings: dict[int, str]) -> None:
+        super().__init__()
+        self._hint_mappings = hint_mappings
+        self._hint_tool_call_reports = {}
+        self._hint_glossary_reports = {}
+        self._hint_memory_reports = {}
+        self._hint_commit_views = {}
+        self._hint_patch_name = "cs"
+
+    def compose(self) -> ComposeResult:
+        yield Static("host")
 
 
 def _target(spec: object, *, text: str = "abc1234") -> PagerTargetSpan:
@@ -43,6 +85,46 @@ def _target(spec: object, *, text: str = "abc1234") -> PagerTargetSpan:
         text=text,
         source="attached",
     )
+
+
+def _multi_section_document() -> PagerDocument:
+    sections = tuple(
+        PagerSection(
+            identity=f"file:/tmp/{name}.py",
+            title=f"{name}.py",
+            kind="file",
+            body="\n".join(f"{name} line {index}" for index in range(12)) + "\n",
+        )
+        for name in ("alpha", "beta")
+    )
+    return PagerDocument(sections=sections, title="2 files", origin=PagerOrigin.FILE)
+
+
+def _attached_label_document(count: int) -> PagerDocument:
+    lines: list[str] = []
+    targets: list[AttachedTarget] = []
+    offset = 0
+    for index in range(count):
+        label = f"commit{index:02d}"
+        line = f"{label} subject {index}"
+        targets.append(
+            AttachedTarget(
+                kind=_COMMIT_TARGET_KIND,
+                target=f"target-{index}",
+                start=offset,
+                end=offset + len(label),
+            )
+        )
+        lines.append(line)
+        offset += len(line) + 1
+    section = PagerSection(
+        identity="pager-commits",
+        title="Selected commits",
+        kind=_COMMIT_TARGET_KIND,
+        body="\n".join(lines) + "\n",
+        targets=tuple(targets),
+    )
+    return PagerDocument(sections=(section,), title="commits", origin=PagerOrigin.FILE)
 
 
 # -- build_pager_document -----------------------------------------------------
@@ -86,12 +168,12 @@ async def test_dispatches_to_sase_pager_with_built_document(tmp_path: Path) -> N
     notes = tmp_path / "notes.md"
     notes.write_text("hi", encoding="utf-8")
     app = _make_app(str(notes))
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
 
     await app._process_view_input("1")
 
-    app._view_files_with_sase_pager.assert_called_once()
-    (document,) = app._view_files_with_sase_pager.call_args.args
+    app._view_files_with_pager_screen.assert_called_once()
+    (document,) = app._view_files_with_pager_screen.call_args.args
     assert [section.identity for section in document.sections] == [f"file:{notes}"]
 
 
@@ -101,7 +183,7 @@ async def test_builds_the_document_off_the_event_loop_thread(
     notes = tmp_path / "notes.md"
     notes.write_text("hi", encoding="utf-8")
     app = _make_app(str(notes))
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     event_loop_thread = threading.get_ident()
     build_threads: list[int] = []
     real_build_pager_document = build_pager_document
@@ -129,23 +211,23 @@ async def test_mixed_file_and_commit_selection_attaches_commit_section(
     spec = _commit_spec()
     app = _make_app(str(notes))
     app._hint_commit_views = {2: spec}
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
 
     await app._process_view_input("1 2")
 
     # The existing eager commit-modal behavior (tested exhaustively in
     # test_view_files_commits.py) is untouched by the flag.
     app.app.push_screen.assert_called_once()
-    app._view_files_with_sase_pager.assert_called_once()
-    (document,) = app._view_files_with_sase_pager.call_args.args
+    app._view_files_with_pager_screen.assert_called_once()
+    (document,) = app._view_files_with_pager_screen.call_args.args
     assert document.sections[0].identity == "pager-commits"
     assert document.sections[1].identity == f"file:{notes}"
 
 
-# -- SasePager wiring ----------------------------------------------------------
+# -- PagerScreen wiring --------------------------------------------------------
 
 
-def test_view_files_with_sase_pager_runs_under_suspend(
+def test_view_files_with_pager_screen_pushes_screen_without_suspend(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     document = PagerDocument(
@@ -159,7 +241,7 @@ def test_view_files_with_sase_pager_runs_under_suspend(
     )
     captured: dict[str, object] = {}
 
-    class _FakeSasePager:
+    class _FakePagerScreen:
         def __init__(
             self,
             doc: PagerDocument,
@@ -170,20 +252,104 @@ def test_view_files_with_sase_pager_runs_under_suspend(
             captured["document"] = doc
             captured["handlers"] = attached_handlers
             captured["resolve_ref_fn"] = resolve_ref_fn
+            captured["screen"] = self
 
-        def run(self) -> None:
-            captured["ran"] = True
-
-    monkeypatch.setattr("sase.ace.tui.actions.hints._files.SasePager", _FakeSasePager)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._files.PagerScreen", _FakePagerScreen
+    )
     app = _make_app()
 
-    app._view_files_with_sase_pager(document)
+    app._view_files_with_pager_screen(document)
 
-    assert app.suspend_recorder.entered
+    app.push_screen.assert_called_once_with(captured["screen"])
+    assert not app.suspend_recorder.entered
     assert captured["document"] is document
-    assert captured["ran"] is True
     assert _COMMIT_TARGET_KIND in captured["handlers"]  # type: ignore[operator]
     assert callable(captured["resolve_ref_fn"])
+
+
+def test_view_files_with_pager_screen_toasts_when_push_fails() -> None:
+    document = PagerDocument(
+        sections=(
+            PagerSection(
+                identity="file:/tmp/a.py", title="a.py", kind="file", body="hi\n"
+            ),
+        ),
+        title="1 file",
+        origin=PagerOrigin.FILE,
+    )
+    app = _make_app()
+    app.push_screen.side_effect = RuntimeError("boom")
+
+    app._view_files_with_pager_screen(document)
+
+    app.notify.assert_called_once_with("Could not open pager: boom", severity="error")
+
+
+async def test_pager_screen_runs_inside_an_existing_textual_app() -> None:
+    app = _PagerHost()
+    async with app.run_test(size=(80, 10)) as pilot:
+        screen = PagerScreen(_multi_section_document())
+        app.push_screen(screen, callback=app.dismissed.append)
+        await pilot.pause()
+
+        assert app.is_running
+        assert app.screen is screen
+        scroll = screen.query_one("#pager-body-scroll", VerticalScroll)
+
+        await pilot.press("j")
+        await pilot.pause()
+        assert scroll.scroll_y == 1
+
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        assert scroll.scroll_y > 1
+
+        await pilot.press("q")
+        await pilot.pause()
+
+        assert app.is_running
+        assert app.screen is not screen
+        assert app.dismissed == [PagerExit()]
+
+
+async def test_view_request_pushes_real_pager_screen_inside_running_host(
+    tmp_path: Path,
+) -> None:
+    notes = tmp_path / "notes.md"
+    notes.write_text("hi", encoding="utf-8")
+    app = _ViewHost({1: str(notes)})
+
+    async with app.run_test(size=(80, 10)) as pilot:
+        await app._process_view_input("1")
+        await pilot.pause()
+
+        assert isinstance(app.screen, PagerScreen)
+        assert app.screen.document.sections[0].identity == f"file:{notes}"
+
+
+async def test_pager_screen_modal_label_key_does_not_reach_host_binding() -> None:
+    app = _PagerHost()
+    handled: list[tuple[object, str]] = []
+    async with app.run_test(size=(80, 12)) as pilot:
+        screen = PagerScreen(
+            _attached_label_document(11),
+            attached_handlers={
+                _COMMIT_TARGET_KIND: lambda target, action: handled.append(
+                    (target.target, action)
+                )
+            },
+        )
+        app.push_screen(screen)
+        await pilot.pause()
+
+        await pilot.press("a")
+        await pilot.pause()
+
+        assert screen._last_activated_label is not None
+        assert screen._last_activated_label.hint == "a"
+        assert handled == [("target-10", "follow")]
+        assert app.host_a_count == 0
 
 
 def test_link_index_backed_pager_resolver_prefers_indexed_file_target(
@@ -244,7 +410,7 @@ def test_link_index_backed_pager_resolver_falls_back_for_unknown_ref(
 def test_commit_attached_target_copy_copies_the_sha(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    pager = _FakePager()
+    screen = _FakeScreen()
     spec = _commit_spec(sha="abcdef1234567890")
     calls: list[tuple[object, ...]] = []
     monkeypatch.setattr(
@@ -252,11 +418,11 @@ def test_commit_attached_target_copy_copies_the_sha(
         lambda owner, value, **kwargs: calls.append((owner, value, kwargs)),
     )
 
-    _handle_commit_attached_target(pager, _target(spec), "copy")  # type: ignore[arg-type]
+    _handle_commit_attached_target(screen, _target(spec), "copy")  # type: ignore[arg-type]
 
     assert calls == [
         (
-            pager,
+            screen,
             spec.sha,
             {"copied_label": "commit SHA", "task_name": "sase-pager-copy-commit"},
         )
@@ -266,7 +432,7 @@ def test_commit_attached_target_copy_copies_the_sha(
 def test_commit_attached_target_edit_opens_editor_with_diff_path(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    pager = _FakePager()
+    screen = _FakeScreen()
     diff_path = tmp_path / "commit.diff"
     spec = _commit_spec(diff_path=str(diff_path))
     run_calls: list[list[str]] = []
@@ -284,28 +450,28 @@ def test_commit_attached_target_edit_opens_editor_with_diff_path(
         "sase.ace.tui.actions.hints._files.suspend_for_external_tool", fake_suspend
     )
 
-    _handle_commit_attached_target(pager, _target(spec), "edit")  # type: ignore[arg-type]
+    _handle_commit_attached_target(screen, _target(spec), "edit")  # type: ignore[arg-type]
 
     assert run_calls == [["nvim", str(diff_path)]]
 
 
 def test_commit_attached_target_edit_without_diff_path_warns() -> None:
-    pager = _FakePager()
+    screen = _FakeScreen()
     spec = _commit_spec()
 
-    _handle_commit_attached_target(pager, _target(spec), "edit")  # type: ignore[arg-type]
+    _handle_commit_attached_target(screen, _target(spec), "edit")  # type: ignore[arg-type]
 
-    pager.notify.assert_called_once()
-    assert "No raw diff path" in pager.notify.call_args.args[0]
+    screen.notify.assert_called_once()
+    assert "No raw diff path" in screen.notify.call_args.args[0]
 
 
 def test_commit_attached_target_follow_opens_commit_view_modal() -> None:
-    pager = _FakePager()
+    screen = _FakeScreen()
     spec = _commit_spec()
 
-    _handle_commit_attached_target(pager, _target(spec), "follow")  # type: ignore[arg-type]
+    _handle_commit_attached_target(screen, _target(spec), "follow")  # type: ignore[arg-type]
 
-    pager.push_screen.assert_called_once()
-    modal = pager.push_screen.call_args.args[0]
+    screen.app.push_screen.assert_called_once()
+    modal = screen.app.push_screen.call_args.args[0]
     assert isinstance(modal, CommitViewModal)
     assert modal._commit_specs == (spec,)

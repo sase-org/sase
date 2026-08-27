@@ -203,7 +203,7 @@ class _ImmediateSubmitAgentViewApp(InputProcessingMixin, FileViewingMixin):
         self._hint_patch_name = ""
         self.notify = MagicMock()
         self._refresh_agents_display = MagicMock()
-        self._view_files_with_sase_pager = MagicMock()
+        self._view_files_with_pager_screen = MagicMock()
         self._workers: list[asyncio.Task[object]] = []
 
     def _get_selected_agent(self) -> object:
@@ -252,5 +252,5 @@ async def test_immediate_agent_hint_submission_waits_for_rendered_mapping(
     for _ in range(8):
         await asyncio.sleep(0)
 
-    app._view_files_with_sase_pager.assert_called_once_with(document)
+    app._view_files_with_pager_screen.assert_called_once_with(document)
     app.notify.assert_not_called()

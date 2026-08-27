@@ -12,7 +12,7 @@ from ._view_files_helpers import _make_app
 
 
 def _assert_pager_document_paths(app: object, paths: list[str]) -> None:
-    pager = app._view_files_with_sase_pager  # type: ignore[attr-defined]
+    pager = app._view_files_with_pager_screen  # type: ignore[attr-defined]
     pager.assert_called_once()
     (document,) = pager.call_args.args
     assert [section.title for section in document.sections] == paths
@@ -38,7 +38,7 @@ async def test_text_only_selection_uses_pager(tmp_path: Path, monkeypatch) -> No
     notes = tmp_path / "notes.txt"
     notes.write_text("hello", encoding="utf-8")
     app = _make_app(str(notes))
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
 
     viewer = MagicMock()
     monkeypatch.setattr("sase.ace.tui.graphics.view_artifact_files", viewer)
@@ -55,7 +55,7 @@ async def test_image_only_selection_uses_artifact_file_viewer(
     image = tmp_path / "shot.png"
     image.write_bytes(b"\x89PNG\r\n\x1a\n")
     app = _make_app(str(image))
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     calls: list[list[ArtifactFileViewSpec]] = []
 
     def fake_viewer(specs) -> ArtifactFileViewerResult:
@@ -68,7 +68,7 @@ async def test_image_only_selection_uses_artifact_file_viewer(
     await app._process_view_input("1")
 
     assert calls == [[ArtifactFileViewSpec(str(image), kind="image")]]
-    app._view_files_with_sase_pager.assert_not_called()
+    app._view_files_with_pager_screen.assert_not_called()
     app.notify.assert_not_called()
 
 
@@ -78,7 +78,7 @@ async def test_video_only_selection_uses_artifact_file_viewer(
     video = tmp_path / "clip.mp4"
     video.write_bytes(b"video")
     app = _make_app(str(video))
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     calls: list[list[ArtifactFileViewSpec]] = []
 
     def fake_viewer(specs) -> ArtifactFileViewerResult:
@@ -91,7 +91,7 @@ async def test_video_only_selection_uses_artifact_file_viewer(
     await app._process_view_input("1")
 
     assert calls == [[ArtifactFileViewSpec(str(video), kind="file")]]
-    app._view_files_with_sase_pager.assert_not_called()
+    app._view_files_with_pager_screen.assert_not_called()
     app.notify.assert_not_called()
 
 
@@ -103,7 +103,7 @@ async def test_mixed_selection_routes_all_files_in_order(
     notes = tmp_path / "notes.md"
     notes.write_text("# notes", encoding="utf-8")
     app = _make_app(str(image), str(notes))
-    app._view_files_with_sase_pager = MagicMock()  # type: ignore[method-assign]
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     calls: list[list[ArtifactFileViewSpec]] = []
 
     def fake_viewer(specs) -> ArtifactFileViewerResult:
@@ -120,7 +120,7 @@ async def test_mixed_selection_routes_all_files_in_order(
             ArtifactFileViewSpec(str(notes), kind="file"),
         ]
     ]
-    app._view_files_with_sase_pager.assert_not_called()
+    app._view_files_with_pager_screen.assert_not_called()
 
 
 async def test_artifact_file_viewer_warning_is_surfaced(

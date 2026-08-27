@@ -14,8 +14,8 @@ from sase.pager import (
     AttachedTargetHandler,
     PagerDocument,
     PagerSection,
+    PagerScreen,
     PagerTargetSpan,
-    SasePager,
     document_from_paths,
 )
 from sase.pager.app import PendingAction
@@ -56,7 +56,7 @@ def build_pager_document(
 
     Does real file I/O (design doc phase `ace` step 1) and so must run off
     the event loop (`tui_perf` rule 1) — callers dispatch this through
-    ``asyncio.to_thread`` before ever touching ``suspend()``.
+    ``asyncio.to_thread`` before touching UI state.
     """
     document = document_from_paths(files)
     if not commit_specs:
@@ -103,7 +103,7 @@ def _commit_manifest_section(commit_specs: Sequence[CommitViewSpec]) -> PagerSec
 
 
 def _handle_commit_attached_target(
-    pager: SasePager,
+    screen: PagerScreen,
     target: PagerTargetSpan,
     action: PendingAction,
 ) -> None:
@@ -113,7 +113,7 @@ def _handle_commit_attached_target(
     spec = cast("CommitViewSpec", target.target)
     if action == "copy":
         schedule_copy_delivery(
-            pager,
+            screen,
             spec.sha or spec.short_sha,
             copied_label="commit SHA",
             task_name="sase-pager-copy-commit",
@@ -121,7 +121,7 @@ def _handle_commit_attached_target(
         return
     if action == "edit":
         if not spec.diff_path:
-            pager.notify(
+            screen.notify(
                 f"No raw diff path for commit {spec.short_sha or spec.sha}",
                 severity="warning",
             )
@@ -129,7 +129,7 @@ def _handle_commit_attached_target(
         editor = os.environ.get("EDITOR") or "nvim"
         argv = build_editor_args(editor, [os.path.expanduser(spec.diff_path)])
         with suspend_for_external_tool(
-            pager,
+            screen.app,
             action="pager_open_editor",
             tool_kind="editor",
             command=argv[0],
@@ -137,7 +137,7 @@ def _handle_commit_attached_target(
         ):
             subprocess.run(argv, check=False)
         return
-    pager.push_screen(CommitViewModal((spec,)))
+    screen.app.push_screen(CommitViewModal((spec,)))
 
 
 def _resolve_ref_from_link_index(app: object, ref: str) -> LinkTarget | None:
@@ -394,24 +394,26 @@ class FileViewingMixin(HintMixinBase):
         with self.suspend():  # type: ignore[attr-defined]
             run_editor()
 
-    def _view_files_with_sase_pager(self, document: PagerDocument) -> None:
-        """View *document* through `SasePager` (requires suspend).
+    def _view_files_with_pager_screen(self, document: PagerDocument) -> None:
+        """View *document* through `PagerScreen` inside the running ACE app.
 
-        Resuming `suspend()` leaves this app's own tab and selection exactly
+        Dismissing the modal leaves this app's own tab and selection exactly
         as they were — a trail-exhausted `backspace` in the pager needs no
         extra handling to land back here.
         """
-        handlers: dict[str, AttachedTargetHandler] = {}
-        pager = SasePager(
-            document,
-            attached_handlers=handlers,
-            resolve_ref_fn=lambda ref: _resolve_ref_from_link_index(self, ref),
-        )
-        handlers[_COMMIT_TARGET_KIND] = lambda target, action: (
-            _handle_commit_attached_target(pager, target, action)
-        )
-        with self.suspend():  # type: ignore[attr-defined]
-            pager.run()
+        try:
+            handlers: dict[str, AttachedTargetHandler] = {}
+            screen = PagerScreen(
+                document,
+                attached_handlers=handlers,
+                resolve_ref_fn=lambda ref: _resolve_ref_from_link_index(self, ref),
+            )
+            handlers[_COMMIT_TARGET_KIND] = lambda target, action: (
+                _handle_commit_attached_target(screen, target, action)
+            )
+            self.push_screen(screen)  # type: ignore[attr-defined]
+        except Exception as exc:  # noqa: BLE001 - keep pager failures inside ACE
+            self.notify(f"Could not open pager: {exc}", severity="error")  # type: ignore[attr-defined]
 
     def _view_files_with_artifact_file_viewer(self, files: list[str]) -> None:
         """View selected files through the terminal artifact viewer.

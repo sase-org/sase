@@ -1,61 +1,66 @@
-"""CSS for the standalone ``SasePager`` reading surface."""
+"""CSS for the reusable pager reading surface."""
 
 from __future__ import annotations
 
 PAGER_CSS = """
-Screen {
+PagerScreen {
     layout: vertical;
+    background: $background;
 }
 
-.hidden {
+PagerScreen .hidden {
     display: none;
 }
 
-#pager-subject {
+PagerScreen #pager-subject {
     height: 1;
     padding: 0 1;
     background: $boost;
 }
 
-#pager-trail {
+PagerScreen #pager-trail {
     height: 1;
     padding: 0 1;
     color: $text-muted;
 }
 
-#pager-chrome-rule {
+PagerScreen #pager-chrome-rule {
     height: 1;
     padding: 0 1;
     color: $text-muted;
 }
 
-#pager-body-scroll {
+PagerScreen #pager-body-scroll {
     height: 1fr;
 }
 
-#pager-body {
+PagerScreen #pager-body {
     width: 100%;
     padding: 0 1;
 }
 
-#pager-search-command {
+PagerScreen #pager-search-command {
     height: 1;
     padding: 0 1;
 }
 
-#pager-footer-rule {
-    height: 1;
-    padding: 0 1;
-    color: $text-muted;
-}
-
-#pager-footer {
+PagerScreen #pager-footer-rule {
     height: 1;
     padding: 0 1;
     color: $text-muted;
 }
 
-#pager-help {
+PagerScreen #pager-footer {
+    height: 1;
+    padding: 0 1;
+    color: $text-muted;
+}
+
+PagerHelpScreen {
+    background: transparent;
+}
+
+PagerHelpScreen #pager-help {
     width: 64;
     height: auto;
     max-height: 80%;

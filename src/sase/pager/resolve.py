@@ -3,9 +3,9 @@
 D6's single narrow interface (``resolve_ref``), backed by the same CLI
 reference resolution ``sase artifact read``/``sase bead show`` already use.
 This module does real I/O — filesystem stats, bead-store reads, VCS
-materialization — so it must never run on the UI thread. ``SasePager``
+materialization — so it must never run on the UI thread. ``PagerScreen``
 dispatches it through ``asyncio.to_thread`` inside a pump-free task with a
-generation check (see ``app.py``); the resolution itself stays synchronous
+generation check (see ``screen.py``); the resolution itself stays synchronous
 and side-effect free here so it is trivially testable without booting Textual.
 """
 

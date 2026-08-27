@@ -12,6 +12,7 @@ from textual.containers import VerticalScroll
 
 from sase.pager.app import SasePager
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+from sase.pager.screen import PagerScreen
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
@@ -27,6 +28,12 @@ class _SvgExport:
 
     def export_svg(self, title: str | None = None, simplify: bool = True) -> str:
         return self._app.export_screenshot(title=title, simplify=simplify)
+
+
+def _pager_screen(app: SasePager) -> PagerScreen:
+    screen = app.screen
+    assert isinstance(screen, PagerScreen)
+    return screen
 
 
 def _zero_link_document() -> PagerDocument:
@@ -83,11 +90,12 @@ async def test_three_section_document_mid_rule_png_snapshot(
     app = SasePager(_three_section_document())
     async with app.run_test(size=size) as pilot:
         await pilot.pause()
-        assert app._body is not None
-        scroll = app.query_one("#pager-body-scroll", VerticalScroll)
-        target_row = max(app._body.section_offsets[1] - size[1] // 2, 0)
+        screen = _pager_screen(app)
+        assert screen._body is not None
+        scroll = screen.query_one("#pager-body-scroll", VerticalScroll)
+        target_row = max(screen._body.section_offsets[1] - size[1] // 2, 0)
         scroll.scroll_to(y=target_row, animate=False, immediate=True)
-        app._update_subject()
+        screen._update_subject()
         await pilot.pause()
         pager_png_visual.assert_page_png(
             _SvgExport(app),
