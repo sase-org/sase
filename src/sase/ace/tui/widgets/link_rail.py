@@ -71,7 +71,12 @@ class LinkRail(Static):
 
         host = self.app if app is None else app
         breadcrumb = link_trail_breadcrumb_text(host)
-        subject = selected_link_subject(host)
+        subject_for_selection = getattr(host, "link_subject_for_selection", None)
+        subject = (
+            subject_for_selection()
+            if callable(subject_for_selection)
+            else selected_link_subject(host)
+        )
         chips: Sequence[LinkChip] = ()
         if subject is not None:
             edges_for_selection = getattr(host, "link_edges_for_selection", None)

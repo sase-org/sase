@@ -153,7 +153,12 @@ class LinkFollowMixin:
         self, scope_item: LinkRailItem | None = None
     ) -> None:
         chips = tuple(self.link_edges_for_selection())  # type: ignore[attr-defined]
-        subject = selected_link_subject(self)
+        subject_for_selection = getattr(self, "link_subject_for_selection", None)
+        subject = (
+            subject_for_selection()
+            if callable(subject_for_selection)
+            else selected_link_subject(self)
+        )
         if subject is None or not chips:
             self.notify(  # type: ignore[attr-defined]
                 "No links for the current selection",

@@ -87,7 +87,9 @@ def init_navigation_state(self: Any) -> None:
     self._link_index_loading = False
     self._link_index_pending = False
     self._link_index_generation = 0
+    self._link_subject_cache = None
     self._link_follow_available_cache = None
+    self._link_rail_refresh_scheduled = False
     self._pending_link_prefix = False
     self._link_trail = []
     self._link_trail_forward = []

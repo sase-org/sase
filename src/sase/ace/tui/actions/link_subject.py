@@ -28,7 +28,20 @@ class LinkSubjectMixin:
     _link_index_loading: bool
     _link_index_pending: bool
     _link_index_generation: int
+    _link_subject_cache: tuple[tuple[object, ...], LinkSubject | None] | None
     _link_follow_available_cache: tuple[tuple[object, ...], bool] | None
+    _link_rail_refresh_scheduled: bool
+
+    def link_subject_for_selection(self) -> LinkSubject | None:
+        """Return the current selection's cached link-graph subject."""
+
+        cache_key = self._link_subject_cache_key()
+        cached = getattr(self, "_link_subject_cache", None)
+        if cached is not None and cached[0] == cache_key:
+            return cached[1]
+        subject = selected_link_subject(self)
+        self._link_subject_cache = (cache_key, subject)
+        return subject
 
     def link_edges_for_selection(self) -> tuple[LinkChip, ...]:
         """Return the ordered link chips for the currently selected entity.
@@ -39,7 +52,7 @@ class LinkSubjectMixin:
         invisibility contract).
         """
 
-        subject: LinkSubject | None = selected_link_subject(self)
+        subject = self.link_subject_for_selection()
         if subject is None:
             self._cache_link_follow_available(False)
             return ()
@@ -61,7 +74,7 @@ class LinkSubjectMixin:
         if cached is not None and cached[0] == cache_key:
             return cached[1]
 
-        subject: LinkSubject | None = selected_link_subject(self)
+        subject = self.link_subject_for_selection()
         if subject is None:
             self._cache_link_follow_available(False)
             return False
@@ -81,13 +94,15 @@ class LinkSubjectMixin:
             value,
         )
 
-    def _link_follow_available_cache_key(self) -> tuple[object, ...]:
+    def _clear_link_selection_caches(self) -> None:
+        self._link_subject_cache = None
+        self._link_follow_available_cache = None
+
+    def _link_subject_cache_key(self) -> tuple[object, ...]:
         tab = str(getattr(self, "current_tab", ""))
-        index = getattr(self, "_link_index", None)
         base: tuple[object, ...] = (
             tab,
             getattr(self, "_link_index_generation", 0),
-            id(index),
         )
         if tab == "agents":
             return (
@@ -109,8 +124,30 @@ class LinkSubjectMixin:
             )
         return base
 
+    def _link_follow_available_cache_key(self) -> tuple[object, ...]:
+        index = getattr(self, "_link_index", None)
+        return (*self._link_subject_cache_key(), id(index))
+
     def refresh_link_rail(self) -> None:
+        """Schedule one rail refresh for the current Textual tick."""
+
+        if getattr(self, "_link_rail_refresh_scheduled", False):
+            return
+        call_after_refresh = getattr(self, "call_after_refresh", None)
+        if not callable(call_after_refresh):
+            self._refresh_link_rail_now()
+            return
+        self._link_rail_refresh_scheduled = True
+        try:
+            call_after_refresh(self._refresh_link_rail_now)
+        except Exception:
+            self._link_rail_refresh_scheduled = False
+            self._refresh_link_rail_now()
+
+    def _refresh_link_rail_now(self) -> None:
         """Refresh the mounted rail from the current selection, if present."""
+
+        self._link_rail_refresh_scheduled = False
 
         from textual.css.query import NoMatches
 
@@ -139,7 +176,7 @@ class LinkSubjectMixin:
         self._link_index_loading = True
         self._link_index_pending = False
         self._link_index_generation = getattr(self, "_link_index_generation", 0) + 1
-        self._link_follow_available_cache = None
+        self._clear_link_selection_caches()
         generation = self._link_index_generation
 
         async def _refresh() -> None:
@@ -156,7 +193,7 @@ class LinkSubjectMixin:
             self._link_index = index
             self._link_index_errors = snapshot.errors
             self._link_index_loading = False
-            self._link_follow_available_cache = None
+            self._clear_link_selection_caches()
             refresh_rail = getattr(self, "refresh_link_rail", None)
             if callable(refresh_rail):
                 refresh_rail()
