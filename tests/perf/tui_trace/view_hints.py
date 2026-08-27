@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import statistics
 import time
 from collections.abc import Iterable
@@ -37,6 +38,41 @@ VIEW_HINTS_BASELINE_PATH = (
     Path(__file__).parents[1] / "baselines" / "view_hints_baseline.json"
 )
 VIEW_HINTS_BASELINE_RUNS = 5
+
+
+async def _wait_for_hint_render_settled(
+    app: AceApp,
+    pilot: object,
+    *,
+    timeout_seconds: float = 10.0,
+) -> None:
+    """Wait until the async Agents-tab hint render publishes its result."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout_seconds
+    while True:
+        ready = getattr(app, "_agent_hint_render_ready", None)
+        if ready is None or ready.is_set():
+            return
+        if loop.time() >= deadline:
+            raise AssertionError("Agents view-hints render did not settle")
+        await pilot.pause()  # type: ignore[attr-defined]
+
+
+def _mark_startup_surfaces_ready_for_benchmark(app: AceApp) -> None:
+    """Skip real startup I/O; this trace injects its own Agents state."""
+    mark_first_paint = getattr(app, "_mark_startup_first_paint", None)
+    if callable(mark_first_paint):
+        mark_first_paint()
+    app._post_mount_background_loads_started = True  # type: ignore[attr-defined]
+    app._mount_state_loads_done = True  # type: ignore[attr-defined]
+    app._agents_first_load_done = True  # type: ignore[attr-defined]
+    app._axe_first_load_done = True  # type: ignore[attr-defined]
+    mark_agents_ready = getattr(app, "_mark_startup_agents_ready", None)
+    if callable(mark_agents_ready):
+        mark_agents_ready()
+    mark_axe_ready = getattr(app, "_mark_startup_axe_ready", None)
+    if callable(mark_axe_ready):
+        mark_axe_ready()
 
 
 def _summarize_hint_counters(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
@@ -89,9 +125,48 @@ async def _run_view_hints_scenario(
     def _trace_len() -> int:
         return len(_read_jsonl(trace_path))
 
-    with patch("sase.ace.changespec.find_all_changespecs_cached", return_value=[]):
+    with (
+        patch("sase.ace.changespec.find_all_changespecs_cached", return_value=[]),
+        patch(
+            "sase.ace.tui.actions._startup_loads."
+            "StartupLoadsMixin._start_post_mount_background_loads",
+            _mark_startup_surfaces_ready_for_benchmark,
+        ),
+        patch(
+            "sase.ace.tui.actions._startup_prompt_catalog."
+            "StartupPromptCatalogMixin.get_prompt_catalog_assist_entries",
+            return_value=(),
+        ),
+        patch(
+            "sase.ace.tui.actions._startup_prompt_catalog."
+            "StartupPromptCatalogMixin.get_prompt_glossary_catalog",
+            return_value=None,
+        ),
+        patch(
+            "sase.ace.tui.actions._startup_prompt_catalog."
+            "StartupPromptCatalogMixin.is_prompt_glossary_catalog_warm",
+            return_value=True,
+        ),
+        patch(
+            "sase.ace.tui.actions._startup_prompt_catalog."
+            "StartupPromptCatalogMixin.get_prompt_repo_mention_catalog",
+            return_value=None,
+        ),
+        patch(
+            "sase.ace.tui.actions._startup_prompt_catalog."
+            "StartupPromptCatalogMixin.is_prompt_repo_mention_catalog_warm",
+            return_value=True,
+        ),
+        patch(
+            "sase.ace.tui.widgets.prompt_panel._agent_display_async_agent."
+            "AgentDisplayAgentWorkerMixin."
+            "_start_agent_detail_header_enrichment_from_context",
+            return_value=None,
+        ),
+    ):
         app = AceApp(
             query='"hint_bench"',
+            refresh_interval=0,
             auto_start_axe=False,
             initial_tab="agents",
         )
@@ -117,6 +192,7 @@ async def _run_view_hints_scenario(
                 cursor = _trace_len()
                 started = time.perf_counter()
                 await action()
+                await _wait_for_hint_render_settled(app, pilot)
                 await pilot.pause()
                 elapsed_ms = (time.perf_counter() - started) * 1000.0
                 records = _read_jsonl(trace_path)[cursor:]
