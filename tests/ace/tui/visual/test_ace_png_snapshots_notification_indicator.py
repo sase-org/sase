@@ -73,7 +73,7 @@ async def _drive_indicator(
 ) -> None:
     """Drive the top-bar indicator to *expected* and settle the frame."""
     await wait_for_startup(page)
-    await page.press("2")
+    await page.press(page.artifacts_digit("patches"))
     await page.expect_state("artifacts_subtab", "patches")
     await page.expect_state("tab", "patches")
     await wait_for_svg_contains(page, "visual_auth")

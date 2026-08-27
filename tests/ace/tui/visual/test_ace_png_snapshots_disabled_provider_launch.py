@@ -91,7 +91,7 @@ async def test_disabled_provider_launch_panel_png_snapshot(
     patch_startup_loaders(monkeypatch)
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         unit, snapshot = _single_unit()
         page.app.push_screen(
@@ -115,7 +115,7 @@ async def test_disabled_provider_launch_panel_swarm_png_snapshot(
     patch_startup_loaders(monkeypatch)
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         unit, snapshot = _swarm_unit()
         page.app.push_screen(
@@ -139,7 +139,7 @@ async def test_disabled_provider_launch_panel_narrow_png_snapshot(
     patch_startup_loaders(monkeypatch)
     async with AcePage(query='"visual"', patches=patches(), size=(70, 32)) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         unit, snapshot = _swarm_unit()
         page.app.push_screen(

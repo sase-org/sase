@@ -171,7 +171,7 @@ async def test_startup_update_toast_png_snapshot(
         notifications=True,
         startup_policy="real",
     ) as page:
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         schedule_toast(page.app)
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))
@@ -221,7 +221,7 @@ async def test_startup_update_toast_grouped_commits_png_snapshot(
         notifications=True,
         startup_policy="real",
     ) as page:
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         schedule_toast(page.app)
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))

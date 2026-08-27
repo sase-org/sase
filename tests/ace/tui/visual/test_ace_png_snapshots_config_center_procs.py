@@ -59,7 +59,7 @@ def _row_index_containing(option_list: OptionList, needle: str) -> int:
 
 
 async def _open_seeded_procs_tab(page: AcePage) -> ProcsPane:
-    await page.press("2")
+    await page.press(page.artifacts_digit("patches"))
     await page.expect_state("artifacts_subtab", "patches")
     _seed_tasks_tab_queue(page.app, extra_rows=(_detached_nightly_row(),))
     _, pane = await _open_procs_modal(page)

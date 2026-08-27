@@ -28,7 +28,7 @@ async def test_updates_indicator_routine_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await wait_for_svg_contains(page, "visual_auth")
@@ -62,7 +62,7 @@ async def test_updates_indicator_core_rebuild_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await wait_for_svg_contains(page, "visual_auth")
@@ -96,7 +96,7 @@ async def test_updates_indicator_agent_cli_only_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await wait_for_svg_contains(page, "visual_auth")
@@ -130,7 +130,7 @@ async def test_updates_indicator_mixed_routine_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await wait_for_svg_contains(page, "visual_auth")
@@ -164,7 +164,7 @@ async def test_updates_indicator_mixed_core_rebuild_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await wait_for_svg_contains(page, "visual_auth")

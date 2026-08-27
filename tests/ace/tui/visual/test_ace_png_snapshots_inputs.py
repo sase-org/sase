@@ -58,7 +58,7 @@ async def test_input_collection_modal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         modal = _push_modal(page)
@@ -87,7 +87,7 @@ async def test_input_collection_modal_error_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         modal = _push_modal(page)

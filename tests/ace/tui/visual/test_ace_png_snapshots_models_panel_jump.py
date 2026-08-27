@@ -72,7 +72,7 @@ def _highlight_row(page: AcePage, row_id: str) -> None:
 
 async def _open_models_panel(page: AcePage) -> ModelsPanel:
     await wait_for_startup(page)
-    await page.press("2")
+    await page.press(page.artifacts_digit("patches"))
     await page.expect_state("artifacts_subtab", "patches")
     panel = ModelsPanel()
     page.app.push_screen(panel)

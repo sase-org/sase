@@ -112,7 +112,7 @@ async def test_prompt_stack_two_panes_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await mount_prompt_bar(page, TWO_PANE_PROMPT)
@@ -132,7 +132,7 @@ async def test_prompt_stack_active_upper_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, TWO_PANE_PROMPT)
@@ -162,7 +162,7 @@ async def test_prompt_submit_choice_modal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await mount_prompt_bar(page, TWO_PANE_PROMPT)
@@ -189,7 +189,7 @@ async def test_prompt_stack_targeted_clean_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, "placeholder")
@@ -218,7 +218,7 @@ async def test_prompt_stack_targeted_dirty_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, "placeholder")
@@ -252,7 +252,7 @@ async def test_prompt_stack_targeted_readonly_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, "placeholder")
@@ -284,7 +284,7 @@ async def test_prompt_submit_choice_targeted_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await mount_prompt_bar(page, "Review the targeted submit menu.")
@@ -317,7 +317,7 @@ async def test_prompt_stack_compact_inactive_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches(), size=(80, 30)) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await mount_prompt_bar(page, COMPACT_PROMPT)
@@ -337,7 +337,7 @@ async def test_prompt_stack_completion_panel_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, TWO_PANE_PROMPT)
@@ -375,7 +375,7 @@ async def test_prompt_stack_g_prefix_hints_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         indicator = page.app.query_one(
@@ -413,7 +413,7 @@ async def test_prompt_stack_snippet_new_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, SNIPPET_PANE_PROMPT)
@@ -437,7 +437,7 @@ async def test_prompt_stack_snippet_dirty_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, SNIPPET_PANE_PROMPT)
@@ -472,7 +472,7 @@ async def test_prompt_stack_snippet_parked_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, SNIPPET_PANE_PROMPT)

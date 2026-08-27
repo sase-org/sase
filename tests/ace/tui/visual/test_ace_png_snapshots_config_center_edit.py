@@ -66,7 +66,7 @@ async def test_config_center_edit_modal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await _open_edit_modal(page, "timezone")
         await wait_for_visual_idle(page)
@@ -91,7 +91,7 @@ async def test_config_center_edit_preview_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         modal = await _open_edit_modal(page, "timezone")
         modal.query_one("#config-edit-input", SingleLineVimTextArea).text = "UTC"
@@ -123,7 +123,7 @@ async def test_config_center_edit_normal_mode_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         modal = await _open_edit_modal(page, "timezone")
         editor = modal.query_one("#config-edit-input", SingleLineVimTextArea)
@@ -156,7 +156,7 @@ async def test_config_center_edit_enum_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await _open_edit_modal(page, "mode")
         await wait_for_visual_idle(page)
@@ -186,7 +186,7 @@ async def test_config_center_edit_object_value_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await _open_edit_modal(page, "ace.lumberjack")
         await wait_for_visual_idle(page)

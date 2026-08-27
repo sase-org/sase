@@ -36,7 +36,7 @@ async def test_config_center_logs_tab_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_logs_modal(page)
         assert "Launch & Fan-out Failures" in pane._last_detail_text.plain
@@ -62,7 +62,7 @@ async def test_config_center_logs_tab_toasts_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_logs_modal(page)
 
@@ -97,7 +97,7 @@ async def test_config_center_logs_tab_focused_error_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_logs_modal(page, log_error_target=target)
         assert "focused on err_260617_143000_7f3a9c" in pane._last_detail_text.plain

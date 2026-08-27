@@ -45,7 +45,7 @@ async def test_config_center_workspaces_subtab_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_projects_modal(page)
         workspace_pane = pane.query_one(WorkspaceInventoryPane)

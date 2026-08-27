@@ -42,7 +42,7 @@ async def test_config_center_statistics_overview_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         assert pane._last_result is not None
@@ -64,7 +64,7 @@ async def test_config_center_statistics_xprompts_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("xprompts")
@@ -86,7 +86,7 @@ async def test_config_center_statistics_xprompts_model_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("xprompts")
@@ -109,7 +109,7 @@ async def test_config_center_statistics_xprompts_focus_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("xprompts")
@@ -144,7 +144,7 @@ async def test_config_center_statistics_xprompts_narrow_png_snapshot(
         size=(90, 30),
     ) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("xprompts")
@@ -167,7 +167,7 @@ async def test_config_center_statistics_runners_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("runners")
@@ -196,7 +196,7 @@ async def test_config_center_statistics_runners_narrow_png_snapshot(
         size=(90, 30),
     ) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("runners")
@@ -219,7 +219,7 @@ async def test_config_center_statistics_perf_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("perf")
@@ -248,7 +248,7 @@ async def test_config_center_statistics_perf_narrow_png_snapshot(
         size=(90, 30),
     ) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("perf")
@@ -272,7 +272,7 @@ async def test_config_center_statistics_perf_degraded_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("perf")
@@ -296,7 +296,7 @@ async def test_config_center_statistics_help_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await _open_statistics_modal(page)
         await page.press("question_mark")
@@ -323,7 +323,7 @@ async def test_config_center_statistics_narrow_png_snapshot(
         size=(90, 30),
     ) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         assert pane._compact_scope is True
@@ -344,7 +344,7 @@ async def test_config_center_statistics_providers_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("providers")
@@ -366,7 +366,7 @@ async def test_config_center_statistics_activity_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("activity")
@@ -388,7 +388,7 @@ async def test_config_center_statistics_plans_questions_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("plans_questions")
@@ -410,7 +410,7 @@ async def test_config_center_statistics_projects_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("projects")
@@ -432,7 +432,7 @@ async def test_config_center_statistics_projects_drilldown_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("projects")
@@ -456,7 +456,7 @@ async def test_config_center_statistics_empty_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page)
         assert pane._last_result is not None
@@ -478,7 +478,7 @@ async def test_config_center_statistics_loading_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_statistics_modal(page, wait_for_load=False)
         assert pane._loading is True

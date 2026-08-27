@@ -88,7 +88,7 @@ async def test_models_panel_empty_custom_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -112,7 +112,7 @@ async def test_models_panel_default_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
 
         page.app.push_screen(ModelsPanel())
@@ -142,7 +142,7 @@ async def test_models_panel_default_effort_override_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -172,7 +172,7 @@ async def test_models_panel_runner_limit_override_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -197,7 +197,7 @@ async def test_models_panel_smartest_max_effort_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -224,7 +224,7 @@ async def test_models_panel_pool_effort_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -252,7 +252,7 @@ async def test_models_panel_long_pool_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -278,7 +278,7 @@ async def test_models_panel_effort_provenance_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -304,7 +304,7 @@ async def test_models_panel_pool_suspended_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -329,7 +329,7 @@ async def test_models_panel_overrides_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
 
         page.app.push_screen(ModelsPanel())
@@ -354,7 +354,7 @@ async def test_models_panel_custom_builtin_warning_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")

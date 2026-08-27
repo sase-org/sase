@@ -76,7 +76,7 @@ def _highlight_row(page: AcePage, row_id: str) -> None:
 
 async def _open_alias_edit_picker(page: AcePage) -> None:
     await wait_for_startup(page)
-    await page.press("2")
+    await page.press(page.artifacts_digit("patches"))
     await page.expect_state("artifacts_subtab", "patches")
     page.app.push_screen(ModelsPanel())
     await page.expect_modal("ModelsPanel")
@@ -88,7 +88,7 @@ async def _open_alias_edit_picker(page: AcePage) -> None:
 
 async def _open_override_picker(page: AcePage) -> None:
     await wait_for_startup(page)
-    await page.press("2")
+    await page.press(page.artifacts_digit("patches"))
     await page.expect_state("artifacts_subtab", "patches")
     page.app.push_screen(ModelsPanel())
     await page.expect_modal("ModelsPanel")
@@ -263,7 +263,7 @@ async def test_models_panel_worker_override_drilled_in_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -288,7 +288,7 @@ async def test_models_panel_worker_drilled_in_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -317,7 +317,7 @@ async def test_models_panel_bucket_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -346,7 +346,7 @@ async def test_models_panel_bucket_drilled_in_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -372,7 +372,7 @@ async def test_models_panel_mixed_builtin_bucket_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")

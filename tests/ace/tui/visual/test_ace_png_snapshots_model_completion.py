@@ -203,7 +203,7 @@ async def test_model_completion_mixed_menu_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await _mount_prompt_bar(page, "%model:")
@@ -240,7 +240,7 @@ async def test_model_completion_alias_only_menu_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await _mount_prompt_bar(page, "%model:@")
@@ -277,7 +277,7 @@ async def test_model_completion_provider_scoped_menu_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await _mount_prompt_bar(page, "%model:claude/")

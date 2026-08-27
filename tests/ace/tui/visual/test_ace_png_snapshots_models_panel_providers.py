@@ -90,7 +90,7 @@ async def test_models_panel_provider_disabled_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         panel = ModelsPanel()
         page.app.push_screen(panel)
@@ -193,7 +193,7 @@ async def test_models_panel_provider_soft_disabled_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         panel = ModelsPanel()
         page.app.push_screen(panel)

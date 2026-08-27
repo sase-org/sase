@@ -159,7 +159,7 @@ async def test_update_panel_pending_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
 
         option_list = await _push_update_panel(page, _pending_state())
@@ -193,7 +193,7 @@ async def test_update_panel_unchecked_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
 
         option_list = await _push_update_panel(page, _unchecked_state())

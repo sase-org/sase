@@ -30,7 +30,7 @@ async def test_prompt_skill_completion_long_description_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, "/sase_monitor")

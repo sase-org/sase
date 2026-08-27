@@ -131,7 +131,7 @@ async def test_post_update_toast_png_snapshot(
         patches=patches(),
         notifications=True,
     ) as page:
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         maybe_show_toast(page.app)
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))
@@ -177,7 +177,7 @@ async def test_post_update_toast_diffstat_png_snapshot(
         patches=patches(),
         notifications=True,
     ) as page:
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         maybe_show_toast(page.app)
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))

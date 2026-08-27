@@ -63,7 +63,7 @@ async def test_prompt_inputs_placeholders_only_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await _open_modal(page, _PLACEHOLDERS_ONLY)
@@ -85,7 +85,7 @@ async def test_prompt_inputs_mixed_literal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         modal = await _open_modal(page, _MIXED)
@@ -113,7 +113,7 @@ async def test_prompt_inputs_long_value_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         modal = await _open_modal(page, "Implement <the plan> and report back.")

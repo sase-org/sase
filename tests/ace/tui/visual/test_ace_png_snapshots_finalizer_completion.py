@@ -107,7 +107,7 @@ async def test_finalizer_completion_mixed_menu_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await _mount_prompt_bar(page, "%final:")
@@ -147,7 +147,7 @@ async def test_finalizer_completion_mixed_menu_narrow_png_snapshot(
         size=(70, 24),
     ) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await _mount_prompt_bar(page, "%final:")

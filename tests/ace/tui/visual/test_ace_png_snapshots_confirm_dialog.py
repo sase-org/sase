@@ -30,7 +30,7 @@ async def test_confirm_dialog_neutral_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
 
         page.app.push_screen(
@@ -62,7 +62,7 @@ async def test_confirm_dialog_danger_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
 
         page.app.push_screen(ConfirmDeleteModal("visual-project"))
@@ -84,7 +84,7 @@ async def test_confirm_dialog_dismiss_all_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
 
         page.app.push_screen(
@@ -111,7 +111,7 @@ async def test_confirm_dialog_kill_all_escalated_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
 
         modal = ConfirmKillAllModal(

@@ -85,7 +85,7 @@ async def test_saved_agent_group_modal_normal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await _push_saved_group_modal(
             page,
@@ -141,7 +141,7 @@ async def test_saved_agent_group_modal_jump_mode_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         modal = await _push_saved_group_modal(
             page,
@@ -170,7 +170,7 @@ async def test_saved_agent_group_modal_empty_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await _push_saved_group_modal(
             page,
@@ -194,7 +194,7 @@ async def test_saved_agent_group_modal_load_more_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         modal = await _push_saved_group_modal(
             page,
@@ -235,7 +235,7 @@ async def test_saved_agent_group_modal_preview_rich_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await _push_saved_group_modal(
             page,

@@ -61,7 +61,7 @@ async def test_models_panel_default_effort_action_png_snapshot(
     patch_startup_loaders(monkeypatch)
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(
             DefaultEffortActionModal(
@@ -103,7 +103,7 @@ async def test_models_panel_default_effort_level_png_snapshots(
     patch_startup_loaders(monkeypatch)
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(
             DefaultEffortLevelModal(  # type: ignore[arg-type]
@@ -123,7 +123,7 @@ async def test_models_panel_runner_limit_action_png_snapshot(
     patch_startup_loaders(monkeypatch)
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(
             RunnerLimitActionModal(
@@ -168,7 +168,7 @@ async def test_models_panel_runner_limit_value_png_snapshots(
     patch_startup_loaders(monkeypatch)
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(
             RunnerLimitValueModal(mode, initial=initial)  # type: ignore[arg-type]
@@ -187,7 +187,7 @@ async def test_models_panel_duration_picker_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(DurationPickerModal())
         await page.expect_modal("DurationPickerModal")
@@ -208,7 +208,7 @@ async def test_models_panel_provider_duration_picker_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(provider_duration_modal("claude"))
         await page.expect_modal("DurationPickerModal")
@@ -231,7 +231,7 @@ async def test_models_panel_provider_duration_picker_keep_window_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(
             provider_duration_modal(
@@ -282,7 +282,7 @@ async def test_models_panel_provider_routing_modal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(
             ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
@@ -324,7 +324,7 @@ async def test_models_panel_provider_routing_until_cleared_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(
             ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
@@ -372,7 +372,7 @@ async def test_models_panel_provider_routing_modal_narrow_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches(), size=(70, 32)) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(
             ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
@@ -490,7 +490,7 @@ async def test_models_panel_tmux_agent_modal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(
             TmuxAgentModal(
@@ -536,7 +536,7 @@ async def test_models_panel_override_until_png_snapshots(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         modal = OverrideUntilModal(timezone=EASTERN, clock=time_modal_clock)
         page.app.push_screen(modal)

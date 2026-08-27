@@ -93,7 +93,7 @@ async def test_project_select_modal_default_png_snapshot(
     patch_startup_loaders(monkeypatch)
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await _open_modal(page)
 
@@ -111,7 +111,7 @@ async def test_project_select_modal_filtered_png_snapshot(
     patch_startup_loaders(monkeypatch)
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await _open_modal(page)
         # The filter input auto-focuses on mount; type a query that narrows

@@ -46,7 +46,7 @@ async def test_word_definition_modal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(WordDefinitionModal("serendipity", sections))
         await page.expect_modal("WordDefinitionModal")
@@ -75,7 +75,7 @@ async def test_spellcheck_panel_modal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(SpellcheckPanelModal("accomodate", suggestions))
         await page.expect_modal("SpellcheckPanelModal")
@@ -109,7 +109,7 @@ async def test_spellcheck_panel_modal_full_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(SpellcheckPanelModal("accomodate", suggestions))
         await page.expect_modal("SpellcheckPanelModal")
@@ -132,7 +132,7 @@ async def test_spellcheck_panel_modal_no_suggestions_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(SpellcheckPanelModal("zzzzz", ()))
         await page.expect_modal("SpellcheckPanelModal")

@@ -41,8 +41,7 @@ async def test_config_center_home_png_snapshot(
         size=size,
     ) as page:
         await wait_for_startup(page)
-        await page.press("2")
-        await page.press("3")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app._last_admin_center_tab = resume_tab
         await page.press("number_sign")

@@ -55,7 +55,7 @@ async def test_config_center_projects_tab_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_projects_modal(page)
         await page.wait_for(lambda _s: pane._selected_project_name() == "sase")
@@ -76,7 +76,7 @@ async def test_config_center_projects_marked_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_projects_modal(page)
         # Mark auto-advances, so two marks claim the first two enabled rows.
@@ -101,7 +101,7 @@ async def test_config_center_projects_disabled_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_projects_modal(page)
         await page.wait_for(
@@ -141,7 +141,7 @@ async def test_config_center_projects_detail_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_projects_modal(page)
         # ``old-prototype`` carries two warnings; step down to it.
@@ -184,7 +184,7 @@ async def test_config_center_projects_current_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_projects_modal(page)
         await page.wait_for(lambda _s: pane._selected_project_name() == "sase")

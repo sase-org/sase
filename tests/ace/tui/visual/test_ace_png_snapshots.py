@@ -36,7 +36,7 @@ async def test_patch_initial_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await page.expect_state("selected.name", "visual_auth")
@@ -58,7 +58,7 @@ async def test_patch_selected_row_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await page.press("j")
@@ -82,7 +82,7 @@ async def test_patch_filter_bar_closed_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = page.query_one_widget("#patch-filter-bar", PatchFilterBar)
@@ -111,7 +111,7 @@ async def test_patch_filter_bar_completion_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await page.press("slash")
@@ -154,7 +154,7 @@ async def test_footer_leader_overflow_wide_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await _render_leader_footer(page)
 
@@ -174,7 +174,7 @@ async def test_footer_leader_overflow_narrow_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches(), size=(80, 30)) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await _render_leader_footer(page)
 

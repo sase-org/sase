@@ -57,7 +57,7 @@ async def test_preview_panel_xprompt_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(PreviewPanelModal(payload))
         await page.expect_modal("PreviewPanelModal")
@@ -106,7 +106,7 @@ async def test_preview_panel_file_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(PreviewPanelModal(payload))
         await page.expect_modal("PreviewPanelModal")
@@ -186,7 +186,7 @@ async def test_preview_panel_properties_band_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(PreviewPanelModal(_review_tasks_payload()))
         await page.expect_modal("PreviewPanelModal")
@@ -208,7 +208,7 @@ async def test_preview_panel_properties_view_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         modal = PreviewPanelModal(_review_tasks_payload())
         page.app.push_screen(modal)
@@ -257,7 +257,7 @@ async def test_preview_panel_reference_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(PreviewPanelModal(payload))
         await page.expect_modal("PreviewPanelModal")
@@ -297,7 +297,7 @@ async def test_preview_panel_active_search_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         modal = PreviewPanelModal(payload)
         page.app.push_screen(modal)
@@ -430,7 +430,7 @@ new file mode 100644
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         modal = CommitViewModal([spec, second_spec], initial_index=1)
         page.app.push_screen(modal)

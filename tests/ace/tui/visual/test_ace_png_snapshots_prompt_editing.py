@@ -35,7 +35,7 @@ async def test_prompt_vim_cursor_insert_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, CURSOR_PROMPT)
@@ -67,7 +67,7 @@ async def test_prompt_vim_cursor_normal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, CURSOR_PROMPT)
@@ -100,7 +100,7 @@ async def test_prompt_vim_cursor_visual_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, CURSOR_PROMPT)
@@ -134,7 +134,7 @@ async def test_prompt_jinja_valid_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, JINJA_VALID_PROMPT)
@@ -157,7 +157,7 @@ async def test_prompt_jinja_invalid_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
+        await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, JINJA_INVALID_PROMPT)

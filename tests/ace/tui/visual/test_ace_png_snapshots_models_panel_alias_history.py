@@ -70,7 +70,7 @@ async def _open_alias_history(
     view: AliasHistoryView,
 ) -> AliasHistoryModal:
     await wait_for_startup(page)
-    await page.press("2")
+    await page.press(page.artifacts_digit("patches"))
     await page.expect_state("artifacts_subtab", "patches")
     page.app.push_screen(AliasHistoryModal(entry))
     await page.expect_modal("AliasHistoryModal")
