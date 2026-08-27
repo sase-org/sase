@@ -6,6 +6,7 @@ import os
 
 from sase.ace.agent_tribes import REVIEW_AGENT_TRIBE
 from sase.axe.agent_meta import write_agent_meta_atomic
+from sase.core.process_identity import process_identity_token
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,11 @@ def write_agent_meta(
         patch_name: Patch name associated with this runner.
         tribe: Optional Agents-tab tribe.
     """
-    meta: dict[str, object] = {"pid": os.getpid()}
+    pid = os.getpid()
+    meta: dict[str, object] = {
+        "pid": pid,
+        "process_identity": process_identity_token(pid),
+    }
     if model:
         meta["model"] = model
     if llm_provider:

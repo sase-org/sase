@@ -8,9 +8,45 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.axe import run_agent_wait_markers, run_agent_wait_slots
+from sase.core import process_identity
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
+from sase.core.runner_slots import (
+    live_runner_slot_waiters,
+    may_start,
+    running_agent_slot_count,
+)
 
 from tests._runner_slot_fixtures import artifact, record
+
+
+def _write_proc_entry(
+    root: Path,
+    pid: int,
+    *,
+    boot_id: str = "boot-a",
+    start_ticks: int = 123,
+    tgid: int | None = None,
+) -> None:
+    (root / "sys/kernel/random").mkdir(parents=True, exist_ok=True)
+    (root / "sys/kernel/random/boot_id").write_text(boot_id, encoding="utf-8")
+    proc_dir = root / str(pid)
+    proc_dir.mkdir(parents=True, exist_ok=True)
+    stat_tail = ["S", *["0"] * 18, str(start_ticks)]
+    (proc_dir / "stat").write_text(
+        f"{pid} (python) {' '.join(stat_tail)}\n",
+        encoding="utf-8",
+    )
+    (proc_dir / "status").write_text(
+        "\n".join(
+            (
+                "Name:\tdconf worker",
+                f"Tgid:\t{pid if tgid is None else tgid}",
+                f"Pid:\t{pid}",
+            )
+        ),
+        encoding="utf-8",
+    )
+    (proc_dir / "cmdline").write_bytes(b"/usr/bin/python3\0/usr/bin/blueman-applet\0")
 
 
 def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
@@ -164,6 +200,73 @@ def test_releasing_monitor_admits_the_parked_waiter(tmp_path: Path) -> None:
     assert second == "started"
     assert not parked
     assert not (waiter / "waiting.json").exists()
+
+
+def test_recycled_thread_pid_does_not_hold_runner_slot(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    proc_root = tmp_path / "proc"
+    live_paths: list[Path] = []
+    max_running_agents = 10
+    for index in range(max_running_agents - 1):
+        pid = 2000 + index
+        start_ticks = 5000 + index
+        _write_proc_entry(proc_root, pid, start_ticks=start_ticks)
+        live_paths.append(
+            artifact(
+                tmp_path,
+                f"2026082712000{index}",
+                pid,
+                process_identity=f"boot-a:{start_ticks}",
+            )
+        )
+
+    phantom = artifact(
+        tmp_path,
+        "20260827120100",
+        17549,
+        process_identity="old-boot:111",
+    )
+    _write_proc_entry(proc_root, 17549, start_ticks=9000, tgid=17441)
+
+    waiter = artifact(
+        tmp_path,
+        "20260827120101",
+        3000,
+        process_identity="boot-a:7000",
+    )
+    _write_proc_entry(proc_root, 3000, start_ticks=7000)
+    (waiter / "waiting.json").write_text(
+        json.dumps(
+            {
+                "slot_requested_at": "2026-08-27T12:01:01+00:00",
+                "wait_runners": max_running_agents - 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    records = [
+        *(record(path, started=True) for path in live_paths),
+        record(phantom, started=True),
+        record(waiter),
+    ]
+    monkeypatch.setattr(process_identity, "_PROC_ROOT", proc_root)
+
+    with patch("sase.ace.hooks.processes.is_process_running", return_value=True):
+        is_live = run_agent_wait_slots._record_liveness_probe()
+        running_count = running_agent_slot_count(records, is_live)
+        queue = live_runner_slot_waiters(records, is_live)
+
+    assert running_count == max_running_agents - 1
+    assert [entry.artifact_dir for entry in queue] == [str(waiter)]
+    assert may_start(
+        running_count,
+        max_running_agents - 1,
+        queue,
+        str(waiter),
+    )
 
 
 def test_implicit_gate_fails_closed_when_effective_limit_is_unavailable(

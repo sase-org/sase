@@ -14,6 +14,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
+from sase.core.process_identity import process_identity_token
 from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
     AGENT_FAMILY_ROLE_FIELD,
@@ -146,7 +147,11 @@ def create_followup_artifacts(
     )
     canonical_suffix = canonical_plan_chain_suffix(suffix) or suffix
 
-    followup_meta: dict[str, Any] = {"pid": os.getpid()}
+    pid = os.getpid()
+    followup_meta: dict[str, Any] = {
+        "pid": pid,
+        "process_identity": process_identity_token(pid),
+    }
     for key in (
         "model",
         "llm_provider",
@@ -213,7 +218,8 @@ def create_followup_artifacts(
         "steps": [],
         "context": {"cl_name": followup_meta.get("name", "")},
         "artifacts_dir": new_artifacts_dir,
-        "pid": os.getpid(),
+        "pid": pid,
+        "process_identity": process_identity_token(pid),
         "appears_as_agent": True,
     }
     with open(

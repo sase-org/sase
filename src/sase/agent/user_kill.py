@@ -13,6 +13,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.core.process_identity import pid_is_thread, process_identity_matches
+
 USER_KILL_INTENT_MARKER = ".sase_user_kill_pending"
 
 Killpg = Callable[[int, int], None]
@@ -116,6 +118,32 @@ def _record_user_kill_result(
         pass
 
 
+def _read_recorded_process_identity(
+    artifacts_dir: str | Path | None,
+) -> object | None:
+    if artifacts_dir is None:
+        return None
+    for marker_name in ("agent_meta.json", "running.json"):
+        try:
+            with open(Path(artifacts_dir) / marker_name, encoding="utf-8") as f:
+                data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            continue
+        if isinstance(data, dict) and "process_identity" in data:
+            return data.get("process_identity")
+    return None
+
+
+def _target_identity_is_verified(
+    pid: int,
+    *,
+    artifacts_dir: str | Path | None,
+) -> bool:
+    if pid_is_thread(pid):
+        return False
+    return process_identity_matches(pid, _read_recorded_process_identity(artifacts_dir))
+
+
 def _process_group_alive(pgid: int, *, killpg: Killpg) -> bool:
     try:
         killpg(pgid, 0)
@@ -180,6 +208,7 @@ def _wait_for_exit_or_escalate(
 def _terminate_process_group(
     pid: int,
     *,
+    artifacts_dir: str | Path | None = None,
     wait: bool = True,
     background: bool = False,
     grace_seconds: float = 0.5,
@@ -192,6 +221,16 @@ def _terminate_process_group(
     """Terminate a user-killed process group with SIGTERM then SIGKILL fallback."""
     pgid = pid
     marker_str = str(marker_path) if marker_path is not None else None
+    if not _target_identity_is_verified(pid, artifacts_dir=artifacts_dir):
+        result = _UserKillResult(
+            True,
+            "identity_mismatch",
+            pid,
+            pgid,
+            marker_path=marker_str,
+        )
+        _record_user_kill_result(marker_str, result)
+        return result
     try:
         killpg(pgid, signal.SIGTERM)
     except ProcessLookupError:
@@ -273,6 +312,7 @@ def request_user_kill(
     )
     return _terminate_process_group(
         pid,
+        artifacts_dir=artifacts_dir,
         wait=wait,
         background=background,
         grace_seconds=grace_seconds,

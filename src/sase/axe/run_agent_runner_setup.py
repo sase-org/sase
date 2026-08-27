@@ -32,6 +32,7 @@ from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.process_identity import process_identity_token
 from sase.telemetry import flush_metrics
 from sase.telemetry.metrics import (
     AGENT_ACTIVE,
@@ -267,6 +268,7 @@ def setup_artifacts_directory(
         timestamp=timestamp,
     )
 
+    pid = os.getpid()
     initial_state: dict[str, object] = {
         "workflow_name": "run",
         "status": "running",
@@ -274,7 +276,8 @@ def setup_artifacts_directory(
         "steps": [],
         "context": {"patch_name": cl_name, "cl_name": cl_name},
         "artifacts_dir": artifacts_dir,
-        "pid": os.getpid(),
+        "pid": pid,
+        "process_identity": process_identity_token(pid),
         "appears_as_agent": True,
     }
     with open(
@@ -637,10 +640,12 @@ def write_home_running_marker(
     Returns the path written, so the caller can clean it up at shutdown.
     """
     running_marker_path = os.path.join(artifacts_dir, "running.json")
+    pid = os.getpid()
     running_marker: dict[str, Any] = {
         "patch_name": cl_name,
         "cl_name": cl_name,
-        "pid": os.getpid(),
+        "pid": pid,
+        "process_identity": process_identity_token(pid),
         "timestamp": timestamp,
         "prompt": prompt,
         "workspace_dir": workspace_dir,

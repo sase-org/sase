@@ -39,6 +39,7 @@ from sase.bead.claims import (
     write_bead_claim_marker,
 )
 from sase.agent.force_reuse_bead import ForceReuseBeadAssociation
+from sase.core.process_identity import process_identity_token
 from sase.telemetry import init_telemetry, register_flush_on_exit
 
 
@@ -75,7 +76,14 @@ def _write_bootstrap_agent_meta(
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             pass
 
-    agent_meta.update({"pid": os.getpid(), "output_path": output_path})
+    pid = os.getpid()
+    agent_meta.update(
+        {
+            "pid": pid,
+            "process_identity": process_identity_token(pid),
+            "output_path": output_path,
+        }
+    )
     write_agent_meta(artifacts_dir, agent_meta)
 
 

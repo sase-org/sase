@@ -19,6 +19,7 @@ from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.process_identity import process_identity_token
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
@@ -321,10 +322,12 @@ def spawn_retry_agent(
 
     from sase.artifacts import convert_timestamp_to_artifacts_format
 
+    child_pid = int(result.pid)
     child_timestamp = result.timestamp
     child_artifacts_timestamp = convert_timestamp_to_artifacts_format(child_timestamp)
     return {
-        "pid": result.pid,
+        "pid": child_pid,
+        "process_identity": process_identity_token(child_pid),
         "child_timestamp": child_timestamp,
         "child_artifacts_timestamp": child_artifacts_timestamp,
         "retry_attempt": handoff.retry_attempt,

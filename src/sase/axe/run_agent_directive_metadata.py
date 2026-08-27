@@ -8,6 +8,7 @@ import json
 import os
 from typing import Any, TYPE_CHECKING
 
+from sase.core.process_identity import process_identity_token
 from sase.bead.work import (
     SASE_EPIC_BEAD_ID_ENV,
     SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV,
@@ -173,8 +174,10 @@ def build_agent_meta(
     clan_membership_plan: ClanMembershipPlan | None,
 ) -> dict[str, Any]:
     """Build launch metadata after the agent identity has been allocated."""
+    pid = os.getpid()
     agent_meta: dict[str, Any] = {
-        "pid": os.getpid(),
+        "pid": pid,
+        "process_identity": process_identity_token(pid),
         "workspace_dir": inputs.workspace_dir,
         "workspace_num": inputs.workspace_num,
     }

@@ -13,9 +13,13 @@ from sase.agent.user_kill import (
 )
 
 
-def test_request_user_kill_writes_intent_before_sigterm(tmp_path: Path) -> None:
+def test_request_user_kill_writes_intent_before_sigterm(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     artifacts_dir = tmp_path / "artifacts"
     calls: list[int] = []
+    monkeypatch.setattr("sase.agent.user_kill.pid_is_thread", lambda _pid: False)
 
     def fake_killpg(_pgid: int, sig: int) -> None:
         calls.append(sig)
@@ -40,9 +44,10 @@ def test_request_user_kill_writes_intent_before_sigterm(tmp_path: Path) -> None:
     assert calls == [signal.SIGTERM, 0]
 
 
-def test_terminate_process_group_escalates_after_grace() -> None:
+def test_terminate_process_group_escalates_after_grace(monkeypatch) -> None:
     calls: list[int] = []
     times = iter([0.0, 0.0, 1.0])
+    monkeypatch.setattr("sase.agent.user_kill.pid_is_thread", lambda _pid: False)
 
     def fake_killpg(_pgid: int, sig: int) -> None:
         calls.append(sig)
@@ -62,8 +67,9 @@ def test_terminate_process_group_escalates_after_grace() -> None:
     assert calls == [signal.SIGTERM, 0, signal.SIGKILL]
 
 
-def test_terminate_process_group_skips_sigkill_when_process_exits() -> None:
+def test_terminate_process_group_skips_sigkill_when_process_exits(monkeypatch) -> None:
     calls: list[int] = []
+    monkeypatch.setattr("sase.agent.user_kill.pid_is_thread", lambda _pid: False)
 
     def fake_killpg(_pgid: int, sig: int) -> None:
         calls.append(sig)
@@ -82,3 +88,39 @@ def test_terminate_process_group_skips_sigkill_when_process_exits() -> None:
     assert result.success is True
     assert result.status == "killed"
     assert calls == [signal.SIGTERM, 0]
+
+
+def test_request_user_kill_identity_mismatch_sends_no_signal(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "process_identity": "boot-a:111"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sase.agent.user_kill.process_identity_matches",
+        lambda _pid, _recorded: False,
+    )
+    monkeypatch.setattr("sase.agent.user_kill.pid_is_thread", lambda _pid: False)
+    calls: list[int] = []
+
+    def fake_killpg(_pgid: int, sig: int) -> None:
+        calls.append(sig)
+
+    result = request_user_kill(
+        1234,
+        artifacts_dir=artifacts_dir,
+        source="test",
+        wait=True,
+        killpg=fake_killpg,
+    )
+
+    marker = artifacts_dir / USER_KILL_INTENT_MARKER
+    marker_data = json.loads(marker.read_text(encoding="utf-8"))
+    assert result.success is True
+    assert result.status == "identity_mismatch"
+    assert calls == []
+    assert marker_data["result"]["status"] == "identity_mismatch"

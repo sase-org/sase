@@ -185,9 +185,14 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
     _record_dismissal(cl_name, timestamp)
     _dismiss_agent_notifications(cl_name, timestamp)
 
+    message = (
+        f"Agent '{name}' was already gone; cleaned up stale state"
+        if status == "identity_mismatch"
+        else f"Killed agent '{name}' (PID {pid})"
+    )
     return _KillResult(
         True,
-        f"Killed agent '{name}' (PID {pid})",
+        message,
         status=status,
         pid=pid,
         changed=True,
@@ -419,7 +424,7 @@ def _release_workspace_claim(project_file: str, timestamp: str) -> None:
 
 
 def _kill_result_confirms_dead(status: str | None) -> bool:
-    return status in {"already_stopped", "killed"}
+    return status in {"already_stopped", "identity_mismatch", "killed"}
 
 
 def _remove_agent_state_markers(

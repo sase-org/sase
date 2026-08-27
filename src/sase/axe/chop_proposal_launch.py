@@ -7,6 +7,7 @@ from typing import Any
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
 from sase.core.agent_launch_wire import LaunchPlanWire, launch_plan_from_dict
+from sase.core.process_identity import process_identity_token
 
 from .chop_agents import build_chop_launch_env
 from .chop_proposal_models import (
@@ -51,13 +52,15 @@ def _launch_descriptor(
     artifacts_timestamp = (
         convert_timestamp_to_artifacts_format(timestamp) if timestamp else ""
     )
+    pid = int(result.pid)
     return {
         "index": proposal.index,
         "id": proposal.proposal_id,
         "agent_name": actual_name,
         "clan": plan.clan,
         "member_id": plan.member_id,
-        "pid": int(result.pid),
+        "pid": pid,
+        "process_identity": process_identity_token(pid),
         "workspace": proposal.workspace,
         "workspace_num": int(getattr(result, "workspace_num", 0) or 0),
         "workspace_dir": str(getattr(result, "workspace_dir", "") or ""),
