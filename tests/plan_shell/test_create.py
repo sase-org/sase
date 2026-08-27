@@ -14,6 +14,7 @@ from sase.notification_gates.model_results import GateCreationResult
 from sase.notification_gates.model_shell import GateShellSpec
 from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX, PLAN_CHAIN_PLAN_SUFFIX
 from sase.plan_shell.create import create_plan_gate_shell, plan_gate_shell_block
+from sase.question_shell.create import _question_gate_shell_spec
 from tests._axe_run_agent_exec_plan_helpers import make_ctx, make_state
 from tests._plan_gate_fixtures import write_plan
 from tests.plan_validation_helpers import VALID_TALE_PLAN
@@ -59,6 +60,54 @@ def test_tale_shell_block_covers_all_supported_approval_subsets() -> None:
     assert parsed.branches["feedback"].suffix == f"{PLAN_CHAIN_PLAN_SUFFIX}-@"
     assert parsed.branches["feedback"].raw_prompt is True
     assert parsed.branches["commit"].prompt is None
+
+
+def test_builtin_gate_shell_accents_match_agent_list_ladder_statuses() -> None:
+    question_spec = _question_gate_shell_spec(
+        [{"question": "Which database?"}],
+        session_id="question-1",
+        base_prompt="Implement the feature.",
+        prior_rounds=[],
+    )
+    parsed_shells = (
+        GateShellSpec.from_mapping(
+            plan_gate_shell_block("tale"),
+            branches=(("approve", "commit"), ("reject",), ("feedback",)),
+            allow_branch_subsets=True,
+        ),
+        GateShellSpec.from_mapping(
+            plan_gate_shell_block("epic"),
+            branches=(("approve",), ("reject",), ("feedback",)),
+            allow_branch_subsets=True,
+        ),
+        GateShellSpec.from_mapping(
+            question_spec["shell"],
+            branches=(("submit",),),
+        ),
+    )
+
+    declared_accents: dict[str, str] = {}
+    for shell in parsed_shells:
+        declared_accents[shell.pending_status] = shell.accent
+        for branch in shell.branches.values():
+            if branch.status is not None and branch.accent is not None:
+                declared_accents[branch.status] = branch.accent
+
+    expected_ladder_accents = {
+        "TALE": "#FF87AF",
+        "EPIC": "#D787FF",
+        "TALE APPROVED": "#00D7D7",
+        "PLAN APPROVED": "#00D7AF",
+        "PLAN COMMITTED": "#5FD75F",
+        "PLAN REJECTED": "#D7AF5F",
+        "FEEDBACK": "#FF5FD7",
+        "EPIC APPROVED": "#5FD7AF",
+        "QUESTION": "#FFAF00",
+        "ANSWERED": "#5FD7FF",
+    }
+    assert {
+        status: declared_accents[status] for status in expected_ladder_accents
+    } == expected_ladder_accents
 
 
 def test_create_plan_shell_records_context_before_auto_settlement(

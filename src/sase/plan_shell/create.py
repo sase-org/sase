@@ -32,18 +32,18 @@ def plan_gate_shell_block(tier: PlanGateTier) -> dict[str, Any]:
         return {
             "pending_status": "EPIC",
             "settled_status": "EPIC APPROVED",
-            "accent": "#AF87FF",
+            "accent": "#D787FF",
             "workspace": "inherit",
             "next": {"fork": "family", "output": ["results"], "prompt": None},
             "branches": {
                 "approve": {
                     "status": "EPIC APPROVED",
-                    "accent": "#AF87FF",
+                    "accent": "#5FD7AF",
                     "prompt": None,
                     "fork": "none",
                 },
                 "reject": _terminal_branch("EPIC REJECTED", "#FF5F5F"),
-                "feedback": _feedback_branch(),
+                "feedback": _feedback_branch("#FF5FD7"),
                 "timeout": _terminal_branch("EPIC TIMED OUT", "#FFAF00"),
                 "stopped": _terminal_branch("EPIC CANCELLED", "#FFAF00"),
                 "failed": _terminal_branch("EPIC FAILED", "#FF5F5F"),
@@ -52,15 +52,15 @@ def plan_gate_shell_block(tier: PlanGateTier) -> dict[str, Any]:
     return {
         "pending_status": "TALE",
         "settled_status": "TALE APPROVED",
-        "accent": "#FFD75F",
+        "accent": "#FF87AF",
         "workspace": "inherit",
         "next": {"fork": "family", "output": ["results"], "prompt": None},
         "branches": {
-            "approve+commit": _coder_branch("TALE APPROVED"),
-            "approve": _coder_branch("PLAN APPROVED"),
-            "commit": _terminal_branch("PLAN COMMITTED", "#0BD68B"),
-            "reject": _terminal_branch("PLAN REJECTED", "#FF5F5F"),
-            "feedback": _feedback_branch(),
+            "approve+commit": _coder_branch("TALE APPROVED", "#00D7D7"),
+            "approve": _coder_branch("PLAN APPROVED", "#00D7AF"),
+            "commit": _terminal_branch("PLAN COMMITTED", "#5FD75F"),
+            "reject": _terminal_branch("PLAN REJECTED", "#D7AF5F"),
+            "feedback": _feedback_branch("#FF5FD7"),
             "timeout": _terminal_branch("PLAN TIMED OUT", "#FFAF00"),
             "stopped": _terminal_branch("PLAN CANCELLED", "#FFAF00"),
             "failed": _terminal_branch("PLAN FAILED", "#FF5F5F"),
@@ -195,10 +195,10 @@ def _resolve_plan_shell_parent(
     return candidates[0].artifacts_dir if candidates else None
 
 
-def _coder_branch(status: str) -> dict[str, Any]:
+def _coder_branch(status: str, accent: str) -> dict[str, Any]:
     return {
         "status": status,
-        "accent": "#0BD68B",
+        "accent": accent,
         "prompt": "Implement the approved plan.",
         "output": ["results"],
         "fork": "none",
@@ -208,10 +208,10 @@ def _coder_branch(status: str) -> dict[str, Any]:
     }
 
 
-def _feedback_branch() -> dict[str, Any]:
+def _feedback_branch(accent: str) -> dict[str, Any]:
     return {
         "status": "FEEDBACK",
-        "accent": "#5FD7FF",
+        "accent": accent,
         "prompt": "Revise the plan using the reviewer feedback.",
         "output": ["results"],
         "fork": "family",
