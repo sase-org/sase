@@ -683,6 +683,25 @@ contention, and performance-floor jobs off the push path. The publish workflow's
 `sase_core_rs.__file__` / `__version__` so missing-wheel or ABI-mismatch failures are
 diagnosable from the build log without a manual repro.
 
+#### The CI source revision pin
+
+`ci.yml`'s `build-core` job and `master-gate.yml`'s `core-wheel` job both build
+`sase_core_rs` from the git SHA recorded in `sase-core-revision.txt`, not from
+`sase-core`'s HEAD at build time. An unpinned checkout let an ordinary `sase-core` push
+redden `sase` master with no `sase` commit involved, and made two CI runs of the same
+`sase` SHA build different Rust cores. `tools/ratchet_core_revision`
+(`just ratchet-core-revision`) proposes moving the pin forward once `sase-core`'s remote
+HEAD has moved past it, and `.github/workflows/core-pin-ratchet.yml` runs that tool on a
+schedule and opens a PR when a bump is pending — never on push, so the ratchet itself
+can't redden a commit's gate. If `sase` source now calls a binding the pinned revision
+doesn't expose, the `lint` job's "Check pinned core bindings" step
+(`tools/check_sase_core_rs_bindings --remedy ...`) fails with the missing binding names
+and names the pin bump as the remedy, instead of a bare `AttributeError` surfacing later
+in a consumer job. This is a source-revision pin, separate from the published
+`sase-core-rs` window `pyproject.toml` declares — see
+[Who owns the published version window](#who-owns-the-published-version-window) above;
+`tools/probe_core_floor` keeps its advisory role over that window unchanged.
+
 ## Golden Contract
 
 For the fully ported operations, the historical Python halves are gone, so the

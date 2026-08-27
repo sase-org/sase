@@ -4,17 +4,22 @@ import os
 import stat
 import subprocess
 from pathlib import Path
-from typing import Any
 
 import pytest
 import yaml
 
+from tests._github_actions_ci_helpers import REPO_ROOT
+from tests._github_actions_ci_helpers import _job_run_text
+from tests._github_actions_ci_helpers import _load_ci_workflow
+from tests._github_actions_ci_helpers import _load_publish_workflow
+from tests._github_actions_ci_helpers import _load_setup_sase_action
+from tests._github_actions_ci_helpers import _setup_sase_install_script
+from tests._github_actions_ci_helpers import _workflow_triggers
+from tests._github_actions_ci_helpers import _write_executable
 from tests._test_selection_contexts import ARTIFACT_PREFIX
 
 
 pytestmark = pytest.mark.contract
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Jobs that run source lanes against the Rust artifacts `build-core` built from
 # sase-core master rather than against published or stale local artifacts.
@@ -27,54 +32,6 @@ CORE_ARTIFACT_CONSUMER_JOBS = (
     "contention-test",
     "perf-floors",
 )
-
-
-def _load_ci_workflow() -> dict[str, Any]:
-    workflow_path = REPO_ROOT / ".github" / "workflows" / "ci.yml"
-    return yaml.safe_load(workflow_path.read_text())
-
-
-def _load_publish_workflow() -> dict[str, Any]:
-    workflow_path = REPO_ROOT / ".github" / "workflows" / "publish.yml"
-    return yaml.safe_load(workflow_path.read_text())
-
-
-def _load_master_gate_workflow() -> dict[str, Any]:
-    workflow_path = REPO_ROOT / ".github" / "workflows" / "master-gate.yml"
-    return yaml.safe_load(workflow_path.read_text())
-
-
-def _load_full_workflow() -> dict[str, Any]:
-    workflow_path = REPO_ROOT / ".github" / "workflows" / "full.yml"
-    return yaml.safe_load(workflow_path.read_text())
-
-
-def _load_setup_sase_action() -> dict[str, Any]:
-    action_path = REPO_ROOT / ".github" / "actions" / "setup-sase" / "action.yml"
-    return yaml.safe_load(action_path.read_text())
-
-
-def _workflow_triggers(workflow: dict[str, Any]) -> dict[str, Any]:
-    return workflow["on" if "on" in workflow else True]
-
-
-def _job_run_text(job: dict[str, Any]) -> str:
-    return "\n".join(
-        step.get("run", "") for step in job["steps"] if isinstance(step.get("run"), str)
-    )
-
-
-def _setup_sase_install_script() -> str:
-    steps = _load_setup_sase_action()["runs"]["steps"]
-    return next(
-        step["run"] for step in steps if step.get("name") == "Install dependencies"
-    )
-
-
-def _write_executable(path: Path, contents: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(contents, encoding="utf-8")
-    path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
 
 def test_ci_workflow_is_pull_request_and_reusable_only() -> None:
@@ -126,6 +83,40 @@ def test_lint_job_uses_single_lint_command() -> None:
     assert not any(step.get("run") == "just toobig" for step in steps)
 
 
+def test_lint_job_checks_pinned_core_bindings_before_sidecars() -> None:
+    """The pinned revision's failure mode must be legible, not a bare AttributeError.
+
+    If sase's source now needs a binding the pin from sase-core-revision.txt
+    doesn't provide yet, this must fail with the missing binding names and a
+    named remedy, not a generic sidecar or test crash further into the job.
+    """
+    workflow = _load_ci_workflow()
+    steps = workflow["jobs"]["lint"]["steps"]
+
+    install_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("name") == "Install dependencies"
+    )
+    check_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("name") == "Check pinned core bindings"
+    )
+    sidecar_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("name") == "Bootstrap SDD sidecars"
+    )
+    assert install_index < check_index < sidecar_index
+
+    run_text = steps[check_index]["run"]
+    assert "tools/check_sase_core_rs_bindings" in run_text
+    assert "--remedy" in run_text
+    assert "sase-core-revision.txt" in run_text
+    assert "ratchet-core-revision" in run_text
+
+
 def test_rust_core_is_built_once_and_shared_with_source_based_jobs() -> None:
     workflow = _load_ci_workflow()
     jobs = workflow["jobs"]
@@ -140,7 +131,9 @@ def test_rust_core_is_built_once_and_shared_with_source_based_jobs() -> None:
     ]
     assert len(core_checkouts) == 1
     assert core_checkouts[0]["with"]["path"] == "sase-core"
-    assert "git -C sase-core rev-parse HEAD" in build_run_text
+    assert core_checkouts[0]["with"]["ref"] == "${{ steps.core-sha.outputs.sha }}"
+    assert "sase-core-revision.txt" in build_run_text
+    assert "git -C sase-core rev-parse HEAD" not in build_run_text
     assert build_core["env"] == {
         "CARGO_HTTP_MULTIPLEXING": "false",
         "CARGO_NET_RETRY": "10",
@@ -184,6 +177,32 @@ def test_rust_core_is_built_once_and_shared_with_source_based_jobs() -> None:
             step.get("uses") == "dtolnay/rust-toolchain@stable" for step in job["steps"]
         )
         assert not any("rust-check" in step.get("run", "") for step in job["steps"])
+
+
+def test_build_core_resolves_pinned_revision_before_checking_out_sase_core() -> None:
+    """A pinned source-of-truth: not sase-core's HEAD at build time.
+
+    An unpinned checkout let an ordinary sase-core push redden sase master
+    with no sase commit involved, and made two runs of the same sase SHA
+    build different Rust cores.
+    """
+    build_core = _load_ci_workflow()["jobs"]["build-core"]
+    steps = build_core["steps"]
+
+    resolve_index = next(
+        index for index, step in enumerate(steps) if step.get("id") == "core-sha"
+    )
+    checkout_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("with", {}).get("repository") == "sase-org/sase-core"
+    )
+    assert resolve_index < checkout_index
+
+    resolve_run = steps[resolve_index]["run"]
+    assert "sase-core-revision.txt" in resolve_run
+    assert "^[0-9a-f]{40}$" in resolve_run
+    assert "git ls-remote" not in resolve_run
 
 
 def test_redundant_lanes_are_consolidated_without_dropping_commands() -> None:
@@ -789,208 +808,3 @@ def test_setup_sase_install_script_rejects_missing_or_duplicate_provenance(
 
     assert result.returncode == 1
     assert diagnostic in result.stderr
-
-
-# --------------------------------------------------------------------------
-# master-gate.yml
-# --------------------------------------------------------------------------
-
-
-def test_master_gate_triggers_on_master_pushes_and_manual_dispatch_only() -> None:
-    workflow = _load_master_gate_workflow()
-    triggers = _workflow_triggers(workflow)
-
-    assert set(triggers) == {"push", "workflow_dispatch"}
-    assert triggers["push"] == {"branches": ["master"]}
-
-
-def test_master_gate_never_cancels_a_running_sha() -> None:
-    workflow = _load_master_gate_workflow()
-
-    assert workflow["concurrency"] == {
-        "group": "master-gate-${{ github.sha }}",
-        "cancel-in-progress": False,
-    }
-
-
-def test_master_gate_has_read_only_contents_permission() -> None:
-    workflow = _load_master_gate_workflow()
-
-    assert workflow["permissions"] == {"contents": "read"}
-
-
-def test_master_gate_jobs_stay_within_the_twenty_minute_ceiling() -> None:
-    workflow = _load_master_gate_workflow()
-
-    for job_name, job in workflow["jobs"].items():
-        assert job["timeout-minutes"] <= 20, job_name
-
-
-def test_master_gate_shard_matrix_matches_the_declared_shard_count() -> None:
-    workflow = _load_master_gate_workflow()
-
-    assert workflow["env"]["SHARD_COUNT"] == 6
-    test_job = workflow["jobs"]["test"]
-    assert test_job["needs"] == "core-wheel"
-    assert test_job["strategy"]["fail-fast"] is False
-    assert test_job["strategy"]["matrix"]["shard"] == [1, 2, 3, 4, 5, 6]
-
-
-def test_master_gate_test_job_runs_only_the_sharded_fast_lane() -> None:
-    job = _load_master_gate_workflow()["jobs"]["test"]
-
-    setup_step = next(
-        step
-        for step in job["steps"]
-        if step.get("uses") == "./.github/actions/setup-sase"
-    )
-    assert setup_step["with"] == {
-        "python-version": "3.12",
-        "install-recipe": "install-visual",
-    }
-
-    run_step = next(step for step in job["steps"] if step.get("run") == "just test")
-    assert run_step["env"] == {
-        "SASE_TEST_SHARD": "${{ matrix.shard }}/${{ env.SHARD_COUNT }}"
-    }
-
-    run_text = _job_run_text(job)
-    for forbidden in (
-        "test-scoped",
-        "test-cov",
-        "test-cost",
-        "test-slow",
-        "test-contexts",
-        "test-visual",
-    ):
-        assert forbidden not in run_text
-
-
-def test_master_gate_core_wheel_job_resolves_and_caches_by_sha() -> None:
-    job = _load_master_gate_workflow()["jobs"]["core-wheel"]
-    run_text = _job_run_text(job)
-
-    assert "git ls-remote https://github.com/sase-org/sase-core.git HEAD" in run_text
-    assert "^[0-9a-f]{40}$" in run_text
-
-    restore_step = next(
-        step for step in job["steps"] if step.get("uses") == "actions/cache/restore@v4"
-    )
-    assert restore_step["id"] == "restore-core-wheel"
-    assert restore_step["with"]["path"] == "dist/"
-    key = restore_step["with"]["key"]
-    assert "${{ runner.os }}" in key
-    assert "${{ steps.core-sha.outputs.sha }}" in key
-
-    guarded_condition = "steps.restore-core-wheel.outputs.cache-hit != 'true'"
-    save_step = next(
-        step for step in job["steps"] if step.get("uses") == "actions/cache/save@v4"
-    )
-    assert save_step["with"]["key"] == key
-    assert save_step["if"] == guarded_condition
-
-    checkout_step = next(
-        step
-        for step in job["steps"]
-        if step.get("with", {}).get("repository") == "sase-org/sase-core"
-    )
-    assert checkout_step["with"]["ref"] == "${{ steps.core-sha.outputs.sha }}"
-    assert checkout_step["if"] == guarded_condition
-
-    # Every build step is guarded the same way a cache hit means none of them
-    # need to run.
-    build_step_names = {
-        "Set up Rust",
-        "Cache Rust build",
-        "Build abi3 Rust core wheel",
-        "Build xprompt LSP",
-        "Record wheel provenance",
-    }
-    for step in job["steps"]:
-        if step.get("name") in build_step_names:
-            assert step["if"] == guarded_condition
-
-    assert "uvx maturin build --release" in run_text
-    assert "cargo build --release -p sase_xprompt_lsp" in run_text
-    assert "install -m 0755 target/release/sase-xprompt-lsp" in run_text
-
-    upload_step = next(
-        step
-        for step in job["steps"]
-        if step.get("uses") == "actions/upload-artifact@v4"
-        and step.get("with", {}).get("name") == "sase-core-wheel"
-    )
-    assert upload_step["with"]["path"] == "dist/"
-    assert upload_step["with"]["if-no-files-found"] == "error"
-    assert "if" not in upload_step
-
-
-def test_master_gate_lint_job_matches_ci_lint_steps_byte_for_byte() -> None:
-    """Only what identifies the core artifact producer may differ.
-
-    Everything a maintainer would actually read as "the lint job" -- setup,
-    sidecars, SASE init, format checks, validation, build verification -- has
-    to be the exact same steps as `ci.yml`'s, or this gate's lint signal could
-    silently drift from what PR CI already promises.
-    """
-    ci_job = _load_ci_workflow()["jobs"]["lint"]
-    gate_job = _load_master_gate_workflow()["jobs"]["lint"]
-
-    assert gate_job["steps"] == ci_job["steps"]
-    assert gate_job["runs-on"] == ci_job["runs-on"]
-    assert gate_job["needs"] == "core-wheel"
-    assert ci_job["needs"] == "build-core"
-
-
-# --------------------------------------------------------------------------
-# full.yml
-# --------------------------------------------------------------------------
-
-
-def test_full_ci_triggers_and_calls_the_reusable_ci_workflow() -> None:
-    workflow = _load_full_workflow()
-    triggers = _workflow_triggers(workflow)
-
-    assert set(triggers) == {"schedule", "workflow_dispatch"}
-    assert triggers["schedule"] == [{"cron": "17 */2 * * *"}]
-    assert workflow["concurrency"] == {
-        "group": "full-ci",
-        "cancel-in-progress": False,
-    }
-    assert workflow["permissions"] == {"contents": "read"}
-    assert workflow["jobs"] == {
-        "full": {
-            "uses": "./.github/workflows/ci.yml",
-            "secrets": "inherit",
-        }
-    }
-
-
-def test_heavy_lane_jobs_are_defined_once_in_the_reusable_workflow() -> None:
-    ci_jobs = set(_load_ci_workflow()["jobs"])
-    full_jobs = set(_load_full_workflow()["jobs"])
-    heavy_jobs = {
-        "build-core",
-        "test",
-        "coverage-contexts",
-        "visual-test",
-        "ace-page-group-isolation",
-        "contention-test",
-        "perf-floors",
-    }
-
-    assert heavy_jobs <= ci_jobs
-    for job_name in heavy_jobs:
-        assert int(job_name in ci_jobs) + int(job_name in full_jobs) == 1
-
-
-def test_readme_explains_the_three_ci_badges() -> None:
-    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-
-    assert "actions/workflows/ci.yml/badge.svg" in readme
-    assert "actions/workflows/master-gate.yml/badge.svg" in readme
-    assert "actions/workflows/full.yml/badge.svg?branch=master" in readme
-    assert (
-        "CI checks pull requests, Master Gate is the per-SHA master release gate, "
-        "and Full CI runs the scheduled exhaustive lane."
-    ) in readme

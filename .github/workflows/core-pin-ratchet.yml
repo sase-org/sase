@@ -1,0 +1,63 @@
+name: Core Pin Ratchet
+
+# Proposes a bump to sase-core-revision.txt (the pinned sase-core revision
+# Master Gate and CI build the Rust core from) whenever sase-core's remote
+# HEAD has moved past it. Runs on a schedule rather than on push, so this
+# workflow itself can never redden a commit's gate; the opened PR runs the
+# normal per-ref CI, so a pinned revision that would break sase never merges
+# silently.
+on:
+  schedule:
+    - cron: '43 */6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: core-pin-ratchet
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ratchet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.SASE_RELEASE_TOKEN }}
+      - name: Propose a core pin bump
+        env:
+          GH_TOKEN: ${{ secrets.SASE_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          status=0
+          python3 tools/ratchet_core_revision --check || status=$?
+          if [ "$status" -eq 0 ]; then
+            echo "sase-core-revision.txt already matches sase-core HEAD."
+            exit 0
+          fi
+          if [ "$status" -ne 2 ]; then
+            exit "$status"
+          fi
+
+          python3 tools/ratchet_core_revision
+          new_sha="$(tr -d '[:space:]' < sase-core-revision.txt)"
+          branch="core-pin-ratchet-${new_sha:0:12}"
+
+          if gh api "repos/${{ github.repository }}/branches/${branch}" > /dev/null 2>&1; then
+            echo "branch ${branch} already exists; a bump is already proposed."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add sase-core-revision.txt
+          git commit -m "chore(core-pin): bump pinned sase-core revision to ${new_sha:0:12}"
+          git push origin "$branch"
+          gh pr create \
+            --title "chore(core-pin): bump pinned sase-core revision to ${new_sha:0:12}" \
+            --body "Automated ratchet: \`sase-core-revision.txt\` now tracks sase-core's newest remote HEAD (\`${new_sha}\`). Master Gate and CI on this PR prove the pinned revision still builds and passes the fast suite before merge." \
+            --base master \
+            --head "$branch"

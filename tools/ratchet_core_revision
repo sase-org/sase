@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+"""Ratchet the pinned sase-core revision to sase-core's current remote HEAD.
+
+CI builds sase's Rust core from the git SHA recorded in
+``sase-core-revision.txt``, not from sase-core's unpinned HEAD, so an
+ordinary sase-core push cannot redden sase master on its own and two CI runs
+of the same sase SHA build the same wheel. This tool is the ratchet path
+``tools/check_sase_core_rs_bindings``'s ``--remedy`` text points at: it
+proposes moving that pin forward once sase-core's remote HEAD has moved past
+it, mirroring ``tools/ratchet_core_window``'s ``--check``/``--report-only``/
+apply contract and exit codes without pulling in that tool's PyPI/uv.lock
+machinery, which does not apply to a plain git revision pin.
+
+Exit codes:
+  0: pinned revision already matches sase-core's remote HEAD
+  2: a ratchet is pending, report-only, or was applied
+  3: the tool could not determine or apply a safe ratchet
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+import subprocess
+import sys
+from collections.abc import Callable
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_REVISION_FILE = REPO_ROOT / "sase-core-revision.txt"
+DEFAULT_REMOTE_URL = "https://github.com/sase-org/sase-core.git"
+EXIT_OK = 0
+EXIT_RATCHET = 2
+EXIT_COULD_NOT_DETERMINE = 3
+
+_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+
+RemoteHeadFn = Callable[[str], str]
+
+
+class RatchetError(ValueError):
+    """Raised when the ratchet cannot proceed safely."""
+
+
+def _error(message: str) -> None:
+    print(f"[ratchet_core_revision] {message}", file=sys.stderr)
+
+
+def read_pinned_revision(revision_file: Path) -> str:
+    try:
+        text = revision_file.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise RatchetError(f"missing revision file: {revision_file}") from exc
+    sha = text.strip()
+    if not _SHA_RE.fullmatch(sha):
+        raise RatchetError(
+            f"{revision_file} does not contain a 40 hex character SHA: {sha!r}"
+        )
+    return sha
+
+
+def fetch_remote_head(remote_url: str) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "ls-remote", remote_url, "HEAD"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30.0,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RatchetError(f"could not query {remote_url}: {exc}") from exc
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise RatchetError(
+            f"git ls-remote {remote_url} HEAD failed" + (f": {detail}" if detail else "")
+        )
+    fields = result.stdout.split()
+    sha = fields[0] if fields else ""
+    if not _SHA_RE.fullmatch(sha):
+        raise RatchetError(
+            f"git ls-remote {remote_url} HEAD did not resolve a 40 hex "
+            f"character SHA: {result.stdout.strip()!r}"
+        )
+    return sha
+
+
+def ratchet_core_revision(
+    *,
+    revision_file: Path = DEFAULT_REVISION_FILE,
+    remote_url: str = DEFAULT_REMOTE_URL,
+    check: bool = False,
+    report_only: bool = False,
+    remote_head_fetcher: RemoteHeadFn | None = None,
+) -> int:
+    fetcher = remote_head_fetcher or fetch_remote_head
+    current = read_pinned_revision(revision_file)
+    target = fetcher(remote_url)
+
+    if target == current:
+        print(f"sase-core-revision.txt already matches sase-core HEAD {current}")
+        return EXIT_OK
+
+    summary = f"sase-core pin ratchet {current[:12]} -> {target[:12]}"
+    if check:
+        print(f"{summary} pending")
+        return EXIT_RATCHET
+    if report_only:
+        print(f"{summary} would update {revision_file}:")
+        print(f"-{current}")
+        print(f"+{target}")
+        return EXIT_RATCHET
+
+    revision_file.write_text(f"{target}\n", encoding="utf-8")
+    print(f"{summary} applied")
+    return EXIT_RATCHET
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog=(
+            "Exit 0 means the pin already matches sase-core HEAD; 2 means a "
+            "ratchet is pending, reported, or applied; 3 means the tool "
+            "could not determine or safely apply the ratchet."
+        ),
+    )
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        help="write nothing and exit 2 when a ratchet is pending.",
+    )
+    mode.add_argument(
+        "-r",
+        "--report-only",
+        action="store_true",
+        help="write nothing and print the pin change that would be applied.",
+    )
+    parser.add_argument(
+        "-f",
+        "--revision-file",
+        type=Path,
+        default=DEFAULT_REVISION_FILE,
+        help="Path to sase's pinned sase-core revision file.",
+    )
+    parser.add_argument(
+        "-u",
+        "--remote-url",
+        default=DEFAULT_REMOTE_URL,
+        help="sase-core remote URL queried for its current HEAD.",
+    )
+    namespace = parser.parse_args(argv)
+
+    try:
+        return ratchet_core_revision(
+            revision_file=namespace.revision_file,
+            remote_url=namespace.remote_url,
+            check=namespace.check,
+            report_only=namespace.report_only,
+        )
+    except RatchetError as exc:
+        _error(str(exc))
+        return EXIT_COULD_NOT_DETERMINE
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

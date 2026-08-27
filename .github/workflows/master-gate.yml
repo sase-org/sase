@@ -30,17 +30,23 @@ jobs:
       CARGO_HTTP_MULTIPLEXING: "false"
       CARGO_NET_RETRY: "10"
     steps:
-      - name: Resolve Rust core revision
+      - uses: actions/checkout@v4
+      # sase-core-revision.txt, not `git ls-remote ... HEAD`, is the source of
+      # truth: an unpinned checkout let an ordinary sase-core push redden this
+      # gate with no sase commit involved, and made two runs of the same sase
+      # SHA build different Rust cores. tools/ratchet_core_revision proposes
+      # bumps when sase-core moves.
+      - name: Resolve pinned Rust core revision
         id: core-sha
         run: |
           set -euo pipefail
-          core_sha="$(git ls-remote https://github.com/sase-org/sase-core.git HEAD | cut -f1)"
+          core_sha="$(tr -d '[:space:]' < sase-core-revision.txt)"
           if [[ ! "$core_sha" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "error: resolved sase-core HEAD SHA is not 40 hex characters: $core_sha" >&2
+            echo "error: sase-core-revision.txt does not contain a 40 hex character SHA: $core_sha" >&2
             exit 1
           fi
           echo "sha=$core_sha" >> "$GITHUB_OUTPUT"
-          echo "Building sase-core commit $core_sha"
+          echo "Building pinned sase-core commit $core_sha"
       # A cache-version salt in the key lets this cache be invalidated on
       # purpose (a payload-shape change) without waiting for sase-core to move.
       - name: Restore cached core wheel
@@ -113,6 +119,11 @@ jobs:
         uses: ./.github/actions/setup-sase
         with:
           python-version: '3.12'
+      - name: Check pinned core bindings
+        run: >-
+          ./.venv/bin/python tools/check_sase_core_rs_bindings
+          --remedy "bump the pinned revision in sase-core-revision.txt once a
+          sase-core release exposes it (see 'just ratchet-core-revision')"
       - name: Bootstrap SDD sidecars
         env:
           SASE_RELEASE_TOKEN: ${{ secrets.SASE_RELEASE_TOKEN }}

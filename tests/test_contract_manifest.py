@@ -137,8 +137,22 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # edge reaches rather than expanding behavioral test weight. The whole 58-entry
 # set measured 31.1 s under the command above on this host; the next candidate
 # should displace an entry rather than add one.
-_MANIFEST_ENTRY_BUDGET = 58
-_MEASURED_SERIAL_COST = "31.1 serial seconds across 58 entries"
+#
+# Re-curated to 60 on 2026-08-27 (sase-um.6) for two paths. First,
+# `test_github_actions_ci_master_gate.py` redistributes `test_github_actions_ci.py`'s
+# master-gate.yml/full.yml/core-pin-ratchet.yml sections, split out once the file
+# crossed the 1000-line `toobig` ceiling; both halves keep the marker for the reason
+# the original file earned it -- checked-in workflow YAML is a data asset no import
+# edge reaches. Second, `test_ratchet_core_revision_tool.py` guards the new
+# `tools/ratchet_core_revision` script (the sase-core source-revision-pin ratchet),
+# admitted on the same value-per-second basis as the other `tools/ratchet_core_window`
+# and `tools/probe_core_floor` guards already in this set: a `tools/` script
+# contributes no import-graph seeds, so `RULE_CONTRACT_SET_ONLY` fires and this set is
+# the only thing that would catch a regression in it. The whole 60-entry set measured
+# 31.85 s under the command above on this host; the next candidate should displace an
+# entry rather than add one.
+_MANIFEST_ENTRY_BUDGET = 60
+_MEASURED_SERIAL_COST = "31.85 serial seconds across 60 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

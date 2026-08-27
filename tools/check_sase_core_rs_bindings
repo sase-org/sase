@@ -198,6 +198,13 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Print the collected binding names without importing sase_core_rs.",
     )
+    parser.add_argument(
+        "--remedy",
+        help=(
+            "Extra line printed after a missing-binding report, naming what "
+            "the caller should do about it (e.g. which ratchet to run)."
+        ),
+    )
     args = parser.parse_args(argv)
 
     names, problems = collect_binding_names(args.src)
@@ -230,6 +237,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         for name in missing:
             print(f"  {name}", file=sys.stderr)
+        if args.remedy:
+            print(f"remedy: {args.remedy}", file=sys.stderr)
         return 1
     print(
         f"sase_core_rs {version} exposes all {len(names)} bindings required "

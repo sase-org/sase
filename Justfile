@@ -578,6 +578,12 @@ refresh-shard-timings *args: _setup
 ratchet-core-window *args: _venv
     @{{ venv_bin }}/python tools/ratchet_core_window {{ args }}
 
+# Propose moving sase-core-revision.txt (the pinned Rust core revision CI
+# builds from) forward to sase-core's current remote HEAD. Pass --check to
+# verify without writing, or --report-only to preview the pin change.
+ratchet-core-revision *args: _venv
+    @{{ venv_bin }}/python tools/ratchet_core_revision {{ args }}
+
 audit-patch-stitch-terminology: _setup
     @printf "\n---------- Auditing Patch/stitch terminology... ----------\n"
     {{ venv_bin }}/python tools/audit_patch_stitch_terminology --repo-root .

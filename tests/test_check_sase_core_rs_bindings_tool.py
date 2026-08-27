@@ -132,6 +132,38 @@ def test_scan_flags_unresolvable_binding_names(
     assert "sample.py:3" in problems[0]
 
 
+def test_missing_binding_prints_the_remedy_when_given_one(
+    tool: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "sample.py").write_text(
+        "from sase.core.rust import require_rust_binding\n"
+        "binding = require_rust_binding('definitely_not_a_real_binding')\n",
+        encoding="utf-8",
+    )
+
+    code = tool.main(["--src", str(tmp_path), "--remedy", "bump the pin, see the docs"])
+
+    assert code == 1
+    err = capsys.readouterr().err
+    assert "definitely_not_a_real_binding" in err
+    assert "remedy: bump the pin, see the docs" in err
+
+
+def test_missing_binding_omits_remedy_line_when_not_given(
+    tool: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "sample.py").write_text(
+        "from sase.core.rust import require_rust_binding\n"
+        "binding = require_rust_binding('definitely_not_a_real_binding')\n",
+        encoding="utf-8",
+    )
+
+    code = tool.main(["--src", str(tmp_path)])
+
+    assert code == 1
+    assert "remedy:" not in capsys.readouterr().err
+
+
 def test_scan_resolves_one_level_forwarders(tool: ModuleType, tmp_path: Path) -> None:
     (tmp_path / "sample.py").write_text(
         "from sase.core.rust import require_rust_binding\n"
