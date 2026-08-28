@@ -16,6 +16,7 @@ from typing import Any
 
 from sase.ace.tui._artifact_link_contract import ARTIFACT_LINK_SOURCE
 from sase.ace.tui._artifact_tab_model import ArtifactsPaneContract, PaneRelationDecl
+from sase.core.agent_identity_facade import current_owner_agent_name_lookup_candidates
 from sase.core.artifact_relations import RelationEdge
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.paths import sase_projects_dir
@@ -33,6 +34,47 @@ class ArtifactLinksSnapshot:
     rows: tuple[Mapping[str, Any], ...] = ()
     source_key: tuple[object, ...] = ()
     errors: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class _KnownTargetIndex:
+    """Index the target fields artifact-link ref resolution matches."""
+
+    targets: frozenset[ArtifactEntryTarget]
+    by_file_first_part: Mapping[str, ArtifactEntryTarget]
+    by_pane_last_part: Mapping[tuple[str, str], ArtifactEntryTarget]
+    by_stitch_repo_sha_prefix: Mapping[tuple[str, str], ArtifactEntryTarget]
+    agent_targets: tuple[ArtifactEntryTarget, ...]
+
+    @classmethod
+    def build(cls, known_targets: Iterable[ArtifactEntryTarget]) -> _KnownTargetIndex:
+        targets = frozenset(known_targets)
+        by_file_first_part: dict[str, ArtifactEntryTarget] = {}
+        by_pane_last_part: dict[tuple[str, str], ArtifactEntryTarget] = {}
+        by_stitch_repo_sha_prefix: dict[tuple[str, str], ArtifactEntryTarget] = {}
+        agent_targets: list[ArtifactEntryTarget] = []
+
+        for target in targets:
+            parts = target.parts
+            if not parts:
+                continue
+            if target.pane_id == "files":
+                by_file_first_part.setdefault(parts[0], target)
+            elif target.pane_id == "stitches" and len(parts) >= 2:
+                repo, sha = parts[0], parts[1]
+                for end in range(0, len(sha) + 1):
+                    by_stitch_repo_sha_prefix.setdefault((repo, sha[:end]), target)
+            elif target.pane_id == "agents":
+                agent_targets.append(target)
+            by_pane_last_part.setdefault((target.pane_id, parts[-1]), target)
+
+        return cls(
+            targets=targets,
+            by_file_first_part=by_file_first_part,
+            by_pane_last_part=by_pane_last_part,
+            by_stitch_repo_sha_prefix=by_stitch_repo_sha_prefix,
+            agent_targets=tuple(agent_targets),
+        )
 
 
 _CACHE_LOCK = RLock()
@@ -103,7 +145,8 @@ def artifact_link_edges(
     if snapshot is None:
         return ()
     declarations = {item.name: item for item in contract.relations}
-    known = frozenset(known_targets)
+    known_index = _KnownTargetIndex.build(known_targets)
+    known = known_index.targets
     seen: set[tuple[str, ArtifactEntryTarget, ArtifactEntryTarget]] = set()
     edges: list[RelationEdge] = []
     for row in snapshot.rows:
@@ -114,8 +157,8 @@ def artifact_link_edges(
         if not source_ref or not target_ref or decl is None:
             continue
         project = str(row.get("_project") or project_hint or "").strip() or None
-        source = _target_for_ref(source_ref, known, project_hint=project)
-        target = _target_for_ref(target_ref, known, project_hint=project)
+        source = _target_for_ref(source_ref, known_index, project_hint=project)
+        target = _target_for_ref(target_ref, known_index, project_hint=project)
         if source is None or target is None:
             continue
         if source not in known and target not in known:
@@ -216,7 +259,7 @@ def target_for_ref_kind(
 
 def _target_for_ref(
     value: str,
-    known_targets: frozenset[ArtifactEntryTarget],
+    known_targets: _KnownTargetIndex,
     *,
     project_hint: str | None,
 ) -> ArtifactEntryTarget | None:
@@ -233,49 +276,37 @@ def _target_for_ref(
 def _known_target_for_ref(
     kind: str,
     payload: str,
-    known_targets: frozenset[ArtifactEntryTarget],
+    known_targets: frozenset[ArtifactEntryTarget] | _KnownTargetIndex,
 ) -> ArtifactEntryTarget | None:
+    index = (
+        known_targets
+        if isinstance(known_targets, _KnownTargetIndex)
+        else _KnownTargetIndex.build(known_targets)
+    )
     if kind == "file":
         exact_file = ArtifactEntryTarget("files", (payload,))
-        if exact_file in known_targets:
+        if exact_file in index.targets:
             return exact_file
+        return index.by_file_first_part.get(payload)
     if kind == "agent":
         exact_agent = ArtifactEntryTarget("agents", (payload,))
-        if exact_agent in known_targets:
+        if exact_agent in index.targets:
             return exact_agent
-    for target in known_targets:
-        if kind == "stitch" and target.pane_id == "stitches":
-            repo, at, sha = payload.partition("@")
-            if at and len(target.parts) >= 2 and target.parts[0] == repo:
-                if target.parts[1] == sha or str(target.parts[1]).startswith(sha):
-                    return target
-        elif kind == "patch" and target.pane_id == "patches":
-            if target.parts and target.parts[-1] == payload:
+        candidates = set(current_owner_agent_name_lookup_candidates(payload))
+        for target in index.agent_targets:
+            if target.parts and target.parts[-1] in candidates:
                 return target
-        elif kind == "bead" and target.pane_id == "beads":
-            if target.parts and target.parts[-1] == payload:
-                return target
-        elif kind == "file" and target.pane_id == "files":
-            if target.parts and target.parts[0] == payload:
-                return target
-        elif kind == "agent" and target.pane_id == "agents":
-            # ``payload`` may be a bare local name (the common case, matched
-            # above) or the owner-qualified ``canonical_global_name`` a
-            # remote writer recorded. Re-derive the same current-owner
-            # compatibility spellings ``reference_for_agent_name`` uses so
-            # both forms resolve to the one row keyed on its bare name.
-            if target.parts:
-                from sase.core.agent_identity_facade import (
-                    current_owner_agent_name_lookup_candidates,
-                )
-
-                if payload in current_owner_agent_name_lookup_candidates(
-                    str(target.parts[-1])
-                ):
-                    return target
-        elif target.pane_id == f"ref:{kind}":
-            if target.parts and target.parts[-1] == payload:
-                return target
+        return None
+    if kind == "stitch":
+        repo, at, sha = payload.partition("@")
+        if at:
+            return index.by_stitch_repo_sha_prefix.get((repo, sha))
+        return None
+    if kind == "patch":
+        return index.by_pane_last_part.get(("patches", payload))
+    if kind == "bead":
+        return index.by_pane_last_part.get(("beads", payload))
+    return index.by_pane_last_part.get((f"ref:{kind}", payload))
     return None
 
 

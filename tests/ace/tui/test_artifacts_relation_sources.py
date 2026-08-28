@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
+import pytest
+
 from sase.ace.patch import Patch
 from sase.ace.tui._artifact_tab_contract import (
     compile_builtin_contract,
@@ -17,6 +21,7 @@ from sase.ace.tui.relations import (
     build_provider_relation_index,
     build_stitches_relation_index,
 )
+from sase.ace.tui.relations import artifact_links
 from sase.ace.tui.widgets.artifacts.bead_plan_links import BeadPlanLink
 from sase.ace.tui.widgets.artifacts.beads_data_models import BeadsSnapshot, ProjectBead
 from sase.ace.tui.widgets.artifacts.files_data import (
@@ -269,6 +274,118 @@ def test_artifact_links_source_deduplicates_undirected_related_rows() -> None:
     assert [
         edge.target.parts[0] for edge in index.edges_for_relation(row, "related")
     ] == ["other"]
+
+
+def test_artifact_links_source_resolves_known_targets_with_one_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    targets = (
+        ArtifactEntryTarget("files", ("doc",)),
+        *(ArtifactEntryTarget("files", (f"other-{index}",)) for index in range(200)),
+    )
+    snapshot = ArtifactLinksSnapshot(
+        rows=tuple(
+            {
+                "source_ref": "file:doc",
+                "relation": "related",
+                "target_ref": f"file:other-{index}",
+                "_project": "alpha",
+            }
+            for index in range(200)
+        )
+    )
+    contract = compile_builtin_contract("files", label="F", icon="x", accent="#0")
+    build_count = 0
+    original_build = artifact_links._KnownTargetIndex.build
+
+    def counted_build(known_targets: Iterable[ArtifactEntryTarget]):
+        nonlocal build_count
+        build_count += 1
+        return original_build(known_targets)
+
+    monkeypatch.setattr(
+        artifact_links._KnownTargetIndex, "build", staticmethod(counted_build)
+    )
+
+    edges = artifact_links.artifact_link_edges(
+        snapshot,
+        contract=contract,
+        known_targets=targets,
+        project_hint="alpha",
+    )
+
+    assert len(edges) == 200
+    assert build_count == 1
+
+
+def test_known_target_index_preserves_legacy_match_precedence() -> None:
+    known = frozenset(
+        {
+            ArtifactEntryTarget("files", ("doc",)),
+            ArtifactEntryTarget("files", ("doc", "v1")),
+            ArtifactEntryTarget("patches", ("alpha", "same")),
+            ArtifactEntryTarget("patches", ("beta", "same")),
+            ArtifactEntryTarget("stitches", ("sase", "abc1234")),
+            ArtifactEntryTarget("stitches", ("sase", "abc123456")),
+            ArtifactEntryTarget("ref:plan", ("alpha", "active", "design.md")),
+            ArtifactEntryTarget("ref:plan", ("beta", "archive", "design.md")),
+        }
+    )
+    index = artifact_links._KnownTargetIndex.build(known)
+
+    assert artifact_links._known_target_for_ref("file", "doc", index) == (
+        _legacy_known_target_for_ref("file", "doc", known)
+    )
+    assert artifact_links._known_target_for_ref("patch", "same", index) == (
+        _legacy_known_target_for_ref("patch", "same", known)
+    )
+    assert artifact_links._known_target_for_ref("stitch", "sase@abc", index) == (
+        _legacy_known_target_for_ref("stitch", "sase@abc", known)
+    )
+    assert artifact_links._known_target_for_ref("plan", "design.md", index) == (
+        _legacy_known_target_for_ref("plan", "design.md", known)
+    )
+
+
+def _legacy_known_target_for_ref(
+    kind: str,
+    payload: str,
+    known_targets: frozenset[ArtifactEntryTarget],
+) -> ArtifactEntryTarget | None:
+    if kind == "file":
+        exact_file = ArtifactEntryTarget("files", (payload,))
+        if exact_file in known_targets:
+            return exact_file
+    if kind == "agent":
+        exact_agent = ArtifactEntryTarget("agents", (payload,))
+        if exact_agent in known_targets:
+            return exact_agent
+    for target in known_targets:
+        if kind == "stitch" and target.pane_id == "stitches":
+            repo, at, sha = payload.partition("@")
+            if at and len(target.parts) >= 2 and target.parts[0] == repo:
+                if target.parts[1] == sha or str(target.parts[1]).startswith(sha):
+                    return target
+        elif kind == "patch" and target.pane_id == "patches":
+            if target.parts and target.parts[-1] == payload:
+                return target
+        elif kind == "bead" and target.pane_id == "beads":
+            if target.parts and target.parts[-1] == payload:
+                return target
+        elif kind == "file" and target.pane_id == "files":
+            if target.parts and target.parts[0] == payload:
+                return target
+        elif kind == "agent" and target.pane_id == "agents":
+            if target.parts and payload in (
+                artifact_links.current_owner_agent_name_lookup_candidates(
+                    str(target.parts[-1])
+                )
+            ):
+                return target
+        elif target.pane_id == f"ref:{kind}":
+            if target.parts and target.parts[-1] == payload:
+                return target
+    return None
 
 
 def test_stitches_source_emits_parents_and_patch_tag() -> None:
