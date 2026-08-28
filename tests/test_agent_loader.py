@@ -87,7 +87,97 @@ def test_load_agents_from_running_field_releases_dead_claim() -> None:
         )
 
     assert agents == []
-    release.assert_called_once_with(project_file, 11, claim.workflow, "my_feature")
+    release.assert_called_once_with(
+        project_file, 11, claim.workflow, "my_feature", caller_tag="ace-agents-loader"
+    )
+
+
+def test_load_agents_from_running_field_holds_pending_gate_claim() -> None:
+    """A pending gate shell's dead-PID claim survives an Agents-tab refresh."""
+    claim = SimpleNamespace(
+        workspace_num=10,
+        workflow="ace-gate",
+        cl_name="my_feature",
+        pid=1234,
+        artifacts_timestamp="20260512123456",
+        pinned=False,
+    )
+    project_file = "/tmp/.sase/projects/myproj/myproj.sase"
+
+    with (
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
+            return_value=[claim],
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.core.agent_artifact_paths.resolve_agent_artifact_timestamp_path",
+            return_value=Path("/tmp/artifacts/20260512123456"),
+        ),
+        patch(
+            "sase.gate_shell.store.read_gate_shell_marker",
+            return_value=MagicMock(is_terminal=False),
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.release_workspace",
+        ) as release,
+    ):
+        agents = load_agents_from_running_field(
+            [project_file],
+            bug_by_cl_name={},
+            cl_by_cl_name={},
+        )
+
+    assert agents == []
+    release.assert_not_called()
+
+
+def test_load_agents_from_running_field_releases_settled_gate_claim() -> None:
+    """The same claim is reaped once the gate shell's marker turns terminal."""
+    claim = SimpleNamespace(
+        workspace_num=10,
+        workflow="ace-gate",
+        cl_name="my_feature",
+        pid=1234,
+        artifacts_timestamp="20260512123456",
+        pinned=False,
+    )
+    project_file = "/tmp/.sase/projects/myproj/myproj.sase"
+
+    with (
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
+            return_value=[claim],
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.core.agent_artifact_paths.resolve_agent_artifact_timestamp_path",
+            return_value=Path("/tmp/artifacts/20260512123456"),
+        ),
+        patch(
+            "sase.gate_shell.store.read_gate_shell_marker",
+            return_value=MagicMock(is_terminal=True),
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.release_workspace",
+        ) as release,
+    ):
+        agents = load_agents_from_running_field(
+            [project_file],
+            bug_by_cl_name={},
+            cl_by_cl_name={},
+        )
+
+    assert agents == []
+    release.assert_called_once_with(
+        project_file, 10, "ace-gate", "my_feature", caller_tag="ace-agents-loader"
+    )
 
 
 def test_load_agents_from_running_field_keeps_live_deferred_claim() -> None:
@@ -431,7 +521,11 @@ def test_load_agents_from_running_field_releases_dead_lease_claim() -> None:
 
     assert agents == []
     release.assert_called_once_with(
-        project_file, 100, claim.workflow, "bead_claim_checks:demo"
+        project_file,
+        100,
+        claim.workflow,
+        "bead_claim_checks:demo",
+        caller_tag="ace-agents-loader",
     )
 
 

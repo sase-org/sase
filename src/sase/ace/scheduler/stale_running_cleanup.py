@@ -61,33 +61,6 @@ def _monitor_claim_is_releasable(project_file: str, claim: WorkspaceClaim) -> bo
     return record is None or record.is_terminal
 
 
-def _gate_claim_is_releasable(project_file: str, claim: WorkspaceClaim) -> bool:
-    """Return whether a dead-pid gate-shell claim is safe to release.
-
-    Pending gate shells intentionally keep the creator's old PID in the
-    RUNNING row after the creator is killed. Only release once the owning
-    gate-shell member's own markers say it is terminal; read failures fail
-    closed.
-    """
-    if not claim.artifacts_timestamp:
-        return False
-    try:
-        from sase.core.agent_artifact_paths import (
-            ACE_RUN_WORKFLOW_DIR,
-            resolve_agent_artifact_timestamp_path,
-        )
-        from sase.gate_shell.store import read_gate_shell_marker
-
-        project_name = Path(project_file).parent.name
-        artifacts_dir = resolve_agent_artifact_timestamp_path(
-            project_name, ACE_RUN_WORKFLOW_DIR, claim.artifacts_timestamp
-        )
-        record = read_gate_shell_marker(project_name, str(artifacts_dir))
-    except Exception:
-        return False
-    return record is not None and record.is_terminal
-
-
 def cleanup_stale_running_entries(
     log_fn: Callable[[str, str | None], None] | None = None,
     *,
@@ -114,7 +87,10 @@ def cleanup_stale_running_entries(
     Returns:
         Number of stale workspace claims released.
     """
-    from sase.gate_shell.claims import GATE_WORKSPACE_CLAIM_WORKFLOW
+    from sase.gate_shell.claims import (
+        GATE_WORKSPACE_CLAIM_WORKFLOW,
+        gate_claim_is_releasable,
+    )
 
     if skip_monitor_claims:
         # The caller already committed to leaving monitor claims alone, and
@@ -151,7 +127,7 @@ def cleanup_stale_running_entries(
                 project_file, claim
             ):
                 continue
-            elif is_gate_claim and not _gate_claim_is_releasable(project_file, claim):
+            elif is_gate_claim and not gate_claim_is_releasable(project_file, claim):
                 continue
 
             release_workspace(

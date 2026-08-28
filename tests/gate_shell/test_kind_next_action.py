@@ -37,7 +37,7 @@ def test_registered_hook_return_value_is_used(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setitem(
         module._KIND_NEXT_ACTIONS,
         "question",
-        ("tests.gate_shell.test_kind_next_action", "_rebuild_ok"),
+        _rebuild_ok,
     )
     assert resolve_shell_next_action(**_kwargs()) == "rebuilt next action"
 
@@ -47,11 +47,7 @@ def test_import_failure_falls_back_to_declared(
 ) -> None:
     import sase.gate_shell.kind_next_action as module
 
-    monkeypatch.setitem(
-        module._KIND_NEXT_ACTIONS,
-        "question",
-        ("sase.question_shell.does_not_exist", "missing_hook"),
-    )
+    monkeypatch.setitem(module._KIND_NEXT_ACTIONS, "question", _rebuild_unimportable)
     with caplog.at_level(logging.WARNING):
         result = resolve_shell_next_action(**_kwargs())
     assert result == "declared prompt"
@@ -64,7 +60,7 @@ def test_raising_hook_falls_back_to_declared(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setitem(
         module._KIND_NEXT_ACTIONS,
         "question",
-        ("tests.gate_shell.test_kind_next_action", "_rebuild_raises"),
+        _rebuild_raises,
     )
     assert resolve_shell_next_action(**_kwargs()) == "declared prompt"
 
@@ -75,7 +71,7 @@ def test_falsy_return_falls_back_to_declared(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setitem(
         module._KIND_NEXT_ACTIONS,
         "question",
-        ("tests.gate_shell.test_kind_next_action", "_rebuild_empty"),
+        _rebuild_empty,
     )
     assert resolve_shell_next_action(**_kwargs()) == "declared prompt"
 
@@ -88,6 +84,14 @@ def _rebuild_ok(**kwargs: Any) -> str:
 def _rebuild_raises(**kwargs: Any) -> str:
     del kwargs
     raise RuntimeError("boom")
+
+
+def _rebuild_unimportable(**kwargs: Any) -> str:
+    """Stand in for a hook whose own module import fails at settlement."""
+    del kwargs
+    from sase.question_shell.does_not_exist import missing_hook  # noqa: F401
+
+    return "unreachable"
 
 
 def _rebuild_empty(**kwargs: Any) -> str:

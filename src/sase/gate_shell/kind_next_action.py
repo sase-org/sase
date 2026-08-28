@@ -2,23 +2,23 @@
 
 A gate kind that wants its follow-up's ``## Your next action`` rebuilt from
 durable state at settlement (rather than frozen at creation time) registers a
-hook here. Resolution is lazy so ``sase.gate_shell`` never imports a kind's
-module eagerly, and defensive so an unregistered kind, an import failure, an
-exception, or a falsy return all fall back to the declared prompt: this runs
-at settlement and must never turn a settlement into a crash.
+hook here. Each hook is a thin wrapper that imports the kind's module in its
+own body, so ``sase.gate_shell`` never imports a kind's module eagerly while
+the real hook stays an ordinary, statically visible reference. Resolution is
+defensive: an unregistered kind, an import failure, an exception, or a falsy
+return all fall back to the declared prompt, because this runs at settlement
+and must never turn a settlement into a crash.
 """
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from importlib import import_module
-from typing import Any, cast
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 _NextActionHook = Callable[..., str | None]
-_NextActionTarget = tuple[str, str] | _NextActionHook
 
 
 def _plan_next_action(**kwargs: Any) -> str | None:
@@ -27,10 +27,16 @@ def _plan_next_action(**kwargs: Any) -> str | None:
     return plan_next_action(**kwargs)
 
 
-_KIND_NEXT_ACTIONS: dict[str, _NextActionTarget] = {
+def _question_next_action(**kwargs: Any) -> str | None:
+    from sase.question_shell.followup import question_next_action
+
+    return question_next_action(**kwargs)
+
+
+_KIND_NEXT_ACTIONS: dict[str, _NextActionHook] = {
     "epic_plan": _plan_next_action,
     "plan": _plan_next_action,
-    "question": ("sase.question_shell.followup", "question_next_action"),
+    "question": _question_next_action,
 }
 
 _STRICT_KIND_NEXT_ACTIONS = frozenset({"epic_plan", "plan"})
@@ -46,16 +52,10 @@ def resolve_shell_next_action(
     declared: str | None,
 ) -> str | None:
     """Return the kind's rebuilt next-action text, or *declared* as a fallback."""
-    target = _KIND_NEXT_ACTIONS.get(kind or "")
-    if target is None:
+    hook = _KIND_NEXT_ACTIONS.get(kind or "")
+    if hook is None:
         return declared
     try:
-        hook: _NextActionHook
-        if isinstance(target, tuple):
-            module_name, attribute = target
-            hook = cast(_NextActionHook, getattr(import_module(module_name), attribute))
-        else:
-            hook = target
         resolved = hook(
             artifacts_dir=artifacts_dir,
             meta=meta,

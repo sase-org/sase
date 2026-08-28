@@ -17,7 +17,9 @@ recorded.
 Not every live claim is an agent: hook processes and machine-owned
 operational leases (``lease(<workflow>)`` labels) hold workspaces without
 being agent runs, so they are excluded before a row is built. Dead claims of
-either kind are still reaped by the stale-release path first.
+either kind are still reaped by the stale-release path first -- except a
+pending gate shell's claim, which carries its killed creator's PID by design
+and is held until the shell settles.
 """
 
 from pathlib import Path
@@ -78,9 +80,28 @@ def _release_stale_running_claim(project_file: str, claim: WorkspaceClaim) -> No
             claim.workspace_num,
             claim.workflow,
             claim.cl_name,
+            caller_tag="ace-agents-loader",
         )
     except Exception:
         pass
+
+
+def _stale_claim_is_releasable(project_file: str, claim: WorkspaceClaim) -> bool:
+    """Return whether a dead-PID claim's workspace is genuinely free.
+
+    A pending gate shell keeps its killed creator's PID in the RUNNING row
+    on purpose, so for that one workflow a dead PID proves nothing and the
+    gate shell's own markers decide. Imported lazily: this is only reached
+    for a claim that already failed the liveness check.
+    """
+    from sase.gate_shell.claims import (
+        GATE_WORKSPACE_CLAIM_WORKFLOW,
+        gate_claim_is_releasable,
+    )
+
+    if claim.workflow != GATE_WORKSPACE_CLAIM_WORKFLOW:
+        return True
+    return gate_claim_is_releasable(project_file, claim)
 
 
 def _claim_pid_is_live(pid: int | None) -> bool:
@@ -137,7 +158,10 @@ def load_agents_from_running_field(
         claims = get_claimed_workspaces(project_file)
         for claim in claims:
             if not _claim_pid_is_live(claim.pid):
-                _release_stale_running_claim(project_file, claim)
+                if _stale_claim_is_releasable(project_file, claim):
+                    _release_stale_running_claim(project_file, claim)
+                # A held pending gate-shell claim still contributes no row:
+                # the gate-shell member renders from its own artifact record.
                 continue
 
             # Skip hook processes - they're not agents

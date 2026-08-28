@@ -145,7 +145,7 @@ def _disable_prettier_for_skill_generation(
                 "--follow",
                 "sase monitor stop <id>",
                 "do not launch their recorded follow-up agent",
-                "previous conversation through `#fork`",
+                "previous conversation through `#fork:<family>`",
                 "path to the retained captured log",
                 "--idle-timeout DURATION",
                 "--next-output none|tail|file",
