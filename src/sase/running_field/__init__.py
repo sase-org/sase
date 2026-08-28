@@ -39,6 +39,7 @@ from sase.running_field._rename import update_running_field_cl_name
 from sase.running_field._transfer import transfer_workspace_claim
 from sase.running_field._workspace import (
     claim_next_axe_workspace_dir,
+    find_runner_numbered_workspace,
     get_first_available_axe_workspace,
     get_first_available_workspace,
     get_workspace_directory,
@@ -53,6 +54,7 @@ __all__ = [
     "claim_next_axe_workspace",
     "claim_next_axe_workspace_dir",
     "claim_workspace",
+    "find_runner_numbered_workspace",
     "get_claimed_workspaces",
     "get_first_available_axe_workspace",
     "get_first_available_workspace",

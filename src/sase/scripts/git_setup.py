@@ -2,14 +2,16 @@
 
 import os
 
-from sase.workspace_provider.utils import ensure_workspace_checkout
-from sase.workspace_provider.plugins.bare_git_workspace import resolve_git_ref
 from sase.running_field import (
     WorkspaceClaimError,
     claim_next_axe_workspace,
     claim_workspace,
+    find_runner_numbered_workspace,
     release_workspace,
 )
+from sase.sdd.store import materialize_sdd_store
+from sase.workspace_provider.plugins.bare_git_workspace import resolve_git_ref
+from sase.workspace_provider.utils import ensure_workspace_checkout
 
 
 def main(
@@ -64,18 +66,28 @@ def main(
             release_workspace(project_file, workspace_num, workflow_name)
             raise
     else:
-        # Atomically find + claim to prevent TOCTOU races where two
-        # concurrent processes (e.g. mentors) both see the same workspace
-        # as available and both claim it.
-        workspace_num = claim_next_axe_workspace(
-            project_file,
-            workflow_name,
-            pid,
-            pinned=not release,
+        adopted = _adopt_runner_workspace(
+            project_file=project_file,
+            primary_workspace_dir=resolved.primary_workspace_dir,
         )
-        workspace_dir = ensure_workspace_checkout(
-            resolved.primary_workspace_dir, workspace_num
-        )
+        if adopted is not None:
+            # Runner already holds a numbered pool claim: reuse it the
+            # same way the launcher pre-allocation branch does.
+            workspace_num, workspace_dir = adopted
+            pre_allocated = True
+        else:
+            # Atomically find + claim to prevent TOCTOU races where two
+            # concurrent processes (e.g. mentors) both see the same workspace
+            # as available and both claim it.
+            workspace_num = claim_next_axe_workspace(
+                project_file,
+                workflow_name,
+                pid,
+                pinned=not release,
+            )
+            workspace_dir = ensure_workspace_checkout(
+                resolved.primary_workspace_dir, workspace_num
+            )
 
     print(f"project_name={project_name}")
     print(f"project_file={project_file}")
@@ -89,3 +101,17 @@ def main(
     print(f"_chdir={workspace_dir}")
     print(f"meta_workspace={workspace_num}")
     print(f"workflow_name={workflow_name}")
+
+
+def _adopt_runner_workspace(
+    *,
+    project_file: str,
+    primary_workspace_dir: str,
+) -> tuple[int, str] | None:
+    """Reuse the calling runner's numbered pool claim, if it holds one."""
+    workspace_num = find_runner_numbered_workspace(project_file)
+    if workspace_num is None:
+        return None
+    workspace_dir = ensure_workspace_checkout(primary_workspace_dir, workspace_num)
+    materialize_sdd_store(workspace_dir, workspace_num)
+    return workspace_num, workspace_dir

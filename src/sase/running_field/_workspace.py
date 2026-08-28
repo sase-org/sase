@@ -1,5 +1,7 @@
 """Workspace number allocation and directory resolution."""
 
+import os
+
 from sase.running_field._model import WorkspaceClaimError
 from sase.running_field._query import get_claimed_workspaces
 
@@ -10,6 +12,32 @@ from sase.running_field._query import get_claimed_workspaces
 RESERVED_MAX_WORKSPACE = 9
 UNIFIED_MIN_WORKSPACE = 10
 UNIFIED_MAX_WORKSPACE = 999
+
+
+def find_runner_numbered_workspace(
+    project_file: str,
+    *,
+    pid: int | None = None,
+) -> int | None:
+    """Return the numbered pool workspace already held by the calling runner.
+
+    VCS ``#git:`` / ``#gh:`` setup runs as a short-lived subprocess of the
+    agent runner, so *pid* defaults to ``os.getppid()``. Only pool slots
+    (``UNIFIED_MIN_WORKSPACE`` and above) are returned: a runner whose only
+    claim is the ``#0`` primary / deferred placeholder still allocates.
+
+    When the parent holds more than one numbered claim, the lowest number
+    wins so adoption is deterministic.
+    """
+    runner_pid = os.getppid() if pid is None else pid
+    numbered = [
+        claim.workspace_num
+        for claim in get_claimed_workspaces(project_file)
+        if claim.pid == runner_pid and claim.workspace_num >= UNIFIED_MIN_WORKSPACE
+    ]
+    if not numbered:
+        return None
+    return min(numbered)
 
 
 def get_first_available_workspace(
