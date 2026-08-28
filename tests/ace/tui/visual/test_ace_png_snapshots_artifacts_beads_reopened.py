@@ -59,6 +59,10 @@ async def test_artifacts_beads_reopened_detail_png_snapshot(
         await page.expect_state("artifacts_subtab", "beads")
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        await page.wait_for(
+            lambda _state: getattr(pane, "_project_display_name", None) == "Alpha",
+            timeout=15.0,
+        )
         assert pane.select_entry_target(
             ArtifactEntryTarget(pane_id="beads", parts=("alpha", "task", "alpha-open"))
         )

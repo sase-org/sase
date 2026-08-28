@@ -200,6 +200,7 @@ async def test_config_center_procs_tab_filtered_png_snapshot(
             for index in range(option_list.option_count)
         )
         assert "shown" in title
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,

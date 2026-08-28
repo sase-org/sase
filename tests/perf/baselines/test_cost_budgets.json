@@ -4,7 +4,7 @@
       "count_enforce": "hard",
       "count_limit": 840,
       "cpu_enforce": "hard",
-      "cpu_limit": 690.0,
+      "cpu_limit": 720.0,
       "enforce": "advisory",
       "limit": 540.0
     },
@@ -12,7 +12,7 @@
       "count_enforce": "hard",
       "count_limit": 8600,
       "cpu_enforce": "hard",
-      "cpu_limit": 300.0,
+      "cpu_limit": 320.0,
       "enforce": "advisory",
       "limit": 340.0
     },
@@ -28,7 +28,7 @@
       "count_enforce": "hard",
       "count_limit": 18000,
       "cpu_enforce": "hard",
-      "cpu_limit": 270.0,
+      "cpu_limit": 290.0,
       "enforce": "advisory",
       "limit": 230.0
     },
@@ -44,7 +44,7 @@
       "count_enforce": "hard",
       "count_limit": 4500,
       "cpu_enforce": "hard",
-      "cpu_limit": 570.0,
+      "cpu_limit": 600.0,
       "enforce": "advisory",
       "limit": 470.0
     },
@@ -52,7 +52,7 @@
       "count_enforce": "hard",
       "count_limit": 56000,
       "cpu_enforce": "hard",
-      "cpu_limit": 19.0,
+      "cpu_limit": 20.0,
       "enforce": "advisory",
       "limit": 20.0
     }
@@ -69,6 +69,7 @@
     "`collection_seconds` and `collection_cpu_seconds` are per-worker limits (each xdist worker collects the whole suite, so the recorded summary sum is divided by the worker count before comparison); every other summary and cause entry is a suite-wide total.",
     "`peak_worker_rss_kib` is the peak of a worker's RSS curve sampled across the run, not the curve's post-collection reading (~520 MiB), which is stable and much lower.",
     "2026-08-26 cost-budget recalibration after repeated local full-lane failures on host athena: `tools/check_test_cost_budgets --suggest --history 8` sampled 8 recordings from 2026-08-26T06:08:02Z through 2026-08-26T16:25:19Z, all with 14 workers and 37,196-37,263 nodes. Raised only existing hard CPU limits that the retained recordings exceeded or nearly exceeded: total_file_cpu_seconds 1800 -> 2000, collection_cpu_seconds 25 -> 28, ace_page_enter.cpu 590 -> 690, ace_settle_pilot.cpu 290 -> 300, parser_create.cpu 33 -> 34, pilot_pause_delay.cpu 250 -> 270, subprocess_run.cpu 24 -> 27, textual_app_run_test_enter.cpu 520 -> 570, yaml_load.cpu 18 -> 19. Kept wall advisory, count, and memory budgets unchanged unless they were needed for the failing gate.",
+    "2026-08-28 cost-budget recalibration after full-lane failure on host athena: `just test-cost` recorded /home/bryan/.sase/test-selection/gh_sase-org__sase/timings/cost/20260828T055221Z-872787.json (37,915 nodes, 14 workers) and `tools/check_test_cost_budgets --suggest --history 8` sampled 8 recordings from 2026-08-28T01:41:25Z through 2026-08-28T05:52:21Z, all with 14 workers and 37,904-37,915 nodes. Raised only existing hard CPU limits whose suggested values exceeded the committed file: total_file_cpu_seconds 2000 -> 2100, ace_page_enter.cpu 690 -> 720, ace_settle_pilot.cpu 300 -> 320, pilot_pause_delay.cpu 270 -> 290, textual_app_run_test_enter.cpu 570 -> 600, yaml_load.cpu 19 -> 20. Kept advisory wall limits, count limits, memory budgets, new suggested cause keys, and hard CPU limits whose suggestions did not exceed the committed values unchanged.",
     "Raising a limit requires a fresh `just test-cost` recording plus `tools/check_test_cost_budgets --suggest` output — do not raise a limit to hide a one-off regression."
   ],
   "schema": 1,
@@ -93,7 +94,7 @@
     },
     "total_file_cpu_seconds": {
       "enforce": "hard",
-      "limit": 2000.0
+      "limit": 2100.0
     },
     "total_file_wall_seconds": {
       "enforce": "advisory",

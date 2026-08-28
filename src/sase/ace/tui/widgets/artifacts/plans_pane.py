@@ -302,6 +302,11 @@ class ArtifactsDocumentsPane(
         snapshot_changed = result.snapshot is not self._snapshot
         self._query_session.clear()
         self._snapshot = result.snapshot
+        if self.project_scope is not None and self._project_display_name is None:
+            display_name = result.snapshot.display_names.get(self.project_scope)
+            if display_name is not None:
+                self._project_display_name = display_name
+                self._update_static("#plans-info", self._scope_text())
         self._relation_index = result.relation_index
         self._filter_index = result.filter_index
         self._filter_index_snapshot = result.snapshot

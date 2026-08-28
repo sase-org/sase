@@ -18,6 +18,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
@@ -26,16 +27,45 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-async def test_agents_waiting_missing_target_row_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def _seed_wait_bead_status_cache() -> None:
     from sase.ace.tui.models.agent_wait_beads import _WAIT_BEAD_STATUS_CACHE
 
     _WAIT_BEAD_STATUS_CACHE.clear()
     _WAIT_BEAD_STATUS_CACHE.set(("sase", "run-bead"), "in_progress")
     _WAIT_BEAD_STATUS_CACHE.set(("sase", "done-bead"), "closed")
     _WAIT_BEAD_STATUS_CACHE.set(("sase", "open-bead"), "open")
+
+
+def _clear_wait_bead_status_cache() -> None:
+    from sase.ace.tui.models.agent_wait_beads import _WAIT_BEAD_STATUS_CACHE
+
+    _WAIT_BEAD_STATUS_CACHE.clear()
+
+
+async def _wait_for_zoom_wait_bead_statuses(page: AcePage) -> None:
+    def has_status_badges() -> bool:
+        try:
+            assert_page_svg_styled_text_contains(
+                page,
+                "[beads] run-bead ◐, done-bead ●, open-bead ○",
+            )
+        except AssertionError:
+            return False
+        return True
+
+    await wait_for_state(
+        page,
+        has_status_badges,
+        description="zoom wait bead status badges",
+    )
+    await wait_for_visual_idle(page)
+
+
+async def test_agents_waiting_missing_target_row_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_wait_bead_status_cache()
     try:
         patch_startup_loaders(
             monkeypatch,
@@ -70,7 +100,7 @@ async def test_agents_waiting_missing_target_row_png_snapshot(
                 title="ACE agents missing wait target row and detail",
             )
     finally:
-        _WAIT_BEAD_STATUS_CACHE.clear()
+        _clear_wait_bead_status_cache()
 
 
 async def test_agents_waiting_tribe_target_png_snapshot(
@@ -108,39 +138,44 @@ async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    patch_startup_loaders(
-        monkeypatch,
-        agents=waiting_unknown_agents(),
-    )
-
-    async with AcePage(query='"wait-unknown"', patches=patches()) as page:
-        await wait_for_startup(page)
-        await page.press("shift+tab")
-        await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 4)
-        await wait_for_visual_idle(page)
-        await page.press("p")
-        await page.press("Z")
-        await page.expect_modal("ZoomPanelModal")
-        await wait_for_zoom_content(
-            page,
-            "ghost",
-            scroll_selector="#zoom-metadata-scroll",
+    _seed_wait_bead_status_cache()
+    try:
+        patch_startup_loaders(
+            monkeypatch,
+            agents=waiting_unknown_agents(),
         )
 
-        assert_page_svg_contains(page, "Wait:")
-        assert_page_svg_contains(page, "coder")
-        assert_page_svg_contains(page, "builder")
-        assert_page_svg_contains(page, "reviewer")
-        assert_page_svg_contains(page, "ghost")
-        assert_page_svg_contains(page, "✓")
-        assert_page_svg_contains(page, "▶")
-        assert_page_svg_contains(page, "✗")
-        assert_page_svg_contains(page, "?")
-        ace_png_visual.assert_page_png(
-            page,
-            "agents_waiting_unknown_zoom_modal_120x40",
-            title="ACE agents waiting unknown zoom modal",
-            max_diff_pixels=10_000,
-            max_material_diff_pixels=0,
-        )
+        async with AcePage(query='"wait-unknown"', patches=patches()) as page:
+            await wait_for_startup(page)
+            await page.press("shift+tab")
+            await page.expect_state("tab", "agents")
+            await page.expect_state("agent_count", 4)
+            await wait_for_visual_idle(page)
+            await page.press("p")
+            await page.press("Z")
+            await page.expect_modal("ZoomPanelModal")
+            await wait_for_zoom_content(
+                page,
+                "ghost",
+                scroll_selector="#zoom-metadata-scroll",
+            )
+            await _wait_for_zoom_wait_bead_statuses(page)
+
+            assert_page_svg_contains(page, "Wait:")
+            assert_page_svg_contains(page, "coder")
+            assert_page_svg_contains(page, "builder")
+            assert_page_svg_contains(page, "reviewer")
+            assert_page_svg_contains(page, "ghost")
+            assert_page_svg_contains(page, "✓")
+            assert_page_svg_contains(page, "▶")
+            assert_page_svg_contains(page, "✗")
+            assert_page_svg_contains(page, "?")
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_waiting_unknown_zoom_modal_120x40",
+                title="ACE agents waiting unknown zoom modal",
+                max_diff_pixels=10_000,
+                max_material_diff_pixels=0,
+            )
+    finally:
+        _clear_wait_bead_status_cache()

@@ -55,6 +55,10 @@ async def test_artifacts_beads_empty_png_snapshot(
         await page.expect_state("artifacts_subtab", "beads")
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        await page.wait_for(
+            lambda _state: getattr(pane, "_project_display_name", None) == "Alpha",
+            timeout=15.0,
+        )
         pane._update_detail()
         detail = page.query_one_widget("#beads-detail", Markdown)
         await page.wait_for(lambda _state: "/sase_new_task" in detail.source)

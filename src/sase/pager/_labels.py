@@ -48,6 +48,7 @@ _DANGLING_ACCENT = "#808080"
 _DANGLING_TEXT = "(missing)"
 _DEFAULT_LINK_ICON = "•"
 _DEFAULT_LINK_ACCENT = EXTERNAL_ACCENT
+_PLAN_REF_ICON = "✎"
 _URL_ICON = "↗"
 _NO_BREAK_SPACE = "\u00a0"
 
@@ -56,6 +57,7 @@ _REF_KIND_TABS: Mapping[str, str] = {
     "bead": "beads",
     "file": "files",
     "patch": "patches",
+    "plan": "ref:plan",
     "stitch": "stitches",
 }
 _DIRECT_KIND_TABS: Mapping[str, str] = {
@@ -273,6 +275,8 @@ def _target_marker(label: PagerLabel) -> _TargetMarker:
     tab = _target_artifact_tab(target)
     if tab is None:
         return _TargetMarker(_DEFAULT_LINK_ICON, _DEFAULT_LINK_ACCENT)
+    if tab == "ref:plan":
+        return _TargetMarker(_PLAN_REF_ICON, ARTIFACTS_ACCENTS[tab])
     return _TargetMarker(
         ARTIFACTS_ICONS.get(tab, _DEFAULT_LINK_ICON),
         ARTIFACTS_ACCENTS.get(tab, _DEFAULT_LINK_ACCENT),

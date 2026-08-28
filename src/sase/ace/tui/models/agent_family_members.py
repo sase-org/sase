@@ -219,7 +219,7 @@ def _shell_links(row: Agent) -> tuple[Agent, ...]:
 
 def _is_excluded_family_shell(row: Agent) -> bool:
     """Return whether *row* is scaffolding rather than a concrete family shell."""
-    return row.agent_family_parallel
+    return row.agent_family_parallel or row.is_synthetic_planner
 
 
 def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
@@ -504,7 +504,7 @@ def _concrete_continuations(
         for row in rows
         if row is not planner
         and not row.is_workflow_step_child
-        and not row.agent_family_parallel
+        and not _is_excluded_family_shell(row)
         and not row_is_family_shell(row)
     )
 

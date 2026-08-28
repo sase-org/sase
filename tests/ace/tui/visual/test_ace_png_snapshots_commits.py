@@ -358,11 +358,17 @@ async def test_commits_persistent_filter_small_terminal_png_snapshot(
         assert pane.query_one("#stitches-position").content.plain == "[1/2+]  ·  "
         await page.wait_for(lambda _state: bool(pane._diff_cache))
         await wait_for_visual_idle(page)
-        page.app.query_one(HeaderIcon).display = True
+        header_icon = page.app.query_one(HeaderIcon)
+        header_icon.display = True
+        header_icon.refresh(layout=True)
         # The detail content is incidental here, and Textual's proportional
         # thumb can differ by a few raster pixels as its async layout settles.
         # Hide that scrollbar so this snapshot measures the capped filter UI.
-        pane.query_one("#stitches-detail-scroll").styles.overflow_y = "hidden"
+        detail_scroll = pane.query_one("#stitches-detail-scroll")
+        detail_scroll.styles.overflow_y = "hidden"
+        detail_scroll.refresh(layout=True)
+        page.app.screen.refresh(layout=True)
+        await wait_for_svg_contains(page, "Commits landed through SASE")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -451,6 +457,7 @@ async def test_commits_filter_bar_prefilled_png_snapshot(
                 bar.query_one("#commit-filter-status").content.plain == "exact"
             )
         )
+        await wait_for_svg_contains(page, "Commits landed through SASE")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

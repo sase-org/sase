@@ -58,6 +58,10 @@ async def test_artifacts_split_mode_png_snapshot(
         await page.expect_state("artifacts_subtab", "beads")
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        await page.wait_for(
+            lambda _state: getattr(pane, "_project_display_name", None) == "Alpha",
+            timeout=15.0,
+        )
         pane._update_detail()
         page.app.artifacts_split_mode = mode
         await wait_for_svg_contains(page, "Tasks")
@@ -104,6 +108,10 @@ async def test_artifacts_split_mode_selected_detail_png_snapshot(
         await page.expect_state("artifacts_subtab", "beads")
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        await page.wait_for(
+            lambda _state: getattr(pane, "_project_display_name", None) == "Alpha",
+            timeout=15.0,
+        )
         assert pane.select_entry_target(
             ArtifactEntryTarget(pane_id="beads", parts=("alpha", "task", "alpha-ready"))
         )

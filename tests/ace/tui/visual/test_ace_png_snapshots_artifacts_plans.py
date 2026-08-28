@@ -79,6 +79,10 @@ async def _open_plans(
     await page.expect_state("artifacts_subtab", "ref:plan")
     pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
     await page.wait_for(lambda _state: pane.snapshot is snapshot)
+    await page.wait_for(
+        lambda _state: getattr(pane, "_project_display_name", None) == "Alpha",
+        timeout=15.0,
+    )
     return pane, pane.query_one(PlanFilterBar)
 
 
@@ -125,6 +129,10 @@ async def test_artifacts_plans_populated_png_snapshot(
         await page.expect_state("artifacts_subtab", "ref:plan")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        await page.wait_for(
+            lambda _state: getattr(pane, "_project_display_name", None) == "Alpha",
+            timeout=15.0,
+        )
         await page.press("j")
         await page.wait_for(
             lambda _state: (

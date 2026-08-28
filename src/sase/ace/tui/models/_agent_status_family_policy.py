@@ -338,6 +338,8 @@ def planner_child_status(
     approved_status = _approved_planner_status(parent, all_agents, children_by_parent)
     if approved_status is not None:
         return approved_status
+    if parent.plan_action == "commit":
+        return "DONE"
     if has_followup_child:
         return "DONE"
     if has_unanswered_completed_question(parent):

@@ -56,6 +56,10 @@ async def test_artifacts_beads_populated_png_snapshot(
         await page.expect_state("artifacts_subtab", "beads")
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        await page.wait_for(
+            lambda _state: getattr(pane, "_project_display_name", None) == "Alpha",
+            timeout=15.0,
+        )
         assert pane.select_entry_target(
             ArtifactEntryTarget(pane_id="beads", parts=("alpha", "epic", "alpha-1"))
         )
@@ -107,6 +111,10 @@ async def test_artifacts_beads_collapsed_relations_rail_png_snapshot(
         await page.expect_state("artifacts_subtab", "beads")
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        await page.wait_for(
+            lambda _state: getattr(pane, "_project_display_name", None) == "Alpha",
+            timeout=15.0,
+        )
         assert pane.select_entry_target(
             ArtifactEntryTarget(pane_id="beads", parts=("alpha", "epic", "alpha-1"))
         )
@@ -148,6 +156,10 @@ async def test_artifacts_beads_idle_query_png_snapshot(
         await page.expect_state("artifacts_subtab", "beads")
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        await page.wait_for(
+            lambda _state: getattr(pane, "_project_display_name", None) == "Alpha",
+            timeout=15.0,
+        )
         bar = pane.query_one(BeadFilterBar)
         display = bar.query_one("#bead-filter-display", Static)
 

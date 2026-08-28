@@ -35,7 +35,7 @@ async def _pin_axe_output_top(page: AcePage, *, hide_scrollbar: bool = False) ->
     scroll = page.app.query_one("#axe-output-scroll", VerticalScroll)
     if hide_scrollbar:
         scroll.styles.overflow_y = "hidden"
-    scroll.scroll_to(y=0, animate=False, immediate=True)
+    scroll._scroll_to(y=0, animate=False, force=True)  # noqa: SLF001
     await wait_for_state(
         page,
         lambda: int(scroll.scroll_y) == 0,
@@ -158,7 +158,7 @@ async def test_axe_chop_overrun_narrow_png_snapshot(
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
-        await _pin_axe_output_top(page)
+        await _pin_axe_output_top(page, hide_scrollbar=True)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

@@ -74,6 +74,10 @@ async def test_artifacts_description_modes_png_snapshot(
         page.app.artifacts_description_mode = mode
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        await page.wait_for(
+            lambda _state: getattr(pane, "_project_display_name", None) == "Alpha",
+            timeout=15.0,
+        )
         await wait_for_svg_contains(page, "Ready for triage")
         await wait_for_visual_idle(page)
 

@@ -27,6 +27,7 @@ from .artifact_links import parse_link_ref
 # ref-kind catalog entry): the AXE tab resolves them, but nothing else does.
 _CHOP_ACCENT = "#5FD7D7"
 _CHOP_ICON = "⚒"
+_PLAN_REF_ICON = "✎"
 _DEFAULT_ICON = "•"
 
 
@@ -54,6 +55,8 @@ def accent_and_icon_for_ref(
 
     if ref_kind == "chop":
         return _CHOP_ACCENT, _CHOP_ICON
+    if ref_kind == "plan":
+        return ARTIFACTS_ACCENTS["ref:plan"], _PLAN_REF_ICON
     if target is not None:
         if target.pane_id in FIXED_ARTIFACTS_PANE_IDS:
             return (

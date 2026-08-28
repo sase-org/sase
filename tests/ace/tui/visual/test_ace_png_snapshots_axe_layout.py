@@ -43,7 +43,7 @@ async def _pin_axe_output_top(page: AcePage) -> None:
     page.app._axe_pinned_to_bottom = False
     scroll = page.app.query_one("#axe-output-scroll", VerticalScroll)
     scroll.styles.overflow_y = "hidden"
-    scroll.scroll_to(y=0, animate=False, immediate=True)
+    scroll._scroll_to(y=0, animate=False, force=True)  # noqa: SLF001
     await wait_for_state(
         page,
         lambda: int(scroll.scroll_y) == 0,

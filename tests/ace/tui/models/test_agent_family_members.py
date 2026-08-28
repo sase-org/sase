@@ -120,6 +120,29 @@ def test_plan_root_without_concrete_planner_uses_root_fallback() -> None:
     assert concrete_family_member_rows(root) == (root, coder)
 
 
+def test_synthetic_planner_child_stays_out_of_concrete_shell_roster() -> None:
+    root = _plan_root(name="alpha")
+    synthetic = _agent(
+        "alpha--plan",
+        role="plan",
+        parent_timestamp=root.raw_suffix,
+        status="PLAN APPROVED",
+    )
+    synthetic.is_synthetic_planner = True
+    coder = _agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        start_offset=1,
+    )
+    root.runtime_children = [synthetic, coder]
+    root.followup_agents = [coder]
+
+    assert concrete_family_shell_rows(root) == (root, coder)
+    assert concrete_family_member_rows(root) == (root, coder)
+    assert [entry.agent for entry in concrete_agent_statuses(root)] == [root, coder]
+
+
 def test_bare_non_plan_container_stays_execution_neutral() -> None:
     root = _agent("alpha", role="root")
     coder = _agent(

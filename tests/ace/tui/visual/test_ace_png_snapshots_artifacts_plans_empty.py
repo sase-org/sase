@@ -51,6 +51,10 @@ async def test_artifacts_plans_empty_png_snapshot(
         await page.expect_state("artifacts_subtab", "ref:plan")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        await page.wait_for(
+            lambda _state: getattr(pane, "_project_display_name", None) == "Alpha",
+            timeout=15.0,
+        )
         await wait_for_svg_contains(page, "No pending proposals")
         await page.press("p")
         await page.expect_modal("InventoryProjectPicker")

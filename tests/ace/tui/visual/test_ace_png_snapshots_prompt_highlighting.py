@@ -542,11 +542,7 @@ async def test_prompt_codeblock_highlight_stack_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(
-        query='"visual"',
-        patches=patches(),
-        startup_policy="real",
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         page.app.theme = theme
         await wait_for_startup(page)
         await page.press(page.artifacts_digit("patches"))
