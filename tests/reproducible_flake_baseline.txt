@@ -265,3 +265,59 @@ tests/test_plan_approval_launch_reliability_integration.py::test_archive_publica
 # retires the pre-fix evidence that epic recorded.
 # fixed-at: 2026-08-25T23:47:42Z tests/test_agent_name_registry_rebuild.py::test_stale_proof_memo_invalidated_by_mutation
 # fixed-at: 2026-08-25T23:47:42Z tests/test_agent_names_auto_name.py::TestGetNextAutoName::test_dotted_suffix_reserves_prefix
+#
+# sase-ty: Agents-pane mount/load test flakes under the full parallel lane but
+# passes serially; ready flake task names the current durable-store evidence.
+tests/ace/tui/test_agents_pane_mount.py::test_agents_pane_mounts_activates_and_loads
+#
+# sase-o0: fixed by 179508566 "fix: repair the three deterministic master CI
+# failure clusters" (committed 2026-08-26T13:45:55Z). Retires stale pre-fix
+# records for the Artifacts subtab-order assertion.
+# fixed-at: 2026-08-26T13:45:55Z tests/ace/tui/test_artifacts_scaffold.py::test_subtab_strip_labels_and_accents_cover_all_panes
+#
+# sase-r2: Pipe family-member creation flakes under the full parallel lane and
+# passes isolated; ready flake task has independent corroboration.
+tests/fakey/test_pipe_e2e.py::test_default_pipe_creates_family_member_with_fork_and_shared_workspace
+#
+# sase-pr: fixed by 58e5a8310 "feat(artifact-links): add durable truth drift
+# reporting" (committed 2026-08-27T00:32:42Z), which updated the artifact-link
+# CLI contract assertion after the relation/suggest subcommands landed.
+# fixed-at: 2026-08-27T00:32:42Z tests/main/test_artifact_handler.py::test_public_long_options_are_alphabetical_and_have_short_aliases
+#
+# sase-tz: Memory-note generator drift is promoted by dirty-tree records that
+# the attribution filter does not currently catch; ready flake task owns the
+# gate debt.
+tests/main/test_init_memory_committed_drift.py::test_repo_project_memory_notes_match_generator_output
+#
+# sase-u0: Agents help-order assertion flakes only under the full parallel
+# lane; ready flake task owns the parser/global-state investigation.
+tests/main/test_parser_command_help.py::test_agents_help_renders_sorted_subcommands
+#
+# sase-o0 / sase-n8.3: the existing fixed-at line retires known pre-fix
+# evidence, but later stale-tree records still exceed the current gate window.
+# Keep this as filed debt until the retirement declaration is corrected.
+tests/main/test_var_integration.py::test_var_cli_end_to_end_refreshes_index_and_round_trips_machine_outputs
+#
+# sase-ux: both link_traversing_pager source/target parametrizations flake
+# under the full lane and pass immediately in isolation.
+tests/pager/test_rail_parity.py::test_pager_and_link_rail_share_ref_presentation[plan:202608/link_traversing_pager.md-expected_target5-source]
+tests/pager/test_rail_parity.py::test_pager_and_link_rail_share_ref_presentation[plan:202608/link_traversing_pager.md-expected_target5-target]
+#
+# sase-u7: reservation-read stale-proof memo regression test flakes under the
+# full parallel lane and passes serially.
+tests/test_agent_name_registry_rebuild.py::test_reservation_reads_skip_the_stale_proof_memo
+#
+# sase-o0: fixed by 6a91ae88e "fix(finalizers): accept refusal defer in the
+# public config schema and privatize unused finalizer symbols" (committed
+# 2026-08-24T20:14:47Z). Retires schema-mismatch evidence recorded before the
+# fix landed.
+# fixed-at: 2026-08-24T20:14:47Z tests/test_config_schema.py::test_default_config_matches_public_schema
+#
+# sase-uf: keymap help-guide assertion flakes under the full parallel lane;
+# ready flake task owns the process-global-state investigation.
+tests/test_keymaps_display_help.py::test_all_tab_help_guides_show_forward_jump_and_agents_metadata_sections
+#
+# sase-sf: same archive-publication ordering flake class as the existing
+# host_first-2 entry; the host_first-0 parametrization is now also promoted by
+# selection-health.
+tests/test_plan_approval_launch_reliability_integration.py::test_archive_publication_order_survives_inverted_scheduling[host_first-0]
