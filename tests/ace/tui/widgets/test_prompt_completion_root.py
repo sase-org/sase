@@ -7,6 +7,7 @@ from pathlib import Path
 
 from _pytest.monkeypatch import MonkeyPatch
 
+from sase import project_alias_prompts
 from sase.ace.tui.widgets.prompt_completion_root import (
     resolve_prompt_completion_base_dir,
 )
@@ -32,6 +33,84 @@ def test_git_completion_root_uses_known_projects_without_provider_resolution(
     monkeypatch.setattr("sase.workspace_provider.resolve_ref", fail_resolve_ref)
 
     assert resolve_prompt_completion_base_dir("#git:bob-cli sdd/") == str(workspace)
+
+
+def test_warm_completion_root_does_not_reread_project_alias_files(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    patch_git_metadata(monkeypatch)
+    with project_alias_prompts._PROJECT_LOOKUP_CACHE_LOCK:
+        project_alias_prompts._WORKFLOW_TYPE_CACHE.clear()
+        project_alias_prompts._CHANGESPEC_NAMES_CACHE.clear()
+
+    project = "git_sase-org__sase"
+    workspace = tmp_path / "sase"
+    workspace.mkdir()
+    project_file = tmp_path / "sase.sase"
+    project_file.write_text(
+        "PROJECT_ALIASES: sase\nWORKSPACE_DIR: /tmp/sase\nNAME: existing\n",
+        encoding="utf-8",
+    )
+    reads = {"changespec_names": 0, "workflow_type": 0}
+
+    def project_file_signature(
+        project_name: str,
+    ) -> tuple[str, int, int] | None:
+        assert project_name == project
+        stat_result = project_file.stat()
+        return (str(project_file), stat_result.st_mtime_ns, stat_result.st_size)
+
+    def load_changespec_names(project_name: str) -> frozenset[str]:
+        assert project_name == project
+        reads["changespec_names"] += 1
+        project_file.read_text(encoding="utf-8")
+        return frozenset({"sase_fix"})
+
+    def project_workflow_type(project_name: str) -> str | None:
+        assert project_name == project
+        reads["workflow_type"] += 1
+        project_file.read_text(encoding="utf-8")
+        return "git"
+
+    def fail_resolve_ref(ref: str, workflow_type: str) -> object:
+        raise AssertionError(
+            f"resolve_ref should not run for {workflow_type}:{ref} completion"
+        )
+
+    monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"git"})
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda *_args, **_kwargs: {"sase": project},
+    )
+    monkeypatch.setattr(
+        "sase.project_aliases._load_project_changespec_names",
+        load_changespec_names,
+    )
+    monkeypatch.setattr(
+        "sase.project_aliases._project_workflow_type",
+        project_workflow_type,
+    )
+    monkeypatch.setattr(
+        "sase.project_aliases._load_project_changespec_names_cache_signature",
+        lambda project_name: (project_file_signature(project_name), None),
+    )
+    monkeypatch.setattr(
+        "sase.project_aliases._project_workflow_type_cache_signature",
+        project_file_signature,
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda include_states=("enabled",): {project: workspace},
+    )
+    monkeypatch.setattr("sase.workspace_provider.peek_ref", lambda _ref, _wf: None)
+    monkeypatch.setattr("sase.workspace_provider.resolve_ref", fail_resolve_ref)
+    prompt = "#git:sase_fix review #git:sase src/"
+
+    assert resolve_prompt_completion_base_dir(prompt) == str(workspace)
+    assert reads == {"changespec_names": 1, "workflow_type": 1}
+    assert resolve_prompt_completion_base_dir(prompt) == str(workspace)
+    assert reads == {"changespec_names": 1, "workflow_type": 1}
 
 
 def test_registered_completion_root_uses_peek_ref_not_resolve_ref(

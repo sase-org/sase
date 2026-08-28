@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 
 import pytest
 
@@ -316,6 +316,24 @@ def test_artifact_links_source_resolves_known_targets_with_one_index(
 
     assert len(edges) == 200
     assert build_count == 1
+
+
+class _NonIterableTargets(frozenset[ArtifactEntryTarget]):
+    def __iter__(self) -> Iterator[ArtifactEntryTarget]:
+        raise AssertionError("_known_target_for_ref scanned indexed targets")
+
+
+def test_known_target_for_ref_uses_index_lookup_without_target_scan() -> None:
+    target = ArtifactEntryTarget("patches", ("alpha", "needle"))
+    index = artifact_links._KnownTargetIndex(
+        targets=_NonIterableTargets(),
+        by_file_first_part={},
+        by_pane_last_part={("patches", "needle"): target},
+        by_stitch_repo_sha_prefix={},
+        agent_targets=(),
+    )
+
+    assert artifact_links._known_target_for_ref("patch", "needle", index) == target
 
 
 def test_known_target_index_preserves_legacy_match_precedence() -> None:

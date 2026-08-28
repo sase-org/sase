@@ -98,6 +98,18 @@ def test_countdown_tick_defers_agent_work_while_prompt_bar_mounted() -> None:
     assert app.countdown_calls == []
 
 
+def test_countdown_tick_catches_up_after_prompt_typing_quiets() -> None:
+    app = _FakeApp()
+    app._mounted_prompt_bar = True
+
+    app._on_countdown_tick()
+    app._mounted_prompt_bar = False
+    app._on_countdown_tick()
+
+    assert app._countdown_remaining == 8
+    assert app.countdown_calls == ["info", "runtime", "starting"]
+
+
 def test_countdown_tick_defers_agent_work_while_prompt_editor_suspended() -> None:
     app = _FakeApp()
     app._prompt_editor_suspended = True
