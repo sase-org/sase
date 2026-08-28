@@ -248,11 +248,27 @@ def _group_labels_by_section(
 
 def _label_prefix(label: PagerLabel, *, pending_prefix: str) -> Text:
     marker = _target_marker(label)
-    style = _label_style(label, pending_prefix=pending_prefix)
-    text = Text(f"[{label.hint}]", style=style)
-    icon_style = _LABEL_DANGLING_STYLE if label.dangling else f"bold {marker.accent}"
+    text = Text()
+    text.append(
+        f"[{label.hint}]",
+        style=_label_style(label, pending_prefix=pending_prefix),
+    )
+    icon_style = _label_icon_style(label, marker, pending_prefix=pending_prefix)
     text.append(f"{marker.icon}{_NO_BREAK_SPACE}", style=icon_style)
     return text
+
+
+def _label_icon_style(
+    label: PagerLabel,
+    marker: _TargetMarker,
+    *,
+    pending_prefix: str,
+) -> str:
+    if label.dangling:
+        return _LABEL_DANGLING_STYLE
+    if pending_prefix and not label.hint.startswith(pending_prefix):
+        return f"{_LABEL_DIM_STYLE} bold {marker.accent}"
+    return f"bold {marker.accent}"
 
 
 def _label_style(label: PagerLabel, *, pending_prefix: str) -> str:

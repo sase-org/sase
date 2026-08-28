@@ -1,8 +1,7 @@
 """PNG golden tests for the standalone `SasePager` reading surface.
 
-Covers the two cases the `viewer` phase itself can produce: a document with
-no scanned links yet (link scanning is the `labels` phase's job) and a
-multi-section document scrolled so a transition rule sits mid-screen.
+Covers the no-link and labeled-link body states plus a multi-section document
+scrolled so a transition rule sits mid-screen.
 """
 
 from __future__ import annotations
@@ -56,6 +55,24 @@ def _zero_link_document() -> PagerDocument:
     )
 
 
+def _labeled_document() -> PagerDocument:
+    section = PagerSection(
+        identity="file:/tmp/pager-labels.md",
+        title="pager-labels.md",
+        kind="file",
+        body=(
+            "Open src/sase/pager/_labels.py for label rendering.\n"
+            "Compare https://example.test/pager-hints for the URL marker.\n"
+            "The highlight should stop before each target-kind icon.\n"
+        ),
+    )
+    return PagerDocument(
+        sections=(section,),
+        title="pager-labels.md",
+        origin=PagerOrigin.FILE,
+    )
+
+
 def _three_section_document() -> PagerDocument:
     def section(name: str) -> PagerSection:
         body = "\n".join(f"{name} line {index}" for index in range(40)) + "\n"
@@ -79,6 +96,21 @@ async def test_zero_link_document_png_snapshot(
             _SvgExport(app),
             f"zero_link_document_{size[0]}x{size[1]}",
             title="SasePager: zero-link document",
+        )
+
+
+@pytest.mark.parametrize("size", _SIZES)
+async def test_labeled_document_png_snapshot(
+    pager_png_visual: AcePngSnapshotFixture,
+    size: tuple[int, int],
+) -> None:
+    app = SasePager(_labeled_document())
+    async with app.run_test(size=size) as pilot:
+        await pilot.pause()
+        pager_png_visual.assert_page_png(
+            _SvgExport(app),
+            f"labeled_document_{size[0]}x{size[1]}",
+            title="SasePager: labeled document",
         )
 
 
