@@ -1122,9 +1122,47 @@ gate. The gate preview is generated from the bead's title, description, and note
 the notes section present only when the bead has notes. Automatic resolution is
 forbidden, and all client surfaces use the same host-side side effects.
 
-Workflow `HITL` remains a legacy producer, but a HITL notification that references a
-neutral bundle is resolved through the same hash-verified executor in ACE and Telegram.
-Only legacy HITL bundles use the direct response-file writer.
+Inside a running SASE agent, workflow `HITL` now uses the same gate-shell handoff as
+questions and plans. Historical HITL bundles remain readable and use their compatibility
+response-file path; every neutral bundle is resolved through the same hash-verified
+executor in ACE and Telegram.
+
+### Gate shells and continuation
+
+A gate shell is a named, non-LLM member of an agent family, normally `--gate` or
+`--gate-N`. It makes a user decision durable without keeping the asking provider process
+or a runner slot alive. The shell can retain the family's workspace claim while pending,
+records approved command output in `gate.log`, and settles only after the selected
+commands finish. Its lifecycle is pending, settling, answered, completed, failed,
+timeout, stopped, or lost.
+
+The built-in front doors choose statuses and continuation policy for their domain:
+
+- `/sase_questions` creates `QUESTION` / `ANSWERED`; an answer launches the next family
+  member with the accumulated Q&A.
+- `/sase_plan` creates a `TALE`, `EPIC`, or legacy `PLAN` shell. Feedback launches a
+  replanner, while approval follows the selected tale/epic/commit policy.
+- Agent-side workflow HITL creates `HITL`; accept, edit, feedback, and rerun branches
+  may launch a continuation, while rejection or an unconfigured terminal branch stops.
+- Agent-side `sase launch request` creates `LAUNCH`; approval dispatches the stored
+  launch itself, so neither approval nor rejection needs a continuation agent.
+
+For a custom handoff, pass `--shell` to `sase gate create`. `--next` supplies the
+default answered-branch prompt; `--next-fork family|shell|none`, `--next-model`, and
+repeatable `--next-output none|results|tail|file` control its context, model, and output
+channels. Branch policy in the specification may override or suppress that default.
+Selected option IDs joined with `+` in query order form the answered branch key.
+Timeout, stopped, failed, and lost branches never inherit the answered default: they
+launch only when explicitly configured.
+
+Answering a shell-backed gate runs its commands in a supervised detached proc by
+default, so they survive the client that submitted the decision;
+`sase gate answer --no-detach` opts into inline execution. Use `sase gate list` for
+pending shells, `sase gate list --all` for their history, `sase gate show <shell>` for
+the resolved branches and follow-up disposition, and `sase gate cancel <shell>` to
+settle a pending shell without a follow-up. An agent that creates a gate shell must end
+its turn rather than call `sase gate wait`; direct waiting remains available to
+non-agent scripts.
 
 ### Gate inputs
 

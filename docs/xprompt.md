@@ -2020,7 +2020,7 @@ while plan proposers become `--plan`. SASE then names the new member
 before the model sees the prompt. The positional suffix is a bare token: write
 `%i(reviewer, family=foo)`, not `%i(--reviewer, family=foo)`.
 
-Reserved suffixes (`plan`, `q`, `code`, `epic`, `commit`) select their built-in family
+Reserved suffixes (`plan`, `code`, `epic`, `commit`) select their built-in family
 roles and status labels. Numeric suffixes and `@` are feedback/Q&A rounds; `@` allocates
 the next free suffix. Other alphanumeric suffixes such as `reviewer` or `tester` are
 allowed, preserve that open-set role in `agent_family_role` metadata, and use ordinary
@@ -2143,28 +2143,26 @@ may each appear only once across a prompt's `%wait` directives; priority default
 Without an explicit `runners=`, the effective global `max_running_agents` value limits
 concurrent occupied runner slots (configured default `10`; an active
 `~/.sase/max_running_agents_override.json` value wins). A slot is held by one running
-sase agent: a standalone agent, a serial family (its root, a live serial child, a live
-monitor, or a live post-handoff `--next` agent — one slot for as long as any of those
-shells is live), or each live parallel family member, even when ACE renders the member
-as a nested row. Independently launched clan members each hold one slot.
+sase agent: a standalone agent, a live serial family across its agent and monitor
+shells, or each live parallel family member, even when ACE renders the member as a
+nested row. Independently launched clan members each hold one slot. A processless gate
+shell occupies no runner slot, even when it retains the family's workspace claim.
 
 Holding a slot and waiting for one are separate. Roots and live parallel family members
-wait at this gate. Serial family members — including monitors and monitor follow-ups —
-ride the slot their family already holds and never park here. Immediate participating
-launches claim a slot before workspace preparation; dependency, time, and fork waiters
-remain uncounted until those prerequisites resolve. Workflow Python/bash steps and axe
-Patch runners hold none of these slots.
+wait at this gate. Serial members ride an already-live family slot, but a successor
+launched after a gate-shell handoff re-enters normal admission because the gate released
+that slot. Immediate participating launches claim a slot before workspace preparation;
+dependency, time, and fork waiters remain uncounted until those prerequisites resolve.
+Workflow Python/bash steps and axe Patch runners hold none of these slots.
 
-A slot participant that pauses at `QUESTION` temporarily yields its slot while waiting
-for the user's answer. Answering does not bypass the cap: before follow-up work resumes,
-the agent reacquires capacity through the same locked priority/FIFO gate using the
-current effective global `max_running_agents` limit. If the cap is full, the answered
-agent appears as a normal runner-slot `QUEUED` row until admitted. Its original
-`%wait(runners=N)` threshold governed initial admission and is not reapplied to this
-resume, while its authored `priority=N` is retained for admission under the current
-global cap.
+A modern `/sase_questions` handoff ends the asking agent and creates a processless
+`QUESTION` gate shell. Answering launches the next ordinary family member, which enters
+normal runner admission under the current cap and can appear `QUEUED`. Legacy in-flight
+question runs that use `pending_question.json` instead yield and reacquire within their
+original process; their original `%wait(runners=N)` threshold governed initial
+admission and is not reapplied, while authored `priority=N` is retained.
 
-This temporary question yield does not make `%wait(runners=0)` exclusive. A
+This temporary question pause does not make `%wait(runners=0)` exclusive. A
 drain-barrier launch may enter during the pause, and other work may still enter after
 that barrier is admitted whenever its own threshold permits; the answered agent then
 waits for capacity like any other eligible launch.
@@ -2342,10 +2340,13 @@ ACE docs for the full review flow.
 
 SASE's planning workflow is driven by the `/sase_plan` skill together with the
 `sase plan` approval pipeline. An agent drafts a plan and submits it with `/sase_plan`
-(or `sase plan propose`); the plan then pauses for user approval before any execution.
-In the TUI, the agent shows a PLAN status after submitting the plan for review, then
-PLAN APPROVED once the user approves it. The `%auto:tale` and `%auto:epic` modes opt a
-planning agent into this same pipeline with automatic tale or epic approval.
+(or `sase plan propose`). In an agent-runner context, submission hands the family to a
+processless plan gate shell and ends the planner turn; that shell, not the provider
+process, owns the pending review. In the TUI it shows the authored `TALE` or `EPIC`
+status (or legacy `PLAN`) and settles when the selected branch's commands complete.
+Feedback launches a replanner; tale approval launches a coder; epic approval may be
+terminal because its approval command launches epic execution itself. The `%auto:tale`
+and `%auto:epic` modes use the same pipeline but answer the plan decision synchronously.
 
 Once the plan is approved, sase launches a follow-up **coder** agent. That automated
 hand-off still inlines the approved plan with `@` and does not share a body with the

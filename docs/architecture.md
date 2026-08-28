@@ -9,20 +9,21 @@ reviewed, retried, and handed off through stable project artifacts.
 
 ## System Boundary
 
-| Area         | Responsibility                                                                                                                | Main References                   |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                               | [CLI reference](cli.md)           |
-| ACE          | Interactive TUI for Patches, agents, notifications, artifacts, and axe status.                                                | [ACE TUI](ace.md)                 |
-| Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                        | [Axe](axe.md)                     |
-| XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                      | [XPrompts](xprompt.md)            |
-| Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                               | [Workflow spec](workflow_spec.md) |
-| Patches      | PR-sized review records with lifecycle state, stitches, hooks, comments, mentors, and timestamps.                             | [Patches](change_spec.md)         |
-| Memory       | Instruction memory, explicit `#memory/<stem>` xprompt inclusion, audited reference reads, and reviewed write proposals.       | [Memory](memory.md)               |
-| SDD          | Durable prompt, tale, epic, and research artifacts.                                                                           | [SDD](sdd.md)                     |
-| Beads        | Git-portable issue/dependency tracking and executable epic launch plans.                                                      | [Beads](beads.md)                 |
-| Providers    | Pluggable LLM, VCS, workspace, config, and xprompt boundaries.                                                                | [Plugins](plugins.md)             |
-| Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch prep, and bead data operations. | [Rust backend](rust_backend.md)   |
-| Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                      | [Integrations](integrations.md)   |
+| Area         | Responsibility                                                                                                                | Main References                                                    |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                               | [CLI reference](cli.md)                                            |
+| ACE          | Interactive TUI for Patches, agents, notifications, artifacts, and axe status.                                                | [ACE TUI](ace.md)                                                  |
+| Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                        | [Axe](axe.md)                                                      |
+| XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                      | [XPrompts](xprompt.md)                                             |
+| Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                               | [Workflow spec](workflow_spec.md)                                  |
+| Gates        | Durable, command-backed user decisions and processless family-shell handoffs.                                                 | [Notifications](notifications.md#command-backed-interaction-gates) |
+| Patches      | PR-sized review records with lifecycle state, stitches, hooks, comments, mentors, and timestamps.                             | [Patches](change_spec.md)                                          |
+| Memory       | Instruction memory, explicit `#memory/<stem>` xprompt inclusion, audited reference reads, and reviewed write proposals.       | [Memory](memory.md)                                                |
+| SDD          | Durable prompt, tale, epic, and research artifacts.                                                                           | [SDD](sdd.md)                                                      |
+| Beads        | Git-portable issue/dependency tracking and executable epic launch plans.                                                      | [Beads](beads.md)                                                  |
+| Providers    | Pluggable LLM, VCS, workspace, config, and xprompt boundaries.                                                                | [Plugins](plugins.md)                                              |
+| Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch prep, and bead data operations. | [Rust backend](rust_backend.md)                                    |
+| Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                      | [Integrations](integrations.md)                                    |
 
 The Python host owns user-facing orchestration, plugin calls, subprocess handling,
 filesystem context, TUI rendering, and workflow side effects. Rust owns reusable
@@ -96,6 +97,23 @@ Agents tab as top-level `▣` rows backed only by the proc store, counted separa
 agents. Workflow launches persist step state so ACE and axe can inspect progress and
 recover meaningful output.
 
+## Agent, Monitor, and Gate Shells
+
+A SASE agent is either one standalone agent shell or a sequential family of shells.
+Agent shells are provider/LLM turns. Monitor shells are supervised commands attached to
+that family. Gate shells are processless members that own a durable user decision. All
+three appear in one family timeline and contribute their transcript, log, or decision
+evidence to later family forks.
+
+Questions, plan review, agent-side workflow HITL, and agent-initiated launch approval
+use gate shells. At the handoff boundary SASE persists the verified gate bundle, names
+the shell, transfers or releases the workspace claim according to policy, releases the
+runner slot, and ends the provider turn. A client later selects a branch; SASE runs its
+hashed commands, records their output, settles the shell, and optionally launches the
+next agent-shell family member. The answered branch can inherit a default follow-up;
+timeout, stopped, failed, and lost outcomes require explicit follow-up policy. This
+makes a human pause durable without holding a provider process or runner slot open.
+
 ## State Model
 
 SASE avoids making a live chat session the source of truth. The durable state lives in
@@ -113,20 +131,21 @@ The project-adjacent taxonomy has three non-overlapping roles:
   project's workspace registry and claimed by one SASE agent until completion.
   Linked/sidecar checkouts materialized within it remain repos, not workspaces.
 
-| State            | Location / Owner                                                                 | Use                                                                                                                                                                                            |
-| ---------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ProjectSpecs     | `<project>/<project>.sase` under `~/.sase/projects/`                             | Enabled/disabled lifecycle, primary repo, aliases, claims, and embedded Patches.                                                                                                               |
-| Agent metadata   | Agent artifact directories under `~/.sase/`                                      | Running/completed status, prompt files, output, diffs, workflow state, and attachments.                                                                                                        |
-| Agent archives   | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/`               | Dismissed-agent recovery bundles and named groups for later ACE revival.                                                                                                                       |
-| SDD artifacts    | Provider-resolved `sdd/`, `.sase/sdd/`, or split sidecar roots                   | Plans, executable epics, research notes, and links to canonical agents-sidecar prompts; resolve with `sase repo path plans` or `research`.                                                     |
-| Beads            | The resolved SDD beads directory                                                 | Issue graph, JSONL export, SQLite query cache, and epic execution metadata; current split stores use the root of a dedicated `--beads` sidecar, while schema-2 stores retain `--plans/beads/`. |
-| Project content  | `sase/sase.yml`, `sase/xprompts/`, `sase/skills/`, `sase/memory/`, `sase/repos/` | Source-controlled project settings/context plus ignored workspace-scoped repository checkouts.                                                                                                 |
-| Home content     | `~/sase/xprompts/`, `~/sase/skills/`, `~/sase/memory/`                           | User-wide reusable prompts and agent memory.                                                                                                                                                   |
-| Memory audit     | `~/.sase/projects/<project>/`                                                    | Attributable reads, write proposals, and review decisions.                                                                                                                                     |
-| Configuration    | `~/.config/sase/sase.yml`, overlays, project `sase/sase.yml`                     | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.                                                                                                      |
-| Notifications    | Notification store facade backed by Rust operations                              | User-visible actions, unread state, agent completion, errors, and mobile events.                                                                                                               |
-| Workspace claims | Running-field state and provider metadata                                        | Reservation and release of numbered workspaces for parallel agents.                                                                                                                            |
-| Workspace stores | Per-project `registry.json` under the configured workspace root                  | Checkout paths, role/materialization, pins, generation, created/last-used times, and cleanup eligibility.                                                                                      |
+| State             | Location / Owner                                                                 | Use                                                                                                                                                                                            |
+| ----------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ProjectSpecs      | `<project>/<project>.sase` under `~/.sase/projects/`                             | Enabled/disabled lifecycle, primary repo, aliases, claims, and embedded Patches.                                                                                                               |
+| Agent metadata    | Agent artifact directories under `~/.sase/`                                      | Running/completed status, prompt files, output, diffs, workflow state, and attachments.                                                                                                        |
+| Agent archives    | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/`               | Dismissed-agent recovery bundles and named groups for later ACE revival.                                                                                                                       |
+| SDD artifacts     | Provider-resolved `sdd/`, `.sase/sdd/`, or split sidecar roots                   | Plans, executable epics, research notes, and links to canonical agents-sidecar prompts; resolve with `sase repo path plans` or `research`.                                                     |
+| Beads             | The resolved SDD beads directory                                                 | Issue graph, JSONL export, SQLite query cache, and epic execution metadata; current split stores use the root of a dedicated `--beads` sidecar, while schema-2 stores retain `--plans/beads/`. |
+| Project content   | `sase/sase.yml`, `sase/xprompts/`, `sase/skills/`, `sase/memory/`, `sase/repos/` | Source-controlled project settings/context plus ignored workspace-scoped repository checkouts.                                                                                                 |
+| Home content      | `~/sase/xprompts/`, `~/sase/skills/`, `~/sase/memory/`                           | User-wide reusable prompts and agent memory.                                                                                                                                                   |
+| Memory audit      | `~/.sase/projects/<project>/`                                                    | Attributable reads, write proposals, and review decisions.                                                                                                                                     |
+| Configuration     | `~/.config/sase/sase.yml`, overlays, project `sase/sase.yml`                     | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.                                                                                                      |
+| Notifications     | Notification store facade backed by Rust operations                              | User-visible actions, unread state, agent completion, errors, and mobile events.                                                                                                               |
+| Interaction gates | `~/.sase/interaction_requests/<kind>/<request-id>/`                              | Immutable request bundles, owned commands and resources, and write-once responses for user decisions.                                                                                          |
+| Workspace claims  | Running-field state and provider metadata                                        | Reservation and release of numbered workspaces for parallel agents.                                                                                                                            |
+| Workspace stores  | Per-project `registry.json` under the configured workspace root                  | Checkout paths, role/materialization, pins, generation, created/last-used times, and cleanup eligibility.                                                                                      |
 
 `~/.sase` is the default SASE state root. Set `SASE_HOME` to move that root for isolated
 tests, alternate profiles, or containerized runs.

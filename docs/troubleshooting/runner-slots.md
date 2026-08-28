@@ -3,11 +3,11 @@
 An agent shown as `QUEUED` is at an admission boundary: it has finished every
 dependency, bead, and time wait and is holding only for runner capacity. Its threshold
 may come from the effective global `max_running_agents` value (configured default: 10)
-or an authored `%wait(runners=N)`. It may also have received an answer after temporarily
-yielding its slot at `QUESTION`. A runner slot is held by one running sase agent: a
-standalone agent, a serial family (one slot while any of its shells is live — root,
-serial child, monitor, or post-handoff `--next` agent), or each live parallel family
-member. Independently launched clan members each hold one slot.
+or an authored `%wait(runners=N)`. It may also be the successor launched after a
+processless gate shell settled. A runner slot is held by one running sase agent: a
+standalone agent, a live serial family across its agent and monitor shells, or each live
+parallel family member. Independently launched clan members each hold one slot. A gate
+shell owns a durable user decision but holds no runner slot.
 
 The ACE Agents header summarizes the same global state as `[R/L · Q queued]`: slots in
 use, effective limit, and live waiters at the runner-slot admission gate. The effective
@@ -23,10 +23,11 @@ eligible waiters first, then parked waiters by the threshold that opens soonest,
 priority/FIFO preserved inside each group. Priority defaults to `10` and does not age,
 so sustained higher-priority arrivals can starve default- or lower-priority waiters.
 Parallel family members wait for their own slot even when ACE renders them as nested
-rows. Serial family members — including monitors and monitor follow-ups — do not wait:
-they ride the slot their family already holds, so a running parent can safely wait for
-child work without deadlock and a post-handoff `--next` agent is not a way to escape the
-cap. Workflow Python/bash steps and axe Patch runners hold none of these slots.
+rows. Serial members ride a family slot that is already live, so a running parent can
+safely wait for child work without deadlock. A gate-shell handoff is different: the
+pending shell releases the family slot, and any follow-up agent enters normal admission
+under the current cap. Workflow Python/bash steps and axe Patch runners hold none of
+these slots.
 
 The bundled task, epic phase, and lander xprompts used by `sase bead work` do not set an
 authored wait priority. They use the default priority (`10`) once their rendered
@@ -100,13 +101,13 @@ slot-participating launches become admitted before primary and linked-workspace
 preparation; dependency, time, and fork waiters do not consume a slot until those
 prerequisites resolve.
 
-An unanswered slot participant at `QUESTION` does not consume a runner slot. Its
-`pending_question.json` remains authoritative while the user is deciding and while the
-answered agent is queued to resume. On answer, the agent uses the current global cap to
-reacquire through the same locked priority/FIFO gate; a full cap therefore changes the
-row from `QUESTION`/`ANSWERED` to the normal runner-slot `QUEUED` state. Killing it
-during either pause cleans up the question and queue markers. Question continuations
-keep their authored priority while reacquiring under the current global cap.
+A modern unanswered `QUESTION` is a gate shell and consumes no runner slot. On answer,
+its next family member enters the normal locked admission gate under the current cap; a
+full cap can therefore leave that successor `QUEUED`. Existing compatibility runs may
+instead carry `pending_question.json`; that marker remains authoritative while the user
+decides and while the same process is queued to resume. Killing a legacy run during
+either pause cleans up its question and queue markers, and its authored priority is
+retained while reacquiring.
 
 Lowering the effective cap below current occupancy is safe and non-preemptive: no
 running process is killed or forced to yield, but no implicit-cap participant is

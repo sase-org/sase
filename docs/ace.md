@@ -114,6 +114,33 @@ palette to jump directly to a top-level view. Patches remains query-scoped and r
 the existing Patch workflow. The strip order does not change the entry point: opening
 Artifacts still selects Stitch by default.
 
+### Contextual Artifact Links
+
+ACE owns one link rail across the three top-level tabs. It appears when the current
+selection has artifact links: an Artifacts-pane entry, a named agent or family shell, or
+an AXE chop. Synthetic clan containers, lumberjacks, and background-command rows do not
+provide a link subject. The rail includes a breadcrumb while a link-follow trail is
+active.
+
+Press `$` to arm the rail. Then press `$` again to follow its first entry, `1`-`9` for a
+numbered entry, or `0` to open the complete links panel. The rail always advertises
+`$0 all` or `$0 +N more`, so links beyond the first nine remain discoverable. Several
+projected links produced by the same rule may collapse into one entry; following that
+entry opens the panel already scoped to the group.
+
+In the panel, `a`-`z` follow the first 26 entries directly, Enter follows the
+highlighted entry, arrows or `Ctrl+N`/`Ctrl+P` move, and Esc closes it. `-` removes a
+writable durable link and `+` creates a link from marked rows where that action is
+available. Projected links are read-only. Rows show relation direction, rationale,
+provenance, missing targets, and stale aggregate state.
+
+Link follows can cross tabs and keep a bounded 32-hop trail. `Ctrl+O` walks backward and
+`Ctrl+Shift+O` walks forward, restoring the tab, pane, project scope, query, selection,
+and supported AXE fold state. If no link-trail hop is available, those keys retain the
+current pane's normal jump-stack behavior. Ordinary navigation clears the link trail.
+See [Artifact Links](artifact_links.md#browsing-links-in-ace) for relation and
+projection details.
+
 ### Split Modes in Artifacts Panes
 
 Every Artifacts pane starts with an even left-list/right-detail split. Press `}` to grow
@@ -163,15 +190,16 @@ Stitches and Files skip day headings; Agent, Beads, and provider document panes 
 group, section, and empty-state rows as applicable. Movement clamps at the first or last
 entry and silently does nothing when a list is empty.
 
-| Key                       | Action                                                                                  |
-| ------------------------- | --------------------------------------------------------------------------------------- |
-| `g` / `G`                 | Select the first / last agent, commit, issue, bead, document, or file                   |
-| `Enter`                   | Open the selected commit, document, bead, or file in its full-screen reader             |
-| `Ctrl+F` / `Ctrl+B`       | Move down / up 10 selectable entries                                                    |
-| `Ctrl+D` / `Ctrl+U`       | Scroll the active right-hand detail pane down / up (half page)                          |
-| `'`                       | Show adaptive entry hints; press `'` again for the first entry or the last jump origin  |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the pane's jump stack; back falls through to first hint |
-| `Ctrl+J` / `Ctrl+K`       | Load `ace.page_size` more rows / unload that page (rewrites the host `limit:` cap)      |
+| Key                       | Action                                                                                 |
+| ------------------------- | -------------------------------------------------------------------------------------- |
+| `g` / `G`                 | Select the first / last agent, commit, issue, bead, document, or file                  |
+| `Enter`                   | Open the selected commit, document, bead, or file in its full-screen reader            |
+| `Ctrl+F` / `Ctrl+B`       | Move down / up 10 selectable entries                                                   |
+| `Ctrl+D` / `Ctrl+U`       | Scroll the active right-hand detail pane down / up (half page)                         |
+| `'`                       | Show adaptive entry hints; press `'` again for the first entry or the last jump origin |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the pane jump stack; back falls through to first hint  |
+| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel            |
+| `Ctrl+J` / `Ctrl+K`       | Load `ace.page_size` more rows / unload that page (rewrites the host `limit:` cap)     |
 
 Hint keys select an entry without activating it. Jump-back history is kept separately
 for each non-Patches pane, and stale origins disappear automatically after filtering,
@@ -766,7 +794,8 @@ launch routing uses the same `@small` fallback.
 | `j` / `k`                 | Move to next / previous visible row (banner at fold `< L2`, PR at the leaf level)            |
 | `<` / `>` / `~`           | Navigate to ancestor / child / sibling PR                                                    |
 | `'`                       | Jump by adaptive hint (current tab); hints land on collapsed banners too                     |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack; back falls through to first hint |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint |
+| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                  |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                        |
 | `o` / `O`                 | Cycle PR grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)            |
 | `g` / `G`                 | Scroll detail panel to top / bottom                                                          |
@@ -1020,7 +1049,8 @@ directly. `q`/`Esc` cancels; configured target keys take precedence if rebound t
 | `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, or when the focused panel has no other selectable row, cycle whole panels instead |
 | `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                                                                           |
 | `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                                                                             |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack; back falls through to first hint                                                                |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint                                                                |
+| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                 |
 | `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                                                                         |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                       |
 | `0`–`9`                   | Jump from a selected clan, agent node, family member, or whole-panel roster to its numbered member or neighbor                                              |
@@ -1932,15 +1962,16 @@ occupancy the admission gate uses — `L` is the current effective `max_running_
 limit (temporary override first, configured value second), and `Q` counts every live
 agent parked at the runner-slot admission gate, whether its threshold comes from that
 effective cap or an authored `%wait(runners=N)`. A standalone agent holds one slot. A
-serial family holds one slot for as long as any of its shells is live (root, serial
-child, monitor proc shell, or post-handoff `--next` agent). Independently launched clan
-members each hold one slot. Each live parallel family member holds its own slot. Roots
-and parallel members wait at the gate; serial family members ride the family's slot and
-do not appear in `Q`. Workflow Python/bash steps and axe Patch runners hold none of
-these slots. The occupancy count `R` always renders green, so it reads as a plain count;
-capacity pressure is carried by `L`, which escalates from dim through gold at half the
-limit, orange at three quarters, and red once `R` reaches or passes it. A nonzero queue
-count is cornflower blue.
+live serial family normally shares one slot across its agent and monitor shells.
+Independently launched clan members and live parallel family members each hold their own
+slot. Processless gate shells release runner capacity, even when they retain a workspace
+claim; a successor they launch re-enters normal admission and can appear in `Q`. Roots
+and parallel members wait at the gate, while serial members ride an already-live family
+slot. Workflow Python/bash steps and axe Patch runners hold none of these slots. The
+occupancy count `R` always renders green, so it reads as a plain count; capacity
+pressure is carried by `L`, which escalates from dim through gold at half the limit,
+orange at three quarters, and red once `R` reaches or passes it. A nonzero queue count
+is cornflower blue.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with
@@ -2005,6 +2036,8 @@ badges instead of verbose text:
 | `⚙`   | Monitor shell (row label)                                                                          |
 | `⚙N`  | N running monitors in a family/clan subtree, or in a tribe panel title for its whole tribe (amber) |
 | `⚙N`  | N finished monitors in a family/clan subtree, or in a tribe panel title for its whole tribe (grey) |
+| `⋔`   | Gate shell; cyan while pending/running, grey when settled, red on failure                          |
+| `⋔N`  | N gates in a family/clan subtree or tribe panel title, colored by lifecycle bucket                 |
 | `▣`   | Stand-alone `%proc` proc shell (row label; beta, `typed_launch_units`)                             |
 | `▣N`  | N stand-alone proc shells in a panel title's separate proc chip                                    |
 
@@ -2019,6 +2052,12 @@ stalled monitor handoff: a red `⚠` replaces the exit-code badge when a termina
 monitor's supervisor never reported a real exit code, and an amber `⚑` follows the row
 when its `--next` follow-up was dropped or launched degraded — a monitor can finish
 cleanly and still strand its follow-up. See [Monitors](monitors.md).
+
+Gate shells use `⋔` and their authored pending/settled labels, such as `GATE`/`GATED`,
+`QUESTION`/`ANSWERED`, or plan-tier statuses. A pending gate has no LLM process and does
+not occupy a runner slot, but it may retain the family's workspace claim. Its state is
+one of pending, settling, answered, completed, failed, timeout, stopped, or lost. Family
+and tribe chips count pending/running, settled, and failed gates separately by color.
 
 A monitor row nests under the agent that started it, not under a synthetic aggregate —
 one gear-glyph row at the starter's depth plus one. It is revealed by its **agent
@@ -2461,7 +2500,8 @@ scrolled off screen on selection.
 | `j` / `k`                 | Move to next / previous sidebar row (lumberjack, chop, or background command) |
 | `Ctrl+N` / `Ctrl+P`       | Page through the focused chop's run history (newer / older)                   |
 | `'`                       | Jump to a current-tab entry by adaptive hint                                  |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack                    |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack                    |
+| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered chop link, or open the complete links panel       |
 | `` ` ``                   | Jump to an entry across all tabs                                              |
 | `g`                       | Scroll to top                                                                 |
 | `G`                       | Scroll to bottom (pins auto-scroll)                                           |
@@ -2698,20 +2738,21 @@ the CLI contract.
 
 These work on all tabs:
 
-| Key                 | Action                                                                                                                                                   |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Tab` / `Shift+Tab` | Switch between Agents, Artifacts, and Axe tabs                                                                                                           |
-| `#`                 | Open SASE Admin Center home (repeat on home to resume the last section); inside a working section, jump to the alternate section (repeat to toggle back) |
-| `.`                 | Artifacts: collapse/expand the relations panel; Agents: show/hide non-run agents; Axe: show/hide axe commands                                            |
-| `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                                                                                               |
-| `i`                 | Show notifications inbox                                                                                                                                 |
-| `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                                                                 |
-| `Ctrl+L`            | Dismiss all currently-visible toast notifications                                                                                                        |
-| `@`                 | Open the stashed-prompt restore picker                                                                                                                   |
-| `Q`                 | Open the quit / restart menu                                                                                                                             |
-| `R`                 | Refresh current tab                                                                                                                                      |
-| `q`                 | Quit                                                                                                                                                     |
-| `?`                 | Show help modal                                                                                                                                          |
+| Key                     | Action                                                                                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Tab` / `Shift+Tab`     | Switch between Agents, Artifacts, and Axe tabs                                                                                                           |
+| `#`                     | Open SASE Admin Center home (repeat on home to resume the last section); inside a working section, jump to the alternate section (repeat to toggle back) |
+| `.`                     | Artifacts: collapse/expand the relations panel; Agents: show/hide non-run agents; Axe: show/hide axe commands                                            |
+| `:` / `;`               | Open the context-aware [Command Palette](#command-palette)                                                                                               |
+| `i`                     | Show notifications inbox                                                                                                                                 |
+| `Ctrl+G`                | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                                                                 |
+| `Ctrl+L`                | Dismiss all currently-visible toast notifications                                                                                                        |
+| `@`                     | Open the stashed-prompt restore picker                                                                                                                   |
+| `$$` / `$1`-`$9` / `$0` | Follow the first / numbered contextual artifact link, or open the links panel                                                                            |
+| `Q`                     | Open the quit / restart menu                                                                                                                             |
+| `R`                     | Refresh current tab                                                                                                                                      |
+| `q`                     | Quit                                                                                                                                                     |
+| `?`                     | Show help modal                                                                                                                                          |
 
 The generic **Open SASE Admin Center** action and the first `#` always open a
 lightweight landing page without mounting a working pane. Press `#` again while home is
@@ -4031,25 +4072,17 @@ and completed (the agent has finished).
 | **QUESTION**       | Amber           | Agent is asking the user a question (via `/sase_questions`)                                                      |
 | **RETRYING**       | Orange          | Agent hit a retryable error and is in a countdown before retrying                                                |
 
-`QUESTION` status survives notification dismissal. While an agent is waiting for an
-answer it writes a `pending_question.json` marker into its run directory and temporarily
-yields its root runner slot. The marker remains until the agent reacquires capacity
-after an answer, or until the agent is killed or crashes. If capacity is full after the
-answer, the row becomes a normal runner-slot `QUEUED` row before follow-up work resumes.
-Any otherwise-active row whose own run directory contains an unanswered marker is shown
-as `QUESTION`, so the "waiting on you" status keeps appearing even after you dismiss the
-matching question notification from the inbox. The `,n` shortcut (jump to the open
-question) reads the marker directly when no unread notification is left, so it can still
-reopen the question modal.
+Modern `/sase_questions` calls hand the family to a processless `QUESTION` gate shell
+and end the asking LLM turn. The shell owns the durable question until it is answered,
+cancelled, or times out, so dismissing its notification does not dismiss the family
+state. An answer settles it as `ANSWERED` and launches the next ordinary family member
+with the accumulated Q&A; that successor occupies a normal runner slot. The `,n`
+shortcut can reopen the live question even when no unread notification remains.
 
-`QUESTION` also propagates up agent families. When a completed row recorded a question
-(`questions_times` is non-empty) but has neither a persisted `question_response_path`
-nor a later follow-up child, the parent workflow row inherits `QUESTION` so the family
-still shows as waiting on you. Once the user response is persisted, the continued work
-appears as the next ordinary family member. On the next status pass, the parent is
-re-evaluated without the stale question override. If the parent has several active
-children, the most recently started one wins, so a newer `RUNNING` child can overtake
-the `QUESTION` override on the parent.
+Older in-flight runs may still use a `pending_question.json` marker. Those compatibility
+runs yield their slot while unanswered, then reacquire capacity in the same process and
+can become `QUEUED` after an answer. ACE continues to project that marker as `QUESTION`
+until the legacy continuation resumes or terminates.
 
 The keybinding footer renders available conditional actions as non-breaking key/label
 chips. When the chips do not fit on one line, the footer switches to a deterministic
@@ -4378,7 +4411,12 @@ cursor.
   same way with their suffix token, e.g. `AGENT (bar)`. A monitor member is a proc
   shell, so its phase renders as an amber `⚙ MONITOR` divider followed by the monitor's
   command, its recorded detail fields, and its full captured output — the same block the
-  monitor's own panel shows. Legacy dotted and single-dash suffixes render the same way.
+  monitor's own panel shows. A gate-shell member renders as a lifecycle-colored `⋔ GATE`
+  divider with its decision, kind, state, deadline, reason, request identity, branch
+  policy, follow-up disposition, and captured command output. Its phase remains in the
+  consolidated family reply after settlement, including terminal branches that
+  intentionally launch no successor. Legacy dotted and single-dash suffixes render the
+  same way.
 - **WORKFLOW VARIABLES**: xprompt workflow output variables from step outputs with
   additional `meta_*` keys are grouped under a dedicated header. The special routing
   keys `meta_project`, `meta_patch`, and `meta_workspace` are promoted into the normal
@@ -4630,7 +4668,12 @@ approval modal, which renders the request's human-readable preview
 kind, and planned member name. Press `a` to approve, `r` to reject, and `q` or `Esc` to
 cancel. ACE resolves the same hash-verified command bundle used by mobile and remote
 callbacks, while retaining legacy launch-request fallback. The CLI equivalents are
-`sase launch approve <selector>` and `sase launch reject <selector>`.
+`sase launch approve <selector>` and `sase launch reject <selector>`. From inside an
+agent, `sase launch request` creates a `LAUNCH` gate shell and ends the requesting turn;
+the process does not wait for the response. Approving dispatches the stored launch and
+settles the shell, while rejection, cancellation, timeout, or dispatch failure records
+the terminal outcome without starting a continuation agent. Calls made outside a SASE
+agent can still wait for and print the response directly.
 
 ## Linked Chats in Multi-Step Workflows
 

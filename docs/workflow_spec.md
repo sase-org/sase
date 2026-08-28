@@ -791,8 +791,13 @@ When a HITL step completes:
    - **Edit**: Modify the output before continuing
    - **Reject**: Abort the workflow
 
-Some interfaces may show feedback or rerun controls, but the current workflow executor
-only handles accept, edit, and reject as workflow-control actions.
+The workflow state machine handles accept, edit, and reject as direct control actions.
+When the workflow is running inside a SASE agent, the HITL boundary hands the family to
+a processless `HITL` gate shell and ends that agent turn. Accept and edit can launch the
+next family member to resume the workflow; gate-shell feedback and rerun branches may
+also launch a fresh continuation. Reject, cancellation, timeout, and terminal branches
+without an explicit follow-up stop the workflow. Outside an agent-runner context, the
+executor waits inline for the same durable decision instead.
 
 ### Accessing Approval Status
 

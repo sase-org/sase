@@ -13,14 +13,16 @@ Markdown document or generated page where SASE renders that artifact's typed lin
 
 The registry is closed. Use one of these slugs exactly:
 
-| Relation       | Inverse          | Directed | Written by                                         |
-| -------------- | ---------------- | -------- | -------------------------------------------------- |
-| `cites`        | `cited-by`       | yes      | prompt references and structured header derivation |
-| `read`         | `read-by`        | yes      | `sase artifact read`                               |
-| `related`      | `related`        | no       | CLI / plan inlet; `RELATED:` migration             |
-| `supersedes`   | `superseded-by`  | yes      | CLI / plan inlet                                   |
-| `implements`   | `implemented-by` | yes      | CLI / plan inlet; `bead_id` derivation             |
-| `derives-from` | `derived-into`   | yes      | CLI / plan inlet; research lineage derivation      |
+| Relation       | Inverse          | Directed | Written by                                                |
+| -------------- | ---------------- | -------- | --------------------------------------------------------- |
+| `cites`        | `cited-by`       | yes      | prompt references and structured header derivation        |
+| `read`         | `read-by`        | yes      | `sase artifact read`                                      |
+| `related`      | `related`        | no       | CLI / plan inlet; `RELATED:` migration                    |
+| `supersedes`   | `superseded-by`  | yes      | CLI / plan inlet                                          |
+| `implements`   | `implemented-by` | yes      | CLI / plan inlet; plan, agent, and stitch projections     |
+| `derives-from` | `derived-into`   | yes      | CLI / plan inlet; research lineage derivation             |
+| `produced-by`  | `produced`       | yes      | projected from a stitch's recorded agent                  |
+| `launched`     | `launched-by`    | yes      | projected from a configured chop and its published agents |
 
 `blocks` and `depends-on` are reserved. Use `sase bead dep` for scheduling and blocking
 relationships instead of storing those as artifact links.
@@ -28,10 +30,12 @@ relationships instead of storing those as artifact links.
 Run `sase artifact link relation list` to inspect the closed registry, or
 `sase artifact link relation show <slug>` for one relation's direction, positive and
 negative examples, and recommended endpoint kinds. Both forms accept `-j/--json`.
-Direction matters: the replacement **supersedes** the old artifact, a plan
-**implements** a bead, and a derived report **derives-from** its source. `related` is
-undirected. Only `related`, `supersedes`, `implements`, and `derives-from` are writable
-by the CLI; `cites` and `read` are observational rows SASE records itself.
+Direction matters: the replacement **supersedes** the old artifact, a plan or agent
+**implements** a bead, a stitch is **produced-by** an agent, a chop **launched** an
+agent, and a derived report **derives-from** its source. `related` is undirected. Only
+`related`, `supersedes`, `implements`, and `derives-from` are writable by the CLI;
+`cites` and `read` are observational rows, while `produced-by` and `launched` are
+read-only projections from other durable evidence.
 
 ## Commands
 
@@ -55,8 +59,9 @@ sase artifact link list -l 20 -R related
 
 Without a reference, `list` shows the current project's newest 50 rows. With one, it
 shows that artifact's neighborhood. `-d in|out|both`, `-R/--relation`, and `-o/--origin`
-(`manual`, `migrated`, `prompt_ref`, `read`, or `derived`) narrow it; `-l 0` is
-unlimited and `-j` emits a stable JSON array.
+(`manual`, `migrated`, `prompt_ref`, `read`, `derived`, or `projected`) narrow it;
+`-l 0` is unlimited and `-j` emits a stable JSON array. The default `--source index`
+includes machine-local projected rows; `--source store` reads durable truth only.
 
 Ask SASE for write-free, hard-evidence suggestions before adding a deliberate edge:
 
@@ -98,6 +103,27 @@ replacement.
 `link add`, `link rm`, and `migrate-notes --apply` write the artifact-link graph
 directly. `link list` reads the current graph rows.
 
+## Projected relationships
+
+Some relationships are computed into the machine-local read model instead of being
+stored as link sidecars:
+
+- a published agent's `bead_id`, `epic_bead_id`, or `phase_bead_id` projects
+  `agent:<name> implements bead:<id>`;
+- a primary-repository commit with a `SASE_BEAD` trailer projects
+  `stitch:<sha> implements bead:<id>`;
+- a commit with a `SASE_AGENT` trailer (or legacy `AGENT`) projects
+  `stitch:<sha> produced-by agent:<name>`; and
+- a published chop-agent name that resolves against the live AXE configuration projects
+  `chop:<lumberjack>/<chop> launched agent:<name>`.
+
+Projected rows carry `origin: projected` and a `created_by: projection:<rule>` marker.
+They appear in `sase artifact link list`, `sase artifact doctor`, and ACE alongside
+durable links, but they are recomputed read-model data: `link rm` and the ACE remove
+action cannot delete them. Change the durable source evidence instead, then refresh or
+repair the aggregate. The health check compares the aggregate against both durable
+sidecar truth and these expected projections.
+
 ## Rendering
 
 SASE renders deliberate manual and migrated links near the top of the artifact markdown
@@ -114,6 +140,21 @@ a sibling `<stem>.md` companion created lazily on the first link. Beads, agents,
 Patches use generated pages, so agents should update their underlying stores with SASE
 commands and never hand-edit those generated pages. Stitches have no page of their own;
 links to a stitch render on the other artifact.
+
+## Browsing links in ACE
+
+When the selected Agent, Artifact, or AXE chop has links, ACE shows a contextual link
+rail. Press `$` to arm it, then `$` again for the first link, `1`-`9` for a numbered
+link, or `0` for the complete links panel. A projected group may occupy one rail entry;
+choosing it opens a panel scoped to that group instead of guessing which member to
+follow.
+
+The panel explains relation direction, provenance, rationale, missing targets, and
+staleness. `a`-`z` follow the first 26 rows directly, Enter follows the highlighted row,
+and arrows or `Ctrl+N`/`Ctrl+P` move the highlight. `-` removes a writable durable link;
+projected rows are read-only. Cross-tab follows record a 32-hop trail: `Ctrl+O` walks
+backward and `Ctrl+Shift+O` walks forward, restoring the prior tab, pane, project scope,
+query, selection, and supported fold state. Ordinary navigation starts a new trail.
 
 ## Authoring links in a proposed plan
 
@@ -142,7 +183,7 @@ authoring inlet, not retained plan metadata.
 
 ## Automatic derivation and repair
 
-SASE derives only relationships backed by deterministic structured evidence:
+SASE durably derives only relationships backed by deterministic structured evidence:
 
 - `plan:<path> implements bead:<id>` from a plan's `bead_id:` frontmatter, when the bead
   is known to the readable store.
@@ -152,8 +193,9 @@ SASE derives only relationships backed by deterministic structured evidence:
 
 Derivation runs on relevant plan/archive and sidecar-commit paths. The built-in hourly
 AXE `artifact_link_backfill` chop covers older documents in bounded, checkpointed
-batches, drains queued read rows for agents that have since published, reconciles the
-machine-local aggregate, and repairs dangling references from Git rename history. See
+batches, drains queued read rows for agents that have since published, recomputes
+projected relationships, reconciles the machine-local aggregate, and repairs dangling
+references from Git rename history. See
 [Default lumberjacks](axe.md#housekeeping-1-hour-interval).
 
 ## Beads
@@ -182,10 +224,10 @@ rewriting them implicitly.
 
 `sase artifact doctor` reports link health alongside the file index: dangling or
 unpublished agent references, stale rendered tables, missing or orphaned companions,
-sidecar-versus-aggregate counts, audited reads versus durable `read` rows, queued and
-dropped outbox rows, derived-link coverage, and counts by origin and relation. It exits
-1 for unhealthy state; unpublished agent references are informational because a queued
-publication may still resolve them.
+expected durable-plus-projected versus aggregate counts, audited reads versus durable
+`read` rows, queued and dropped outbox rows, derived-link coverage, and counts by origin
+and relation. It exits 1 for unhealthy state; unpublished agent references are
+informational because a queued publication may still resolve them.
 
 `sase artifact doctor --fix` rebuilds the aggregate and managed projections from durable
 truth, repairs references whose files can be followed through Git rename history, and
@@ -200,7 +242,7 @@ Artifact-link truth lives in several places with different durability:
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Sidecar `links/**/*.json`                                   | Per-artifact schema-v2 index. This is the durable source used to rebuild the graph.                    | Yes. Committed in the owning document sidecar.                                                                                           |
 | Sidecar `links/**/*.lock`                                   | Zero-byte `flock` sentinel for one index. Synchronization state only; never graph data.                | No. Ignored by `/links/**/*.lock`. Existing tracked empty sentinels may remain as compatibility residue; new locks are not added to VCS. |
-| `~/.sase/projects/<key>/artifact-links.json`                | Rebuildable project-local aggregate plus its lock.                                                     | No. Local SASE state, never a sidecar commit.                                                                                            |
+| `~/.sase/projects/<key>/artifact-links.json`                | Rebuildable project-local aggregate of durable rows plus projected relationships, with its lock.       | No. Local SASE state, never a sidecar commit.                                                                                            |
 | `~/.sase/projects/<key>/artifact-link-outbox.jsonl`         | Replay queue for an agent's `read` rows until its published identity can own the durable sidecar link. | No. Machine-local; drained after publication and by hourly housekeeping.                                                                 |
 | `~/.sase/projects/<key>/artifact-link-outbox-dropped.jsonl` | Audit trail for stale terminal-agent rows that could not become publishable.                           | No. Machine-local.                                                                                                                       |
 

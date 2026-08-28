@@ -293,7 +293,7 @@ Every family member has an `agent_family_role` derived from its suffix:
 
 | Suffix                                         | Role                           | Display behavior                 |
 | ---------------------------------------------- | ------------------------------ | -------------------------------- |
-| `plan`, `q`, `code`, `epic`, `commit`          | Corresponding built-in role    | Built-in plan-chain status rules |
+| `plan`, `code`, `epic`, `commit`               | Corresponding built-in role    | Built-in plan-chain status rules |
 | Numeric (`@` allocates the next free number)   | Feedback or question round     | Built-in round status rules      |
 | Any other word (`reviewer`, `tester`, `audit`) | The suffix itself, an open set | Ordinary RUNNING/DONE statuses   |
 
@@ -304,6 +304,16 @@ definition with an explicit family attachment or an agent-requested launch.
 A `--mon` suffix (and `--mon-0`, `--mon-1`, … for later members in the same family) is a
 **monitor shell**: a family member whose work is one supervised OS command instead of an
 LLM turn, created by `sase monitor start`. See [Monitors](monitors.md).
+
+A `--gate` suffix (then `--gate-0`, `--gate-1`, …) is a **gate shell**: a named, non-LLM
+family member that owns a durable user decision. The asking agent ends its turn, the
+pending gate occupies no runner slot, and the shell settles after the decision's
+commands complete. It can retain or release the workspace claim according to its shell
+policy. An answered branch may launch the next agent-shell member; timeout, stop,
+failure, and loss do so only when that branch explicitly declares a follow-up. The
+built-in question, plan, workflow HITL, and agent-initiated launch flows use this model,
+as can custom `sase gate create --shell` requests. See
+[Command-backed interaction gates](notifications.md#command-backed-interaction-gates).
 
 `sase pipe '<prompt>'` creates a family member the same way a plan approval or a
 question follow-up does: it ends the calling agent's turn in-process and continues the
@@ -326,7 +336,7 @@ target and waits for successors that appear after the wait begins. An exact `--<
 name targets one member. A member attached to an agent already inside a clan inherits
 that clan membership.
 
-`#fork:<family>` contributes every known concrete shell — agent shells and monitor
+`#fork:<family>` contributes every known concrete shell — agent, monitor, and gate
 shells alike — in chain order, oldest first, including shells that ended unsuccessfully
 with their recorded failure context. Only a shell that is still running, or whose
 transcript or log is missing or unreadable, is listed as not shown rather than injected.
@@ -665,9 +675,11 @@ sase launch request -f launch_request.json -o json
 
 The request may contain `%i(suffix, family=parent)` in its prompt, so the approved
 launch joins an existing family with any valid suffix. `launch_preview.md` shows the
-resolved launch plan before approval. Inside an agent, the request command waits
-mechanically and returns one JSON outcome for approval, rejection, feedback, dispatch
-failure, cancellation, or timeout; the agent does not poll response files.
+resolved launch plan before approval. Inside an agent, the request creates a pending
+`LAUNCH` gate shell, hands off the family lane, and ends the requesting turn. Approval
+executes the stored dispatch command; rejection, cancellation, timeout, and dispatch
+failure settle the gate without launching a continuation agent. A non-agent caller can
+still wait mechanically and receive the JSON outcome directly.
 
 Approve or reject from ACE, or use:
 
