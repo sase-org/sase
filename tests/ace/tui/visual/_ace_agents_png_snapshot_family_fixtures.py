@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.monitor_state import monitor_state_bucket
 
 
 def waiting_family_child_agents() -> list[Agent]:
@@ -142,6 +143,7 @@ def settled_monitor_family_agents() -> list[Agent]:
             cl_name=f"visual-monitor-family--{suffix}",
             project_file="/workspace/sase/visual_project.sase",
             status="MONITORING" if monitor_state == "running" else "MONITORED",
+            status_bucket=monitor_state_bucket(monitor_state),
             start_time=started + timedelta(minutes=minute_offset),
             stop_time=(
                 started + timedelta(minutes=stop_offset)

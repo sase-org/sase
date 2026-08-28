@@ -45,7 +45,6 @@ class _PlanApprovalChoiceRecord:
     archive_side_effect: bool = False
     auto_mode_eligible: bool = False
     persist_action: str | None = None
-    status_label: str | None = None
     requires_feedback: bool = False
     allow_protocol_overrides: bool = False
     allow_coder_options: bool = False
@@ -68,7 +67,6 @@ PLAN_APPROVAL_CHOICE_RECORDS: tuple[_PlanApprovalChoiceRecord, ...] = (
         archive_side_effect=True,
         auto_mode_eligible=True,
         persist_action="approve",
-        status_label="PLAN APPROVED",
         allow_protocol_overrides=True,
         allow_coder_options=True,
     ),
@@ -84,7 +82,6 @@ PLAN_APPROVAL_CHOICE_RECORDS: tuple[_PlanApprovalChoiceRecord, ...] = (
         cli_kind_name="commit",
         archive_side_effect=True,
         persist_action="commit",
-        status_label="PLAN COMMITTED",
     ),
     _PlanApprovalChoiceRecord(
         id="reject",
@@ -235,7 +232,6 @@ def require_plan_approval_choice(choice: str) -> _PlanApprovalChoiceRecord:
             cli_kind_name="tale",
             auto_mode_eligible=True,
             persist_action="tale",
-            status_label="TALE APPROVED",
         )
     if choice == "epic":
         return replace(
@@ -255,7 +251,6 @@ def require_plan_approval_choice(choice: str) -> _PlanApprovalChoiceRecord:
             cli_kind_name="epic",
             auto_mode_eligible=True,
             persist_action="epic",
-            status_label="EPIC APPROVED",
             allow_protocol_overrides=False,
             allow_coder_options=False,
         )
@@ -268,12 +263,6 @@ def approval_protocol_for_choice(choice: str) -> PlanApprovalProtocolFields:
     if record.protocol is None:
         raise KeyError(choice)
     return record.protocol
-
-
-def approval_choice_status_label(choice: str) -> str | None:
-    """Return the immediate TUI status label for an approving choice."""
-    record = _plan_approval_choice(choice)
-    return None if record is None else record.status_label
 
 
 def approval_choice_persist_action(choice: str) -> str | None:

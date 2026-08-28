@@ -19,6 +19,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.history.chat import save_chat_history
 from sase.logs._bounded import log_file_lock
+from sase.monitor_state import monitor_state_bucket
 from sase.monitor_status import (
     DEFAULT_MONITOR_STOP_STATUS,
     clamp_monitor_status_or_default,
@@ -198,6 +199,7 @@ def _reconcile_dead_supervisor_locked(
         "monitor_exit_code": None,
         "monitor_elapsed_seconds": elapsed_seconds,
         "status_label": stop_status,
+        "status_bucket": monitor_state_bucket(monitor_state),
         "response_path": response_path,
         "error": error,
     }

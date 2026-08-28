@@ -9,6 +9,7 @@ from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.gate_shell.state import gate_state_bucket
+from sase.monitor_state import monitor_state_bucket
 
 _FAMILY_NAME = "visual-family"
 _STARTED = datetime(2026, 7, 18, 13, 0, 0)
@@ -118,6 +119,7 @@ def _family_agents(
                 cl_name="visual-family-mon",
                 project_file="/workspace/sase/visual_project.sase",
                 status="MONITORED",
+                status_bucket=monitor_state_bucket("completed"),
                 start_time=mon_started,
                 stop_time=mon_started + timedelta(minutes=1),
                 raw_suffix="20260718131200-family-mon",

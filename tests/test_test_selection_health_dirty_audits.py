@@ -368,6 +368,10 @@ _PROC_INVARIANT_NODEID = (
     "tests/test_proc_submission_static_invariants.py"
     "::test_production_proc_writers_do_not_emit_legacy_kinds"
 )
+_NO_REF_PREFIX_DISPATCH_NODEID = (
+    "tests/ace/tui/artifacts_contract/test_no_ref_prefix_dispatch.py"
+    "::test_behavioral_modules_do_not_dispatch_on_ref_prefix"
+)
 
 
 def test_an_invariant_style_source_audit_is_also_attributable_when_dirty() -> None:
@@ -413,6 +417,65 @@ def test_an_invariant_style_source_audit_is_also_attributable_when_dirty() -> No
     assert {nodeid for nodeid, _record in attributable_dirty_failures(runs)} == {
         _PROC_INVARIANT_NODEID
     }
+
+
+def test_dirty_tree_ref_prefix_dispatch_audit_is_not_a_reproducible_flake() -> None:
+    # Reconstructs the 2026-08-27/28 evidence that turned the flake-baseline
+    # gate red: four dirty-tree full runs (workspaces sase_20, sase_12, and
+    # sase_27) each failed the TUI ``ref:``-prefix dispatch audit only because
+    # that workspace's own uncommitted files under src/sase/ace/tui/ matched
+    # the scan. The audit walks TUI_ROOT with rglob and asserts the offender
+    # list is empty, so an agent's own TUI edit breaks it in that workspace
+    # by design — the same sase-lc shape as the marker-path and proc-invariant
+    # audits. Registered after the fact because the audit landed without an
+    # entry in _SOURCE_AUDIT_SCAN_ROOTS.
+    runs = (
+        FullRunRecord(
+            name="20260827T020035Z-72abf3729015-1336267-full-run.json",
+            recorded_at=None,
+            head="aaa",
+            mode="fast",
+            failures=(_NO_REF_PREFIX_DISPATCH_NODEID,),
+            workspace="/workspaces/sase_20",
+            changed_files=frozenset(
+                {
+                    "src/sase/ace/tui/actions/artifacts_link.py",
+                    "src/sase/ace/tui/widgets/link_rail.py",
+                }
+            ),
+            tree_dirty=True,
+        ),
+        FullRunRecord(
+            name="pass",
+            recorded_at=None,
+            head="pass",
+            mode="fast",
+            failures=(),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"src/sase/unrelated.py"}),
+            tree_dirty=False,
+        ),
+        FullRunRecord(
+            name="20260828T132946Z-de491c710dda-1022801-full-run.json",
+            recorded_at=None,
+            head="bbb",
+            mode="fast",
+            failures=(_NO_REF_PREFIX_DISPATCH_NODEID,),
+            workspace="/workspaces/sase_27",
+            changed_files=frozenset(
+                {
+                    "src/sase/ace/tui/relations/artifact_links.py",
+                    "tests/ace/tui/test_artifacts_relation_sources.py",
+                }
+            ),
+            tree_dirty=True,
+        ),
+    )
+
+    assert reproducible_flake_nodeids(runs) == frozenset()
+    excluded = attributable_dirty_failures(runs)
+    assert {nodeid for nodeid, _record in excluded} == {_NO_REF_PREFIX_DISPATCH_NODEID}
+    assert len(excluded) == 2
 
 
 def test_every_registered_source_audit_file_still_exists() -> None:

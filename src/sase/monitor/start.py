@@ -26,6 +26,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.logs._bounded import log_file_lock
+from sase.monitor_state import monitor_state_bucket
 from sase.plan_chain import agent_family_base
 from sase.procs.models import ARTIFACTS_LOG_OWNER
 from sase.procs.request import ProcSubmitRequest
@@ -500,6 +501,7 @@ def _teardown_failed_member(artifacts_dir: str, error: str) -> None:
         "monitor_state": "failed",
         "error": error,
         "status_label": meta.get("monitor_stop_status") or DEFAULT_STOP_STATUS,
+        "status_bucket": monitor_state_bucket("failed"),
     }
     project_name = project_name_from_artifacts_dir(artifacts_dir)
     if project_name:

@@ -9,6 +9,7 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
 from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
+from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from sase.bead.model import CloseRecord, ReopenCause, Resolution
 from tests.ace.tui._artifacts_beads_helpers import snapshot as _snapshot
 from tests.ace.tui._artifacts_plans_helpers import _choices
@@ -68,9 +69,19 @@ async def test_artifacts_beads_reopened_detail_png_snapshot(
         )
         pane._update_detail()
         await wait_for_svg_contains(page, "Previously Closed")
+        footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
+        await page.wait_for(
+            lambda _state: (
+                footer._last_layout_inputs is not None
+                and any(
+                    label == "issue" for _key, label in footer._last_layout_inputs[0]
+                )
+            )
+        )
+        await wait_for_svg_contains(page, "issue")
         await wait_for_visual_idle(page)
 
-        for token in ("Previously closed", "↺1", "canceled"):
+        for token in ("Previously closed", "↺1", "canceled", "issue"):
             assert_page_svg_contains(page, token)
 
         ace_png_visual.assert_page_png(

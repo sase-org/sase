@@ -173,7 +173,7 @@ def test_run_choice_skips_plan_archive_side_effect(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("result", "expected_json", "expected_status", "expected_persist_action"),
+    ("result", "expected_json", "expected_persist_action"),
     [
         (
             PlanApprovalResult(
@@ -183,7 +183,6 @@ def test_run_choice_skips_plan_archive_side_effect(tmp_path: Path) -> None:
                 choice=None,
             ),
             {"action": "approve", "commit_plan": False, "run_coder": True},
-            "PLAN APPROVED",
             "approve",
         ),
         (
@@ -194,7 +193,6 @@ def test_run_choice_skips_plan_archive_side_effect(tmp_path: Path) -> None:
                 choice=None,
             ),
             {"action": "approve", "commit_plan": True, "run_coder": True},
-            "TALE APPROVED",
             "tale",
         ),
         (
@@ -205,13 +203,11 @@ def test_run_choice_skips_plan_archive_side_effect(tmp_path: Path) -> None:
                 choice=None,
             ),
             {"action": "approve", "commit_plan": True, "run_coder": False},
-            "PLAN COMMITTED",
             "commit",
         ),
         (
             PlanApprovalResult(action="epic", choice=None),
             {"action": "epic", "commit_plan": True, "run_coder": True},
-            "EPIC APPROVED",
             "epic",
         ),
         (
@@ -222,7 +218,6 @@ def test_run_choice_skips_plan_archive_side_effect(tmp_path: Path) -> None:
                 "commit_plan": True,
                 "run_coder": True,
             },
-            "RUNNING",
             None,
         ),
         (
@@ -237,23 +232,19 @@ def test_run_choice_skips_plan_archive_side_effect(tmp_path: Path) -> None:
                 "commit_plan": False,
                 "run_coder": True,
             },
-            "PLAN APPROVED",
             "approve",
         ),
     ],
 )
-def test_modal_result_without_choice_fallback_golden_json_and_labels(
+def test_modal_result_without_choice_fallback_golden_json_and_persist_action(
     result: PlanApprovalResult,
     expected_json: dict[str, object],
-    expected_status: str,
     expected_persist_action: str | None,
 ) -> None:
     from sase.ace.tui.actions.agents._notification_modals import (
         _build_plan_approval_response,
         _plan_approval_persist_action,
-        _plan_approval_status,
     )
 
     assert _build_plan_approval_response(result) == expected_json
-    assert _plan_approval_status(result) == expected_status
     assert _plan_approval_persist_action(result) == expected_persist_action

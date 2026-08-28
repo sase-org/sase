@@ -8,8 +8,7 @@ from typing import TYPE_CHECKING
 
 from ._notification_plan_response import (
     plan_approval_choice_for_status,
-    plan_approval_status,
-    refresh_agents_from_cache,
+    request_agents_after_plan_response,
 )
 from sase.plan_approval_choices import PlanApprovalModalChoice
 
@@ -122,12 +121,7 @@ def submit_neutral_plan_response(
                 app._agent_status_overrides.pop(agent.identity, None)  # type: ignore[attr-defined]
                 app._do_kill_agent(agent)  # type: ignore[attr-defined]
             else:
-                status = plan_approval_status(result)
-                if status is None and result.feedback is not None:
-                    status = "RUNNING"
-                if status is not None:
-                    app._agent_status_overrides[agent.identity] = status  # type: ignore[attr-defined]
-                    refresh_agents_from_cache(app, agent)
+                request_agents_after_plan_response(app, agent)
         app._refresh_notification_count()  # type: ignore[attr-defined]
 
     cl_name = (

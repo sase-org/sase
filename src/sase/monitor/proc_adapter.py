@@ -16,7 +16,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.history.chat import save_chat_history
-from sase.monitor_state import MONITOR_PROC_ORIGIN
+from sase.monitor_state import MONITOR_PROC_ORIGIN, monitor_state_bucket
 from sase.monitor_status import clamp_monitor_status_or_default
 from sase.procs.models import (
     ACTIVE_PROC_STATUSES,
@@ -267,6 +267,7 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
         "monitor_exit_code": exit_code,
         "monitor_elapsed_seconds": elapsed,
         "status_label": stop_status,
+        "status_bucket": monitor_state_bucket(monitor_state),
         "response_path": state.get("response_path"),
     }
     if project_name:

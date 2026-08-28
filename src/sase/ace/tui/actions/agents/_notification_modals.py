@@ -35,8 +35,7 @@ from ._notification_plan_response import (
     plan_approval_choice_for_status as _plan_approval_choice_for_status,
     plan_approval_persist_action as _plan_approval_persist_action,
     plan_approval_protocol_fields as _plan_approval_protocol_fields,
-    plan_approval_status as _plan_approval_status,
-    refresh_agents_from_cache as _refresh_agents_from_cache,
+    request_agents_after_plan_response as _request_agents_after_plan_response,
 )
 from ._notification_question_modal import (
     handle_user_question as handle_user_question,
@@ -339,12 +338,8 @@ def handle_plan_approval(
                 response_dir=response_path,
             )
 
-        # Update the visible status from cached in-memory data immediately.
         if agent is not None:
-            status = _plan_approval_status(result)
-            if status is not None:
-                app._agent_status_overrides[agent.identity] = status  # type: ignore[attr-defined]
-                _refresh_agents_from_cache(app, agent)
+            _request_agents_after_plan_response(app, agent)
 
         _start_plan_approval_background_worker(
             app,

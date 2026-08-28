@@ -26,6 +26,7 @@ from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.monitor_state import monitor_state_bucket
 from sase.history.chat import save_chat_history
 from sase.logs.pipe import BoundedLogPipe
 from sase.monitor_status import (
@@ -484,6 +485,7 @@ def _finish_monitor(
         "monitor_exit_code": exit_code,
         "monitor_elapsed_seconds": elapsed_seconds,
         "status_label": stop_status,
+        "status_bucket": monitor_state_bucket(monitor_state),
         "response_path": response_path,
     }
     if project_name:

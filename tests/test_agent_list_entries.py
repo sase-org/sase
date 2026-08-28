@@ -334,7 +334,7 @@ def test_agent_list_monitored_outcome_starter_buckets_as_terminal_agent() -> Non
             family_shell=FamilyShellWire(kind="monitor", id="m123"),
         ),
         has_done_marker=True,
-        done=DoneMarkerWire(outcome="monitored"),
+        done=DoneMarkerWire(outcome="monitored", status_bucket="Done"),
     )
     snapshot = AgentArtifactScanWire(
         schema_version=4,

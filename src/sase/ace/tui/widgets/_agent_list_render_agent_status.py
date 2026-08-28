@@ -9,13 +9,8 @@ from datetime import datetime
 from rich.text import Text
 
 from sase.agent.status_buckets import (
-    FEEDBACK_STATUS,
-    PENDING_EPIC_STATUS,
-    PENDING_TALE_STATUS,
-    PLAN_APPROVED_STATUS,
     QUEUED_STATUS,
     QUEUED_STATUS_COLOR,
-    TALE_APPROVED_STATUS,
     WORKING_PLAN_STATUS,
     WORKING_TALE_STATUS,
 )
@@ -79,17 +74,13 @@ def append_agent_row_status(
         text.append(display_status, style="bold #87D7FF")  # Sky blue
     elif agent.status == "RUNNING":
         text.append(display_status, style=f"bold {RUNNING_COLOR}")
-    elif agent.status in ("DONE", "PLAN DONE", "TALE DONE"):
+    elif agent.status == "DONE":
         text.append(display_status, style="bold #5FD75F")  # Green
-    elif agent.status == "PLAN REJECTED":
-        text.append(display_status, style="bold #D7AF5F")  # Muted gold
     elif agent.status == STOPPED_STATUS:
         text.append(
             f"{STOPPED_GLYPH} {display_status}",
             style=f"bold {STOPPED_COLOR}",
         )
-    elif agent.status == "EPIC CREATED":
-        text.append(display_status, style="bold #5FD7AF")  # Sea-green
     elif agent.status == "FAILED":
         text.append(display_status, style="bold #FF5F5F")  # Red
     elif agent.status == "FAILED (RETRIED)":
@@ -99,26 +90,10 @@ def append_agent_row_status(
         text.append("FAILED ", style="dim #FF5F5F")
         text.append("↻", style="bold #FFAF00")
         text.append(" (RETRIED)", style="dim #FF5F5F")
-    elif agent.status == "PLAN":
-        text.append(display_status, style="bold #FF87AF")  # Pink
-    elif agent.status == PENDING_TALE_STATUS:
-        text.append(display_status, style="bold #FF87AF")  # Pink
-    elif agent.status == PENDING_EPIC_STATUS:
-        text.append(display_status, style="bold #D787FF")  # Orchid
-    elif agent.status == FEEDBACK_STATUS:
-        text.append(display_status, style="bold #FF5FD7")  # Magenta
-    elif agent.status == PLAN_APPROVED_STATUS:
-        text.append(display_status, style="bold #00D7AF")  # Green-blue (teal)
-    elif agent.status == TALE_APPROVED_STATUS:
-        text.append(display_status, style="bold #00D7D7")  # Turquoise
     elif agent.status == WORKING_PLAN_STATUS:
         text.append(display_status, style="bold #00AF87")  # Deep teal
     elif agent.status == WORKING_TALE_STATUS:
         text.append(display_status, style="bold #00AFAF")  # Deep turquoise
-    elif agent.status == "PLAN COMMITTED":
-        text.append(display_status, style="bold #5FD75F")  # Green
-    elif agent.status == "EPIC APPROVED":
-        text.append(display_status, style="bold #5FD7AF")  # Sea-green
     elif agent.status == QUEUED_STATUS:
         text.append(display_status, style=f"bold {QUEUED_STATUS_COLOR}")
         position = agent.runner_slot_queue_position
@@ -183,12 +158,6 @@ def append_agent_row_status(
                 )
             else:
                 text.append(f" (until {target_label})", style="#AF87FF")
-    elif agent.status == "QUESTION":
-        text.append(display_status, style="bold #FFAF00")  # Amber/orange
-    elif agent.status == "ANSWERED":
-        # Transient post-answer state: distinct bright azure, set apart from
-        # QUESTION amber, RUNNING gold, and approved-plan teal.
-        text.append(display_status, style="bold #5FD7FF")  # Bright cyan/azure
     elif agent.status == "RETRYING":
         countdown = ""
         if agent.retry_next_at_epoch:

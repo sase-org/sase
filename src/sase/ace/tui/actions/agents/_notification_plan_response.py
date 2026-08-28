@@ -1,16 +1,14 @@
-"""Plan approval response encoding and visible status helpers."""
+"""Plan approval response encoding and persisted action helpers."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
 from ._notification_utils import (
-    refresh_notification_agent_from_cache,
-    refresh_notification_agent_or_request,
+    request_notification_agents_refresh,
 )
 from sase.plan_approval_choices import (
     approval_choice_persist_action,
-    approval_choice_status_label,
     approval_protocol_for_choice,
 )
 
@@ -58,16 +56,6 @@ def plan_approval_protocol_fields(
     return result.action, result.commit_plan, result.run_coder
 
 
-def plan_approval_status(result: PlanApprovalResult) -> str | None:
-    """Return the immediate status override for a plan approval result."""
-    choice = plan_approval_choice_for_status(result)
-    if choice is not None:
-        return approval_choice_status_label(choice)
-    if result.feedback is not None:
-        return "RUNNING"
-    return None
-
-
 def plan_approval_persist_action(result: PlanApprovalResult) -> str | None:
     """Return the persisted plan action marker for a result, if any."""
     choice = plan_approval_choice_for_status(result)
@@ -75,7 +63,7 @@ def plan_approval_persist_action(result: PlanApprovalResult) -> str | None:
 
 
 def plan_approval_choice_for_status(result: PlanApprovalResult) -> str | None:
-    """Infer the product-level approval choice for status/persist labels."""
+    """Infer the product-level approval choice for persisted action metadata."""
     if result.choice in {"tale", "epic"}:
         return result.choice
     if result.action == "approve" and result.commit_plan and not result.run_coder:
@@ -91,9 +79,6 @@ def plan_approval_choice_for_status(result: PlanApprovalResult) -> str | None:
     return None
 
 
-def refresh_agents_from_cache(app: object, agent: Agent | None = None) -> None:
-    """Refresh visible agents without forcing disk I/O on the keypress path."""
-    if refresh_notification_agent_from_cache(app, agent=agent):
-        return
-
-    refresh_notification_agent_or_request(app, agent=agent)
+def request_agents_after_plan_response(app: object, agent: Agent | None = None) -> None:
+    """Request a bounded reload after a plan response updates gate state on disk."""
+    request_notification_agents_refresh(app, agent=agent)

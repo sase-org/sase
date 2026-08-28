@@ -9,6 +9,7 @@ import pytest
 from sase.agent.status_buckets import FEEDBACK_STATUS
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
+from sase.gate_shell.status import gate_status_pair, gate_status_style
 
 from .agent_list_runtime_helpers import agent
 
@@ -133,22 +134,35 @@ def test_format_agent_option_answered_active_suffix_has_running_marker() -> None
     assert "✋" not in suffix.plain
 
 
-def test_format_agent_option_answered_status_uses_explicit_style() -> None:
-    """The ANSWERED status renders with its explicit bright-azure style."""
+def test_format_agent_option_answered_status_uses_gate_pair_style() -> None:
+    """ANSWERED styling comes from the recorded question-gate status pair."""
+    row_agent = agent(status="ANSWERED", start=datetime(2026, 5, 6, 14, 0, 0))
+    row_agent.agent_family_role = "gate"
+    row_agent.gate_id = "question-demo"
+    row_agent.gate_state = "answered"
+    row_agent.gate_start_status = "QUESTION"
+    row_agent.gate_stop_status = "ANSWERED"
+    row_agent.gate_accent = "#5FD7FF"
+
     left, _, _ = format_agent_option(
-        agent(status="ANSWERED", start=datetime(2026, 5, 6, 14, 0, 0)),
+        row_agent,
         0,
         is_selected=False,
         now=datetime(2026, 5, 6, 14, 5, 0),
     )
 
-    assert "ANSWERED" in left.plain
+    assert "ANSWERED ✓" in left.plain
+    expected_style = gate_status_style(
+        gate_status_pair("QUESTION", "ANSWERED"),
+        gate_state="answered",
+        accent="#5FD7FF",
+    )
     answered_styles = [
         span.style
         for span in left.spans
         if left.plain[span.start : span.end] == "ANSWERED"
     ]
-    assert answered_styles == ["bold #5FD7FF"]
+    assert answered_styles == [expected_style]
 
 
 def test_format_agent_option_working_linked_coder_child_has_running_marker() -> None:
@@ -176,11 +190,8 @@ def test_format_agent_option_working_linked_coder_child_has_running_marker() -> 
 @pytest.mark.parametrize(
     ("status", "expected_style"),
     [
-        ("PLAN APPROVED", "bold #00D7AF"),
-        ("TALE APPROVED", "bold #00D7D7"),
         ("WORKING PLAN", "bold #00AF87"),
         ("WORKING TALE", "bold #00AFAF"),
-        (FEEDBACK_STATUS, "bold #FF5FD7"),
     ],
 )
 def test_format_agent_option_plan_handoff_status_colors(
@@ -194,6 +205,54 @@ def test_format_agent_option_plan_handoff_status_colors(
     )
 
     assert status in left.plain
+    styles = [
+        span.style for span in left.spans if left.plain[span.start : span.end] == status
+    ]
+    assert styles == [expected_style]
+
+
+@pytest.mark.parametrize(
+    ("status", "gate_state", "start_status", "stop_status", "accent"),
+    [
+        ("TALE", "pending", "TALE", "TALE APPROVED", "#FF87AF"),
+        ("EPIC", "pending", "EPIC", "EPIC APPROVED", "#D787FF"),
+        ("QUESTION", "pending", "QUESTION", "ANSWERED", "#FFAF00"),
+        ("PLAN APPROVED", "answered", "TALE", "PLAN APPROVED", "#00D7AF"),
+        ("TALE APPROVED", "answered", "TALE", "TALE APPROVED", "#00D7D7"),
+        ("PLAN COMMITTED", "answered", "TALE", "PLAN COMMITTED", "#5FD75F"),
+        ("EPIC APPROVED", "answered", "EPIC", "EPIC APPROVED", "#5FD7AF"),
+        (FEEDBACK_STATUS, "answered", "TALE", FEEDBACK_STATUS, "#FF5FD7"),
+        ("PLAN REJECTED", "answered", "TALE", "PLAN REJECTED", "#D7AF5F"),
+    ],
+)
+def test_format_agent_option_gate_status_uses_recorded_pair_style(
+    status: str,
+    gate_state: str,
+    start_status: str,
+    stop_status: str,
+    accent: str,
+) -> None:
+    row_agent = agent(status=status, start=datetime(2026, 5, 6, 14, 0, 0))
+    row_agent.agent_family_role = "gate"
+    row_agent.gate_id = "plan-demo"
+    row_agent.gate_state = gate_state
+    row_agent.gate_start_status = start_status
+    row_agent.gate_stop_status = stop_status
+    row_agent.gate_accent = accent
+
+    left, _, _ = format_agent_option(
+        row_agent,
+        0,
+        is_selected=False,
+        now=datetime(2026, 5, 6, 14, 5, 0),
+    )
+
+    assert status in left.plain
+    expected_style = gate_status_style(
+        gate_status_pair(start_status, stop_status),
+        gate_state=gate_state,
+        accent=accent,
+    )
     styles = [
         span.style for span in left.spans if left.plain[span.start : span.end] == status
     ]

@@ -65,10 +65,10 @@ def test_reject_without_feedback_writes_plan_response(tmp_path: Path) -> None:
     assert data == {"action": "reject"}
 
 
-def test_approve_commit_only_writes_options_and_sets_committed_status(
+def test_approve_commit_only_writes_options_and_requests_refresh(
     tmp_path: Path,
 ) -> None:
-    """Approve with commit_plan=True, run_coder=False writes options and sets PLAN COMMITTED."""
+    """Approve with commit_plan=True, run_coder=False writes options and reloads."""
     app, notification, response_dir, mock_agent = make_approval_app_and_notification(
         tmp_path
     )
@@ -111,7 +111,7 @@ def test_approve_commit_only_writes_options_and_sets_committed_status(
     assert data["saved_plan_path"] == str(response_dir / "saved-plan.md")
     assert data["plan_archive_protocol"] == "host_v2"
     assert data["plan_archive_ref"] == "plan:202608/saved-plan.md"
-    assert app._agent_status_overrides[mock_agent.identity] == "PLAN COMMITTED"
+    app._schedule_agents_async_refresh.assert_called_once_with(source="notification")
 
 
 def test_approval_choice_response_mapping() -> None:
@@ -119,7 +119,6 @@ def test_approval_choice_response_mapping() -> None:
     from sase.ace.tui.actions.agents._notification_modals import (
         _build_plan_approval_response,
         _plan_approval_persist_action,
-        _plan_approval_status,
     )
 
     approve = plan_approval_result_for_choice("approve")
@@ -128,7 +127,6 @@ def test_approval_choice_response_mapping() -> None:
         "commit_plan": False,
         "run_coder": True,
     }
-    assert _plan_approval_status(approve) == "PLAN APPROVED"
     assert _plan_approval_persist_action(approve) == "approve"
 
     tale = plan_approval_result_for_choice("tale", coder_prompt="#review+")
@@ -138,7 +136,6 @@ def test_approval_choice_response_mapping() -> None:
         "run_coder": True,
         "coder_prompt": "#review+",
     }
-    assert _plan_approval_status(tale) == "TALE APPROVED"
     assert _plan_approval_persist_action(tale) == "tale"
 
     epic = plan_approval_result_for_choice("epic")
@@ -164,10 +161,10 @@ def test_plan_modal_defaults_to_authored_tier(tmp_path: Path) -> None:
     assert modal._default_choice == "tale"
 
 
-def test_approve_with_prompt_writes_prompt_and_sets_tale_status(
+def test_approve_with_prompt_writes_prompt_and_requests_refresh(
     tmp_path: Path,
 ) -> None:
-    """Approve with commit_plan=True/run_coder=True is shown as a tale approval."""
+    """Approve with commit_plan=True/run_coder=True writes prompt and reloads."""
     app, notification, response_dir, mock_agent = make_approval_app_and_notification(
         tmp_path
     )
@@ -209,7 +206,7 @@ def test_approve_with_prompt_writes_prompt_and_sets_tale_status(
     assert plan_response_path.exists()
     data = json.loads(plan_response_path.read_text())
     assert data["coder_prompt"] == "#review+"
-    assert app._agent_status_overrides[mock_agent.identity] == "TALE APPROVED"
+    app._schedule_agents_async_refresh.assert_called_once_with(source="notification")
 
 
 def test_approve_archives_plan_before_writing_response(tmp_path: Path) -> None:
@@ -269,8 +266,8 @@ def test_approve_archives_plan_before_writing_response(tmp_path: Path) -> None:
     assert data["plan_archive_ref"] == "plan:202608/saved-plan.md"
 
 
-def test_approve_uses_cached_refresh_instead_of_sync_load(tmp_path: Path) -> None:
-    """Fast-path status refresh should avoid a synchronous full agent load."""
+def test_approve_requests_async_refresh_instead_of_sync_load(tmp_path: Path) -> None:
+    """Plan responses request async reload instead of a synchronous full agent load."""
     app, notification, _response_dir, mock_agent = make_approval_app_and_notification(
         tmp_path
     )
@@ -301,7 +298,8 @@ def test_approve_uses_cached_refresh_instead_of_sync_load(tmp_path: Path) -> Non
         on_dismiss = app.push_screen.call_args[0][1]
         on_dismiss(PlanApprovalResult(action="approve"))
 
-    app._refilter_agents.assert_called_once()
+    app._schedule_agents_async_refresh.assert_called_once_with(source="notification")
+    app._refilter_agents.assert_not_called()
     app._load_agents.assert_not_called()
 
 
@@ -343,7 +341,6 @@ def test_commit_only_copies_saved_plan_path_after_background_work(
             PlanApprovalResult(action="approve", commit_plan=True, run_coder=False)
         )
 
-    assert app._agent_status_overrides[mock_agent.identity] == "PLAN COMMITTED"
     schedule_copy.assert_called_once_with(
         app,
         "~/workspace/.sase/plans/plan.md",
@@ -351,7 +348,7 @@ def test_commit_only_copies_saved_plan_path_after_background_work(
         task_name="sase-copy-committed-plan-path",
     )
     app._refresh_notification_count.assert_called_once()
-    app._schedule_agents_async_refresh.assert_not_called()
+    app._schedule_agents_async_refresh.assert_called_once_with(source="notification")
     data = json.loads((response_dir / "plan_response.json").read_text())
     assert data["saved_plan_path"] == saved_plan_path
     assert data["plan_archive_protocol"] == "host_v2"

@@ -15,7 +15,6 @@ from textual.widgets import Button
 from sase.ace.testing import wait_for
 from sase.ace.tui.actions.agents._notification_modals import (
     _load_neutral_plan_modal_data,
-    _plan_approval_status,
     handle_plan_approval,
     submit_neutral_plan_response,
 )
@@ -233,10 +232,10 @@ async def test_tale_feedback_option_opens_the_input_panel(gate_home: Path) -> No
 
 
 @pytest.mark.parametrize(
-    ("choice", "commit_plan", "expected_option_ids", "expected_status"),
+    ("choice", "commit_plan", "expected_option_ids"),
     [
-        ("approve", False, ["approve"], "PLAN APPROVED"),
-        ("tale", True, ["approve", "commit"], "TALE APPROVED"),
+        ("approve", False, ["approve"]),
+        ("tale", True, ["approve", "commit"]),
     ],
 )
 def test_neutral_plan_submission_executes_actual_modal_choice(
@@ -244,7 +243,6 @@ def test_neutral_plan_submission_executes_actual_modal_choice(
     choice: Literal["approve", "tale"],
     commit_plan: bool,
     expected_option_ids: list[str],
-    expected_status: str,
     stub_host_plan_archive: Path,
 ) -> None:
     plan = gate_home / f"{choice}.md"
@@ -267,7 +265,6 @@ def test_neutral_plan_submission_executes_actual_modal_choice(
     response = json.loads(gate.response_path.read_text(encoding="utf-8"))
     assert response["selected_option_ids"] == expected_option_ids
     assert [item["id"] for item in response["option_results"]] == expected_option_ids
-    assert _plan_approval_status(result) == expected_status
     assert app.notifications == []
     assert app.refresh_count == 1
 
