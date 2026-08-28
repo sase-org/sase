@@ -109,6 +109,80 @@ def test_current_config_token_refresh_is_single_flight() -> None:
             release_refresh.set()
 
 
+def test_config_token_interval_exceeds_tui_tick_cadence() -> None:
+    """One-second TUI ticks should not force config revalidation every tick."""
+    now = [10.0]
+
+    with (
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
+        patch(
+            "sase.config.core._compute_current_config_token",
+            return_value=("token", 1),
+        ) as compute,
+        patch(
+            "sase.config.core.threading.Thread",
+            side_effect=AssertionError("unexpected refresh worker"),
+        ),
+    ):
+        _reset_config_token_cache()
+        assert config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS > 1.0
+        first = current_config_token()
+
+        for _ in range(4):
+            now[0] += 1.0
+            assert current_config_token() is first
+
+    assert compute.call_count == 1
+
+
+def test_config_token_refresh_thread_starts_after_lock_release() -> None:
+    """Thread bootstrap must not run while the config-token cache lock is held."""
+    now = [10.0]
+    calls = 0
+    refresh_started = threading.Event()
+    release_refresh = threading.Event()
+    start_lock_states: list[bool] = []
+
+    real_thread = threading.Thread
+
+    class ObservedThread(real_thread):
+        def start(self) -> None:
+            start_lock_states.append(
+                config_core._current_config_token_cache_lock._is_owned()
+            )
+            super().start()
+
+    def compute() -> tuple[str, int]:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            refresh_started.set()
+            assert release_refresh.wait(timeout=2.0)
+        return ("token", calls)
+
+    with (
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
+        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch("sase.config.core.threading.Thread", ObservedThread),
+    ):
+        _reset_config_token_cache()
+        try:
+            first = current_config_token()
+            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            assert current_config_token() is first
+            assert refresh_started.wait(timeout=1.0)
+
+            worker = config_core._current_config_token_refresh_thread
+            assert worker is not None
+            release_refresh.set()
+            worker.join(timeout=2.0)
+            assert not worker.is_alive()
+        finally:
+            release_refresh.set()
+
+    assert start_lock_states == [False]
+
+
 def test_first_config_token_read_does_not_start_worker() -> None:
     """A one-shot CLI lookup computes inline without creating a thread."""
     with patch(

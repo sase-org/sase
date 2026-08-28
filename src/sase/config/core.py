@@ -122,7 +122,9 @@ _agent_owner_config_cache: tuple[tuple[Any, ...], AgentOwnerConfigSnapshot] | No
 
 # Explicit clears increment the generation so rapid same-size edits cannot
 # retain an otherwise-identical filesystem token.
-_CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS = 0.75
+# Keep this above the ACE TUI's one-second countdown tick so periodic UI
+# refreshes revalidate cached config on a slower cadence than they repaint.
+_CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS = 5.0
 CONFIG_TOKEN_REFRESH_THREAD_NAME = "sase-config-token-refresh"
 _config_cache_generation = 0
 _current_config_token_cache_value: tuple[Any, ...] | None = None
@@ -235,6 +237,7 @@ def current_config_token() -> tuple[Any, ...]:
     global _current_config_token_cache_value, _current_config_token_cache_deadline
     global _current_config_token_refresh_thread, _current_config_token_cache_dir
 
+    refresh_thread_to_start: threading.Thread | None = None
     with _current_config_token_cache_lock:
         cached = _current_config_token_cache_value
         if cached is None or _current_config_token_cache_dir is not CONFIG_DIR:
@@ -259,8 +262,17 @@ def current_config_token() -> tuple[Any, ...]:
                 daemon=True,
             )
             _current_config_token_refresh_thread = refresh_thread
-            refresh_thread.start()
-        return cached
+            refresh_thread_to_start = refresh_thread
+
+    if refresh_thread_to_start is not None:
+        try:
+            refresh_thread_to_start.start()
+        except Exception:
+            with _current_config_token_cache_lock:
+                if _current_config_token_refresh_thread is refresh_thread_to_start:
+                    _current_config_token_refresh_thread = None
+            raise
+    return cached
 
 
 def clear_config_cache() -> None:

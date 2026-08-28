@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
@@ -308,8 +306,8 @@ def test_panel_switch_skips_config_collapsed_panel(
 
     monkeypatch.setattr(
         tribe_display,
-        "tribe_display_for",
-        lambda key: SimpleNamespace(initially_expanded=key != "alpha"),
+        "_tribe_displays",
+        lambda: {"alpha": tribe_display._TribeDisplay(initially_expanded=False)},
     )
     app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key=None)
     app._sync_panel_group()

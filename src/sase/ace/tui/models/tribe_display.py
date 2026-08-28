@@ -186,18 +186,23 @@ def effective_collapsed_panel_keys(
     """Compute effective collapsed panels without materializing config defaults."""
     collapsed = set(collapsed_intent)
     expanded = set(expanded_intent)
+    displays = _tribe_displays()
     if panel_keys is None:
         candidates = collapsed | expanded
-        candidates.update(
-            None if name == "default" else name for name in _tribe_displays()
-        )
+        candidates.update(None if name == "default" else name for name in displays)
     else:
         candidates = set(panel_keys)
     return {
         key
         for key in candidates
         if key in collapsed
-        or (key not in expanded and not tribe_display_for(key).initially_expanded)
+        or (
+            key not in expanded
+            and not displays.get(
+                _tribe_config_key(key),
+                DEFAULT_TRIBE_DISPLAY,
+            ).initially_expanded
+        )
     }
 
 

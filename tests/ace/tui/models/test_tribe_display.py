@@ -226,6 +226,38 @@ def test_effective_collapse_precedence_does_not_materialize_seeded_state(
     assert expanded_intent == {"chop"}
 
 
+def test_effective_collapsed_panel_keys_resolves_display_snapshot_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tokens = 0
+
+    monkeypatch.setattr(
+        display,
+        "load_merged_config",
+        lambda: {
+            "ace": {
+                "tribes": {
+                    "first": {"initially_expanded": False},
+                    "second": {"initially_expanded": False},
+                    "third": {"initially_expanded": True},
+                }
+            }
+        },
+    )
+
+    def current_config_token() -> tuple[str, int]:
+        nonlocal tokens
+        tokens += 1
+        return ("config", 1)
+
+    monkeypatch.setattr(display, "current_config_token", current_config_token)
+
+    assert display.effective_collapsed_panel_keys(
+        {"first", "second", "third", "unknown"}
+    ) == {"first", "second"}
+    assert tokens == 1
+
+
 def test_explicit_intent_survives_later_config_flip(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
