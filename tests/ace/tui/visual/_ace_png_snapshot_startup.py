@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.testing import _startup as ace_startup
 from sase.ace.tui import AceApp
 from sase.ace.tui.actions.axe_display._data import AxeCollectedData
 from sase.ace.tui.models.agent import Agent
@@ -73,6 +74,11 @@ def _shipped_ace_config() -> dict[str, Any]:
     return load_default_config(importlib_files)
 
 
+def _visual_artifacts_subtabs() -> tuple[Any, ...]:
+    """Return the visual suite's deterministic Artifacts pane set."""
+    return ace_startup._fast_artifacts_subtabs()
+
+
 def patch_startup_loaders(
     monkeypatch: pytest.MonkeyPatch,
     *,
@@ -87,15 +93,23 @@ def patch_startup_loaders(
     """Replace background startup data sources with deterministic fixtures."""
     import sase.notifications as notifications
     from sase.ace import grouping_strategy
+    from sase.ace.tui import artifact_tabs
     from sase.ace.tui import artifact_reads as artifact_reads_module
     from sase.ace.tui import memory_reads as memory_reads_module
     from sase.ace.tui import opened_workspaces as opened_workspaces_module
     from sase.ace.tui import skill_uses as skill_uses_module
     from sase.ace.tui.actions import update_toast
     from sase.ace.tui.actions.agents import _loading
+    from sase.ace.tui.commands import catalog as commands_catalog
+    from sase.ace.tui.keymaps import bindings as keymap_bindings
+    from sase.ace.tui.modals.help_modal import (
+        patches_artifact_bindings as help_patches_artifact_bindings,
+    )
     from sase.ace.tui.models.agent_groups import GroupingMode
     from sase.ace.tui.models.patch_groups import PatchGroupingMode
     from sase.ace.tui.widgets import llm_override_indicator, notification_tab_style
+    from sase.ace.tui.widgets.artifacts import types as artifacts_types
+    from sase.ace.tui.widgets.artifacts import view as artifacts_view
     from sase.llm_provider import temporary_override
     from sase.llm_provider.model_launch_settings import (
         LaunchModelSettingSnapshot,
@@ -215,6 +229,17 @@ def patch_startup_loaders(
     if not use_real_agent_loader:
         monkeypatch.setattr(
             _loading, "load_agents_from_disk_with_state", _fake_load_agents
+        )
+    for module in (
+        artifact_tabs,
+        artifacts_types,
+        artifacts_view,
+        commands_catalog,
+        help_patches_artifact_bindings,
+        keymap_bindings,
+    ):
+        monkeypatch.setattr(
+            module, "resolve_artifacts_subtabs", _visual_artifacts_subtabs
         )
     monkeypatch.setattr(
         memory_reads_module,
