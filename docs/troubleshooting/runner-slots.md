@@ -3,11 +3,10 @@
 An agent shown as `QUEUED` is at an admission boundary: it has finished every
 dependency, bead, and time wait and is holding only for runner capacity. Its threshold
 may come from the effective global `max_running_agents` value (configured default: 10)
-or an authored `%wait(runners=N)`. It may also be the successor launched after a
-processless gate shell settled. A runner slot is held by one running sase agent: a
+or an authored `%wait(runners=N)`. A runner slot is held by one running sase agent: a
 standalone agent, a live serial family across its agent and monitor shells, or each live
-parallel family member. Independently launched clan members each hold one slot. A gate
-shell owns a durable user decision but holds no runner slot.
+parallel family member. Independently launched clan members each hold one slot. A
+pending gate shell owns a durable user decision but holds no runner slot.
 
 The ACE Agents header summarizes the same global state as `[R/L · Q queued]`: slots in
 use, effective limit, and live waiters at the runner-slot admission gate. The effective
@@ -24,10 +23,12 @@ priority/FIFO preserved inside each group. Priority defaults to `10` and does no
 so sustained higher-priority arrivals can starve default- or lower-priority waiters.
 Parallel family members wait for their own slot even when ACE renders them as nested
 rows. Serial members ride a family slot that is already live, so a running parent can
-safely wait for child work without deadlock. A gate-shell handoff is different: the
-pending shell releases the family slot, and any follow-up agent enters normal admission
-under the current cap. Workflow Python/bash steps and axe Patch runners hold none of
-these slots.
+safely wait for child work without deadlock. Current admission applies that exemption to
+every serial successor, including one launched after a pending gate shell released the
+family slot. Such a successor starts immediately rather than appearing as `QUEUED`, then
+becomes the family's occupied slot. If other work filled the released capacity first,
+occupancy can temporarily exceed the configured cap. Workflow Python/bash steps and axe
+Patch runners hold none of these slots.
 
 The bundled task, epic phase, and lander xprompts used by `sase bead work` do not set an
 authored wait priority. They use the default priority (`10`) once their rendered
@@ -102,12 +103,12 @@ preparation; dependency, time, and fork waiters do not consume a slot until thos
 prerequisites resolve.
 
 A modern unanswered `QUESTION` is a gate shell and consumes no runner slot. On answer,
-its next family member enters the normal locked admission gate under the current cap; a
-full cap can therefore leave that successor `QUEUED`. Existing compatibility runs may
-instead carry `pending_question.json`; that marker remains authoritative while the user
-decides and while the same process is queued to resume. Killing a legacy run during
-either pause cleans up its question and queue markers, and its authored priority is
-retained while reacquiring.
+its next family member starts under the serial-family admission exemption rather than
+entering the locked queue. Existing compatibility runs may instead carry
+`pending_question.json`; that marker remains authoritative while the user decides and
+while the same process is queued to resume. Killing a legacy run during either pause
+cleans up its question and queue markers, and its authored priority is retained while
+reacquiring.
 
 Lowering the effective cap below current occupancy is safe and non-preemptive: no
 running process is killed or forced to yield, but no implicit-cap participant is

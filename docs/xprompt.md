@@ -2149,23 +2149,27 @@ nested row. Independently launched clan members each hold one slot. A processles
 shell occupies no runner slot, even when it retains the family's workspace claim.
 
 Holding a slot and waiting for one are separate. Roots and live parallel family members
-wait at this gate. Serial members ride an already-live family slot, but a successor
-launched after a gate-shell handoff re-enters normal admission because the gate released
-that slot. Immediate participating launches claim a slot before workspace preparation;
-dependency, time, and fork waiters remain uncounted until those prerequisites resolve.
-Workflow Python/bash steps and axe Patch runners hold none of these slots.
+wait at this gate. Serial members normally ride an already-live family slot. The same
+admission exemption currently applies to a serial successor launched after a gate-shell
+handoff, even though the pending gate released that slot: the successor starts
+immediately and becomes the family's occupied slot. If other work filled the released
+capacity first, observed occupancy can temporarily exceed the cap. Immediate
+participating launches claim a slot before workspace preparation; dependency, time,
+and fork waiters remain uncounted until those prerequisites resolve. Workflow
+Python/bash steps and axe Patch runners hold none of these slots.
 
 A modern `/sase_questions` handoff ends the asking agent and creates a processless
-`QUESTION` gate shell. Answering launches the next ordinary family member, which enters
-normal runner admission under the current cap and can appear `QUEUED`. Legacy in-flight
-question runs that use `pending_question.json` instead yield and reacquire within their
-original process; their original `%wait(runners=N)` threshold governed initial
-admission and is not reapplied, while authored `priority=N` is retained.
+`QUESTION` gate shell. Answering launches the next ordinary family member under the
+serial-family admission exemption, so it does not enter the runner queue. Legacy
+in-flight question runs that use `pending_question.json` instead yield and reacquire
+within their original process; their original `%wait(runners=N)` threshold governed
+initial admission and is not reapplied, while authored `priority=N` is retained.
 
 This temporary question pause does not make `%wait(runners=0)` exclusive. A
 drain-barrier launch may enter during the pause, and other work may still enter after
-that barrier is admitted whenever its own threshold permits; the answered agent then
-waits for capacity like any other eligible launch.
+that barrier is admitted whenever its own threshold permits. A modern question
+successor can then start under the serial-family exemption even while that work occupies
+capacity.
 
 Absolute time waits cannot be combined with duration waits or with each other.
 

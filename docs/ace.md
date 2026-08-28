@@ -132,7 +132,8 @@ In the panel, `a`-`z` follow the first 26 entries directly, Enter follows the
 highlighted entry, arrows or `Ctrl+N`/`Ctrl+P` move, and Esc closes it. `-` removes a
 writable durable link and `+` creates a link from marked rows where that action is
 available. Projected links are read-only. Rows show relation direction, rationale,
-provenance, missing targets, and stale aggregate state.
+provenance, and missing targets; the panel shows a separate notice when the aggregate is
+stale.
 
 Link follows can cross tabs and keep a bounded 32-hop trail. `Ctrl+O` walks backward and
 `Ctrl+Shift+O` walks forward, restoring the tab, pane, project scope, query, selection,
@@ -1965,13 +1966,15 @@ effective cap or an authored `%wait(runners=N)`. A standalone agent holds one sl
 live serial family normally shares one slot across its agent and monitor shells.
 Independently launched clan members and live parallel family members each hold their own
 slot. Processless gate shells release runner capacity, even when they retain a workspace
-claim; a successor they launch re-enters normal admission and can appear in `Q`. Roots
-and parallel members wait at the gate, while serial members ride an already-live family
-slot. Workflow Python/bash steps and axe Patch runners hold none of these slots. The
-occupancy count `R` always renders green, so it reads as a plain count; capacity
-pressure is carried by `L`, which escalates from dim through gold at half the limit,
-orange at three quarters, and red once `R` reaches or passes it. A nonzero queue count
-is cornflower blue.
+claim. Current admission treats every serial-family successor as exempt, including one
+launched after a gate handoff: it starts immediately instead of appearing in `Q`, then
+becomes the family's occupied slot. If other work filled the released capacity while the
+gate was pending, `R` can temporarily exceed `L`. Roots and parallel members wait at the
+gate, while serial members ride an already-live family slot. Workflow Python/bash steps
+and axe Patch runners hold none of these slots. The occupancy count `R` always renders
+green, so it reads as a plain count; capacity pressure is carried by `L`, which
+escalates from dim through gold at half the limit, orange at three quarters, and red
+once `R` reaches or passes it. A nonzero queue count is cornflower blue.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with
@@ -4076,8 +4079,9 @@ Modern `/sase_questions` calls hand the family to a processless `QUESTION` gate 
 and end the asking LLM turn. The shell owns the durable question until it is answered,
 cancelled, or times out, so dismissing its notification does not dismiss the family
 state. An answer settles it as `ANSWERED` and launches the next ordinary family member
-with the accumulated Q&A; that successor occupies a normal runner slot. The `,n`
-shortcut can reopen the live question even when no unread notification remains.
+with the accumulated Q&A. That successor starts under the serial-family admission
+exemption and becomes the family's occupied slot; it does not enter the runner queue.
+The `,n` shortcut can reopen the live question even when no unread notification remains.
 
 Older in-flight runs may still use a `pending_question.json` marker. Those compatibility
 runs yield their slot while unanswered, then reacquire capacity in the same process and
@@ -4672,8 +4676,10 @@ callbacks, while retaining legacy launch-request fallback. The CLI equivalents a
 agent, `sase launch request` creates a `LAUNCH` gate shell and ends the requesting turn;
 the process does not wait for the response. Approving dispatches the stored launch and
 settles the shell, while rejection, cancellation, timeout, or dispatch failure records
-the terminal outcome without starting a continuation agent. Calls made outside a SASE
-agent can still wait for and print the response directly.
+the terminal outcome without starting a continuation agent. Outside a SASE agent, the
+command registers the gate, prints its creation descriptor, and returns. Automation that
+needs the terminal gate result can then run
+`sase gate wait -i <request-id> -k launch -j`.
 
 ## Linked Chats in Multi-Step Workflows
 

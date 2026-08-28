@@ -3107,11 +3107,13 @@ user decision, even when it retains the family's workspace claim.
 
 Holding a slot and waiting for one are separate questions. Roots and live parallel
 family members wait at the admission gate. Serial members inherit an already-live family
-slot, but a successor launched after a gate-shell handoff re-enters normal admission
-because the gate released that slot. Workflow Python/bash steps and axe Patch runners
-hold none of these slots; axe runners continue to use their separate `axe.max_*_runners`
-limits. Legacy in-flight question runs that use `pending_question.json` also yield and
-later reacquire in their original process.
+slot. Current admission also exempts a serial successor launched after a gate-shell
+handoff, even though the pending gate released the family's slot. That successor starts
+immediately and can make observed occupancy exceed the cap if other work filled the
+released capacity first. Workflow Python/bash steps and axe Patch runners hold none of
+these slots; axe runners continue to use their separate `axe.max_*_runners` limits.
+Legacy in-flight question runs that use `pending_question.json` instead yield and later
+reacquire in their original process.
 
 On a host that uses monitors heavily, the same `max_running_agents` value now admits
 fewer new agents than it did before this occupancy rule: a monitor is not a way to free

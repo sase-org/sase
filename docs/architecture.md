@@ -101,9 +101,10 @@ recover meaningful output.
 
 A SASE agent is either one standalone agent shell or a sequential family of shells.
 Agent shells are provider/LLM turns. Monitor shells are supervised commands attached to
-that family. Gate shells are processless members that own a durable user decision. All
-three appear in one family timeline and contribute their transcript, log, or decision
-evidence to later family forks.
+that family. Gate shells are non-LLM members that own a durable user decision; while a
+gate is pending, it has no provider or command process. All three appear in one family
+timeline. Once their evidence is readable, later family forks can include the agent
+transcript, monitor log, or gate decision record.
 
 Questions, plan review, agent-side workflow HITL, and agent-initiated launch approval
 use gate shells. At the handoff boundary SASE persists the verified gate bundle, names

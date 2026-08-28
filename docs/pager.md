@@ -39,8 +39,9 @@ document directly; SASE no longer shells out to `$PAGER` or `less` for this path
 One input creates one section. Multiple references or paths create a section for each
 input in command-line order; `-` cannot be combined with other inputs. Plain output
 prints a single section without decoration and separates multiple sections with
-`-- i/N: title --` headings. If a TTY is available for output but not for input, SASE
-falls back to the same plain output instead of starting an unusable app.
+`-- i/N: title --` headings. If stdout is a TTY but SASE cannot open the controlling
+terminal (`/dev/tty`) for input, it falls back to the same plain output instead of
+starting an unusable app.
 
 ## Keys
 
@@ -54,16 +55,21 @@ falls back to the same plain output instead of starting an unusable app.
 | `Backspace` / `Ctrl+O` | Follow the pager trail backward; an empty back trail closes the pager |
 | `Ctrl+I`               | Follow the pager trail forward                                        |
 | `r`                    | Reload the current content                                            |
-| `y<label>` / `yy`      | Copy a painted target reference or the current section reference      |
-| `E<label>` / `EE`      | Open a painted target or the current section in `$EDITOR`             |
+| `y<label>`             | Copy a painted artifact reference or resolved file path               |
+| `yy`                   | Copy the current section's reference or path, when one is available   |
+| `E<label>`             | Open a painted file-backed target in `$EDITOR`                        |
+| `EE`                   | Open the current section in `$EDITOR` when it is file-backed          |
 | `q` / `Esc`            | Close                                                                 |
 | `?`                    | Show help                                                             |
 
 With link scanning enabled, SASE paints references and file links with case-sensitive
-labels from `0`-`9`, `a`-`z`, and `A`-`Z`. Documents with more than 62 targets use
-two-character labels. Typing a label follows the target in place; URL targets copy the
-URL instead of replacing the document. Each follow records a bounded backward/forward
-trail and restores the prior section, scroll position, and search state when revisited.
+labels drawn from `0`-`9`, `a`-`z`, and `A`-`Z`. Pager commands reserve `q`, `j`, `k`,
+`g`, `G`, `y`, `E`, `r`, `n`, and `N`, leaving 52 label characters. Up to 52 targets
+therefore use one-character labels. Larger documents use a prefix-free mix of one- and
+two-character labels; documents beyond the two-character capacity label only a window of
+nearby targets. Typing a label follows the target in place; URL targets copy the URL
+instead of replacing the document. Each follow records a bounded backward/forward trail
+and restores the prior section, scroll position, and search state when revisited.
 Following a new target after going back discards the forward branch.
 
 `y` and `E` are prefix keys: follow them with a painted label to copy or edit that

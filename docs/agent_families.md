@@ -678,8 +678,10 @@ launch joins an existing family with any valid suffix. `launch_preview.md` shows
 resolved launch plan before approval. Inside an agent, the request creates a pending
 `LAUNCH` gate shell, hands off the family lane, and ends the requesting turn. Approval
 executes the stored dispatch command; rejection, cancellation, timeout, and dispatch
-failure settle the gate without launching a continuation agent. A non-agent caller can
-still wait mechanically and receive the JSON outcome directly.
+failure settle the gate without launching a continuation agent. Outside an agent, the
+command instead prints the creation descriptor and returns immediately. A script that
+needs to block can use its `request_id` with
+`sase gate wait -i <request-id> -k launch -j` as a separate step.
 
 Approve or reject from ACE, or use:
 

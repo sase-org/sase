@@ -149,12 +149,13 @@ link, or `0` for the complete links panel. A projected group may occupy one rail
 choosing it opens a panel scoped to that group instead of guessing which member to
 follow.
 
-The panel explains relation direction, provenance, rationale, missing targets, and
-staleness. `a`-`z` follow the first 26 rows directly, Enter follows the highlighted row,
-and arrows or `Ctrl+N`/`Ctrl+P` move the highlight. `-` removes a writable durable link;
-projected rows are read-only. Cross-tab follows record a 32-hop trail: `Ctrl+O` walks
-backward and `Ctrl+Shift+O` walks forward, restoring the prior tab, pane, project scope,
-query, selection, and supported fold state. Ordinary navigation starts a new trail.
+The panel explains relation direction, provenance, rationale, and missing targets, and
+warns when the aggregate is stale. `a`-`z` follow the first 26 rows directly, Enter
+follows the highlighted row, and arrows or `Ctrl+N`/`Ctrl+P` move the highlight. `-`
+removes a writable durable link; projected rows are read-only. Cross-tab follows record
+a 32-hop trail: `Ctrl+O` walks backward and `Ctrl+Shift+O` walks forward, restoring the
+prior tab, pane, project scope, query, selection, and supported fold state. Ordinary
+navigation starts a new trail.
 
 ## Authoring links in a proposed plan
 
@@ -224,10 +225,11 @@ rewriting them implicitly.
 
 `sase artifact doctor` reports link health alongside the file index: dangling or
 unpublished agent references, stale rendered tables, missing or orphaned companions,
-expected durable-plus-projected versus aggregate counts, audited reads versus durable
-`read` rows, queued and dropped outbox rows, derived-link coverage, and counts by origin
-and relation. It exits 1 for unhealthy state; unpublished agent references are
-informational because a queued publication may still resolve them.
+aggregate drift from the expected durable-plus-projected rows, audited reads versus
+durable `read` rows, queued and dropped outbox rows, derived-link coverage, and counts
+by origin and relation. When drift exists, the report breaks out missing and extra rows
+by relation, origin, and endpoint. It exits 1 for unhealthy state; unpublished agent
+references are informational because a queued publication may still resolve them.
 
 `sase artifact doctor --fix` rebuilds the aggregate and managed projections from durable
 truth, repairs references whose files can be followed through Git rename history, and
