@@ -197,10 +197,22 @@ def merge_incomplete_load_after_complete_history(
     is_artifact_delta = (
         load_state is not None and load_state.artifact_source == "artifact_delta"
     )
+    # A bounded viewport prefix that reports ``has_more`` is explicitly a
+    # subset of the visible universe: the loader never looked for the rows it
+    # left out, so applying it as a replacement claims rows vanished. Patch it
+    # over the cached list the same way an artifact delta is patched, with or
+    # without a complete-history watermark.
+    is_bounded_partial = (
+        load_state is not None and load_state.bounded_prefix and load_state.has_more
+    )
     if (
         load_state is None
         or load_state.complete_history
-        or (not snapshot.agents_seen_complete_history and not is_artifact_delta)
+        or (
+            not snapshot.agents_seen_complete_history
+            and not is_artifact_delta
+            and not is_bounded_partial
+        )
     ):
         return prep
 

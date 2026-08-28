@@ -124,10 +124,15 @@ def query_artifact_index_for_loader(
         include_active=True,
         include_recent_completed=True,
         include_full_history=False,
-        active_limit=None if requested_limit is not None else _TIER1_ACTIVE_LIMIT,
-        recent_completed_limit=(
-            None if requested_limit is not None else _TIER1_RECENT_COMPLETED_LIMIT
-        ),
+        # The viewport window narrows the Tier 1 tiers; it never replaces
+        # their caps. The core only honors ``window_limit`` on cached reads
+        # (``should_use_windowed_candidate_query``), so nulling the caps here
+        # left every ``revalidate`` refresh completely unbounded: it selected
+        # and stale-repaired every visible index row instead of the capped
+        # tiers, which is both far more rows than Tier 1 promises and slow
+        # enough to stall the TUI.
+        active_limit=_TIER1_ACTIVE_LIMIT,
+        recent_completed_limit=_TIER1_RECENT_COMPLETED_LIMIT,
         include_hidden=False,
         freshness=freshness,
         record_shape="list",

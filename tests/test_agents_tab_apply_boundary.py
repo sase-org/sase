@@ -132,7 +132,8 @@ def test_prepared_apply_boundary_matches_apply_projection_for_folded_data() -> N
     assert app._fold_counts == boundary.fold.fold_counts
 
 
-def test_bounded_prefix_apply_does_not_merge_prior_complete_history() -> None:
+def test_bounded_prefix_apply_patches_over_cached_history() -> None:
+    """A ``has_more`` viewport prefix must never shrink the visible universe."""
     cached_old = _make_agent(
         cl_name="cached-old",
         status="DONE",
@@ -171,8 +172,74 @@ def test_bounded_prefix_apply_does_not_merge_prior_complete_history() -> None:
         persist_dismissed_changes=False,
     )
 
-    assert app._agents_with_children == [fresh]
-    assert app._agents == [fresh]
+    assert app._agents_with_children == [fresh, cached_old]
+    assert app._agents == [fresh, cached_old]
+
+
+def _apply_bounded_prefix_over_cache(
+    *,
+    seen_complete_history: bool,
+    has_more: bool,
+) -> FakeAgentApp:
+    """Apply a bounded-prefix load holding one fresh row over one cached row."""
+    cached_old = _make_agent(
+        cl_name="cached-old",
+        status="DONE",
+        raw_suffix="old",
+    )
+    fresh = _make_agent(
+        cl_name="fresh",
+        status="RUNNING",
+        raw_suffix="fresh",
+    )
+    app = FakeAgentApp()
+    app._agents_seen_complete_history = seen_complete_history
+    app._agents_with_children = [cached_old]
+    prep = PreparedApplyData(
+        filtered_agents=[fresh],
+        has_always_visible=True,
+        hidden_count=0,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+    )
+
+    app._apply_loaded_agents_prepared(
+        prep,
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            artifact_source="artifact_index",
+            used_artifact_index=True,
+            bounded_prefix=True,
+            requested_limit=1,
+            returned_count=1,
+            has_more=has_more,
+        ),
+        persist_dismissed_changes=False,
+    )
+    return app
+
+
+def test_bounded_prefix_patches_cache_before_any_complete_history() -> None:
+    """A viewport prefix is a subset even without a complete-history watermark."""
+    app = _apply_bounded_prefix_over_cache(
+        seen_complete_history=False,
+        has_more=True,
+    )
+
+    assert [agent.cl_name for agent in app._agents] == ["fresh", "cached-old"]
+
+
+def test_complete_bounded_window_replaces_cache() -> None:
+    """A window that covered every candidate is authoritative, not a patch."""
+    app = _apply_bounded_prefix_over_cache(
+        seen_complete_history=False,
+        has_more=False,
+    )
+
+    assert [agent.cl_name for agent in app._agents] == ["fresh"]
 
 
 def test_precomputed_fold_boundary_recomputes_when_fold_state_changes() -> None:

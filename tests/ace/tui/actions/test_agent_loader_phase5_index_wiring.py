@@ -168,3 +168,42 @@ def test_tier1_index_revalidate_mode_reaches_query_wire(
     assert mock_query.call_args.kwargs["query"].freshness == "revalidate"
     assert mock_query.call_args.kwargs["query"].record_shape == "list"
     mock_scan.assert_not_called()
+
+
+def test_viewport_window_keeps_tier1_caps(tmp_path: Path) -> None:
+    """The viewport window narrows the Tier 1 tiers; it never unbounds them.
+
+    The core only honors ``window_limit`` on cached reads, so a load that
+    trades the tier caps for a window runs unbounded on every ``revalidate``
+    refresh.
+    """
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.touch()
+    snapshot = _empty_artifact_snapshot()
+
+    for freshness in ("cached", "revalidate"):
+        with (
+            patch(
+                "sase.ace.tui.models.agent_loader.default_agent_artifact_index_path",
+                return_value=index_path,
+            ),
+            patch(
+                "sase.ace.tui.models.agent_loader.query_agent_artifact_index",
+                return_value=snapshot,
+            ) as mock_query,
+            patch(
+                "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            ) as mock_scan,
+        ):
+            _artifact_snapshot_for_tui_load(
+                full_history=False,
+                index_freshness=freshness,
+                requested_limit=120,
+            )
+
+        query = mock_query.call_args.kwargs["query"]
+        assert query.window_limit == 120
+        assert query.active_limit == 1000
+        assert query.recent_completed_limit == 200
+        mock_scan.assert_not_called()
