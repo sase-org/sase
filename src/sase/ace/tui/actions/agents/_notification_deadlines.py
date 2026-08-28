@@ -116,8 +116,13 @@ class AgentNotificationDeadlineMixin:
             self._schedule_notification_poll_retry()
             return
         self._dirty_notifications = False  # type: ignore[attr-defined]
-        if saw_new and getattr(self, "current_tab", None) == "agents":
-            request_notification_agents_refresh(self)
+        if saw_new:
+            on_agents_tab = getattr(self, "current_tab", None) == "agents"
+            request_notification_agents_refresh(
+                self,
+                notifications=getattr(self, "_last_new_completion_notifications", None),
+                allow_broad_fallback=on_agents_tab,
+            )
 
     def _schedule_notification_poll_retry(self: Any) -> None:
         """Retry any failed current-state read even with refresh disabled."""

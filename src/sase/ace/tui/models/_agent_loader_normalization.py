@@ -74,6 +74,7 @@ def normalize_loaded_agents(
     workflow_agent_steps: list[Agent],
     *,
     is_process_running: Callable[[int], bool],
+    keep_orphaned_followups: bool = False,
 ) -> list[Agent]:
     """Normalize and order agents from the full or delta loading paths."""
 
@@ -84,7 +85,11 @@ def normalize_loaded_agents(
     # nothing downstream depends on, so it is deferred to a background pass
     # after the list has painted (see ``AgentDiffBadgeMixin``).
     apply_status_overrides(agents, workflow_agent_steps, classify_diff_badges=False)
-    return sort_and_reorder(agents, workflow_agent_steps)
+    return sort_and_reorder(
+        agents,
+        workflow_agent_steps,
+        keep_orphaned_followups=keep_orphaned_followups,
+    )
 
 
 def mark_live_artifact_delta_runners(

@@ -204,14 +204,8 @@ async def test_new_notification_schedules_agents_refresh_on_agents_tab() -> None
 
 
 @pytest.mark.asyncio
-async def test_new_notification_off_tab_falls_back_to_broad_when_unresolvable() -> None:
-    """Notification targeting now runs regardless of tab.
-
-    A completion whose agent cannot be resolved from cached state (no
-    loaded roster match) still reaches the broad fallback even off-tab --
-    the target is genuinely absent, so waiting for a tab switch would
-    leave the row missing indefinitely.
-    """
+async def test_new_notification_off_tab_unresolvable_does_not_broad_load() -> None:
+    """Unresolvable completions must not trigger an off-tab broad Tier 1 load."""
     app = _FakeApp(watcher_active=True)
     app.current_tab = "patches"
     app._dirty_notifications = True
@@ -219,8 +213,8 @@ async def test_new_notification_off_tab_falls_back_to_broad_when_unresolvable() 
 
     await app._run_auto_refresh()
 
-    assert app.refresh_calls == ["notifications", "request_agents:notification"]
-    assert app.refresh_requests == ["notification"]
+    assert app.refresh_calls == ["notifications"]
+    assert app.refresh_requests == []
 
 
 @pytest.mark.asyncio
@@ -273,7 +267,51 @@ async def test_new_notification_does_not_duplicate_due_agents_load() -> None:
 
     assert app.refresh_calls == ["notifications", "agents"]
     assert "schedule_agents" not in app.refresh_calls
+    assert app.refresh_requests == []
     assert app._dirty_agents is False
+
+
+@pytest.mark.asyncio
+async def test_notification_reconcile_runs_when_unrelated_delta_consumed(
+    tmp_path: Path,
+) -> None:
+    """A tick that consumes an unrelated exact delta still reconciles the notice."""
+    app = _FakeApp(watcher_active=True)
+    app._dirty_notifications = True
+    app._poll_agent_completions_result = True
+    unrelated = Path("/tmp/unrelated-agent")
+    app._dirty_agent_artifact_dirs = (unrelated,)
+
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    agent = _make_agent(
+        status="DONE",
+        cl_name="race-agent",
+        raw_suffix="20260722090000",
+        artifacts_dir=str(artifacts_dir),
+    )
+    app._agents_with_children = [agent]  # type: ignore[attr-defined]
+    app._notification_snapshot_cache = SimpleNamespace(  # type: ignore[attr-defined]
+        notifications=[
+            SimpleNamespace(
+                sender="user-agent",
+                action="JumpToAgent",
+                dismissed=False,
+                action_data={"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix},
+            )
+        ]
+    )
+
+    await app._run_auto_refresh()
+
+    assert "delta:watcher:1" in app.refresh_calls
+    assert "delta:notification:1" in app.refresh_calls
+    assert "agents" not in app.refresh_calls
+    assert app.refresh_requests == []
+    assert app.delta_requests == [
+        ("watcher", (unrelated,)),
+        ("notification", (artifacts_dir,)),
+    ]
 
 
 @pytest.mark.asyncio

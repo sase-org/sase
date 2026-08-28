@@ -18,6 +18,8 @@ def get_status_priority(status: str) -> int:
 def sort_and_reorder(
     agents: list[Agent],
     workflow_agent_steps: list[Agent],
+    *,
+    keep_orphaned_followups: bool = False,
 ) -> list[Agent]:
     """Sort agents by time and insert workflow steps after their parents."""
     _clear_runtime_children(agents, workflow_agent_steps)
@@ -147,6 +149,18 @@ def sort_and_reorder(
                 visiting.add(id(agent))
                 _append_followup_subtree(result, suffix, followups_by_parent, visiting)
                 visiting.discard(id(agent))
+        # Exact artifact-dir deltas may load a family child without its
+        # parent. Keep those follow-ups so the incomplete-history merge can
+        # replace the cached child and remirror the container.
+        if keep_orphaned_followups and followups_by_parent:
+            orphan_visiting: set[int] = set()
+            for parent_suffix in list(followups_by_parent):
+                _append_followup_subtree(
+                    result,
+                    parent_suffix,
+                    followups_by_parent,
+                    orphan_visiting,
+                )
         from ._agent_tree import project_clan_tree
 
         ordered = project_clan_tree(result)

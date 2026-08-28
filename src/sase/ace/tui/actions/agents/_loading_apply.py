@@ -22,6 +22,7 @@ from ._loading_diff_badges import carry_over_diff_badges
 from ._loading_helpers import is_always_visible
 from ._loading_live_hints import carry_over_live_hints
 from ._loading_state import AgentLoadingStateMixin
+from ._live_watch_coverage import rearm_live_agent_watch_coverage
 from ._refresh_trace import classify_agents_data_cost, record_agents_refresh_trace
 
 if TYPE_CHECKING:
@@ -391,6 +392,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         previous_agents = list(self._agents)
         self._agent_runner_capacity = boundary.runner_capacity
         self._agents_with_children = boundary.fold.unfiltered_agents
+        rearm_live_agent_watch_coverage(self)
         self._agents = boundary.fold.visible_agents
         carry_over_live_hints(
             [*previous_agents_with_children, *previous_agents],

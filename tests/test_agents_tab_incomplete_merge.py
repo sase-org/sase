@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 from sase.ace.tui.actions.agents._loading_compute import (
     PreparedApplyData,
@@ -13,7 +17,7 @@ from sase.ace.tui.actions.agents._loading_compute import (
 )
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.ace.tui.models.agent_loader import AgentLoadState, load_artifact_delta_agents
 from sase.core.agent_scan_wire import AgentClanContextWire
 
 from tests._agents_tab_query_helpers import _make_agent
@@ -388,3 +392,153 @@ def test_artifact_delta_retry_projection_survives_cached_family_reattach() -> No
     assert root.retry_next_at_epoch == 1_800_000_000.0
     assert coder is cached_coder
     assert coder.status == "FAILED"
+
+
+def _write_json(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_exact_child_delta_remirrors_tale_family_root_to_done(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A child-only exact delta must remirror the tale root to TALE DONE."""
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    root_ts = "20260828135111"
+    code_ts = "20260828140403"
+    project_dir = sase_home / "projects" / "home"
+    project_file = project_dir / "home.sase"
+    project_file.parent.mkdir(parents=True)
+    project_file.write_text("NAME: home\n", encoding="utf-8")
+    root_dir = project_dir / "artifacts" / "ace-run" / root_ts
+    code_dir = project_dir / "artifacts" / "ace-run" / code_ts
+
+    _write_json(
+        root_dir / "workflow_state.json",
+        {
+            "workflow_name": "ace-run",
+            "context": {"cl_name": "0fn"},
+            "status": "completed",
+            "appears_as_agent": True,
+            "start_time": "2026-08-28T13:51:11",
+            "steps": [],
+        },
+    )
+    _write_json(
+        root_dir / "agent_meta.json",
+        {
+            "name": "0fn",
+            "agent_family": "0fn",
+            "agent_family_role": "root",
+            "plan_chain_root": True,
+            "role_suffix": "--plan",
+            "plan": True,
+            "plan_approved": True,
+            "plan_action": "tale",
+            "plan_submitted_at": "2026-08-28T14:00:00Z",
+            "run_started_at": "2026-08-28T13:51:11Z",
+        },
+    )
+    _write_json(root_dir / "done.json", {"outcome": "completed", "cl_name": "0fn"})
+    _write_json(
+        code_dir / "running.json",
+        {"pid": 4242, "cl_name": "0fn--code"},
+    )
+    _write_json(
+        code_dir / "agent_meta.json",
+        {
+            "name": "0fn--code",
+            "agent_family": "0fn",
+            "agent_family_role": "code",
+            "role_suffix": "--code",
+            "parent_timestamp": root_ts,
+            "plan_action": "tale",
+            "run_started_at": "2026-08-28T14:04:03Z",
+        },
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.is_process_running",
+            return_value=True,
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=True,
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._workflow_loaders.is_process_running",
+            return_value=True,
+        ),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
+    ):
+        before, _ = load_artifact_delta_agents(
+            [root_dir, code_dir],
+            patch_snapshot=[],
+            update_index=False,
+        )
+
+    by_name = {agent.agent_name: agent for agent in before if agent.agent_name}
+    assert by_name["0fn"].status == "WORKING TALE"
+    assert by_name["0fn--code"].status == "WORKING TALE"
+
+    (code_dir / "running.json").unlink()
+    _write_json(
+        code_dir / "done.json",
+        {"outcome": "completed", "cl_name": "0fn--code"},
+    )
+
+    with (
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
+        patch(
+            "sase.ace.tui.models.agent_loader.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._workflow_loaders.is_process_running",
+            return_value=False,
+        ),
+    ):
+        incoming, load_state = load_artifact_delta_agents(
+            [code_dir],
+            patch_snapshot=[],
+            update_index=False,
+        )
+
+    assert load_state.artifact_source == "artifact_delta"
+    prep = PreparedApplyData(
+        filtered_agents=list(incoming),
+        has_always_visible=False,
+        hidden_count=0,
+        hideable_agents=list(incoming),
+        dismissed_agent_objects=[],
+    )
+    snapshot = PreparedApplySnapshot(
+        cached_agents_with_children=list(before),
+        dismissed_agents=set(),
+        agents_seen_complete_history=True,
+        hide_non_run_agents=False,
+        load_state=load_state,
+        fold_levels=None,
+        selection=PreparedApplySelectionInputs(
+            on_agents_tab=False,
+            selected_identity=None,
+            prior_visual_row=None,
+        ),
+    )
+
+    merge_incomplete_load_after_complete_history(prep, snapshot)
+
+    merged = {
+        agent.agent_name: agent
+        for agent in prep.filtered_agents
+        if agent.agent_name and not agent.is_clan_container
+    }
+    assert merged["0fn"].status == "TALE DONE"
+    assert merged["0fn--code"].status == "TALE DONE"

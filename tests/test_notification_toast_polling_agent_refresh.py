@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.ace.tui.actions.agents._notification_navigation import (
     find_agent_for_notification,
 )
@@ -288,3 +290,195 @@ class TestNotificationAgentTargeting:
         )
 
         assert find_agent_for_notification(app, notification) is None
+
+    def test_unloaded_completion_resolves_via_raw_suffix(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        sase_home = tmp_path / ".sase"
+        monkeypatch.setenv("SASE_HOME", str(sase_home))
+        raw_suffix = "20260828140403"
+        artifact_dir = (
+            sase_home
+            / "projects"
+            / "demo"
+            / "artifacts"
+            / "ace-run"
+            / "202608"
+            / "28"
+            / raw_suffix
+        )
+        artifact_dir.mkdir(parents=True)
+        app = _FakeApp()
+        app._agents = []
+        app._agents_with_children = []  # type: ignore[attr-defined]
+        completion = _make(
+            action="JumpToAgent",
+            sender="user-agent",
+            action_data={"cl_name": "0fn--code", "raw_suffix": raw_suffix},
+        )
+        scheduled, broad = self._install_capture(app)
+
+        request_notification_agents_refresh(app, notifications=[completion])
+
+        assert scheduled == [((artifact_dir,), "notification")]
+        assert broad == []
+
+    def test_unresolvable_completion_falls_back_to_broad(self) -> None:
+        app = _FakeApp()
+        completion = _make(
+            action="JumpToAgent",
+            sender="user-agent",
+            action_data={"cl_name": "missing", "raw_suffix": "20260828140403"},
+        )
+        scheduled, broad = self._install_capture(app)
+
+        request_notification_agents_refresh(app, notifications=[completion])
+
+        assert scheduled == []
+        assert broad == [("notification", True)]
+
+    def test_unresolvable_completion_skips_broad_when_disallowed(self) -> None:
+        app = _FakeApp()
+        completion = _make(
+            action="JumpToAgent",
+            sender="user-agent",
+            action_data={"cl_name": "missing", "raw_suffix": "20260828140403"},
+        )
+        scheduled, broad = self._install_capture(app)
+
+        request_notification_agents_refresh(
+            app,
+            notifications=[completion],
+            allow_broad_fallback=False,
+        )
+
+        assert scheduled == []
+        assert broad == []
+
+    def test_one_new_completion_does_not_rescan_unread_inbox(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        app = _FakeApp()
+        new_dir = tmp_path / "new"
+        old_dir = tmp_path / "old"
+        new_dir.mkdir()
+        old_dir.mkdir()
+        new_agent = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="new-agent",
+            project_file="/tmp/test.sase",
+            status="DONE",
+            start_time=datetime(2026, 8, 28, 14, 4, 3),
+            raw_suffix="20260828140403",
+            artifacts_dir=str(new_dir),
+        )
+        old_agent = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="old-agent",
+            project_file="/tmp/test.sase",
+            status="DONE",
+            start_time=datetime(2026, 8, 28, 12, 0, 0),
+            raw_suffix="20260828120000",
+            artifacts_dir=str(old_dir),
+        )
+        app._agents = [new_agent, old_agent]
+        app._agents_with_children = [new_agent, old_agent]  # type: ignore[attr-defined]
+        unread = [
+            _make(
+                action="JumpToAgent",
+                sender="user-agent",
+                action_data={
+                    "cl_name": f"old-agent-{index}",
+                    "raw_suffix": f"202608281200{index:02d}",
+                },
+            )
+            for index in range(20)
+        ]
+        unread.append(
+            _make(
+                action="JumpToAgent",
+                sender="user-agent",
+                action_data={
+                    "cl_name": old_agent.cl_name,
+                    "raw_suffix": old_agent.raw_suffix or "",
+                },
+            )
+        )
+        new_completion = _make(
+            action="JumpToAgent",
+            sender="user-agent",
+            action_data={
+                "cl_name": new_agent.cl_name,
+                "raw_suffix": new_agent.raw_suffix or "",
+            },
+        )
+        app._notification_snapshot_cache = _snapshot([*unread, new_completion])
+        scheduled, broad = self._install_capture(app)
+
+        request_notification_agents_refresh(app, notifications=[new_completion])
+
+        assert scheduled == [((new_dir,), "notification")]
+        assert broad == []
+
+    def test_scheduled_poll_exact_delta_runs_off_agents_tab(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        app = _FakeApp()
+        app.current_tab = "axe"  # type: ignore[attr-defined]
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        agent = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="0fn--code",
+            project_file="/tmp/test.sase",
+            status="DONE",
+            start_time=datetime(2026, 8, 28, 14, 4, 3),
+            raw_suffix="20260828140403",
+            artifacts_dir=str(artifacts_dir),
+        )
+        app._agents_with_children = [agent]  # type: ignore[attr-defined]
+        completion = _make(
+            action="JumpToAgent",
+            sender="user-agent",
+            action_data={
+                "cl_name": agent.cl_name,
+                "raw_suffix": agent.raw_suffix or "",
+            },
+        )
+        scheduled, broad = self._install_capture(app)
+
+        with _patch_snapshot([completion]):
+            asyncio.run(app._run_scheduled_notification_poll(source="watcher"))
+
+        assert scheduled == [((artifacts_dir,), "notification")]
+        assert broad == []
+
+    def test_scheduled_poll_broad_fallback_is_tab_gated(self) -> None:
+        app = _FakeApp()
+        app.current_tab = "axe"  # type: ignore[attr-defined]
+        completion = _make(
+            action="JumpToAgent",
+            sender="user-agent",
+            action_data={"cl_name": "missing", "raw_suffix": "20260828140403"},
+        )
+        scheduled, broad = self._install_capture(app)
+
+        with _patch_snapshot([completion]):
+            asyncio.run(app._run_scheduled_notification_poll(source="watcher"))
+
+        assert scheduled == []
+        assert broad == []
+
+        app.current_tab = "agents"  # type: ignore[attr-defined]
+        app._delivered_notification_activity_cursors.clear()
+        scheduled.clear()
+        broad.clear()
+        with _patch_snapshot([completion]):
+            asyncio.run(app._run_scheduled_notification_poll(source="watcher"))
+
+        assert scheduled == []
+        assert broad == [("notification", True)]

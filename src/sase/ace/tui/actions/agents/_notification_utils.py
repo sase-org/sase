@@ -113,31 +113,59 @@ def refresh_notification_agent_from_cache(
     return False
 
 
-def _completion_notification_delta_dirs(app: Any) -> list[Path]:
-    snapshot = getattr(app, "_notification_snapshot_cache", None)
-    notifications = getattr(snapshot, "notifications", None)
-    if not isinstance(notifications, list):
-        return []
-    completion_keys = active_completion_agent_keys(notifications)
+def _completion_notification_delta_dirs(
+    app: Any,
+    notifications: Iterable[Notification] | None = None,
+) -> list[Path]:
+    if notifications is None:
+        snapshot = getattr(app, "_notification_snapshot_cache", None)
+        cached = getattr(snapshot, "notifications", None)
+        notifications = cached if isinstance(cached, list) else []
+    completion_keys = active_completion_agent_keys(list(notifications))
     if not completion_keys:
         return []
 
     artifact_dirs: list[Path] = []
     seen: set[str] = set()
+    resolved_keys: set[tuple[str, str | None]] = set()
     for agent in loaded_real_agent_roster(app):
-        if (agent.cl_name, agent.raw_suffix) not in completion_keys and (
-            agent.cl_name,
-            None,
-        ) not in completion_keys:
+        agent_key = (agent.cl_name, agent.raw_suffix)
+        cl_only = (agent.cl_name, None)
+        matched = {key for key in (agent_key, cl_only) if key in completion_keys}
+        if not matched:
             continue
         artifact_dir = _agent_artifact_dir(agent)
         if artifact_dir is None:
             continue
         key = str(artifact_dir)
         if key in seen:
+            resolved_keys.update(matched)
             continue
         seen.add(key)
         artifact_dirs.append(artifact_dir)
+        resolved_keys.update(matched)
+
+    unresolved_suffixes = {
+        raw_suffix
+        for cl_name, raw_suffix in completion_keys
+        if raw_suffix
+        and (cl_name, raw_suffix) not in resolved_keys
+        and (cl_name, None) not in resolved_keys
+    }
+    if unresolved_suffixes:
+        from ...models.agent_loader import (
+            artifact_dirs_for_normalized_timestamps,
+            normalize_timestamps,
+        )
+
+        for extra in artifact_dirs_for_normalized_timestamps(
+            normalize_timestamps(unresolved_suffixes)
+        ):
+            dir_key = str(extra)
+            if dir_key in seen:
+                continue
+            seen.add(dir_key)
+            artifact_dirs.append(extra)
     return artifact_dirs
 
 
@@ -146,6 +174,8 @@ def request_notification_agents_refresh(
     *,
     agent: Agent | None = None,
     notification: Notification | None = None,
+    notifications: Iterable[Notification] | None = None,
+    allow_broad_fallback: bool = True,
 ) -> None:
     """Request notification/completion-triggered agent reconciliation."""
     if agent is None:
@@ -157,7 +187,10 @@ def request_notification_agents_refresh(
         if artifact_dir is not None:
             artifact_dirs.append(artifact_dir)
     else:
-        artifact_dirs.extend(_completion_notification_delta_dirs(app))
+        targets = notifications
+        if targets is None:
+            targets = getattr(app, "_last_new_completion_notifications", None)
+        artifact_dirs.extend(_completion_notification_delta_dirs(app, targets))
 
     if artifact_dirs:
         schedule_delta = getattr(app, "_schedule_agent_artifact_delta_refresh", None)
@@ -165,6 +198,8 @@ def request_notification_agents_refresh(
             schedule_delta(artifact_dirs, source="notification")
             return
 
+    if not allow_broad_fallback:
+        return
     _call_schedule_agents_refresh(app)
 
 
@@ -258,7 +293,7 @@ def active_completion_agent_keys(
     """
     keys: set[tuple[str, str | None]] = set()
     for n in notifications:
-        if not _is_active_agent_completion_notification(n):
+        if not is_active_agent_completion_notification(n):
             continue
         cl_name = n.action_data.get("cl_name")
         if not cl_name:
@@ -268,7 +303,7 @@ def active_completion_agent_keys(
     return keys
 
 
-def _is_active_agent_completion_notification(notification: Notification) -> bool:
+def is_active_agent_completion_notification(notification: Notification) -> bool:
     """Return True for active agent completion notifications."""
     if notification.sender != "user-agent":
         return False
@@ -284,7 +319,7 @@ def agent_completion_notification_matches_agent(
     raw_suffix: str | None,
 ) -> bool:
     """Return True when *notification* targets the supplied agent key."""
-    if not _is_active_agent_completion_notification(notification):
+    if not is_active_agent_completion_notification(notification):
         return False
     notification_cl_name = notification.action_data.get("cl_name")
     if not notification_cl_name or notification_cl_name != cl_name:

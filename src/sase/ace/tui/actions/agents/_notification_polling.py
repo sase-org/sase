@@ -10,6 +10,7 @@ from ._notification_plan_reconciliation import (
     prepare_plan_notification_reconciliation,
 )
 from ._notification_utils import (
+    is_active_agent_completion_notification,
     apply_disappeared_plan_notification_refresh,
     prepare_disappeared_plan_notification_refresh,
     unread_notification_buckets,
@@ -53,11 +54,18 @@ class AgentNotificationPollingMixin:
 
         self._notification_poll_running = True  # type: ignore[attr-defined]
         saw_new = False
+        new_completions: list[Notification] = []
         try:
             while True:
                 self._notification_poll_pending = False  # type: ignore[attr-defined]
                 saw_new = await self._poll_agent_completions_once() or saw_new
+                new_completions.extend(
+                    getattr(self, "_once_new_completion_notifications", ())
+                )
                 if not getattr(self, "_notification_poll_pending", False):
+                    self._last_new_completion_notifications = (  # type: ignore[attr-defined]
+                        new_completions
+                    )
                     return saw_new
         finally:
             self._notification_poll_running = False  # type: ignore[attr-defined]
@@ -189,6 +197,11 @@ class AgentNotificationPollingMixin:
         if should_ring_bell:
             await self._ring_tmux_bell_async()
 
+        self._once_new_completion_notifications = [  # type: ignore[attr-defined]
+            notification
+            for notification in new_non_resurface_notifications
+            if is_active_agent_completion_notification(notification)
+        ]
         return bool(new_non_resurface_notifications)
 
     def _refresh_notification_count(self: Any) -> None:

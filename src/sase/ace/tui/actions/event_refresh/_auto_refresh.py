@@ -203,25 +203,22 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         if self._agents_loading:
             return
 
-        # Notification-triggered targeting now resolves against the complete
-        # loaded roster and schedules a bounded exact delta for an
-        # already-loaded (even folded/filtered) agent, so it is safe to run
-        # regardless of the active tab; only a genuinely absent/new agent
-        # falls back to a broad load. Skip only when other agent work is
-        # already due this tick to avoid duplicating it.
-        if new_agent_notification and not agents_due:
-            request_notification_agents_refresh(self)
-
+        # Notification-triggered targeting resolves against the newly
+        # observed completions (roster first, then raw_suffix) and is
+        # safe off-tab as an exact delta. Suppress it only when this tick
+        # actually runs a broad/full agents load; a tick that consumes a
+        # bounded delta for unrelated dirs must still reconcile the
+        # notified agent. Unresolvable completions stay tab-gated so they
+        # cannot start an off-tab Tier 1 load.
+        fallback_reason = getattr(self, "_dirty_agent_artifact_fallback_reason", None)
+        can_consume_delta = (
+            watcher_active
+            and not sanity_due
+            and fallback_reason is None
+            and bool(queued_agent_artifact_dirs)
+        )
+        ran_broad_agents_load = False
         if agents_due:
-            fallback_reason = getattr(
-                self, "_dirty_agent_artifact_fallback_reason", None
-            )
-            can_consume_delta = (
-                watcher_active
-                and not sanity_due
-                and fallback_reason is None
-                and bool(queued_agent_artifact_dirs)
-            )
             if can_consume_delta and self._consume_agent_artifact_delta_refresh(
                 source="watcher"
             ):
@@ -234,6 +231,7 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                 # or sanity pass instead of escalating to a broad load.
                 pass
             else:
+                ran_broad_agents_load = True
                 if fallback_reason is not None:
                     self._record_agent_artifact_delta_fallback(
                         fallback_reason,
@@ -253,6 +251,13 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                 self._dirty_agents = False
         elif watcher_active and not new_agent_notification:
             self._refresh_selected_agent_file_panel()
+
+        if new_agent_notification and not ran_broad_agents_load:
+            request_notification_agents_refresh(
+                self,
+                notifications=getattr(self, "_last_new_completion_notifications", None),
+                allow_broad_fallback=self.current_tab == "agents",
+            )
 
         if (
             self.current_tab == "artifacts"

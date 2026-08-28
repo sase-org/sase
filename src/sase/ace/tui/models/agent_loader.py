@@ -169,11 +169,11 @@ def _artifact_snapshot_for_live_plan_load() -> AgentArtifactScanWire:
     )
 
 
-def _normalize_timestamps(timestamps: Iterable[str]) -> set[str]:
+def normalize_timestamps(timestamps: Iterable[str]) -> set[str]:
     return _normalize_artifact_timestamps(timestamps)
 
 
-def _artifact_dirs_for_normalized_timestamps(normalized: set[str]) -> list[Path]:
+def artifact_dirs_for_normalized_timestamps(normalized: set[str]) -> list[Path]:
     return _artifact_dirs_for_timestamps(normalized)
 
 
@@ -388,11 +388,14 @@ def _load_agents_with_load_state(
 def _normalize_loaded_agents(
     agents: list[Agent],
     workflow_agent_steps: list[Agent],
+    *,
+    keep_orphaned_followups: bool = False,
 ) -> list[Agent]:
     return _normalize_agents(
         agents,
         workflow_agent_steps,
         is_process_running=is_process_running,
+        keep_orphaned_followups=keep_orphaned_followups,
     )
 
 
@@ -432,7 +435,7 @@ def load_live_plan_agents() -> list[Agent]:
 def load_live_plan_agents_for_timestamps(timestamps: Iterable[str]) -> list[Agent]:
     """Load plan-matching agent rows from exact artifact timestamps."""
 
-    normalized = _normalize_timestamps(timestamps)
+    normalized = normalize_timestamps(timestamps)
     if not normalized:
         return []
 
@@ -442,7 +445,7 @@ def load_live_plan_agents_for_timestamps(timestamps: Iterable[str]) -> list[Agen
         if agent.raw_suffix and normalize_to_14_digit(agent.raw_suffix) in normalized
     ]
 
-    artifact_dirs = _artifact_dirs_for_normalized_timestamps(normalized)
+    artifact_dirs = artifact_dirs_for_normalized_timestamps(normalized)
     if not artifact_dirs:
         return _normalize_live_plan_agents(agents)
     snapshot = _scan_artifact_dirs_for_loader(
@@ -583,6 +586,10 @@ def load_artifact_delta_agents(
         snapshot,
         patch_snapshot=patch_snapshot,
     )
-    normalized = _normalize_loaded_agents(agents, workflow_agent_steps)
+    normalized = _normalize_loaded_agents(
+        agents,
+        workflow_agent_steps,
+        keep_orphaned_followups=True,
+    )
     _mark_live_artifact_delta_runners(normalized)
     return normalized, state

@@ -401,3 +401,111 @@ def test_watcher_startup_watches_live_shards_not_future_junk(
         assert junk_month not in watched_paths
     finally:
         watcher.stop()
+
+
+def _schedule_inline(cb: Callable[[], None]) -> None:
+    cb()
+
+
+def test_ensure_watches_and_prune_are_noop_before_start(tmp_path: Path) -> None:
+    agent_dir = tmp_path / "20260828140403"
+    agent_dir.mkdir()
+    watcher = ArtifactWatcher(
+        [tmp_path],
+        on_change=lambda: None,
+        schedule_callback=_schedule_inline,
+    )
+    assert watcher.ensure_watches([agent_dir]) == 0
+    assert watcher.prune_agent_dir_watches([agent_dir]) == 0
+    assert watcher._watch_paths_by_wd == {}  # noqa: SLF001
+
+
+@_LINUX_ONLY
+def test_ensure_watches_installs_dir_created_before_start(tmp_path: Path) -> None:
+    agent_dir = tmp_path / "20260828140403"
+    agent_dir.mkdir()
+    watcher = ArtifactWatcher(
+        [tmp_path],
+        on_change=lambda: None,
+        schedule_callback=_schedule_inline,
+        coalesce_s=0.02,
+    )
+    assert watcher.start() is True
+    try:
+        watched = set(watcher._watch_paths_by_wd.values())  # noqa: SLF001
+        assert tmp_path in watched
+        assert agent_dir not in watched
+        assert watcher.ensure_watches([agent_dir]) == 1
+        assert agent_dir in set(watcher._watch_paths_by_wd.values())  # noqa: SLF001
+    finally:
+        watcher.stop()
+
+
+@_LINUX_ONLY
+def test_ensure_watches_already_watched_path_does_not_consume_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.ace.tui.util.fs_watcher.MAX_INOTIFY_WATCHES", 1)
+    other = tmp_path / "other"
+    other.mkdir()
+    watcher = ArtifactWatcher(
+        [tmp_path],
+        on_change=lambda: None,
+        schedule_callback=_schedule_inline,
+        coalesce_s=0.02,
+    )
+    assert watcher.start() is True
+    try:
+        assert watcher.ensure_watches([tmp_path]) == 0
+        assert tmp_path in set(watcher._watch_paths_by_wd.values())  # noqa: SLF001
+        assert watcher.ensure_watches([other]) == 0
+        assert other not in set(watcher._watch_paths_by_wd.values())  # noqa: SLF001
+    finally:
+        watcher.stop()
+
+
+@_LINUX_ONLY
+def test_ensure_watches_is_noop_after_stop(tmp_path: Path) -> None:
+    agent_dir = tmp_path / "20260828140403"
+    agent_dir.mkdir()
+    watcher = ArtifactWatcher(
+        [tmp_path],
+        on_change=lambda: None,
+        schedule_callback=_schedule_inline,
+        coalesce_s=0.02,
+    )
+    assert watcher.start() is True
+    watcher.stop()
+    assert watcher.ensure_watches([agent_dir]) == 0
+    assert watcher._watch_paths_by_wd == {}  # noqa: SLF001
+
+
+@_LINUX_ONLY
+def test_prune_agent_dir_watches_removes_named_agent_dirs_only(
+    tmp_path: Path,
+) -> None:
+    shard = tmp_path / "28"
+    shard.mkdir()
+    agent_dir = tmp_path / "20260828140403"
+    agent_dir.mkdir()
+    other_agent = tmp_path / "20260828140404"
+    other_agent.mkdir()
+    watcher = ArtifactWatcher(
+        [tmp_path],
+        on_change=lambda: None,
+        schedule_callback=_schedule_inline,
+        coalesce_s=0.02,
+    )
+    assert watcher.start() is True
+    try:
+        assert watcher.ensure_watches([shard, agent_dir, other_agent]) == 3
+        pruned = watcher.prune_agent_dir_watches([agent_dir, shard])
+        assert pruned == 1
+        watched = set(watcher._watch_paths_by_wd.values())  # noqa: SLF001
+        assert tmp_path in watched
+        assert shard in watched
+        assert other_agent in watched
+        assert agent_dir not in watched
+    finally:
+        watcher.stop()

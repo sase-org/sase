@@ -10,6 +10,7 @@ from sase.axe.run_agent_exec_markers import (
     write_done_marker_and_update_index,
 )
 from sase.axe.run_agent_exec_plan_artifacts import write_plan_path_artifact
+from sase.axe.runner_artifacts import write_done_marker
 
 
 def test_done_marker_write_updates_artifact_index(tmp_path: Path) -> None:
@@ -50,6 +51,37 @@ def test_done_marker_write_pulses_project_refresh(
         write_done_marker_and_update_index(
             str(artifacts_dir),
             {"outcome": "completed"},
+        )
+
+    pulse = projects / "proj" / "artifacts" / ".ace_refresh_pulse"
+    assert pulse.is_file()
+    assert pulse.read_text(encoding="utf-8").strip()
+
+
+def test_runner_artifacts_write_done_marker_pulses_project_refresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    projects = tmp_path / "projects"
+    artifacts_dir = (
+        projects / "proj" / "artifacts" / "ace-run" / "202608" / "28" / "20260828120000"
+    )
+    artifacts_dir.mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.shells.settlement.sase_projects_dir",
+        lambda: projects,
+    )
+
+    with patch(
+        "sase.core.agent_artifact_index_lifecycle."
+        "update_agent_artifact_index_for_marker_mutation"
+    ):
+        write_done_marker(
+            str(artifacts_dir),
+            cl_name="proj",
+            project_file=str(projects / "proj" / "proj.sase"),
+            timestamp="260828_120000",
+            exit_code=0,
+            hidden=False,
         )
 
     pulse = projects / "proj" / "artifacts" / ".ace_refresh_pulse"
