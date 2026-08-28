@@ -548,11 +548,11 @@ Sustained real-host demand also exercised the pool while these measurements were
 prepared. With memory sizing the active budget at 20 tokens, three full suites
 progressed simultaneously with grants of 12, 4, and 4 workers. Their sum never exceeded
 20; available memory stayed healthy and swap remained at 2.3 GiB throughout the
-observation. The process-level regression in `tests/test_suite_gate_integration.py`
-makes the same guarantees deterministic in a temporary three-token pool: three
-one-worker suites reach test execution together, a fourth waits, killing one holder
-admits the waiter, and active grants remain exactly bounded before and after the
-handoff.
+observation. The process-level regression in
+`tests/test_suite_gate_scaled_integration.py` makes the same guarantees deterministic in
+a temporary three-token pool: three one-worker suites reach test execution together, a
+fourth waits, killing one holder admits the waiter, and active grants remain exactly
+bounded before and after the handoff.
 
 Set `SASE_PYTEST_WORKERS=<N>` to request exactly that many governed workers; the request
 must fit the shared capacity. Direct parallel `pytest -n ...` controllers use the same
