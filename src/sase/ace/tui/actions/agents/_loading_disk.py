@@ -57,8 +57,17 @@ def _resolve_load_agents_from_disk_with_state() -> Callable[..., Any]:
     return cast(Callable[..., Any], loader)
 
 
-def _agents_viewport_for_load(app: Any) -> AgentsViewport:
-    """Capture the growing-prefix viewport for an Agents-tab provider read."""
+def _agents_viewport_for_load(app: Any) -> AgentsViewport | None:
+    """Capture the growing-prefix viewport for an Agents-tab provider read.
+
+    Returns ``None`` for the one-shot startup prefix-completion refresh so
+    the provider issues an unwindowed cached read.
+    """
+
+    if getattr(app, "_agents_refresh_scheduled_prefix_completion", False) or getattr(
+        app, "_agents_refresh_active_prefix_completion", False
+    ):
+        return None
 
     current_tab = getattr(app, "current_tab", "")
     index_source = (
@@ -87,6 +96,22 @@ def _agents_viewport_for_load(app: Any) -> AgentsViewport:
         start_row=start_row,
         visible_rows=visible_rows,
         prefetch_rows=visible_rows * 2,
+    )
+
+
+def _agents_viewport_request_key(
+    search_query: str,
+    viewport: AgentsViewport | None,
+) -> tuple[object, ...]:
+    """Return the in-flight request identity for a provider read."""
+
+    if viewport is None:
+        return (search_query, None)
+    return (
+        search_query,
+        viewport.start_row,
+        viewport.visible_rows,
+        viewport.prefetch_rows,
     )
 
 
@@ -134,6 +159,8 @@ class AgentLoadingDiskMixin(AgentSearchQuerySeedMixin, AgentLoadingDiskSupportMi
         if requested_limit is None:
             return
         viewport = _agents_viewport_for_load(self)
+        if viewport is None:
+            return
         if viewport.requested_limit <= requested_limit:
             return
         if self.current_idx < max(0, requested_limit - viewport.prefetch_rows):
@@ -297,12 +324,7 @@ class AgentLoadingDiskMixin(AgentSearchQuerySeedMixin, AgentLoadingDiskSupportMi
             self._maybe_seed_agent_search_query(current_project)
         search_query = getattr(self, "_agent_search_query", "") or ""
         viewport = _agents_viewport_for_load(self)
-        request_key = (
-            search_query,
-            viewport.start_row,
-            viewport.visible_rows,
-            viewport.prefetch_rows,
-        )
+        request_key = _agents_viewport_request_key(search_query, viewport)
         load_result, _ = await asyncio.to_thread(
             _disk_load_with_optional_current_project,
             dismissed_snapshot,
@@ -320,12 +342,7 @@ class AgentLoadingDiskMixin(AgentSearchQuerySeedMixin, AgentLoadingDiskSupportMi
         if load_result.load_state.bounded_prefix:
             current_query = getattr(self, "_agent_search_query", "") or ""
             current_viewport = _agents_viewport_for_load(self)
-            current_key = (
-                current_query,
-                current_viewport.start_row,
-                current_viewport.visible_rows,
-                current_viewport.prefetch_rows,
-            )
+            current_key = _agents_viewport_request_key(current_query, current_viewport)
             if current_key != request_key:
                 schedule_refresh = getattr(self, "_schedule_agents_async_refresh", None)
                 if callable(schedule_refresh):

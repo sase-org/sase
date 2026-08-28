@@ -19,6 +19,8 @@ TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S = 30.0
 TIER1_INDEX_REVALIDATE_INPUT_QUIET_THRESHOLD_S = 2.0
 TIER1_INDEX_REVALIDATE_MIN_INTERVAL_S = 300.0
 TIER1_INDEX_REVALIDATE_SOURCE = "tier1_index_revalidate"
+STARTUP_PREFIX_COMPLETION_INPUT_QUIET_THRESHOLD_S = 2.0
+STARTUP_PREFIX_COMPLETION_SOURCE = "startup_prefix_completion"
 
 
 def _marker_signature(path: Path) -> _StartingPollSignature:
@@ -87,6 +89,61 @@ class AgentRefreshPollingMixin(AgentLoadingStateMixin):
         self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
             source=TIER1_INDEX_REVALIDATE_SOURCE,
             revalidate_index=True,
+        )
+        return True
+
+    def _arm_startup_prefix_completion(
+        self,
+        load_state: object | None,
+        *,
+        source: str,
+        now_mono: float | None = None,
+    ) -> None:
+        """Arm the one-shot cached unwindowed prefix completion after first paint."""
+        del source
+        if load_state is None:
+            return
+        if not getattr(load_state, "bounded_prefix", False):
+            self._agents_prefix_completion_done = True
+            self._agents_prefix_completion_pending = False
+            return
+        if getattr(self, "_agents_prefix_completion_done", False):
+            return
+        if getattr(self, "_agents_prefix_completion_pending", False):
+            return
+        if not getattr(load_state, "has_more", False):
+            return
+        cur = time.monotonic() if now_mono is None else now_mono
+        self._agents_prefix_completion_pending = True
+        self._agents_prefix_completion_armed_mono = cur
+
+    def _maybe_trigger_startup_prefix_completion(
+        self, *, now_mono: float | None = None
+    ) -> bool:
+        """Schedule the one-shot unwindowed prefix completion once input is quiet."""
+        if not getattr(self, "_agents_prefix_completion_pending", False):
+            return False
+        if getattr(self, "_agents_prefix_completion_done", False):
+            self._agents_prefix_completion_pending = False
+            return False
+        if self._agents_loading or self._agents_refresh_scheduled:
+            return False
+        if getattr(self, "_agents_artifact_delta_scheduled", None) is not None:
+            return False
+
+        cur = time.monotonic() if now_mono is None else now_mono
+        last_input = getattr(self, "_last_input_mono", 0.0)
+        armed_at = getattr(self, "_agents_prefix_completion_armed_mono", 0.0)
+        reference = max(last_input, armed_at)
+        if reference <= 0.0:
+            return False
+        if cur - reference < STARTUP_PREFIX_COMPLETION_INPUT_QUIET_THRESHOLD_S:
+            return False
+
+        self._agents_prefix_completion_pending = False
+        self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
+            source=STARTUP_PREFIX_COMPLETION_SOURCE,
+            complete_prefix=True,
         )
         return True
 

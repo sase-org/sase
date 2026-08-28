@@ -46,12 +46,15 @@ def init_agent_state(self: Any) -> None:
     self._agents_refresh_pending_full_history = False
     self._agents_refresh_pending_full_history_reason = None
     self._agents_refresh_pending_revalidate_index = False
+    self._agents_refresh_pending_prefix_completion = False
     self._agents_refresh_pending_callbacks = []
     self._agents_refresh_scheduled = False
     self._agents_refresh_scheduled_source = "unknown"
     self._agents_refresh_scheduled_full_history = False
     self._agents_refresh_scheduled_full_history_reason = None
     self._agents_refresh_scheduled_revalidate_index = False
+    self._agents_refresh_scheduled_prefix_completion = False
+    self._agents_refresh_active_prefix_completion = False
     self._agents_refresh_active_source = "unknown"
     self._agents_refresh_async_tasks = set()
     self._agents_viewport_last_requested_limit = 0
@@ -88,6 +91,9 @@ def init_agent_state(self: Any) -> None:
     self._agent_load_state = None
     self._agents_index_repair_notice_key = None
     self._agents_seen_complete_history = False
+    self._agents_prefix_completion_pending = False
+    self._agents_prefix_completion_done = False
+    self._agents_prefix_completion_armed_mono = 0.0
     self._agents_repro_capture = None
     self._agents_repro_auto_check_enabled = False
     self._agents_repro_auto_capture_burst_active = False

@@ -23,6 +23,12 @@ class EventCountdownMixin(EventHandlersBase):
         except AttributeError:
             pass
         try:
+            self._maybe_trigger_startup_prefix_completion(  # type: ignore[attr-defined]
+                now_mono=now_mono
+            )
+        except AttributeError:
+            pass
+        try:
             self._maybe_trigger_tier1_index_revalidate_reconcile(  # type: ignore[attr-defined]
                 now_mono=now_mono
             )

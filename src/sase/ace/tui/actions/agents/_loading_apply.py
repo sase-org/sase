@@ -480,6 +480,16 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 load_state,
                 source=getattr(self, "_agents_refresh_active_source", "unknown"),
             )
+        arm_prefix_completion = getattr(
+            self,
+            "_arm_startup_prefix_completion",
+            None,
+        )
+        if callable(arm_prefix_completion):
+            arm_prefix_completion(
+                load_state,
+                source=getattr(self, "_agents_refresh_active_source", "unknown"),
+            )
 
         # Persisted diff-badge classification reads every referenced diff
         # file, so it is deferred off the loader path the same way; it

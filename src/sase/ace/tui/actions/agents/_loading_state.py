@@ -117,12 +117,15 @@ class AgentLoadingStateMixin:
     _agents_refresh_pending_full_history: bool
     _agents_refresh_pending_full_history_reason: str | None
     _agents_refresh_pending_revalidate_index: bool
+    _agents_refresh_pending_prefix_completion: bool
     _agents_refresh_pending_callbacks: list[Callable[[], None]]
     _agents_refresh_scheduled: bool
     _agents_refresh_scheduled_source: str
     _agents_refresh_scheduled_full_history: bool
     _agents_refresh_scheduled_full_history_reason: str | None
     _agents_refresh_scheduled_revalidate_index: bool
+    _agents_refresh_scheduled_prefix_completion: bool
+    _agents_refresh_active_prefix_completion: bool
     _agents_refresh_active_source: str
     _agents_refresh_async_tasks: set[asyncio.Task[None]]
     _agents_artifact_delta_scheduled: Any | None
@@ -192,6 +195,12 @@ class AgentLoadingStateMixin:
     _agents_provider_snapshot: object | None
     _agents_index_repair_notice_key: tuple[str | None, str | None] | None
     _agents_seen_complete_history: bool
+    # One-shot cached unwindowed Tier-1 read that completes the Agents
+    # window prefix after first paint. Distinct from
+    # ``_agents_seen_complete_history``, which is only set by a Tier-2 load.
+    _agents_prefix_completion_pending: bool
+    _agents_prefix_completion_done: bool
+    _agents_prefix_completion_armed_mono: float
     _agents_repro_capture: object | None
 
     def _apply_loaded_agents_prepared(
