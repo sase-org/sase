@@ -155,3 +155,70 @@ def test_bead_link_target_enriches_the_link_neighborhood_without_exiting(
 
     assert _bead_link_target("bead:sase-uk") is None
     assert seen == [cli_show_batch.enrich_with_artifact_link_neighborhood]
+
+
+def test_bead_link_target_resolves_foreign_bead(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from contextlib import contextmanager
+
+    from sase.bead import cli_common, cross_project
+    from sase.bead.cross_project import BeadStoreOrigin
+    from sase.bead.model import Issue, IssueType
+    from sase.pager.resolve import _bead_link_target
+
+    class _View:
+        def __init__(self, issues: dict[str, Issue]) -> None:
+            self.issues = issues
+
+        def __enter__(self) -> _View:
+            return self
+
+        def __exit__(self, *exc_info: object) -> None:
+            del exc_info
+
+        def show(self, issue_id: str) -> Issue:
+            if issue_id in self.issues:
+                return self.issues[issue_id]
+            raise KeyError(issue_id)
+
+        def get_epic_children(self, _issue_id: str) -> list[Issue]:
+            return []
+
+        def list_issues(self) -> list[Issue]:
+            return list(self.issues.values())
+
+    @contextmanager
+    def fake_read_view() -> Iterator[_View]:
+        yield _View({})
+
+    foreign = _View(
+        {
+            "bob-cli-1": Issue(
+                id="bob-cli-1",
+                title="Foreign",
+                issue_type=IssueType.TASK,
+            )
+        }
+    )
+    origin = BeadStoreOrigin(
+        project_key="gh_acme__bob-cli",
+        project_label="bob-cli",
+        primary_workspace=tmp_path / "bob-cli",
+        beads_dir=tmp_path / "bob-cli" / "sdd" / "beads",
+    )
+    monkeypatch.setattr(cli_common, "get_read_view", fake_read_view)
+    monkeypatch.setattr(cross_project, "origin_for_bead_id", lambda _id: origin)
+    monkeypatch.setattr(
+        "sase.bead.cli_show_router.open_bead_project_for_beads_dir",
+        lambda _path: foreign,
+    )
+
+    target = _bead_link_target("bead:bob-cli-1")
+
+    assert target is not None
+    assert target.kind is LinkTargetKind.DOCUMENT
+    assert target.document is not None
+    assert "bob-cli-1 · Foreign" in target.document.sections[0].plain_text
+    assert "Project: bob-cli" in target.document.sections[0].plain_text

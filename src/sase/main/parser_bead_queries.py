@@ -350,28 +350,33 @@ def register_bead_show_parser(
         help="Show one or more issues",
         description=(
             "Show every listed bead in argv order. Full or shorthand IDs are "
-            "accepted; an ID ending in '..' expands to that bead plus its "
-            "direct children (phase beads and child epics, one level, in "
+            "accepted. Full IDs first resolve against the current project's "
+            "store, then fall back to the enabled project named by the ID "
+            "prefix; shorthand IDs stay local unless --project pins one "
+            "enabled project. An ID ending in '..' expands to that bead plus "
+            "its direct children (phase beads and child epics, one level, in "
             "phase-number order) before duplicate IDs collapse after "
             "resolution. A missing ID reports on stderr and exits 1 without "
-            "suppressing beads that did resolve. --format compact prints "
-            "list rows; --format json emits today's single envelope for one "
-            "ID and an array of envelopes for two or more IDs, always an "
-            "array for an expansion. --no-links skips neighborhood "
-            "resolution and omits human and JSON artifact-link fields. Long "
-            "output on a terminal is paged with color intact. DESCRIPTION, "
-            "NOTES, link reasons, and +1 evidence prose wrap at "
+            "suppressing beads that did resolve. --format compact prints list "
+            "rows; --format json emits today's single envelope for one ID and "
+            "an array of envelopes for two or more IDs, always an array for "
+            "an expansion. --no-links skips neighborhood resolution and omits "
+            "human and JSON artifact-link fields. Long output on a terminal "
+            "is paged with color intact. DESCRIPTION, NOTES, link reasons, "
+            "and +1 evidence prose wrap at "
             f"{default_wrap_width} columns by default without breaking URLs "
             "or inline code spans."
         ),
         epilog=(
             "Examples:\n"
             "  sase bead show sase-64\n"
+            "  sase bead show bob-cli-1e\n"
             "  sase bead show sase-64 sase-65 sase-at.1\n"
             "  sase bead show sase-64 --format compact\n"
             "  sase bead show sase-64 --format json\n"
             "  sase bead show sase-64 --no-links\n"
             "  sase bead show sase-64 --pager always\n"
+            "  sase bead show 1e --project bob-cli\n"
             "  sase bead show sase-64 --style rich --color always\n"
             "  sase bead show sase-64 --wrap auto\n"
             f"  sase bead show sase-tt{EXPANSION_SUFFIX}"
@@ -408,6 +413,16 @@ def register_bead_show_parser(
         choices=["auto", "always", "never"],
         default="auto",
         help="Page long terminal output: auto, always, or never (default: auto)",
+    )
+    parser.add_argument(
+        "-P",
+        "--project",
+        metavar="PROJECT",
+        help=(
+            "Resolve every ID against one enabled project's bead store, by key, "
+            "name, or alias (default: current project, falling back to each "
+            "full ID's project prefix)"
+        ),
     )
     parser.add_argument(
         "-s",

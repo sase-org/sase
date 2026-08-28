@@ -11,6 +11,7 @@ from rich.text import Text
 
 from sase.bead.cli_show_batch import (
     build_show_batch_document,
+    default_show_render_context_resolver,
     render_show_batch,
     resolve_show_batch,
 )
@@ -142,11 +143,7 @@ def test_bead_show_batch_adapter_matches_single_bead_rendering() -> None:
         batch,
         style=DetailStyle.PLAIN,
         wrap=80,
-        relativize_design=False,
-        plan_roots=(),
-        reference_context_factory=lambda: None,
-        creator_url_for=lambda _name: None,
-        page_url_for=lambda _id: None,
+        render_context_for=_plain_render_context,
     )
     expected_body = render_show_batch(
         batch,
@@ -154,11 +151,7 @@ def test_bead_show_batch_adapter_matches_single_bead_rendering() -> None:
         include_links=True,
         style=DetailStyle.PLAIN,
         wrap=80,
-        relativize_design=False,
-        plan_roots=(),
-        reference_context_factory=lambda: None,
-        creator_url_for=lambda _name: None,
-        page_url_for=lambda _id: None,
+        render_context_for=_plain_render_context,
     )
     expected = PagerDocument(
         sections=(
@@ -194,11 +187,7 @@ def test_bead_show_batch_adapter_uses_one_section_per_bead() -> None:
         batch,
         style=DetailStyle.PLAIN,
         wrap=80,
-        relativize_design=False,
-        plan_roots=(),
-        reference_context_factory=lambda: None,
-        creator_url_for=lambda _name: None,
-        page_url_for=lambda _id: None,
+        render_context_for=_plain_render_context,
     )
 
     assert document.title == "2 beads"
@@ -209,3 +198,12 @@ def test_bead_show_batch_adapter_uses_one_section_per_bead() -> None:
         ("bead:sase-2", "bead:sase-2"),
     ]
     assert all("── 1/2 " not in section.plain_text for section in document.sections)
+
+
+_plain_render_context = default_show_render_context_resolver(
+    design_paths_are_relative_fn=lambda: False,
+    plan_reference_roots_fn=lambda: (),
+    artifact_reference_context_fn=lambda: None,
+    resolve_bead_creator_url_fn=lambda _name: None,
+    resolve_bead_page_url_fn=lambda _id: None,
+)

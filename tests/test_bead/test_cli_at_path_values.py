@@ -515,6 +515,7 @@ _DELIBERATELY_LITERAL_FREE_TEXT = frozenset(
         ("list", "task_type"),
         ("pages", "refresh", "bead"),
         ("search", "task_type"),
+        ("show", "project"),
         ("snooze", "until"),
         ("sync-external", "project"),
         ("work", "artifacts_dir"),

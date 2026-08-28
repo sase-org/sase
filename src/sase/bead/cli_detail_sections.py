@@ -359,6 +359,7 @@ def display_design_path(
     *,
     relativize: bool,
     plan_roots: tuple[Path, ...],
+    cwd: Path | None = None,
 ) -> tuple[str, ...]:
     """Render the stable reference and where it currently resolves."""
     from sase.sdd.plan_ref_display import describe_design_reference
@@ -366,6 +367,6 @@ def display_design_path(
     return describe_design_reference(
         design,
         roots=plan_roots,
-        cwd=Path.cwd(),
+        cwd=Path.cwd() if cwd is None else cwd,
         relativize=relativize,
     ).lines

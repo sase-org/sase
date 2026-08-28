@@ -47,9 +47,11 @@ def render_issue_detail(
     *,
     relativize_design: bool,
     plan_roots: tuple[Path, ...] = (),
+    design_cwd: Path | None = None,
     reference_context: ArtifactRefContext | None = None,
     creator_url: str | None = None,
     page_url: str | None = None,
+    project_label: str | None = None,
     style: DetailStyle = DetailStyle.PLAIN,
     wrap: int | None = None,
     present_creator: Callable[[str], str],
@@ -90,9 +92,14 @@ def render_issue_detail(
         else ""
     )
     owner = issue.owner or palette.placeholder("(none)")
+    project = (
+        f" {palette.separator('·')} {palette.label('Project:')} {project_label}"
+        if project_label
+        else ""
+    )
     lines.append(
         f"{palette.label('Type:')} {type_value}{tier} "
-        f"{palette.separator('·')} {palette.label('Owner:')} {owner}"
+        f"{palette.separator('·')} {palette.label('Owner:')} {owner}{project}"
     )
     if issue.assignee:
         lines.append(f"{palette.label('Assignee:')} {issue.assignee}")
@@ -321,6 +328,7 @@ def render_issue_detail(
                 plan.path,
                 relativize=relativize_design,
                 plan_roots=plan_roots,
+                cwd=design_cwd,
             )
         )
 

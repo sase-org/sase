@@ -7391,7 +7391,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "3f3fdb5247b76ade",
+            "description_digest": "1e2f7115989cfb83",
             "hidden": false,
             "mutex_groups": [],
             "name": "show",
@@ -7465,6 +7465,18 @@
                 "strings": [
                   "-p",
                   "--pager"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-P",
+                  "--project"
                 ],
                 "takes_value": true
               },

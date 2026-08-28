@@ -183,46 +183,39 @@ def _bead_link_target(canonical_ref: str) -> LinkTarget | None:
     bead_id = canonical_ref.split(":", 1)[-1]
     from sase.agent.names._registry import name_registry_load_session
     from sase.bead.cli_common import get_read_view
-    from sase.bead.cli_detail import (
-        artifact_reference_context,
-        design_paths_are_relative,
-        plan_reference_roots,
-        resolve_bead_creator_url,
-        resolve_bead_page_url,
-    )
     from sase.bead.cli_detail_style import DetailStyle
+    from sase.bead.cli_show_router import ShowStoreRouter
     from sase.bead.cli_show_batch import (
         build_show_batch_document,
+        default_show_render_context_resolver,
         enrich_with_artifact_link_neighborhood,
         resolve_show_batch,
     )
 
     try:
         with name_registry_load_session(), get_read_view() as view:
-            batch = resolve_show_batch(
-                view,
-                [bead_id],
-                format_name="full",
-                include_links=True,
-                # `sase bead show`'s own enricher exits the process when the
-                # link store cannot be read; a keypress handler cannot.
-                detail_enricher=enrich_with_artifact_link_neighborhood,
-            )
-            if batch.failures or not batch.entries:
-                return None
-            return LinkTarget(
-                kind=LinkTargetKind.DOCUMENT,
-                document=build_show_batch_document(
-                    batch,
-                    style=DetailStyle.RICH,
-                    wrap=None,
-                    relativize_design=design_paths_are_relative(),
-                    plan_roots=plan_reference_roots(),
-                    reference_context_factory=artifact_reference_context,
-                    creator_url_for=resolve_bead_creator_url,
-                    page_url_for=resolve_bead_page_url,
-                ),
-            )
+            with ShowStoreRouter(view) as router:
+                batch = resolve_show_batch(
+                    view,
+                    [bead_id],
+                    format_name="full",
+                    include_links=True,
+                    # `sase bead show`'s own enricher exits the process when the
+                    # link store cannot be read; a keypress handler cannot.
+                    detail_enricher=enrich_with_artifact_link_neighborhood,
+                    router=router,
+                )
+                if batch.failures or not batch.entries:
+                    return None
+                return LinkTarget(
+                    kind=LinkTargetKind.DOCUMENT,
+                    document=build_show_batch_document(
+                        batch,
+                        style=DetailStyle.RICH,
+                        wrap=None,
+                        render_context_for=default_show_render_context_resolver(),
+                    ),
+                )
     except Exception:
         log.exception("pager: could not resolve bead ref %r", canonical_ref)
         return None

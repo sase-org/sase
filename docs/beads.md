@@ -1615,6 +1615,31 @@ then its remaining children — `sase-tt.3` is not repeated. A malformed token s
 and exits 1. A stem that does not resolve reports `Error: issue not found: <stem>` and
 exits 1, the same as any other missing ID, while beads that did resolve still print.
 
+Full IDs can resolve across enabled SASE projects. `show` first asks the current
+project's bead store, so a local bead always wins when the same full ID also exists
+elsewhere. If the local store misses and the ID has a full project prefix, SASE looks up
+the enabled project whose key, display name, alias, or stored bead `issue_prefix`
+matches that prefix and reads that project's canonical bead store. The cross-project
+fallback is read-only and only runs after a local miss, so an all-local invocation does
+not scan the project registry. Shorthand suffixes such as `1e` remain local-only because
+they carry no prefix to route on.
+
+Use `-P/--project PROJECT` to pin the entire invocation to one enabled project by
+canonical key, display name, or alias. With a pinned project, shorthand suffixes resolve
+inside that project's store and prefix routing is skipped:
+
+```bash
+sase bead show bob-cli-1e          # works from another enabled project
+sase bead show 1e --project bob-cli
+```
+
+If no enabled project owns a full ID's prefix, the error remains
+`Error: issue not found: <id>`. If a known project owns the prefix but its bead store is
+not materialized on this machine, `show` reports that project and says the store is not
+materialized. If more than one enabled project claims the same prefix, `show` names the
+candidates and points at `-P/--project`. Aggregate read commands (`list`, `search`,
+`ready`, `blocked`, and `stats`) stay project-local; only `show` routes by full ID.
+
 With `--format full`, a multi-bead batch prints one detail block per bead. Each block is
 preceded by a left-aligned ordinal divider such as `── 1/3 ───`, styled with the same
 additive palette as the rest of the detail view. Single-ID output has no divider and
@@ -1775,6 +1800,7 @@ sase bead show sase-64 --wrap auto
 | `-f, --format`   | `compact`, `json`, `full`          | Output format; defaults to `full`                                            |
 | `-N, --no-links` | flag                               | Skip artifact-link resolution; omit LINKS, REFERENCED BY, and JSON link data |
 | `-p, --pager`    | `auto`, `always`, `never`          | Page long terminal output; defaults to `auto`                                |
+| `-P, --project`  | project key, name, or alias        | Resolve every ID against one enabled project's bead store                    |
 | `-s, --style`    | `auto`, `plain`, `rich`            | Styling level for `--format full`; defaults to `auto`                        |
 | `-w, --wrap`     | integer >= 20, `auto`, `none`, `0` | Prose wrap width for full output; defaults to `markdown.print_width` (`88`)  |
 

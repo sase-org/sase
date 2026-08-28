@@ -38,10 +38,12 @@ from sase.bead.cli_show_batch import (
     ARTIFACT_LINK_NEIGHBORHOOD_ERRORS,
     artifact_link_neighborhood_detail,
     build_show_batch_document,
+    default_show_render_context_resolver,
     render_show_batch,
     render_show_document,
     resolve_show_batch,
 )
+from sase.bead.cli_show_router import ShowStoreRouter, ShowStoreRoutingError
 from sase.bead.flag_fields import is_flag_bead
 from sase.bead.model import (
     BeadTier,
@@ -273,24 +275,39 @@ def handle_bead_show(args: argparse.Namespace) -> None:
     pager_mode: PagerMode = resolve_pager_mode(getattr(args, "pager", "auto"))
     pager_document = None
 
+    render_context_for = default_show_render_context_resolver(
+        design_paths_are_relative_fn=design_paths_are_relative,
+        plan_reference_roots_fn=plan_reference_roots,
+        artifact_reference_context_fn=artifact_reference_context,
+        resolve_bead_creator_url_fn=resolve_bead_creator_url,
+        resolve_bead_page_url_fn=resolve_bead_page_url,
+    )
+
     with name_registry_load_session(), get_read_view() as view:
-        batch = resolve_show_batch(
-            view,
-            ids,
-            format_name=args.format,
-            include_links=include_links,
-            detail_enricher=_with_artifact_link_neighborhood if include_links else None,
-        )
+        try:
+            with ShowStoreRouter(
+                view,
+                project_ref=getattr(args, "project", None),
+            ) as router:
+                batch = resolve_show_batch(
+                    view,
+                    ids,
+                    format_name=args.format,
+                    include_links=include_links,
+                    detail_enricher=(
+                        _with_artifact_link_neighborhood if include_links else None
+                    ),
+                    router=router,
+                )
+        except ShowStoreRoutingError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
         if args.format == "full":
             document = build_show_batch_document(
                 batch,
                 style=style,
                 wrap=wrap,
-                relativize_design=design_paths_are_relative(),
-                plan_roots=plan_reference_roots(),
-                reference_context_factory=artifact_reference_context,
-                creator_url_for=resolve_bead_creator_url,
-                page_url_for=resolve_bead_page_url,
+                render_context_for=render_context_for,
             )
             pager_document = document
             body = render_show_document(document, style=style, wrap=wrap)
@@ -301,11 +318,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                 include_links=include_links,
                 style=style,
                 wrap=wrap,
-                relativize_design=False,
-                plan_roots=(),
-                reference_context_factory=artifact_reference_context,
-                creator_url_for=resolve_bead_creator_url,
-                page_url_for=resolve_bead_page_url,
+                render_context_for=render_context_for,
             )
 
     if body:

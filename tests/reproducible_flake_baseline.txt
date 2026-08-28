@@ -288,6 +288,9 @@ tests/fakey/test_pipe_e2e.py::test_default_pipe_creates_family_member_with_fork_
 # the attribution filter does not currently catch; ready flake task owns the
 # gate debt.
 tests/main/test_init_memory_committed_drift.py::test_repo_project_memory_notes_match_generator_output
+# sase-tz: same dirty-tree source-audit attribution miss for the ref-prefix
+# dispatch audit; +1 evidence on the task names the gate records.
+tests/ace/tui/artifacts_contract/test_no_ref_prefix_dispatch.py::test_behavioral_modules_do_not_dispatch_on_ref_prefix
 #
 # sase-u0: Agents help-order assertion flakes only under the full parallel
 # lane; ready flake task owns the parser/global-state investigation.
