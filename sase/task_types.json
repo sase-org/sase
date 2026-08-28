@@ -4,7 +4,7 @@
       "task_type": "bug",
       "label": "Bug",
       "summary": "A defect an agent found while doing unrelated work, not an external tracker bug.",
-      "when_to_use": "File one when you found a defect while doing unrelated work and it is not an external tracker issue. Record where it lives, how to reproduce it, and who it hurts. Do not use this for a flake, a confirmed CI failure, or a GitHub-mirrored bug.",
+      "when_to_use": "File one when you found a defect while doing unrelated work and it is not an external tracker issue. Record where it lives, how to reproduce it, and who it hurts; one independent reproduction separates it from a misreading. Do not use this for a flake, a confirmed CI failure, or a GitHub-mirrored bug.",
       "glyph": "⨯",
       "accent_color": "#FF5F5F",
       "agent_creatable": true,
@@ -43,11 +43,11 @@
       ],
       "body_template": "## Bug\n\n- **Location:** `{{ location }}`\n\n{{ repro }}\n\n{{ impact }}\n",
       "triage": {
-        "min_plus_ones": 0
+        "min_plus_ones": 1
       },
       "source": "builtin",
       "package": "sase",
-      "digest": "a95dfcc701e065ddd963bd4876f6b2209836c31c42cb8eeffb6b967fdea91047"
+      "digest": "d7a5c9f46756d566c0c277ab62306d375397522ef5bf82db26a771bea938dda6"
     },
     {
       "task_type": "ci",

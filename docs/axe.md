@@ -258,11 +258,12 @@ predicate, never recomputed here.
 
 A ready task bead additionally needs at least its
 [effective `+1` bar](beads.md#per-type-triage-bar) of independent `+1` reports before it
-earns a `TaskTriage` gate: its own task type's `triage.min_plus_ones` (`0` for most
-builtins), or [`bead.task_triage.min_plus_ones`](configuration.md#bead) when the bead is
-untyped or its type is not registered on this machine. A sub-threshold bead is withheld
-from triage without any change to its stored status — it stays `ready` and stays visible
-to `sase bead list`, `sase bead ready`, the ACE Beads panel, and its bead page — and a
+earns a `TaskTriage` gate: its own task type's `triage.min_plus_ones` (`0` for `ci`,
+`feature`, and `memory`; `1` for `bug`; `3` for `flake`), or
+[`bead.task_triage.min_plus_ones`](configuration.md#bead) when the bead is untyped or
+its type is not registered on this machine. A sub-threshold bead is withheld from triage
+without any change to its stored status — it stays `ready` and stays visible to
+`sase bead list`, `sase bead ready`, the ACE Beads panel, and its bead page — and a
 `TaskTriage` gate already raised for a bead that later falls below the bar is canceled
 (reason `task_bead_below_plus_one_threshold`) and its notification dismissed on the
 chop's next tick. Snoozed beads and `flag` task beads are never subject to this bar.

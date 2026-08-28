@@ -209,17 +209,18 @@ independent [`+1`](#task-corroboration-1) reports a ready bead of that type need
 it earns a `TaskTriage` gate. A bead resolves its bar one of two ways:
 
 - **Typed, and this machine has the type registered** — the type's own
-  `triage.min_plus_ones` wins. The spec default is `0`, and among the builtins only
-  `flake` raises it (to `3`), because a test that failed once is the case most often
-  misread as a real defect. So a `bug`, `ci`, `feature`, or `memory` bead needs no
-  corroboration at all and gates on the next five-minute tick.
+  `triage.min_plus_ones` wins. The spec default is `0`; among the builtins, `flake`
+  ships `3` because a test that failed once is the case most often misread as a real
+  defect, `bug` ships `1` because a defect found while doing something else deserves one
+  independent reproduction before it interrupts anyone, and `ci`, `feature`, and
+  `memory` ship `0`.
 - **Untyped, or typed with a slug this machine does not have registered** — the
   configured [`bead.task_triage.min_plus_ones`](configuration.md#bead) is the fallback.
   It ships as `1`.
 
 Those two defaults differ on purpose, so do not read the spec default of `0` as "the
 default bar is zero": a legacy untyped bead needs one `+1` out of the box, while a typed
-`bug` bead needs none. `sase bead task-type show <slug>` prints the effective bar under
+`ci` bead needs none. `sase bead task-type show <slug>` prints the effective bar under
 `TRIAGE`.
 
 ### Status Lifecycle
@@ -410,10 +411,10 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    five minutes and creates one priority `TaskTriage` gate for each task whose stored
    status is `ready` and that has accumulated at least its
    [effective `+1` bar](#per-type-triage-bar) — its task type's own
-   `triage.min_plus_ones` (`0` for most builtins, so most typed tasks gate on the next
-   tick), or [`bead.task_triage.min_plus_ones`](configuration.md#bead) for an untyped or
-   unregistered type. A sub-threshold task is withheld from triage — it stays stored as
-   `ready` and stays visible to `sase bead ready` and this triage guide's other
+   `triage.min_plus_ones` (`0` for `ci`, `feature`, and `memory`; `1` for `bug`; `3` for
+   `flake`), or [`bead.task_triage.min_plus_ones`](configuration.md#bead) for an untyped
+   or unregistered type. A sub-threshold task is withheld from triage — it stays stored
+   as `ready` and stays visible to `sase bead ready` and this triage guide's other
    commands, only the gate is withheld — and a `TaskTriage` gate already raised for a
    task that later falls below the bar is canceled and its notification dismissed. This
    scan currently does not apply the dependency filter used by `sase bead ready`, so a

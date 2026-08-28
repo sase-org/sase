@@ -86,11 +86,11 @@ def test_builtin_field_names_and_required_flags_match_the_plan() -> None:
     assert specs["memory"]["fields"][1]["required"] is True
 
 
-def test_flake_requires_corroboration_and_ci_does_not() -> None:
+def test_declared_corroboration_bars_match_the_shipped_defaults() -> None:
     specs = _by_slug()
     assert specs["flake"]["triage"]["min_plus_ones"] == 3
     assert specs["ci"]["triage"]["min_plus_ones"] == 0
-    assert "triage" not in specs["bug"]
+    assert specs["bug"]["triage"]["min_plus_ones"] == 1
     assert "triage" not in specs["feature"]
     assert "triage" not in specs["memory"]
 

@@ -15,7 +15,7 @@ metadata:
 - Accent color: `#FF5F5F`
 - Agent creatable: yes
 - Show schema version: `1`
-- Digest: `a95dfcc701e065ddd963bd4876f6b2209836c31c42cb8eeffb6b967fdea91047`
+- Digest: `d7a5c9f46756d566c0c277ab62306d375397522ef5bf82db26a771bea938dda6`
 
 ## Summary
 
@@ -24,8 +24,9 @@ A defect an agent found while doing unrelated work, not an external tracker bug.
 ## When To Use
 
 File one when you found a defect while doing unrelated work and it is not an external
-tracker issue. Record where it lives, how to reproduce it, and who it hurts. Do not use
-this for a flake, a confirmed CI failure, or a GitHub-mirrored bug.
+tracker issue. Record where it lives, how to reproduce it, and who it hurts; one
+independent reproduction separates it from a misreading. Do not use this for a flake, a
+confirmed CI failure, or a GitHub-mirrored bug.
 
 ## Fields
 
@@ -73,7 +74,7 @@ this for a flake, a confirmed CI failure, or a GitHub-mirrored bug.
 
 ## Triage
 
-- min_plus_ones: `0`
+- min_plus_ones: `1`
 
 ## Provenance
 

@@ -59,8 +59,9 @@ def _bug_spec() -> dict[str, Any]:
         "when_to_use": (
             "File one when you found a defect while doing unrelated work and "
             "it is not an external tracker issue. Record where it lives, how "
-            "to reproduce it, and who it hurts. Do not use this for a flake, "
-            "a confirmed CI failure, or a GitHub-mirrored bug."
+            "to reproduce it, and who it hurts; one independent reproduction "
+            "separates it from a misreading. Do not use this for a flake, a "
+            "confirmed CI failure, or a GitHub-mirrored bug."
         ),
         "glyph": "⨯",
         "accent_color": "#FF5F5F",
@@ -94,6 +95,7 @@ def _bug_spec() -> dict[str, Any]:
             "\n"
             "{{ impact }}\n"
         ),
+        "triage": {"min_plus_ones": 1},
     }
 
 
