@@ -21,6 +21,7 @@ import os
 import statistics
 import subprocess
 import sys
+import threading
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
@@ -669,18 +670,40 @@ async def test_bench_keystroke_reaches_no_provider_discovery_or_subprocess(
     (``except Exception: return False``), so this spies on
     ``resolve_artifacts_subtabs`` and counts calls rather than raising --
     counting survives that swallow, a raise would not.
+
+    Both assertions are scoped to the event-loop thread. ``tui_perf.md`` rule
+    1 *prescribes* pushing subprocess and disk work off the loop
+    (``to_thread`` / ``run_worker(thread=True)``), and rule 11 governs the
+    keystroke path itself, so a fork from a Textual worker thread -- the
+    update-status poller, the detail-header enrichment worker -- is the
+    compliant design, not the regression this gate exists to catch. Counting
+    every subprocess in the process would fail on unrelated background work
+    and make this gate flaky by construction, which is exactly what its
+    "behavioural, so it cannot flake" contract rules out. Off-loop calls are
+    still collected and printed, so the diagnostic is not lost.
     """
+    loop_thread = threading.current_thread()
     discovery_calls: list[None] = []
+    background_calls: list[str] = []
     real_resolve = artifact_tabs.resolve_artifacts_subtabs
 
     def _spy_resolve() -> tuple[object, ...]:
-        discovery_calls.append(None)
+        if threading.current_thread() is loop_thread:
+            discovery_calls.append(None)
         return real_resolve()
 
     subprocess_calls: list[str] = []
 
     def _guard_subprocess(*args: object, **kwargs: object) -> None:
-        subprocess_calls.append(f"{args!r} {kwargs!r}")
+        # argv only: ``kwargs`` carries the inherited ``env``, and rendering
+        # it into an assertion message leaks the whole environment (API keys
+        # and tokens included) into pytest output and CI logs.
+        argv = args[0] if args else kwargs.get("args")
+        thread = threading.current_thread()
+        if thread is not loop_thread:
+            background_calls.append(f"{thread.name}: {argv!r}")
+            raise AssertionError("background subprocess suppressed by this bench")
+        subprocess_calls.append(repr(argv))
         raise AssertionError("a keystroke spawned a subprocess")
 
     app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)
@@ -704,12 +727,19 @@ async def test_bench_keystroke_reaches_no_provider_discovery_or_subprocess(
                 await pilot.press("k")
                 await pilot.pause(0.01)
 
+    if background_calls:
+        print("off-loop subprocesses during the run (rule 1 compliant):")
+        for call in background_calls:
+            print(f"  {call}")
     assert not discovery_calls, (
         f"{len(discovery_calls)} of {_KEYS_PER_SCENARIO * 2} keystroke(s) reached "
-        "resolve_artifacts_subtabs(); keypath must resolve fixed panes from the "
-        "static accent/icon tables instead of provider discovery"
+        "resolve_artifacts_subtabs() on the event loop; keypath must resolve "
+        "fixed panes from the static accent/icon tables instead of provider "
+        "discovery"
     )
-    assert not subprocess_calls, f"a keystroke spawned a subprocess: {subprocess_calls}"
+    assert not subprocess_calls, (
+        f"a keystroke forked a subprocess on the event loop: {subprocess_calls}"
+    )
     stall_path = _perf_jsonl.with_name("tui_stalls.jsonl")
     assert not stall_path.exists() or not stall_path.read_text().strip()
 
