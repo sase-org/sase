@@ -11,8 +11,8 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
 
-def test_apply_status_overrides_feedback_child_awaiting_review_mirrors_plan() -> None:
-    """A feedback round that submitted a newer plan becomes the mirrored root status."""
+def test_apply_status_overrides_feedback_child_unreviewed_plan_stays_done() -> None:
+    """A feedback child without a gate no longer reconstructs pending PLAN."""
     feedback_time = datetime(2026, 5, 17, 9, 0, 0)
     plan_time = datetime(2026, 5, 17, 9, 10, 0)
     parent = Agent(
@@ -42,12 +42,14 @@ def test_apply_status_overrides_feedback_child_awaiting_review_mirrors_plan() ->
 
     _apply_status_overrides([parent, feedback_child])
 
-    assert feedback_child.status == "PLAN"
-    assert parent.status == "PLAN"
+    assert feedback_child.status == "DONE"
+    assert parent.status == "DONE"
 
 
-def test_apply_status_overrides_new_plan_feedback_child_awaiting_review() -> None:
-    """A '--plan-0' replan child is treated as feedback, not a root question."""
+def test_apply_status_overrides_new_plan_feedback_child_without_gate_stays_done() -> (
+    None
+):
+    """A '--plan-0' replan child no longer reconstructs pending PLAN."""
     feedback_time = datetime(2026, 5, 17, 9, 0, 0)
     plan_time = datetime(2026, 5, 17, 9, 10, 0)
     parent = Agent(
@@ -78,8 +80,8 @@ def test_apply_status_overrides_new_plan_feedback_child_awaiting_review() -> Non
 
     _apply_status_overrides([parent, feedback_child])
 
-    assert feedback_child.status == "PLAN"
-    assert parent.status == "PLAN"
+    assert feedback_child.status == "DONE"
+    assert parent.status == "DONE"
 
 
 def test_apply_status_overrides_feedback_child_approved_by_metadata_shows_approved() -> (

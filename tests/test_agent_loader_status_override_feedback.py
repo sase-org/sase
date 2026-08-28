@@ -58,10 +58,10 @@ def test_apply_status_overrides_done_with_completed_feedback_becomes_plan() -> N
     assert parent.status == "DONE"
 
 
-def test_apply_status_overrides_running_with_unanswered_followup_plan_becomes_plan() -> (
+def test_apply_status_overrides_running_with_unreviewed_followup_plan_stays_done() -> (
     None
 ):
-    """A RUNNING .plan parent awaiting follow-up review is marked PLAN."""
+    """A completed feedback child no longer reconstructs pending PLAN."""
     feedback_time = datetime(2026, 5, 12, 9, 30, 0)
     followup_plan_time = datetime(2026, 5, 12, 9, 43, 33)
     parent = Agent(
@@ -87,7 +87,8 @@ def test_apply_status_overrides_running_with_unanswered_followup_plan_becomes_pl
 
     _apply_status_overrides([parent, feedback_child])
 
-    assert parent.status == "PLAN"
+    assert feedback_child.status == "DONE"
+    assert parent.status == "DONE"
 
 
 def test_apply_status_overrides_running_with_active_feedback_stays_running() -> None:

@@ -4,8 +4,6 @@ from collections.abc import Callable
 from datetime import datetime
 
 from sase.agent.status_buckets import (
-    EPIC_APPROVED_STATUS,
-    FEEDBACK_STATUS,
     aggregate_agent_group_bucket,
     aggregate_agent_group_effective_status,
     agent_status_bucket,
@@ -23,27 +21,16 @@ from ._agent_status_family import (
     copy_missing_display_metadata,
     copy_missing_plan_metadata,
     done_handoff_status,
-    ensure_synthetic_planner_children,
-    feedback_child_progressed_past_review,
-    has_inherited_family_question,
-    has_unanswered_completed_question,
-    has_unreviewed_submitted_plan,
     is_answered_continuation_asker,
     is_answered_root_asker_step,
-    is_awaiting_plan_review,
     is_completed_epic_followup_child,
     is_completed_plan_handoff_child,
     is_family_child,
-    is_main_workflow_agent_step,
     is_root_plan_workflow,
-    latest_non_workflow_child_launch_by_parent,
     mark_derived_plan_family_roots,
     merge_feedback_plan_paths,
-    pending_plan_status_for_agent,
     pull_plan_metadata_from_family_members,
     root_child_suffix,
-    superseded_by_feedback_round,
-    sync_planner_child_from_parent,
 )
 from ._agent_status_roles import agent_family_role, is_coder_agent, is_feedback_agent
 from .agent import Agent, AgentType
@@ -139,16 +126,13 @@ def apply_status_overrides(
     classify_diff_badges: bool = True,
     diff_badge_classifier: DiffBadgeClassifier | None = None,
 ) -> None:
-    """Override statuses based on workflow relationships (mutates in place).
+    """Normalize family presentation state based on concrete child rows.
 
     Agent-family roots act as containers: their visible status mirrors the
-    newest planner/feedback/question/code child.  The pass still propagates
-    child timestamps, diff paths, and meta_* fields back to the root for the
-    detail panel.
-
-    Compatibility behavior for non-family agents remains:
-    - DONE -> QUESTION: agent submitted a question that was never answered
-    - DONE -> PLAN: agent submitted a plan that was never reviewed
+    active, waiting, or newest concrete child/shell row.  This pass propagates
+    child timestamps, plan metadata, diff paths, and meta_* fields back to the
+    root for detail panels, labels concrete post-gate handoff rows, and leaves
+    pending plan/question status publication to gate-shell rows.
     """
     all_agents = [*agents, *(workflow_agent_steps or [])]
     for agent in all_agents:
@@ -162,14 +146,7 @@ def apply_status_overrides(
         if agent.raw_suffix and not agent.is_child_row:
             parent_by_suffix[agent.raw_suffix] = agent
 
-    ensure_synthetic_planner_children(agents, all_agents, parent_by_suffix)
     children_by_parent = children_by_parent_timestamp(all_agents)
-    # Deriving the plan-family marker after synthetic planner children are
-    # added (not before) is deliberate: ensure_synthetic_planner_children is
-    # itself gated on is_root_plan_workflow, and running the derivation first
-    # would let it synthesize a phantom "--0" planner row for a derived plan
-    # family whose concrete main workflow step is not loaded. Derived families
-    # keep the promoted-root-as-first-member projection instead.
     mark_derived_plan_family_roots(children_by_parent, parent_by_suffix)
     pull_plan_metadata_from_family_members(children_by_parent, parent_by_suffix)
     for parent_timestamp, children in children_by_parent.items():
@@ -178,9 +155,6 @@ def apply_status_overrides(
             continue
         for child in children:
             copy_missing_plan_metadata(child, parent)
-    latest_child_launch_by_parent = latest_non_workflow_child_launch_by_parent(
-        children_by_parent
-    )
 
     # Propagate timestamps from feedback round children (.2, .3, ...) to parent
     # so the metadata panel shows one entry per proposal/feedback/question round.
@@ -218,95 +192,21 @@ def apply_status_overrides(
                 if is_pending_plan_review_status(parent.status):
                     parent.status = "RUNNING"
 
-    # Pre-compute which agents have follow-up children so unanswered questions
-    # can distinguish "waiting for user" from "answered and continued".
-    parents_with_followup: set[str] = set()
-    for parent_timestamp, children in children_by_parent.items():
-        if any(
-            child.is_family_member_child and not child.is_synthetic_planner
-            for child in children
-        ):
-            parents_with_followup.add(parent_timestamp)
-
+    # Concrete follow-up planner rows keep their post-approval status even when
+    # loaded without the family root that accepted their plan. Stale QUESTION
+    # rows can occur when a question continuation later submitted an approved
+    # plan; active rows keep their live status until the approval metadata exists.
     for agent in all_agents:
-        if (
-            agent.is_workflow_step_child
-            and agent.parent_timestamp
-            and is_main_workflow_agent_step(agent)
-        ):
-            parent = parent_by_suffix.get(agent.parent_timestamp)
-            if (
-                parent
-                and is_root_plan_workflow(parent)
-                and canonical_plan_chain_suffix(agent.role_suffix)
-                == root_child_suffix(parent)
-                and (
-                    parent.plan_action == "epic"
-                    or parent.status in {EPIC_APPROVED_STATUS, "EPIC CREATED"}
-                )
-            ):
-                sync_planner_child_from_parent(
-                    parent,
-                    agent,
-                    all_agents,
-                    children_by_parent,
-                )
-            elif parent is None:
-                approved_status = approved_followup_planner_status(agent)
-                if approved_status is not None:
-                    agent.status = approved_status
-        elif (
-            agent.is_family_member_child
-            and agent.raw_suffix is None
-            and agent.parent_timestamp
-        ):
-            parent = parent_by_suffix.get(agent.parent_timestamp)
-            if (
-                parent
-                and is_root_plan_workflow(parent)
-                and canonical_plan_chain_suffix(agent.role_suffix)
-                == root_child_suffix(parent)
-            ):
-                sync_planner_child_from_parent(
-                    parent,
-                    agent,
-                    all_agents,
-                    children_by_parent,
-                )
-        elif (
-            not agent.agent_family_parallel
-            and is_feedback_agent(agent)
-            and agent.status in {"DONE", "RUNNING"}
-            and is_awaiting_plan_review(agent)
-        ):
-            agent.status = (
-                "DONE"
-                if feedback_child_progressed_past_review(
-                    agent,
-                    all_agents,
-                    children_by_parent,
-                    latest_child_launch_by_parent,
-                )
-                else pending_plan_status_for_agent(agent)
-            )
+        if agent.status in {"DONE", "QUESTION"}:
+            approved_status = approved_followup_planner_status(agent)
+            if approved_status is not None:
+                agent.status = approved_status
 
     for agent in all_agents:
         if agent.is_family_member_child and agent.parent_timestamp is not None:
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
                 role = agent_family_role(agent)
-                approved_status = (
-                    approved_followup_planner_status(agent)
-                    if agent.status == "DONE" and is_root_plan_workflow(parent)
-                    else None
-                )
-                if approved_status is not None:
-                    agent.status = approved_status
-                if has_unanswered_completed_question(
-                    agent, parents_with_followup
-                ) and not has_inherited_family_question(agent, parent_by_suffix):
-                    agent.status = "QUESTION"
-
                 # Propagate meta_* fields from follow-up child to parent
                 # so the metadata panel shows dynamic variables (e.g. Commit
                 # Message) on the main workflow entry too.
@@ -331,21 +231,11 @@ def apply_status_overrides(
                     )
 
                 # Propagate diff_path from follow-up child to parent so the
-                # file panel can display the code diff (more relevant than
-                # the planner's own diff). Planner rows only fill a missing
-                # parent diff; synthetic planner rows copy the parent diff and
-                # must not clobber a coder diff propagated earlier in the pass.
+                # file panel can display the code diff (more relevant than the
+                # planner's own diff). Planner rows only fill a missing parent
+                # diff, preserving coder diffs propagated earlier in the pass.
                 if agent.diff_path and (role != "plan" or not parent.diff_path):
                     parent.diff_path = agent.diff_path
-
-    # Override DONE -> QUESTION for agents whose last question was never answered.
-    # A persisted question_response_path means the row resumed after user input;
-    # pending_question.json remains the active-row signal before completion.
-    for agent in all_agents:
-        if has_unanswered_completed_question(
-            agent, parents_with_followup
-        ) and not has_inherited_family_question(agent, parent_by_suffix):
-            agent.status = "QUESTION"
 
     # A completed question continuation with a persisted response and a newer
     # sibling already handed off to the next continuation.
@@ -355,18 +245,6 @@ def apply_status_overrides(
         ) or is_answered_root_asker_step(agent, parent_by_suffix, children_by_parent):
             agent.status = "ANSWERED"
             agent.stop_time = max(agent.questions_times)
-
-    # Override DONE -> PLAN for rows whose submitted plan still awaits manual
-    # review. This mirrors the QUESTION catch-all and covers planner entries
-    # that fall through suffix-gated workflow-step/feedback branches above.
-    for agent in all_agents:
-        if has_unreviewed_submitted_plan(
-            agent,
-            all_agents,
-            children_by_parent,
-            latest_child_launch_by_parent,
-        ):
-            agent.status = pending_plan_status_for_agent(agent)
 
     # Active family code handoff rows display the coder-specific working state
     # while the implementation agent runs. Normalize before root mirroring so
@@ -394,20 +272,9 @@ def apply_status_overrides(
         elif is_completed_plan_handoff_child(agent):
             agent.status = done_handoff_status(parent, agent)
 
-    # Planner rounds superseded by a later planner-family round were resolved
-    # by user feedback, not approval. Apply this late so it wins over sticky
-    # approved-plan status, but before roots mirror their newest child.
-    for agent in all_agents:
-        if superseded_by_feedback_round(agent, children_by_parent):
-            agent.status = FEEDBACK_STATUS
-
     # Attach all follow-up agents to their parent's followup_agents list.
     for agent in all_agents:
-        if (
-            agent.is_family_member_child
-            and not agent.is_synthetic_planner
-            and agent.parent_timestamp is not None
-        ):
+        if agent.is_family_member_child and agent.parent_timestamp is not None:
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
                 parent.followup_agents.append(agent)

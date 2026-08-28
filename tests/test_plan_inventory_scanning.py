@@ -277,7 +277,7 @@ def test_visible_plan_notifications_loads_pending_store_once(
     load_store.assert_called_once_with(include_legacy=True)
 
 
-def test_plan_inventory_exact_timestamp_fallback_matches_recent_done_planner(
+def test_plan_inventory_exact_timestamp_fallback_ignores_recent_done_planner(
     tmp_path: Path,
 ) -> None:
     timestamp = "20260612120000"
@@ -299,12 +299,12 @@ def test_plan_inventory_exact_timestamp_fallback_matches_recent_done_planner(
     ) as scan_dirs:
         payload = plan_inventory_to_json(build_plan_inventory())
 
-    assert payload["summary"]["proposed"] == 1
-    assert payload["proposed"][0]["id_prefix"] == "abcdef12"
+    assert payload["summary"]["proposed"] == 0
+    assert payload["proposed"] == []
     scan_dirs.assert_called_once()
 
 
-def test_plan_inventory_exact_timestamp_fallback_finds_sharded_ace_artifact(
+def test_plan_inventory_exact_timestamp_fallback_ignores_sharded_done_planner(
     tmp_path: Path,
 ) -> None:
     timestamp = "20260612120000"
@@ -331,11 +331,12 @@ def test_plan_inventory_exact_timestamp_fallback_finds_sharded_ace_artifact(
     ) as scan_dirs:
         payload = plan_inventory_to_json(build_plan_inventory())
 
-    assert payload["summary"]["proposed"] == 1
+    assert payload["summary"]["proposed"] == 0
+    assert payload["proposed"] == []
     assert scan_dirs.call_args.args[0] == [artifact_dir]
 
 
-def test_lightweight_live_plan_loader_promotes_unreviewed_done_plan(
+def test_lightweight_live_plan_loader_ignores_unreviewed_done_plan(
     tmp_path: Path,
 ) -> None:
     from sase.ace.tui.models.agent_loader import load_live_plan_agents
@@ -370,9 +371,7 @@ def test_lightweight_live_plan_loader_promotes_unreviewed_done_plan(
     ):
         agents = load_live_plan_agents()
 
-    assert [(agent.raw_suffix, agent.status) for agent in agents] == [
-        (_LIVE_AGENT_TS, "PLAN")
-    ]
+    assert agents == []
     query_index.assert_called_once()
     assert query_index.call_args.kwargs["options"].include_prompt_step_markers is False
     source_scan.assert_not_called()

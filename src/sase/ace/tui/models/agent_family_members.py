@@ -219,7 +219,7 @@ def _shell_links(row: Agent) -> tuple[Agent, ...]:
 
 def _is_excluded_family_shell(row: Agent) -> bool:
     """Return whether *row* is scaffolding rather than a concrete family shell."""
-    return row.agent_family_parallel or row.is_synthetic_planner
+    return row.agent_family_parallel
 
 
 def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:

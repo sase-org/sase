@@ -6,10 +6,10 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
 
-def test_apply_status_overrides_done_with_unanswered_question_becomes_question() -> (
+def test_apply_status_overrides_done_with_unanswered_question_without_gate_stays_done() -> (
     None
 ):
-    """A DONE agent with questions_times and no follow-up becomes QUESTION."""
+    """A legacy completed row no longer reconstructs QUESTION from timestamps."""
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
@@ -22,7 +22,7 @@ def test_apply_status_overrides_done_with_unanswered_question_becomes_question()
     agents = [agent]
     _apply_status_overrides(agents)
 
-    assert agent.status == "QUESTION"
+    assert agent.status == "DONE"
 
 
 def test_apply_status_overrides_done_with_answered_question_stays_done() -> None:
@@ -238,15 +238,15 @@ def test_apply_status_overrides_rename_on_attach_root_step_is_answered() -> None
     assert continuation.status == "RUNNING"
 
 
-def test_apply_status_overrides_rename_on_attach_root_step_without_response_is_question() -> (
+def test_apply_status_overrides_rename_on_attach_root_step_without_gate_stays_done() -> (
     None
 ):
-    """An unanswered rename-on-attach root step remains QUESTION."""
+    """A legacy unanswered root step no longer reconstructs QUESTION."""
     root, root_step = _rename_on_attach_root_step(question_response_path=None)
 
     _apply_status_overrides([root], [root_step])
 
-    assert root_step.status == "QUESTION"
+    assert root_step.status == "DONE"
 
 
 def test_apply_status_overrides_rename_on_attach_root_step_without_continuation_stays_done() -> (
@@ -265,8 +265,8 @@ def test_apply_status_overrides_rename_on_attach_root_step_without_continuation_
 def test_apply_status_overrides_plan_chain_root_step_projection_unchanged() -> None:
     """A plan-chain root's own concrete step keeps its raw DONE status.
 
-    The sticky-approved mirror used to come from the retired
-    ``sync_planner_child_from_parent``; the gate shell now owns the
+    The sticky-approved mirror used to come from the retired synthetic planner
+    path; the gate shell now owns the
     container's and follow-up code child's approved labels instead.
     """
     question_time = datetime(2026, 7, 29, 6, 27, 18, 856220)

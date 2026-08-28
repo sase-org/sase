@@ -76,7 +76,7 @@ def test_apply_status_overrides_answered_question_continuation_asker() -> None:
 
     ``root_asker`` is the plan-chain root's own concrete workflow step; it now
     keeps its raw DONE status instead of mirroring ANSWERED, since that mirror
-    was owned by the retired ``sync_planner_child_from_parent``.
+    was owned by the retired synthetic planner path.
     """
     second_question_time = datetime(2026, 6, 30, 0, 12, 0)
     parent, root_asker = _question_continuation_family_root()
@@ -109,10 +109,10 @@ def test_apply_status_overrides_answered_question_continuation_asker() -> None:
     assert parent.status == "RUNNING"
 
 
-def test_apply_status_overrides_question_continuation_before_answer_is_question() -> (
+def test_apply_status_overrides_question_continuation_before_answer_without_gate_stays_done() -> (
     None
 ):
-    """A completed continuation with no response still waits for the user."""
+    """A completed continuation without a gate no longer reconstructs QUESTION."""
     second_question_time = datetime(2026, 6, 30, 0, 12, 0)
     parent, root_asker = _question_continuation_family_root()
     first_continuation = _question_continuation(
@@ -125,7 +125,7 @@ def test_apply_status_overrides_question_continuation_before_answer_is_question(
 
     _apply_status_overrides([parent, first_continuation], [root_asker])
 
-    assert first_continuation.status == "QUESTION"
+    assert first_continuation.status == "DONE"
 
 
 def test_apply_status_overrides_final_question_continuation_stays_done() -> None:

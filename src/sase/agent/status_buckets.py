@@ -69,11 +69,6 @@ AUTO_APPROVE_ELIGIBLE_STATUSES: frozenset[str] = frozenset(
         "QUESTION",
     }
 )
-WORKING_PLAN_STATUS_TO_APPROVED: dict[str, str] = {
-    WORKING_PLAN_STATUS: PLAN_APPROVED_STATUS,
-    WORKING_TALE_STATUS: TALE_APPROVED_STATUS,
-}
-
 #: Statuses that mean an agent process is actually in flight.  This is
 #: deliberately narrower than the ``Running`` bucket used by filters: sticky
 #: approved planner statuses bucket as running for query purposes, but the

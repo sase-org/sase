@@ -45,8 +45,10 @@ def test_apply_status_overrides_plan_suffix_inherited_question_stays_done() -> N
     assert parent.status == "DONE"
 
 
-def test_apply_status_overrides_plan_suffix_new_question_round_is_question() -> None:
-    """A --plan continuation with a new unanswered question remains blocked."""
+def test_apply_status_overrides_plan_suffix_new_question_without_gate_stays_done() -> (
+    None
+):
+    """A legacy --plan continuation no longer reconstructs QUESTION."""
     first_question_time = datetime(2026, 6, 23, 7, 5, 49)
     second_question_time = datetime(2026, 6, 23, 7, 12, 0)
     parent = Agent(
@@ -81,12 +83,14 @@ def test_apply_status_overrides_plan_suffix_new_question_round_is_question() -> 
 
     _apply_status_overrides(agents)
 
-    assert continuation.status == "QUESTION"
-    assert parent.status == "QUESTION"
+    assert continuation.status == "DONE"
+    assert parent.status == "DONE"
 
 
-def test_apply_status_overrides_inherited_question_with_new_round_is_question() -> None:
-    """A continuation with a new unanswered question timestamp remains blocked."""
+def test_apply_status_overrides_inherited_question_new_round_without_gate_stays_done() -> (
+    None
+):
+    """A legacy continuation with only timestamps no longer drives QUESTION."""
     first_question_time = datetime(2026, 6, 19, 15, 46, 14)
     second_question_time = datetime(2026, 6, 19, 16, 20, 0)
     parent = Agent(
@@ -121,14 +125,12 @@ def test_apply_status_overrides_inherited_question_with_new_round_is_question() 
 
     _apply_status_overrides(agents)
 
-    assert continuation.status == "QUESTION"
-    assert parent.status == "QUESTION"
+    assert continuation.status == "DONE"
+    assert parent.status == "DONE"
 
 
-def test_apply_status_overrides_question_only_family_without_followup_is_question() -> (
-    None
-):
-    """A question-only family with no continuation still waits for user input."""
+def test_apply_status_overrides_question_only_family_without_gate_stays_done() -> None:
+    """A legacy question-only family without a gate degrades to DONE."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="sase",
@@ -147,13 +149,13 @@ def test_apply_status_overrides_question_only_family_without_followup_is_questio
 
     _apply_status_overrides(agents)
 
-    assert parent.status == "QUESTION"
+    assert parent.status == "DONE"
 
 
-def test_apply_status_overrides_parent_with_questioning_code_child_becomes_question() -> (
+def test_apply_status_overrides_parent_with_questioning_code_child_without_gate_is_done() -> (
     None
 ):
-    """A DONE .plan parent whose .code child has an unanswered question becomes QUESTION."""
+    """A completed code handoff no longer reconstructs QUESTION from timestamps."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -177,8 +179,8 @@ def test_apply_status_overrides_parent_with_questioning_code_child_becomes_quest
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "QUESTION"
-    assert code_child.status == "QUESTION"
+    assert parent.status == "PLAN DONE"
+    assert code_child.status == "PLAN DONE"
 
 
 def test_apply_status_overrides_parent_with_answered_question_stays_plan_done() -> None:
@@ -250,10 +252,10 @@ def test_apply_status_overrides_parent_with_active_code_after_question_is_workin
     assert code_child.status == "WORKING PLAN"
 
 
-def test_apply_status_overrides_questioning_code_with_tale_plan_action_still_becomes_question() -> (
+def test_apply_status_overrides_questioning_code_with_tale_plan_action_is_tale_done() -> (
     None
 ):
-    """An unanswered .code child question still overrides plan_action=tale."""
+    """A completed tale code handoff stays terminal without question reconstruction."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -278,7 +280,8 @@ def test_apply_status_overrides_questioning_code_with_tale_plan_action_still_bec
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "QUESTION"
+    assert parent.status == "TALE DONE"
+    assert code_child.status == "TALE DONE"
 
 
 def test_apply_status_overrides_done_without_questions_stays_done() -> None:
@@ -371,8 +374,10 @@ def test_apply_status_overrides_ordinary_answered_continuation_is_done() -> None
     assert parent.status == "DONE"
 
 
-def test_apply_status_overrides_numeric_unanswered_continuation_is_question() -> None:
-    """A completed numeric family continuation without a response remains blocked."""
+def test_apply_status_overrides_numeric_unanswered_continuation_without_gate_stays_done() -> (
+    None
+):
+    """A legacy unanswered numeric continuation no longer reconstructs QUESTION."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -403,5 +408,5 @@ def test_apply_status_overrides_numeric_unanswered_continuation_is_question() ->
     agents = [parent, latest_child]
     _apply_status_overrides(agents)
 
-    assert latest_child.status == "QUESTION"
-    assert parent.status == "QUESTION"
+    assert latest_child.status == "DONE"
+    assert parent.status == "DONE"

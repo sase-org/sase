@@ -7,7 +7,6 @@ stale; the plan-family projection must be derived from the member instead.
 """
 
 from datetime import datetime
-from pathlib import Path
 
 from sase.ace.tui.models._agent_status_family import is_root_plan_workflow
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -107,23 +106,21 @@ def _promoted_family(
     return root, main_step, member, coder
 
 
-def test_promoted_family_unreviewed_tale_projects_onto_root(tmp_path: Path) -> None:
-    """A promoted root whose member submitted a tale plan shows TALE, not DONE.
+def test_promoted_family_unreviewed_member_without_gate_stays_done() -> None:
+    """A promoted root whose member submitted a plan no longer reconstructs TALE.
 
     Also covers plan_times isolation: the root must not borrow the member's
     plan_times. ``main_step`` (the root's own concrete workflow step) keeps
     its raw DONE status rather than mirroring ANSWERED, since that mirror was
-    owned by the retired ``sync_planner_child_from_parent``.
+    owned by the retired synthetic planner path.
     """
-    tale_path = tmp_path / "tale.md"
-    tale_path.write_text("---\ntier: tale\n---\n# Tale\n", encoding="utf-8")
-    root, main_step, member, _ = _promoted_family(plan_path=str(tale_path))
+    root, main_step, member, _ = _promoted_family()
 
     _apply_status_overrides([root, member], [main_step])
 
-    assert root.status == "TALE"
+    assert root.status == "DONE"
     assert main_step.status == "DONE"
-    assert member.status == "TALE"
+    assert member.status == "DONE"
     assert root.plan_times == []
 
 
@@ -155,20 +152,10 @@ def test_promoted_family_tale_approved_coder_done_is_tale_done() -> None:
     assert member.status == "TALE APPROVED"
 
 
-def test_promoted_family_tier_fidelity_reads_plan_not_hardcoded_tale(
-    tmp_path: Path,
-) -> None:
-    """A tier: plan plan file yields the plan flavor end to end, not tale."""
-    plan_path = tmp_path / "plan.md"
-    plan_path.write_text("---\ntier: plan\n---\n# Plan\n", encoding="utf-8")
-
-    root, main_step, member, _ = _promoted_family(plan_path=str(plan_path))
-    _apply_status_overrides([root, member], [main_step])
-    assert member.status == "PLAN"
-    assert root.status == "PLAN"
-
+def test_promoted_family_approved_plan_action_is_not_hardcoded_tale() -> None:
+    """A generic approval still yields plan-specific handoff labels."""
     root, main_step, member, coder = _promoted_family(
-        plan_path=str(plan_path), plan_action="approve", coder_status="RUNNING"
+        plan_action="approve", coder_status="RUNNING"
     )
     assert coder is not None
     _apply_status_overrides([root, member, coder], [main_step])
@@ -177,7 +164,7 @@ def test_promoted_family_tier_fidelity_reads_plan_not_hardcoded_tale(
     assert root.status == "WORKING PLAN"
 
     root, main_step, member, coder = _promoted_family(
-        plan_path=str(plan_path), plan_action="approve", coder_status="DONE"
+        plan_action="approve", coder_status="DONE"
     )
     assert coder is not None
     _apply_status_overrides([root, member, coder], [main_step])
