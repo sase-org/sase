@@ -9,6 +9,7 @@ deletes the spacer instead of rewriting it, then jumps to the next tabstop.
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import patch
 
 from textual.pilot import Pilot
@@ -103,14 +104,11 @@ def _seed_entries(
     ta._xprompt_arg_assist_entries_by_project[project] = entries
 
 
-def _compute_soft_now(ta: PromptTextArea) -> None:
+async def _compute_soft_now(ta: PromptTextArea) -> None:
+    await asyncio.sleep(0)
     ta._clear_soft_completion(cancel_timer=True)
     ta._prompt_completion_generation += 1
-    ta._fire_prompt_completion_timer(
-        ta._prompt_completion_generation,
-        ta.text,
-        ta._absolute_offset(ta.cursor_location),
-    )
+    ta._set_soft_completion(ta._build_current_soft_completion())
 
 
 def test_no_required_and_optional_only_input_predicates() -> None:
@@ -291,7 +289,7 @@ async def test_no_input_soft_completion_then_comma() -> None:
         _seed_entries(ta, [_entry("plain")])
         ta.load_text("#p")
         ta.cursor_location = (0, 2)
-        _compute_soft_now(ta)
+        await _compute_soft_now(ta)
 
         await pilot.press("ctrl+l")
         assert ta.text == "#plain "

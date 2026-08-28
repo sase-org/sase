@@ -31,6 +31,7 @@ from sase.project_alias_records import (
 _KNOWN_VCS_WORKFLOW_NAMES = frozenset({"gh", "git", "jj", "p4"})
 _REF_CHARS = r"[A-Za-z0-9_./~-]+"
 _REF_BOUNDARY = r"(?=$|[\s)\]},.!?;:\"'])"
+type _ProjectFileCacheSignature = tuple[str, int, int] | None
 
 
 def _vcs_workflow_names() -> set[str]:
@@ -68,6 +69,42 @@ def _project_alias_ref_pattern() -> re.Pattern[str] | None:
 def _projects_root(projects_root: Path | None) -> Path:
     return (
         projects_root.expanduser() if projects_root is not None else sase_projects_dir()
+    )
+
+
+def _project_file_cache_signature(path: Path) -> _ProjectFileCacheSignature:
+    try:
+        stat_result = path.stat()
+    except (OSError, FileNotFoundError):
+        return None
+    return (str(path), stat_result.st_mtime_ns, stat_result.st_size)
+
+
+def _project_spec_path(project: str, *, archive: bool = False) -> Path:
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
+
+    project_dir = sase_projects_dir() / project
+    return Path(
+        preferred_project_spec_path(
+            str(project_dir),
+            project,
+            archive=archive,
+        )
+    )
+
+
+def _project_workflow_type_cache_signature(
+    project: str,
+) -> _ProjectFileCacheSignature:
+    return _project_file_cache_signature(_project_spec_path(project))
+
+
+def _load_project_changespec_names_cache_signature(
+    project: str,
+) -> tuple[_ProjectFileCacheSignature, _ProjectFileCacheSignature]:
+    return (
+        _project_file_cache_signature(_project_spec_path(project)),
+        _project_file_cache_signature(_project_spec_path(project, archive=True)),
     )
 
 
@@ -231,18 +268,10 @@ def find_project_ref_owner(
 def _load_project_changespec_names(project: str) -> frozenset[str]:
     """Return active and archived Patch names for *project*."""
     from sase.ace.patch import parse_project_file
-    from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
-    project_dir = sase_projects_dir() / project
     names: set[str] = set()
     for archive in (False, True):
-        project_file = Path(
-            preferred_project_spec_path(
-                str(project_dir),
-                project,
-                archive=archive,
-            )
-        )
+        project_file = _project_spec_path(project, archive=archive)
         if project_file.is_file():
             names.update(patch.name for patch in parse_project_file(str(project_file)))
     return frozenset(names)
@@ -255,11 +284,9 @@ def _project_workflow_type(project: str) -> str | None:
     no plugin claims it, so canonicalization degrades to today's
     alias-only behavior instead of raising mid-rewrite.
     """
-    from sase.ace.patch.project_spec_path import preferred_project_spec_path
     from sase.workspace_provider import detect_workflow_type
 
-    project_dir = sase_projects_dir() / project
-    project_file = Path(preferred_project_spec_path(str(project_dir), project))
+    project_file = _project_spec_path(project)
     if not project_file.is_file():
         return None
     try:
@@ -268,7 +295,9 @@ def _project_workflow_type(project: str) -> str | None:
         return None
 
 
-def canonicalize_project_aliases_in_prompt(prompt: str) -> str:
+def canonicalize_project_aliases_in_prompt(
+    prompt: str, *, use_cache: bool = True
+) -> str:
     """Rewrite project alias refs in VCS launch tags to canonical names."""
     if "#" not in prompt:
         return prompt
@@ -284,7 +313,13 @@ def canonicalize_project_aliases_in_prompt(prompt: str) -> str:
         pattern=pattern,
         load_alias_map=load_project_alias_map,
         load_changespec_names=_load_project_changespec_names,
+        load_changespec_names_cache_signature=(
+            _load_project_changespec_names_cache_signature if use_cache else None
+        ),
         project_workflow_type=_project_workflow_type,
+        project_workflow_type_cache_signature=(
+            _project_workflow_type_cache_signature if use_cache else None
+        ),
     )
 
 

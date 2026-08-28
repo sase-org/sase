@@ -173,6 +173,7 @@ class PromptTextArea(
         self._xprompt_arg_assist_worker_projects: dict[str, str | None] = {}
         self._vcs_mru_index: int | None = None
         self._prompt_completion_generation: int = 0
+        self._prompt_completion_task: Any | None = None
         self._prompt_completion_timer: Any | None = None
         self._soft_completion: PromptSoftCompletion | None = None
         self._prompt_preview_request_id: int = 0

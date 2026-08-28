@@ -3,9 +3,40 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping
+import threading
+from collections.abc import Callable, Hashable, Mapping
 
 from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
+
+_PROJECT_LOOKUP_CACHE_LOCK = threading.RLock()
+_WORKFLOW_TYPE_CACHE: dict[tuple[int, str, Hashable], str | None] = {}
+_CHANGESPEC_NAMES_CACHE: dict[tuple[int, str, Hashable], frozenset[str]] = {}
+
+
+def _cached_project_lookup[T](
+    cache: dict[tuple[int, str, Hashable], T],
+    loader: Callable[[str], T],
+    project: str,
+    signature_for: Callable[[str], Hashable] | None,
+) -> T:
+    if signature_for is None:
+        return loader(project)
+
+    signature = signature_for(project)
+    loader_id = id(loader)
+    key = (loader_id, project, signature)
+    with _PROJECT_LOOKUP_CACHE_LOCK:
+        if key in cache:
+            return cache[key]
+
+    value = loader(project)
+
+    with _PROJECT_LOOKUP_CACHE_LOCK:
+        for stale_key in tuple(cache):
+            if stale_key[:2] == (loader_id, project) and stale_key != key:
+                del cache[stale_key]
+        cache[key] = value
+    return value
 
 
 def _candidate_prompt(prompt: str) -> tuple[str, list[str]]:
@@ -44,7 +75,9 @@ def canonicalize_project_aliases_in_prompt(
     pattern: re.Pattern[str],
     load_alias_map: Callable[[], Mapping[str, str]],
     load_changespec_names: Callable[[str], frozenset[str]],
+    load_changespec_names_cache_signature: Callable[[str], Hashable] | None = None,
     project_workflow_type: Callable[[str], str | None],
+    project_workflow_type_cache_signature: Callable[[str], Hashable] | None = None,
 ) -> str:
     """Rewrite project alias refs using injected resolution dependencies."""
     protected, fenced_blocks = _candidate_prompt(prompt)
@@ -55,21 +88,21 @@ def canonicalize_project_aliases_in_prompt(
     if not alias_map:
         return prompt
 
-    changespec_names_by_project: dict[str, frozenset[str]] = {}
-
     def changespec_names(project: str) -> frozenset[str]:
-        names = changespec_names_by_project.get(project)
-        if names is None:
-            names = load_changespec_names(project)
-            changespec_names_by_project[project] = names
-        return names
-
-    workflow_type_by_project: dict[str, str | None] = {}
+        return _cached_project_lookup(
+            _CHANGESPEC_NAMES_CACHE,
+            load_changespec_names,
+            project,
+            load_changespec_names_cache_signature,
+        )
 
     def workflow_type_for(project: str) -> str | None:
-        if project not in workflow_type_by_project:
-            workflow_type_by_project[project] = project_workflow_type(project)
-        return workflow_type_by_project[project]
+        return _cached_project_lookup(
+            _WORKFLOW_TYPE_CACHE,
+            project_workflow_type,
+            project,
+            project_workflow_type_cache_signature,
+        )
 
     aliases_by_project: dict[str, list[str]] = {}
     for alias, project in alias_map.items():

@@ -261,6 +261,120 @@ def test_canonicalize_leaves_provider_mismatched_ref_untouched(
     )
 
 
+def test_canonicalize_project_aliases_caches_project_lookups_until_spec_changes(
+    projects_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase import project_alias_prompts
+
+    with project_alias_prompts._PROJECT_LOOKUP_CACHE_LOCK:
+        project_alias_prompts._WORKFLOW_TYPE_CACHE.clear()
+        project_alias_prompts._CHANGESPEC_NAMES_CACHE.clear()
+    project = "gh_sase-org__sase"
+    project_file = _write_project(
+        projects_root,
+        project,
+        "PROJECT_ALIASES: sase\nWORKSPACE_DIR: /tmp/sase\nNAME: existing\n",
+    )
+    monkeypatch.setattr("sase.project_aliases.sase_projects_dir", lambda: projects_root)
+    monkeypatch.setattr(
+        "sase.project_aliases.list_project_records",
+        lambda *_args, **_kwargs: [
+            _record(project, aliases=["sase"], project_file=project_file)
+        ],
+    )
+    monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+    reads = {"changespec_names": 0, "workflow_type": 0}
+
+    def load_changespec_names(project_name: str) -> frozenset[str]:
+        assert project_name == project
+        reads["changespec_names"] += 1
+        project_file.read_text(encoding="utf-8")
+        return frozenset({"sase_fix"})
+
+    def project_workflow_type(project_name: str) -> str | None:
+        assert project_name == project
+        reads["workflow_type"] += 1
+        project_file.read_text(encoding="utf-8")
+        return "gh"
+
+    monkeypatch.setattr(
+        "sase.project_aliases._load_project_changespec_names",
+        load_changespec_names,
+    )
+    monkeypatch.setattr(
+        "sase.project_aliases._project_workflow_type",
+        project_workflow_type,
+    )
+    prompt = "#gh:sase_fix review #gh:sase fix"
+    expected = "#gh:sase_fix review #gh:gh_sase-org__sase fix"
+
+    assert canonicalize_project_aliases_in_prompt(prompt) == expected
+    assert reads == {"changespec_names": 1, "workflow_type": 1}
+    assert canonicalize_project_aliases_in_prompt(prompt) == expected
+    assert reads == {"changespec_names": 1, "workflow_type": 1}
+
+    project_file.write_text(
+        project_file.read_text(encoding="utf-8") + "# touch cache signature\n",
+        encoding="utf-8",
+    )
+
+    assert canonicalize_project_aliases_in_prompt(prompt) == expected
+    assert reads == {"changespec_names": 2, "workflow_type": 2}
+
+
+def test_canonicalize_project_aliases_allows_fresh_lookup_bypass(
+    projects_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase import project_alias_prompts
+
+    with project_alias_prompts._PROJECT_LOOKUP_CACHE_LOCK:
+        project_alias_prompts._WORKFLOW_TYPE_CACHE.clear()
+        project_alias_prompts._CHANGESPEC_NAMES_CACHE.clear()
+    project = "gh_sase-org__sase"
+    project_file = _write_project(
+        projects_root,
+        project,
+        "PROJECT_ALIASES: sase\nWORKSPACE_DIR: /tmp/sase\nNAME: existing\n",
+    )
+    monkeypatch.setattr("sase.project_aliases.sase_projects_dir", lambda: projects_root)
+    monkeypatch.setattr(
+        "sase.project_aliases.list_project_records",
+        lambda *_args, **_kwargs: [
+            _record(project, aliases=["sase"], project_file=project_file)
+        ],
+    )
+    monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+    reads = {"changespec_names": 0, "workflow_type": 0}
+
+    def load_changespec_names(project_name: str) -> frozenset[str]:
+        assert project_name == project
+        reads["changespec_names"] += 1
+        project_file.read_text(encoding="utf-8")
+        return frozenset({"sase_fix"})
+
+    def project_workflow_type(project_name: str) -> str | None:
+        assert project_name == project
+        reads["workflow_type"] += 1
+        project_file.read_text(encoding="utf-8")
+        return "gh"
+
+    monkeypatch.setattr(
+        "sase.project_aliases._load_project_changespec_names",
+        load_changespec_names,
+    )
+    monkeypatch.setattr(
+        "sase.project_aliases._project_workflow_type",
+        project_workflow_type,
+    )
+    prompt = "#gh:sase_fix review #gh:sase fix"
+
+    assert canonicalize_project_aliases_in_prompt(prompt, use_cache=False)
+    assert canonicalize_project_aliases_in_prompt(prompt, use_cache=False)
+    assert reads == {"changespec_names": 2, "workflow_type": 2}
+
+
 def test_humanize_project_refs_in_prompt_rewrites_only_vcs_refs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
+from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks, spawn_pump_free_task
 from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
     extract_token_around_cursor,
@@ -30,6 +32,22 @@ else:
     _MixinBase = object
 
 
+def _build_prompt_soft_completion_snapshot(
+    *,
+    text: str,
+    cursor_offset: int,
+    settings: PromptCompletionSettings,
+    xprompt_entries: list[XPromptAssistEntry] | None,
+) -> PromptSoftCompletion | None:
+    return build_prompt_soft_completion(
+        text=text,
+        cursor_offset=cursor_offset,
+        settings=settings,
+        xprompt_entries=xprompt_entries,
+        base_dir=resolve_prompt_completion_base_dir(text),
+    )
+
+
 class PromptSoftCompletionMixin(_MixinBase):
     """Mixin providing live soft completion for PromptTextArea.
 
@@ -39,6 +57,7 @@ class PromptSoftCompletionMixin(_MixinBase):
     if TYPE_CHECKING:
         _file_completion_active: bool
         _prompt_completion_generation: int
+        _prompt_completion_task: Any | None
         _prompt_completion_timer: Any | None
         _soft_completion: PromptSoftCompletion | None
         _vim_mode: str
@@ -119,6 +138,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             self._clear_soft_completion(cancel_timer=True)
             return
 
+        self._cancel_prompt_completion_task()
         if self._prompt_completion_timer is not None:
             self._prompt_completion_timer.stop()
         generation = self._prompt_completion_generation
@@ -150,6 +170,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             self._clear_soft_completion()
             return
 
+        settings = self._prompt_completion_settings()
         project = self._xprompt_arg_assist_project_from_text()
         entries = self._get_warm_xprompt_arg_assist_entries()
         if entries is None and self._soft_completion_may_need_xprompt_entries(
@@ -157,16 +178,126 @@ class PromptSoftCompletionMixin(_MixinBase):
         ):
             self._schedule_xprompt_assist_warm(project)
 
-        suggestion = build_prompt_soft_completion(
-            text=text,
-            cursor_offset=cursor_offset,
-            settings=self._prompt_completion_settings(),
-            xprompt_entries=self._soft_completion_xprompt_entries(entries),
-            base_dir=resolve_prompt_completion_base_dir(text),
+        xprompt_entries = self._soft_completion_xprompt_entries(entries)
+        task = spawn_pump_free_task(
+            self,
+            self._run_prompt_completion_refresh(
+                generation,
+                text,
+                cursor_offset,
+                settings,
+                xprompt_entries,
+            ),
+            name="prompt-soft-completion",
+            registry_attr="_prompt_completion_async_tasks",
         )
+        self._prompt_completion_task = task
+        if task is None:
+            self._apply_prompt_completion_result(
+                generation,
+                text,
+                cursor_offset,
+                _build_prompt_soft_completion_snapshot(
+                    text=text,
+                    cursor_offset=cursor_offset,
+                    settings=settings,
+                    xprompt_entries=xprompt_entries,
+                ),
+            )
+
+    async def _run_prompt_completion_refresh(
+        self,
+        generation: int,
+        text: str,
+        cursor_offset: int,
+        settings: PromptCompletionSettings,
+        xprompt_entries: list[XPromptAssistEntry] | None,
+    ) -> None:
+        try:
+            suggestion = await asyncio.to_thread(
+                _build_prompt_soft_completion_snapshot,
+                text=text,
+                cursor_offset=cursor_offset,
+                settings=settings,
+                xprompt_entries=xprompt_entries,
+            )
+        finally:
+            current = asyncio.current_task()
+            if current is not None and self._prompt_completion_task is current:
+                self._prompt_completion_task = None
+
+        self._apply_prompt_completion_result(
+            generation,
+            text,
+            cursor_offset,
+            suggestion,
+        )
+
+    def _apply_prompt_completion_result(
+        self,
+        generation: int,
+        text: str,
+        cursor_offset: int,
+        suggestion: PromptSoftCompletion | None,
+    ) -> None:
         if generation != self._prompt_completion_generation:
             return
+        if text != self.text or cursor_offset != self._absolute_offset(
+            self.cursor_location
+        ):
+            return
+        if self._soft_completion_blocked():
+            self._clear_soft_completion()
+            return
         self._set_soft_completion(suggestion)
+
+    def _cancel_prompt_completion_task(self) -> None:
+        task = getattr(self, "_prompt_completion_task", None)
+        if task is None:
+            return
+        self._prompt_completion_task = None
+        if not task.done():
+            task.cancel()
+
+    def on_unmount(self) -> None:
+        self._clear_soft_completion(cancel_timer=True)
+        cancel_pump_free_tasks(self)
+        super_on_unmount = getattr(super(), "on_unmount", None)
+        if callable(super_on_unmount):
+            super_on_unmount()
+
+    def _build_current_soft_completion(
+        self,
+        *,
+        allow_sync_xprompt_entries: bool = False,
+    ) -> PromptSoftCompletion | None:
+        """Build the best soft completion for the current prompt state."""
+        del allow_sync_xprompt_entries
+        text = self.text
+        cursor_offset = self._absolute_offset(self.cursor_location)
+        settings = self._prompt_completion_settings()
+        if settings.auto != "soft":
+            return None
+
+        entries: list[XPromptAssistEntry] | None = None
+        may_need_xprompt_entries = self._soft_completion_may_need_xprompt_entries(
+            text=text,
+            cursor_offset=cursor_offset,
+        )
+        warm_entries: list[XPromptAssistEntry] | None = None
+        if may_need_xprompt_entries:
+            project = self._xprompt_arg_assist_project_from_text()
+            warm_entries = self._get_warm_xprompt_arg_assist_entries()
+            if warm_entries is None:
+                self._schedule_xprompt_assist_warm(project)
+            entries = self._soft_completion_xprompt_entries(warm_entries)
+
+        return _build_prompt_soft_completion_snapshot(
+            text=text,
+            cursor_offset=cursor_offset,
+            settings=settings,
+            xprompt_entries=entries,
+        )
 
     def _soft_completion_blocked(self) -> bool:
         if self._vim_mode != "insert":
@@ -195,41 +326,6 @@ class PromptSoftCompletionMixin(_MixinBase):
         )
         return token_ctx is not None and is_xprompt_like_token(token_ctx[2])
 
-    def _build_current_soft_completion(
-        self,
-        *,
-        allow_sync_xprompt_entries: bool = False,
-    ) -> PromptSoftCompletion | None:
-        """Build the best soft completion for the current prompt state."""
-        del allow_sync_xprompt_entries
-        text = self.text
-        cursor_offset = self._absolute_offset(self.cursor_location)
-        settings = self._prompt_completion_settings()
-        if settings.auto != "soft":
-            return None
-
-        entries: list[XPromptAssistEntry] | None = None
-        may_need_xprompt_entries = self._soft_completion_may_need_xprompt_entries(
-            text,
-            cursor_offset,
-        )
-        warm_entries: list[XPromptAssistEntry] | None = None
-        if may_need_xprompt_entries:
-            project = self._xprompt_arg_assist_project_from_text()
-            warm_entries = self._get_warm_xprompt_arg_assist_entries()
-            if warm_entries is None:
-                self._schedule_xprompt_assist_warm(project)
-            entries = self._soft_completion_xprompt_entries(warm_entries)
-
-        suggestion = build_prompt_soft_completion(
-            text=text,
-            cursor_offset=cursor_offset,
-            settings=settings,
-            xprompt_entries=entries,
-            base_dir=resolve_prompt_completion_base_dir(text),
-        )
-        return suggestion
-
     def _set_soft_completion(self, suggestion: PromptSoftCompletion | None) -> None:
         self._soft_completion = suggestion
         bar = self._find_prompt_bar()
@@ -248,6 +344,8 @@ class PromptSoftCompletionMixin(_MixinBase):
         if cancel_timer and self._prompt_completion_timer is not None:
             self._prompt_completion_timer.stop()
             self._prompt_completion_timer = None
+        if cancel_timer:
+            self._cancel_prompt_completion_task()
         if self._soft_completion is None:
             return
         self._soft_completion = None

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -84,15 +85,11 @@ def _seed_entries(
     ta._xprompt_arg_assist_entries_by_project[project] = entries
 
 
-def _compute_soft_now(ta: PromptTextArea) -> None:
+async def _compute_soft_now(ta: PromptTextArea) -> None:
+    await asyncio.sleep(0)
     ta._clear_soft_completion(cancel_timer=True)
     ta._prompt_completion_generation += 1
-    generation = ta._prompt_completion_generation
-    ta._fire_prompt_completion_timer(
-        generation,
-        ta.text,
-        ta._absolute_offset(ta.cursor_location),
-    )
+    ta._set_soft_completion(ta._build_current_soft_completion())
 
 
 def _subtitle_text(bar: PromptInputBar) -> str:
@@ -186,7 +183,7 @@ async def test_soft_xprompt_suggestion_accepts_with_ctrl_l_not_enter() -> None:
 
         ta.load_text("#r")
         ta.cursor_location = (0, 2)
-        _compute_soft_now(ta)
+        await _compute_soft_now(ta)
 
         assert _subtitle_text(bar).startswith("[^L] accept #review")
         await pilot.press("enter")
@@ -195,11 +192,45 @@ async def test_soft_xprompt_suggestion_accepts_with_ctrl_l_not_enter() -> None:
 
         ta.load_text("#r")
         ta.cursor_location = (0, 2)
-        _compute_soft_now(ta)
+        await _compute_soft_now(ta)
         await pilot.press("ctrl+l")
 
     assert ta.text == "#review:"
     assert ta._active_xprompt_arg_hint is not None
+
+
+async def test_soft_completion_timer_defers_resolution_to_pump_free_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = CompletionTestApp()
+    resolver_calls: list[str] = []
+
+    def resolver(prompt: str) -> str | None:
+        resolver_calls.append(prompt)
+        return None
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_soft_completion."
+        "resolve_prompt_completion_base_dir",
+        resolver,
+    )
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta._prompt_completion_generation += 1
+        ta._fire_prompt_completion_timer(
+            ta._prompt_completion_generation,
+            ta.text,
+            ta._absolute_offset(ta.cursor_location),
+        )
+
+        task = ta._prompt_completion_task
+        assert task is not None
+        assert resolver_calls == []
+
+        await task
+
+    assert resolver_calls == [""]
+    assert ta._soft_completion is None
 
 
 async def test_soft_xprompt_required_text_accept_adds_double_colon_space() -> None:
@@ -210,7 +241,7 @@ async def test_soft_xprompt_required_text_accept_adds_double_colon_space() -> No
 
         ta.load_text("#a")
         ta.cursor_location = (0, 2)
-        _compute_soft_now(ta)
+        await _compute_soft_now(ta)
         await pilot.press("ctrl+l")
 
     # Soft-accepting a single required-text xprompt at end-of-line widens the
@@ -227,7 +258,7 @@ async def test_soft_xprompt_without_inputs_skips_space_before_punctuation() -> N
 
         ta.load_text("(#r)")
         ta.cursor_location = (0, len("(#r"))
-        _compute_soft_now(ta)
+        await _compute_soft_now(ta)
         await pilot.press("ctrl+l")
 
     assert ta.text == "(#review)"
@@ -243,7 +274,7 @@ async def test_soft_xprompt_before_period_preserves_period() -> None:
 
         ta.load_text("(see #r.")
         ta.cursor_location = (0, len("(see #r"))
-        _compute_soft_now(ta)
+        await _compute_soft_now(ta)
         await pilot.press("ctrl+l")
 
     assert ta.text == "(see #review."
@@ -296,7 +327,7 @@ async def test_soft_directive_suggestion_replaces_only_with_ctrl_l() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("%mo")
         ta.cursor_location = (0, 3)
-        _compute_soft_now(ta)
+        await _compute_soft_now(ta)
 
         assert _subtitle_text(bar).startswith("[^L] accept %model")
         await pilot.press("ctrl+l")
@@ -321,14 +352,14 @@ async def test_soft_xprompt_arg_name_and_bool_value_suggestions() -> None:
 
         ta.load_text("#review(e")
         ta.cursor_location = (0, len("#review(e"))
-        _compute_soft_now(ta)
+        await _compute_soft_now(ta)
         assert _subtitle_text(bar).startswith("[^L] accept enabled=")
         await pilot.press("ctrl+l")
         assert ta.text == "#review(enabled="
 
         ta.load_text("#review(enabled=)")
         ta.cursor_location = (0, len("#review(enabled="))
-        _compute_soft_now(ta)
+        await _compute_soft_now(ta)
         assert _subtitle_text(bar).startswith("[^L] accept true")
         await pilot.press("ctrl+l")
 
@@ -343,7 +374,7 @@ async def test_soft_completion_does_not_hide_ctrl_t_panel_path() -> None:
         _seed_entries(ta, [_entry("review"), _entry("ship")])
         ta.load_text("#")
         ta.cursor_location = (0, 1)
-        _compute_soft_now(ta)
+        await _compute_soft_now(ta)
         assert ta._soft_completion is not None
 
         await pilot.press("ctrl+t")
@@ -366,7 +397,7 @@ async def test_cold_cache_auto_completion_does_not_build_catalog_sync() -> None:
             "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
             side_effect=AssertionError("cold catalog build"),
         ):
-            _compute_soft_now(ta)
+            await _compute_soft_now(ta)
 
     assert ta._soft_completion is None
 
@@ -399,7 +430,7 @@ async def test_soft_xprompt_suggestion_uses_canonical_project_namespace(
 
             ta.load_text("#proj/r")
             ta.cursor_location = (0, 7)
-            _compute_soft_now(ta)
+            await _compute_soft_now(ta)
             subtitle = _subtitle_text(bar)
 
             await pilot.press("ctrl+l")
