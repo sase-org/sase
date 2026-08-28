@@ -27,10 +27,6 @@ _FINAL_DECLARATION_MARKERS = (
     "Before any normal response that ends this SASE provider turn",
     "incomplete-status response",
     "I will wait",
-    "sase final context",
-    "sase final submit",
-    "do not make more file or repository changes",
-    "repair the manifest",
     "plan, monitor, pipe, or questions handoff",
     "Intending to resume later is not an exemption",
 )
@@ -207,7 +203,7 @@ def test_init_memory_project_memory_includes_workspace_section(
         project_memory
     )
     assert "agents MUST use your `/sase_repo` skill first" in single_line(home_memory)
-    assert "No linked repositories are configured for this context." in home_memory
+    assert "No linked repositories are associated with this project." in home_memory
     assert "{{ project }}" not in project_memory
     assert "Ephemeral" not in home_memory
     assert SASE_MEMORY_HEADER in home_memory

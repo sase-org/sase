@@ -107,16 +107,16 @@ into `AGENTS.md`, no matter what tier its web renders at.
 - Type: `core`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 94
-- Approx. tokens: 1278
+- Lines: 88
+- Approx. tokens: 1148
 
 ### `sase/memory/task_types.md`
 
 - Type: `core`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 49
-- Approx. tokens: 545
+- Lines: 34
+- Approx. tokens: 314
 
 ### `sase/memory/cli_rules.md`
 
@@ -221,8 +221,8 @@ into `AGENTS.md`, no matter what tier its web renders at.
 - Total notes: 16
 - Core notes: 6
 - Reference notes: 10
-- Total lines: 1092
-- Total approx. tokens: 13867
+- Total lines: 1071
+- Total approx. tokens: 13506
 
 ## Commands
 

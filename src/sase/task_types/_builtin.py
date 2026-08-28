@@ -106,7 +106,9 @@ def _ci_spec() -> dict[str, Any]:
         "schema_version": _TASK_TYPE_SPEC_SCHEMA_VERSION,
         "task_type": "ci",
         "label": "CI failure",
-        "summary": "A confirmed true test or lint failure, not a flake.",
+        "summary": (
+            "A confirmed true test or lint failure you did not cause, not a flake."
+        ),
         "when_to_use": (
             "File one when a test or lint failed and you confirmed it is a "
             "true failure, not a flake. Record the pytest node ID, the "
@@ -150,7 +152,10 @@ def _feature_spec() -> dict[str, Any]:
         "schema_version": _TASK_TYPE_SPEC_SCHEMA_VERSION,
         "task_type": "feature",
         "label": "Feature",
-        "summary": "An out-of-scope product idea that should not become a wish list.",
+        "summary": (
+            "An out-of-scope product or tooling idea that should not become a "
+            "wish list."
+        ),
         "when_to_use": (
             "File one when you discovered a product or capability idea that "
             "is outside the current task or epic. State the proposal and why "

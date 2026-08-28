@@ -1,6 +1,6 @@
 ---
 keyword: Feature
-summary: An out-of-scope product idea that should not become a wish list.
+summary: An out-of-scope product or tooling idea that should not become a wish list.
 metadata:
   generated_by: sase.task_types.generated-strand.v1
   task_type: feature
@@ -14,11 +14,11 @@ metadata:
 - Accent color: `#5FD75F`
 - Agent creatable: yes
 - Show schema version: `1`
-- Digest: `c461e1e8c92d50f22fa6cc283bbdcaab19be7a9a95f2483eea7e7a16a172b430`
+- Digest: `4b065df3f621cb1dec1e93f80b8b45b4525ec720aac1f252f5d2b7d196d07507`
 
 ## Summary
 
-An out-of-scope product idea that should not become a wish list.
+An out-of-scope product or tooling idea that should not become a wish list.
 
 ## When To Use
 

@@ -404,7 +404,10 @@ linked_repos:
     assert run_handler() == 0
 
     memory = (project_root / "sase" / "memory" / "sase.md").read_text(encoding="utf-8")
-    assert "Configured linked and sidecar repositories for this context:" in memory
+    assert (
+        "Configured linked and sidecar repositories associated with this project:"
+        in memory
+    )
 
 
 @pytest.mark.parametrize(

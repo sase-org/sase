@@ -1,6 +1,6 @@
 ---
 keyword: CI failure
-summary: A confirmed true test or lint failure, not a flake.
+summary: A confirmed true test or lint failure you did not cause, not a flake.
 metadata:
   generated_by: sase.task_types.generated-strand.v1
   task_type: ci
@@ -14,11 +14,11 @@ metadata:
 - Accent color: `#D7D700`
 - Agent creatable: yes
 - Show schema version: `1`
-- Digest: `c2b94da13484a4abc07afeec91fe9c4bbbe7fa5ceece6981228716e9a88ed004`
+- Digest: `7bb84890e8db43abd920cf3af5952ab7a95dd432e66e38018d547e6c1993bd33`
 
 ## Summary
 
-A confirmed true test or lint failure, not a flake.
+A confirmed true test or lint failure you did not cause, not a flake.
 
 ## When To Use
 

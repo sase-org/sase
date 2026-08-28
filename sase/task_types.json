@@ -52,7 +52,7 @@
     {
       "task_type": "ci",
       "label": "CI failure",
-      "summary": "A confirmed true test or lint failure, not a flake.",
+      "summary": "A confirmed true test or lint failure you did not cause, not a flake.",
       "when_to_use": "File one when a test or lint failed and you confirmed it is a true failure, not a flake. Record the pytest node ID, the failing SHA if known, and why this is not intermittent. Use flake instead when a rerun on the same tree passed.",
       "glyph": "⚙",
       "accent_color": "#D7D700",
@@ -96,12 +96,12 @@
       },
       "source": "builtin",
       "package": "sase",
-      "digest": "c2b94da13484a4abc07afeec91fe9c4bbbe7fa5ceece6981228716e9a88ed004"
+      "digest": "7bb84890e8db43abd920cf3af5952ab7a95dd432e66e38018d547e6c1993bd33"
     },
     {
       "task_type": "feature",
       "label": "Feature",
-      "summary": "An out-of-scope product idea that should not become a wish list.",
+      "summary": "An out-of-scope product or tooling idea that should not become a wish list.",
       "when_to_use": "File one when you discovered a product or capability idea that is outside the current task or epic. State the proposal and why it is out of scope for the work you were doing. Do not file one for in-scope follow-up that belongs on the current epic.",
       "create_refusal": "Agents never create this type with `sase bead create` or `/sase_new_task` where it is not agent-creatable. Do not refile the idea under another type: record it as a `PROPOSED FOLLOW-UP:` note on the bead you are working, or raise it with the project owner.",
       "glyph": "✦",
@@ -135,7 +135,7 @@
       },
       "source": "builtin",
       "package": "sase",
-      "digest": "c461e1e8c92d50f22fa6cc283bbdcaab19be7a9a95f2483eea7e7a16a172b430"
+      "digest": "4b065df3f621cb1dec1e93f80b8b45b4525ec720aac1f252f5d2b7d196d07507"
     },
     {
       "task_type": "flag",
