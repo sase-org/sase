@@ -83,8 +83,8 @@ into `AGENTS.md`, no matter what tier its web renders at.
 - Description: Architectural decision records — accepted choices, their rejected
   alternatives, and what would reopen them.
 - Parent: `AGENTS.md`
-- Lines: 41
-- Approx. tokens: 449
+- Lines: 44
+- Approx. tokens: 494
 
 ### `sase/memory/glossary.md`
 
@@ -92,7 +92,7 @@ into `AGENTS.md`, no matter what tier its web renders at.
 - Description: No description set.
 - Parent: `AGENTS.md`
 - Lines: 31
-- Approx. tokens: 351
+- Approx. tokens: 354
 
 ### `sase/memory/gotchas.md`
 
@@ -216,8 +216,8 @@ into `AGENTS.md`, no matter what tier its web renders at.
 - Total notes: 16
 - Core notes: 7
 - Reference notes: 9
-- Total lines: 1077
-- Total approx. tokens: 13635
+- Total lines: 1080
+- Total approx. tokens: 13683
 
 ## Commands
 

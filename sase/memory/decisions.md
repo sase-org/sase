@@ -23,6 +23,9 @@ reopen it.
 
 <!-- sase:strands -->
 
+- **A Gate Never Blocks An Agent** (`gates-never-block`) - Creating a gate from inside
+  an agent ends that agent's turn; continuation is a gate shell's follow-up, never a
+  wait.
 - **Agents Are Single-Turn** (`single-turn-agents`) - A SASE agent run is one provider
   turn; continuation is always mechanical, never a promise to resume.
 - **Completion Is Host-Owned** (`host-owned-completion`) - An agent never creates

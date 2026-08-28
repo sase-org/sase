@@ -4,5 +4,5 @@ aliases:
   - shell
 ---
 
-A sase shell is one executing member of a sase agent, either an agent shell or a proc
-shell. A sase agent is a sequence of sase shells.
+A sase shell is one executing member of a sase agent: an agent shell, a proc shell, or a
+gate shell. A sase agent is a sequence of sase shells.
