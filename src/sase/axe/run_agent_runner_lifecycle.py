@@ -20,10 +20,13 @@ from sase.core.dismissed_agents_facade import (
     load_dismissed_agents,
     persist_dismissed_agents as save_dismissed_agents,
 )
+from sase.core.dismissed_agent_completion import GATE_OUTCOME, MONITOR_OUTCOME
+from sase.axe.run_agent_gate_handoff import gate_handoff_claim_moved
 from sase.axe.run_agent_monitor_handoff import monitor_handoff_claim_transferred
 from sase.axe.runner_reporting import deferred_commit_details
 
 _NON_HOLD_FAILURE_OUTCOMES = {
+    GATE_OUTCOME,
     "killed",
     "failed_retried",
     "plan_rejected",
@@ -185,15 +188,22 @@ def finalize_runner_shutdown(
     deferred_commits = (
         deferred_commit_details(state.current_artifacts_dir) if state.success else []
     )
-    monitor_handoff_transferred = (
-        state.exec_outcome == "monitored"
+    shell_handoff_transferred = (
+        state.exec_outcome == MONITOR_OUTCOME
         and monitor_handoff_claim_transferred(
             context.project_file,
             state.workspace_num,
             cl_name=context.cl_name,
         )
+    ) or (
+        state.exec_outcome == GATE_OUTCOME
+        and gate_handoff_claim_moved(
+            context.project_file,
+            state.workspace_num,
+            cl_name=context.cl_name,
+        )
     )
-    if not context.is_home_mode and not monitor_handoff_transferred:
+    if not context.is_home_mode and not shell_handoff_transferred:
         try:
             if _should_hold_workspace(
                 state,

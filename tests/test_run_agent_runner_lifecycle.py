@@ -7,10 +7,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.axe.run_agent_runner_finalize import send_completion_notification
 from sase.axe.run_agent_runner_lifecycle import (
     finalize_runner_shutdown,
     _should_hold_workspace,
 )
+from sase.gate_shell.claims import GATE_WORKSPACE_CLAIM_WORKFLOW
 from sase.running_field import ClaimResult, WorkspaceClaim
 from sase.workspace_provider.occupant import (
     new_occupant_record,
@@ -49,6 +51,7 @@ from tests._run_agent_runner_lifecycle_helpers import (
         ({"exec_outcome": "plan_committed"}, False, False, False, False, False),
         ({"exec_outcome": "epic_approved"}, False, False, False, False, False),
         ({"exec_outcome": "epic_launch_failed"}, False, False, False, False, False),
+        ({"exec_outcome": "gated"}, False, False, False, False, False),
         ({}, True, False, False, False, False),
         ({}, False, True, False, False, False),
         ({}, False, False, True, False, False),
@@ -299,3 +302,77 @@ def test_finalize_releases_monitored_workspace_without_live_monitor_claim(
     release.assert_called_once_with(
         "/tmp/project.sase", 17, "run", "feature", caller_tag="agent-finalize"
     )
+
+
+def test_finalize_does_not_touch_workspace_for_gate_handoff(
+    tmp_path: Path,
+) -> None:
+    context = make_context(tmp_path)
+    deps = make_deps(
+        all_steps_hidden=MagicMock(return_value=False),
+        send_completion_notification=send_completion_notification,
+    )
+
+    with (
+        patch(
+            "sase.running_field.get_claimed_workspaces",
+            return_value=[
+                WorkspaceClaim(
+                    workspace_num=17,
+                    workflow=GATE_WORKSPACE_CLAIM_WORKFLOW,
+                    cl_name="feature",
+                    pid=12345,
+                )
+            ],
+        ),
+        patch("sase.running_field.hold_workspace_claim") as hold,
+        patch("sase.running_field.release_workspace") as release,
+        patch("sase.workspace_provider.occupant.clear_occupant_record") as clear,
+        patch("sase.notifications.senders.notify_workflow_complete") as notify,
+    ):
+        finalize_runner_shutdown(
+            context=context,
+            state=make_state(
+                success=True,
+                exec_outcome="gated",
+                error_summary=None,
+            ),
+            deps=deps,
+        )
+
+    hold.assert_not_called()
+    release.assert_not_called()
+    clear.assert_not_called()
+    notify.assert_not_called()
+
+
+def test_finalize_never_holds_gated_workspace_when_gate_claim_is_missing(
+    tmp_path: Path,
+) -> None:
+    context = make_context(tmp_path)
+    deps = make_deps(
+        all_steps_hidden=MagicMock(return_value=False),
+        send_completion_notification=send_completion_notification,
+    )
+
+    with (
+        patch("sase.running_field.get_claimed_workspaces", return_value=[]),
+        patch("sase.running_field.hold_workspace_claim") as hold,
+        patch("sase.running_field.release_workspace") as release,
+        patch("sase.notifications.senders.notify_workflow_complete") as notify,
+    ):
+        finalize_runner_shutdown(
+            context=context,
+            state=make_state(
+                success=False,
+                exec_outcome="gated",
+                error_summary=None,
+            ),
+            deps=deps,
+        )
+
+    hold.assert_not_called()
+    release.assert_called_once_with(
+        "/tmp/project.sase", 17, "run", "feature", caller_tag="agent-finalize"
+    )
+    notify.assert_not_called()

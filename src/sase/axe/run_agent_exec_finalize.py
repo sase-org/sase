@@ -33,10 +33,19 @@ from sase.axe.run_agent_exec_retry import RetryTracker
 from sase.axe.run_agent_exec_types import AgentExecContext, AgentExecResult, LoopState
 from sase.axe.run_agent_helpers import extract_step_output_and_diff_path
 from sase.axe.run_agent_helpers import is_workflow_noop
+from sase.core.dismissed_agent_completion import (
+    SHELL_HANDOFF_OUTCOMES,
+    SUCCESS_OUTCOME,
+)
 from sase.axe.run_agent_phases import build_done_marker
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
 from sase.llm_provider.retry_config import RetryState
+
+_COMPLETED_MARKER_LOOP_OUTCOMES = frozenset({SUCCESS_OUTCOME}) | SHELL_HANDOFF_OUTCOMES
+_SUCCESSFUL_LOOP_OUTCOMES = (
+    frozenset({SUCCESS_OUTCOME, "epic_approved"}) | SHELL_HANDOFF_OUTCOMES
+)
 
 _ORIGINAL_EXTRACT_STEP_OUTPUT_AND_DIFF_PATH = extract_step_output_and_diff_path
 _ORIGINAL_FORMAT_EXTRA_SECTIONS = format_extra_sections
@@ -139,7 +148,7 @@ def finalize_loop(
         fallback_model_override,
     )
     execution_llm_provider = _final_execution_provider(state)
-    if state.loop_outcome == "monitored":
+    if state.loop_outcome in SHELL_HANDOFF_OUTCOMES:
         done_agent_name = (
             _metadata_str(
                 _read_transcript_agent_meta(state.current_artifacts_dir),
@@ -161,7 +170,7 @@ def finalize_loop(
     else:
         response_content = ""
 
-    if state.loop_outcome == "monitored":
+    if state.loop_outcome in SHELL_HANDOFF_OUTCOMES:
         saved_path = _last_saved_chat_path(state)
     if saved_path is None:
         extra = _format_extra_sections(state.current_artifacts_dir)
@@ -180,7 +189,7 @@ def finalize_loop(
         )
     print(f"\nChat history saved to: {saved_path}")
 
-    if state.loop_outcome in {"completed", "monitored"}:
+    if state.loop_outcome in _COMPLETED_MARKER_LOOP_OUTCOMES:
         if state.loop_outcome == "completed":
             _link_saved_chats(state, saved_path)
         plan_path = _read_plan_path(state.current_artifacts_dir)
@@ -276,7 +285,7 @@ def finalize_loop(
         write_done_marker_and_update_index(ctx.artifacts_dir, done_marker)
 
     return AgentExecResult(
-        success=state.loop_outcome in {"completed", "epic_approved", "monitored"},
+        success=state.loop_outcome in _SUCCESSFUL_LOOP_OUTCOMES,
         outcome=state.loop_outcome,
         saved_path=saved_path,
         diff_path=diff_path,

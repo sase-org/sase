@@ -22,11 +22,16 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_output_variables import read_agent_output_variables
+from sase.core.dismissed_agent_completion import SHELL_HANDOFF_OUTCOMES
 from sase.core.output_variable_values import VarValue
 from sase.telemetry.metrics import (
     AGENT_ACTIVE,
     AGENT_RUN_DURATION,
     AGENT_RUNS,
+)
+
+_COMPLETION_NOTIFICATION_SUPPRESSED_OUTCOMES = (
+    frozenset({"plan_rejected"}) | SHELL_HANDOFF_OUTCOMES
 )
 
 
@@ -318,7 +323,7 @@ def send_completion_notification(
     from sase.agent.bead_display import format_agent_bead_display_for_name
     from sase.llm_provider.registry import format_provider_model_label
 
-    if outcome in {"plan_rejected", "monitored"}:
+    if outcome in _COMPLETION_NOTIFICATION_SUPPRESSED_OUTCOMES:
         return
 
     extra_files = [p for p in [saved_path, diff_path] if p]

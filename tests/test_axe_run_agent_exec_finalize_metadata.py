@@ -157,6 +157,52 @@ def test_finalize_loop_maps_monitored_to_completed_without_resaving_chat(
     assert done["response_path"] == str(tmp_path / "starter-chat.md")
 
 
+def test_finalize_loop_maps_gated_to_completed_without_resaving_chat(
+    tmp_path: Path,
+) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    artifacts = Path(ctx.artifacts_dir)
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps({"name": "agent--0"}),
+        encoding="utf-8",
+    )
+    starter_chat = tmp_path / "starter-chat.md"
+    starter_chat.write_text(
+        "## Response\n\n# Gate handoff\n\nDecision is waiting.\n",
+        encoding="utf-8",
+    )
+    state = LoopState(
+        current_prompt="prompt",
+        current_role_suffix="--0",
+        current_artifacts_dir=ctx.artifacts_dir,
+        loop_outcome="gated",
+        sdd_spec_path=None,
+        original_prompt="prompt",
+        saved_chat_paths=[("--0", str(starter_chat))],
+    )
+
+    with (
+        patch("sase.axe.run_agent_exec_finalize.save_chat_history") as save_chat,
+        patch(
+            "sase.axe.image_attachments.collect_agent_markdown_paths",
+            return_value=[],
+        ),
+        patch("sase.axe.image_attachments.collect_agent_image_paths", return_value=[]),
+    ):
+        result = _finalize_loop(ctx, state, RetryTracker(retry_cfg=None), None)
+
+    save_chat.assert_not_called()
+    assert result.success is True
+    assert result.outcome == "gated"
+    assert result.saved_path == str(starter_chat)
+    assert "# Gate handoff" in starter_chat.read_text(encoding="utf-8")
+
+    done = json.loads((artifacts / "done.json").read_text())
+    assert done["outcome"] == "completed"
+    assert done["name"] == "agent--0"
+    assert done["response_path"] == str(starter_chat)
+
+
 def test_finalize_loop_uses_ordinary_question_suffix_for_agent_name(
     tmp_path: Path,
 ) -> None:

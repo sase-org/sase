@@ -26,6 +26,7 @@ MONITOR_OUTCOME = "monitored"
 MONITOR_SUCCESS_STATES = frozenset({"completed", "stopped"})
 GATE_OUTCOME = "gated"
 GATE_SUCCESS_STATES = frozenset({"answered", "completed", "stopped"})
+SHELL_HANDOFF_OUTCOMES = frozenset({MONITOR_OUTCOME, GATE_OUTCOME})
 _DEFAULT_GATE_SHELL_SETTLED_STATUS = "GATED"
 WAIT_SUCCESS_OUTCOMES = frozenset(
     {"completed", "noop", "epic_approved", "plan_committed"}
@@ -397,6 +398,7 @@ __all__ = [
     "KNOWN_DONE_OUTCOMES",
     "MONITOR_OUTCOME",
     "MONITOR_SUCCESS_STATES",
+    "SHELL_HANDOFF_OUTCOMES",
     "SUCCESS_OUTCOME",
     "WAIT_SUCCESS_OUTCOMES",
     "archived_response_path",

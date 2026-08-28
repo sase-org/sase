@@ -193,6 +193,16 @@ def test_monitored_suppresses_completion_notification(base_kwargs):
     mock_notify.assert_not_called()
 
 
+def test_gated_suppresses_completion_notification(base_kwargs):
+    base_kwargs["success"] = True
+    base_kwargs["outcome"] = "gated"
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    mock_notify.assert_not_called()
+
+
 def test_plan_rejected_classifies_as_runner_success():
     assert classify_exec_success(success=False, outcome="plan_rejected") is True
 
