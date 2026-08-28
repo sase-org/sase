@@ -21,46 +21,154 @@ from sase.history.chat_storage import iter_chat_files
 
 from tests.conftest import redirect_sase_home
 
+_GIT_SHOW_CURRENT = ["git", "branch", "--show-current"]
+
+
+def _completed(returncode: int, stdout: str = "", stderr: str = "") -> MagicMock:
+    result = MagicMock()
+    result.returncode = returncode
+    result.stdout = stdout
+    result.stderr = stderr
+    return result
+
 
 def test_get_branch_or_workspace_name_strips_reverted_suffix() -> None:
-    """Test _get_branch_or_workspace_name strips reverted suffix."""
-    mock_result = MagicMock()
-    mock_result.returncode = 0
-    mock_result.stdout = "feature_branch__3\n"
+    """Helper output wins and has its reverted suffix stripped."""
+    helper = _completed(0, stdout="feature_branch__3\n")
 
-    with patch("sase.history.chat.run_shell_command", return_value=mock_result):
+    with (
+        patch("sase.history.chat.run_shell_command", return_value=helper) as helper_cmd,
+        patch("sase.history.chat.subprocess.run") as git_cmd,
+    ):
         result = _get_branch_or_workspace_name()
-        assert result == "feature_branch"  # suffix stripped
+
+    assert result == "feature_branch"
+    helper_cmd.assert_called_once()
+    git_cmd.assert_not_called()
 
 
-def test_get_branch_or_workspace_name_falls_back_when_helper_missing(
+@pytest.mark.parametrize(
+    ("returncode", "stdout"),
+    [
+        (127, ""),
+        (1, "ignored\n"),
+        (0, "\n"),
+    ],
+    ids=["missing", "failed", "empty"],
+)
+def test_get_branch_or_workspace_name_falls_through_to_git_branch(
+    returncode: int, stdout: str
+) -> None:
+    """A missing, failed, or empty helper falls through to the current git branch."""
+    helper = _completed(returncode, stdout=stdout, stderr="command not found")
+    git = _completed(0, stdout="feature_branch__3\n")
+
+    with (
+        patch("sase.history.chat.run_shell_command", return_value=helper) as helper_cmd,
+        patch("sase.history.chat.subprocess.run", return_value=git) as git_cmd,
+    ):
+        result = _get_branch_or_workspace_name()
+
+    assert result == "feature_branch"
+    helper_cmd.assert_called_once()
+    git_cmd.assert_called_once_with(
+        _GIT_SHOW_CURRENT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "git",
+    [
+        _completed(128, stdout=""),
+        _completed(0, stdout="\n"),
+    ],
+    ids=["failed", "empty"],
+)
+def test_get_branch_or_workspace_name_falls_through_to_cwd_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, git: MagicMock
+) -> None:
+    """A failed or empty git lookup falls through to the current directory name."""
+    workdir = tmp_path / "myproj"
+    workdir.mkdir()
+    monkeypatch.chdir(workdir)
+    helper = _completed(127, stderr="command not found")
+
+    with (
+        patch("sase.history.chat.run_shell_command", return_value=helper) as helper_cmd,
+        patch("sase.history.chat.subprocess.run", return_value=git) as git_cmd,
+    ):
+        result = _get_branch_or_workspace_name()
+
+    assert result == "myproj"
+    helper_cmd.assert_called_once()
+    git_cmd.assert_called_once_with(
+        _GIT_SHOW_CURRENT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_get_branch_or_workspace_name_git_launch_error_uses_cwd_name(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test _get_branch_or_workspace_name falls back when the helper is missing."""
-    workdir = tmp_path / "myproj_7" / "sub"
-    workdir.mkdir(parents=True)
+    """A git process-launch error falls through to the current directory name."""
+    workdir = tmp_path / "myproj"
+    workdir.mkdir()
     monkeypatch.chdir(workdir)
-    mock_result = MagicMock()
-    mock_result.returncode = 127
-    mock_result.stderr = "command not found"
+    helper = _completed(127, stderr="command not found")
 
-    with patch("sase.history.chat.run_shell_command", return_value=mock_result):
-        assert _get_branch_or_workspace_name() == "myproj"
+    with (
+        patch("sase.history.chat.run_shell_command", return_value=helper) as helper_cmd,
+        patch(
+            "sase.history.chat.subprocess.run",
+            side_effect=FileNotFoundError("git"),
+        ) as git_cmd,
+    ):
+        result = _get_branch_or_workspace_name()
+
+    assert result == "myproj"
+    helper_cmd.assert_called_once()
+    git_cmd.assert_called_once()
 
 
-def test_get_branch_or_workspace_name_falls_back_when_helper_empty(
+def test_get_branch_or_workspace_name_directory_fallback_strips_reverted_suffix(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test _get_branch_or_workspace_name falls back on empty helper output."""
-    workdir = tmp_path / "emptyproj_4" / "sub"
-    workdir.mkdir(parents=True)
+    """The directory fallback also has a reverted suffix stripped."""
+    workdir = tmp_path / "feature branch__2"
+    workdir.mkdir()
     monkeypatch.chdir(workdir)
-    mock_result = MagicMock()
-    mock_result.returncode = 0
-    mock_result.stdout = "\n"
+    helper = _completed(127, stderr="command not found")
+    git = _completed(128, stdout="")
 
-    with patch("sase.history.chat.run_shell_command", return_value=mock_result):
-        assert _get_branch_or_workspace_name() == "emptyproj"
+    with (
+        patch("sase.history.chat.run_shell_command", return_value=helper) as helper_cmd,
+        patch("sase.history.chat.subprocess.run", return_value=git) as git_cmd,
+    ):
+        result = _get_branch_or_workspace_name()
+
+    assert result == "feature branch"
+    helper_cmd.assert_called_once()
+    git_cmd.assert_called_once()
+
+
+def test_get_branch_or_workspace_name_empty_directory_name_uses_workspace() -> None:
+    """An empty current-directory name falls back to the literal workspace label."""
+    cwd = MagicMock()
+    cwd.resolve.return_value.name = ""
+    helper = _completed(127, stderr="command not found")
+    git = _completed(128, stdout="")
+
+    with (
+        patch("sase.history.chat.run_shell_command", return_value=helper),
+        patch("sase.history.chat.subprocess.run", return_value=git),
+        patch("sase.history.chat.Path.cwd", return_value=cwd),
+    ):
+        assert _get_branch_or_workspace_name() == "workspace"
 
 
 def test_missing_helper_workspace_fallback_round_trips_chat_refs(
@@ -68,15 +176,15 @@ def test_missing_helper_workspace_fallback_round_trips_chat_refs(
 ) -> None:
     """Fallback-derived chat basenames still resolve for resume and fork lookups."""
     redirect_sase_home(monkeypatch, tmp_path)
-    workspace = tmp_path / "feature branch__2" / "sub"
-    workspace.mkdir(parents=True)
+    workspace = tmp_path / "feature branch__2"
+    workspace.mkdir()
     monkeypatch.chdir(workspace)
-    mock_result = MagicMock()
-    mock_result.returncode = 128
-    mock_result.stdout = ""
+    helper = _completed(127, stderr="command not found")
+    git = _completed(128, stdout="")
 
     with (
-        patch("sase.history.chat.run_shell_command", return_value=mock_result),
+        patch("sase.history.chat.run_shell_command", return_value=helper) as helper_cmd,
+        patch("sase.history.chat.subprocess.run", return_value=git) as git_cmd,
         patch("sase.history.chat.generate_timestamp", return_value="260827_120000"),
     ):
         saved = save_chat_history(
@@ -92,6 +200,8 @@ def test_missing_helper_workspace_fallback_round_trips_chat_refs(
         [{"kind": "agent", "name": "fallback", "path": basename}]
     )
     assert "Continue from fallback" in rendered
+    helper_cmd.assert_called_once()
+    git_cmd.assert_called_once()
 
 
 def testgenerate_chat_filename_with_agent() -> None:

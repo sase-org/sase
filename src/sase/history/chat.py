@@ -4,6 +4,7 @@ The implementation is split by responsibility across ``chat_storage``,
 ``chat_resume``, and ``chat_fork``. Existing imports remain available here.
 """
 
+import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
@@ -75,9 +76,28 @@ def _fallback_branch_or_workspace_name() -> str:
     """Return a host-independent workspace label for chat filenames.
 
     ``branch_or_workspace_name`` is a host dotfile helper, not a sase-shipped binary,
-    and missing it must never abort a gate-shell settlement chat write.
+    and missing it must never abort a gate-shell settlement chat write. Prefer the
+    current git branch, then the current directory name.
     """
-    return Path.cwd().parent.name or "unknown"
+    branch = _current_git_branch_name()
+    if branch:
+        return branch
+    return Path.cwd().resolve(strict=False).name or "workspace"
+
+
+def _current_git_branch_name() -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
 
 
 def generate_chat_filename(
