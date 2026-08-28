@@ -85,6 +85,7 @@ def test_dead_supervisor_reconciliation_kills_tree_releases_claim_and_settles(
         assert on_disk_meta["monitor_settled"] is True
         on_disk_done = json.loads((Path(monitor_dir) / "done.json").read_text())
         assert on_disk_done["monitor_state"] == "failed"
+        assert isinstance(on_disk_done["finished_at"], int | float)
         assert on_disk_done["error"].startswith(
             "monitor supervisor died without reporting"
         )

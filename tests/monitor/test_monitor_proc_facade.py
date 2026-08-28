@@ -148,6 +148,7 @@ def test_start_uses_one_proc_id_and_artifacts_cross_links(
 
     done = wait_for_done(record.artifacts_dir)
     assert done["monitor_state"] == "completed"
+    assert isinstance(done["finished_at"], int | float)
     listed = list_monitors(project="proj")
     assert [item.monitor_id for item in listed] == [record.monitor_id]
     assert listed[0].monitor_state == "completed"

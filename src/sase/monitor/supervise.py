@@ -33,6 +33,7 @@ from sase.monitor_status import (
     DEFAULT_MONITOR_STOP_STATUS,
     clamp_monitor_status_or_default,
 )
+from sase.shells.settlement import stamp_shell_finished_at
 from sase.workflows.utils import get_project_file_path
 
 from .followup import launch_followup_agent
@@ -505,6 +506,7 @@ def _finish_monitor(
         done_marker["monitor_timeout_kind"] = timeout_kind
         if timeout_message:
             done_marker["monitor_timeout_message"] = timeout_message
+    stamp_shell_finished_at(done_marker)
     write_done_marker_and_update_index(artifacts_dir, done_marker)
     finalize_monitor_workflow_state(artifacts_dir)
 

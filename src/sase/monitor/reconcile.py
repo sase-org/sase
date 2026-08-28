@@ -10,6 +10,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
@@ -26,6 +27,7 @@ from sase.monitor_status import (
 )
 from sase.procs.models import ProcStoreSnapshot
 from sase.procs.store import read_proc_snapshot
+from sase.shells.settlement import stamp_shell_finished_at
 from sase.workflows.utils import get_project_file_path
 
 from .identity import supervisor_is_alive
@@ -189,7 +191,7 @@ def _reconcile_dead_supervisor_locked(
         index_updater=update_agent_artifact_index_for_marker_mutation,
     )
 
-    done_marker: dict[str, object] = {
+    done_marker: dict[str, Any] = {
         "outcome": "monitored",
         "name": meta.get("name"),
         "cl_name": meta.get("cl_name"),
@@ -214,6 +216,7 @@ def _reconcile_dead_supervisor_locked(
     ):
         if meta.get(key):
             done_marker[key] = meta[key]
+    stamp_shell_finished_at(done_marker)
     write_done_marker_and_update_index(record.artifacts_dir, done_marker)
     finalize_monitor_workflow_state(record.artifacts_dir)
     touch_monitor_refresh_pulse(record.project_name)

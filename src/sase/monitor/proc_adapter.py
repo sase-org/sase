@@ -26,6 +26,7 @@ from sase.procs.models import (
     ProcStoreSnapshot,
 )
 from sase.procs.store import get_proc
+from sase.shells.settlement import stamp_shell_finished_at
 from sase.workflows.utils import get_project_file_path
 
 from .followup import launch_followup_agent
@@ -291,6 +292,7 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
         done_marker["monitor_timeout_kind"] = timeout_kind
         if timeout_message:
             done_marker["monitor_timeout_message"] = timeout_message
+    stamp_shell_finished_at(done_marker)
     write_done_marker_and_update_index(artifacts_dir, done_marker)
     finalize_monitor_workflow_state(artifacts_dir)
     touch_monitor_refresh_pulse(project_name)

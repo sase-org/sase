@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from sase.agent.pending_handoff import MONITOR_PENDING_MARKER
+from sase.gate_shell.settlement import _done_marker
 from sase.shells.followup import (
     FollowupLaunchResult,
     FollowupPersistence,
@@ -24,6 +25,7 @@ from sase.shells.naming import SequenceSuffixSpec, allocate_shell_suffix
 from sase.shells.settlement import (
     ShellSettlementConfig,
     settle_shell_claim_and_followup,
+    stamp_shell_finished_at,
 )
 from sase.shells.state import (
     ShellStateConfig,
@@ -273,3 +275,63 @@ def test_record_followup_launched_uses_configured_agent_field() -> None:
     assert result.launched is True
     assert meta["shell_followup_agent"] == "acme--1"
     assert updated["shell_followup_agent"] == "acme--1"
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_KNOWN_SHELL_DONE_WRITERS = frozenset(
+    {
+        "src/sase/monitor/supervise.py",
+        "src/sase/monitor/proc_adapter.py",
+        "src/sase/monitor/reconcile.py",
+        "src/sase/monitor/start.py",
+        "src/sase/gate_shell/settlement.py",
+    }
+)
+
+
+def test_stamp_shell_finished_at_records_a_numeric_instant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.shells.settlement.time.time", lambda: 1_779_999_999.5)
+    marker: dict[str, Any] = {"outcome": "monitored"}
+
+    stamp_shell_finished_at(marker)
+
+    assert marker["finished_at"] == 1_779_999_999.5
+
+
+def test_gate_done_marker_stamps_finished_at_through_shared_helper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.shells.settlement.time.time", lambda: 1_779_999_999.5)
+
+    marker = _done_marker({"artifacts_dir": ""}, gate_state="answered", reason=None)
+
+    assert marker["finished_at"] == 1_779_999_999.5
+    assert marker["outcome"] == "gated"
+
+
+def test_shell_done_marker_writers_stamp_finished_at_through_shared_helper() -> None:
+    found: set[str] = set()
+    missing: list[str] = []
+    for root in (
+        _REPO_ROOT / "src" / "sase" / "monitor",
+        _REPO_ROOT / "src" / "sase" / "gate_shell",
+    ):
+        for path in sorted(root.rglob("*.py")):
+            source = path.read_text(encoding="utf-8")
+            if "write_done_marker_and_update_index(" not in source:
+                continue
+            relative = path.relative_to(_REPO_ROOT).as_posix()
+            found.add(relative)
+            if "stamp_shell_finished_at(" not in source:
+                missing.append(relative)
+
+    assert _KNOWN_SHELL_DONE_WRITERS <= found, (
+        "expected shell done-marker writers were missing: "
+        f"{sorted(_KNOWN_SHELL_DONE_WRITERS - found)}"
+    )
+    assert missing == [], (
+        "done-marker writers must stamp finished_at via "
+        f"stamp_shell_finished_at: {missing}"
+    )

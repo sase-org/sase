@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, MutableMapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -187,6 +187,16 @@ def _record_followup_outcome(
         update_meta_field(artifacts_dir, config.prompt_path_field, prompt_path)
 
 
+def stamp_shell_finished_at(marker: MutableMapping[str, Any]) -> None:
+    """Record the settlement instant on a shell done marker.
+
+    Every done marker the artifact index can see must carry ``finished_at``:
+    the index's recent-completed tier orders by it, and a marker that omits
+    it sorts behind every marker that has one.
+    """
+    marker["finished_at"] = time.time()
+
+
 def touch_shell_refresh_pulse(project_name: str | None) -> None:
     """Nudge artifact watchers after shell metadata changes."""
     if project_name is None:
@@ -238,5 +248,6 @@ __all__ = [
     "finalize_shell_workflow_state",
     "project_name_from_artifacts_dir",
     "settle_shell_claim_and_followup",
+    "stamp_shell_finished_at",
     "touch_shell_refresh_pulse",
 ]

@@ -38,6 +38,7 @@ from sase.shells.settlement import (
     finalize_shell_workflow_state,
     project_name_from_artifacts_dir as shell_project_name_from_artifacts_dir,
     settle_shell_claim_and_followup,
+    stamp_shell_finished_at,
     touch_shell_refresh_pulse,
 )
 
@@ -216,8 +217,8 @@ def _done_marker(
         "outcome": "gated",
         "gate_state": gate_state,
         "status_label": meta.get("gate_stop_status"),
-        "finished_at": time.time(),
     }
+    stamp_shell_finished_at(marker)
     for key in (
         "name",
         "workspace_num",

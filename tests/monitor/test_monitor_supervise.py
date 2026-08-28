@@ -104,6 +104,7 @@ def test_run_supervisor_records_a_clean_completion_and_releases_the_claim(
     assert done["monitor_exit_code"] == 0
     assert done["status_label"] == "MONITORED"
     assert done["response_path"]
+    assert isinstance(done["finished_at"], int | float)
 
     live_reply = (Path(artifacts_dir) / "live_reply.md").read_text()
     assert "hello world" in live_reply

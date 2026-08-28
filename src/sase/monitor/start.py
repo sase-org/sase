@@ -34,6 +34,7 @@ from sase.procs.runtime import proc_started_path, read_json_object
 from sase.procs.service import ProcSubmitError, submit_proc_request
 from sase.procs.spawn import SUPERVISOR_LOG_NAME, DetachedSupervisor
 from sase.running_field import get_claimed_workspaces
+from sase.shells.settlement import stamp_shell_finished_at
 from sase.workspace_provider import resolve_workspace_num_for_dir
 from sase.workspace_provider.utils import parse_workspace_dir
 from sase.workflows.utils import get_project_file_path
@@ -506,6 +507,7 @@ def _teardown_failed_member(artifacts_dir: str, error: str) -> None:
     project_name = project_name_from_artifacts_dir(artifacts_dir)
     if project_name:
         done_marker["project_file"] = get_project_file_path(project_name)
+    stamp_shell_finished_at(done_marker)
     write_done_marker_and_update_index(artifacts_dir, done_marker)
     finalize_monitor_workflow_state(artifacts_dir)
 
