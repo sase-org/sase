@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 from weakref import ref
 
 from rich.segment import Segment
@@ -63,7 +63,7 @@ class PromptPanelSectionTarget:
 class SectionTrackingVisual(Visual):
     """Pass through Textual's normal visual while collecting marked rows."""
 
-    __slots__ = ("_generation", "_owner", "_visual")
+    __slots__ = ("_anchors_by_key", "_generation", "_owner", "_visual")
 
     def __init__(
         self,
@@ -74,6 +74,10 @@ class SectionTrackingVisual(Visual):
         self._visual = visual
         self._owner = ref(owner)
         self._generation = generation
+        self._anchors_by_key: dict[
+            tuple[int, int],
+            tuple[PromptPanelSectionAnchor, ...],
+        ] = {}
 
     def render_strips(
         self,
@@ -83,11 +87,25 @@ class SectionTrackingVisual(Visual):
         options: RenderOptions,
     ) -> list[Strip]:
         strips = self._visual.render_strips(width, height, style, options)
-        if isinstance(self._visual, RichVisual):
-            # Rich anchors are collected from the full measurement stream in
-            # get_height(), while this remains the untouched paint path.
-            return strips
+        anchors = (
+            self._anchors_for_rich_visual(width)
+            if isinstance(self._visual, RichVisual)
+            else self._anchors_for_strips(width=width, strips=strips)
+        )
+        self._publish(width=width, anchors=anchors)
+        return strips
 
+    def _anchors_for_strips(
+        self,
+        *,
+        width: int,
+        strips: list[Strip],
+    ) -> tuple[PromptPanelSectionAnchor, ...]:
+        """Return cached anchors, collecting them from the paint strips once."""
+        key = (self._generation, width)
+        cached = self._anchors_by_key.get(key)
+        if cached is not None:
+            return cached
         anchors: list[PromptPanelSectionAnchor] = []
         seen: set[str] = set()
         for row, strip in enumerate(strips):
@@ -100,25 +118,24 @@ class SectionTrackingVisual(Visual):
                     seen.add(identity)
                     anchors.append(PromptPanelSectionAnchor(identity, row, role))
 
-        self._publish(width=width, anchors=tuple(anchors))
-        return strips
+        cached = tuple(anchors)
+        self._anchors_by_key[key] = cached
+        return cached
 
-    def get_optimal_width(self, rules: RulesMap, container_width: int) -> int:
-        """Delegate optimal-width measurement without changing the visual."""
-        return self._visual.get_optimal_width(rules, container_width)
-
-    def get_minimal_width(self, rules: RulesMap) -> int:
-        """Delegate minimal-width measurement without changing the visual."""
-        return self._visual.get_minimal_width(rules)
-
-    def get_height(self, rules: RulesMap, width: int) -> int:
-        """Collect Rich anchors during its existing full measurement stream."""
-        if not isinstance(self._visual, RichVisual):
-            return self._visual.get_height(rules, width)
+    def _anchors_for_rich_visual(
+        self,
+        width: int,
+    ) -> tuple[PromptPanelSectionAnchor, ...]:
+        """Return cached Rich anchors from the uncropped segment stream."""
+        key = (self._generation, width)
+        cached = self._anchors_by_key.get(key)
+        if cached is not None:
+            return cached
 
         app = active_app.get()
         options = app.console_options.update_width(width).update(highlight=False)
-        segments = app.console.render(self._visual._renderable, options)  # noqa: SLF001
+        renderable = cast(Any, self._visual)._renderable  # noqa: SLF001
+        segments = app.console.render(renderable, options)
         anchors: list[PromptPanelSectionAnchor] = []
         seen: set[str] = set()
         row = 0
@@ -130,8 +147,25 @@ class SectionTrackingVisual(Visual):
                     seen.add(identity)
                     anchors.append(PromptPanelSectionAnchor(identity, row, role))
             row += segment.text.count("\n")
-        self._publish(width=width, anchors=tuple(anchors))
-        return row
+
+        cached = tuple(anchors)
+        self._anchors_by_key[key] = cached
+        return cached
+
+    def get_optimal_width(self, rules: RulesMap, container_width: int) -> int:
+        """Delegate optimal-width measurement without changing the visual."""
+        return self._visual.get_optimal_width(rules, container_width)
+
+    def get_minimal_width(self, rules: RulesMap) -> int:
+        """Delegate minimal-width measurement without changing the visual."""
+        return self._visual.get_minimal_width(rules)
+
+    def get_height(self, rules: RulesMap, width: int) -> int:
+        """Delegate height measurement and publish cached Rich anchors."""
+        height = self._visual.get_height(rules, width)
+        if isinstance(self._visual, RichVisual):
+            self._publish(width=width, anchors=self._anchors_for_rich_visual(width))
+        return height
 
     def _publish(
         self,

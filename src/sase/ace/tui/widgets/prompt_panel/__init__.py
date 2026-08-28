@@ -46,6 +46,8 @@ class AgentPromptPanel(
     _section_real_content_height: int = 0
     _section_layout_reserve: int = 0
     _section_layout_reserve_enabled: bool = False
+    _section_tracking_visual: SectionTrackingVisual | None = None
+    _section_tracking_visual_generation: int = -1
     _preserve_missing_section_next_update: bool = False
     _preserve_missing_section_generation: int = -1
 
@@ -88,11 +90,16 @@ class AgentPromptPanel(
 
     def render(self) -> SectionTrackingVisual:
         """Render original content through the lightweight section tracker."""
-        return SectionTrackingVisual(
-            self.visual,
-            self,
-            getattr(self, "_section_generation", 0),
-        )
+        generation = getattr(self, "_section_generation", 0)
+        tracking_visual = getattr(self, "_section_tracking_visual", None)
+        if (
+            tracking_visual is None
+            or getattr(self, "_section_tracking_visual_generation", -1) != generation
+        ):
+            tracking_visual = SectionTrackingVisual(self.visual, self, generation)
+            self._section_tracking_visual = tracking_visual
+            self._section_tracking_visual_generation = generation
+        return tracking_visual
 
     def get_content_height(self, container: Size, viewport: Size, width: int) -> int:
         """Reserve enough non-document layout to top-align the final title."""
