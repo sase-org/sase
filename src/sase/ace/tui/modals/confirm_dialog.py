@@ -11,6 +11,7 @@ from rich.text import Text
 from textual._context import NoActiveAppError
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
+from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
@@ -169,8 +170,15 @@ class ConfirmDialog(ModalScreen[bool]):
 
     def on_mount(self) -> None:
         """Focus the configured default button."""
+        self.call_after_refresh(self._focus_default_button)
+
+    def _focus_default_button(self) -> None:
+        """Focus the default button after Textual finishes mounting children."""
         button_id = "#confirm-btn" if self._default == "confirm" else "#cancel-btn"
-        self.query_one(button_id, Button).focus()
+        try:
+            self.query_one(button_id, Button).focus()
+        except (NoMatches, LookupError):
+            return
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "confirm-btn":
