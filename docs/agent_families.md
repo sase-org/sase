@@ -341,11 +341,13 @@ shells alike — in chain order, oldest first, including shells that ended unsuc
 with their recorded failure context. Only a shell that is still running, or whose
 transcript or log is missing or unreadable, is listed as not shown rather than injected.
 Shared inherited history is de-duplicated across the included agent-shell transcripts.
-At least one shown member is required. Use `#fork:<family>--<suffix>` when only one
-member should be a parent — this also accepts a monitor's `--mon`/`--mon-N` suffix, and
-a monitor's exact durable proc ID is always the unambiguous choice if its reusable shell
-name is ever reused. A family container can also be combined with independent agent,
-proc/monitor, family, clan, or tribe parents in one multi-parent fork.
+When a family member forks its own family, that member is omitted from both the shown
+and not-shown member lists. At least one shown member is required. Use
+`#fork:<family>--<suffix>` when only one member should be a parent — this also accepts a
+monitor's `--mon`/`--mon-N` suffix, and a monitor's exact durable proc ID is always the
+unambiguous choice if its reusable shell name is ever reused. A family container can
+also be combined with independent agent, proc/monitor, family, clan, or tribe parents in
+one multi-parent fork.
 
 ### Family detail folding
 

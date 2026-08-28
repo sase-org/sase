@@ -192,11 +192,9 @@ class WaitDependencyIndexQueries(
         generation = self._family_generation(family_agents, root)
         if not generation:
             return None
-        effective_generation = self._family_members_after_shell_handoffs(
-            tuple(generation)
-        )
-        handoffs_present = self._family_shell_handoffs_have_successors(
-            tuple(generation)
+        effective_generation, handoffs_present = self._family_handoff_state(
+            tuple(generation),
+            extra_present_names=self._excluded_present_names(exclude_artifact_dir),
         )
         newest_timestamp = max(candidate.timestamp for candidate in generation)
         return FamilyCandidate(

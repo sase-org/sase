@@ -24,6 +24,10 @@ def _identity_dep(artifact_dir: Path, *, name: str) -> dict[str, str]:
     }
 
 
+def _family_fork_source(root_dir: Path, *, name: str) -> dict[str, str]:
+    return {**_identity_dep(root_dir, name=name), "kind": "family"}
+
+
 def _monitor_member(
     tmp_path: Path,
     monitor_state: object,
@@ -380,6 +384,93 @@ def test_failed_monitor_handoff_waits_for_running_successor(tmp_path: Path) -> N
     assert not family.is_resolved
     assert not family.is_failed
     assert index.terminal_blocking_artifacts_for_name("monitor-lane") == ()
+
+
+def test_monitor_handoff_successor_does_not_wait_on_its_own_family(
+    tmp_path: Path,
+) -> None:
+    root_dir, _monitor_dir, successor_dir = _monitor_handoff_family(
+        tmp_path,
+        successor_outcome=False,
+    )
+    assert successor_dir is not None
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    assert dependency_resolution_status(
+        index,
+        [],
+        wait_fork_sources=[
+            _family_fork_source(root_dir, name="monitor-lane"),
+        ],
+        self_artifact_dir=successor_dir,
+    ).resolved
+
+
+def test_external_waiter_still_blocks_on_a_live_handoff_successor(
+    tmp_path: Path,
+) -> None:
+    root_dir, _monitor_dir, _successor_dir = _monitor_handoff_family(
+        tmp_path,
+        successor_outcome=False,
+    )
+    waiter_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813090200",
+        "external-waiter",
+    )
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    assert not dependency_resolution_status(
+        index,
+        [],
+        wait_fork_sources=[
+            _family_fork_source(root_dir, name="monitor-lane"),
+        ],
+        self_artifact_dir=waiter_dir,
+    ).resolved
+
+
+def test_family_member_waiting_on_own_family_blocks_on_a_live_sibling(
+    tmp_path: Path,
+) -> None:
+    root_dir, _monitor_dir, successor_dir = _monitor_handoff_family(
+        tmp_path,
+        successor_outcome=False,
+    )
+    assert successor_dir is not None
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260813090200",
+        "monitor-lane--review",
+        workflow_name="monitor-lane",
+        agent_family="monitor-lane",
+        role_suffix="--review",
+        parent_timestamp=root_dir.name,
+    )
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    assert not dependency_resolution_status(
+        index,
+        [],
+        wait_fork_sources=[
+            _family_fork_source(root_dir, name="monitor-lane"),
+        ],
+        self_artifact_dir=successor_dir,
+    ).resolved
 
 
 def test_failed_monitor_handoff_reports_failed_successor_not_monitor(

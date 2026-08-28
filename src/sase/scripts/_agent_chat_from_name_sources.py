@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import replace
+import os
 from pathlib import Path
 
 from sase.agent.names import (
@@ -155,17 +156,27 @@ def _resolve_fork_source(name: str) -> ForkSource:
 
     clan = find_agent_clan(name)
     if clan is not None:
-        if not clan.is_complete:
+        current = _current_artifacts_dir()
+        clan_members_for_fork = tuple(
+            member
+            for member in clan.members
+            if not _same_artifacts_dir(member.artifacts_dir, current)
+        )
+        if not clan_members_for_fork:
+            raise RuntimeError(f"No agent with chat history found for: {name}")
+        if not all(
+            is_success_outcome(member.outcome) for member in clan_members_for_fork
+        ):
             done_count = sum(
-                is_success_outcome(member.outcome) for member in clan.members
+                is_success_outcome(member.outcome) for member in clan_members_for_fork
             )
             raise RuntimeError(
                 f"Clan '{name}' is not complete: "
-                f"{done_count}/{len(clan.members)} members done"
+                f"{done_count}/{len(clan_members_for_fork)} members done"
             )
 
         clan_members: list[ForkClanMemberSource] = []
-        for member in clan.members:
+        for member in clan_members_for_fork:
             path = completed_response_path(
                 member.name,
                 member.artifacts_dir,
@@ -194,9 +205,12 @@ def _resolve_fork_source(name: str) -> ForkSource:
 
     family = find_agent_family(name)
     if family is not None:
+        current = _current_artifacts_dir()
         family_members: list[ForkFamilyMemberSource] = []
         excluded: list[ForkExcludedFamilyMember] = []
         for family_member in family.members:
+            if _same_artifacts_dir(family_member.artifacts_dir, current):
+                continue
             resolved = resolve_family_member_shell(family_member)
             if isinstance(resolved, ForkExcludedFamilyMember):
                 excluded.append(resolved)
@@ -215,6 +229,20 @@ def _resolve_fork_source(name: str) -> ForkSource:
         )
 
     return _resolve_agent_or_proc_fork_source(name)
+
+
+def _current_artifacts_dir() -> Path | None:
+    current_artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not current_artifacts_dir:
+        return None
+    return Path(current_artifacts_dir).expanduser().resolve(strict=False)
+
+
+def _same_artifacts_dir(artifacts_dir: Path, current: Path | None) -> bool:
+    return (
+        current is not None
+        and artifacts_dir.expanduser().resolve(strict=False) == current
+    )
 
 
 def _resolve_agent_or_proc_fork_source(name: str) -> ForkSource:

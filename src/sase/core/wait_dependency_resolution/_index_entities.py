@@ -56,6 +56,7 @@ class WaitDependencyEntityQueries:
         *,
         exclude_artifact_dir: str | Path | None = None,
     ) -> WaitEntity | None:
+        extra_present_names = self._excluded_present_names(exclude_artifact_dir)
         family_agents = self._aggregate_candidates(
             self.families.get(name),
             exclude_artifact_dir=exclude_artifact_dir,
@@ -70,8 +71,10 @@ class WaitDependencyEntityQueries:
         if roots:
             root = max(roots, key=lambda candidate: candidate.timestamp)
             generation = tuple(self._family_generation(family_agents, root))
-            effective_generation = self._family_members_after_shell_handoffs(generation)
-            handoffs_present = self._family_shell_handoffs_have_successors(generation)
+            effective_generation, handoffs_present = self._family_handoff_state(
+                generation,
+                extra_present_names=extra_present_names,
+            )
             newest_timestamp = max(
                 (candidate.timestamp for candidate in generation),
                 default=root.timestamp,
@@ -86,11 +89,9 @@ class WaitDependencyEntityQueries:
                 members=effective_generation,
             )
 
-        effective_family_agents = self._family_members_after_shell_handoffs(
-            tuple(family_agents)
-        )
-        handoffs_present = self._family_shell_handoffs_have_successors(
-            tuple(family_agents)
+        effective_family_agents, handoffs_present = self._family_handoff_state(
+            tuple(family_agents),
+            extra_present_names=extra_present_names,
         )
         return WaitEntity(
             timestamp=max(candidate.timestamp for candidate in family_agents),
@@ -156,6 +157,25 @@ class WaitDependencyEntityQueries:
             members=members,
         )
 
+    def _excluded_member_name(
+        self,
+        exclude_artifact_dir: str | Path | None,
+    ) -> str | None:
+        """Return the agent name of the artifact excluded as the waiter itself."""
+        if exclude_artifact_dir is None:
+            return None
+        for candidate in self.artifacts_by_dir.values():
+            if same_artifact_dir(candidate.artifact_dir, exclude_artifact_dir):
+                return candidate.name or None
+        return None
+
+    def _excluded_present_names(
+        self,
+        exclude_artifact_dir: str | Path | None,
+    ) -> frozenset[str]:
+        excluded_name = self._excluded_member_name(exclude_artifact_dir)
+        return frozenset((excluded_name,)) if excluded_name is not None else frozenset()
+
     @staticmethod
     def _family_generation(
         candidates: list[ArtifactCandidate],
@@ -183,8 +203,12 @@ class WaitDependencyEntityQueries:
     @staticmethod
     def _family_members_after_shell_handoffs(
         candidates: tuple[ArtifactCandidate, ...],
+        *,
+        extra_present_names: frozenset[str] = frozenset(),
     ) -> tuple[ArtifactCandidate, ...]:
-        names_in_generation = {candidate.name for candidate in candidates}
+        names_in_generation = {
+            candidate.name for candidate in candidates
+        } | extra_present_names
         return tuple(
             candidate
             for candidate in candidates
@@ -194,12 +218,34 @@ class WaitDependencyEntityQueries:
     @staticmethod
     def _family_shell_handoffs_have_successors(
         candidates: tuple[ArtifactCandidate, ...],
+        *,
+        extra_present_names: frozenset[str] = frozenset(),
     ) -> bool:
-        names_in_generation = {candidate.name for candidate in candidates}
+        names_in_generation = {
+            candidate.name for candidate in candidates
+        } | extra_present_names
         return all(
             candidate.shell_followup_agent is None
             or candidate.shell_followup_agent in names_in_generation
             for candidate in candidates
+        )
+
+    @classmethod
+    def _family_handoff_state(
+        cls,
+        candidates: tuple[ArtifactCandidate, ...],
+        *,
+        extra_present_names: frozenset[str] = frozenset(),
+    ) -> tuple[tuple[ArtifactCandidate, ...], bool]:
+        return (
+            cls._family_members_after_shell_handoffs(
+                candidates,
+                extra_present_names=extra_present_names,
+            ),
+            cls._family_shell_handoffs_have_successors(
+                candidates,
+                extra_present_names=extra_present_names,
+            ),
         )
 
     @staticmethod

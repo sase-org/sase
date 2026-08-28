@@ -1391,6 +1391,11 @@ than successful work to trust. Because an already-failed parent can never satisf
 wait, SASE skips the normally implied `%wait:<agent>` for that fork target; an explicit
 `%wait:<agent>` you typed is still preserved.
 
+When a new agent forks a family it already belongs to, its own artifact does not count
+against the fork target's completeness. The implied wait still holds for any other live
+family member, because that member's transcript or execution record is not ready to
+inject yet.
+
 `#fork` also resolves a stand-alone proc shell (by its reusable shell name or its exact
 proc ID) and a monitor family member (by its `--mon`/`--mon-N` shell name or exact proc
 ID). Both are execution records, never a prior conversation: the injected block states

@@ -252,7 +252,9 @@ When `--next` is set and the monitor did not end in `stopped` or `lost`, one fol
 agent shell launches under the same agent family once the command finishes and the
 monitor settles. It receives:
 
-- the starter's full prior conversation, via `#fork`;
+- the starter's full prior conversation, via `#fork`; the follow-up joins the family it
+  forks and does not wait on or list itself, though it still waits for any other live
+  family member;
 - the original `--reason` and the `--next` instruction, verbatim, under its own heading;
 - a command-run breakdown: outcome, exit code, elapsed time vs. the timeout budget, and
   the selected output policy from `--next-output`;

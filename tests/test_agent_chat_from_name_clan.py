@@ -103,6 +103,71 @@ def test_incomplete_clan_is_rejected_as_a_fork_parent(
         _resolve_agent_chat_sources(["review"])
 
 
+def test_clan_source_omits_current_member_before_completeness_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    sibling_chat = tmp_path / "sibling.md"
+    sibling_dir = write_agent(
+        tmp_path,
+        "20260718010101",
+        "review.sibling",
+        done={"response_path": str(sibling_chat), "outcome": "completed"},
+        meta={
+            "agent_clan": "review",
+            "agent_clan_generation": "20260718010000",
+        },
+    )
+    current_dir = write_agent(
+        tmp_path,
+        "20260718010202",
+        "review.current",
+        meta={
+            "agent_clan": "review",
+            "agent_clan_generation": "20260718010000",
+        },
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
+
+    source = _resolve_agent_chat_sources(["review"])[0]
+
+    assert source.to_json_data() == {
+        "kind": "clan",
+        "name": "review",
+        "generation": "20260718010000",
+        "tribe": None,
+        "members": [
+            {
+                "name": "review.sibling",
+                "path": str(sibling_chat),
+                "artifact_dir": str(sibling_dir),
+            }
+        ],
+    }
+
+
+def test_clan_source_requires_a_non_current_member(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    current_dir = write_agent(
+        tmp_path,
+        "20260718010101",
+        "review.current",
+        done={"response_path": str(tmp_path / "current.md"), "outcome": "completed"},
+        meta={
+            "agent_clan": "review",
+            "agent_clan_generation": "20260718010000",
+        },
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
+
+    with pytest.raises(
+        RuntimeError, match="No agent with chat history found for: review"
+    ):
+        _resolve_agent_chat_sources(["review"])
+
+
 def test_clan_and_agent_sources_preserve_parent_order(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

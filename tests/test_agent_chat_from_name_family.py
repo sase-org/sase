@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.history.chat import build_fork_injected_history
 from sase.scripts.agent_chat_from_name import (
     _ForkFamilyMemberSource,
     _resolve_agent_chat_path,
@@ -191,6 +192,7 @@ def test_family_source_reports_running_tip_as_excluded(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
     planner_chat = tmp_path / "planner.md"
     write_agent(
         tmp_path,
@@ -213,6 +215,51 @@ def test_family_source_reports_running_tip_as_excluded(
         ("cx--code", "running")
     ]
     assert source.path == str(planner_chat)
+    rendered = build_fork_injected_history([source.to_json_data()])
+    assert "**Members shown:** 1 of 2 (sequential chain, oldest first)" in rendered
+    assert "**Not shown:** `cx--code` (running)" in rendered
+
+
+def test_family_source_omits_current_member_from_own_family_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    planner_chat = tmp_path / "planner.md"
+    planner_dir = write_agent(
+        tmp_path,
+        "20260718010101",
+        "cx--plan",
+        done={"response_path": str(planner_chat), "outcome": "completed"},
+        meta={"agent_family": "cx"},
+    )
+    current_dir = write_agent(
+        tmp_path,
+        "20260718010202",
+        "cx--code",
+        meta={"agent_family": "cx", "parent_timestamp": "20260718010101"},
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
+
+    source = _resolve_agent_chat_sources(["cx"])[0]
+
+    assert source.to_json_data() == {
+        "kind": "family",
+        "name": "cx",
+        "members": [
+            {
+                "kind": "agent",
+                "name": "cx--plan",
+                "path": str(planner_chat),
+                "artifact_dir": str(planner_dir),
+                "outcome": "completed",
+            }
+        ],
+        "excluded": [],
+    }
+    rendered = build_fork_injected_history([source.to_json_data()])
+    assert "**Members shown:** 1 of 1 (sequential chain, oldest first)" in rendered
+    assert "Not shown:" not in rendered
+    assert "`cx--code`" not in rendered
 
 
 def test_family_source_includes_failed_member_excludes_unavailable_transcripts(
