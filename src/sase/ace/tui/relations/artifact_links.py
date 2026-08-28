@@ -307,7 +307,6 @@ def _known_target_for_ref(
     if kind == "bead":
         return index.by_pane_last_part.get(("beads", payload))
     return index.by_pane_last_part.get((f"ref:{kind}", payload))
-    return None
 
 
 def _project_keys(project: str | None) -> tuple[str, ...]:
