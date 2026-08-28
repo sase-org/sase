@@ -69,14 +69,6 @@ into `AGENTS.md`, no matter what tier its web renders at.
 
 ## Memory Notes
 
-### `sase/memory/build_and_run.md`
-
-- Type: `core`
-- Description: No description set.
-- Parent: `AGENTS.md`
-- Lines: 54
-- Approx. tokens: 694
-
 ### `sase/memory/decisions.md`
 
 - Type: `core`
@@ -143,6 +135,19 @@ into `AGENTS.md`, no matter what tier its web renders at.
 - Parent: `AGENTS.md`
 - Lines: 70
 - Approx. tokens: 753
+
+### `sase/memory/lint_and_test.md`
+
+- Type: `reference`
+- Description: IMPORTANT: if you changed ANY file in the sase repo, you MUST read this
+  note before you finish your turn. Verification is not optional here and the lanes are
+  not interchangeable: this note covers the `just` command surface, the two-speed rule
+  that makes `just check` the agent default and `just check-full` a monitor-only landing
+  gate, the `just install` prerequisite for ephemeral workspace clones, and the PNG
+  snapshot suite.
+- Parent: `AGENTS.md`
+- Lines: 66
+- Approx. tokens: 878
 
 ### `sase/memory/sase_artifacts.md`
 
@@ -214,10 +219,10 @@ into `AGENTS.md`, no matter what tier its web renders at.
 ## Statistics
 
 - Total notes: 16
-- Core notes: 7
-- Reference notes: 9
-- Total lines: 1080
-- Total approx. tokens: 13683
+- Core notes: 6
+- Reference notes: 10
+- Total lines: 1092
+- Total approx. tokens: 13867
 
 ## Commands
 

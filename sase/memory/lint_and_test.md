@@ -1,14 +1,21 @@
 ---
-type: core
+type: reference
 parent: AGENTS.md
+description: |-
+  IMPORTANT: if you changed ANY file in the sase repo, you MUST read this note before
+  you finish your turn. Verification is not optional here and the lanes are not
+  interchangeable: this note covers the `just` command surface, the two-speed rule that
+  makes `just check` the agent default and `just check-full` a monitor-only landing
+  gate, the `just install` prerequisite for ephemeral workspace clones, and the PNG
+  snapshot suite.
 ---
 
-# Build & Run Commands
+# Linting And Testing
 
 ```bash
 just install       # Install in editable mode with dev deps
-just lint          # ruff check + mypy
-just fmt           # Auto-format code
+just fmt           # Auto-format Python + Markdown
+just lint          # Every whole-repo lint gate (ruff, mypy, symvision, toobig, ...)
 just check         # Agent default: whole-repo lint gates + a diff-scoped
                    # test lane that never queues behind another agent's run
 just check-full    # Exhaustive verification: every lint gate + the full
@@ -18,7 +25,7 @@ just test-cov      # pytest with coverage + 50% gate (used by CI); also
                    # excludes the visual snapshot suite
 ```
 
-## IMPORTANT: Two-Speed Verification — Run `just check` if you Made File Changes
+## Two-Speed Verification: Run `just check` If You Changed Files
 
 If you made file changes in this repo (the sase repo), make sure to run the `just check`
 command before terminating / replying to the user.
@@ -37,12 +44,17 @@ landing an epic's combined tree, when the change touches the broadening set, or 
 `just check-full` routinely outruns a single agent turn, so run it **only** through your
 `/sase_monitor` skill, never inline, using the `TESTING` / `TESTED` status pair.
 `just check` may be run inline, but hand it to a monitor the same way whenever it is
-taking a long time.
+taking a long time. `sase memory read decisions:two-speed-verification` has the host
+capacity measurements that make this rule non-negotiable.
 
-**IMPORTANT**: One consequence of sase's ephemeral workspace directories (see the
-sase.md file in this directory) is that you MAY need to run `just install` before
-running other commands like `just check` (since it is possible we haven't used this
-workspace directory in a long time and package dependencies may have changed).
+**IMPORTANT**: SASE agents run from ephemeral `sase_<N>` workspace clones that each own
+an isolated virtualenv, so you MAY need to run `just install` before `just check` — this
+workspace may have sat unused while pinned dependencies changed.
+
+## Gate-Specific Help
+
+`sase memory read symvision.md` covers the `symvision` unused/misused-symbol gate, whose
+failures are the ones least often fixed correctly by deleting the reported symbol.
 
 ## PNG Snapshot Tests
 

@@ -93,57 +93,7 @@ resubmit before returning when possible. Only a successfully executed plan, moni
 pipe, or questions handoff is exempt, because those commands terminate the runner
 mechanically. Intending to resume later is not an exemption.
 
-### 1.2 Build & Run Commands (build_and_run)
-
-```bash
-just install       # Install in editable mode with dev deps
-just lint          # ruff check + mypy
-just fmt           # Auto-format code
-just check         # Agent default: whole-repo lint gates + a diff-scoped
-                   # test lane that never queues behind another agent's run
-just check-full    # Exhaustive verification: every lint gate + the full
-                   # test suite; run before landing and in CI
-just test          # Fast parallel pytest run (excludes PNG visual snapshots)
-just test-cov      # pytest with coverage + 50% gate (used by CI); also
-                   # excludes the visual snapshot suite
-```
-
-#### 1.2.1 IMPORTANT: Two-Speed Verification — Run `just check` if you Made File Changes
-
-If you made file changes in this repo (the sase repo), make sure to run the `just check`
-command before terminating / replying to the user.
-
-`just check` runs every whole-repo lint gate plus a diff-scoped test lane
-(`just test-scoped`) that selects tests via a static import-graph closure. The scoped
-run is serial unless a middle gear wins it a small, bounded suite-gate lease, and it
-never queues behind other agents' runs either way. Selection is a heuristic backstopped
-by CI: `tools/select_tests --explain` shows why a test was or was not chosen, and
-`just selection-health` shows whether the heuristic has ever been wrong.
-
-Run `just check-full` instead — every lint gate plus the full test suite — before
-landing an epic's combined tree, when the change touches the broadening set, or any time
-`just check`'s scoped run escalated or reported an unusual selection.
-
-`just check-full` routinely outruns a single agent turn, so run it **only** through your
-`/sase_monitor` skill, never inline, using the `TESTING` / `TESTED` status pair.
-`just check` may be run inline, but hand it to a monitor the same way whenever it is
-taking a long time.
-
-**IMPORTANT**: One consequence of sase's ephemeral workspace directories (see the
-sase.md file in this directory) is that you MAY need to run `just install` before
-running other commands like `just check` (since it is possible we haven't used this
-workspace directory in a long time and package dependencies may have changed).
-
-#### 1.2.2 PNG Snapshot Tests
-
-Run `just test-visual` for the dedicated ACE PNG snapshot suite; goldens live in
-`tests/ace/tui/visual/snapshots/png/`. On failures, inspect `.pytest_cache/sase-visual/`
-for actual/expected/diff/source artifacts, and use `--sase-update-visual-snapshots` to
-accept intentional visual changes. Local runs use exact pixel equality by default, while
-CI allows a small ratio-only renderer drift tolerance; the visual fixtures pin color and
-fontconfig/Fira Code to keep rendering deterministic.
-
-### 1.3 Decisions (decisions)
+### 1.2 Decisions (decisions)
 
 A decision record is not a design doc or a subsystem overview — those go stale as the
 code changes underneath them. A record is immutable once accepted: if the project
@@ -171,7 +121,7 @@ reopen it.
   default and just check-full gates landing, because host capacity is the constraint,
   not test speed.
 
-### 1.4 Glossary Terms (glossary)
+### 1.3 Glossary Terms (glossary)
 
 Run `sase memory read glossary:<term> [<term> ...] -r "<why>"` before relying on any of
 these SASE terms; it prints each term's definition plus every term those definitions
@@ -190,13 +140,13 @@ Node (node); Sase Project; Sase Repo; Sase Shell (shell); Sase Workspace (worksp
 Stitch; Strand Keyword; Task Type (task type); Xprompt; Xprompt Memory (memory file,
 sase memory); Xprompt Part; Xprompt Swarm; Xprompt Workflow
 
-### 1.5 Code Conventions and Gotchas (gotchas)
+### 1.4 Code Conventions and Gotchas (gotchas)
 
 **Default Keymap Config**  
 When changing keymaps, leader mode keys, or any configuration values, don't forget to
 update the keymap configuration in the `src/sase/default_config.yml` file if necessary.
 
-### 1.6 Rust Core Backend Boundary (rust_core_backend_boundary)
+### 1.5 Rust Core Backend Boundary (rust_core_backend_boundary)
 
 Shared backend and domain behavior belongs in the sibling Rust core repo at
 `../sase-core/crates/sase_core`. Python and TUI code in this repo should call through
@@ -210,7 +160,7 @@ Presentation-only Textual state, keybindings, layout, widget rendering, and Pyth
 can stay in this repo. When a change crosses the boundary, update the Rust wire/API,
 bindings, and tests in `../sase-core`, then update the Python callers or adapters here.
 
-### 1.7 Task Bead Types (task_types)
+### 1.6 Task Bead Types (task_types)
 
 Every task bead can carry a `task_type` drawn from this project's catalog.
 `sase bead task-type list` always shows the live catalog; read
@@ -225,7 +175,7 @@ note is the generated, always-current snapshot of the agent-creatable types belo
 - **Flaky test** (`flake`) - A test that fails and then passes on an unchanged tree.
 - **Memory** (`memory`) - A sase memory note or skill that is out of date.
 
-#### 1.7.1 File Discovered Work As Task Beads
+#### 1.6.1 File Discovered Work As Task Beads
 
 Unless your prompt explicitly forbids creating beads (epic phase workers, for example,
 must record `PROPOSED FOLLOW-UP:` notes on their own bead instead), you can and SHOULD
@@ -264,34 +214,43 @@ Read when working with sase agent skills (aka xprompt skills), which are generat
 source templates in the `src/sase/xprompts/skills/` and deployed to managed locations
 (my chezmoi repo, for example).
 
-### 2.3 `sase/memory/sase_artifacts.md`
+### 2.3 `sase/memory/lint_and_test.md`
+
+IMPORTANT: if you changed ANY file in the sase repo, you MUST read this note before you
+finish your turn. Verification is not optional here and the lanes are not
+interchangeable: this note covers the `just` command surface, the two-speed rule that
+makes `just check` the agent default and `just check-full` a monitor-only landing gate,
+the `just install` prerequisite for ephemeral workspace clones, and the PNG snapshot
+suite.
+
+### 2.4 `sase/memory/sase_artifacts.md`
 
 Read before creating, consuming, resolving, linking, or managing retention for SASE
 artifact references and indexed files.
 
-### 2.4 `sase/memory/sase_beads.md`
+### 2.5 `sase/memory/sase_beads.md`
 
 Read before creating, updating, closing, or querying sase beads — bead types and tiers,
 the status lifecycle agents must never hand-edit, task-bead triage, phase-bead
 description prefixes, and non-cascading close, resolution, and note semantics.
 
-### 2.5 `sase/memory/sase_flags.md`
+### 2.6 `sase/memory/sase_flags.md`
 
 Read before adding, deferring, or removing a SASE feature flag or flag bead, and before
 deprecating user-reaching behavior or landing code whose old branch must stay reachable
 for backward compatibility.
 
-### 2.6 `sase/memory/symvision.md`
+### 2.7 `sase/memory/symvision.md`
 
 Read before fixing Symvision lint failures, including unused symbols, private misuse,
 pragmas, and epic whitelists.
 
-### 2.7 `sase/memory/tui_perf.md`
+### 2.8 `sase/memory/tui_perf.md`
 
 Read before changing anything that affects TUI performance or responsiveness
 (navigation, refresh, rendering, startup), and before diagnosing TUI freezes or stalls.
 
-### 2.8 `sase/memory/xprompts.md`
+### 2.9 `sase/memory/xprompts.md`
 
 Read before xprompts, prompt directives, or launching agents with git/gh VCS workflow
 blocks.
