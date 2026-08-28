@@ -11,6 +11,7 @@ from tests._models_panel_helpers import (
     make_alias_view,
     make_worker_bucket_views,
     patch_alias_views,
+    wait_for_snapshot_idle,
 )
 
 
@@ -93,7 +94,7 @@ async def test_panel_navigation_skips_headers_and_empty_hint_with_wrap(
 
         views[:] = [make_alias_view("large", "role")]
         panel._refresh_rows(keep="large")
-        await pilot.pause()
+        await wait_for_snapshot_idle(pilot, panel)
         assert (
             option_list.get_option_at_index(option_list.option_count - 1).disabled
             is True

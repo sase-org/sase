@@ -246,6 +246,17 @@ async def wait_for(
     await wait_for_pilot(pilot, predicate, timeout=timeout)
 
 
+async def wait_for_snapshot_idle(
+    pilot: Any, panel: ModelsPanel, *, timeout: float = 5.0
+) -> None:
+    """Wait until a `_refresh_rows` provider-snapshot worker has applied."""
+    await wait_for(
+        pilot,
+        lambda: panel._provider_snapshot_worker is None,
+        timeout=timeout,
+    )
+
+
 def highlight_row(panel: ModelsPanel, row_id: str) -> None:
     """Move the mounted panel's highlight to ``row_id`` and refresh its context."""
     option_list = panel.query_one("#models-panel-list", OptionList)

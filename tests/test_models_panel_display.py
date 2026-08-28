@@ -12,6 +12,7 @@ from tests._models_panel_helpers import (
     make_alias_view,
     make_override,
     patch_alias_views,
+    wait_for_snapshot_idle,
 )
 
 
@@ -95,7 +96,7 @@ async def test_panel_warns_once_and_keeps_alias_warning_through_refresh(
         assert "llm_provider.model_aliases.builtin" in description
 
         panel._refresh_rows(keep="small")
-        await pilot.pause()
+        await wait_for_snapshot_idle(pilot, panel)
         alias_index = option_list.get_option_index("small")
         assert option_list.get_option_at_index(alias_index).prompt.plain.startswith(
             "  ! small"
@@ -113,7 +114,7 @@ async def test_panel_warns_once_and_keeps_alias_warning_through_refresh(
             ),
         ]
         panel._refresh_rows(keep="small")
-        await pilot.pause()
+        await wait_for_snapshot_idle(pilot, panel)
         repaired_alias_index = option_list.get_option_index("small")
         repaired_alias_row = option_list.get_option_at_index(
             repaired_alias_index

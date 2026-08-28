@@ -25,6 +25,7 @@ from tests._models_panel_helpers import (
     make_bucketed_views,
     patch_alias_views,
     wait_for,
+    wait_for_snapshot_idle,
 )
 
 
@@ -189,7 +190,7 @@ async def test_refresh_auto_leaves_bucket_when_last_member_disappears(
 
         views[:] = [view for view in views if view.bucket != "research"]
         panel._refresh_rows(keep="research_a")
-        await pilot.pause()
+        await wait_for_snapshot_idle(pilot, panel)
 
         assert panel._active_bucket is None
         assert panel.query_one("#models-panel-title", Static).content.plain == (
@@ -228,7 +229,7 @@ async def test_panel_mixed_bucket_sections_title_and_restore(monkeypatch) -> Non
         )
 
         panel._refresh_rows(keep="phase_reviewer")
-        await pilot.pause()
+        await wait_for_snapshot_idle(pilot, panel)
         assert panel._highlighted_row_id() == "phase_reviewer"
 
         await pilot.press("h")
