@@ -1,9 +1,9 @@
 """Contract tests for the scheduled/per-SHA workflows layered on top of ci.yml.
 
-Split out of ``test_github_actions_ci.py`` (which stayed under the toobig
-line limit for ``ci.yml`` and ``publish.yml`` alone) once master-gate.yml,
-full.yml, and core-pin-ratchet.yml grew their own sections. Shared workflow
-loaders live in ``tests/_github_actions_ci_helpers.py``.
+Companion to ``test_github_actions_ci_workflow.py``; master-gate.yml,
+full.yml, and core-pin-ratchet.yml live here because they have their own
+trigger and reuse contracts. Shared workflow loaders live in
+``tests/_github_actions_ci_helpers.py``.
 """
 
 from __future__ import annotations

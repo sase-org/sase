@@ -106,9 +106,9 @@ jobs:
           if-no-files-found: error
 
   # Byte-for-byte the same steps as ci.yml's lint job -- policed by
-  # tests/test_github_actions_ci.py -- so this gate's lint signal cannot drift
-  # from PR CI's. Only the job-level needs/timeout differ, because this gate's
-  # core artifact comes from `core-wheel`, not `build-core`.
+  # tests/test_github_actions_ci_master_gate.py -- so this gate's lint signal
+  # cannot drift from PR CI's. Only the job-level needs/timeout differ, because
+  # this gate's core artifact comes from `core-wheel`, not `build-core`.
   lint:
     needs: core-wheel
     runs-on: ubuntu-latest

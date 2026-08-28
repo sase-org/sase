@@ -1,9 +1,8 @@
-"""Shared workflow-loading helpers for the GitHub Actions CI contract tests.
+"""Shared helpers for the GitHub Actions workflow/action contract tests.
 
 Not itself a test module (leading underscore keeps pytest from collecting
-it); ``test_github_actions_ci.py`` and ``test_github_actions_ci_master_gate.py``
-both import from here so the two files agree on how a workflow YAML file is
-parsed and inspected.
+it); the GitHub Actions contract modules import from here so they agree on how
+workflow YAML and composite actions are parsed and inspected.
 """
 
 from __future__ import annotations
@@ -16,6 +15,18 @@ import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Jobs that run source lanes against the Rust artifacts `build-core` built from
+# sase-core master rather than against published or stale local artifacts.
+CORE_ARTIFACT_CONSUMER_JOBS = (
+    "lint",
+    "test",
+    "coverage-contexts",
+    "visual-test",
+    "ace-page-group-isolation",
+    "contention-test",
+    "perf-floors",
+)
 
 
 def _load_ci_workflow() -> dict[str, Any]:

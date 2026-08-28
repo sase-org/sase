@@ -658,10 +658,10 @@ by more than 10% of their mean — every failure points back at
 `just refresh-shard-timings`.
 
 The master gate's `lint` job is kept byte-for-byte identical to `ci.yml`'s own `lint`
-job steps (a contract test in `tests/test_github_actions_ci.py` polices the equality),
-so this gate's lint signal cannot drift from what PR CI already promises. It does not
-run the diff-scoped lane, coverage, cost, slow, coverage-contexts, or visual lanes —
-those stay on `ci.yml`'s own jobs and schedule.
+job steps (a contract test in `tests/test_github_actions_ci_master_gate.py` polices the
+equality), so this gate's lint signal cannot drift from what PR CI already promises. It
+does not run the diff-scoped lane, coverage, cost, slow, coverage-contexts, or visual
+lanes — those stay on `ci.yml`'s own jobs and schedule.
 
 ### Reproducing Timing Flakes (`just test-contention`)
 

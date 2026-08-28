@@ -151,8 +151,15 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # the only thing that would catch a regression in it. The whole 60-entry set measured
 # 31.85 s under the command above on this host; the next candidate should displace an
 # entry rather than add one.
-_MANIFEST_ENTRY_BUDGET = 60
-_MEASURED_SERIAL_COST = "31.85 serial seconds across 60 entries"
+#
+# Re-curated to 62 on 2026-08-28 when `test_github_actions_ci.py` split into
+# `test_github_actions_ci_workflow.py`, `test_github_actions_publish.py`, and
+# `test_github_actions_setup_sase.py`. The two added entries redistribute the
+# same checked-in workflow/action YAML guards rather than expanding behavioral
+# coverage. The whole 62-entry set measured 32.14 s under the command above on
+# this host; the next candidate should displace an entry rather than add one.
+_MANIFEST_ENTRY_BUDGET = 62
+_MEASURED_SERIAL_COST = "32.14 serial seconds across 62 entries"
 
 
 def _load_refresh_tool() -> ModuleType:
