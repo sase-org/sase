@@ -35,12 +35,15 @@ class EventCountdownMixin(EventHandlersBase):
             self._update_info_panel()  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
             # The cosmetic countdown/runtime repaint and STARTING-marker poll
-            # are not urgent enough to contend with a j/k burst. In
-            # particular, patching every live row on the one-second boundary
-            # produces a periodic key-to-paint outlier on populated lists.
-            # The next tick catches all three surfaces up once navigation is
-            # quiet; the logical countdown still advances above.
-            if not self._nav_gate.is_navigating(now_mono=now_mono):
+            # are not urgent enough to contend with a j/k burst or prompt
+            # typing. In particular, patching every live row on the one-second
+            # boundary produces a periodic key-to-paint outlier on populated
+            # lists. The next tick catches all three surfaces up once activity
+            # is quiet; the logical countdown still advances above.
+            if (
+                not self._nav_gate.is_navigating(now_mono=now_mono)
+                and not self._prompt_input_active()
+            ):
                 self._update_agents_info_panel()  # type: ignore[attr-defined]
                 self._patch_agent_runtime_rows()  # type: ignore[attr-defined]
                 self._poll_starting_agent_transitions()  # type: ignore[attr-defined]

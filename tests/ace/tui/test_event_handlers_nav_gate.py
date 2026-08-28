@@ -10,6 +10,7 @@ import pytest
 
 from sase.ace.tui.actions.event_handlers import EventHandlersMixin
 from sase.ace.tui.util.nav_gate import NavigationGate
+from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
 
 class _FakeApp(EventHandlersMixin):
@@ -26,9 +27,16 @@ class _FakeApp(EventHandlersMixin):
         self._countdown_remaining = 10
         self._agents_loading = False
         self.current_tab = "agents"
+        self._prompt_editor_suspended = False
+        self._mounted_prompt_bar = False
         self.deferred_calls: list[tuple[float, Callable[[], Any]]] = []
         self.refresh_calls: list[str] = []
         self.countdown_calls: list[str] = []
+
+    def query(self, selector: type[PromptInputBar]) -> list[PromptInputBar]:
+        if selector is PromptInputBar and self._mounted_prompt_bar:
+            return [PromptInputBar()]
+        return []
 
     def set_timer(self, delay: float, callback: Callable[[], Any]) -> None:
         self.deferred_calls.append((delay, callback))
@@ -73,6 +81,26 @@ def test_record_jk_navigation_arms_gate() -> None:
 def test_countdown_tick_defers_agent_work_while_navigating() -> None:
     app = _FakeApp()
     app._record_jk_navigation()
+
+    app._on_countdown_tick()
+
+    assert app._countdown_remaining == 9
+    assert app.countdown_calls == []
+
+
+def test_countdown_tick_defers_agent_work_while_prompt_bar_mounted() -> None:
+    app = _FakeApp()
+    app._mounted_prompt_bar = True
+
+    app._on_countdown_tick()
+
+    assert app._countdown_remaining == 9
+    assert app.countdown_calls == []
+
+
+def test_countdown_tick_defers_agent_work_while_prompt_editor_suspended() -> None:
+    app = _FakeApp()
+    app._prompt_editor_suspended = True
 
     app._on_countdown_tick()
 
