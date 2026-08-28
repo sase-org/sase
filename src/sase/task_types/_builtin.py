@@ -153,8 +153,7 @@ def _feature_spec() -> dict[str, Any]:
         "task_type": "feature",
         "label": "Feature",
         "summary": (
-            "An out-of-scope product or tooling idea that should not become a "
-            "wish list."
+            "An out-of-scope product or tooling idea that should not become a wish list."
         ),
         "when_to_use": (
             "File one when you discovered a product or capability idea that "
