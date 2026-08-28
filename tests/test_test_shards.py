@@ -18,6 +18,7 @@ from typing import Any
 import pytest
 
 from tests._test_shards import (
+    DEFAULT_SHARD_COUNT,
     DEFAULT_TIMINGS_PATH,
     FALLBACK_DURATION,
     ShardError,
@@ -48,9 +49,9 @@ def _table(**durations: float) -> ShardTimingTable:
     ("value", "expected"),
     [
         ("1/1", ShardSpec(index=1, count=1)),
-        ("1/6", ShardSpec(index=1, count=6)),
-        ("6/6", ShardSpec(index=6, count=6)),
-        ("3/6", ShardSpec(index=3, count=6)),
+        ("1/8", ShardSpec(index=1, count=8)),
+        ("8/8", ShardSpec(index=8, count=8)),
+        ("3/8", ShardSpec(index=3, count=8)),
     ],
 )
 def test_parse_shard_spec_accepts_1_based_index_and_count(
@@ -66,7 +67,7 @@ def test_parse_shard_spec_accepts_1_based_index_and_count(
         "1",
         "1/6/2",
         "0/6",
-        "7/6",
+        "9/8",
         "1/0",
         "-1/6",
         "1/-6",
@@ -240,16 +241,16 @@ def test_committed_table_loads_and_is_nonempty() -> None:
     assert not table.empty
 
 
-def test_committed_table_balances_six_shards_within_ten_percent() -> None:
+def test_committed_table_balances_default_shards_within_ten_percent() -> None:
     files = discover_test_files(REPO_ROOT)
     table = load_shard_timings(REPO_ROOT / DEFAULT_TIMINGS_PATH)
-    bins = assign_shards(files, 6, table)
+    bins = assign_shards(files, DEFAULT_SHARD_COUNT, table)
     totals = [shard_bin.estimated_seconds for shard_bin in bins]
     mean = sum(totals) / len(totals)
     spread = max(totals) - min(totals)
     assert spread <= 0.10 * mean, (
-        f"six shards are unbalanced by {spread:.1f}s against a {mean:.1f}s mean "
-        "(run `just refresh-shard-timings`)"
+        f"{DEFAULT_SHARD_COUNT} shards are unbalanced by {spread:.1f}s against "
+        f"a {mean:.1f}s mean (run `just refresh-shard-timings`)"
     )
 
 

@@ -1,0 +1,91 @@
+name: Shard Timings Ratchet
+
+# Copies Full CI's published per-file duration table into tests/shard_timings.json
+# when the proposed table would change the master gate's shard assignment, or
+# when the committed table is older than 14 days. Runs on a schedule rather
+# than on push, so this workflow itself can never redden a commit's gate; the
+# opened PR runs the normal per-ref CI before merge.
+on:
+  schedule:
+    - cron: '43 4 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: shard-timings-ratchet
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ratchet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.SASE_RELEASE_TOKEN }}
+      - name: Refresh shard timings from the latest Full CI artifact
+        env:
+          GH_TOKEN: ${{ secrets.SASE_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          run_id="$(
+            gh run list \
+              --workflow=full.yml \
+              --branch=master \
+              --limit 20 \
+              --json databaseId,conclusion \
+              --jq '[.[] | select(.conclusion=="success")][0].databaseId // empty'
+          )"
+          if [[ -z "$run_id" ]]; then
+            echo "No successful Full CI run yet; nothing to ratchet."
+            exit 0
+          fi
+
+          tmp="$(mktemp -d)"
+          if ! gh run download "$run_id" --name shard-timings --dir "$tmp"; then
+            echo "Full CI run ${run_id} has no shard-timings artifact yet."
+            exit 0
+          fi
+          payload="$(find "$tmp" -name 'shard_timings.json' -print | head -n 1)"
+          if [[ -z "$payload" ]]; then
+            echo "Downloaded artifact did not contain shard_timings.json."
+            exit 0
+          fi
+
+          status=0
+          python3 tools/refresh_shard_timings \
+            --from-payload "$payload" \
+            --check \
+            --assignment \
+            --max-age 14 || status=$?
+          if [[ "$status" -eq 0 ]]; then
+            echo "tests/shard_timings.json already matches Full CI run ${run_id}."
+            exit 0
+          fi
+
+          python3 tools/refresh_shard_timings --from-payload "$payload"
+          if git diff --quiet -- tests/shard_timings.json; then
+            echo "Proposed table did not change tests/shard_timings.json."
+            exit 0
+          fi
+
+          stamp="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["generated_at"][:10])' "$payload")"
+          branch="shard-timings-ratchet-${stamp}"
+          if gh api "repos/${{ github.repository }}/branches/${branch}" > /dev/null 2>&1; then
+            echo "branch ${branch} already exists; a refresh is already proposed."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add tests/shard_timings.json
+          git commit -m "chore(ci): refresh master-gate shard timings from Full CI"
+          git push origin "$branch"
+          gh pr create \
+            --title "chore(ci): refresh master-gate shard timings from Full CI" \
+            --body "Automated ratchet: \`tests/shard_timings.json\` now tracks the per-file duration table Full CI published on run [\`${run_id}\`](https://github.com/${{ github.repository }}/actions/runs/${run_id}). The master gate's eight-shard split is what this file balances; merge after PR CI is green." \
+            --base master \
+            --head "$branch"

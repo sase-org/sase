@@ -11,6 +11,7 @@ from tests._github_actions_ci_helpers import _job_run_text
 from tests._github_actions_ci_helpers import _load_ci_workflow
 from tests._github_actions_ci_helpers import _workflow_triggers
 from tests._test_selection_contexts import ARTIFACT_PREFIX
+from tests._test_shards import SHARD_TIMINGS_ARTIFACT_NAME
 
 
 pytestmark = pytest.mark.contract
@@ -267,6 +268,38 @@ def test_test_job_only_collects_coverage_on_3_12_leg() -> None:
         if step.get("name") == "Run tests" and step.get("run") == "just test"
     )
     assert plain_step["if"] == "matrix.python-version == '3.14'"
+
+
+def test_test_job_publishes_shard_timings_from_the_master_fast_leg() -> None:
+    """The master gate's balance table has to come from CI, not a laptop.
+
+    Full CI's 3.14 `just test` leg is the same command the gate shards, so its
+    per-file recordings are the right source. Master-only because a per-PR
+    table would jitter the split on every push; `always()` so a red suite
+    still publishes whatever it measured.
+    """
+    steps = _load_ci_workflow()["jobs"]["test"]["steps"]
+    master_fast = (
+        "always() && matrix.python-version == '3.14' "
+        "&& github.ref == 'refs/heads/master'"
+    )
+
+    build_step = next(
+        step for step in steps if step.get("name") == "Build shard timings table"
+    )
+    assert build_step["if"] == master_fast
+    assert "tools/refresh_shard_timings" in build_step["run"]
+    assert "--output" in build_step["run"]
+
+    upload_step = next(
+        step for step in steps if step.get("name") == "Upload shard timings"
+    )
+    assert upload_step["if"] == master_fast
+    assert upload_step["uses"] == "actions/upload-artifact@v4"
+    assert upload_step["with"]["name"] == SHARD_TIMINGS_ARTIFACT_NAME
+    assert upload_step["with"]["path"] == (
+        "${{ runner.temp }}/shard-timings/shard_timings.json"
+    )
 
 
 def test_contexts_job_publishes_the_per_test_database_on_master_only() -> None:

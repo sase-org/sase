@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 env:
-  SHARD_COUNT: 6
+  SHARD_COUNT: 8
 
 # Every job carries a timeout-minutes ceiling no greater than 20 minutes: a
 # wedged job here must not hold a runner slot past what a bounded, per-SHA
@@ -164,7 +164,7 @@ jobs:
       - name: Build and verify package
         run: just build-check
 
-  # Six deterministic shards of the whole non-visual fast suite, balanced by
+  # Eight deterministic shards of the whole non-visual fast suite, balanced by
   # the committed tests/shard_timings.json. No scoped, coverage, cost, slow,
   # contexts, or visual lane runs here -- those stay on the scheduled Full CI
   # lane; this gate exists to bound and attribute the fast suite per SHA.
@@ -175,9 +175,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v4
+      # install-visual: `just test` still depends on `_setup-visual` because the
+      # visual conftest imports Pillow at collection and a handful of fast-suite
+      # tests import PIL. Switching this recipe without changing `just test`
+      # would just reinstall the visual extra during `_setup-visual`.
       - name: Install visual dependencies
         uses: ./.github/actions/setup-sase
         with:

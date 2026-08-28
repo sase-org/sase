@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Refresh the committed whole-suite shard timing table.
 
-``tests/shard_timings.json`` is what lets the master gate's six shards start
+``tests/shard_timings.json`` is what lets the master gate's shards start
 balanced on a CI runner that has never run this suite before: the host-local
 per-test-file duration store :mod:`tests._test_selection_timings` reads
 cannot travel with a checkout, so the slowest files' durations are folded
@@ -10,6 +10,14 @@ retained individually; the rest are summarized by one ``default_duration``
 so the file stays small while an unmeasured — or newly added — test file
 still gets a sane, non-zero estimate. See ``tests/_test_shards.py`` for how
 the table is consumed.
+
+Two freshness paths keep the table from silently decaying:
+
+* Local recordings, via ``just refresh-shard-timings`` (and ``--check``).
+* Full CI's 3.14 fast leg publishes the same payload as the ``shard-timings``
+  artifact; ``shard-timings-ratchet.yml`` copies it into the tree when the
+  assignment would actually change, or when the committed table is older
+  than ``--max-age``.
 """
 
 from __future__ import annotations
@@ -17,7 +25,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import UTC, datetime
+from collections.abc import Mapping
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -33,9 +42,11 @@ from tests._test_selection_timings import (  # noqa: E402
     timings_directory,
 )
 from tests._test_shards import (  # noqa: E402
+    DEFAULT_SHARD_COUNT,
     DEFAULT_TIMINGS_PATH,
     FALLBACK_DURATION,
     SHARD_TIMINGS_SCHEMA,
+    ShardError,
     ShardSpec,
     ShardTimingTable,
     assign_shards,
@@ -45,6 +56,7 @@ from tests._test_shards import (  # noqa: E402
 
 
 DEFAULT_LIMIT = 800
+DEFAULT_MAX_AGE_DAYS = 14
 TIMINGS_PATH = REPO_ROOT / DEFAULT_TIMINGS_PATH
 
 
@@ -56,12 +68,79 @@ def _default_source_directory() -> Path:
     return timings_directory(store_directory(REPO_ROOT))
 
 
+def table_from_payload(payload: Mapping[str, Any]) -> ShardTimingTable:
+    """The assignment table a committed (or proposed) payload describes."""
+    raw_durations = payload.get("durations")
+    durations: dict[str, float] = {}
+    if isinstance(raw_durations, dict):
+        for file_path, seconds in raw_durations.items():
+            try:
+                durations[str(file_path)] = float(seconds)
+            except (TypeError, ValueError):
+                continue
+    try:
+        default_duration = float(payload.get("default_duration", FALLBACK_DURATION))
+    except (TypeError, ValueError):
+        default_duration = FALLBACK_DURATION
+    return ShardTimingTable(default_duration=default_duration, durations=durations)
+
+
+def assignment_signature(
+    payload: Mapping[str, Any],
+    count: int,
+    *,
+    repo_root: Path | None = None,
+) -> tuple[tuple[str, ...], ...]:
+    """Per-shard file tuples for ``count`` bins, from current discovery.
+
+    Two payloads that would send the same files to the same shards produce
+    the same signature even when individual durations jitter, so a freshness
+    check can ignore noise that would not change the gate's split.
+    """
+    files = discover_test_files(repo_root or REPO_ROOT)
+    bins = assign_shards(files, count, table_from_payload(payload))
+    return tuple(shard_bin.files for shard_bin in bins)
+
+
+def generated_at_age(
+    payload: Mapping[str, Any], *, now: datetime | None = None
+) -> timedelta | None:
+    """Age of ``generated_at``, or ``None`` when the stamp is missing/unusable."""
+    raw = payload.get("generated_at")
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        stamp = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=UTC)
+    moment = now or datetime.now(UTC)
+    return moment - stamp.astimezone(UTC)
+
+
+def load_payload_file(path: Path) -> dict[str, Any]:
+    """Load a committed-table JSON document, refusing a malformed payload."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise ShardTimingsRefreshError(
+            f"{path} is missing or not valid JSON: {error}"
+        ) from error
+    if not isinstance(payload, dict) or payload.get("schema") != SHARD_TIMINGS_SCHEMA:
+        raise ShardTimingsRefreshError(
+            f"{path} is not a schema-{SHARD_TIMINGS_SCHEMA} shard timings table"
+        )
+    return payload
+
+
 def build_shard_timings(
     *,
     limit: int = DEFAULT_LIMIT,
     now: datetime | None = None,
     host: str | None = None,
     source_directory: Path | None = None,
+    repo_root: Path | None = None,
 ) -> dict[str, Any]:
     """The full committed-table payload, derived from local recordings.
 
@@ -85,7 +164,8 @@ def build_shard_timings(
 
     if retained:
         slowest_path = retained[-1][0]
-        if not (REPO_ROOT / slowest_path).is_file():
+        root = repo_root or REPO_ROOT
+        if not (root / slowest_path).is_file():
             raise ShardTimingsRefreshError(
                 "refusing a stale source table: its slowest retained file "
                 f"{slowest_path!r} no longer exists"
@@ -113,25 +193,28 @@ def _document(payload: dict[str, Any]) -> str:
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
-def _load_committed() -> dict[str, Any] | None:
-    if not TIMINGS_PATH.exists():
+def _load_committed(path: Path | None = None) -> dict[str, Any] | None:
+    timings_path = path or TIMINGS_PATH
+    if not timings_path.exists():
         return None
     try:
-        payload = json.loads(TIMINGS_PATH.read_text(encoding="utf-8"))
+        payload = json.loads(timings_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     return payload if isinstance(payload, dict) else None
 
 
-def _check(payload: dict[str, Any]) -> int:
+def check_content(
+    payload: dict[str, Any], *, committed: dict[str, Any] | None = None
+) -> int:
     """Compare the freshly computed table against the committed one.
 
     ``generated_at`` and ``host`` are expected to differ on every run and are
     therefore excluded; only the numbers that would change the shard
     assignment — the retained durations and the default — decide drift.
     """
-    committed = _load_committed()
-    if committed is None:
+    current = committed if committed is not None else _load_committed()
+    if current is None:
         print(
             f"[refresh_shard_timings] {DEFAULT_TIMINGS_PATH} is missing or "
             "unreadable; run `just refresh-shard-timings`",
@@ -139,8 +222,8 @@ def _check(payload: dict[str, Any]) -> int:
         )
         return 1
     if (
-        committed.get("durations") == payload["durations"]
-        and committed.get("default_duration") == payload["default_duration"]
+        current.get("durations") == payload["durations"]
+        and current.get("default_duration") == payload["default_duration"]
     ):
         return 0
     print(
@@ -151,18 +234,87 @@ def _check(payload: dict[str, Any]) -> int:
     return 1
 
 
-def _print_plan(count: int, payload: dict[str, Any]) -> None:
-    files = discover_test_files(REPO_ROOT)
-    table = ShardTimingTable(
-        default_duration=float(payload["default_duration"]),
-        durations={
-            str(path): float(seconds) for path, seconds in payload["durations"].items()
-        },
+def check_assignment(
+    payload: dict[str, Any],
+    count: int,
+    *,
+    committed: dict[str, Any] | None = None,
+    repo_root: Path | None = None,
+) -> int:
+    """Fail when the proposed table would change the gate's file split."""
+    current = committed if committed is not None else _load_committed()
+    if current is None:
+        print(
+            f"[refresh_shard_timings] {DEFAULT_TIMINGS_PATH} is missing or "
+            "unreadable; run `just refresh-shard-timings`",
+            file=sys.stderr,
+        )
+        return 1
+    root = repo_root or REPO_ROOT
+    try:
+        current_signature = assignment_signature(current, count, repo_root=root)
+        proposed_signature = assignment_signature(payload, count, repo_root=root)
+    except ShardError as error:
+        print(f"[refresh_shard_timings] {error}", file=sys.stderr)
+        return 1
+    if current_signature == proposed_signature:
+        return 0
+    print(
+        f"[refresh_shard_timings] {DEFAULT_TIMINGS_PATH} would assign files "
+        f"to {count} shard(s) differently than the proposed table; run "
+        "`just refresh-shard-timings`",
+        file=sys.stderr,
     )
+    return 1
+
+
+def check_max_age(
+    max_age_days: float,
+    *,
+    committed: dict[str, Any] | None = None,
+    now: datetime | None = None,
+) -> int:
+    """Fail when the committed table's ``generated_at`` is older than allowed."""
+    current = committed if committed is not None else _load_committed()
+    if current is None:
+        print(
+            f"[refresh_shard_timings] {DEFAULT_TIMINGS_PATH} is missing or "
+            "unreadable; run `just refresh-shard-timings`",
+            file=sys.stderr,
+        )
+        return 1
+    age = generated_at_age(current, now=now)
+    if age is None:
+        print(
+            f"[refresh_shard_timings] {DEFAULT_TIMINGS_PATH} has no usable "
+            "generated_at stamp; run `just refresh-shard-timings`",
+            file=sys.stderr,
+        )
+        return 1
+    if age <= timedelta(days=max_age_days):
+        return 0
+    print(
+        f"[refresh_shard_timings] {DEFAULT_TIMINGS_PATH} is {age.days} day(s) "
+        f"old (limit {max_age_days:g}); run `just refresh-shard-timings`",
+        file=sys.stderr,
+    )
+    return 1
+
+
+def _print_plan(
+    count: int, payload: dict[str, Any], *, repo_root: Path | None = None
+) -> None:
+    files = discover_test_files(repo_root or REPO_ROOT)
+    table = table_from_payload(payload)
     bins = assign_shards(files, count, table)
     for index, shard_bin in enumerate(bins, start=1):
         spec = ShardSpec(index=index, count=count)
         print(format_shard_summary(spec, shard_bin, total_files=len(files)))
+
+
+def _write_payload(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_document(payload), encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -173,6 +325,51 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_LIMIT,
         help=f"number of slowest files to retain individually (default {DEFAULT_LIMIT})",
     )
+    parser.add_argument(
+        "--source",
+        type=Path,
+        default=None,
+        help="recording directory to fold into the table (default: host-local store)",
+    )
+    parser.add_argument(
+        "--from-payload",
+        type=Path,
+        default=None,
+        help="use this schema-1 JSON document instead of folding local recordings",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help=f"write the table here instead of {DEFAULT_TIMINGS_PATH}",
+    )
+    parser.add_argument(
+        "--shards",
+        type=int,
+        default=DEFAULT_SHARD_COUNT,
+        help=(
+            "shard count used by --check --assignment and as the default "
+            f"--print-plan width (default {DEFAULT_SHARD_COUNT})"
+        ),
+    )
+    parser.add_argument(
+        "--max-age",
+        type=float,
+        default=None,
+        metavar="DAYS",
+        help=(
+            "with --check, also fail when the committed table's generated_at "
+            f"is older than DAYS (the ratchet uses {DEFAULT_MAX_AGE_DAYS:g})"
+        ),
+    )
+    parser.add_argument(
+        "--assignment",
+        action="store_true",
+        help=(
+            "with --check, compare the gate's file split rather than exact "
+            "durations, so measurement jitter does not force a refresh"
+        ),
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--check",
@@ -182,35 +379,68 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument(
         "--print-plan",
         type=int,
+        nargs="?",
+        const=-1,
         metavar="N",
         default=None,
-        help="print an N-shard plan from the freshly computed table and exit",
+        help=(
+            "print an N-shard plan from the proposed table and exit "
+            f"(N defaults to --shards / {DEFAULT_SHARD_COUNT})"
+        ),
     )
     args = parser.parse_args(argv)
 
     if args.limit < 1:
         parser.error("--limit must be a positive integer")
-    if args.print_plan is not None and args.print_plan < 1:
+    if args.shards < 1:
+        parser.error("--shards must be a positive integer")
+    if args.from_payload is not None and args.source is not None:
+        parser.error("--from-payload and --source cannot be combined")
+    if args.assignment and not args.check:
+        parser.error("--assignment requires --check")
+    if args.max_age is not None and not args.check:
+        parser.error("--max-age requires --check")
+    if args.max_age is not None and args.max_age <= 0:
+        parser.error("--max-age must be positive")
+    print_plan_count = args.print_plan
+    if print_plan_count == -1:
+        print_plan_count = args.shards
+    if print_plan_count is not None and print_plan_count < 1:
         parser.error("--print-plan must be a positive integer")
 
     try:
-        payload = build_shard_timings(limit=args.limit)
+        if args.from_payload is not None:
+            payload = load_payload_file(args.from_payload)
+        else:
+            payload = build_shard_timings(
+                limit=args.limit, source_directory=args.source
+            )
     except ShardTimingsRefreshError as error:
         print(f"[refresh_shard_timings] {error}", file=sys.stderr)
         return 1
 
-    if args.print_plan is not None:
-        _print_plan(args.print_plan, payload)
+    if print_plan_count is not None:
+        _print_plan(print_plan_count, payload)
         return 0
 
     if args.check:
-        return _check(payload)
+        status = 0
+        if args.assignment:
+            status |= check_assignment(payload, args.shards)
+        else:
+            status |= check_content(payload)
+        if args.max_age is not None:
+            status |= check_max_age(args.max_age)
+        return 1 if status else 0
 
-    TIMINGS_PATH.write_text(_document(payload), encoding="utf-8")
+    output_path = args.output or TIMINGS_PATH
+    _write_payload(output_path, payload)
+    retained = payload.get("durations")
+    retained_count = len(retained) if isinstance(retained, dict) else 0
     print(
-        f"[refresh_shard_timings] wrote {len(payload['durations'])} of "
-        f"{payload['measured_file_count']} measured file(s) to "
-        f"{DEFAULT_TIMINGS_PATH}"
+        f"[refresh_shard_timings] wrote {retained_count} of "
+        f"{payload.get('measured_file_count', retained_count)} measured "
+        f"file(s) to {output_path}"
     )
     return 0
 

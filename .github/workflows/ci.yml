@@ -207,6 +207,23 @@ jobs:
       - name: Run tests
         if: matrix.python-version == '3.14'
         run: just test
+      - name: Build shard timings table
+        if: always() && matrix.python-version == '3.14' && github.ref == 'refs/heads/master'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/shard-timings"
+          ./.venv/bin/python tools/refresh_shard_timings \
+            --output "$RUNNER_TEMP/shard-timings/shard_timings.json"
+      - name: Upload shard timings
+        if: always() && matrix.python-version == '3.14' && github.ref == 'refs/heads/master'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: shard-timings
+          path: ${{ runner.temp }}/shard-timings/shard_timings.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: Upload coverage
         if: matrix.python-version == '3.12'
         uses: codecov/codecov-action@v4

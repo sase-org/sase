@@ -34,7 +34,8 @@ The shape of the model:
   bin-packing, but it keeps every bin within a small constant factor of the
   ideal split without needing to solve packing exactly, and — unlike a hash
   or round-robin split — it does not need the table to be complete or even
-  present to produce a reasonable balance.
+  present to produce a reasonable balance. The master gate's shard count is
+  :data:`DEFAULT_SHARD_COUNT`.
 """
 
 from __future__ import annotations
@@ -47,7 +48,7 @@ from pathlib import Path
 
 
 #: The environment variable a caller sets to select one shard, formatted
-#: ``<1-based index>/<1-based count>`` (e.g. ``3/6``).
+#: ``<1-based index>/<1-based count>`` (e.g. ``3/8``).
 SHARD_ENV = "SASE_TEST_SHARD"
 
 _TESTS_DIRNAME = "tests"
@@ -58,6 +59,15 @@ SHARD_TIMINGS_SCHEMA = 1
 
 #: Where the committed timing table lives, repository-relative.
 DEFAULT_TIMINGS_PATH = Path("tests") / "shard_timings.json"
+
+#: Must match ``env.SHARD_COUNT`` and the ``test`` matrix in
+#: ``.github/workflows/master-gate.yml``. Raised from 6 to 8 so the gate's
+#: critical path (core-wheel plus the slowest shard) can land inside the
+#: 8-minute p50 wall without crossing the 60 job-minute ceiling.
+DEFAULT_SHARD_COUNT = 8
+
+#: Artifact name Full CI publishes and the shard-timings ratchet consumes.
+SHARD_TIMINGS_ARTIFACT_NAME = "shard-timings"
 
 #: The estimate for a file when no committed table exists at all — every file
 #: costs the same, so LPT still splits them as evenly as file count allows.

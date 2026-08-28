@@ -617,11 +617,11 @@ temp-path behavior.
 to `master`, grouped by `master-gate-${{ github.sha }}` with `cancel-in-progress: false`
 so every SHA gets its own bounded run that is never cancelled by a newer push — unlike
 `ci.yml`'s per-ref concurrency group, which lets a newer push replace an older one's
-pending slot. It runs the complete non-visual fast suite, split into six deterministic,
-balanced shards (`SASE_TEST_SHARD=<1-based index>/<1-based count>`, e.g. `3/6`) so no
-single job has to carry the whole suite's wall clock, and reuses a SHA-keyed `sase-core`
-wheel cache so a `sase-core` revision that has not moved costs one cache restore instead
-of a full Rust rebuild.
+pending slot. It runs the complete non-visual fast suite, split into eight
+deterministic, balanced shards (`SASE_TEST_SHARD=<1-based index>/<1-based count>`, e.g.
+`3/8`) so no single job has to carry the whole suite's wall clock, and reuses a
+SHA-keyed `sase-core` wheel cache so a `sase-core` revision that has not moved costs one
+cache restore instead of a full Rust rebuild.
 
 `tests/_test_shards.py` does the splitting. It walks `tests/**/test_*.py` on disk (not
 `git ls-files`, so an uncommitted new test file is still in scope), estimates each
@@ -645,7 +645,7 @@ name, not the mean of the slow files it does. Run it after a `just test` or
 ```bash
 just refresh-shard-timings                # write tests/shard_timings.json
 just refresh-shard-timings --check        # verify it is not stale, without writing
-just refresh-shard-timings --print-plan 6 # preview a 6-shard split
+just refresh-shard-timings --print-plan 8 # preview an 8-shard split
 ```
 
 A file the table has never seen — new, renamed, or simply outside the retained 800 —
@@ -653,9 +653,17 @@ still runs; it just costs `default_duration` instead of a measured number, so th
 a stale table does is uneven shards, never a skipped test. `tests/test_test_shards.py`
 polices staleness directly: it fails if fewer than 90% of the committed table's retained
 files still exist, if the discovered file count has drifted more than 20% from the
-table's recorded count, or if six shards built from the committed table are unbalanced
-by more than 10% of their mean — every failure points back at
+table's recorded count, or if the master gate's eight shards built from the committed
+table are unbalanced by more than 10% of their mean — every failure points back at
 `just refresh-shard-timings`.
+
+The table also has a CI freshness path so it cannot silently decay after those
+thresholds. Full CI's 3.14 `just test` leg publishes the folded table as the
+`shard-timings` artifact; a weekly `shard-timings-ratchet.yml` workflow copies that
+artifact into `tests/shard_timings.json` when the proposed table would change the gate's
+file split, or when the committed `generated_at` is older than 14 days, and opens a PR.
+`just refresh-shard-timings --from-payload PATH --check --assignment` is the same
+comparison the ratchet runs.
 
 The master gate's `lint` job is kept byte-for-byte identical to `ci.yml`'s own `lint`
 job steps (a contract test in `tests/test_github_actions_ci_master_gate.py` polices the

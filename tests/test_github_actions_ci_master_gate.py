@@ -1,9 +1,9 @@
 """Contract tests for the scheduled/per-SHA workflows layered on top of ci.yml.
 
 Companion to ``test_github_actions_ci_workflow.py``; master-gate.yml,
-full.yml, and core-pin-ratchet.yml live here because they have their own
-trigger and reuse contracts. Shared workflow loaders live in
-``tests/_github_actions_ci_helpers.py``.
+full.yml, core-pin-ratchet.yml, and shard-timings-ratchet.yml live here
+because they have their own trigger and reuse contracts. Shared workflow
+loaders live in ``tests/_github_actions_ci_helpers.py``.
 """
 
 from __future__ import annotations
@@ -16,7 +16,10 @@ from tests._github_actions_ci_helpers import _load_ci_workflow
 from tests._github_actions_ci_helpers import _load_core_pin_ratchet_workflow
 from tests._github_actions_ci_helpers import _load_full_workflow
 from tests._github_actions_ci_helpers import _load_master_gate_workflow
+from tests._github_actions_ci_helpers import _load_shard_timings_ratchet_workflow
 from tests._github_actions_ci_helpers import _workflow_triggers
+from tests._test_shards import DEFAULT_SHARD_COUNT
+from tests._test_shards import SHARD_TIMINGS_ARTIFACT_NAME
 
 
 pytestmark = pytest.mark.contract
@@ -60,11 +63,13 @@ def test_master_gate_jobs_stay_within_the_twenty_minute_ceiling() -> None:
 def test_master_gate_shard_matrix_matches_the_declared_shard_count() -> None:
     workflow = _load_master_gate_workflow()
 
-    assert workflow["env"]["SHARD_COUNT"] == 6
+    assert workflow["env"]["SHARD_COUNT"] == DEFAULT_SHARD_COUNT
     test_job = workflow["jobs"]["test"]
     assert test_job["needs"] == "core-wheel"
     assert test_job["strategy"]["fail-fast"] is False
-    assert test_job["strategy"]["matrix"]["shard"] == [1, 2, 3, 4, 5, 6]
+    assert test_job["strategy"]["matrix"]["shard"] == list(
+        range(1, DEFAULT_SHARD_COUNT + 1)
+    )
 
 
 def test_master_gate_test_job_runs_only_the_sharded_fast_lane() -> None:
@@ -262,4 +267,42 @@ def test_core_pin_ratchet_uses_the_shared_tool_and_names_the_pin_file() -> None:
     assert "tools/ratchet_core_revision --check" in run_text
     assert "tools/ratchet_core_revision" in run_text
     assert "sase-core-revision.txt" in run_text
+    assert "gh pr create" in run_text
+
+
+# --------------------------------------------------------------------------
+# shard-timings-ratchet.yml
+# --------------------------------------------------------------------------
+
+
+def test_shard_timings_ratchet_runs_on_schedule_not_push() -> None:
+    """The ratchet must never itself be a push-path gate.
+
+    It only ever opens a PR, which then runs the normal per-ref CI, so a
+    stale timings table cannot redden master on its own.
+    """
+    workflow = _load_shard_timings_ratchet_workflow()
+    triggers = _workflow_triggers(workflow)
+
+    assert set(triggers) == {"schedule", "workflow_dispatch"}
+    assert "push" not in triggers
+    assert workflow["concurrency"] == {
+        "group": "shard-timings-ratchet",
+        "cancel-in-progress": False,
+    }
+    assert workflow["permissions"] == {"contents": "read"}
+
+
+def test_shard_timings_ratchet_consumes_the_full_ci_artifact() -> None:
+    job = _load_shard_timings_ratchet_workflow()["jobs"]["ratchet"]
+    run_text = _job_run_text(job)
+
+    assert "--workflow=full.yml" in run_text
+    assert f"--name {SHARD_TIMINGS_ARTIFACT_NAME}" in run_text
+    assert "tools/refresh_shard_timings" in run_text
+    assert "--from-payload" in run_text
+    assert "--check" in run_text
+    assert "--assignment" in run_text
+    assert "--max-age 14" in run_text
+    assert "tests/shard_timings.json" in run_text
     assert "gh pr create" in run_text
