@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -55,6 +55,61 @@ class ShellFollowupWorkspace:
     workspace_zero_reason: Callable[[int, BaseException, str], str]
 
 
+def vcs_ref_from_meta(meta: Mapping[str, object]) -> tuple[str, str] | None:
+    """Return the starter VCS workflow ref recorded on shell member *meta*."""
+    raw = meta.get("vcs_ref")
+    if isinstance(raw, (list, tuple)) and len(raw) == 2:
+        workflow, ref = raw
+        if isinstance(workflow, str) and workflow and isinstance(ref, str) and ref:
+            return workflow, ref
+    return None
+
+
+def _vcs_ref_from_prompt(prompt: str) -> tuple[str, str] | None:
+    """Recover a VCS workflow ref from *prompt* via the registry tag pattern.
+
+    Uses :func:`sase.workspace_provider.get_embedded_vcs_tag_pattern` to find
+    a live ``#gh:``/``#git:`` tag anywhere in the composed prompt, then parses
+    that tag with the launcher's ref patterns. Returns ``None`` when no
+    registered VCS workflow is present.
+    """
+    from sase.workspace_provider import get_embedded_vcs_tag_pattern, get_ref_patterns
+
+    match = get_embedded_vcs_tag_pattern().search(prompt)
+    if match is None:
+        return None
+    tag = match.group(0)
+    for workflow, pattern in get_ref_patterns().items():
+        parsed = pattern.search(tag)
+        if parsed is None:
+            continue
+        ref_value = parsed.group(1) or parsed.group(2)
+        if ref_value:
+            return workflow, ref_value
+    return None
+
+
+def _resolve_shell_followup_vcs_ref(
+    recorded: tuple[str, str] | None,
+    prompt: str,
+) -> tuple[str, str] | None:
+    """Choose the VCS ref a follow-up spawn should pre-allocate.
+
+    Pre-allocation is only useful when the composed prompt still carries a
+    VCS tag that will run setup. Prefer the starter's recorded
+    ``(workflow, ref)`` when its workflow type matches the tag; otherwise
+    recover the tag from the prompt. Older shells with no recorded ref fall
+    through to prompt recovery. Returns ``None`` when there is no VCS
+    workflow to pre-allocate for.
+    """
+    prompt_ref = _vcs_ref_from_prompt(prompt)
+    if prompt_ref is None:
+        return None
+    if recorded is not None and recorded[0] == prompt_ref[0]:
+        return recorded
+    return prompt_ref
+
+
 def launch_shell_followup(
     *,
     project_name: str,
@@ -62,10 +117,13 @@ def launch_shell_followup(
     meta_workspace_dir: str,
     transfer_from_pid: int | None,
     compose_prompt: Callable[[str | None], str],
-    spawn: Callable[[str, str, int, int | None], AgentLaunchResult],
+    spawn: Callable[
+        [str, str, int, int | None, tuple[str, str] | None], AgentLaunchResult
+    ],
     workspace: ShellFollowupWorkspace,
     record_launched: Callable[..., FollowupLaunchResult],
     record_not_launchable: Callable[[str, str], FollowupLaunchResult],
+    recorded_vcs_ref: tuple[str, str] | None = None,
 ) -> FollowupLaunchResult:
     """Launch a follow-up agent, degrading through workspace claim fallbacks.
 
@@ -77,6 +135,11 @@ def launch_shell_followup(
     workspace turns out not to be claimed at all -- an unrecoverable state
     reported as not launchable instead. Every terminal outcome is recorded
     through *record_launched* / *record_not_launchable*.
+
+    ``recorded_vcs_ref`` is the starter VCS workflow ref stored on the shell
+    member. Each spawn attempt resolves it against the composed prompt and
+    forwards the result so pre-allocation env describes the workspace that
+    spawn actually used, including degraded ``#0`` fallbacks.
     """
     initial_degraded_reason: str | None = None
     if isinstance(meta_workspace_num, int) and meta_workspace_num:
@@ -106,10 +169,15 @@ def launch_shell_followup(
                 original_workspace_dir, original_workspace_num = resolved_pair
 
     prompt = compose_prompt(initial_degraded_reason)
+    vcs_ref = _resolve_shell_followup_vcs_ref(recorded_vcs_ref, prompt)
 
     try:
         result = spawn(
-            prompt, original_workspace_dir, original_workspace_num, transfer_from_pid
+            prompt,
+            original_workspace_dir,
+            original_workspace_num,
+            transfer_from_pid,
+            vcs_ref,
         )
     except WorkspaceClaimError as transfer_exc:
         fresh_reason = workspace.fresh_claim_reason(
@@ -123,9 +191,16 @@ def launch_shell_followup(
         )
 
     degraded_prompt = compose_prompt(fresh_reason)
+    degraded_vcs_ref = _resolve_shell_followup_vcs_ref(
+        recorded_vcs_ref, degraded_prompt
+    )
     try:
         result = spawn(
-            degraded_prompt, original_workspace_dir, original_workspace_num, None
+            degraded_prompt,
+            original_workspace_dir,
+            original_workspace_num,
+            None,
+            degraded_vcs_ref,
         )
     except WorkspaceClaimError as claim_exc:
         if not _workspace_is_claimed(project_name, original_workspace_num):
@@ -139,8 +214,9 @@ def launch_shell_followup(
             original_workspace_num, claim_exc, zero_workspace_dir
         )
         zero_prompt = compose_prompt(zero_reason)
+        zero_vcs_ref = _resolve_shell_followup_vcs_ref(recorded_vcs_ref, zero_prompt)
         try:
-            result = spawn(zero_prompt, zero_workspace_dir, 0, None)
+            result = spawn(zero_prompt, zero_workspace_dir, 0, None, zero_vcs_ref)
         except (RuntimeError, OSError, ValueError) as exc:
             return record_not_launchable(str(exc), zero_prompt)
         return record_launched(result.agent_name, degraded_reason=zero_reason)
@@ -194,6 +270,7 @@ def spawn_shell_family_successor(
     cl_name: str | None = None,
     suffix: str | None = None,
     agent_family_role: str | None = None,
+    vcs_ref: tuple[str, str] | None = None,
     spawn_fn: SpawnFn | None = None,
 ) -> AgentLaunchResult:
     """Spawn the next agent member in *family* using family-attach semantics."""
@@ -206,6 +283,7 @@ def spawn_shell_family_successor(
         transfer_from_pid=transfer_from_pid,
         cl_name=cl_name,
         agent_family_role=agent_family_role,
+        vcs_ref=vcs_ref,
         spawn_fn=spawn_fn,
     )
 
@@ -373,5 +451,6 @@ __all__ = [
     "record_followup_not_launchable",
     "spawn_shell_family_successor",
     "starter_identity",
+    "vcs_ref_from_meta",
     "wait_for_starter",
 ]

@@ -58,6 +58,7 @@ class AgentMetadataInputs:
     preserved: dict[str, Any]
     epic_work: dict[str, Any]
     cl_name: str | None
+    vcs_ref: tuple[str, str] | None = None
 
 
 def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
@@ -102,6 +103,13 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
         preserved["workspace_num"] = workspace_num
     if existing_meta.get("plan_committed") is True:
         preserved["plan_committed"] = True
+    vcs_ref = existing_meta.get("vcs_ref")
+    if (
+        isinstance(vcs_ref, list)
+        and len(vcs_ref) == 2
+        and all(isinstance(item, str) and item for item in vcs_ref)
+    ):
+        preserved["vcs_ref"] = vcs_ref
     for key in (
         "agent_clan",
         "agent_clan_generation",
@@ -252,6 +260,8 @@ def build_agent_meta(
     agent_meta.update(agent_meta_from_chop_env())
     agent_meta.update(inputs.preserved)
     agent_meta.update(inputs.epic_work)
+    if inputs.vcs_ref:
+        agent_meta["vcs_ref"] = [inputs.vcs_ref[0], inputs.vcs_ref[1]]
     if inputs.cl_name:
         agent_meta["patch_name"] = inputs.cl_name
         agent_meta["changespec_name"] = inputs.cl_name

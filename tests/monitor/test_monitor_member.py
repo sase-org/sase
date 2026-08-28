@@ -27,6 +27,7 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
         "agent_family": "acme",
         "agent_clan": "acme-clan",
         "agent_clan_generation": "20260812115000",
+        "vcs_ref": ["gh", "sase"],
     }
 
     artifacts_dir = create_monitor_member(
@@ -71,6 +72,7 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
     assert meta["cl_name"] == "acme"
     assert meta["bead_id"] == "sase-kp"
     assert meta["tribe"] == "sase"
+    assert meta["vcs_ref"] == ["gh", "sase"]
 
     # Monitor-specific fields.
     assert meta["monitor_id"] == "abc123def456"

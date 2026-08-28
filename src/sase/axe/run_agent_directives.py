@@ -360,6 +360,10 @@ def extract_directives_and_write_meta(
     else:
         agent_vcs_provider = None
 
+    from sase.agent.multi_prompt_vcs import extract_vcs_ref
+
+    vcs_ref = extract_vcs_ref(prompt) or extract_vcs_ref(expanded_for_directives)
+
     metadata_inputs = AgentMetadataInputs(
         workspace_dir=workspace_dir,
         workspace_num=workspace_num,
@@ -382,6 +386,7 @@ def extract_directives_and_write_meta(
         preserved=preserved_metadata,
         epic_work=epic_work_metadata,
         cl_name=cl_name,
+        vcs_ref=vcs_ref,
     )
     identity = resolve_agent_identity(
         name_request,

@@ -158,6 +158,9 @@ def create_followup_artifacts(
         "reasoning_effort",
         "model_alias_overrides",
         "vcs_provider",
+        # Starter VCS workflow type plus ref, so shell follow-ups can emit
+        # the same SASE_<VCS>_PRE_ALLOCATED env the original launch used.
+        "vcs_ref",
         # Inherit the workspace the parent ran in: follow-up agents run in the
         # same workspace, and persisting it lets the TUI resolve the live diff
         # directly from agent_meta.json instead of re-deriving the path.

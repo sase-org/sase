@@ -174,6 +174,19 @@ def test_preserved_agent_metadata_keeps_model_alias_provenance(
     assert preserved["model_alias_origin"] == "directive"
 
 
+def test_preserved_agent_metadata_keeps_vcs_ref(tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"vcs_ref": ["gh", "sase"]}),
+        encoding="utf-8",
+    )
+
+    preserved = preserved_agent_metadata(str(artifacts_dir))
+
+    assert preserved["vcs_ref"] == ["gh", "sase"]
+
+
 def test_preserved_agent_metadata_keeps_model_alias_reservation(
     tmp_path: Path,
 ) -> None:

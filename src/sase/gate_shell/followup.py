@@ -28,6 +28,7 @@ from sase.shells.followup import (
     record_followup_not_launchable,
     spawn_shell_family_successor,
     starter_identity,
+    vcs_ref_from_meta,
     wait_for_starter,
 )
 from sase.shells.prompt import shell_routing_prefix
@@ -99,7 +100,11 @@ def launch_gate_followup_agent(
         )
 
     def _spawn(
-        prompt: str, workspace_dir: str, workspace_num: int, transfer_pid: int | None
+        prompt: str,
+        workspace_dir: str,
+        workspace_num: int,
+        transfer_pid: int | None,
+        vcs_ref: tuple[str, str] | None,
     ) -> Any:
         return spawn_shell_family_successor(
             family=lane,
@@ -111,6 +116,7 @@ def launch_gate_followup_agent(
             cl_name=_clean_str(meta.get("cl_name")),
             suffix=policy.suffix,
             agent_family_role=policy.role or starter_role,
+            vcs_ref=vcs_ref,
             spawn_fn=spawn_agent_subprocess,
         )
 
@@ -150,6 +156,7 @@ def launch_gate_followup_agent(
         transfer_from_pid=transfer_from_pid,
         compose_prompt=_compose,
         spawn=_spawn,
+        recorded_vcs_ref=vcs_ref_from_meta(meta),
         workspace=ShellFollowupWorkspace(
             meta_pairing_reason=_meta_pairing_degraded_reason,
             fresh_claim_reason=_fresh_claim_degraded_reason,

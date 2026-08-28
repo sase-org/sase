@@ -56,6 +56,7 @@ def test_create_family_shell_member_layers_kind_role_and_metadata() -> None:
             "model": "claude-sonnet-5",
             "workspace_dir": "/work/acme",
             "agent_clan": "clan-a",
+            "vcs_ref": ["git", "home"],
         },
         family="acme",
         suffix="--gate",
@@ -81,6 +82,7 @@ def test_create_family_shell_member_layers_kind_role_and_metadata() -> None:
     assert meta["model"] == "claude-sonnet-5"
     assert meta["workspace_dir"] == "/work/acme"
     assert meta["agent_clan"] == "clan-a"
+    assert meta["vcs_ref"] == ["git", "home"]
 
 
 def test_allocate_shell_suffix_uses_first_suffix_then_template_allocator() -> None:

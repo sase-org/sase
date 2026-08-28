@@ -26,6 +26,7 @@ from sase.shells.followup import (
     record_followup_not_launchable,
     spawn_shell_family_successor,
     starter_identity,
+    vcs_ref_from_meta,
     wait_for_starter,
 )
 
@@ -110,7 +111,11 @@ def launch_followup_agent(
         )
 
     def _spawn(
-        prompt: str, workspace_dir: str, workspace_num: int, transfer_pid: int | None
+        prompt: str,
+        workspace_dir: str,
+        workspace_num: int,
+        transfer_pid: int | None,
+        vcs_ref: tuple[str, str] | None,
     ) -> Any:
         return spawn_shell_family_successor(
             family=lane,
@@ -121,6 +126,7 @@ def launch_followup_agent(
             transfer_from_pid=transfer_pid,
             cl_name=_clean_str(meta.get("cl_name")),
             agent_family_role=starter_role,
+            vcs_ref=vcs_ref,
             spawn_fn=spawn_agent_subprocess,
         )
 
@@ -142,6 +148,7 @@ def launch_followup_agent(
         transfer_from_pid=transfer_pid,
         compose_prompt=_compose,
         spawn=_spawn,
+        recorded_vcs_ref=vcs_ref_from_meta(meta),
         workspace=ShellFollowupWorkspace(
             meta_pairing_reason=_meta_pairing_degraded_reason,
             fresh_claim_reason=_fresh_claim_degraded_reason,

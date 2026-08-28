@@ -119,6 +119,7 @@ def spawn_family_successor(
     transfer_from_pid: int | None,
     cl_name: str | None = None,
     agent_family_role: str | None = None,
+    vcs_ref: tuple[str, str] | None = None,
     spawn_fn: SpawnFn | None = None,
     resolve_plan: ResolvePlanFn | None = None,
 ) -> AgentLaunchResult:
@@ -127,9 +128,12 @@ def spawn_family_successor(
     Applies the overrides an out-of-process starter must set on its own
     resolved plan (``parent_is_running=False``, the starter's own role, and
     the workspace it is handing off), layers :func:`family_attach_env`, and
-    delegates to :func:`spawn_detached_child`. The subprocess does not
-    report its own name back until it boots, so the returned result's
-    ``agent_name`` is always filled in from the resolved plan.
+    delegates to :func:`spawn_detached_child`. ``vcs_ref`` is the starter's
+    VCS workflow type plus ref, forwarded so the child inherits the same
+    pre-allocation env the launcher already knows how to emit. The
+    subprocess does not report its own name back until it boots, so the
+    returned result's ``agent_name`` is always filled in from the resolved
+    plan.
     """
     resolve = resolve_plan or _resolution.resolve_family_attach_plan
     plan = resolve(directive, project_name=project_name)
@@ -148,6 +152,7 @@ def spawn_family_successor(
         cl_name=cl_name or launch_plan.agent_name,
         transfer_from_pid=transfer_from_pid,
         extra_env=family_attach_env(launch_plan),
+        vcs_ref=vcs_ref,
         spawn_fn=spawn_fn,
     )
     return replace(result, agent_name=result.agent_name or launch_plan.agent_name)

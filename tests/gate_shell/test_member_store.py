@@ -48,6 +48,7 @@ def test_create_gate_shell_member_projects_gate_metadata() -> None:
             "model": "gpt-5",
             "workspace_dir": "/work/lane",
             "agent_clan": "clan-a",
+            "vcs_ref": ["gh", "sase"],
         },
         lane="lane",
         suffix="--gate",
@@ -77,6 +78,7 @@ def test_create_gate_shell_member_projects_gate_metadata() -> None:
     assert meta["gate_next_output"] == "results,tail"
     assert meta["pid"] is None
     assert meta["proc_id"] is None
+    assert meta["vcs_ref"] == ["gh", "sase"]
 
     record = read_gate_shell_marker("proj", artifacts_dir)
     assert record is not None

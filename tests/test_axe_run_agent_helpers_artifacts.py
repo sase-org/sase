@@ -245,6 +245,31 @@ def test_create_followup_inherits_workspace_dir(tmp_path) -> None:
     assert meta["workspace_num"] == 3
 
 
+def test_create_followup_inherits_vcs_ref(tmp_path) -> None:
+    """Shell members inherit the starter's launcher VCS workflow ref."""
+    new_dir = tmp_path / "new"
+    new_dir.mkdir()
+
+    with patch(
+        "sase.axe.run_agent_helpers.create_artifacts_directory",
+        return_value=str(new_dir),
+    ):
+        create_followup_artifacts(
+            "proj",
+            {
+                "name": "a",
+                "model": "test",
+                "vcs_ref": ["gh", "sase"],
+            },
+            "--gate",
+            "20260326120000",
+            workspace_num=3,
+        )
+
+    meta = json.loads((new_dir / "agent_meta.json").read_text())
+    assert meta["vcs_ref"] == ["gh", "sase"]
+
+
 def test_create_followup_inherits_reasoning_effort(tmp_path) -> None:
     """Retry/follow-up agents preserve the parent's recorded effort."""
     new_dir = tmp_path / "new"

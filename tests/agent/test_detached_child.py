@@ -170,6 +170,7 @@ class TestSpawnFamilySuccessor:
         assert captured["cl_name"] == plan.agent_name
         assert captured["workspace_dir"] == "/tmp/ws"
         assert captured["workspace_num"] == 3
+        assert captured["vcs_ref"] is None
         env = captured["extra_env"]
         assert env["SASE_INTERNAL_AGENT_NAME_BYPASS"] == "1"
         launched_plan = load_family_attach_plan_from_env(env)
@@ -202,3 +203,25 @@ class TestSpawnFamilySuccessor:
         )
 
         assert result.cl_name == "explicit-branch"
+
+    def test_forwards_vcs_ref_to_the_detached_child(self) -> None:
+        plan = _fake_plan()
+        captured: dict[str, Any] = {}
+
+        def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+            captured.update(kwargs)
+            return _fake_result(timestamp=kwargs["timestamp"])
+
+        spawn_family_successor(
+            FamilyAttachDirective(parent="acme", suffix="@"),
+            project_name="proj",
+            prompt="#gh:sase do work",
+            workspace_dir="/tmp/ws",
+            workspace_num=3,
+            transfer_from_pid=None,
+            vcs_ref=("gh", "sase"),
+            resolve_plan=lambda *_args, **_kwargs: plan,
+            spawn_fn=fake_spawn,
+        )
+
+        assert captured["vcs_ref"] == ("gh", "sase")
