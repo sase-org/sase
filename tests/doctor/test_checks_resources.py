@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import namedtuple
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from sase.doctor.checks_resources import (
     _DISK_ERROR_FREE_BYTES,
     _DISK_WARN_FREE_BYTES,
     _INOTIFY_MIN_USER_INSTANCES,
+    _check_ace_run_watches,
     _check_chezmoi,
     _check_disk_free,
     _check_inotify,
@@ -49,6 +51,7 @@ def test_resource_check_specs_registers_chezmoi_as_deep(tmp_path: Path) -> None:
         "resources.chezmoi",
         "resources.ulimits",
         "resources.inotify",
+        "resources.ace_run_watches",
     ]
     assert [spec.id for spec in specs if spec.deep] == [
         "resources.chezmoi",
@@ -327,3 +330,77 @@ def test_inotify_warns_when_watch_or_instance_limits_are_low(tmp_path: Path) -> 
     assert "force ACE event refresh back to polling" in check.summary
     assert any("max_user_watches=256" in detail for detail in check.details)
     assert any("max_user_instances=2" in detail for detail in check.details)
+
+
+_PINNED_ACE_NOW = datetime(2026, 8, 28, 12, 0, 0)
+
+
+def _ace_run_project(sase_home: Path, project: str) -> Path:
+    workflow = sase_home / "projects" / project / "artifacts" / "ace-run"
+    workflow.mkdir(parents=True, exist_ok=True)
+    return workflow
+
+
+def test_ace_run_watches_ok_for_healthy_project(tmp_path: Path) -> None:
+    sase_home = tmp_path / ".sase"
+    workflow = _ace_run_project(sase_home, "proj")
+    (workflow / "202608" / "28").mkdir(parents=True)
+    (workflow / "202607" / "31").mkdir(parents=True)
+
+    check = _check_ace_run_watches(
+        _context(tmp_path, sase_home),
+        now=_PINNED_ACE_NOW,
+        enabled_projects=("proj",),
+    )
+
+    assert check.id == "resources.ace_run_watches"
+    assert check.status == "OK"
+    assert check.data["future_month_shard_count"] == 0
+    assert check.data["projects"][0]["live_month_watched"] is True
+    assert check.data["projects"][0]["live_day_watched"] is True
+
+
+def test_ace_run_watches_warns_when_future_shards_can_starve(
+    tmp_path: Path,
+) -> None:
+    sase_home = tmp_path / ".sase"
+    workflow = _ace_run_project(sase_home, "proj")
+    (workflow / "202608" / "28").mkdir(parents=True)
+    (workflow / "213601" / "09").mkdir(parents=True)
+    (workflow / "213510" / "22").mkdir(parents=True)
+
+    check = _check_ace_run_watches(
+        _context(tmp_path, sase_home),
+        now=_PINNED_ACE_NOW,
+        enabled_projects=("proj",),
+    )
+
+    assert check.status == "WARN"
+    assert check.data["future_month_shard_count"] == 2
+    assert "213601" not in " ".join(check.data["projects"][0]["selected_watch_paths"])
+    assert any("future-dated" in step for step in check.next_steps)
+    assert check.data["projects"][0]["live_month_watched"] is True
+
+
+def test_ace_run_watches_warns_when_live_shard_is_not_selected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sase_home = tmp_path / ".sase"
+    workflow = _ace_run_project(sase_home, "proj")
+    (workflow / "202608" / "28").mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.doctor.checks_resources_ace_run_watches."
+        "iter_startup_ace_run_shard_watch_paths",
+        lambda _workflow_dir, **_kwargs: (),
+    )
+
+    check = _check_ace_run_watches(
+        _context(tmp_path, sase_home),
+        now=_PINNED_ACE_NOW,
+        enabled_projects=("proj",),
+    )
+
+    assert check.status == "WARN"
+    assert check.data["starved_projects"] == ("proj",)
+    assert "outside ACE's startup watch budget" in check.summary

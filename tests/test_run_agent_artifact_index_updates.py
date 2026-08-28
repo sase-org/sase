@@ -1,10 +1,13 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.axe.run_agent_exec import _write_done_marker_and_update_index
 from sase.axe.run_agent_exec_markers import (
     clear_workflow_pdf_activity,
     update_workflow_pdf_status,
+    write_done_marker_and_update_index,
 )
 from sase.axe.run_agent_exec_plan_artifacts import write_plan_path_artifact
 
@@ -25,6 +28,33 @@ def test_done_marker_write_updates_artifact_index(tmp_path: Path) -> None:
     assert Path(done_path) == tmp_path / "done.json"
     assert calls == [str(tmp_path)]
     assert '"outcome": "completed"' in Path(done_path).read_text(encoding="utf-8")
+
+
+def test_done_marker_write_pulses_project_refresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    projects = tmp_path / "projects"
+    artifacts_dir = (
+        projects / "proj" / "artifacts" / "ace-run" / "202608" / "28" / "20260828120000"
+    )
+    artifacts_dir.mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.shells.settlement.sase_projects_dir",
+        lambda: projects,
+    )
+
+    with patch(
+        "sase.axe.run_agent_exec_markers."
+        "update_agent_artifact_index_for_marker_mutation"
+    ):
+        write_done_marker_and_update_index(
+            str(artifacts_dir),
+            {"outcome": "completed"},
+        )
+
+    pulse = projects / "proj" / "artifacts" / ".ace_refresh_pulse"
+    assert pulse.is_file()
+    assert pulse.read_text(encoding="utf-8").strip()
 
 
 def test_plan_path_artifact_write_updates_artifact_index(tmp_path: Path) -> None:

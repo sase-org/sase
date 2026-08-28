@@ -36,6 +36,15 @@ def write_done_marker_and_update_index(
     with open(done_path, "w", encoding="utf-8") as f:
         json.dump(done_marker, f, indent=2)
     update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+    try:
+        from sase.shells.settlement import (
+            project_name_from_artifacts_dir,
+            touch_shell_refresh_pulse,
+        )
+
+        touch_shell_refresh_pulse(project_name_from_artifacts_dir(artifacts_dir))
+    except Exception:  # noqa: BLE001 - pulse must never fail the agent run
+        pass
     return done_path
 
 

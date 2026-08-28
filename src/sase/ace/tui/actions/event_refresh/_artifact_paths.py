@@ -67,6 +67,8 @@ def artifact_path_affects_agents(path: Path) -> bool:
         return False
     if not relative_parts:
         return True
+    if path.name == ".ace_refresh_pulse":
+        return True
 
     if path.name in _AGENTS_RELEVANT_ARTIFACT_MARKERS:
         return True

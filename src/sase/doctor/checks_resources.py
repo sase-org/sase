@@ -10,6 +10,7 @@ from sase.axe.config import AxeConfig
 from sase.diagnostics import CheckSpec, DiagnosticCheck
 from sase.doctor import checks_resources_disk as _disk
 from sase.doctor import checks_resources_ulimits as _ulimits
+from sase.doctor.checks_resources_ace_run_watches import check_ace_run_watches
 from sase.doctor.checks_resources_chezmoi import check_chezmoi
 from sase.doctor.checks_resources_inotify import (
     INOTIFY_MIN_USER_INSTANCES,
@@ -24,6 +25,7 @@ _DISK_WARN_FREE_BYTES = _disk._DISK_WARN_FREE_BYTES
 _INOTIFY_MIN_USER_INSTANCES = INOTIFY_MIN_USER_INSTANCES
 _check_chezmoi = check_chezmoi
 _check_inotify = check_inotify
+_check_ace_run_watches = check_ace_run_watches
 workspace_root_path: Callable[[DoctorContext], tuple[Path | None, str | None]] = (
     _disk.workspace_root_path
 )
@@ -59,6 +61,12 @@ def resource_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title="Linux inotify limits",
             runner=check_inotify,
             deep=True,
+        ),
+        CheckSpec(
+            id="resources.ace_run_watches",
+            group="resources",
+            title="ACE ace-run watch coverage",
+            runner=lambda: check_ace_run_watches(context),
         ),
     )
 
