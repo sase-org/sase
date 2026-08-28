@@ -107,13 +107,25 @@ def cleanup_stale_running_entries(
             regardless of pid or terminal state. Set by the caller when it
             could not reconcile dead monitor supervisors first, so a live
             lane's workspace is never handed to another agent on the strength
-            of stale reconciliation state.
+            of stale reconciliation state. The flag also means the monitor
+            package may be unimportable; this sweep does not import or
+            touch it.
 
     Returns:
         Number of stale workspace claims released.
     """
     from sase.gate_shell.claims import GATE_WORKSPACE_CLAIM_WORKFLOW
-    from sase.monitor.start import MONITOR_WORKSPACE_CLAIM_WORKFLOW
+
+    if skip_monitor_claims:
+        # The caller already committed to leaving monitor claims alone, and
+        # the monitor package may be unimportable. Identify those claims by
+        # the workflow label without importing sase.monitor.start so they
+        # cannot fall through to the generic stale-PID release path.
+        monitor_workflow = "ace-monitor"
+    else:
+        from sase.monitor.start import MONITOR_WORKSPACE_CLAIM_WORKFLOW
+
+        monitor_workflow = MONITOR_WORKSPACE_CLAIM_WORKFLOW
 
     released_count = 0
 
@@ -121,7 +133,7 @@ def cleanup_stale_running_entries(
         claims = get_claimed_workspaces(project_file)
 
         for claim in claims:
-            is_monitor_claim = claim.workflow == MONITOR_WORKSPACE_CLAIM_WORKFLOW
+            is_monitor_claim = claim.workflow == monitor_workflow
             is_gate_claim = claim.workflow == GATE_WORKSPACE_CLAIM_WORKFLOW
             if is_monitor_claim and skip_monitor_claims:
                 continue

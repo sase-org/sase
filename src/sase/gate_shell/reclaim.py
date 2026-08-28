@@ -17,8 +17,11 @@ from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.paths import CANCELLATION_FILENAME, RESPONSE_FILENAME
 
 
+_MAX_ERROR_DETAILS = 5
+
+
 @dataclass(frozen=True)
-class _GateShellReclaimSummary:
+class GateShellReclaimSummary:
     """Summary of one reclaim pass."""
 
     scanned: int = 0
@@ -27,6 +30,7 @@ class _GateShellReclaimSummary:
     timed_out: int = 0
     lost: int = 0
     errors: int = 0
+    error_details: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, int]:
         return {
@@ -44,7 +48,7 @@ def reclaim_pending_gate_shells(
     now: float | None = None,
     grace_seconds: int | None = None,
     project: str | None = None,
-) -> _GateShellReclaimSummary:
+) -> GateShellReclaimSummary:
     """Settle pending gate shells that no longer have a live pending gate."""
     current = time.time() if now is None else now
     grace = (
@@ -60,14 +64,20 @@ def reclaim_pending_gate_shells(
         "lost": 0,
         "errors": 0,
     }
+    error_details: list[str] = []
     for record in list_gate_shells(project=project):
         if record.is_terminal:
             continue
         counts["scanned"] += 1
         try:
             state = _reclaim_one(record, now=current, grace_seconds=grace)
-        except Exception:
+        except Exception as error:
             counts["errors"] += 1
+            if len(error_details) < _MAX_ERROR_DETAILS:
+                error_details.append(
+                    f"{record.member_agent_name or record.gate_id}: "
+                    f"{type(error).__name__}: {error}"
+                )
             continue
         if state == "answered":
             counts["answered"] += 1
@@ -77,7 +87,7 @@ def reclaim_pending_gate_shells(
             counts["timed_out"] += 1
         elif state == "lost":
             counts["lost"] += 1
-    return _GateShellReclaimSummary(**counts)
+    return GateShellReclaimSummary(**counts, error_details=tuple(error_details))
 
 
 def _reclaim_one(
@@ -140,4 +150,4 @@ def _read_json(path: Path) -> dict[str, Any]:
         return {}
 
 
-__all__ = ["reclaim_pending_gate_shells"]
+__all__ = ["GateShellReclaimSummary", "reclaim_pending_gate_shells"]

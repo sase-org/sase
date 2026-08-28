@@ -1,8 +1,12 @@
 """Tests for stale RUNNING entry cleanup functionality."""
 
+import importlib.abc
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
+
+import pytest
 
 from sase.ace.scheduler.stale_running_cleanup import (
     _get_all_project_files,
@@ -457,6 +461,81 @@ def test_cleanup_skip_monitor_claims_leaves_ace_monitor_claims_untouched() -> No
         project_file, 11, "run", "other", caller_tag="stale-cleanup"
     )
     read_marker.assert_not_called()
+
+
+def _block_monitor_start_import(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make ``sase.monitor.start`` raise SyntaxError on import."""
+
+    import sase.monitor as monitor_pkg
+
+    class _BrokenMonitorStart(importlib.abc.MetaPathFinder):
+        def find_spec(
+            self,
+            fullname: str,
+            path: object = None,
+            target: object = None,
+        ) -> None:
+            del path, target
+            if fullname == "sase.monitor.start":
+                raise SyntaxError("simulated sase.monitor.start syntax error")
+            return None
+
+    monkeypatch.setattr(sys, "meta_path", [_BrokenMonitorStart(), *sys.meta_path])
+    monkeypatch.delitem(sys.modules, "sase.monitor.start", raising=False)
+    if hasattr(monitor_pkg, "start"):
+        monkeypatch.delattr(monitor_pkg, "start")
+
+
+def test_cleanup_skip_monitor_claims_survives_unimportable_monitor_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """skip_monitor_claims=True must not import sase.monitor.start."""
+    _block_monitor_start_import(monkeypatch)
+    monitor_claim = WorkspaceClaim(
+        workspace_num=10,
+        workflow="ace-monitor",
+        cl_name="feature",
+        pid=33333,
+        artifacts_timestamp="20260813125344",
+    )
+    other_claim = WorkspaceClaim(
+        workspace_num=11,
+        workflow="run",
+        cl_name="other",
+        pid=44444,
+    )
+    project_file = "/tmp/projects/proj/proj.sase"
+    with (
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            return_value=[project_file],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            return_value=[monitor_claim, other_claim],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            return_value=False,
+        ),
+        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+    ):
+        released = cleanup_stale_running_entries(skip_monitor_claims=True)
+
+    assert isinstance(released, int)
+    assert released == 1
+    release.assert_called_once_with(
+        project_file, 11, "run", "other", caller_tag="stale-cleanup"
+    )
+
+
+def test_cleanup_imports_monitor_start_when_not_skipping_monitor_claims(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """skip_monitor_claims=False still imports sase.monitor.start."""
+    _block_monitor_start_import(monkeypatch)
+    with pytest.raises(SyntaxError, match="simulated sase.monitor.start syntax error"):
+        cleanup_stale_running_entries(skip_monitor_claims=False)
 
 
 def test_cleanup_releases_held_workspace_after_artifacts_are_deleted() -> None:
