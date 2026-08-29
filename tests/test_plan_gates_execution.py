@@ -28,6 +28,7 @@ from sase.plan_gate import (
 
 from tests._plan_gate_fixtures import (
     plan_gate_home,  # noqa: F401 (registers the gate_home fixture)
+    wait_for_archive_start,
     write_plan,
 )
 from tests.plan_validation_helpers import (
@@ -259,15 +260,18 @@ def test_commit_gate_waits_for_archive_before_response_publication(
         side_effect=archive,
     ):
         with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(
-                execute_gate_selection,
-                gate.bundle_path,
-                ["approve", "commit"],
-            )
-            assert started.wait(timeout=5)
-            assert not gate.response_path.exists()
-            release.set()
-            execution = future.result(timeout=5)
+            try:
+                future = executor.submit(
+                    execute_gate_selection,
+                    gate.bundle_path,
+                    ["approve", "commit"],
+                )
+                wait_for_archive_start(started, future)
+                assert not gate.response_path.exists()
+                release.set()
+                execution = future.result(timeout=10)
+            finally:
+                release.set()
 
     response = json.loads(gate.response_path.read_text(encoding="utf-8"))
     primary = response["option_results"][0]["result"]
@@ -277,6 +281,38 @@ def test_commit_gate_waits_for_archive_before_response_publication(
     assert primary["plan_archive_ref"] == "plan:202608/archive-paused.md"
     assert primary["saved_plan_path"] == str(saved)
     assert execution.response == response
+
+
+def test_wait_for_archive_start_surfaces_executor_error() -> None:
+    started = Event()
+
+    def fail() -> object:
+        raise RuntimeError("option command failed")
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(fail)
+        with pytest.raises(AssertionError, match="before archive started") as exc_info:
+            wait_for_archive_start(started, future, timeout=2)
+
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+
+def test_wait_for_archive_start_returns_once_event_is_set() -> None:
+    started = Event()
+    started.set()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(lambda: None)
+        wait_for_archive_start(started, future, timeout=0.2)
+
+
+def test_wait_for_archive_start_times_out_when_neither_side_finishes() -> None:
+    started = Event()
+    block = Event()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(block.wait)
+        with pytest.raises(AssertionError, match="timed out after 0.2s"):
+            wait_for_archive_start(started, future, timeout=0.2)
+        block.set()
 
 
 def test_approve_only_gate_does_not_archive(gate_home: Path) -> None:

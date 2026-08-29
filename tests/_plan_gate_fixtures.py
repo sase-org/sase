@@ -7,9 +7,42 @@ the re-exported name: ``tests/conftest.py`` ships its own narrower
 
 from __future__ import annotations
 
+import time
+from concurrent.futures import Future
 from pathlib import Path
+from threading import Event
 
 import pytest
+
+# Approve+commit runs two hashed option commands, each a fresh Python that
+# imports sase.plan_gate. The coverage-leg xdist load can spend more than 5s
+# on that pair before _archive_plan_for_approval runs, so archive-start waits
+# must watch the executor future and budget for subprocess import cost.
+ARCHIVE_START_TIMEOUT_SECONDS = 30.0
+
+
+def wait_for_archive_start(
+    started: Event,
+    future: Future[object],
+    *,
+    timeout: float = ARCHIVE_START_TIMEOUT_SECONDS,
+) -> None:
+    """Wait until the archive mock starts, or fail with the executor error."""
+    deadline = time.monotonic() + timeout
+    while not started.is_set():
+        if future.done():
+            exc = future.exception()
+            if exc is not None:
+                raise AssertionError(
+                    "gate selection finished before archive started"
+                ) from exc
+            raise AssertionError("gate selection finished before archive started")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise AssertionError(
+                f"timed out after {timeout}s waiting for archive start"
+            )
+        started.wait(timeout=min(0.05, remaining))
 
 
 @pytest.fixture(name="gate_home")

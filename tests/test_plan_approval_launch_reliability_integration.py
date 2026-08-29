@@ -46,6 +46,7 @@ from tests._axe_run_agent_exec_plan_helpers import (
 )
 from tests._plan_gate_fixtures import (  # noqa: F401
     plan_gate_home,
+    wait_for_archive_start,
     write_plan,
 )
 from tests.plan_approval_launch_reliability_test_helpers import (
@@ -290,23 +291,26 @@ def test_combined_tale_approval_to_coder_link_lifecycle(
             patch("sase.history.chat_extras.format_extra_sections", return_value="")
         )
         with ThreadPoolExecutor(max_workers=2) as pool:
-            if start_order == "poller_first":
-                runner_future = pool.submit(runner_resume)
-                assert runner_started.wait(timeout=5)
-                assert poller_waiting.wait(timeout=5)
-                host_future = pool.submit(host_approve)
-                assert archive_started.wait(timeout=5)
-            else:
-                host_future = pool.submit(host_approve)
-                assert archive_started.wait(timeout=5)
-                runner_future = pool.submit(runner_resume)
-                assert runner_started.wait(timeout=5)
-            assert not gate.response_path.exists()
-            assert poll_gate(gate.bundle_path) is None
-            assert writes == []
-            release.set()
-            execution = host_future.result(timeout=10)
-            outcome = runner_future.result(timeout=10)
+            try:
+                if start_order == "poller_first":
+                    runner_future = pool.submit(runner_resume)
+                    assert runner_started.wait(timeout=5)
+                    assert poller_waiting.wait(timeout=5)
+                    host_future = pool.submit(host_approve)
+                    wait_for_archive_start(archive_started, host_future)
+                else:
+                    host_future = pool.submit(host_approve)
+                    wait_for_archive_start(archive_started, host_future)
+                    runner_future = pool.submit(runner_resume)
+                    assert runner_started.wait(timeout=5)
+                assert not gate.response_path.exists()
+                assert poll_gate(gate.bundle_path) is None
+                assert writes == []
+                release.set()
+                execution = host_future.result(timeout=10)
+                outcome = runner_future.result(timeout=10)
+            finally:
+                release.set()
 
     response = json.loads(gate.response_path.read_text(encoding="utf-8"))
     primary = response["option_results"][0]["result"]
@@ -440,19 +444,22 @@ def test_archive_publication_order_survives_inverted_scheduling(
         side_effect=archive,
     ):
         with ThreadPoolExecutor(max_workers=2) as pool:
-            if start_order == "poller_first":
-                poll_future = pool.submit(poll)
-                assert poller_waiting.wait(timeout=5)
-                host_future = pool.submit(approve)
-                assert started.wait(timeout=5)
-            else:
-                host_future = pool.submit(approve)
-                assert started.wait(timeout=5)
-                poll_future = pool.submit(poll)
-            assert not gate.response_path.exists()
-            release.set()
-            host_future.result(timeout=5)
-            polled = poll_future.result(timeout=5)
+            try:
+                if start_order == "poller_first":
+                    poll_future = pool.submit(poll)
+                    assert poller_waiting.wait(timeout=5)
+                    host_future = pool.submit(approve)
+                    wait_for_archive_start(started, host_future)
+                else:
+                    host_future = pool.submit(approve)
+                    wait_for_archive_start(started, host_future)
+                    poll_future = pool.submit(poll)
+                assert not gate.response_path.exists()
+                release.set()
+                host_future.result(timeout=10)
+                polled = poll_future.result(timeout=10)
+            finally:
+                release.set()
 
     assert polled.status == "responded"
     result = polled.payload["option_results"][0]["result"]
