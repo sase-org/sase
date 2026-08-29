@@ -192,10 +192,10 @@ def apply_status_overrides(
                 if is_pending_plan_review_status(parent.status):
                     parent.status = "RUNNING"
 
-    # Concrete follow-up planner rows keep their post-approval status even when
-    # loaded without the family root that accepted their plan. Stale QUESTION
-    # rows can occur when a question continuation later submitted an approved
-    # plan; active rows keep their live status until the approval metadata exists.
+    # Legacy concrete follow-up planner rows keep their post-approval status
+    # even when loaded without the family root that accepted their plan. Gate-
+    # shell creator rows are excluded because the gate shell now publishes the
+    # decision status for both pending and settled states.
     for agent in all_agents:
         if agent.status in {"DONE", "QUESTION"}:
             approved_status = approved_followup_planner_status(agent)

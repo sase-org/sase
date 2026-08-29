@@ -31,6 +31,7 @@ _GATE_SUFFIX = "20260812090500"
 _GATE_START = datetime(2026, 8, 12, 9, 5, 0)
 _CODE_SUFFIX = "20260812091000"
 _CODE_START = datetime(2026, 8, 12, 9, 10, 0)
+_PLAN_TIME = datetime(2026, 8, 12, 9, 3, 0)
 
 
 def _root(*, plan_action: str | None = None) -> Agent:
@@ -51,8 +52,15 @@ def _root(*, plan_action: str | None = None) -> Agent:
     )
 
 
-def _planner_step() -> Agent:
+def _planner_step(
+    *,
+    plan_action: str | None = "tale",
+    plan_times: list[datetime] | None = None,
+    gate_id: str | None = "g123",
+) -> Agent:
     """The concrete main workflow step that submitted the family's plan."""
+    if plan_times is None:
+        plan_times = [_PLAN_TIME]
     return Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="main",
@@ -67,6 +75,9 @@ def _planner_step() -> Agent:
         agent_name=f"{_FAMILY}--0",
         agent_family=_FAMILY,
         agent_family_role="plan",
+        plan_action=plan_action,
+        plan_times=plan_times,
+        gate_id=gate_id,
     )
 
 
@@ -196,6 +207,43 @@ def test_settled_approve_and_commit_gate_projects_tale_approved() -> None:
     assert root.gate_stop_status == gate.gate_stop_status == "TALE APPROVED"
     assert root.gate_state == gate.gate_state == "answered"
     assert root.gate_accent == gate.gate_accent
+
+
+def test_settled_approve_gate_projects_plan_approved() -> None:
+    root = _root()
+    planner = _planner_step(plan_action="approve")
+    gate = _gate_member(
+        state="answered", start_status="PLAN", stop_status="PLAN APPROVED"
+    )
+
+    _apply_status_overrides([root, gate], [planner])
+
+    assert root.status == "PLAN APPROVED"
+    assert gate.status == "PLAN APPROVED"
+    assert planner.status == "DONE"
+
+
+def test_pending_tale_gate_with_early_approval_metadata_keeps_planner_done() -> None:
+    root = _root()
+    planner = _planner_step(plan_action="tale")
+    gate = _gate_member(
+        state="pending", start_status="TALE", stop_status="TALE APPROVED"
+    )
+
+    _apply_status_overrides([root, gate], [planner])
+
+    assert root.status == "TALE"
+    assert gate.status == "TALE"
+    assert planner.status == "DONE"
+
+
+def test_legacy_planner_without_gate_id_keeps_sticky_tale_approval() -> None:
+    root = _root()
+    planner = _planner_step(plan_action="tale", gate_id=None)
+
+    _apply_status_overrides([root], [planner])
+
+    assert planner.status == "TALE APPROVED"
 
 
 def test_settled_reject_gate_projects_plan_rejected() -> None:

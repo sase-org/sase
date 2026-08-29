@@ -81,10 +81,25 @@ def is_completed_epic_followup_child(agent: Agent) -> bool:
     )
 
 
+def _decision_published_by_gate_shell(agent: Agent) -> bool:
+    """Return True when a gate shell, not this row, publishes its decision.
+
+    An agent that creates a gate shell records the gate's id in its own
+    ``agent_meta.json`` before handing off, so a creator row carries
+    ``gate_id`` without being the gate member (``is_gate`` is role-based).
+    From that point the gate shell owns the decision status for its whole
+    settled/pending pair, and the creating agent shell keeps its own terminal
+    status. Legacy pre-gate-shell families record no ``gate_id`` and keep the
+    historical planner label, because they have no gate node to carry it.
+    """
+    return bool(agent.gate_id) and not agent.is_gate
+
+
 def approved_followup_planner_status(agent: Agent) -> str | None:
-    """Return the sticky approved status for a concrete follow-up planner."""
+    """Return the legacy approved status for a no-gate-shell planner."""
     if (
-        agent.parent_timestamp is None
+        _decision_published_by_gate_shell(agent)
+        or agent.parent_timestamp is None
         or agent.agent_family_parallel
         or agent_family_role(agent) not in PLANNER_FAMILY_ROLES
     ):
