@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.1](https://github.com/sase-org/sase/compare/v0.17.0...v0.17.1) (2026-08-29)
+
+
+### Features
+
+* **memory:** give agent docs a Memory Webs section ([b726d0a](https://github.com/sase-org/sase/commit/b726d0a18cf690c871b12b4bb56ef5d07652afeb))
+
 ## [0.17.0](https://github.com/sase-org/sase/compare/v0.16.0...v0.17.0) (2026-08-29)
 
 
