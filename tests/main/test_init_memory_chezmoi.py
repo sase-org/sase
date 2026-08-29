@@ -88,9 +88,10 @@ sibling_repos:
     assert "another SASE project's repo" in _single_line(chezmoi_memory)
     assert "This rule applies regardless of transport" in _single_line(chezmoi_memory)
     assert "raw.githubusercontent.com" in chezmoi_memory
-    assert "Do NOT locate, clone, or web-fetch another repo's contents" in _single_line(
-        chezmoi_memory
-    )
+    assert (
+        "locate, clone, or web-fetch another repo's contents any other way than "
+        "by using `/sase_repo` or `sase artifact read`!"
+    ) in _single_line(chezmoi_memory)
     assert 'sase repo open <linked_repo> -r "<reason>"' not in chezmoi_memory
     # Chezmoi writes static copies of ``AGENTS.md`` (no ``.tmpl``).
     agents = (chezmoi_home / "AGENTS.md").read_text()
