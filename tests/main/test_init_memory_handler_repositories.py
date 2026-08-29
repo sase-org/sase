@@ -96,9 +96,15 @@ sibling_repos:
         assert (
             "Web tools remain appropriate only for content a checkout does not contain"
         ) in memory_line
+        assert ("IMPORTANT REMINDERS:") in memory_line
         assert (
-            "IMPORTANT REMINDER: Do NOT locate, clone, or web-fetch another "
-            "repo's contents any other way than by using `/sase_repo`!"
+            "- Do NOT locate, clone, or web-fetch another repo's contents any "
+            "other way than by using `/sase_repo` or `sase artifact read`!"
+        ) in memory_line
+        assert (
+            '- The `sase artifact read <ref> "<reason>"` command MUST be used '
+            "to read artifacts (so the reads are audited) from sidecar repos. "
+            "Do NOT read sidecar artifact files directly."
         ) in memory_line
         assert 'sase repo open <linked_repo> -r "<reason>"' not in memory
 
