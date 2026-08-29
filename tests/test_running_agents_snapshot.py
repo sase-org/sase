@@ -7,8 +7,10 @@ pin the filters that the previous direct-walk implementation enforced
 filter, per-project completed cap) on the snapshot adapter.
 
 Process liveness still lives in Python, so the tests stub the process-running
-probe and the Linux ``/proc/<pid>/cmdline`` PID-reuse guard rather than mocking
-the snapshot.
+probe, the Linux ``/proc/<pid>/cmdline`` PID-reuse guard, and
+``pid_is_thread`` rather than mocking the snapshot. Fixture PIDs such as
+``33333`` can collide with a live thread ID on a busy CI runner; without the
+thread stub ``list_all_agents`` drops the retried child.
 """
 
 from __future__ import annotations
@@ -87,6 +89,8 @@ def _fixture_processes(home: Path, *, alive: bool) -> Iterator[None]:
         patch("pathlib.Path.home", return_value=home),
         patch("sase.ace.hooks.processes.is_process_running", is_process_running),
         patch.object(process_identity, "current_boot_time_utc", return_value=None),
+        # Fixture PIDs can collide with a live host TID; keep them as processes.
+        patch.object(process_identity, "pid_is_thread", return_value=False),
         patch.object(Path, "read_bytes", read_bytes),
     ):
         yield
@@ -450,6 +454,42 @@ def test_list_all_agents_includes_done_and_failed(tmp_path: Path) -> None:
     last_active = max(i for i, s in enumerate(statuses) if s in {"STARTING", "RUNNING"})
     first_terminal = min(i for i, s in enumerate(statuses) if s in {"DONE", "FAILED"})
     assert last_active < first_terminal
+
+
+def test_list_all_agents_includes_retried_child_when_host_tid_collides(
+    tmp_path: Path,
+) -> None:
+    """A host TID equal to the retried child's fixture PID must not hide it."""
+    projects_root = _projects_root_for(tmp_path)
+    build_fixture_tree(projects_root)
+    child_meta = json.loads(
+        (
+            projects_root
+            / "myproj"
+            / "artifacts"
+            / "ace-run"
+            / TS_ACE_RUN_RETRIED_CHILD
+            / "agent_meta.json"
+        ).read_text(encoding="utf-8")
+    )
+    child_pid = int(child_meta["pid"])
+    proc_root = tmp_path / "host-proc"
+    thread_dir = proc_root / str(child_pid)
+    thread_dir.mkdir(parents=True)
+    (thread_dir / "status").write_text(
+        f"Name:\tci-worker\nTgid:\t1000\nPid:\t{child_pid}\n",
+        encoding="utf-8",
+    )
+
+    with (
+        patch.object(process_identity, "_PROC_ROOT", proc_root),
+        _fixture_processes(tmp_path, alive=True),
+    ):
+        agents = list_all_agents()
+
+    by_ts = {_ts(info): info for info in agents}
+    assert TS_ACE_RUN_RETRIED_CHILD in by_ts
+    assert by_ts[TS_ACE_RUN_RETRIED_CHILD].status == "STARTING"
 
 
 def test_list_all_agents_skips_noop_outcome(tmp_path: Path) -> None:
