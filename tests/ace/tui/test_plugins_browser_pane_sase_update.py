@@ -285,11 +285,15 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
             lambda *, restart_axe: restart_calls.append(restart_axe),
         )
         timer_callbacks: list[Any] = []
+        original_set_timer = page.app.set_timer
 
-        def _set_timer(delay: float, callback: Any) -> object:
+        def _set_timer(
+            delay: float, callback: Any, *args: Any, **kwargs: Any
+        ) -> object:
             if delay == 1.0:
                 timer_callbacks.append(callback)
-            return SimpleNamespace(stop=lambda: None)
+                return SimpleNamespace(stop=lambda: None)
+            return original_set_timer(delay, callback, *args, **kwargs)
 
         monkeypatch.setattr(page.app, "set_timer", _set_timer)
         background = _task("sync-feature-a", "sync")
@@ -315,9 +319,11 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
         assert isinstance(modal, PluginActionConfirmModal)
         modal.action_confirm()
 
-        await page.wait_for(lambda _s: bool(submitted_workers))
+        await page.wait_for(lambda _s: bool(submitted_workers), timeout=15.0)
         await submitted_workers[0].wait()
-        await page.wait_for(lambda _s: bool(executed) and bool(timer_callbacks))
+        await page.wait_for(
+            lambda _s: bool(executed) and bool(timer_callbacks), timeout=15.0
+        )
         assert restart_calls == []
         assert calls  # initial load happened; changed update does not need a reload
         assert any(
@@ -330,7 +336,7 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
         background.output = "sync done"
         background.finished_at = datetime(2026, 7, 9, 12, 0, 5)
         timer_callbacks.pop(0)()
-        await page.pause()
+        await page.wait_for(lambda _s: bool(restart_calls), timeout=15.0)
 
         assert restart_calls == [True]
         assert any("restarting ACE" in message for message, _severity in messages)

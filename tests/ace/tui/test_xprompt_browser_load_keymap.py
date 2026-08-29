@@ -197,7 +197,10 @@ async def test_enter_returns_while_xprompt_file_read_is_blocked(
         finally:
             release.set()
             await page.wait_for(
-                lambda _s: bool(page.app.query("#prompt-input-bar")),
+                lambda _s: (
+                    bool(page.app.query("#prompt-input-bar"))
+                    and bool(page.app.query("PromptTextArea"))
+                ),
                 timeout=10.0,
             )
 

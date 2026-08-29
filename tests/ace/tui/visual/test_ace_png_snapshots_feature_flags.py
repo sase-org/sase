@@ -128,6 +128,11 @@ async def _open_flags_pane(
         lambda: not pane._loading,
         description="Flags pane loaded",
     )
+    await wait_for_state(
+        page,
+        lambda: pane._debouncer is None or not pane._debouncer.is_pending,
+        description="Flags detail debounce idle",
+    )
     await wait_for_visual_idle(page)
     return modal, pane
 
@@ -201,6 +206,11 @@ async def test_config_center_flags_narrow_png_snapshot(
         await wait_for_startup(page)
         await _open_flags_pane(page)
         await wait_for_svg_contains(page, "FLAGS")
+        # Narrow width wraps the detail title onto a second line. Capture
+        # only after that wrap is painted, otherwise idle can freeze a
+        # 1-line clipped title and miss ON/SUNSET.
+        await wait_for_svg_contains(page, "SUNSET")
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "config_center_flags_populated_70x32",

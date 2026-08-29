@@ -8,6 +8,7 @@ from typing import Any
 from textual.app import App, ComposeResult
 from textual.widgets import Input, OptionList, Static
 
+from sase.ace.testing.wait import wait_for as wait_for_pilot
 from sase.ace.tui.modals import mini_xprompt_name_modal as modal_mod
 from sase.ace.tui.modals.mini_xprompt_name_modal import (
     MiniXPromptNameModal,
@@ -79,6 +80,48 @@ def _definition(
     )
 
 
+def _verdict_text(modal: MiniXPromptNameModal) -> str | None:
+    if not modal.query("#mini-xprompt-name-verdict"):
+        return None
+    return modal.query_one("#mini-xprompt-name-verdict", Static).render().plain
+
+
+async def _wait_for_analysis_idle(
+    pilot: Any,
+    modal: MiniXPromptNameModal,
+    *,
+    timeout: float = 8.0,
+) -> None:
+    def _ready() -> bool:
+        text = _verdict_text(modal)
+        if text is None or "Checking #" in text:
+            return False
+        return not modal._pending_analyses and not modal._analysis_tasks
+
+    await wait_for_pilot(pilot, _ready, timeout=timeout)
+
+
+async def _wait_for_verdict(
+    pilot: Any,
+    modal: MiniXPromptNameModal,
+    needle: str,
+    *,
+    timeout: float = 8.0,
+) -> str:
+    def _ready() -> bool:
+        text = _verdict_text(modal)
+        if text is None or "Checking #" in text:
+            return False
+        if modal._pending_analyses or modal._analysis_tasks:
+            return False
+        return needle in text
+
+    await wait_for_pilot(pilot, _ready, timeout=timeout)
+    rendered = _verdict_text(modal)
+    assert rendered is not None
+    return rendered
+
+
 async def _open_modal(
     modal: MiniXPromptNameModal,
     *,
@@ -88,7 +131,7 @@ async def _open_modal(
     pilot_cm = app.run_test(size=size)
     pilot = await pilot_cm.__aenter__()
     app.push_screen(modal)
-    await pilot.pause(0.25)
+    await _wait_for_analysis_idle(pilot, modal)
     return app, (pilot_cm, pilot)
 
 
@@ -105,11 +148,11 @@ async def test_invalid_name_enter_is_inert(tmp_path: Path) -> None:
             ),
             results.append,
         )
-        await pilot.pause(0.25)
-        await pilot.press("enter")
-        await pilot.pause()
         modal = app.screen
         assert isinstance(modal, MiniXPromptNameModal)
+        await _wait_for_verdict(pilot, modal, "Invalid name")
+        await pilot.press("enter")
+        await _wait_for_analysis_idle(pilot, modal)
         assert (
             "Invalid name"
             in modal.query_one("#mini-xprompt-name-verdict", Static).render().plain
@@ -130,15 +173,11 @@ async def test_new_name_returns_create_target(tmp_path: Path) -> None:
             ),
             results.append,
         )
-        await pilot.pause(0.25)
         modal = app.screen
         assert isinstance(modal, MiniXPromptNameModal)
-        assert (
-            "Create #review"
-            in modal.query_one("#mini-xprompt-name-verdict", Static).render().plain
-        )
+        await _wait_for_verdict(pilot, modal, "Create #review")
         await pilot.press("enter")
-        await pilot.pause()
+        await wait_for_pilot(pilot, lambda: bool(results), timeout=8.0)
 
     result = results[0]
     assert result is not None
@@ -164,9 +203,11 @@ async def test_exact_editable_match_returns_edit_action(tmp_path: Path) -> None:
             ),
             results.append,
         )
-        await pilot.pause(0.25)
+        modal = app.screen
+        assert isinstance(modal, MiniXPromptNameModal)
+        await _wait_for_analysis_idle(pilot, modal)
         await pilot.press("enter")
-        await pilot.pause()
+        await wait_for_pilot(pilot, lambda: bool(results), timeout=8.0)
 
     result = results[0]
     assert result is not None
@@ -205,15 +246,15 @@ async def test_read_only_match_returns_override_action(tmp_path: Path) -> None:
             ),
             results.append,
         )
-        await pilot.pause(0.25)
         modal = app.screen
         assert isinstance(modal, MiniXPromptNameModal)
+        await _wait_for_analysis_idle(pilot, modal)
         assert (
             str(writable_dir)
             in modal.query_one("#mini-xprompt-name-destination", Static).render().plain
         )
         await pilot.press("enter")
-        await pilot.pause()
+        await wait_for_pilot(pilot, lambda: bool(results), timeout=8.0)
 
     result = results[0]
     assert result is not None
@@ -245,15 +286,11 @@ async def test_incompatible_exact_match_refuses_open(tmp_path: Path) -> None:
             ),
             results.append,
         )
-        await pilot.pause(0.25)
         modal = app.screen
         assert isinstance(modal, MiniXPromptNameModal)
-        assert (
-            "Cannot open #review"
-            in modal.query_one("#mini-xprompt-name-verdict", Static).render().plain
-        )
+        await _wait_for_verdict(pilot, modal, "Cannot open #review")
         await pilot.press("enter")
-        await pilot.pause()
+        await _wait_for_analysis_idle(pilot, modal)
 
     assert results == []
 
@@ -294,22 +331,19 @@ async def test_incompatible_selected_destination_refuses_fork_over_editable_effe
             ),
             results.append,
         )
-        await pilot.pause(0.25)
         modal = app.screen
         assert isinstance(modal, MiniXPromptNameModal)
+        await _wait_for_analysis_idle(pilot, modal)
         assert (
             str(high)
             in modal.query_one("#mini-xprompt-name-destination", Static).render().plain
         )
 
         await pilot.press("ctrl+n")
-        await pilot.pause(0.25)
-
-        verdict = modal.query_one("#mini-xprompt-name-verdict", Static).render().plain
-        assert "Cannot open #review at" in verdict
+        verdict = await _wait_for_verdict(pilot, modal, "Cannot open #review at")
         assert "xprompt swarms" in verdict
         await pilot.press("enter")
-        await pilot.pause()
+        await _wait_for_analysis_idle(pilot, modal)
 
     assert results == []
 
@@ -336,10 +370,10 @@ async def test_prefix_order_tab_completion_and_match_navigation_keep_input_focus
                 initial_name="rev",
             )
         )
-        await pilot.pause(0.25)
-        monkeypatch.setattr(Path, "read_text", fail_read_text)
         modal = app.screen
         assert isinstance(modal, MiniXPromptNameModal)
+        await _wait_for_analysis_idle(pilot, modal)
+        monkeypatch.setattr(Path, "read_text", fail_read_text)
         matches = modal.query_one("#mini-xprompt-name-matches", OptionList)
         rendered = "\n".join(
             getattr(option.prompt, "plain", str(option.prompt))
@@ -372,14 +406,19 @@ async def test_ctrl_n_cycles_destinations_without_stealing_focus(
                 initial_name="review",
             )
         )
-        await pilot.pause(0.25)
         modal = app.screen
         assert isinstance(modal, MiniXPromptNameModal)
+        await _wait_for_analysis_idle(pilot, modal)
         await pilot.press("ctrl+n")
-        await pilot.pause(0.25)
-        assert (
-            str(tmp_path / "second")
-            in modal.query_one("#mini-xprompt-name-destination", Static).render().plain
+        await wait_for_pilot(
+            pilot,
+            lambda: (
+                str(tmp_path / "second")
+                in modal.query_one("#mini-xprompt-name-destination", Static)
+                .render()
+                .plain
+            ),
+            timeout=8.0,
         )
         assert modal.query_one("#mini-xprompt-name-input", Input).has_focus
 
