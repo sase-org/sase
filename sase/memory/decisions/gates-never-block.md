@@ -36,5 +36,5 @@ gate shell but only hands off if the gate is still pending once creation returns
 
 **Reopens when.** A hosting platform ships a true suspend/resume primitive that
 preserves workspace claims and provider budget across a pause, per
-[[single-turn-agents]] — no such primitive exists today, so blocking is not a live
-alternative to reopen this decision toward.
+[[decisions/single-turn-agents]] — no such primitive exists today, so blocking is not a
+live alternative to reopen this decision toward.
