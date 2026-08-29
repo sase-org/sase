@@ -10,9 +10,9 @@ import pytest
 
 from sase.llm_provider.launch_selection import LaunchSelection
 from sase.xprompt.directives import PromptDirectives
-from sase.xprompt.workflow_executor_steps_prompt import (
+from sase.xprompt.workflow_executor_steps_prompt_launch import (
     _launch_selection_from_agent_meta,
-    _resolve_prompt_step_launch_selection,
+    resolve_prompt_step_launch_selection,
 )
 
 
@@ -80,7 +80,7 @@ def test_resolve_prompt_step_prefers_agent_meta_over_default_model(
         ),
     )
 
-    selection = _resolve_prompt_step_launch_selection(
+    selection = resolve_prompt_step_launch_selection(
         str(artifacts),
         directives=PromptDirectives(),
         provider_disables=None,
@@ -123,7 +123,7 @@ def test_stale_unredeemed_reservation_is_not_inherited_from_agent_meta(
         ),
     )
 
-    selection = _resolve_prompt_step_launch_selection(
+    selection = resolve_prompt_step_launch_selection(
         str(artifacts),
         directives=PromptDirectives(),
         provider_disables=None,

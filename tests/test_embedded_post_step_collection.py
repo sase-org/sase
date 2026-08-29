@@ -1,8 +1,8 @@
-"""Tests for _collect_embedded_step_outputs() in workflow_executor_steps_prompt."""
+"""Tests for _collect_embedded_step_outputs()."""
 
 from sase.xprompt.models import OutputSpec
 from sase.xprompt.workflow_executor_steps_embedded import EmbeddedWorkflowInfo
-from sase.xprompt.workflow_executor_steps_prompt import (
+from sase.xprompt.workflow_executor_steps_prompt_outputs import (
     _collect_embedded_step_outputs,
 )
 from sase.xprompt.workflow_models import WorkflowStep

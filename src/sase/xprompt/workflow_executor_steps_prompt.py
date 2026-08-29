@@ -1,10 +1,25 @@
-"""Prompt step execution mixin."""
+"""Prompt step execution mixin.
 
-from dataclasses import replace
-import json
+Launch selection helpers live in ``workflow_executor_steps_prompt_launch``.
+Embedded output helpers live in ``workflow_executor_steps_prompt_outputs``.
+Prompt preprocessing lives in ``workflow_executor_steps_prompt_prepare``.
+"""
+
 import os
 from typing import TYPE_CHECKING, Any
 
+from sase.xprompt.workflow_executor_steps_prompt_launch import (
+    resolve_prompt_step_launch_selection,
+    update_root_agent_meta_from_launch,
+)
+from sase.xprompt.workflow_executor_steps_prompt_outputs import (
+    absolutize_path_outputs,
+    apply_embedded_outputs_to_parent,
+    capture_vcs_diff,
+    has_finally_post_steps,
+    resolve_embedded_path_fields,
+)
+from sase.xprompt.workflow_executor_steps_prompt_prepare import PromptStepPrepareMixin
 from sase.xprompt.workflow_executor_types import HITLHandler, output_types_from_step
 from sase.xprompt.workflow_models import (
     StepState,
@@ -16,225 +31,16 @@ from sase.xprompt.workflow_models import (
 )
 
 if TYPE_CHECKING:
-    from sase.xprompt.workflow_executor_steps_embedded import EmbeddedWorkflowInfo
     from sase.xprompt.workflow_output import WorkflowOutputHandler
 
-
-def capture_vcs_diff() -> str | None:
-    """Capture uncommitted changes as a VCS diff, including untracked files.
-
-    Returns:
-        The VCS diff output, or None if no changes or an error occurred.
-    """
-    try:
-        from sase.vcs_provider import get_vcs_provider
-
-        provider = get_vcs_provider(os.getcwd())
-        _, diff_text = provider.diff_with_untracked(os.getcwd())
-        return diff_text
-    except Exception:
-        return None
+# Re-export for backward compatibility
+__all__ = [
+    "PromptStepMixin",
+    "capture_vcs_diff",
+]
 
 
-def _collect_embedded_step_outputs(
-    embedded_workflows: list["EmbeddedWorkflowInfo"],
-) -> tuple[str | None, dict[str, str]]:
-    """Collect diff_path and meta_* fields from embedded step outputs.
-
-    Scans both pre-steps and post-steps for meta_* fields.
-    diff_path extraction remains post-step only.
-    """
-    diff_path: str | None = None
-    meta_fields: dict[str, str] = {}
-    for info in embedded_workflows:
-        # Collect meta_* from ALL pre-steps
-        for step in info.pre_steps:
-            step_output = info.context.get(step.name)
-            if isinstance(step_output, dict):
-                for k, v in step_output.items():
-                    if k.startswith("meta_") and v:
-                        meta_fields[k] = str(v)
-        # Collect meta_* from ALL post-steps
-        for step in info.post_steps:
-            step_output = info.context.get(step.name)
-            if isinstance(step_output, dict):
-                for k, v in step_output.items():
-                    if k.startswith("meta_") and v:
-                        meta_fields[k] = str(v)
-        # Extract path-type output from LAST post-step only
-        # (first embedded workflow with post-steps wins)
-        if info.post_steps and diff_path is None:
-            last_step = info.post_steps[-1]
-            step_output = info.context.get(last_step.name)
-            if isinstance(step_output, dict) and last_step.output is not None:
-                properties = last_step.output.schema.get("properties")
-                if properties and isinstance(properties, dict):
-                    for field_name, prop in properties.items():
-                        if isinstance(prop, dict) and prop.get("type") == "path":
-                            path_value = step_output.get(field_name)
-                            if path_value:
-                                diff_path = str(path_value)
-                                break
-    return diff_path, meta_fields
-
-
-def _resolve_embedded_path_fields(
-    output: dict[str, Any],
-    step: WorkflowStep,
-    embedded_workflows: list["EmbeddedWorkflowInfo"],
-) -> None:
-    """Populate missing path-type output fields from embedded workflow contexts.
-
-    When a parent step declares path-type output fields (e.g., {desc_file: path}),
-    the actual file paths may come from embedded workflow pre-steps. This resolves
-    those paths before HITL review so file contents can be displayed.
-    """
-    from sase.xprompt.workflow_executor_steps_embedded import map_output_by_type
-
-    parent_output_types = output_types_from_step(step)
-    if not parent_output_types:
-        return
-
-    path_fields = {k for k, v in parent_output_types.items() if v == "path"}
-    if not path_fields:
-        return
-
-    for info in embedded_workflows:
-        for pre_step in info.pre_steps:
-            if not pre_step.output:
-                continue
-            pre_step_output = info.context.get(pre_step.name)
-            if not isinstance(pre_step_output, dict):
-                continue
-            # step.output is guaranteed non-None here because
-            # output_types_from_step() returned a non-None dict above.
-            assert step.output is not None
-            mapped = map_output_by_type(step.output, pre_step.output, pre_step_output)
-            if mapped is None:
-                continue
-            for field_name in path_fields:
-                if field_name in mapped and field_name not in output:
-                    output[field_name] = mapped[field_name]
-
-
-def _read_agent_meta(artifacts_dir: str) -> dict[str, Any] | None:
-    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-    try:
-        with open(meta_path, encoding="utf-8") as stream:
-            meta = json.load(stream)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return None
-    return meta if isinstance(meta, dict) else None
-
-
-def _read_model_alias_reservation(artifacts_dir: str) -> dict[str, Any] | None:
-    meta = _read_agent_meta(artifacts_dir)
-    if meta is None:
-        return None
-    reservation = meta.get("model_alias_reservation")
-    return dict(reservation) if isinstance(reservation, dict) else None
-
-
-def _launch_selection_from_agent_meta(
-    artifacts_dir: str,
-    *,
-    directives: Any,
-) -> Any:
-    """Return the recorded agent model when the prompt has no ``%model``.
-
-    Default ``sase pipe`` inherit copies the parent's ``llm_provider`` and
-    ``model`` into the successor artifacts dir but does not prepend
-    ``%model``. Without this fallback the anonymous workflow step would
-    resolve ``llm_provider.default_model`` (Claude on a host that has the
-    CLI) and break the inherit contract.
-    """
-    from sase.llm_provider.launch_selection import LaunchSelection
-
-    if getattr(directives, "model", None):
-        return None
-    meta = _read_agent_meta(artifacts_dir)
-    if meta is None:
-        return None
-    provider = meta.get("llm_provider")
-    model = meta.get("model")
-    if not isinstance(provider, str) or not provider:
-        return None
-    if not isinstance(model, str) or not model:
-        return None
-    effort = meta.get("reasoning_effort")
-    if effort is not None and not isinstance(effort, str):
-        effort = None
-    raw_trail = meta.get("model_alias_trail")
-    alias_trail: tuple[str, ...] = ()
-    if isinstance(raw_trail, list) and all(
-        isinstance(item, str) and item for item in raw_trail
-    ):
-        alias_trail = tuple(raw_trail)
-    return LaunchSelection(
-        provider=provider,
-        model=model,
-        reasoning_effort=effort,
-        effort_explicit=False,
-        alias_trail=alias_trail,
-        cursor_alias=None,
-    )
-
-
-def _resolve_prompt_step_launch_selection(
-    artifacts_dir: str,
-    *,
-    directives: Any,
-    provider_disables: Any,
-) -> Any:
-    """Pick reservation, then inherited agent meta, then default_model."""
-    from sase.llm_provider.launch_selection import (
-        launch_selection_from_reservation,
-        resolve_launch_selection,
-    )
-
-    reservation = _read_model_alias_reservation(artifacts_dir)
-    launch_selection = launch_selection_from_reservation(
-        reservation,
-        directives=directives,
-        provider_disables=provider_disables,
-    )
-    if launch_selection is not None:
-        _mark_model_alias_reservation_redeemed(artifacts_dir, reservation)
-        return launch_selection
-    if isinstance(reservation, dict) and reservation.get("redeemed") is False:
-        # A live bootstrap reservation that no longer matches must be spent
-        # and re-resolved. Do not inherit the stale agent_meta target.
-        _mark_model_alias_reservation_redeemed(artifacts_dir, reservation)
-    else:
-        inherited = _launch_selection_from_agent_meta(
-            artifacts_dir, directives=directives
-        )
-        if inherited is not None:
-            return inherited
-    selection = resolve_launch_selection(
-        directives,
-        directives.model_alias_overrides,
-        consume=True,
-        provider_disables=provider_disables,
-    )
-    assert selection is not None
-    return selection
-
-
-def _mark_model_alias_reservation_redeemed(
-    artifacts_dir: str,
-    reservation: dict[str, Any] | None,
-) -> None:
-    if not reservation:
-        return
-    from sase.axe.run_agent_helpers import update_meta_fields
-
-    redeemed = dict(reservation)
-    redeemed["redeemed"] = True
-    update_meta_fields(artifacts_dir, {"model_alias_reservation": redeemed})
-
-
-class PromptStepMixin:
+class PromptStepMixin(PromptStepPrepareMixin):
     """Mixin class providing prompt step execution.
 
     This mixin requires the following attributes on self:
@@ -260,6 +66,7 @@ class PromptStepMixin:
     state: WorkflowState
     inherited_model_override: str | None
     inherited_vcs_tag: str | None
+    _agents_launched: int
 
     # Method type declarations for methods provided by other mixins/main class
     _save_state: Any  # () -> None
@@ -285,109 +92,17 @@ class PromptStepMixin:
         Returns:
             True if step succeeded, False if rejected by user.
         """
-        from sase.llm_provider import invoke_agent
-        from sase.llm_provider.preprocessing import (
-            preprocess_prompt_early,
-            preprocess_prompt_late,
-        )
         from sase.content import ensure_str_content
-
+        from sase.llm_provider import invoke_agent
         from sase.xprompt import extract_structured_content
 
-        if not step.agent:
-            raise WorkflowExecutionError(
-                f"Agent step '{step.name}' has no agent prompt"
-            )
+        prepared = self._prepare_prompt_step(step)
+        expanded_prompt = prepared.expanded_prompt
+        effective_directives = prepared.effective_directives
+        embedded_workflows = prepared.embedded_workflows
+        pre_step_count = prepared.pre_step_count
+        pre_step_meta = prepared.pre_step_meta
 
-        from sase.xprompt._parsing import inherit_vcs_workflow_tag
-
-        step_prompt = inherit_vcs_workflow_tag(step.agent, self.inherited_vcs_tag)
-        from sase.xprompt.used_xprompts import write_used_xprompts
-
-        # Step-only write: per-step usage lands in xprompts_<step>.json for
-        # child rows, while the shared xprompts.json (launch/root metadata
-        # written at the launch boundary) is preserved rather than clobbered
-        # with step-level data. When no launch boundary captured usage, the
-        # first step still seeds the shared file.
-        write_used_xprompts(
-            self.artifacts_dir,
-            step_prompt,
-            step.name,
-            extra_xprompts=self.workflow.xprompts,
-            step_only=True,
-        )
-
-        # Early phase: directives, Jinja2 context rendering, xprompt expansion
-        early = preprocess_prompt_early(
-            step_prompt,
-            extra_xprompts=self.workflow.xprompts,
-            scope=self.context,
-            context=self.context,
-        )
-        effective_directives = early.directives
-        if self.inherited_model_override:
-            effective_directives = replace(
-                effective_directives,
-                model=self.inherited_model_override,
-            )
-        retry_model_override = os.environ.get("SASE_MODEL_OVERRIDE")
-        if retry_model_override:
-            effective_directives = replace(
-                effective_directives,
-                model=retry_model_override,
-            )
-
-        # Then expand embedded workflows
-        # This executes pre-steps and replaces workflow refs with prompt_part content
-        expanded_prompt, embedded_workflows, pre_step_count = (
-            self._expand_embedded_workflows_in_prompt(early.prompt)
-        )
-
-        # Re-expand xprompts after embedded workflow pre-steps.  The pre-steps
-        # may have updated the workspace (e.g. git pull), making CWD-relative
-        # xprompts (like local sase.yml entries) available that weren't
-        # present during the early phase.
-        if embedded_workflows:
-            from sase.xprompt import process_xprompt_references
-
-            expanded_prompt = process_xprompt_references(
-                expanded_prompt,
-                extra_xprompts=self.workflow.xprompts,
-                scope=self.context,
-            )
-
-        # Late phase: command sub, file refs, Jinja2, prettier, HTML stripping
-        from sase.artifact_ref_prompt_context import (
-            prompt_ref_contexts_for_segment_vcs_refs,
-        )
-
-        ref_contexts = prompt_ref_contexts_for_segment_vcs_refs(
-            early.segment_vcs_refs, is_home_mode=False
-        )
-        expanded_prompt = preprocess_prompt_late(
-            expanded_prompt,
-            ref_contexts=ref_contexts,
-            materialize_missing_roots=True,
-        )
-
-        # Append output format instructions if step has output spec
-        if step.output:
-            from sase.xprompt import generate_format_instructions
-
-            format_instr = generate_format_instructions(step.output)
-            if format_instr:
-                expanded_prompt = expanded_prompt + format_instr
-
-        # Collect meta_* from embedded pre-steps so the TUI can display
-        # Workspace/Project/Patch immediately when the agent starts.
-        pre_step_meta: dict[str, str] = {}
-        for info in embedded_workflows:
-            for pre_step in info.pre_steps:
-                pre_step_output = info.context.get(pre_step.name)
-                if isinstance(pre_step_output, dict):
-                    for k, v in pre_step_output.items():
-                        if k.startswith("meta_") and v:
-                            pre_step_meta[k] = str(v)
         if pre_step_meta:
             step_state.output = dict(pre_step_meta)
 
@@ -399,7 +114,7 @@ class PromptStepMixin:
         from sase.llm_provider.provider_disable import get_active_provider_disables
 
         provider_disables = get_active_provider_disables() or None
-        launch_selection = _resolve_prompt_step_launch_selection(
+        launch_selection = resolve_prompt_step_launch_selection(
             self.artifacts_dir,
             directives=effective_directives,
             provider_disables=provider_disables,
@@ -433,45 +148,16 @@ class PromptStepMixin:
             # selection so `sase agent list`, the ACE row, and any launch
             # reservation metadata written before this real invocation agree
             # with what actually ran.
-            from sase.axe.run_agent_helpers import update_meta_fields
-            from sase.llm_provider.config import (
-                DEFAULT_MODEL_FIELD,
-                launch_model_setting_alias,
-            )
-
-            root_model_alias = (
-                effective_directives.model_alias
-                if effective_directives.model
-                else launch_model_setting_alias(
-                    DEFAULT_MODEL_FIELD,
-                    effective_directives.model_alias_overrides,
-                )
-            )
-            root_meta_fields: dict[str, Any] = {
-                "model": step_model,
-                "llm_provider": step_llm_provider,
-                "model_alias_origin": step_model_alias_origin,
-            }
-            if root_model_alias:
-                root_meta_fields["model_alias"] = root_model_alias
-            if step_model_alias_trail:
-                root_meta_fields["model_alias_trail"] = step_model_alias_trail
-            if step_reasoning_effort:
-                root_meta_fields["reasoning_effort"] = step_reasoning_effort
-            update_meta_fields(
+            update_root_agent_meta_from_launch(
                 self.artifacts_dir,
-                root_meta_fields,
-                remove_keys=() if step_model_alias_trail else ("model_alias_trail",),
+                directives=effective_directives,
+                launch_selection=launch_selection,
             )
 
         # Check if any embedded workflow has finally-marked post-steps.
         # When present, those steps must run even if the agent invocation or
         # a non-finally post-step fails.
-        _has_finally_post = any(
-            any(s.finally_ for s in info.post_steps)
-            for info in embedded_workflows
-            if info.post_steps
-        )
+        _has_finally_post = has_finally_post_steps(embedded_workflows)
 
         # Invoke agent (skip preprocessing — we already did early+late)
         # Extract base workflow name (without project prefix) to avoid slashes in filenames
@@ -495,7 +181,7 @@ class PromptStepMixin:
         diff_path: str | None = None
 
         try:
-            self._agents_launched += 1  # type: ignore[attr-defined]
+            self._agents_launched += 1
             response = invoke_agent(
                 expanded_prompt,
                 agent_type=f"workflow-{base_name}-{step.name}",
@@ -542,17 +228,9 @@ class PromptStepMixin:
 
             # Resolve path fields from embedded contexts before HITL
             if self._should_hitl(step) and embedded_workflows:
-                _resolve_embedded_path_fields(output, step, embedded_workflows)
+                resolve_embedded_path_fields(output, step, embedded_workflows)
 
-            # Make path fields absolute for cross-process HITL communication
-            step_output_types = output_types_from_step(step)
-            if step_output_types:
-                for field_name, field_type in step_output_types.items():
-                    if field_type == "path" and field_name in output:
-                        path_val = os.path.expanduser(str(output[field_name]))
-                        if not os.path.isabs(path_val):
-                            path_val = os.path.abspath(path_val)
-                        output[field_name] = path_val
+            absolutize_path_outputs(output, step)
 
             # HITL review if required
             if self._should_hitl(step) and self.hitl_handler:
@@ -694,34 +372,14 @@ class PromptStepMixin:
         # Collect diff_path and meta_* from embedded post-step outputs and
         # re-save the parent marker so the TUI can display them.
         if embedded_workflows:
-            embedded_diff_path, embedded_meta = _collect_embedded_step_outputs(
-                embedded_workflows
+            diff_path, resave_needed = apply_embedded_outputs_to_parent(
+                embedded_workflows,
+                step_name=step.name,
+                step_state=step_state,
+                context=self.context,
+                state=self.state,
+                diff_path=diff_path,
             )
-            resave_needed = False
-            if embedded_meta:
-                if step_state.output is None:
-                    step_state.output = {}
-                step_state.output.update(embedded_meta)
-                self.context[step.name] = step_state.output
-                self.state.context = dict(self.context)
-                resave_needed = True
-            # When embedded workflows appended post-steps, their path output
-            # exclusively determines the file panel content for DONE entries
-            has_appended_steps = any(info.post_steps for info in embedded_workflows)
-            if has_appended_steps:
-                diff_path = embedded_diff_path  # May be None → hides file panel
-                if embedded_diff_path:
-                    if step_state.output is None:
-                        step_state.output = {}
-                    step_state.output["diff_path"] = embedded_diff_path
-                resave_needed = True
-            elif embedded_diff_path and not diff_path:
-                # Embedded workflows without post-steps but with path (defensive)
-                diff_path = embedded_diff_path
-                if step_state.output is None:
-                    step_state.output = {}
-                step_state.output["diff_path"] = embedded_diff_path
-                resave_needed = True
             if resave_needed:
                 self._save_prompt_step_marker(
                     step.name,
