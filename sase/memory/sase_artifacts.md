@@ -2,7 +2,7 @@
 type: reference
 parent: AGENTS.md
 description:
-  Read before creating, reading, resolving, linking, or managing retention for SASE
+  Read before creating, consuming, resolving, linking, or managing retention for SASE
   artifact references and indexed files.
 ---
 
