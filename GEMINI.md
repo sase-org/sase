@@ -1,6 +1,6 @@
 # Structured Agentic Software Engineering (SASE) - Agent Instructions
 
-## 1. Tier 1 (core) Memory
+## 1. Core Memory
 
 The following memories contain core (always loaded) context:
 
@@ -79,7 +79,33 @@ successfully executed plan, monitor, pipe, or questions handoff is exempt, becau
 commands terminate the runner mechanically. Intending to resume later is not an
 exemption.
 
-### 1.2 Decisions (decisions)
+### 1.2 Code Conventions and Gotchas (gotchas)
+
+**Default Keymap Config**  
+When changing keymaps, leader mode keys, or any configuration values, don't forget to
+update the keymap configuration in the `src/sase/default_config.yml` file if necessary.
+
+### 1.3 Rust Core Backend Boundary (rust_core_backend_boundary)
+
+Shared backend and domain behavior belongs in the sibling Rust core repo at
+`../sase-core/crates/sase_core`. Python and TUI code in this repo should call through
+the Rust binding (`sase_core_rs`) or a thin local adapter instead of reimplementing core
+logic here.
+
+Use this litmus test: if a web app, CLI, editor integration, or another frontend would
+need the behavior to match the TUI, treat it as core backend logic.
+
+Presentation-only Textual state, keybindings, layout, widget rendering, and Python glue
+can stay in this repo. When a change crosses the boundary, update the Rust wire/API,
+bindings, and tests in `../sase-core`, then update the Python callers or adapters here.
+
+## 2. Memory Webs
+
+Each memory web below is a keyed collection. Its descriptor is always loaded, but a
+strand's body is not: read strands on demand with your `/sase_memory_read` skill, for
+example `sase memory read glossary:stitch -r "<why>"`.
+
+### 2.1 Decisions (decisions)
 
 A decision record is not a design doc or a subsystem overview — those go stale as the
 code changes underneath them. A record is immutable once accepted: if the project
@@ -107,7 +133,7 @@ reopen it.
   default and just check-full gates landing, because host capacity is the constraint,
   not test speed.
 
-### 1.3 Glossary Terms (glossary)
+### 2.2 Glossary Terms (glossary)
 
 Run `sase memory read glossary:<term> [<term> ...] -r "<why>"` before relying on any of
 these SASE terms; it prints each term's definition plus every term those definitions
@@ -126,27 +152,7 @@ Node (node); Sase Project; Sase Repo; Sase Shell (shell); Sase Workspace (worksp
 Stitch; Strand Keyword; Task Type (task type); Xprompt; Xprompt Memory (memory file,
 sase memory); Xprompt Part; Xprompt Swarm; Xprompt Workflow
 
-### 1.4 Code Conventions and Gotchas (gotchas)
-
-**Default Keymap Config**  
-When changing keymaps, leader mode keys, or any configuration values, don't forget to
-update the keymap configuration in the `src/sase/default_config.yml` file if necessary.
-
-### 1.5 Rust Core Backend Boundary (rust_core_backend_boundary)
-
-Shared backend and domain behavior belongs in the sibling Rust core repo at
-`../sase-core/crates/sase_core`. Python and TUI code in this repo should call through
-the Rust binding (`sase_core_rs`) or a thin local adapter instead of reimplementing core
-logic here.
-
-Use this litmus test: if a web app, CLI, editor integration, or another frontend would
-need the behavior to match the TUI, treat it as core backend logic.
-
-Presentation-only Textual state, keybindings, layout, widget rendering, and Python glue
-can stay in this repo. When a change crosses the boundary, update the Rust wire/API,
-bindings, and tests in `../sase-core`, then update the Python callers or adapters here.
-
-### 1.6 Task Bead Types (task_types)
+### 2.3 Task Bead Types (task_types)
 
 Every task bead can carry a `task_type` drawn from this project's catalog.
 `sase bead task-type list` always shows the live catalog; read
@@ -162,30 +168,30 @@ note is the generated, always-current snapshot of the agent-creatable types belo
 - **Flaky test** (`flake`) - A test that fails and then passes on an unchanged tree.
 - **Memory** (`memory`) - A sase memory note or skill that is out of date.
 
-#### 1.6.1 File Discovered Work As Task Beads
+#### 2.3.1 File Discovered Work As Task Beads
 
 Unless your prompt explicitly forbids creating beads (epic phase workers, for example,
 must record `PROPOSED FOLLOW-UP:` notes on their own bead instead), you can and SHOULD
 capture discovered follow-up work as sase task beads. Before creating any task bead, you
 MUST use `/sase_new_task`.
 
-## 2. Tier 2 (reference) Memory
+## 3. Reference Memory
 
 The below files contain detailed reference material. When working in their domain, you
 MUST use your `/sase_memory_read` skill to review their contents. Do not read canonical
 memory files directly.
 
-### 2.1 `sase/memory/cli_rules.md`
+### 3.1 `sase/memory/cli_rules.md`
 
 Read anytime new CLI subcommands or options are added.
 
-### 2.2 `sase/memory/generated_skills.md`
+### 3.2 `sase/memory/generated_skills.md`
 
 Read when working with sase agent skills (aka xprompt skills), which are generated from
 source templates in the `src/sase/xprompts/skills/` and deployed to managed locations
 (my chezmoi repo, for example).
 
-### 2.3 `sase/memory/lint_and_test.md`
+### 3.3 `sase/memory/lint_and_test.md`
 
 IMPORTANT: if you changed ANY file in the sase repo, you MUST read this note before you
 finish your turn. Verification is not optional here and the lanes are not
@@ -194,34 +200,34 @@ makes `just check` the agent default and `just check-full` a monitor-only landin
 the `just install` prerequisite for ephemeral workspace clones, and the PNG snapshot
 suite.
 
-### 2.4 `sase/memory/sase_artifacts.md`
+### 3.4 `sase/memory/sase_artifacts.md`
 
 Read before creating, consuming, resolving, linking, or managing retention for SASE
 artifact references and indexed files.
 
-### 2.5 `sase/memory/sase_beads.md`
+### 3.5 `sase/memory/sase_beads.md`
 
 Read before creating, updating, closing, or querying sase beads — bead types and tiers,
 the status lifecycle agents must never hand-edit, task-bead triage, phase-bead
 description prefixes, and non-cascading close, resolution, and note semantics.
 
-### 2.6 `sase/memory/sase_flags.md`
+### 3.6 `sase/memory/sase_flags.md`
 
 Read before adding, deferring, or removing a SASE feature flag or flag bead, and before
 deprecating user-reaching behavior or landing code whose old branch must stay reachable
 for backward compatibility.
 
-### 2.7 `sase/memory/symvision.md`
+### 3.7 `sase/memory/symvision.md`
 
 Read before fixing Symvision lint failures, including unused symbols, private misuse,
 pragmas, and epic whitelists.
 
-### 2.8 `sase/memory/tui_perf.md`
+### 3.8 `sase/memory/tui_perf.md`
 
 Read before changing anything that affects TUI performance or responsiveness
 (navigation, refresh, rendering, startup), and before diagnosing TUI freezes or stalls.
 
-### 2.9 `sase/memory/xprompts.md`
+### 3.9 `sase/memory/xprompts.md`
 
 Read before xprompts, prompt directives, or launching agents with git/gh VCS workflow
 blocks.

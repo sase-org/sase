@@ -247,17 +247,19 @@ def test_tier2_renders_intro_then_h3_note_entries(tmp_path: Path) -> None:
     assert plan.blockers == ()
     assert plan.agents_content is not None
     content = plan.agents_content
-    tier2_index = content.index("## 2. Tier 2 (reference) Memory")
+    tier2_index = content.index("## 2. Reference Memory")
     intro_index = content.index("The below files contain detailed reference material")
     note_index = content.index("### 2.1 `sase/memory/parent.md`")
     assert tier2_index < intro_index < note_index
     between_h2_and_intro = content[
-        tier2_index + len("## 2. Tier 2 (reference) Memory") : intro_index
+        tier2_index + len("## 2. Reference Memory") : intro_index
     ]
     assert between_h2_and_intro.strip() == ""
     assert "Long-Term Memory Files" not in content
     assert "Glossary Terms" not in content
     parsed = parse_amd_agents_document(content)
+    assert not parsed.has_web_section
+    assert "## Memory Webs" not in content
     assert tuple(entry.path for entry in parsed.long_memory_entries) == (
         "sase/memory/parent.md",
     )
@@ -518,10 +520,8 @@ def test_custom_sase_template_round_trips_into_agents(
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     parsed = parse_amd_agents_document(agents)
-    assert parsed.short_memory_paths == (
-        "sase/memory/sase.md",
-        "sase/memory/task_types.md",
-    )
+    assert parsed.short_memory_paths == ("sase/memory/sase.md",)
+    assert parsed.web_memory_paths == ("sase/memory/task_types.md",)
     assert "Custom SASE frame." in agents
     assert "/sase_final" not in agents
     assert plan_memory().actions == ()

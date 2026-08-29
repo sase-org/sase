@@ -1,3 +1,3 @@
 # {{ title }}
 
-{{ tier1_sections }}
+{{ core_sections }}

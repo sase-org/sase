@@ -288,7 +288,7 @@ def generated_short_notes(
     """Return freshly generated core notes keyed by relative path.
 
     ``sase/memory/task_types.md`` is a generated memory web, not a plain note,
-    so its body flows through ``_memory_web_root_plan``'s core-note-body
+    so its body flows through ``_memory_web_root_plan``'s web-note-body
     overlay instead of this function.
     """
     return {

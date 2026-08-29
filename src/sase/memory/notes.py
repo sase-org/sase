@@ -527,7 +527,7 @@ def _render_memory_note_references(notes: Iterable[MemoryNote]) -> str:
 
 
 def render_long_memory_sections(notes: Iterable[MemoryNote]) -> str:
-    """Render reference notes as AGENTS.md Tier 2 H3 subsections."""
+    """Render reference notes as AGENTS.md Reference Memory H3 subsections."""
     lines: list[str] = []
     reference_notes = sorted(
         (note for note in notes if note.type == "reference"),

@@ -233,7 +233,7 @@ def test_inlined_typeless_web_descriptor_is_loaded_in_inventory(
 ) -> None:
     _write(
         tmp_path / "AGENTS.md",
-        "# Title\n\n## Tier 1 (core) Memory\n\n"
+        "# Title\n\n## Memory Webs\n\n"
         "### 1. Glossary Terms (glossary)\n\nInlined descriptor.\n",
     )
     _write(

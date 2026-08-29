@@ -1,11 +1,13 @@
 # {{ title }}
 
-## Tier 1 (core) Memory
+## Core Memory
 
 The following memories contain core (always loaded) context:
 
-{{ tier1_sections }}
+{{ core_sections }}
 
-## Tier 2 (reference) Memory
+{{ web_sections }}
 
-{{ tier2_entries }}
+## Reference Memory
+
+{{ reference_entries }}

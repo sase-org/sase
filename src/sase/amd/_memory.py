@@ -38,6 +38,13 @@ _LONG_MEMORY_INTRO = (
     "their contents. Do not read canonical memory files directly."
 )
 _LONG_MEMORY_INTRO_FIRST_SENTENCE = _LONG_MEMORY_INTRO.split(".", 1)[0] + "."
+_WEB_MEMORY_INTRO = (
+    "Each memory web below is a keyed collection. Its descriptor is always "
+    "loaded, but a strand's body is not: read strands on demand with your "
+    "`/sase_memory_read` skill, for example `sase memory read glossary:stitch "
+    '-r "<why>"`.'
+)
+_WEB_MEMORY_INTRO_FIRST_SENTENCE = _WEB_MEMORY_INTRO.split(".", 1)[0] + "."
 
 
 def _existing_agents_long_descriptions(root: Path) -> dict[str, str]:
@@ -253,6 +260,49 @@ def _short_memory_bodies(
     )
 
 
+def _web_memory_bodies(
+    root: Path,
+    generated_web_notes: Mapping[str, GeneratedShortMemoryNote],
+    *,
+    source_memory_root: Path | None = None,
+    excluded_note_paths: frozenset[str] = frozenset(),
+) -> dict[str, GeneratedShortMemoryNote]:
+    """Return web-descriptor bodies to inline, keyed by root-relative path.
+
+    Disk-discovered descriptors are overlaid with *generated_web_notes* so a
+    single ``sase memory init`` pass inlines the just-rendered, roster-stripped
+    body. The result is ordered by ``(priority, slug)``.
+    """
+    bodies: dict[str, GeneratedShortMemoryNote] = {
+        note.relative_path: GeneratedShortMemoryNote(
+            body=note.body,
+            priority=note.priority,
+        )
+        for note in discover_memory_notes(root, source_memory_root=source_memory_root)
+        if note.is_web_descriptor and note.relative_path not in excluded_note_paths
+    }
+    bodies.update(generated_web_notes)
+    return dict(
+        sorted(
+            bodies.items(),
+            key=lambda item: (item[1].priority, Path(item[0]).stem),
+        )
+    )
+
+
+def _render_web_sections(
+    web_memory_bodies: Mapping[str, GeneratedShortMemoryNote],
+) -> str:
+    """Return the Memory Webs section, or ``""`` when the root has no webs."""
+    if not web_memory_bodies:
+        return ""
+    bodies = "\n\n".join(
+        inline_memory_section(relative_path, note.body).rstrip("\n")
+        for relative_path, note in web_memory_bodies.items()
+    )
+    return f"## Memory Webs\n\n{_WEB_MEMORY_INTRO}\n\n{bodies}"
+
+
 def _short_memory_structure_blockers(
     short_memory_bodies: Mapping[str, GeneratedShortMemoryNote],
 ) -> tuple[str, ...]:
@@ -287,7 +337,7 @@ def _memory_priority_blockers(notes: tuple[MemoryNote, ...]) -> tuple[str, ...]:
 def _long_memory_description_blockers(
     descriptions: Mapping[str, str],
 ) -> tuple[str, ...]:
-    """Return blockers for reference notes whose descriptions would break Tier 2."""
+    """Return blockers for reference notes whose descriptions would break rendering."""
     blockers: list[str] = []
     for relative_path, description in sorted(descriptions.items()):
         if iter_headings(description):
@@ -305,6 +355,7 @@ def _render_managed_agents(
     long_memory_descriptions: dict[str, str] | None = None,
     generated_long_notes: Mapping[str, GeneratedLongMemoryNote] | None = None,
     short_memory_bodies: Mapping[str, GeneratedShortMemoryNote] | None = None,
+    web_memory_bodies: Mapping[str, GeneratedShortMemoryNote] | None = None,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
 ) -> tuple[str | None, str | None]:
@@ -345,10 +396,12 @@ def _render_managed_agents(
     descriptions = long_memory_descriptions or {}
 
     bodies = short_memory_bodies or {}
-    tier1_sections = "\n\n".join(
+    web_bodies = web_memory_bodies or {}
+    core_sections = "\n\n".join(
         inline_memory_section(relative_path, note.body).rstrip("\n")
         for relative_path, note in bodies.items()
     )
+    web_sections = _render_web_sections(web_bodies)
 
     rendered_long_notes = []
     for note in top_level_long_notes:
@@ -361,15 +414,16 @@ def _render_managed_agents(
         )
         rendered_long_notes.append(replace(note, description=description))
     long_entries = render_long_memory_sections(rendered_long_notes)
-    tier2_entries = (
+    reference_entries = (
         "" if not long_entries else f"{_LONG_MEMORY_INTRO}\n\n{long_entries}"
     )
 
     rendered, render_error = render_agents_template(
         root,
         title=title,
-        tier1_sections=tier1_sections,
-        tier2_entries=tier2_entries,
+        core_sections=core_sections,
+        web_sections=web_sections,
+        reference_entries=reference_entries,
     )
     if render_error is not None or rendered is None:
         return None, render_error or "failed to render AGENTS template"
@@ -378,34 +432,58 @@ def _render_managed_agents(
     if not parsed.has_short_section:
         return (
             None,
-            "rendered AGENTS template is missing structural anchor "
-            "`## Tier 1 (core) Memory`",
+            "rendered AGENTS template is missing structural anchor `## Core Memory`",
         )
     if not parsed.has_long_section:
         return (
             None,
             "rendered AGENTS template is missing structural anchor "
-            "`## Tier 2 (reference) Memory`",
+            "`## Reference Memory`",
         )
     expected_short_paths = tuple(bodies)
     if parsed.short_memory_paths != expected_short_paths:
         return (
             None,
-            "rendered AGENTS template has unexpected Tier 1 memory paths: "
+            "rendered AGENTS template has unexpected Core Memory paths: "
             f"expected {expected_short_paths!r}, found {parsed.short_memory_paths!r}",
+        )
+    expected_web_paths = tuple(web_bodies)
+    if expected_web_paths:
+        if not parsed.has_web_section:
+            return (
+                None,
+                "rendered AGENTS template is missing structural anchor "
+                "`## Memory Webs`",
+            )
+        if parsed.web_memory_paths != expected_web_paths:
+            return (
+                None,
+                "rendered AGENTS template has unexpected Memory Webs paths: "
+                f"expected {expected_web_paths!r}, found {parsed.web_memory_paths!r}",
+            )
+        if _WEB_MEMORY_INTRO_FIRST_SENTENCE not in rendered:
+            return (
+                None,
+                "rendered AGENTS template is missing the Memory Webs "
+                "instruction paragraph",
+            )
+    elif parsed.has_web_section:
+        return (
+            None,
+            "rendered AGENTS template has unexpected Memory Webs section",
         )
     expected_long_paths = tuple(note.relative_path for note in top_level_long_notes)
     parsed_long_paths = tuple(entry.path for entry in parsed.long_memory_entries)
     if parsed_long_paths != expected_long_paths:
         return (
             None,
-            "rendered AGENTS template has unexpected Tier 2 memory paths: "
+            "rendered AGENTS template has unexpected Reference Memory paths: "
             f"expected {expected_long_paths!r}, found {parsed_long_paths!r}",
         )
     if top_level_long_notes and _LONG_MEMORY_INTRO_FIRST_SENTENCE not in rendered:
         return (
             None,
-            "rendered AGENTS template is missing the Tier 2 reference-memory "
+            "rendered AGENTS template is missing the Reference Memory "
             "instruction paragraph",
         )
     return rendered, None
@@ -420,11 +498,11 @@ def plan_minimal_agents_sync(
     relative_path = (CANONICAL_MEMORY_RELATIVE_ROOT / "sase.md").as_posix()
     generated_note = generated_short_notes.get(relative_path)
     body = "" if generated_note is None else generated_note.body
-    tier1_sections = inline_memory_section(relative_path, body).rstrip("\n")
+    core_sections = inline_memory_section(relative_path, body).rstrip("\n")
     rendered, render_error = render_agents_template(
         root,
         title="Agent Instructions",
-        tier1_sections=tier1_sections,
+        core_sections=core_sections,
         minimal=True,
     )
     if render_error is not None or rendered is None:
@@ -448,6 +526,7 @@ def plan_amd_memory_sync(
     derive_project_title: bool = False,
     generated_short_notes: Mapping[str, GeneratedShortMemoryNote] | None = None,
     generated_long_notes: Mapping[str, GeneratedLongMemoryNote] | None = None,
+    generated_web_notes: Mapping[str, GeneratedShortMemoryNote] | None = None,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
 ) -> AmdMemorySyncPlan:
@@ -457,15 +536,24 @@ def plan_amd_memory_sync(
     generated body and priority so the rendered ``AGENTS.md`` inlines current
     content (e.g. ``sase/memory/sase.md``) in a single pass instead of a stale
     on-disk copy.
+    *generated_web_notes* maps web-descriptor paths to their freshly rendered,
+    roster-stripped bodies so they land in the Memory Webs section in that same
+    pass.
     *generated_long_notes* maps generated reference-note paths to their metadata so a
-    fresh root lists top-level notes and omits child notes in Tier 2 in that same pass.
+    fresh root lists top-level notes and omits child notes in Reference Memory in
+    that same pass.
     """
     root = root or Path.cwd()
     generated_short_notes = generated_short_notes or {}
     generated_long_notes = generated_long_notes or {}
-    # Generated core notes overlay disk in the same pass, including type
+    generated_web_notes = generated_web_notes or {}
+    # Generated core and web notes overlay disk in the same pass, including type
     # migrations from a leftover reference note at the same path.
-    excluded_note_paths = excluded_note_paths | frozenset(generated_short_notes)
+    excluded_note_paths = (
+        excluded_note_paths
+        | frozenset(generated_short_notes)
+        | frozenset(generated_web_notes)
+    )
     title, title_error = resolve_amd_h1_title(
         root, derive_project_title=derive_project_title
     )
@@ -503,7 +591,16 @@ def plan_amd_memory_sync(
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
     )
-    structure_blockers = _short_memory_structure_blockers(short_memory_bodies)
+    web_memory_bodies = _web_memory_bodies(
+        root,
+        generated_web_notes,
+        source_memory_root=source_memory_root,
+        excluded_note_paths=excluded_note_paths,
+    )
+    structure_blockers = (
+        *_short_memory_structure_blockers(short_memory_bodies),
+        *_short_memory_structure_blockers(web_memory_bodies),
+    )
     if structure_blockers:
         return AmdMemorySyncPlan(
             title=title,
@@ -539,6 +636,7 @@ def plan_amd_memory_sync(
         long_memory_descriptions=descriptions,
         generated_long_notes=generated_long_notes,
         short_memory_bodies=short_memory_bodies,
+        web_memory_bodies=web_memory_bodies,
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
     )

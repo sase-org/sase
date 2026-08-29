@@ -78,7 +78,7 @@ class _MemoryRootContext:
 class _MemoryWebRootPlan:
     expected_files: tuple[MemoryExpectedFile, ...] = ()
     note_overlay: Mapping[Path, str] | None = None
-    core_note_bodies: Mapping[str, GeneratedShortMemoryNote] | None = None
+    web_note_bodies: Mapping[str, GeneratedShortMemoryNote] | None = None
     blockers: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
 
@@ -192,6 +192,7 @@ def _amd_sync_plan(
     derive_project_title: bool,
     generated_short_notes: dict[str, GeneratedShortMemoryNote],
     generated_long_notes: dict[str, GeneratedLongMemoryNote],
+    generated_web_notes: dict[str, GeneratedShortMemoryNote],
     source_memory_root: Path,
     excluded_note_paths: frozenset[str] = frozenset(),
 ) -> AmdMemorySyncPlan | None:
@@ -205,6 +206,7 @@ def _amd_sync_plan(
         derive_project_title=derive_project_title,
         generated_short_notes=generated_short_notes,
         generated_long_notes=generated_long_notes,
+        generated_web_notes=generated_web_notes,
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
     )
@@ -239,7 +241,7 @@ def _memory_web_root_plan(
 
     expected: list[MemoryExpectedFile] = []
     note_overlay: dict[Path, str] = {}
-    core_note_bodies: dict[str, GeneratedShortMemoryNote] = {}
+    web_note_bodies: dict[str, GeneratedShortMemoryNote] = {}
     blockers: list[str] = []
     for web in discovery.webs:
         body, body_error = render_web_body_with_roster(web)
@@ -249,7 +251,7 @@ def _memory_web_root_plan(
             blockers.append(f"{web.path}: {error or 'failed to render strand roster'}")
             continue
         note_overlay[web.path] = content
-        core_note_bodies[web.relative_path] = GeneratedShortMemoryNote(
+        web_note_bodies[web.relative_path] = GeneratedShortMemoryNote(
             body=strip_managed_roster_markers(body),
             priority=web.priority,
         )
@@ -274,7 +276,7 @@ def _memory_web_root_plan(
     return _MemoryWebRootPlan(
         expected_files=tuple(expected),
         note_overlay=note_overlay,
-        core_note_bodies=core_note_bodies,
+        web_note_bodies=web_note_bodies,
         blockers=tuple(blockers),
         warnings=validation.warnings,
     )
@@ -375,17 +377,14 @@ def memory_root_context(
                 blockers=(generated_long_error,),
             )
     generated_short_note_bodies = generated_short_notes(generated_sase_body)
-    if memory_web_plan.core_note_bodies is not None:
-        generated_short_note_bodies = {
-            **generated_short_note_bodies,
-            **dict(memory_web_plan.core_note_bodies),
-        }
+    generated_web_note_bodies = dict(memory_web_plan.web_note_bodies or {})
     amd_sync = _amd_sync_plan(
         root,
         enable_amd=enable_amd,
         derive_project_title=derive_project_title,
         generated_short_notes=generated_short_note_bodies,
         generated_long_notes=generated_long_notes(generated_project_long_contents),
+        generated_web_notes=generated_web_note_bodies,
         source_memory_root=migration.source_memory_root,
         excluded_note_paths=excluded_note_paths,
     )

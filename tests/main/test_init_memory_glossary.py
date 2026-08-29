@@ -36,14 +36,16 @@ def _setup_project(
     return project_root, home_root, config_dir
 
 
-def _tier1_memory(agents: str) -> str:
-    return agents.split("## 1. Tier 1 (core) Memory", 1)[1].split(
-        "## 2. Tier 2 (reference) Memory", 1
-    )[0]
+def _web_memory(agents: str) -> str:
+    heading = "## 2. Memory Webs"
+    return agents.split(heading, 1)[1].split("## 3. Reference Memory", 1)[0]
 
 
-def _tier2_memory(agents: str) -> str:
-    return agents.split("## 2. Tier 2 (reference) Memory", 1)[1]
+def _reference_memory(agents: str) -> str:
+    for heading in ("## 3. Reference Memory", "## 2. Reference Memory"):
+        if heading in agents:
+            return agents.split(heading, 1)[1]
+    raise AssertionError("Reference Memory heading not found")
 
 
 def _normalized(text: str) -> str:
@@ -106,16 +108,16 @@ def test_memory_plan_renders_glossary_web_roster_without_inlining_strands(
     action_by_path = {action.path: action for action in plan.actions}
     updated_descriptor = str(action_by_path[descriptor].new_content)
     agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
-    tier1 = _tier1_memory(agents)
-    tier2 = _tier2_memory(agents)
+    webs = _web_memory(agents)
+    reference = _reference_memory(agents)
 
-    assert "Glossary Terms (glossary)" in tier1
-    assert "Glossary Terms" not in tier2
-    assert "**GLOSSARY TERMS:** Agent Clan (clan); Workspace" in _normalized(tier1)
+    assert "Glossary Terms (glossary)" in webs
+    assert "Glossary Terms" not in reference
+    assert "**GLOSSARY TERMS:** Agent Clan (clan); Workspace" in _normalized(webs)
     assert "**GLOSSARY TERMS:** Agent Clan (clan); Workspace" in _normalized(
         updated_descriptor
     )
-    assert "agent clans" not in tier1
+    assert "agent clans" not in webs
     assert "A named, rootless container" not in agents
     assert "sase glossary read" not in agents
 
@@ -157,6 +159,6 @@ def test_memory_plan_preserves_plain_glossary_note_as_user_memory(
         assert "Human note." in str(note_action.new_content)
         assert "web: true" not in str(note_action.new_content)
     agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
-    assert "`sase/memory/glossary.md`" in _tier2_memory(agents)
+    assert "`sase/memory/glossary.md`" in _reference_memory(agents)
     assert "GLOSSARY TERMS" not in agents
     assert "Glossary Terms (glossary)" not in agents

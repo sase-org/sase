@@ -1,9 +1,9 @@
 """Pure helpers for inlining core memory notes into ``AGENTS.md``.
 
 These functions translate a memory note's Markdown body into the inlined
-``### Title (file)`` section shape used inside the ``## Tier 1 (core)
-Memory`` block. They also validate that a core note's heading structure can be
-inlined safely. Generated agent-document headings are numbered by the
+``### Title (file)`` section shape used inside the Core Memory and Memory
+Webs blocks. They also validate that an inlined note's heading structure can
+be inlined safely. Generated agent-document headings are numbered by the
 document-wide pass in ``sase.amd._section_numbers`` after template rendering.
 
 Heading detection is *fence-aware*: ``#`` characters at the start of lines inside
@@ -110,7 +110,7 @@ def inline_memory_section(
     relative_path: str,
     body: str,
 ) -> str:
-    """Render *body* as an inlined Tier 1 memory section for *relative_path*.
+    """Render *body* as an inlined memory section for *relative_path*.
 
     The note's H1 title is consumed into the section header
     ``### {title} ({basename})``. The remaining body has

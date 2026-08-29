@@ -73,7 +73,7 @@ def test_memory_web_updates_roster_without_inlining_strand_bodies(
     assert "Hidden strand body." not in agents
 
 
-def test_core_memory_web_priority_orders_tier1_slot(
+def test_memory_web_priority_orders_web_section(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -94,10 +94,58 @@ def test_core_memory_web_priority_orders_tier1_slot(
     action_by_path = {action.path: action for action in plan.actions}
     agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
     parsed = parse_amd_agents_document(agents)
-    assert parsed.short_memory_paths[:2] == (
-        "sase/memory/terms.md",
-        "sase/memory/sase.md",
+    assert parsed.has_web_section
+    assert parsed.short_memory_paths[0] == "sase/memory/sase.md"
+    assert parsed.web_memory_paths[0] == "sase/memory/terms.md"
+    assert "## 1. Core Memory" in agents
+    assert "## 2. Memory Webs" in agents
+    assert "## 3. Reference Memory" in agents
+    core_end = agents.index("## 2. Memory Webs")
+    assert "Terms (terms)" not in agents[:core_end]
+    assert "### 2.1 Terms (terms)" in agents
+
+
+def test_memory_web_blocks_invalid_descriptor_structure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _home_root, _config_dir = _setup_roots(tmp_path, monkeypatch)
+    write(
+        project_root / "sase" / "memory" / "terms.md",
+        _descriptor(body="## Not an H1\n\nDescriptor body.\n"),
     )
+    write(project_root / "sase" / "memory" / "terms" / "alpha.md", _strand())
+
+    plan = plan_memory()
+
+    assert any(
+        "sase/memory/terms.md" in blocker and "H1" in blocker
+        for blocker in plan.blockers
+    )
+
+
+def test_project_root_renders_three_memory_sections(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _home_root, _config_dir = _setup_roots(tmp_path, monkeypatch)
+    write(
+        project_root / "sase.yml",
+        'is_sase_managed: true\nmemory:\n  h1_title: "Managed Instructions"\n',
+    )
+
+    plan = plan_memory()
+    action_by_path = {action.path: action for action in plan.actions}
+
+    project_agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
+    assert "## 1. Core Memory" in project_agents
+    assert "## 2. Memory Webs" in project_agents
+    assert "## 3. Reference Memory" in project_agents
+    parsed_project = parse_amd_agents_document(project_agents)
+    assert parsed_project.has_web_section
+    assert parsed_project.web_memory_paths == ("sase/memory/task_types.md",)
+    core_end = project_agents.index("## 2. Memory Webs")
+    assert "Task Bead Types" not in project_agents[:core_end]
 
 
 def test_memory_web_blocks_invalid_webs_before_writing(

@@ -30,7 +30,7 @@ def _assert_derived_managed_agents(agents: str) -> None:
     # collapsed whitespace rather than pinning where the line breaks land.
     expected = (
         "# project - Agent Instructions "
-        "## 1. Tier 1 (core) Memory "
+        "## 1. Core Memory "
         "The following memories contain core (always loaded) context: "
         "### 1.1 SASE = Structured Agentic Software Engineering (sase) "
         "#### 1.1.1 SASE Memory SASE memory is this project's durable agent "
@@ -69,7 +69,9 @@ def test_init_memory_manages_live_home_from_user_overlay(
 
     agents = (home_root / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Athena Home\n")
-    assert "## 1. Tier 1 (core) Memory" in agents
+    assert "## 1. Core Memory" in agents
+    assert "## Memory Webs" not in agents
+    assert "## 2. Reference Memory" in agents
     assert "### 1.1 SASE = Structured Agentic Software Engineering (sase)" in agents
     assert "- @sase/memory/sase.md" not in agents
     # Provider files are byte-for-byte copies of ``AGENTS.md``.

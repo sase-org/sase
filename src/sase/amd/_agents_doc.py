@@ -11,24 +11,27 @@ from sase.memory.paths import canonical_memory_reference
 
 
 _CORE_SECTION_RE = re.compile(
-    r"^##\s+(?:\d+(?:\.\d+)*\.?\s+)?Tier 1 \((?:"
-    r"short"
-    r"-term|core)\) Memory$"
+    r"^##\s+(?:\d+(?:\.\d+)*\.?\s+)?(?:"
+    r"Core Memory|"
+    r"Tier 1 \((?:short-term|core)\) Memory"
+    r")$"
 )
 _REFERENCE_SECTION_RE = re.compile(
-    r"^##\s+(?:\d+(?:\.\d+)*\.?\s+)?Tier 2 \((?:"
-    r"long"
-    r"-term|reference)\) Memory$"
+    r"^##\s+(?:\d+(?:\.\d+)*\.?\s+)?(?:"
+    r"Reference Memory|"
+    r"Tier 2 \((?:long-term|reference)\) Memory"
+    r")$"
 )
+_WEB_SECTION_RE = re.compile(r"^##\s+(?:\d+(?:\.\d+)*\.?\s+)?Memory Webs$")
 _H2_RE = re.compile(r"^##\s+")
 _LEGACY_AMD_COMMENT_RE = re.compile(r"^\s*<!--\s*sase-" r"amd:[^>]+-->\s*$")
 _SHORT_MEMORY_BULLET_RE = re.compile(
     r"^- @(?P<path>(?:sase/)?memory/[A-Za-z0-9_.-]+\.md)$"
 )
-# Inlined core notes render as ``### Title (file)`` headers, optionally
-# prefixed as ``### N. Title (file)``; the legacy ``- @memory/<file>.md`` bullet
-# form is still recognized for documents generated before core memory was
-# inlined.
+# Inlined core notes and web descriptors render as ``### Title (file)``
+# headers, optionally prefixed as ``### N. Title (file)``; the legacy
+# ``- @memory/<file>.md`` bullet form is still recognized for documents
+# generated before core memory was inlined.
 _SHORT_MEMORY_HEADER_RE = re.compile(r"^### (?:.* )?\((?P<name>[A-Za-z0-9_.-]+)\)$")
 _LONG_MEMORY_ENTRY_RE = re.compile(
     r"^\*\*`(?P<path>(?:sase/)?memory/[A-Za-z0-9_.-]+\.md)`\*\*(?P<description>.*?)$"
@@ -53,12 +56,14 @@ class _AmdAgentsDocument:
 
     has_short_section: bool
     has_long_section: bool
+    has_web_section: bool
     short_memory_paths: tuple[str, ...]
+    web_memory_paths: tuple[str, ...]
     long_memory_entries: tuple[_AmdLongMemoryEntry, ...]
 
     @property
     def has_memory_structure(self) -> bool:
-        return self.has_short_section or self.has_long_section
+        return self.has_short_section or self.has_long_section or self.has_web_section
 
 
 def _normalized_line(line: str) -> str:
@@ -119,9 +124,10 @@ def _section_bounds(
     return None
 
 
-def _short_memory_paths(
+def _inlined_memory_paths(
     lines: list[str], bounds: tuple[int, int] | None
 ) -> tuple[str, ...]:
+    """Return inlined ``### Title (stem)`` (and legacy ``- @memory/...``) paths."""
     if bounds is None:
         return ()
     start, end = bounds
@@ -142,6 +148,12 @@ def _short_memory_paths(
         if header_match is not None:
             paths.append(f"sase/memory/{header_match.group('name')}.md")
     return tuple(paths)
+
+
+def _short_memory_paths(
+    lines: list[str], bounds: tuple[int, int] | None
+) -> tuple[str, ...]:
+    return _inlined_memory_paths(lines, bounds)
 
 
 def _description_text(lines: list[str]) -> str:
@@ -250,17 +262,22 @@ def parse_amd_agents_document(text: str | None) -> _AmdAgentsDocument:
         return _AmdAgentsDocument(
             has_short_section=False,
             has_long_section=False,
+            has_web_section=False,
             short_memory_paths=(),
+            web_memory_paths=(),
             long_memory_entries=(),
         )
 
     lines = text.splitlines()
     short_bounds = _section_bounds(lines, _CORE_SECTION_RE)
+    web_bounds = _section_bounds(lines, _WEB_SECTION_RE)
     long_bounds = _section_bounds(lines, _REFERENCE_SECTION_RE)
     return _AmdAgentsDocument(
         has_short_section=short_bounds is not None,
         has_long_section=long_bounds is not None,
+        has_web_section=web_bounds is not None,
         short_memory_paths=_short_memory_paths(lines, short_bounds),
+        web_memory_paths=_inlined_memory_paths(lines, web_bounds),
         long_memory_entries=_long_memory_entries(lines, long_bounds),
     )
 

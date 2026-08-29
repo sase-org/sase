@@ -201,13 +201,15 @@ def _managed_template(marker: str) -> str:
 
 {marker}
 
-## Tier 1 (core) Memory
+## Core Memory
 
-{{{{ tier1_sections }}}}
+{{{{ core_sections }}}}
 
-## Tier 2 (reference) Memory
+{{{{ web_sections }}}}
 
-{{{{ tier2_entries }}}}
+## Reference Memory
+
+{{{{ reference_entries }}}}
 """
 
 
@@ -248,10 +250,9 @@ def test_project_template_override_renders_and_round_trips(
     parsed = parse_amd_agents_document(agents)
     assert parsed.has_short_section
     assert parsed.has_long_section
-    assert parsed.short_memory_paths == (
-        "sase/memory/sase.md",
-        "sase/memory/task_types.md",
-    )
+    assert parsed.has_web_section
+    assert parsed.short_memory_paths == ("sase/memory/sase.md",)
+    assert parsed.web_memory_paths == ("sase/memory/task_types.md",)
     assert tuple(entry.path for entry in parsed.long_memory_entries) == (
         "sase/memory/detail.md",
         "sase/memory/sase_artifacts.md",
@@ -400,7 +401,7 @@ def test_user_minimal_template_customizes_create_if_missing_fallback(
     monkeypatch.setattr(config_core, "CONFIG_DIR", config_dir)
     write(
         config_dir / "AGENTS.minimal.template.md",
-        "# {{ title }}\n\nMinimal custom frame.\n\n{{ tier1_sections }}\n",
+        "# {{ title }}\n\nMinimal custom frame.\n\n{{ core_sections }}\n",
     )
 
     assert run_handler() == 0
@@ -431,7 +432,7 @@ def test_invalid_minimal_template_blocks_without_writing(
     plan = plan_memory()
 
     assert any(
-        "AGENTS.minimal.template.md: template must contain {{ tier1_sections }}"
+        "AGENTS.minimal.template.md: template must contain {{ core_sections }}"
         in blocker
         for blocker in plan.blockers
     )
@@ -445,9 +446,10 @@ def test_invalid_minimal_template_blocks_without_writing(
     [
         (
             "# {{ title }}\n\n"
-            "## Tier 1 (core) Memory\n\n{{ tier1_sections }}\n\n"
-            "## Tier 2 (reference) Memory\n",
-            "template must contain {{ tier2_entries }}",
+            "## Core Memory\n\n{{ core_sections }}\n\n"
+            "{{ web_sections }}\n\n"
+            "## Reference Memory\n",
+            "template must contain {{ reference_entries }}",
         ),
         ("{% if %}\n", "template error"),
         (
@@ -456,24 +458,24 @@ def test_invalid_minimal_template_blocks_without_writing(
         ),
         (
             _managed_template("frame").replace(
-                "## Tier 1 (core) Memory",
+                "## Core Memory",
                 "## Short Memory",
             ),
-            "missing structural anchor `## Tier 1 (core) Memory`",
+            "missing structural anchor `## Core Memory`",
         ),
         (
             _managed_template("frame").replace(
-                "## Tier 2 (reference) Memory",
+                "## Reference Memory",
                 "## Long Memory",
             ),
-            "missing structural anchor `## Tier 2 (reference) Memory`",
+            "missing structural anchor `## Reference Memory`",
         ),
         (
             _managed_template("frame").replace(
-                "{{ tier1_sections }}",
-                "{{ tier1_sections if false else '' }}",
+                "{{ core_sections }}",
+                "{{ core_sections if false else '' }}",
             ),
-            "unexpected Tier 1 memory paths",
+            "unexpected Core Memory paths",
         ),
     ],
 )
@@ -508,3 +510,46 @@ def test_invalid_managed_template_blocks_without_writing(
     assert run_handler() == 1
     assert not (project_root / "AGENTS.md").exists()
     assert not (project_root / "sase" / "memory" / "sase.md").exists()
+
+
+def test_amd_parser_accepts_tier_free_headings_and_web_section() -> None:
+    parsed = parse_amd_agents_document(
+        "## 1. Core Memory\n\n"
+        "### 1.1 SASE (sase)\n\n"
+        "## 2. Memory Webs\n\n"
+        "### 2.1 Glossary Terms (glossary)\n\n"
+        "### 2.2 Decisions (decisions)\n\n"
+        "## 3. Reference Memory\n\n"
+        "### 3.1 `sase/memory/block.md`\n\n"
+        "Lead paragraph.\n"
+    )
+
+    assert parsed.has_short_section
+    assert parsed.has_web_section
+    assert parsed.has_long_section
+    assert parsed.short_memory_paths == ("sase/memory/sase.md",)
+    assert parsed.web_memory_paths == (
+        "sase/memory/glossary.md",
+        "sase/memory/decisions.md",
+    )
+    assert tuple(entry.path for entry in parsed.long_memory_entries) == (
+        "sase/memory/block.md",
+    )
+    assert parsed.long_memory_entries[0].description == "Lead paragraph."
+
+
+def test_amd_parser_recovers_descriptions_from_legacy_tier_headings() -> None:
+    parsed = parse_amd_agents_document(
+        "## 1. Tier 1 (core) Memory\n\n"
+        "### 1.1 SASE (sase)\n\n"
+        "## 2. Tier 2 (reference) Memory\n\n"
+        "### 2.1 `sase/memory/block.md`\n\n"
+        "Recovered from a pre-migration AGENTS.md.\n"
+    )
+
+    assert parsed.has_short_section
+    assert not parsed.has_web_section
+    assert parsed.has_long_section
+    assert parsed.long_memory_entries[0].description == (
+        "Recovered from a pre-migration AGENTS.md."
+    )

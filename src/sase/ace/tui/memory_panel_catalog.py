@@ -519,13 +519,14 @@ def _add_file_metadata(
 def _build_note_tree(
     notes: tuple[MemoryNote, ...], webs: tuple[MemoryWeb, ...] = ()
 ) -> tuple[MemoryRailNode, ...]:
-    """Order inlined notes first, then reference roots with children indented once."""
+    """Order core notes, then memory webs, then reference roots with children."""
     emitted: set[str] = set()
     tree: list[MemoryRailNode] = []
     webs_by_path = {web.relative_path: web for web in webs}
+    notes_by_path = {note.relative_path: note for note in notes}
     children_by_parent: dict[str, list[MemoryNote]] = {}
     for note in notes:
-        if note.type == "reference":
+        if note.type == "reference" and not note.is_web_descriptor:
             children_by_parent.setdefault(note.parent, []).append(note)
     for children in children_by_parent.values():
         children.sort(key=lambda note: note.relative_path)
@@ -537,11 +538,36 @@ def _build_note_tree(
             tree.append(_rail_node_for_note(child, depth=1, webs_by_path=webs_by_path))
             emitted.add(child.relative_path)
 
-    inlined_notes = sorted(
-        (note for note in notes if note.type == "core" or note.is_web_descriptor),
+    core_notes = sorted(
+        (
+            note
+            for note in notes
+            if note.type == "core"
+            and not note.is_web_descriptor
+            and note.relative_path not in webs_by_path
+        ),
         key=lambda note: (note.priority, note.relative_path),
     )
-    for note in inlined_notes:
+    for note in core_notes:
+        tree.append(_rail_node_for_note(note, depth=0, webs_by_path=webs_by_path))
+        emitted.add(note.relative_path)
+
+    for web in sorted(webs, key=lambda item: (item.priority, item.slug)):
+        web_note = notes_by_path.get(web.relative_path)
+        if web_note is None or web_note.relative_path in emitted:
+            continue
+        tree.append(_rail_node_for_note(web_note, depth=0, webs_by_path=webs_by_path))
+        emitted.add(web_note.relative_path)
+
+    leftover_web_notes = sorted(
+        (
+            note
+            for note in notes
+            if note.is_web_descriptor and note.relative_path not in emitted
+        ),
+        key=lambda note: (note.priority, Path(note.relative_path).stem),
+    )
+    for note in leftover_web_notes:
         tree.append(_rail_node_for_note(note, depth=0, webs_by_path=webs_by_path))
         emitted.add(note.relative_path)
 
@@ -549,7 +575,10 @@ def _build_note_tree(
         (
             note
             for note in notes
-            if note.type == "reference" and note.parent == AGENTS_PARENT
+            if note.type == "reference"
+            and not note.is_web_descriptor
+            and note.parent == AGENTS_PARENT
+            and note.relative_path not in emitted
         ),
         key=lambda note: note.relative_path,
     )
@@ -560,7 +589,9 @@ def _build_note_tree(
         (
             note
             for note in notes
-            if note.type == "reference" and note.relative_path not in emitted
+            if note.type == "reference"
+            and not note.is_web_descriptor
+            and note.relative_path not in emitted
         ),
         key=lambda note: note.relative_path,
     )

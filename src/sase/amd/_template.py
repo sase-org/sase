@@ -10,16 +10,19 @@ from sase.mdtemplates import render_markdown_template
 
 MANAGED_TEMPLATE_FILENAME = "AGENTS.template.md"
 MINIMAL_TEMPLATE_FILENAME = "AGENTS.minimal.template.md"
-_MANAGED_TEMPLATE_VARS = frozenset({"title", "tier1_sections", "tier2_entries"})
-_MINIMAL_TEMPLATE_VARS = frozenset({"title", "tier1_sections"})
+_MANAGED_TEMPLATE_VARS = frozenset(
+    {"title", "core_sections", "web_sections", "reference_entries"}
+)
+_MINIMAL_TEMPLATE_VARS = frozenset({"title", "core_sections"})
 
 
 def render_agents_template(
     root: Path,
     *,
     title: str,
-    tier1_sections: str,
-    tier2_entries: str = "",
+    core_sections: str,
+    reference_entries: str = "",
+    web_sections: str = "",
     minimal: bool = False,
 ) -> tuple[str | None, str | None]:
     """Render the resolved agent template or return an actionable blocker."""
@@ -34,8 +37,9 @@ def render_agents_template(
         required_variables=required,
         context={
             "title": title,
-            "tier1_sections": tier1_sections,
-            "tier2_entries": tier2_entries,
+            "core_sections": core_sections,
+            "web_sections": web_sections,
+            "reference_entries": reference_entries,
         },
         override_path=override,
     )

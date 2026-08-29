@@ -19,6 +19,7 @@ from sase.ace.tui.modals.memory_panel_load import (
     MemoryScopeChoice,
 )
 from sase.ace.tui.modals.memory_panel_scope_picker import MemoryScopePicker
+from sase.memory.notes import AGENTS_PARENT, MemoryNote
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.memory.web.models import MemoryStrand, MemoryWeb
 from tests.ace.tui.modals.memory_panel_test_helpers import (
@@ -106,7 +107,7 @@ async def test_panel_mounts_and_selects_first_note(
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
-        # Tier 1 (core) notes sort before Tier 2 regardless of stem, so the
+        # Core notes sort before reference notes regardless of stem, so the
         # short "zebra" note is selected first even though "agent_hood" is
         # alphabetically earlier.
         assert panel._current_note == "sase/memory/zebra.md"
@@ -135,6 +136,43 @@ async def test_tree_ordering_nests_children_under_their_parent(
             ("hub", 0),
             ("child", 1),
             ("zeta", 0),
+        ]
+
+
+async def test_tree_orders_core_then_webs_then_reference(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = scope_ref("sase", "sase", content_root=str(tmp_path))
+    core = memory_note("zebra", note_type="core", description="Always loaded.")
+    web_note = MemoryNote(
+        path=Path("sase/memory/decisions.md"),
+        type=None,
+        parent=AGENTS_PARENT,
+        description="Decision index.",
+        body="Descriptor body.",
+        frontmatter={"web": True},
+        type_source="missing",
+        parent_source="missing",
+        source_path=Path("sase/memory/decisions.md"),
+        priority=5,
+    )
+    hub = memory_note("alpha", description="Hub.")
+    web = _web_with_one_strand(tmp_path)
+    install_fixed_load(
+        monkeypatch,
+        (ref,),
+        {"sase": scope_snapshot(ref, (hub, web_note, core), webs=(web,))},
+    )
+
+    panel = MemoryPane()
+    app = MemoryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        rows = [(row.note.path.stem, row.depth) for row in panel._all_rows]
+        assert rows == [
+            ("zebra", 0),
+            ("decisions", 0),
+            ("alpha", 0),
         ]
 
 
