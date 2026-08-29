@@ -98,6 +98,47 @@ def _tier1_merge_key(agent: Agent) -> _Tier1MergeKey:
     return ("artifact-root", agent.agent_type, agent.raw_suffix)
 
 
+def _tier1_stable_merge_key(agent: Agent) -> _Tier1MergeKey | None:
+    if agent.raw_suffix is None or agent.parent_workflow is not None:
+        return None
+    return ("artifact-row", agent.agent_type, agent.project_file, agent.raw_suffix)
+
+
+def _unique_stable_merge_index(agents: list[Agent]) -> dict[_Tier1MergeKey, Agent]:
+    by_key: dict[_Tier1MergeKey, Agent] = {}
+    ambiguous: set[_Tier1MergeKey] = set()
+    for agent in agents:
+        key = _tier1_stable_merge_key(agent)
+        if key is None or key in ambiguous:
+            continue
+        if key in by_key:
+            del by_key[key]
+            ambiguous.add(key)
+            continue
+        by_key[key] = agent
+    return by_key
+
+
+def _adds_structural_placement(cached: Agent, incoming: Agent) -> bool:
+    """Return whether stable replacement repairs completed metadata."""
+    return (
+        (cached.parent_timestamp is None and incoming.parent_timestamp is not None)
+        or (cached.agent_family is None and incoming.agent_family is not None)
+        or (cached.agent_family_role is None and incoming.agent_family_role is not None)
+        or (cached.role_suffix is None and incoming.role_suffix is not None)
+        or (not cached.plan_chain_root and incoming.plan_chain_root)
+        or (cached.agent_clan is None and incoming.agent_clan is not None)
+        or (
+            cached.agent_clan_generation is None
+            and incoming.agent_clan_generation is not None
+        )
+        or (cached.clan_tribe is None and incoming.clan_tribe is not None)
+        or (cached.clan_summary is None and incoming.clan_summary is not None)
+        or (cached.clan_context is None and incoming.clan_context is not None)
+        or (cached.tribe is None and incoming.tribe is not None)
+    )
+
+
 def _reattach_children_after_parent_dedup(
     agents_before_dedup: list[Agent],
     agents_after_dedup: list[Agent],
@@ -250,6 +291,7 @@ def merge_incomplete_load_after_complete_history(
     from ...models.agent import AgentType
 
     incoming_by_key = {_tier1_merge_key(agent): agent for agent in prep.filtered_agents}
+    incoming_by_stable_key = _unique_stable_merge_index(prep.filtered_agents)
     dismissed = set(snapshot.dismissed_agents)
     dismissed_suffixes = {
         raw_suffix for _, _, raw_suffix in dismissed if raw_suffix is not None
@@ -299,6 +341,7 @@ def merge_incomplete_load_after_complete_history(
     merged: list[Agent] = []
     seen: set[_Tier1MergeKey] = set()
     cached_keys = {_tier1_merge_key(agent) for agent in cached_agents}
+    cached_stable_keys = set(_unique_stable_merge_index(cached_agents))
     cached_parent_by_suffix = {
         agent.raw_suffix: agent
         for agent in cached_agents
@@ -337,7 +380,12 @@ def merge_incomplete_load_after_complete_history(
     # relative Tier 1 order while preserving cached parent/child groups.
     for agent in prep.filtered_agents:
         agent_key = _tier1_merge_key(agent)
-        if agent_key in cached_keys or is_dismissed(agent):
+        agent_stable_key = _tier1_stable_merge_key(agent)
+        if (
+            agent_key in cached_keys
+            or (agent_stable_key is not None and agent_stable_key in cached_stable_keys)
+            or is_dismissed(agent)
+        ):
             continue
         if agent.parent_timestamp and agent.parent_timestamp in known_parent_suffixes:
             new_children_by_parent.setdefault(agent.parent_timestamp, []).append(agent)
@@ -366,7 +414,19 @@ def merge_incomplete_load_after_complete_history(
                 seen.add(child_key)
 
     for cached in cached_agents:
-        replacement = incoming_by_key.get(_tier1_merge_key(cached), cached)
+        cached_key = _tier1_merge_key(cached)
+        replacement = incoming_by_key.get(cached_key)
+        if replacement is None:
+            cached_stable_key = _tier1_stable_merge_key(cached)
+            if cached_stable_key is not None:
+                stable_replacement = incoming_by_stable_key.get(cached_stable_key)
+                if stable_replacement is not None and _adds_structural_placement(
+                    cached,
+                    stable_replacement,
+                ):
+                    replacement = stable_replacement
+        if replacement is None:
+            replacement = cached
         replacement_key = _tier1_merge_key(replacement)
         if (
             replacement_key in seen

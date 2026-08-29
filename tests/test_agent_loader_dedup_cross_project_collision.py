@@ -15,12 +15,18 @@ artifact-timestamp dir name.
 
 from datetime import datetime
 
+from sase.ace.tui.actions.agents._loading_compute import (
+    PreparedApplyData,
+    PreparedApplySelectionInputs,
+    PreparedApplySnapshot,
+    merge_incomplete_load_after_complete_history,
+)
 from sase.ace.tui.models._dedup import (
     dedup_running_vs_workflow,
     dedup_workflow_entries,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models.agent_loader import AgentLoadState, _apply_status_overrides
 
 
 def _workflow_agent(
@@ -241,6 +247,80 @@ def test_dedup_running_vs_workflow_same_project_still_merges() -> None:
     assert merged.cl_name == "my_feature"
     assert merged.workspace_num == 7
     assert merged.pid == 99999
+
+
+def test_incomplete_merge_artifact_row_recovery_key_is_project_scoped() -> None:
+    """Same timestamp in different projects must not drive Tier-1 replacement."""
+    suffix = "20260829072911"
+    parent_suffix = "20260829061545"
+    project_a = "/home/u/.sase/projects/project-a/project-a.sase"
+    project_b = "/home/u/.sase/projects/project-b/project-b.sase"
+    cached = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="project_a",
+        project_file=project_a,
+        status="RUNNING",
+        start_time=None,
+        raw_suffix=suffix,
+        pid=111,
+    )
+    incoming_parent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="project_b.parent",
+        project_file=project_b,
+        status="RUNNING",
+        start_time=None,
+        raw_suffix=parent_suffix,
+        pid=222,
+        agent_clan="project-b-clan",
+    )
+    incoming_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="project_b.child",
+        project_file=project_b,
+        status="RUNNING",
+        start_time=None,
+        raw_suffix=suffix,
+        pid=333,
+        parent_timestamp=parent_suffix,
+        agent_family="project_b.parent",
+        agent_clan="project-b-clan",
+    )
+    prep = PreparedApplyData(
+        filtered_agents=[incoming_parent, incoming_child],
+        has_always_visible=True,
+        hidden_count=0,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+    )
+    snapshot = PreparedApplySnapshot(
+        cached_agents_with_children=[cached],
+        dismissed_agents=set(),
+        agents_seen_complete_history=True,
+        hide_non_run_agents=False,
+        load_state=AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            artifact_source="artifact_index",
+            used_artifact_index=True,
+        ),
+        fold_levels=None,
+        selection=PreparedApplySelectionInputs(
+            on_agents_tab=False,
+            selected_identity=None,
+            prior_visual_row=None,
+        ),
+    )
+
+    merge_incomplete_load_after_complete_history(prep, snapshot)
+
+    suffix_rows = [
+        agent for agent in prep.filtered_agents if agent.raw_suffix == suffix
+    ]
+    assert {(agent.project_file, agent.pid) for agent in suffix_rows} == {
+        (project_a, 111),
+        (project_b, 333),
+    }
 
 
 def test_dedup_running_vs_workflow_preserves_live_runner_provenance() -> None:

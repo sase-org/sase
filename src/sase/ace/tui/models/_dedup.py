@@ -69,6 +69,31 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.vcs_provider = source.vcs_provider
     if target.agent_name is None and source.agent_name is not None:
         target.agent_name = source.agent_name
+    if target.parent_timestamp is None and source.parent_timestamp is not None:
+        target.parent_timestamp = source.parent_timestamp
+    if target.agent_family is None and source.agent_family is not None:
+        target.agent_family = source.agent_family
+    if target.agent_family_role is None and source.agent_family_role is not None:
+        target.agent_family_role = source.agent_family_role
+    if target.role_suffix is None and source.role_suffix is not None:
+        target.role_suffix = source.role_suffix
+    if not target.plan_chain_root and source.plan_chain_root:
+        target.plan_chain_root = True
+    if target.agent_clan is None and source.agent_clan is not None:
+        target.agent_clan = source.agent_clan
+    if (
+        target.agent_clan_generation is None
+        and source.agent_clan_generation is not None
+    ):
+        target.agent_clan_generation = source.agent_clan_generation
+    if target.clan_tribe is None and source.clan_tribe is not None:
+        target.clan_tribe = source.clan_tribe
+    if target.clan_summary is None and source.clan_summary is not None:
+        target.clan_summary = source.clan_summary
+    if target.clan_context is None and source.clan_context is not None:
+        target.clan_context = source.clan_context
+    if target.tribe is None and source.tribe is not None:
+        target.tribe = source.tribe
     if target.bug is None and source.bug is not None:
         target.bug = source.bug
     if target.cl_num is None and source.cl_num is not None:
