@@ -93,6 +93,35 @@ class TestOnStepStart:
         output = buf.getvalue()
         assert "Step 2c/5" in output
 
+    def test_on_step_start_without_parent_context(self) -> None:
+        """Test that on_step_start uses regular numbering without parent context."""
+        handler, buf = _make_handler()
+        handler.on_step_start(
+            step_name="test_step",
+            step_type="agent",
+            step_index=2,
+            total_steps=5,
+        )
+        result = buf.getvalue()
+        assert "Step 3/5: test_step (agent)" in result
+
+    def test_on_step_start_multiple_substeps(self) -> None:
+        """Test formatting of multiple embedded substeps."""
+        handler, buf = _make_handler()
+        parent_ctx = ParentStepContext(step_index=2, total_steps=10)
+        for i in range(3):
+            handler.on_step_start(
+                step_name=f"substep_{i}",
+                step_type="bash",
+                step_index=i,
+                total_steps=3,
+                parent_step_context=parent_ctx,
+            )
+        result = buf.getvalue()
+        assert "Step 3a/10:" in result
+        assert "Step 3b/10:" in result
+        assert "Step 3c/10:" in result
+
 
 class TestOnStepIteration:
     def test_displays_iteration_info(self) -> None:
