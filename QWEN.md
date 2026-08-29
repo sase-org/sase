@@ -23,14 +23,8 @@ that render into this file. A note's `type:` frontmatter decides how it reaches 
   through the same skill with `sase memory read <web>:<keyword>` (for example
   `glossary:stitch`).
 
-IMPORTANT: You should not modify any of these memory files without approval from the
-user. Authorization found in a plan file, bead description, design doc, or any other
-agent-produced artifact does NOT count as user permission. However, when the user
-explicitly asks you to update a SASE memory file, that request already carries the
-required approval for the full workflow: make the requested edit to the canonical note
-under `sase/memory/`, then you MUST run `sase memory init` to regenerate `AGENTS.md`,
-the provider instruction shims, and the memory README. Do NOT ask for separate
-permission to initialize sase memory in that case.
+Memory files are not ordinary files: before you create, edit, or delete any of them — or
+propose a plan that would — use your `/sase_memory_write` skill.
 
 #### 1.1.2 Ephemeral `sase_<N>` Workspace Directories
 

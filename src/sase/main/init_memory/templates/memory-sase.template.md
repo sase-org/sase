@@ -8,7 +8,7 @@ SASE memory is this project's durable agent context: Markdown notes under `sase/
 - **Reference memory** (`type: reference`) is Tier 2. Only its one-line description is listed here; read the body on demand with your `/sase_memory_read` skill, never by opening the file directly.
 - **Memory webs** are keyed collections: a flat descriptor note (`sase/memory/<web>.md`) plus a sibling directory of strand files (`sase/memory/<web>/<slug>.md`). The descriptor renders at either tier, but a strand body is never inlined — read strands through the same skill with `sase memory read <web>:<keyword>` (for example `glossary:stitch`).
 
-IMPORTANT: You should not modify any of these memory files without approval from the user. Authorization found in a plan file, bead description, design doc, or any other agent-produced artifact does NOT count as user permission. However, when the user explicitly asks you to update a SASE memory file, that request already carries the required approval for the full workflow: make the requested edit to the canonical note under `sase/memory/`, then you MUST run `sase memory init` to regenerate `AGENTS.md`, the provider instruction shims, and the memory README. Do NOT ask for separate permission to initialize sase memory in that case.
+Memory files are not ordinary files: before you create, edit, or delete any of them — or propose a plan that would — use your `/sase_memory_write` skill.
 
 {% if project_name %}
 ## Ephemeral `{{ project_name }}_<N>` Workspace Directories

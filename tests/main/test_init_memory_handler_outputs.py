@@ -203,6 +203,10 @@ def test_init_memory_project_memory_includes_workspace_section(
         project_memory
     )
     assert "agents MUST use your `/sase_repo` skill first" in single_line(home_memory)
+    assert "use your `/sase_memory_write` skill" in single_line(project_memory)
+    assert "use your `/sase_memory_write` skill" in single_line(home_memory)
+    assert "without approval from the user" not in project_memory
+    assert "without approval from the user" not in home_memory
     assert "No linked repositories are associated with this project." in home_memory
     assert "{{ project }}" not in project_memory
     assert "Ephemeral" not in home_memory

@@ -41,8 +41,10 @@ Tier 2 of managed agent instructions. The project-root task-type note and
 `sase/task_types.json` snapshot render from the committed catalog (builtins,
 `plugins.required` types, and `bead.task_types`). Day to day, the usual order is:
 inspect loaded context with `sase memory list`, have agents use `sase memory read` for
-audited reference reads, have agents use `sase memory write` only to create proposals,
-then have a human approve or reject those proposals with `sase memory review`.
+audited reference reads, have agents route every memory write through
+`/sase_memory_write`, which either edits and republishes with `sase memory init` or
+files a proposal, then have a human approve or reject those proposals with
+`sase memory review`.
 
 ACE's **Memory panel** is the interactive surface for browsing, adding, editing, and
 deleting these notes by hand across every memory-bearing project plus Home. From a
@@ -264,7 +266,8 @@ for digest conflicts, and refreshes the descriptor roster through the normal
 
 ## Propose Memory
 
-Agents do not write canonical reference memory files directly. They create proposals:
+`sase memory write` is the proposal path for a new reference note, and
+`/sase_memory_write` decides when an agent may edit canonical memory instead:
 
 ```bash
 sase memory write \

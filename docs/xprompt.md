@@ -1273,6 +1273,7 @@ add more skill sources, so `sase skill list` may show entries that are not bundl
 | `sase_gate`          | Create a durable custom confirmation gate for a proposed command or decision                  |
 | `sase_git_commit`    | Commit through `sase stitch create` for git and GitHub workflows                              |
 | `sase_memory_read`   | Perform audited reference memory reads through `sase memory read`                             |
+| `sase_memory_write`  | Gate every SASE memory-file create, edit, or delete before making it                          |
 | `sase_monitor`       | Run a long command without blocking your turn                                                 |
 | `sase_new_task`      | Use before creating, filing, proposing, or otherwise recording any new SASE task bead         |
 | `sase_notify`        | Inspect SASE notifications and notification inbox entries                                     |

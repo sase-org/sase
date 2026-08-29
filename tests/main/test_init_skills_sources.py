@@ -96,6 +96,17 @@ def _disable_prettier_for_skill_generation(
             ),
         ),
         (
+            "sase_memory_write",
+            (
+                "An **approved plan you are implementing**",
+                "/sase_questions",
+                "/sase_new_task",
+                "File a `memory` task bead",
+                "sase memory init",
+                "Remember that every token in context either helps or hurts us",
+            ),
+        ),
+        (
             "sase_pipe",
             (
                 "sase pipe 'implement the approved plan'",
