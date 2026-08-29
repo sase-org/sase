@@ -186,9 +186,13 @@ def test_read_multi_note_batch_markdown_labels_each_note_before_its_body(
     )
 
     out = capsys.readouterr().out
-    first_header = out.index("MEMORY FILE: first.md")
+    first_header_line = "---------- MEMORY FILE: first.md"
+    second_header_line = "---------- MEMORY FILE: second.md"
+    assert out.startswith(f"\n{first_header_line}\n\n")
+    assert f"\n\n{second_header_line}\n\n" in out
+    first_header = out.index(first_header_line)
     first_body = out.index("# First body")
-    second_header = out.index("MEMORY FILE: second.md")
+    second_header = out.index(second_header_line)
     second_body = out.index("# Second body")
     assert first_header < first_body < second_header < second_body
 

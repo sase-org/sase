@@ -124,6 +124,9 @@ def memory_selector_batch_markdown(batch: ResolvedMemorySelectorBatch) -> str:
     return _batch_markdown(batch)
 
 
+_MARKDOWN_SECTION_RULE = "-" * 10
+
+
 def _batch_markdown(batch: ResolvedMemorySelectorBatch) -> str:
     pieces: list[str] = []
     for note in batch.notes:
@@ -133,13 +136,23 @@ def _batch_markdown(batch: ResolvedMemorySelectorBatch) -> str:
     return "\n".join(piece.rstrip("\n") for piece in pieces) + "\n"
 
 
+def _markdown_section_header(kind: Literal["FILE", "WEB"], name: str) -> str:
+    """Return a combined-batch Markdown section header.
+
+    Combined Markdown is the only path that labels sections. Each header
+    starts on a new line after one blank line, including the first header
+    in the command output.
+    """
+    return f"\n{_MARKDOWN_SECTION_RULE} MEMORY {kind}: {name}\n"
+
+
 def _note_section_markdown(note: ResolvedMemoryNote) -> str:
-    header = f"MEMORY FILE: {note.content.path.canonical_path}\n"
+    header = _markdown_section_header("FILE", note.content.path.canonical_path)
     return "\n".join([header, memory_note_markdown(note)])
 
 
 def _web_section_markdown(section: MemoryWebReadSection) -> str:
-    pieces = [f"MEMORY WEB: {section.web.slug}\n"]
+    pieces = [_markdown_section_header("WEB", section.web.slug)]
     for node in section.nodes:
         level = min(node.depth + 1, 6)
         pieces.append(f"{'#' * level} {node.strand.keyword}\n")

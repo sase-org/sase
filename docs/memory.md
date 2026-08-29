@@ -221,11 +221,13 @@ that names an unknown strand reports every unresolved reference at once, prints 
 and exits 1.
 
 Markdown output labels every flat note in a multi-note or mixed batch as
-`MEMORY FILE: <canonical-path>` and every web section as `MEMORY WEB: <slug>`, so file
-boundaries remain unambiguous when several bodies are concatenated. The exact one-note
-case stays header-free for backward compatibility and appends that note's nested
-`## Children` section. Multi-note and mixed Markdown batches currently omit the per-note
-children sections; read a parent note by itself when you need its child list.
+`---------- MEMORY FILE: <canonical-path>` and every web section as
+`---------- MEMORY WEB: <slug>`. Each of those headers starts on a new line after one
+blank line, including the first header in the command output, so file boundaries remain
+unambiguous when several bodies are concatenated. The exact one-note case stays
+header-free for backward compatibility and appends that note's nested `## Children`
+section. Multi-note and mixed Markdown batches currently omit the per-note children
+sections; read a parent note by itself when you need its child list.
 
 A web whose descriptor sets `closure: mentions` — `glossary` is one — additionally walks
 the recursive closure of strands each requested strand's body mentions. Every related

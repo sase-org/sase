@@ -172,7 +172,7 @@ def test_build_report_renders_bare_web_multi_target_output(tmp_path: Path) -> No
     assert (
         "sase memory show -p demo-memory-report decisions --format markdown" in report
     )
-    assert "MEMORY WEB: decisions" in report
+    assert "---------- MEMORY WEB: decisions" in report
     assert "# Corpus Before Mechanism" in report
     assert "# Memory Webs" in report
 
@@ -288,6 +288,9 @@ def test_mixed_note_and_strand_report_uses_original_selector_batch(
 
     assert "decisions:corpus-before-mechanism tui_perf.md" in report
     output = report.partition("## Output")[2]
-    assert "MEMORY FILE: tui_perf.md" in output
-    assert output.index("MEMORY FILE: tui_perf.md") < output.index("# Perf")
-    assert "MEMORY WEB: decisions" in output
+    note_header = "---------- MEMORY FILE: tui_perf.md"
+    web_header = "---------- MEMORY WEB: decisions"
+    assert f"\n{note_header}\n" in output
+    assert f"\n{web_header}\n" in output
+    assert output.index(note_header) < output.index("# Perf")
+    assert output.index(note_header) < output.index(web_header)

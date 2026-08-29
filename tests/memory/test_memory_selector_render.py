@@ -62,13 +62,15 @@ def test_multi_note_batch_markdown_labels_each_note_before_its_body(
     batch = _resolve(tmp_path, ["first.md", "second.md"])
 
     output = memory_selector_batch_markdown(batch)
-    assert "MEMORY FILE: first.md" in output
-    assert "MEMORY FILE: second.md" in output
-    first_header = output.index("MEMORY FILE: first.md")
-    first_body = output.index("# First body")
-    second_header = output.index("MEMORY FILE: second.md")
-    second_body = output.index("# Second body")
-    assert first_header < first_body < second_header < second_body
+    assert output == (
+        "\n---------- MEMORY FILE: first.md\n"
+        "\n"
+        "# First body\n"
+        "\n"
+        "---------- MEMORY FILE: second.md\n"
+        "\n"
+        "# Second body\n"
+    )
 
 
 def test_mixed_note_and_web_batch_labels_note_and_keeps_web_header(
@@ -80,9 +82,21 @@ def test_mixed_note_and_web_batch_labels_note_and_keeps_web_header(
     batch = _resolve(tmp_path, ["foo.md", "glossary:stitch"])
 
     output = memory_selector_batch_markdown(batch)
-    assert "MEMORY FILE: foo.md" in output
-    assert "MEMORY WEB: glossary" in output
-    assert output.index("MEMORY FILE: foo.md") < output.index("# Foo body")
+    assert output == (
+        "\n---------- MEMORY FILE: foo.md\n"
+        "\n"
+        "# Foo body\n"
+        "\n"
+        "---------- MEMORY WEB: glossary\n"
+        "\n"
+        "# Stitch\n"
+        "\n"
+        "*Requested · project*\n"
+        "\n"
+        "aka commit-ish\n"
+        "\n"
+        "A Stitch mentions Patch inside its body.\n"
+    )
 
 
 def test_note_section_retains_children_listing_beneath_its_header(
@@ -99,7 +113,11 @@ def test_note_section_retains_children_listing_beneath_its_header(
     batch = _resolve(tmp_path, ["parent.md", "child.md"])
 
     output = memory_selector_batch_markdown(batch)
-    header = output.index("MEMORY FILE: parent.md")
+    parent_header = "---------- MEMORY FILE: parent.md"
+    child_header = "---------- MEMORY FILE: child.md"
+    assert output.startswith(f"\n{parent_header}\n\n")
+    parent_header_at = output.index(parent_header)
     children_section = output.index("## Children")
-    child_entry = output.index("child.md", children_section)
-    assert header < children_section < child_entry
+    child_entry = output.index("`sase/memory/child.md`", children_section)
+    child_header_at = output.index(child_header)
+    assert parent_header_at < children_section < child_entry < child_header_at
