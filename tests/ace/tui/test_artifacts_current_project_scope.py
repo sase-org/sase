@@ -579,3 +579,26 @@ async def test_patches_pane_sync_triggers_project_inventory(
 
         assert calls["n"] >= 1
         assert page.app.current_artifacts_pane_key == "patches"
+
+
+async def test_ensure_reapplies_seeded_display_name_to_files_pane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    choices = _two_enabled_choices("alpha")
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: choices,
+    )
+
+    async with AcePage(initial_tab="patches") as page:
+        await _wait_for_choices(page, choices)
+        await page.wait_for(lambda _state: page.app.artifacts_project_scope == "alpha")
+        await page.press(page.artifacts_digit("files"))
+        await page.expect_state("artifacts_subtab", "files")
+        pane = page.app.query_one("#artifacts-files-pane", ArtifactsFilesPane)
+        pane._project_display_name = None
+
+        page.app._ensure_artifacts_project_choices()
+
+        assert pane._project_display_name == "Alpha"
+        assert pane.project_scope == "alpha"

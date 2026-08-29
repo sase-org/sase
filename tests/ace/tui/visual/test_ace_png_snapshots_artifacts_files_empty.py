@@ -40,14 +40,24 @@ async def test_artifacts_files_empty_png_snapshot(
         await wait_for_startup(page)
         await page.press(page.artifacts_digit("files"), "(")
         await page.expect_state("artifacts_subtab", "files")
-        pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
-        await page.wait_for(
-            lambda _state: pane.snapshot is not None and pane.snapshot.rows == ()
-        )
-        await page.wait_for(
-            lambda _state: getattr(pane, "_project_display_name", None) == "Alpha",
-            timeout=15.0,
-        )
+        page.app.refresh(layout=True)
+        await page.app.wait_for_refresh()
+
+        def _files_empty_ready(_state: object) -> bool:
+            try:
+                pane = page.query_one_widget(
+                    "#artifacts-files-pane", ArtifactsFilesPane
+                )
+            except Exception:
+                return False
+            return (
+                pane.snapshot is not None
+                and pane.snapshot.rows == ()
+                and pane.snapshot.project == "alpha"
+                and getattr(pane, "_project_display_name", None) == "Alpha"
+            )
+
+        await page.wait_for(_files_empty_ready, timeout=15.0)
         await wait_for_svg_contains(page, "No artifact files")
         await wait_for_svg_contains(page, "Select an artifact file to inspect it.")
         await wait_for_visual_idle(page)

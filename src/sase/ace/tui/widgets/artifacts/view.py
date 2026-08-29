@@ -353,6 +353,34 @@ class ArtifactsView(Vertical):
             for concrete_pane in self.query(pane_type):
                 cast(Any, concrete_pane).set_keymap_registry(registry)
 
+    def fill_missing_project_display_name(
+        self,
+        project: str,
+        *,
+        display_name: str | None,
+    ) -> None:
+        """Seed display names on panes that missed the first inventory apply.
+
+        Panes whose ``project_scope`` already differs from *project* are left
+        alone so a live filter-session override is not overwritten.
+        """
+
+        for pane_type in (
+            ArtifactPlaceholderPane,
+            ArtifactsAgentsPane,
+            ArtifactsBeadsPane,
+            ArtifactsFilesPane,
+            ArtifactsDocumentsPane,
+        ):
+            for concrete_pane in self.query(pane_type):
+                pane = cast(Any, concrete_pane)
+                if getattr(pane, "_project_display_name", None) is not None:
+                    continue
+                current = getattr(pane, "project_scope", None)
+                if current not in (None, project):
+                    continue
+                pane.set_project_scope(project, display_name=display_name)
+
     def set_project_scope(
         self,
         project: str | None,

@@ -117,17 +117,108 @@ def _resolve_embedded_path_fields(
                     output[field_name] = mapped[field_name]
 
 
-def _read_model_alias_reservation(artifacts_dir: str) -> dict[str, Any] | None:
+def _read_agent_meta(artifacts_dir: str) -> dict[str, Any] | None:
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     try:
         with open(meta_path, encoding="utf-8") as stream:
             meta = json.load(stream)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return None
-    if not isinstance(meta, dict):
+    return meta if isinstance(meta, dict) else None
+
+
+def _read_model_alias_reservation(artifacts_dir: str) -> dict[str, Any] | None:
+    meta = _read_agent_meta(artifacts_dir)
+    if meta is None:
         return None
     reservation = meta.get("model_alias_reservation")
     return dict(reservation) if isinstance(reservation, dict) else None
+
+
+def _launch_selection_from_agent_meta(
+    artifacts_dir: str,
+    *,
+    directives: Any,
+) -> Any:
+    """Return the recorded agent model when the prompt has no ``%model``.
+
+    Default ``sase pipe`` inherit copies the parent's ``llm_provider`` and
+    ``model`` into the successor artifacts dir but does not prepend
+    ``%model``. Without this fallback the anonymous workflow step would
+    resolve ``llm_provider.default_model`` (Claude on a host that has the
+    CLI) and break the inherit contract.
+    """
+    from sase.llm_provider.launch_selection import LaunchSelection
+
+    if getattr(directives, "model", None):
+        return None
+    meta = _read_agent_meta(artifacts_dir)
+    if meta is None:
+        return None
+    provider = meta.get("llm_provider")
+    model = meta.get("model")
+    if not isinstance(provider, str) or not provider:
+        return None
+    if not isinstance(model, str) or not model:
+        return None
+    effort = meta.get("reasoning_effort")
+    if effort is not None and not isinstance(effort, str):
+        effort = None
+    raw_trail = meta.get("model_alias_trail")
+    alias_trail: tuple[str, ...] = ()
+    if isinstance(raw_trail, list) and all(
+        isinstance(item, str) and item for item in raw_trail
+    ):
+        alias_trail = tuple(raw_trail)
+    return LaunchSelection(
+        provider=provider,
+        model=model,
+        reasoning_effort=effort,
+        effort_explicit=False,
+        alias_trail=alias_trail,
+        cursor_alias=None,
+    )
+
+
+def _resolve_prompt_step_launch_selection(
+    artifacts_dir: str,
+    *,
+    directives: Any,
+    provider_disables: Any,
+) -> Any:
+    """Pick reservation, then inherited agent meta, then default_model."""
+    from sase.llm_provider.launch_selection import (
+        launch_selection_from_reservation,
+        resolve_launch_selection,
+    )
+
+    reservation = _read_model_alias_reservation(artifacts_dir)
+    launch_selection = launch_selection_from_reservation(
+        reservation,
+        directives=directives,
+        provider_disables=provider_disables,
+    )
+    if launch_selection is not None:
+        _mark_model_alias_reservation_redeemed(artifacts_dir, reservation)
+        return launch_selection
+    if isinstance(reservation, dict) and reservation.get("redeemed") is False:
+        # A live bootstrap reservation that no longer matches must be spent
+        # and re-resolved. Do not inherit the stale agent_meta target.
+        _mark_model_alias_reservation_redeemed(artifacts_dir, reservation)
+    else:
+        inherited = _launch_selection_from_agent_meta(
+            artifacts_dir, directives=directives
+        )
+        if inherited is not None:
+            return inherited
+    selection = resolve_launch_selection(
+        directives,
+        directives.model_alias_overrides,
+        consume=True,
+        provider_disables=provider_disables,
+    )
+    assert selection is not None
+    return selection
 
 
 def _mark_model_alias_reservation_redeemed(
@@ -303,38 +394,16 @@ class PromptStepMixin:
         # Resolve the concrete provider/model/effort for this step's real
         # invocation. The first prompt step redeems the bootstrap reservation
         # when it still matches the effective routing directives; stale or
-        # unavailable reservations fall back to a fresh consuming resolution.
-        from sase.llm_provider.launch_selection import (
-            launch_selection_from_reservation,
-            resolve_launch_selection,
-        )
+        # unavailable reservations fall back to inherited agent_meta, then a
+        # fresh consuming resolution of default_model.
         from sase.llm_provider.provider_disable import get_active_provider_disables
 
         provider_disables = get_active_provider_disables() or None
-        reservation = _read_model_alias_reservation(self.artifacts_dir)
-        launch_selection = launch_selection_from_reservation(
-            reservation,
+        launch_selection = _resolve_prompt_step_launch_selection(
+            self.artifacts_dir,
             directives=effective_directives,
             provider_disables=provider_disables,
         )
-        if launch_selection is not None:
-            _mark_model_alias_reservation_redeemed(
-                self.artifacts_dir,
-                reservation,
-            )
-        else:
-            if isinstance(reservation, dict) and reservation.get("redeemed") is False:
-                _mark_model_alias_reservation_redeemed(
-                    self.artifacts_dir,
-                    reservation,
-                )
-            launch_selection = resolve_launch_selection(
-                effective_directives,
-                effective_directives.model_alias_overrides,
-                consume=True,
-                provider_disables=provider_disables,
-            )
-        assert launch_selection is not None
         step_model = launch_selection.model
         step_llm_provider = launch_selection.provider
         step_reasoning_effort = launch_selection.reasoning_effort

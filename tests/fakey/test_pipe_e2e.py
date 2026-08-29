@@ -205,6 +205,8 @@ def test_default_pipe_creates_family_member_with_fork_and_shared_workspace(
     assert successor_meta["agent_family"] == "fakey-e2e"
     assert successor_meta["workspace_dir"] == parent_meta["workspace_dir"]
     assert successor_meta["workspace_num"] == parent_meta["workspace_num"] == 1
+    assert successor_meta["llm_provider"] == "fakey"
+    assert successor_meta["model"] == "fakey-large"
     assert prompt.startswith("#fork:fakey-e2e\n")
     assert prompt.endswith("continue the work")
 

@@ -373,11 +373,25 @@ class ArtifactsMixin(
                 update_commits=update_commits,
             )
 
+    def _fill_missing_artifacts_display_names(self) -> None:
+        """Apply the seeded label to panes that missed the first inventory."""
+        choices = self._artifacts_project_choices
+        project = self.artifacts_project_scope
+        view = self._artifacts_view()
+        if choices is None or project is None or view is None:
+            return
+        view.fill_missing_project_display_name(
+            project,
+            display_name=choices.display_names.get(project),
+        )
+
     def _ensure_artifacts_project_choices(self) -> None:
         """Start one coalesced, off-thread project inventory read."""
         if self._artifacts_project_choices is not None:
             if self._artifacts_project_picker_pending:
                 self._open_artifacts_project_picker()
+            else:
+                self._fill_missing_artifacts_display_names()
             return
         if self._artifacts_project_choices_loading:
             return
