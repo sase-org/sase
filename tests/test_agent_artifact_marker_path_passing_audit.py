@@ -61,8 +61,9 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
     "src/sase/ace/tui/models/_loaders/_workflow_loaders.py:load_workflow_states": (
         PathPassingReview(
             exemption=(
-                "Read-only FAILED-workflow enrichment: agent_meta.json is read "
-                "only to locate the runner output log for the TUI fallback."
+                "Read-only workflow enrichment: agent_meta.json is read to skip "
+                "dead-pid FAILED derivation for family-shell members and to "
+                "locate the runner output log for the TUI fallback."
             ),
         )
     ),
@@ -71,9 +72,10 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
         "_has_monitored_done_marker"
     ): PathPassingReview(
         exemption=(
-            "Read-only settled-monitor check: done.json is inspected only to "
-            "test whether its outcome is 'monitored' so the workflow-state "
-            "projection can skip the vestigial launch-scaffolding row."
+            "Read-only settled family-shell check: done.json is inspected only "
+            "to test whether its outcome is 'monitored' or 'gated' so the "
+            "workflow-state projection can skip the vestigial launch-scaffolding "
+            "row."
         ),
     ),
     "src/sase/axe/_chop_lifecycle_completion.py:agent_completion": PathPassingReview(

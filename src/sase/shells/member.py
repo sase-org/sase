@@ -27,7 +27,11 @@ def create_family_shell_member(
     metadata: Mapping[str, Any] | None = None,
     inherited_metadata_fields: Sequence[str] = (),
 ) -> str:
-    """Create a family shell member and layer caller-supplied metadata on it."""
+    """Create a family shell member and layer caller-supplied metadata on it.
+
+    Does not stamp this process's pid onto the member: a gate has no
+    process, and a monitor's pid is the detached supervisor's.
+    """
     member_name = f"{family}{suffix}"
     artifacts_dir = create_followup_artifacts(
         project_name,
@@ -38,6 +42,7 @@ def create_family_shell_member(
         agent_name_override=member_name,
         workflow_name=family,
         agent_family_role=family_role,
+        stamp_creating_process=False,
     )
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     with open(meta_path, encoding="utf-8") as f:

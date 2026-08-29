@@ -133,11 +133,16 @@ def create_followup_artifacts(
     workflow_name: str | None = None,
     agent_family_role: str | None = None,
     relationships: dict[str, Any] | None = None,
+    stamp_creating_process: bool = True,
 ) -> str:
     """Create a new timestamped artifacts directory for a follow-up agent.
 
     Inherits metadata fields from the previous agent's meta and adds
     role_suffix and parent_timestamp.
+
+    ``stamp_creating_process`` records this process's pid on both
+    ``agent_meta.json`` and ``workflow_state.json``. Family-shell members
+    (gates, monitors) pass ``False``: they are not this process.
     """
     reserved_timestamp = reserve_launch_timestamp_batch(1)[0]
     new_artifacts_dir = create_artifacts_directory(
@@ -147,11 +152,11 @@ def create_followup_artifacts(
     )
     canonical_suffix = canonical_plan_chain_suffix(suffix) or suffix
 
-    pid = os.getpid()
-    followup_meta: dict[str, Any] = {
-        "pid": pid,
-        "process_identity": process_identity_token(pid),
-    }
+    followup_meta: dict[str, Any] = {}
+    creator_pid: int | None = os.getpid() if stamp_creating_process else None
+    if creator_pid is not None:
+        followup_meta["pid"] = creator_pid
+        followup_meta["process_identity"] = process_identity_token(creator_pid)
     for key in (
         "model",
         "llm_provider",
@@ -221,10 +226,13 @@ def create_followup_artifacts(
         "steps": [],
         "context": {"cl_name": followup_meta.get("name", "")},
         "artifacts_dir": new_artifacts_dir,
-        "pid": pid,
-        "process_identity": process_identity_token(pid),
         "appears_as_agent": True,
     }
+    if creator_pid is not None:
+        initial_state["pid"] = creator_pid
+        initial_state["process_identity"] = followup_meta["process_identity"]
+    else:
+        initial_state["pid"] = None
     with open(
         os.path.join(new_artifacts_dir, "workflow_state.json"), "w", encoding="utf-8"
     ) as f:

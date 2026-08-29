@@ -16,6 +16,7 @@ from ._dedup import (
     remove_vcs_workspace_claims,
 )
 from .agent import Agent
+from .agent_family_members import row_is_family_shell
 
 
 _LIVE_PLAN_AGENT_BUCKETS = frozenset(
@@ -46,12 +47,19 @@ def _filter_dead_pids(
     *,
     is_process_running: Callable[[int], bool],
 ) -> list[Agent]:
-    """Filter out agents with dead PIDs while keeping completed agents."""
+    """Drop agent rows whose recorded PID is dead.
+
+    OS process liveness gates *agent* rows. A family shell's own
+    ``gate_state`` / ``monitor_state`` gates shell rows — a pending gate
+    shell has no process at all, and may inherit its creator's dead pid.
+    """
 
     verified_agents: list[Agent] = []
     completed_statuses = ("DONE", "FAILED")
     for agent in agents:
-        if agent.status in completed_statuses:
+        if row_is_family_shell(agent):
+            verified_agents.append(agent)
+        elif agent.status in completed_statuses:
             verified_agents.append(agent)
         elif agent.pid is not None:
             if is_process_running(agent.pid):

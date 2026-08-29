@@ -338,6 +338,10 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
             # Match found — merge metadata into the WORKFLOW agent
             matched = workflow_by_suffix[(agent.project_file, agent.raw_suffix)]
             _merge_agent_fields(matched, agent)
+            # A monitor's workflow_state.json may still carry the creator's
+            # dead pid (or none); the RUNNING claim holds the live supervisor.
+            if agent.pid is not None and (matched.pid is None or agent.runner_is_live):
+                matched.pid = agent.pid
             if matched.cl_name == "unknown" and agent.cl_name != "unknown":
                 matched.cl_name = agent.cl_name
             if matched.workspace_num is None and agent.workspace_num is not None:

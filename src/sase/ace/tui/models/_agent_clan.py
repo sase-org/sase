@@ -230,7 +230,7 @@ def _status_counts_for_projections(
             queued += 1
         if projection.is_unread:
             unread += 1
-        if agent_is_asking(projected_agent.status):
+        if agent_is_asking(projected_agent.status) or bucket == "Stopped":
             stopped += 1
         elif bucket == "Failed":
             failed += 1

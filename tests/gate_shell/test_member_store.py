@@ -77,7 +77,13 @@ def test_create_gate_shell_member_projects_gate_metadata() -> None:
     assert meta["gate_next_model"] == "gpt-5"
     assert meta["gate_next_output"] == "results,tail"
     assert meta["pid"] is None
+    assert "process_identity" not in meta
     assert meta["proc_id"] is None
+    workflow_state = json.loads(
+        (Path(artifacts_dir) / "workflow_state.json").read_text()
+    )
+    assert workflow_state["pid"] is None
+    assert "process_identity" not in workflow_state
     assert meta["vcs_ref"] == ["gh", "sase"]
 
     record = read_gate_shell_marker("proj", artifacts_dir)

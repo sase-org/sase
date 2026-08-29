@@ -145,6 +145,7 @@ def create_followup_artifacts(
     workflow_name: str | None = None,
     agent_family_role: str | None = None,
     relationships: dict[str, Any] | None = None,
+    stamp_creating_process: bool = True,
 ) -> str:
     _sync_patchable_dependencies()
     return _artifacts.create_followup_artifacts(
@@ -157,6 +158,7 @@ def create_followup_artifacts(
         workflow_name=workflow_name,
         agent_family_role=agent_family_role,
         relationships=relationships,
+        stamp_creating_process=stamp_creating_process,
     )
 
 

@@ -93,7 +93,13 @@ def test_load_agents_from_running_field_releases_dead_claim() -> None:
 
 
 def test_load_agents_from_running_field_holds_pending_gate_claim() -> None:
-    """A pending gate shell's dead-PID claim survives an Agents-tab refresh."""
+    """A pending gate shell's dead-PID claim survives an Agents-tab refresh.
+
+    The claim itself contributes no row: the gate-shell member renders from
+    its own artifact record. See
+    ``tests/test_agent_loader_pending_gate_shell.py`` for the row-producing
+    counterpart.
+    """
     claim = SimpleNamespace(
         workspace_num=10,
         workflow="ace-gate",

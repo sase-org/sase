@@ -79,6 +79,12 @@ def test_create_family_shell_member_layers_kind_role_and_metadata() -> None:
     assert meta["shell_kind"] == "proc"
     assert meta["gate_id"] == "g123"
     assert meta["pid"] is None
+    assert "process_identity" not in meta
+    workflow_state = json.loads(
+        (Path(artifacts_dir) / "workflow_state.json").read_text()
+    )
+    assert workflow_state["pid"] is None
+    assert "process_identity" not in workflow_state
     assert meta["model"] == "claude-sonnet-5"
     assert meta["workspace_dir"] == "/work/acme"
     assert meta["agent_clan"] == "clan-a"
