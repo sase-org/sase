@@ -153,9 +153,13 @@ def check_cost_budgets(
     ``idle_seconds``, ``collection_seconds``) default to advisory severity:
     they move with host contention alone, so they are reported but never
     fail the gate. CPU seconds, invocation counts, and RSS default to hard
-    severity: those are contention-stable, so an overage is a real signal.
-    An explicit ``enforce`` / ``cpu_enforce`` / ``count_enforce`` key on a
-    budget entry overrides the family default for that dimension.
+    severity on the calibration host: those are contention-stable there, so
+    an overage is a real signal. On CI (``ci=True`` / ``GITHUB_ACTIONS``),
+    CPU metrics are advisory because the committed limits are
+    athena-calibrated and GitHub-hosted runners are a different class of
+    hardware; count and RSS stay hard. An explicit ``enforce`` /
+    ``cpu_enforce`` / ``count_enforce`` key on a budget entry overrides the
+    family default for that dimension except that CI still downgrades CPU.
     """
 
     tolerance = _budget_tolerance(budgets, ci=ci)
@@ -179,6 +183,8 @@ def check_cost_budgets(
             severity = _resolve_severity(
                 raw_budget, "enforce", _summary_default_severity(str(metric))
             )
+            if ci and metric in _CPU_SUMMARY_METRICS:
+                severity = "advisory"
             failure = CostBudgetFailure(
                 label, actual, limit, metric_tolerance, severity
             )
@@ -202,6 +208,8 @@ def check_cost_budgets(
             if cpu_limit is not None:
                 actual_cpu = _cause_cpu_seconds(record, str(cause)) or 0.0
                 severity = _resolve_severity(raw_budget, "cpu_enforce", "hard")
+                if ci:
+                    severity = "advisory"
                 failure = CostBudgetFailure(
                     f"causes.{cause}.cpu",
                     actual_cpu,

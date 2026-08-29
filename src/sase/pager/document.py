@@ -177,10 +177,23 @@ def _body_to_text(body: RenderableType | str) -> Text:
         return body.copy()
     if isinstance(body, str):
         text = Text.from_ansi(body)
-        if body.endswith("\n"):
-            text.append("\n")
+        _restore_trailing_newlines(text, body)
         return text
     return Text(_render_plain(body))
+
+
+def _restore_trailing_newlines(text: Text, source: str) -> None:
+    """Restore trailing newlines ``Text.from_ansi`` may drop or keep.
+
+    Rich historically strips one trailing newline from ANSI input. Some
+    environments keep it. Either way, pager plain text must match the
+    source string's trailing-newline count so file and stdin bodies stay
+    stable across workers.
+    """
+    wanted = len(source) - len(source.rstrip("\n"))
+    have = len(text.plain) - len(text.plain.rstrip("\n"))
+    if have < wanted:
+        text.append("\n" * (wanted - have))
 
 
 def _render_plain(body: RenderableType) -> str:

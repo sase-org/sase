@@ -98,14 +98,17 @@ async def test_reflow_to_fit_ladder_picks_tier_by_width() -> None:
         strip = pilot.app.query_one("#tabs", PanelTabStrip)
 
         await pilot.resize_terminal(40, 5)
+        await pilot.pause()
         assert strip._tier == "full"
         assert set(strip._tab_ranges) == {"aa", "bb"}
 
         await pilot.resize_terminal(20, 5)
+        await pilot.pause()
         assert strip._tier == "compact"
         assert set(strip._tab_ranges) == {"aa", "bb"}
 
         await pilot.resize_terminal(10, 5)
+        await pilot.pause()
         assert strip._tier == "micro"
         assert set(strip._tab_ranges) == {"aa", "bb"}
 

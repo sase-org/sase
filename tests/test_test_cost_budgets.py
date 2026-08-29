@@ -115,6 +115,52 @@ def test_check_cost_budgets_classifies_severity_by_family() -> None:
     assert failures["causes.some_cause.count"].severity == "hard"
 
 
+def test_ci_downgrades_cpu_overages_to_advisory_and_keeps_count_rss_hard() -> None:
+    record = {
+        "summary": {
+            "total_file_cpu_seconds": 100.0,
+            "collection_cpu_seconds": 100.0,
+            "peak_worker_rss_kib": 100.0,
+            "causes": {
+                "some_cause": {"count": 10, "seconds": 0.0, "cpu_seconds": 100.0},
+            },
+        },
+        "worker_count": 1,
+    }
+    budgets = {
+        "schema": 1,
+        "tolerance": {"local": 0.0, "ci": 0.0, "cpu": 0.0},
+        "summary": {
+            "total_file_cpu_seconds": {"limit": 1.0, "enforce": "hard"},
+            "collection_cpu_seconds": {
+                "limit": 1.0,
+                "enforce": "hard",
+                "per_worker": True,
+            },
+            "peak_worker_rss_kib": {"limit": 1.0, "enforce": "hard"},
+        },
+        "causes": {
+            "some_cause": {
+                "cpu_limit": 1.0,
+                "cpu_enforce": "hard",
+                "count_limit": 1,
+                "count_enforce": "hard",
+            },
+        },
+    }
+
+    failures = {
+        failure.metric: failure
+        for failure in check_cost_budgets(record, budgets, ci=True)
+    }
+
+    assert failures["total_file_cpu_seconds"].severity == "advisory"
+    assert failures["collection_cpu_seconds (per worker)"].severity == "advisory"
+    assert failures["causes.some_cause.cpu"].severity == "advisory"
+    assert failures["peak_worker_rss_kib"].severity == "hard"
+    assert failures["causes.some_cause.count"].severity == "hard"
+
+
 def test_check_cost_budgets_enforce_overrides_family_default() -> None:
     record = {"summary": {"total_file_wall_seconds": 100.0}}
     budgets = {

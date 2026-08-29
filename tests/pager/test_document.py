@@ -63,6 +63,45 @@ def test_ansi_body_round_trips_plain_text_and_styles() -> None:
     assert body.spans[0].end == 3
 
 
+def test_string_body_keeps_a_single_trailing_newline() -> None:
+    section = PagerSection(
+        identity="file:/tmp/demo.txt",
+        title="demo.txt",
+        kind="file",
+        body="indexed\n",
+    )
+    assert section.plain_text == "indexed\n"
+
+
+def test_string_body_preserves_double_trailing_newline() -> None:
+    section = PagerSection(
+        identity="file:/tmp/demo.txt",
+        title="demo.txt",
+        kind="file",
+        body="indexed\n\n",
+    )
+    assert section.plain_text == "indexed\n\n"
+
+
+def test_string_body_does_not_double_trailing_newline_when_from_ansi_keeps_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def keep_trailing(text: str, *_args: object, **_kwargs: object) -> Text:
+        result = Text(text.rstrip("\n"))
+        if text.endswith("\n"):
+            result.append("\n")
+        return result
+
+    monkeypatch.setattr(Text, "from_ansi", staticmethod(keep_trailing))
+    section = PagerSection(
+        identity="file:/tmp/demo.txt",
+        title="demo.txt",
+        kind="file",
+        body="indexed\n",
+    )
+    assert section.plain_text == "indexed\n"
+
+
 def test_attached_target_suppresses_overlapping_scanned_span() -> None:
     body = "open src/sase/pager/document.py and https://example.test"
     path_start = body.index("src/")
