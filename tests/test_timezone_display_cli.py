@@ -7,14 +7,10 @@ from io import StringIO
 
 from rich.console import Console
 
+from sase.core.time import parse_local
 from sase.main.proc_render import proc_detail, proc_show_json
-from sase.memory.cli_log import (
-    _events_panel as memory_events_panel,
-    _proposal_events_panel,
-)
-from sase.memory.proposals import MemoryProposalEvent
+from sase.memory.cli_log import _events_panel as memory_events_panel
 from sase.memory.read_log import MemoryReadEvent
-from sase.memory.review_tui._render import format_time_or_age
 from sase.notification_gates.debug import iso_from_unix as debug_iso_from_unix
 from sase.notification_gates.debug_rendering import iso_from_unix
 from sase.procs import Proc
@@ -102,29 +98,8 @@ def test_memory_log_tables_use_configured_timezone(tz_divergence: None) -> None:
         byte_count=1,
         frontmatter_stripped=False,
     )
-    proposal_event = MemoryProposalEvent(
-        schema_version=1,
-        event_type="proposed",
-        proposal_id="proposal-1",
-        timestamp="2026-07-03T10:24:49Z",
-        project="sase",
-        cwd="/tmp",
-        title="Proposal",
-        target_path="example.md",
-        author_name="agent",
-        author_source="test",
-        artifacts_dir=None,
-        body_path="/tmp/body.md",
-        body_sha256="a" * 64,
-        body_byte_count=1,
-        evidence=(),
-        warnings=(),
-    )
 
     assert "2026-07-03 06:24:49" in _render_plain(memory_events_panel((read_event,)))
-    assert "2026-07-03 06:24:49" in _render_plain(
-        _proposal_events_panel((proposal_event,))
-    )
 
 
 def test_skill_log_detail_uses_configured_timezone(tz_divergence: None) -> None:
@@ -145,10 +120,12 @@ def test_skill_log_detail_uses_configured_timezone(tz_divergence: None) -> None:
     assert "2026-07-03 06:24:49" in _render_plain(skill_event_panel(event))
 
 
-def test_memory_review_absolute_date_uses_configured_timezone(
+def test_absolute_date_rendering_uses_configured_timezone(
     tz_divergence: None,
 ) -> None:
-    assert format_time_or_age("2026-01-02T03:00:00Z") == "2026-01-01"
+    local = parse_local("2026-01-02T03:00:00Z")
+    assert local is not None
+    assert local.strftime("%Y-%m-%d") == "2026-01-01"
 
 
 def test_notification_debug_unix_timestamps_use_configured_timezone(

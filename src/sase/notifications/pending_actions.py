@@ -29,7 +29,6 @@ _ACTION_KIND_BY_NOTIFICATION_ACTION = {
     adapter.action: adapter.pending_action_kind
     for adapter in (adapter_for_kind(kind) for kind in registered_gate_kinds())
 }
-_ACTION_KIND_BY_NOTIFICATION_ACTION["memory_review"] = "memory_review"
 
 
 @dataclass(frozen=True)

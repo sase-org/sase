@@ -21,7 +21,7 @@ Each non-README note declares its tier in YAML frontmatter:
   the body of the note's numbered Tier 2 section, while single-line surfaces collapse
   it.
 - **Audited memory operations** live under the project state directory and record agent
-  reads plus proposed writes and human review decisions.
+  reads.
 
 The legacy frontmatter values `type: short` and `type: long` are still accepted and mean
 `type: core` and `type: reference` respectively.
@@ -42,16 +42,13 @@ Tier 2 of managed agent instructions. The project-root task-type note and
 `plugins.required` types, and `bead.task_types`). Day to day, the usual order is:
 inspect loaded context with `sase memory list`, have agents use `sase memory read` for
 audited reference reads, have agents route every memory write through
-`/sase_memory_write`, which either edits and republishes with `sase memory init` or
-files a proposal, then have a human approve or reject those proposals with
-`sase memory review`.
+`/sase_memory_write`.
 
 ACE's **Memory panel** is the interactive surface for browsing, adding, editing, and
 deleting these notes by hand across every memory-bearing project plus Home. From a
 prompt, press `gm` or `Ctrl+G m`; see [Memory panel](ace.md#memory-panel). It is a human
-surface only: it does not replace the agent-facing `sase memory write` / `review`
-proposal path above, and it never edits `AGENTS.md` or the provider shims directly —
-only `sase memory init` (run from the panel's publish flow, or by hand) does that.
+surface only: it never edits `AGENTS.md` or the provider shims directly — only
+`sase memory init` (run from the panel's publish flow, or by hand) does that.
 
 ## XPrompt Inclusion
 
@@ -130,7 +127,6 @@ attributable:
 ```bash
 sase memory read generated_skills.md --reason "Need generated skill context"
 sase memory log
-sase memory log --include proposals
 sase memory log --path generated_skills.md
 sase memory log --agent agent-a
 sase memory log --id <read-id>
@@ -151,10 +147,6 @@ Agents should always use `read`, not `show`, when consulting memory to accomplis
 task; nothing is printed unless the read was recorded.
 [`sase memory show`](#show-a-note) is the supported way for a human shell to view a
 note.
-
-Pass `--include proposals` to include memory proposal and review ledger events in the
-same audit dashboard. Path and agent filters also apply to proposal target paths and
-proposal/review actors.
 
 ## Memory Webs
 
@@ -263,130 +255,3 @@ references. There is no CLI write path for strand content; every write goes thro
 panel's tracked mutation engine, which validates frontmatter, checks catalog ambiguity
 for digest conflicts, and refreshes the descriptor roster through the normal
 `sase memory init` publish path described in [Memory panel](ace.md#memory-panel).
-
-## Propose Memory
-
-`sase memory write` is the proposal path for a new reference note, and
-`/sase_memory_write` decides when an agent may edit canonical memory instead:
-
-```bash
-sase memory write \
-  --title "Generated skills" \
-  --slug generated_skills \
-  --evidence "$(sase repo path research)/skills.md" \
-  --body "Durable memory body" \
-  --notify
-
-cat draft.md | sase memory write \
-  --title "Generated skills" \
-  --target generated_skills.md \
-  --from-chat abc123
-```
-
-`sase memory write` is the agent-side authoring path. It writes proposal state only
-under `~/.sase/projects/<project>/`; it never modifies canonical memory files. A
-proposal needs:
-
-- `--title`
-- exactly one of `--slug <slug>` or `--target <slug>.md`
-- at least one non-note evidence item
-- body content from `--body`, `--file <path>`, `--file -`, or piped stdin when neither
-  `--body` nor `--file` is supplied
-
-Use `--file -` when a wrapper needs the explicit `--file` form but should still pass the
-body on stdin.
-
-Targets must be one-level reference-memory paths such as `generated_skills.md`; slugs
-must match `[a-z0-9][a-z0-9_-]*`. Evidence can be a path, `chat:<id>`,
-`--from-chat <id>`, `url:<url>`, a bare HTTP(S) URL, or a supplemental `note:<text>`.
-Note-only evidence is rejected.
-
-Proposal bodies must be non-empty UTF-8 and at most 256 KiB. Bodies above 16 KiB produce
-a warning unless `--allow-large` is passed. Prompt-injection-like text is also recorded
-as a warning for the reviewer.
-
-Proposal authors are attributed from the same agent identity sources as audited reads.
-`--manual-author` exists for tests and demos; normal agent writes should rely on the
-SASE-provided identity.
-
-Use `--notify` to best-effort append a `memory.proposed` notification after proposal
-creation. The notification carries the `memory` tag, attaches any evidence paths that
-resolved to local files, and opens the interactive memory review TUI at that proposal
-when selected in ACE. The notification is only a prompt to review; it does not approve,
-reject, or edit the proposal by itself. Notification delivery is reported in the human
-output and as `notification_id` in JSON output.
-
-Use `--json` for deterministic machine-readable output.
-
-## Review Proposals
-
-Humans review proposals with `sase memory review`:
-
-```bash
-sase memory review                         # interactive TUI on a TTY
-sase memory review --list
-sase memory review --list --all --json
-sase memory review <proposal-id> --show
-sase memory review <proposal-id> --approve
-sase memory review <proposal-id> --edit
-sase memory review <proposal-id> --approve --edited-file edited.md
-sase memory review <proposal-id> --reject --reason "Too speculative"
-```
-
-A bare `sase memory review` opens the Textual review app when stdin/stdout are TTYs. In
-non-interactive shells it prints the pending list instead. `--list` and `--show` are
-inspection commands; `--approve`, `--edit`, and `--reject` are the human promotion
-decisions. Proposal ids can be abbreviated when the prefix is unambiguous.
-
-Agents cannot approve, edit-approve, or reject proposals: those actions fail when agent
-identity is present in `SASE_AGENT_NAME`, `SASE_AGENT`, or
-`SASE_ARTIFACTS_DIR/agent_meta.json`. Human review events record the local user and
-hostname. `--edit` opens `$VISUAL` or `$EDITOR`, then approves the edited body.
-
-Approval writes the canonical file under the current repo's `sase/memory/` path and
-prepends frontmatter:
-
-```yaml
----
-type: reference
-parent: AGENTS.md
-description: Generated skills
-source_candidate: mem-20260523-142233-a1b2c3d4
----
-```
-
-Approval refuses to overwrite an existing target. Use `--target <slug>.md` to approve
-into a different unused one-level target, `--edit` to open `$VISUAL`/`$EDITOR` before
-approving, or `--edited-file` for non-interactive edited approval.
-
-If approved memory should be loaded every time, add an explicit `@sase/memory/<note>.md`
-reference from the appropriate instruction file.
-
-Legacy project `memory/` and home `~/memory/` trees remain readable to migration tooling
-during the compatibility window. Canonical and legacy trees are exclusive: non-identical
-coexistence blocks initialization instead of merging context. See
-[Canonical SASE Content Layout](content_layout.md#compatibility-and-collisions).
-
-## Review TUI
-
-The interactive review app shows pending proposals, evidence, target status, diffs
-against existing files, warnings, and audit events. Keybindings:
-
-| Key         | Action                                         |
-| ----------- | ---------------------------------------------- |
-| `j` / `k`   | Move through pending proposals                 |
-| `Down`/`Up` | Move through pending proposals                 |
-| `g` / `G`   | Jump to first / last proposal                  |
-| `/`         | Filter by id, title, author, target, or status |
-| `Enter`/`d` | Toggle detail view                             |
-| `Esc`       | Return from detail view                        |
-| `a`         | Approve as-is                                  |
-| `e`         | Edit in `$VISUAL`/`$EDITOR`, then approve      |
-| `r`         | Reject with a required reason                  |
-| `t`         | Override the approval target                   |
-| `y`         | Copy the proposal id                           |
-| `q`         | Quit                                           |
-
-The proposal ledger is append-only JSONL with a lock sidecar. Malformed rows are skipped
-when reading, and every review action appends a new event rather than mutating previous
-events.

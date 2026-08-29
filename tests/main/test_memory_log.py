@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from io import StringIO
 from pathlib import Path
 
@@ -15,12 +14,6 @@ from sase.memory.legacy_glossary_read_log import (
     glossary_read_log_path,
 )
 from sase.memory.cli_log import _render_memory_log_summary, handle_memory_log_command
-from sase.memory.proposals import (
-    ProposalAuthor,
-    ProposalReviewer,
-    create_memory_proposal,
-    reject_memory_proposal,
-)
 from sase.memory.read_log import append_memory_read_event
 from sase.main.parser import create_parser
 
@@ -242,96 +235,6 @@ def test_memory_log_json_output_filters_and_summarizes(
         "total_memory_paths": 1,
         "total_reads": 1,
     }
-
-
-def test_memory_log_include_proposals_json_adds_proposal_events(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    project = tmp_path.name
-    home = tmp_path / "home"
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(Path, "home", lambda: home)
-    result = create_memory_proposal(
-        title="Memory",
-        body="Body\n",
-        evidence_values=["chat:abc"],
-        target="memory.md",
-        author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
-        cwd=tmp_path,
-        now=datetime(2026, 5, 23, 12, 0, tzinfo=UTC),
-        proposal_id="mem-20260523-120000-1234abcd",
-    )
-    reject_memory_proposal(
-        result.state.proposal_id,
-        reason="Not durable",
-        reviewer=ProposalReviewer("reviewer", "host-a"),
-        cwd=tmp_path,
-        now=datetime(2026, 5, 23, 12, 1, tzinfo=UTC),
-    )
-    args = create_parser().parse_args(
-        ["memory", "log", "--include", "proposals", "--json"]
-    )
-
-    handle_memory_log_command(args)
-
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["project"] == project
-    assert payload["total_reads"] == 0
-    assert payload["include"] == ["proposals"]
-    assert payload["proposal_summary"] == {
-        "events_by_type": {
-            "approved": 0,
-            "approved_with_edits": 0,
-            "proposed": 1,
-            "rejected": 1,
-        },
-        "total_events": 2,
-        "total_proposals": 1,
-    }
-    assert [event["event_type"] for event in payload["proposal_events"]] == [
-        "proposed",
-        "rejected",
-    ]
-    assert payload["proposal_events"][0]["author_name"] == "agent-a"
-    assert payload["proposal_events"][1]["reason"] == "Not durable"
-
-
-def test_memory_log_include_proposals_rich_output(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    home = tmp_path / "home"
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(Path, "home", lambda: home)
-    create_memory_proposal(
-        title="Memory",
-        body="Body\n",
-        evidence_values=["chat:abc"],
-        target="memory.md",
-        author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
-        cwd=tmp_path,
-        now=datetime(2026, 5, 23, 12, 0, tzinfo=UTC),
-        proposal_id="mem-20260523-120000-1234abcd",
-    )
-    output = StringIO()
-    console = Console(
-        file=output,
-        force_terminal=False,
-        color_system=None,
-        width=180,
-    )
-    args = create_parser().parse_args(["memory", "log", "--include", "proposals"])
-
-    handle_memory_log_command(args, console=console)
-
-    text = output.getvalue()
-    assert "Memory Proposal Summary" in text
-    assert "Memory Proposal Events (1)" in text
-    assert "mem-20260523-120000-1234abcd" in text
-    assert "agent-a" in text
-    assert "memory.md" in text
 
 
 def _seed_glossary_read_event(tmp_path: Path, *, project: str) -> None:

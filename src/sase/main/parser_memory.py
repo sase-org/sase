@@ -24,13 +24,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase memory show generated_skills.md\n"
             "  sase memory web list\n"
             "  sase memory web show glossary\n"
-            '  sase memory write --title "Generated skills" --slug '
-            'generated_skills --evidence "$(sase repo path research)/skills.md" --body '
-            '"Durable memory body"\n'
-            "  sase memory review --list\n"
-            "  sase memory review mem-20260523-142233-a1b2c3d4 --edit\n"
             "  sase memory log\n"
-            "  sase memory log --include proposals\n"
             "  sase memory log --include glossary\n"
             "  sase memory log --path generated_skills.md\n"
             "  sase memory log --id <read-id>"
@@ -166,166 +160,6 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
 
     _register_memory_web_parser(memory_subparsers)
 
-    write_parser = memory_subparsers.add_parser(
-        "write",
-        help="Propose a reference memory file for user review",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=(
-            "Create an attributable, reviewable reference memory proposal. "
-            "This command writes only proposal state under ~/.sase/projects; "
-            "it never modifies canonical memory files."
-        ),
-        epilog=(
-            "examples:\n"
-            '  sase memory write --title "Generated skills" --slug '
-            'generated_skills --evidence "$(sase repo path research)/skills.md" --body '
-            '"Durable memory body"\n'
-            '  sase memory write --title "Generated skills" --slug '
-            "generated_skills --evidence chat:abc123 --body "
-            '"Durable memory body" --notify\n'
-            '  cat draft.md | sase memory write --title "Generated skills" '
-            "--target generated_skills.md --evidence chat:abc123"
-        ),
-    )
-    write_parser.add_argument(
-        "--title",
-        required=True,
-        help="Human-readable title for the memory proposal",
-    )
-    write_parser.add_argument(
-        "--evidence",
-        action="append",
-        default=[],
-        metavar="EVIDENCE",
-        help=(
-            "Evidence for the proposal; repeatable. Supports paths, chat:<id>, "
-            "url:<url>, http(s) URLs, and supplemental note:<text>."
-        ),
-    )
-    write_parser.add_argument(
-        "--from-chat",
-        action="append",
-        default=[],
-        metavar="CHAT_ID",
-        help="Add chat:<id> evidence for the proposal; repeatable",
-    )
-    target_group = write_parser.add_mutually_exclusive_group(required=True)
-    target_group.add_argument(
-        "--target",
-        metavar="<slug>.md",
-        help="One-level canonical reference-memory target filename",
-    )
-    target_group.add_argument(
-        "--slug",
-        metavar="SLUG",
-        help="Slug used to derive the target filename <slug>.md",
-    )
-    body_group = write_parser.add_mutually_exclusive_group()
-    body_group.add_argument(
-        "--file",
-        metavar="PATH",
-        help="Read the proposed memory body from a UTF-8 file",
-    )
-    body_group.add_argument(
-        "--body",
-        help="Inline proposed memory body",
-    )
-    write_parser.add_argument(
-        "--allow-large",
-        action="store_true",
-        help="Suppress the 16 KiB large-body warning",
-    )
-    write_parser.add_argument(
-        "--manual-author",
-        metavar="NAME",
-        help="Explicit proposal author for tests and demos when no agent identity exists",
-    )
-    write_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Emit deterministic machine-readable JSON",
-    )
-    write_parser.add_argument(
-        "--notify",
-        action="store_true",
-        help="Best-effort append a memory.proposed notification after creation",
-    )
-
-    review_parser = memory_subparsers.add_parser(
-        "review",
-        help="Review pending reference memory proposals",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=(
-            "List, inspect, approve, edit, or reject pending reference memory "
-            "proposals. On a TTY, a bare command launches the interactive "
-            "review app; otherwise it prints the pending proposal list."
-        ),
-        epilog=(
-            "examples:\n"
-            "  sase memory review --list\n"
-            "  sase memory review mem-20260523-142233-a1b2c3d4 --show\n"
-            "  sase memory review mem-20260523-142233-a1b2c3d4 --approve\n"
-            "  sase memory review mem-20260523-142233-a1b2c3d4 --edit\n"
-            "  sase memory review mem-20260523-142233-a1b2c3d4 --reject "
-            '--reason "Too speculative"'
-        ),
-    )
-    review_parser.add_argument(
-        "proposal_id",
-        nargs="?",
-        help="Proposal id or unambiguous id prefix",
-    )
-    review_action_group = review_parser.add_mutually_exclusive_group()
-    review_action_group.add_argument(
-        "--list",
-        action="store_true",
-        help="List pending proposals, or all proposals with --all",
-    )
-    review_action_group.add_argument(
-        "--show",
-        action="store_true",
-        help="Show full proposal detail",
-    )
-    review_action_group.add_argument(
-        "--approve",
-        action="store_true",
-        help="Approve the proposal and write its canonical memory file",
-    )
-    review_action_group.add_argument(
-        "--edit",
-        action="store_true",
-        help="Open $VISUAL/$EDITOR on reviewed.md, then approve the result",
-    )
-    review_action_group.add_argument(
-        "--reject",
-        action="store_true",
-        help="Reject the proposal; requires --reason",
-    )
-    review_parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Include approved and rejected proposals with --list",
-    )
-    review_parser.add_argument(
-        "--target",
-        metavar="<slug>.md",
-        help="Override the canonical approval target",
-    )
-    review_parser.add_argument(
-        "--edited-file",
-        metavar="PATH",
-        help="Approve using edited body content from PATH",
-    )
-    review_parser.add_argument(
-        "--reason",
-        help="Non-empty rejection reason",
-    )
-    review_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Emit deterministic machine-readable JSON",
-    )
-
     log_parser = memory_subparsers.add_parser(
         "log",
         help="Summarize or inspect auditable reference memory reads",
@@ -338,7 +172,6 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         epilog=(
             "examples:\n"
             "  sase memory log\n"
-            "  sase memory log --include proposals\n"
             "  sase memory log --path generated_skills.md\n"
             "  sase memory log --id <read-id>"
         ),
@@ -361,12 +194,12 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
     log_parser.add_argument(
         "--include",
         action="append",
-        choices=("glossary", "proposals"),
+        choices=("glossary",),
         default=[],
         metavar="KIND",
         help=(
-            "Include additional audit events: 'proposals' or 'glossary' "
-            "(folds in the legacy sase glossary read audit log)"
+            "Include additional audit events: 'glossary' folds in the "
+            "legacy sase glossary read audit log"
         ),
     )
     log_parser.add_argument(

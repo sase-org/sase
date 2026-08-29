@@ -3672,15 +3672,10 @@ is selected. The following notification action types are supported:
 | `Tmux`               | External bridge | Runs `tm <workspace-name>` for the notification's `action_data.workspace_dir`   |
 | `UserQuestion`       | Agent           | Opens the structured user-question response modal                               |
 | `ViewErrorReport`    | Axe/agent       | Opens `action_data.error_report_path`, or the first attached file, in `$EDITOR` |
-| `memory_review`      | Memory          | Suspends ACE and opens the memory proposal review TUI at that proposal          |
 
 The axe `error_digest` chop creates `ViewErrorReport` notifications whose digest files
 live under `~/.sase/axe/error_digests/digest_<timestamp>.txt`; user-agent failures can
-use the same action for their own attached error reports. Memory proposal notifications
-created by `sase memory write --notify` use `memory_review` with
-`action_data.proposal_id`. Selecting one opens the same review UI as
-`sase memory review`, preselected on that proposal; approval or rejection still happens
-inside the review UI.
+use the same action for their own attached error reports.
 
 The custom-gate modal shows the sender and notes or verified preview, one icon-led
 button per terminal choice, and checkboxes for that choice's independently selectable

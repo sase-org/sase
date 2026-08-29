@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from sase.core.paths import sase_subdir
@@ -13,37 +13,6 @@ from sase.project_display_names import humanize_cl_name
 
 if TYPE_CHECKING:
     from sase.llm_provider.usage_limit_config import UsageLimitDetection
-
-
-def notify_memory_proposed(proposal: Any) -> str:
-    """Send a notification for a pending reference memory proposal."""
-    notification_id = str(uuid4())
-    evidence_count = len(getattr(proposal, "evidence", ()) or ())
-    n = Notification(
-        id=notification_id,
-        timestamp=datetime.now(get_timezone()).isoformat(),
-        sender="memory.proposed",
-        notes=[
-            f"Memory proposal ready: {proposal.title}",
-            f"{proposal.author_name} proposed {proposal.target_path}",
-            f"{evidence_count} evidence item(s)",
-        ],
-        files=_memory_proposal_evidence_files(proposal),
-        action="memory_review",
-        action_data={"proposal_id": proposal.proposal_id},
-        tags=normalize_notification_tags(["memory"]),
-    )
-    append_notification(n)
-    return notification_id
-
-
-def _memory_proposal_evidence_files(proposal: Any) -> list[str]:
-    files: list[str] = []
-    for evidence in getattr(proposal, "evidence", ()) or ():
-        resolved_path = getattr(evidence, "resolved_path", None)
-        if isinstance(resolved_path, str) and resolved_path:
-            files.append(resolved_path)
-    return files
 
 
 def notify_workflow_complete(

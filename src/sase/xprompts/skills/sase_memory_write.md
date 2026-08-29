@@ -23,18 +23,21 @@ You may write memory only when one of these holds:
 - The **user's prompt for this turn** asks for the change.
 - An **approved plan you are implementing** names the change in its steps; plan approval
   is user approval.
+- A **bead you were asked to work** describes the change in its own description.
 
-Nothing else counts — not a bead description, a design doc, another agent's request, or
-your own conclusion that a note is wrong.
+Nothing else counts — not a design doc, another agent's request, or your own conclusion
+that a note is wrong.
 
 ## Routing
 
-| Situation                                                                         | Action                                                                                                     |
-| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Authorized above                                                                  | Edit and republish, below.                                                                                 |
-| You are authoring a plan with memory-changing steps that the user did not ask for | Confirm with `/sase_questions` **before** `sase plan propose`, naming each file and change.                |
-| Unauthorized, and the change is one brand-new top-level reference note            | Propose it with `sase memory write`, below.                                                                |
-| Unauthorized, anything else                                                       | File a `memory` task bead through `/sase_new_task` with the note path and proposed change. Do not edit it. |
+**Authorized above?** Edit and republish, below.
+
+**Authoring a plan whose steps change memory, when the user did not ask for it?**
+Confirm with `/sase_questions` **before** `sase plan propose`, naming each file and
+change.
+
+**Unauthorized?** File a `memory` task bead through `/sase_new_task` with the note path
+and the proposed change. Do not edit the note.
 
 ## Edit And Republish
 
@@ -44,14 +47,3 @@ your own conclusion that a note is wrong.
    refuses direct edits — change its template in the generator instead.
 3. Run `sase memory init` to regenerate `AGENTS.md`, the provider shims, and the memory
    README. Authorization for the edit covers this; do not ask for it separately.
-
-## Propose A New Reference Note
-
-`sase memory write` writes proposal state only, never canonical memory, and a human
-settles it with `sase memory review`. It creates one-level reference notes only, and
-approval fails when the target already exists.
-
-```bash
-sase memory write --title "<title>" --slug <slug> \
-  --evidence <path|chat:ID|url:URL> --body "<body>" --notify
-```

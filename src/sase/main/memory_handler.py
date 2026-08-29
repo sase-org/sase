@@ -83,18 +83,6 @@ def handle_memory_command(args: argparse.Namespace) -> None:
         handle_memory_show_command(args)
         sys.exit(0)
 
-    if sub == "write":
-        from sase.memory.cli_write import handle_memory_write_command
-
-        handle_memory_write_command(args)
-        sys.exit(0)
-
-    if sub == "review":
-        from sase.memory.cli_review import handle_memory_review_command
-
-        handle_memory_review_command(args)
-        sys.exit(0)
-
     if sub == "log":
         _handle_memory_log_command(args)
         sys.exit(0)
@@ -104,7 +92,7 @@ def handle_memory_command(args: argparse.Namespace) -> None:
         sys.exit(0)
 
     print(
-        "Usage: sase memory {agent-docs,init,list,log,read,review,show,web,write}",
+        "Usage: sase memory {agent-docs,init,list,log,read,show,web}",
         file=sys.stderr,
     )
     sys.exit(1)

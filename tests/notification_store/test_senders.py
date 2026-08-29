@@ -1,5 +1,4 @@
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -302,36 +301,3 @@ class TestNotifyProviderUsageLimitDisabled:
 
         n = load_notifications()[0]
         assert not any("Relaunched" in note or "Left alone" in note for note in n.notes)
-
-
-class TestNotifyMemoryProposed:
-    def test_emits_memory_review_action_data(
-        self, temp_notifications_dir: Path
-    ) -> None:
-        from sase.notifications.senders import notify_memory_proposed
-
-        proposal = SimpleNamespace(
-            proposal_id="mem-20260523-120000-1234abcd",
-            title="Generated skills",
-            author_name="agent-a",
-            target_path="generated_skills.md",
-            evidence=(
-                SimpleNamespace(resolved_path="/tmp/evidence.md"),
-                SimpleNamespace(resolved_path=None),
-            ),
-        )
-
-        notification_id = notify_memory_proposed(proposal)
-
-        loaded = load_notifications()
-        assert len(loaded) == 1
-        notification = loaded[0]
-        assert notification.id == notification_id
-        assert notification.sender == "memory.proposed"
-        assert notification.action == "memory_review"
-        assert notification.action_data == {
-            "proposal_id": "mem-20260523-120000-1234abcd"
-        }
-        assert notification.files == ["/tmp/evidence.md"]
-        assert notification.tags == ["memory"]
-        assert "Memory proposal ready: Generated skills" in notification.notes

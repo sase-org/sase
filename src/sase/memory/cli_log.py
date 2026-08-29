@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 from collections.abc import Iterable
 from dataclasses import asdict
 import json
@@ -30,22 +29,9 @@ from sase.memory.read_log import (
     summarize_memory_reads_by_agent,
     summarize_memory_reads_by_path,
 )
-from sase.memory.proposals import (
-    MemoryProposalEvent,
-    MemoryProposalLedgerEvent,
-    ProposalEventType,
-    memory_proposal_ledger_event_to_dict,
-    read_memory_proposal_events,
-)
 
 _REASON_PREVIEW_WIDTH = 72
 _ID_ERROR_MATCH_LIMIT = 5
-_PROPOSAL_EVENT_TYPES: tuple[ProposalEventType, ...] = (
-    "proposed",
-    "approved",
-    "approved_with_edits",
-    "rejected",
-)
 
 
 class _MemoryLogLookupError(ValueError):
@@ -62,21 +48,11 @@ def handle_memory_log_command(
     path_filter = getattr(args, "path", None)
     agent_filter = getattr(args, "agent", None)
     read_id = getattr(args, "id", None)
-    include_proposals = _include_proposals(args)
     include_glossary = _include_glossary(args)
     filtered_events = filter_memory_read_events(
         events,
         canonical_path=path_filter,
         agent_name=agent_filter,
-    )
-    proposal_events = (
-        _filter_memory_proposal_events(
-            read_memory_proposal_events(project=project_name),
-            target_path=path_filter,
-            actor=agent_filter,
-        )
-        if include_proposals
-        else None
     )
     glossary_events = (
         filter_glossary_read_events(
@@ -115,8 +91,6 @@ def handle_memory_log_command(
             path_filter=path_filter,
             agent_filter=agent_filter,
         )
-        if proposal_events is not None:
-            payload.update(_build_memory_log_proposal_payload(proposal_events))
         if glossary_events is not None:
             payload.update(_build_memory_log_glossary_payload(glossary_events))
         json.dump(payload, sys.stdout, indent=2, sort_keys=True)
@@ -129,7 +103,6 @@ def handle_memory_log_command(
         project_name=project_name,
         path_filter=path_filter,
         agent_filter=agent_filter,
-        proposal_events=proposal_events,
         glossary_events=glossary_events,
     )
 
@@ -141,7 +114,6 @@ def _render_memory_log_summary(
     project_name: str,
     path_filter: str | None = None,
     agent_filter: str | None = None,
-    proposal_events: tuple[MemoryProposalLedgerEvent, ...] | None = None,
     glossary_events: tuple[GlossaryReadEvent, ...] | None = None,
 ) -> None:
     """Print the Rich summary dashboard for memory-read events."""
@@ -153,7 +125,6 @@ def _render_memory_log_summary(
             project_name=project_name,
             path_filter=path_filter,
             agent_filter=agent_filter,
-            proposal_events=proposal_events,
             glossary_events=glossary_events,
         )
     )
@@ -179,28 +150,6 @@ def _build_memory_log_summary_payload(
         "total_agents": len({event.agent_name for event in event_tuple}),
         "total_memory_paths": len({event.canonical_path for event in event_tuple}),
         "total_reads": len(event_tuple),
-    }
-
-
-def _build_memory_log_proposal_payload(
-    events: Iterable[MemoryProposalLedgerEvent],
-) -> dict[str, Any]:
-    """Build deterministic proposal/review audit data for inclusive log views."""
-    event_tuple = _ordered_memory_proposal_events(events)
-    counts = Counter(event.event_type for event in event_tuple)
-    return {
-        "include": ["proposals"],
-        "proposal_events": [
-            memory_proposal_ledger_event_to_dict(event) for event in event_tuple
-        ],
-        "proposal_summary": {
-            "events_by_type": {
-                event_type: counts.get(event_type, 0)
-                for event_type in _PROPOSAL_EVENT_TYPES
-            },
-            "total_events": len(event_tuple),
-            "total_proposals": len({event.proposal_id for event in event_tuple}),
-        },
     }
 
 
@@ -258,7 +207,6 @@ def _build_memory_log_summary_dashboard(
     project_name: str,
     path_filter: str | None = None,
     agent_filter: str | None = None,
-    proposal_events: tuple[MemoryProposalLedgerEvent, ...] | None = None,
     glossary_events: tuple[GlossaryReadEvent, ...] | None = None,
 ) -> Group:
     """Build the static Rich dashboard for the memory-read summary."""
@@ -279,63 +227,9 @@ def _build_memory_log_summary_dashboard(
         panels.append(_agents_panel(events))
     if _is_drilldown(path_filter=path_filter, agent_filter=agent_filter):
         panels.append(_events_panel(events))
-    if proposal_events is not None:
-        panels.append(_proposal_summary_panel(proposal_events))
-        panels.append(_proposal_events_panel(proposal_events))
     if glossary_events is not None:
         panels.append(_glossary_events_panel(glossary_events))
     return Group(*panels)
-
-
-def _proposal_summary_panel(
-    events: tuple[MemoryProposalLedgerEvent, ...],
-) -> Panel:
-    counts = Counter(event.event_type for event in events)
-    summary = Table.grid(padding=(0, 2))
-    summary.add_column(style="bold")
-    summary.add_column()
-    summary.add_row("Proposal events", str(len(events)))
-    summary.add_row("Proposals", str(len({event.proposal_id for event in events})))
-    summary.add_row("Proposed", str(counts.get("proposed", 0)))
-    summary.add_row("Approved", str(counts.get("approved", 0)))
-    summary.add_row("Approved with edits", str(counts.get("approved_with_edits", 0)))
-    summary.add_row("Rejected", str(counts.get("rejected", 0)))
-    return Panel(summary, title="Memory Proposal Summary", border_style="magenta")
-
-
-def _proposal_events_panel(
-    events: tuple[MemoryProposalLedgerEvent, ...],
-) -> Panel:
-    if not events:
-        return Panel(
-            Text("No memory proposal events match the current filters.", style="dim"),
-            title="Memory Proposal Events (0)",
-            border_style="magenta",
-        )
-
-    table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
-    table.add_column("Type", no_wrap=True)
-    table.add_column("Timestamp", no_wrap=True)
-    table.add_column("Proposal", no_wrap=True)
-    table.add_column("Actor", no_wrap=True)
-    table.add_column("Target")
-    table.add_column("Details")
-
-    for event in reversed(_ordered_memory_proposal_events(events)):
-        table.add_row(
-            event.event_type,
-            format_local(event.timestamp),
-            event.proposal_id,
-            _proposal_event_actor(event),
-            event.target_path,
-            _proposal_event_detail(event),
-        )
-
-    return Panel(
-        table,
-        title=f"Memory Proposal Events ({len(events)})",
-        border_style="magenta",
-    )
 
 
 def _summary_panel(
@@ -576,56 +470,6 @@ def _select_memory_read_event(
     raise _MemoryLogLookupError(
         f"memory read id prefix is ambiguous: {normalized} (matches: {matches})"
     )
-
-
-def _filter_memory_proposal_events(
-    events: Iterable[MemoryProposalLedgerEvent],
-    *,
-    target_path: str | None = None,
-    actor: str | None = None,
-) -> tuple[MemoryProposalLedgerEvent, ...]:
-    normalized_target = _normalized_filter(target_path)
-    normalized_actor = _normalized_filter(actor)
-    filtered: list[MemoryProposalLedgerEvent] = []
-    for event in events:
-        if normalized_target is not None and event.target_path != normalized_target:
-            continue
-        if (
-            normalized_actor is not None
-            and _proposal_event_actor(event) != normalized_actor
-        ):
-            continue
-        filtered.append(event)
-    return _ordered_memory_proposal_events(filtered)
-
-
-def _ordered_memory_proposal_events(
-    events: Iterable[MemoryProposalLedgerEvent],
-) -> tuple[MemoryProposalLedgerEvent, ...]:
-    return tuple(
-        sorted(
-            events,
-            key=lambda event: (event.timestamp, event.proposal_id, event.event_type),
-        )
-    )
-
-
-def _proposal_event_actor(event: MemoryProposalLedgerEvent) -> str:
-    if isinstance(event, MemoryProposalEvent):
-        return event.author_name
-    return event.reviewer_user
-
-
-def _proposal_event_detail(event: MemoryProposalLedgerEvent) -> str:
-    if isinstance(event, MemoryProposalEvent):
-        return event.title
-    if event.event_type == "rejected":
-        return event.reason or ""
-    return event.canonical_path or ""
-
-
-def _include_proposals(args: argparse.Namespace) -> bool:
-    return "proposals" in (getattr(args, "include", None) or ())
 
 
 def _include_glossary(args: argparse.Namespace) -> bool:

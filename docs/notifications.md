@@ -322,7 +322,6 @@ The following events generate notifications:
 | `launch`                       | A running agent requested a new agent launch for approval                                                                                       |
 | `question`                     | An agent is asking the user a question (via `/sase_questions`)                                                                                  |
 | `hitl`                         | A workflow HITL step is waiting for user input                                                                                                  |
-| `memory.proposed`              | A reference memory proposal is ready for human review                                                                                           |
 | `sync`                         | A sync operation completed for a Patch                                                                                                          |
 | `axe`                          | Hourly error digest summarizing recent axe errors                                                                                               |
 | `file-hooks`                   | A configured per-file hook completed or failed, or a producer-side dispatch failure before a command ran                                        |
@@ -562,17 +561,6 @@ restarts and project-spec archival without re-firing. The sender suppresses the
 notification on the same axe cycle that just wrote the `MENTORS` field for the latest
 entry, preventing premature firing on `Draft → Ready` transitions.
 
-### Memory Proposal Notification
-
-`sase memory write --notify` first saves the proposal, then best-effort creates a
-`memory.proposed` notification. The notification includes the `memory` tag, evidence
-entries that resolved to local file paths, `action: memory_review`, and
-`action_data.proposal_id`. Selecting it in ACE suspends the main TUI and opens the same
-interactive review app as `sase memory review`, preselected on that proposal. Review
-decisions still happen in that app; the notification is only the entry point. Proposal
-creation still succeeds if notification delivery fails, and the CLI reports the
-notification id when delivery succeeds.
-
 ### Report Notifications
 
 Any producer — a chop, a hook, or an agent — may attach a structured report to a
@@ -678,10 +666,6 @@ classification, unread counts, mute, snooze, or auto-dismiss matching.
 Successful visible and hidden user-agent completion notifications that jump back to the
 agent row carry the `done` tag. Failed user-agent notifications do not carry `done`;
 failures remain error reports.
-
-Memory proposal notifications created by `sase memory write --notify` carry the `memory`
-tag. Use the `memory` tab in ACE or `sase notify list --tag memory` to find proposal
-review notification rows.
 
 In ACE, tags create modal tabs above the notification list after the synthetic `Gates`,
 declared panel tabs, `Errors`, `General`, and `Done` tabs. **Every notification belongs

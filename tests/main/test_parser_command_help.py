@@ -221,10 +221,6 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     memory_list_help = flat_help(parser_for(("sase", "memory", "list")).format_help())
     memory_read_help = flat_help(parser_for(("sase", "memory", "read")).format_help())
     memory_show_help = flat_help(parser_for(("sase", "memory", "show")).format_help())
-    memory_write_help = flat_help(parser_for(("sase", "memory", "write")).format_help())
-    memory_review_help = flat_help(
-        parser_for(("sase", "memory", "review")).format_help()
-    )
     memory_log_help = flat_help(parser_for(("sase", "memory", "log")).format_help())
     init_alias_help = flat_help(parser_for(("sase", "init", "memory")).format_help())
     agent_docs_help = flat_help(
@@ -235,15 +231,11 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     )
 
     assert "`sase memory list`" in memory_help
-    assert "{agent-docs,init,list,log,read,review,show,web,write}" in memory_help
+    assert "{agent-docs,init,list,log,read,show,web}" in memory_help
     assert "sase memory show generated_skills.md" in memory_help
     assert "`sase memory agent-docs list`" in agent_docs_help
     assert "provider instruction shim status" in agent_docs_list_help
     assert "sase memory read generated_skills.md --reason" in memory_help
-    assert "sase memory write --title" in memory_help
-    assert "sase memory review --list" in memory_help
-    assert "sase memory review mem-20260523-142233-a1b2c3d4 --edit" in memory_help
-    assert "sase memory log --include proposals" in memory_help
     assert "sase memory log --path generated_skills.md" in memory_help
     assert "sase memory log --id <read-id>" in memory_help
     assert "loaded, referenced, available, and missing memory files" in memory_help
@@ -266,13 +258,6 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     )
     assert "records no audit event" in memory_show_help
     assert "must use" in memory_show_help
-    assert "--evidence EVIDENCE" in memory_write_help
-    assert "--manual-author NAME" in memory_write_help
-    assert "--notify" in memory_write_help
-    assert "never modifies canonical memory files" in memory_write_help
-    assert "--approve" in memory_review_help
-    assert "--reject" in memory_review_help
-    assert "--edited-file PATH" in memory_review_help
     assert "--path MEMORY_PATH" in memory_log_help
     assert "--agent AGENT_NAME" in memory_log_help
     assert "--id READ_ID" in memory_log_help

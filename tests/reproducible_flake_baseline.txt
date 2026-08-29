@@ -324,3 +324,10 @@ tests/test_keymaps_display_help.py::test_all_tab_help_guides_show_forward_jump_a
 # host_first-2 entry; the host_first-0 parametrization is now also promoted by
 # selection-health.
 tests/test_plan_approval_launch_reliability_integration.py::test_archive_publication_order_survives_inverted_scheduling[host_first-0]
+#
+# sase-vl: wait-prose ACE/LSP replacement-range node promoted by the flake
+# gate from two unrelated dirty-tree full-lane records (sase_12 memory-proposal
+# deletion in progress; sase_19 plan-gate tests only). Isolated serial rerun
+# and this check-full's test-cost lane passed. Ready flake task owns the
+# investigation (related: sase-rj, sase-v6).
+tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_wait_prose_replacement_ranges_match

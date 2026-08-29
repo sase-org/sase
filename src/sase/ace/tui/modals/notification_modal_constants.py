@@ -18,7 +18,6 @@ ACTION_BADGES: dict[str | None, str] = {
     "CustomGate": "[custom]",
     "ViewErrorReport": "[error]",
     "ViewReport": "[report]",
-    "memory_review": "[memory]",
     "OpenLaunchControl": "[models]",
 }
 
@@ -41,7 +40,6 @@ ACTION_ICONS: dict[str | None, str] = {
     "CustomGate": "✨",
     "ViewErrorReport": "🚨",
     "ViewReport": "📊",
-    "memory_review": "🧠",
     "OpenLaunchControl": "🎛️",
 }
 

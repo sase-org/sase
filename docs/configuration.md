@@ -4571,25 +4571,19 @@ With no subcommand, `sase memory agent-docs` defaults to `sase memory agent-docs
 
 With no subcommand, `sase memory` defaults to `sase memory list`.
 
-| Form                      | Flags                                                                                                                                                   | Description                                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `sase memory`             | -                                                                                                                                                       | Show the same read-only memory context dashboard as `sase memory list`.                              |
-| `sase memory list`        | -                                                                                                                                                       | Show loaded, referenced, available, and missing memory files for the current launch context.         |
-| `sase memory read <path>` | `-r, --reason <reason>` required                                                                                                                        | Agent-side read of a `type: reference` memory note without leading frontmatter, plus an audit event. |
-| `sase memory write`       | `--title`, `--target` or `--slug`, repeatable `--evidence`, `--from-chat`, `--body`, `--file`, `--allow-large`, `--manual-author`, `--notify`, `--json` | Create an attributable reference memory proposal without modifying canonical memory files.           |
-| `sase memory review [id]` | `--list`, `--show`, `--approve`, `--edit`, `--reject`, `--all`, `--target`, `--edited-file`, `--reason`, `--json`                                       | Human review of pending memory proposals; a bare TTY command opens the interactive review app.       |
-| `sase memory log`         | `--path`, `--agent`, `--id`, `--include`, `--json`                                                                                                      | Summarize or inspect audited memory reads, optionally including proposal and review events.          |
+| Form                      | Flags                                              | Description                                                                                          |
+| ------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `sase memory`             | -                                                  | Show the same read-only memory context dashboard as `sase memory list`.                              |
+| `sase memory list`        | -                                                  | Show loaded, referenced, available, and missing memory files for the current launch context.         |
+| `sase memory read <path>` | `-r, --reason <reason>` required                   | Agent-side read of a `type: reference` memory note without leading frontmatter, plus an audit event. |
+| `sase memory log`         | `--path`, `--agent`, `--id`, `--include`, `--json` | Summarize or inspect audited memory reads; `--include glossary` folds in the legacy glossary log.    |
 
 Examples:
 
 ```bash
-# read requires SASE agent identity; write requires agent identity unless --manual-author is used for demos
+# read requires SASE agent identity
 sase memory read generated_skills.md --reason "Need generated skill context"
-sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
-sase memory review --list
-sase memory review mem-20260523-142233-a1b2c3d4 --approve
 sase memory log
-sase memory log --include proposals
 sase memory log --path generated_skills.md
 sase memory log --id <read-id>
 ```

@@ -68,9 +68,7 @@ sase memory init --no-commit
 sase memory init --enable-project-memory --no-commit
 sase memory init --check
 sase memory list
-sase memory review --list
 sase memory log
-sase memory log --include proposals
 sase memory log --path generated_skills.md
 sase memory log --id <read-id>
 sase repo init
@@ -85,7 +83,6 @@ sase skill log --runtime codex
 # Agent-side audited operations, normally run from a SASE-launched agent:
 sase memory read generated_skills.md --reason "Need generated skill context"
 sase skill use sase_plan --reason "Need to prepare an implementation plan"
-sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
 ```
 
 Start with `sase init -c` or `sase memory init --check` when you only want a drift
@@ -114,10 +111,7 @@ alias for `sase memory init`, and `sase init config` remains a compatibility ali
 | `sase memory agent-docs`                | Alias for `sase memory agent-docs list`.                                                          |
 | `sase memory agent-docs list`           | Inspect project, home, and chezmoi `AGENTS.md` files and nearby provider instruction files.       |
 | `sase memory read <path>`               | Agent-side read of one reference memory file with an attributable audit event.                    |
-| `sase memory write`                     | Create an attributable reference memory proposal for human review.                                |
-| `sase memory review`                    | List, inspect, approve, edit, or reject pending memory proposals.                                 |
 | `sase memory log`                       | Summarize audited reference memory reads.                                                         |
-| `sase memory log --include proposals`   | Include proposal and review events in the memory audit surface.                                   |
 | `sase memory log --path <path>`         | Show a path-level summary and matching individual read events.                                    |
 | `sase memory log --id <read-id>`        | Show one full audited read event by id or unambiguous id prefix.                                  |
 | `sase memory init`                      | Refresh home and SASE-managed project memory plus provider copies for existing `AGENTS.md`.       |
@@ -307,8 +301,7 @@ directory. It reports:
 
 The dashboard includes approximate local token estimates for loaded memory context.
 
-For day-to-day read/write operations, including audited reads and reviewed reference
-memory proposals, see [Memory](memory.md).
+For day-to-day read/write operations, including audited reads, see [Memory](memory.md).
 
 ## Memory Read Audit Log
 
@@ -328,29 +321,17 @@ See [Memory Field](xprompt.md#memory-field).
 Every read must include a non-empty reason via `-r` or `--reason`. The command also
 requires agent attribution from `SASE_AGENT_NAME`, `SASE_AGENT`, or
 `SASE_ARTIFACTS_DIR/agent_meta.json`; unattributed reads fail instead of writing a log
-row. Human shell users normally inspect files directly and use `sase memory review` for
-promotion decisions.
-
-`sase memory write` creates an attributable proposal under `~/.sase/projects/<project>/`
-and never writes canonical memory files directly. It uses the same agent-attribution
-rules as `read`; `--manual-author` is intended for tests and demos. Pass `--notify` when
-you want a best-effort `memory.proposed` notification in the SASE inbox.
-`sase memory review` is the human promotion path for listing, showing, approving,
-editing, or rejecting those proposals.
+row. Human shell users normally inspect files directly.
 
 `sase memory log` reads the project-scoped audit log from SASE state under
 `~/.sase/projects/<project>/`, not from the repo. Use `--path` or `--agent` to drill
 down to matching read events, `--id <read-id>` to inspect one event, and `--json` for
-deterministic machine-readable output. Add `--include proposals` to include proposal and
-review ledger events alongside read-log summaries.
+deterministic machine-readable output.
 
 ```bash
-# read requires SASE agent identity; write requires agent identity unless --manual-author is used for demos
+# read requires SASE agent identity
 sase memory read generated_skills.md --reason "Need generated skill context"
-sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
-sase memory review --list
 sase memory log
-sase memory log --include proposals
 sase memory log --path generated_skills.md
 sase memory log --id <read-id>
 ```
