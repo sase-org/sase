@@ -160,13 +160,23 @@ class PanelTabStrip(Static):
 
     def on_resize(self, _event: Resize) -> None:
         """Reflow strips that opt into compact/micro thresholds or a fit ladder."""
+        self._apply_reflow(int(_event.size.width))
+        # A resize event can arrive with a stale or zero width before layout
+        # settles. Re-read the widget size after the next refresh so compact
+        # and micro tiers still apply under a single-tick pause in CI.
+        self.call_after_refresh(self._reflow_from_current_size)
+
+    def _reflow_from_current_size(self) -> None:
+        """Apply the fit ladder from the laid-out widget width."""
+        self._apply_reflow(int(self.size.width))
+
+    def _apply_reflow(self, width: int) -> None:
         if (
             self._compact_below is None
             and self._micro_below is None
             and not self._reflow_to_fit
         ):
             return
-        width = int(_event.size.width)
         if self._compact_below is not None or self._micro_below is not None:
             if self._micro_below is not None and 0 < width < self._micro_below:
                 tier: _PanelTabTier = "micro"

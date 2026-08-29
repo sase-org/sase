@@ -6,6 +6,7 @@ import pytest
 from textual import on
 from textual.app import App, ComposeResult
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.modals import statistics_pane_layout as layout
 from sase.ace.tui.widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
@@ -97,20 +98,44 @@ async def test_reflow_to_fit_ladder_picks_tier_by_width() -> None:
     async with _ReflowApp().run_test(size=(40, 5)) as pilot:
         strip = pilot.app.query_one("#tabs", PanelTabStrip)
 
-        await pilot.resize_terminal(40, 5)
-        await pilot.pause()
-        assert strip._tier == "full"
+        await wait_for(pilot, lambda: strip._tier == "full")
         assert set(strip._tab_ranges) == {"aa", "bb"}
 
         await pilot.resize_terminal(20, 5)
-        await pilot.pause()
-        assert strip._tier == "compact"
+        await wait_for(pilot, lambda: strip._tier == "compact")
         assert set(strip._tab_ranges) == {"aa", "bb"}
 
         await pilot.resize_terminal(10, 5)
-        await pilot.pause()
-        assert strip._tier == "micro"
+        await wait_for(pilot, lambda: strip._tier == "micro")
         assert set(strip._tab_ranges) == {"aa", "bb"}
+
+
+def test_reflow_tier_for_width_picks_widest_fit_without_a_pilot() -> None:
+    tabs = (
+        PanelTab(
+            "aa",
+            "AlphaAlpha",
+            "cyan",
+            compact_label="AA",
+            micro_label="A",
+            icon="◉",
+            shortcut="1",
+        ),
+        PanelTab(
+            "bb",
+            "BetaBeta",
+            "magenta",
+            compact_label="BB",
+            micro_label="B",
+            icon="⎇",
+            shortcut="2",
+        ),
+    )
+    strip = PanelTabStrip(tabs, "aa", show_numbers=True, reflow_to_fit=True)
+
+    assert strip._reflow_tier_for_width(40) == "full"
+    assert strip._reflow_tier_for_width(20) == "compact"
+    assert strip._reflow_tier_for_width(10) == "micro"
 
 
 def test_micro_tier_hides_inactive_labels_only_when_every_tab_has_an_icon() -> None:
