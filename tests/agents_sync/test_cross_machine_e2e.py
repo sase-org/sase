@@ -31,18 +31,55 @@ PROJECT_NAME = "Project"
 
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
+    env = os.environ.copy()
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GIT_OPTIONAL_LOCKS"] = "0"
+    for key in (
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_INDEX_FILE",
+    ):
+        env.pop(key, None)
+    # Keep receive-pack from detaching auto-gc during the nested push race.
+    result = subprocess.run(
+        ["git", "-c", "gc.auto=0", *args],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
     )
+    if result.returncode != 0:
+        raise AssertionError(
+            f"git {' '.join(args)} in {cwd} exited {result.returncode}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    return result
+
+
+def _disable_auto_gc(repo: Path) -> None:
+    _git(repo, "config", "gc.auto", "0")
+    _git(repo, "config", "gc.autoDetach", "false")
+
+
+def _clone(cwd: Path, remote: Path, dest: Path) -> None:
+    # `--local` hardlinks objects and can race with receive-pack auto-gc.
+    assert not dest.exists(), f"clone dest already exists: {dest}"
+    _git(cwd, "clone", "--no-local", str(remote), str(dest))
+    _disable_auto_gc(dest)
 
 
 def _seed_bare_remote(tmp_path: Path) -> Path:
     remote = tmp_path / "agents-remote.git"
     remote.mkdir()
     _git(remote, "init", "--bare")
+    _disable_auto_gc(remote)
     seed = tmp_path / "agents-seed"
     seed.mkdir()
     _git(seed, "init")
+    _disable_auto_gc(seed)
     _git(seed, "config", "user.name", "Seed")
     _git(seed, "config", "user.email", "seed@example.test")
     (seed / "manifest.json").write_text(
@@ -138,7 +175,7 @@ def test_three_identities_converge_and_localize_through_non_fast_forward_race(
     zeus_sidecar = tmp_path / "zeus-sidecar"
     alice_sidecar = tmp_path / "alice-sidecar"
     for sidecar in (athena_sidecar, zeus_sidecar, alice_sidecar):
-        _git(tmp_path, "clone", str(remote), str(sidecar))
+        _clone(tmp_path, remote, sidecar)
 
     athena_home = tmp_path / "athena-home"
     zeus_home = tmp_path / "zeus-home"
@@ -237,7 +274,7 @@ def test_three_identities_converge_and_localize_through_non_fast_forward_race(
     }
 
     verify = tmp_path / "verify"
-    _git(tmp_path, "clone", str(remote), str(verify))
+    _clone(tmp_path, remote, verify)
     assert (
         verify / "users" / "bbugyi200" / "machines" / "athena" / "manifest.json"
     ).is_file()
