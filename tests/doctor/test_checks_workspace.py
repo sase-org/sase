@@ -370,6 +370,43 @@ def test_workspace_occupancy_conflicts_reports_duplicate_and_ledger(
     assert "Do not auto-repair" in check.next_steps[0]
 
 
+def test_workspace_occupancy_conflicts_reports_multi_workspace_pid_claim(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    conflicts = (
+        OccupancyConflict(
+            code="multi_workspace_pid_claim",
+            project="alpha",
+            project_file=str(tmp_path / "alpha.sase"),
+            workspace_num=23,
+            message=(
+                "Live PID 111 holds more than one numbered RUNNING workspace "
+                "(#12, #23): #12 (ace(run)-launcher), #23 (gh-gh_alpha). "
+                "Last mutated at 260818_130235 by gh-setup."
+            ),
+            last_mutated_at="260818_130235",
+            last_caller_tag="gh-setup",
+            claim_pids=(111,),
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.occupancy_conflicts.detect_occupancy_conflicts",
+        lambda *_args, **_kwargs: conflicts,
+    )
+    monkeypatch.setattr(
+        "sase.logs.workspace_claim_ledger.ledger_path",
+        lambda: tmp_path / "workspace_claims.jsonl",
+    )
+
+    check = _check_workspace_occupancy_conflicts(_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert check.data["conflicts"][0]["code"] == "multi_workspace_pid_claim"
+    assert check.data["conflicts"][0]["claim_pids"] == (111,)
+    assert "Live PID 111 holds more than one" in check.details[0]
+
+
 def test_workspace_occupancy_conflicts_ok_when_none(
     monkeypatch,
     tmp_path: Path,

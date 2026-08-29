@@ -11,6 +11,7 @@ from sase.logs.workspace_claim_ledger import record_running_field_mutation
 from sase.running_field import WorkspaceClaim
 from sase.workspace_provider.occupancy_conflicts import (
     CODE_DUPLICATE_CLAIM,
+    CODE_MULTI_WORKSPACE_PID_CLAIM,
     CODE_OCCUPANT_PID_MISMATCH,
     CODE_ORPHAN_OCCUPANT,
     detect_occupancy_conflicts,
@@ -119,6 +120,66 @@ def test_detects_duplicate_running_claim_rows(
     assert conflicts[0].workspace_num == 10
     assert conflicts[0].claim_pids == (111, 222)
     assert "more than one RUNNING row" in conflicts[0].message
+
+
+def test_detects_live_pid_claiming_multiple_numbered_workspaces(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, "alpha")
+    live_pid = 111
+    _write_claims(
+        project.project_file,
+        [
+            WorkspaceClaim(12, "ace(run)-launcher", "feature", pid=live_pid),
+            WorkspaceClaim(23, "gh-gh_alpha", "feature", pid=live_pid),
+            WorkspaceClaim(24, "ace(run)-other", "other", pid=222),
+        ],
+    )
+    _patch_projects(monkeypatch, tmp_path, [project])
+
+    conflicts = detect_occupancy_conflicts(
+        tmp_path / "projects",
+        process_running=lambda pid: pid == live_pid,
+    )
+
+    multi = [
+        conflict
+        for conflict in conflicts
+        if conflict.code == CODE_MULTI_WORKSPACE_PID_CLAIM
+    ]
+    assert [conflict.workspace_num for conflict in multi] == [12, 23]
+    assert all(conflict.claim_pids == (live_pid,) for conflict in multi)
+    assert all(
+        "Live PID 111 holds more than one" in conflict.message for conflict in multi
+    )
+    assert all(
+        "#12" in conflict.message and "#23" in conflict.message for conflict in multi
+    )
+
+
+def test_ignores_dead_pid_claiming_multiple_numbered_workspaces(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, "alpha")
+    _write_claims(
+        project.project_file,
+        [
+            WorkspaceClaim(12, "ace(run)-launcher", "feature", pid=111),
+            WorkspaceClaim(23, "gh-gh_alpha", "feature", pid=111),
+        ],
+    )
+    _patch_projects(monkeypatch, tmp_path, [project])
+
+    conflicts = detect_occupancy_conflicts(
+        tmp_path / "projects",
+        process_running=lambda _pid: False,
+    )
+
+    assert not [
+        conflict
+        for conflict in conflicts
+        if conflict.code == CODE_MULTI_WORKSPACE_PID_CLAIM
+    ]
 
 
 def test_detects_live_claim_vs_different_live_occupant(
@@ -271,3 +332,55 @@ def test_annotates_conflict_with_last_ledger_mutation(
     assert conflicts[0].last_mutated_at
     assert "Last mutated at" in conflicts[0].message
     assert "deferred-claim" in conflicts[0].message
+
+
+def test_multi_workspace_pid_claims_keep_per_row_ledger_annotations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, "alpha")
+    live_pid = 111
+    _write_claims(
+        project.project_file,
+        [
+            WorkspaceClaim(12, "ace(run)-launcher", "feature", pid=live_pid),
+            WorkspaceClaim(23, "gh-gh_alpha", "feature", pid=live_pid),
+        ],
+    )
+    _patch_projects(monkeypatch, tmp_path, [project])
+    ledger_file = str(tmp_path / "workspace_claims.jsonl")
+    monkeypatch.setattr("sase.logs.workspace_claim_ledger.LEDGER_FILE", ledger_file)
+    content = Path(project.project_file).read_text(encoding="utf-8")
+    record_running_field_mutation(
+        operation="claim",
+        project_file=project.project_file,
+        workspace_num=12,
+        success=True,
+        before_content="",
+        after_content=content,
+        caller_tag="spawn-claim",
+    )
+    record_running_field_mutation(
+        operation="claim_next_axe",
+        project_file=project.project_file,
+        workspace_num=23,
+        success=True,
+        before_content="",
+        after_content=content,
+        caller_tag="gh-setup",
+    )
+
+    conflicts = detect_occupancy_conflicts(
+        tmp_path / "projects",
+        process_running=lambda pid: pid == live_pid,
+        ledger_file=ledger_file,
+    )
+
+    by_workspace = {
+        conflict.workspace_num: conflict
+        for conflict in conflicts
+        if conflict.code == CODE_MULTI_WORKSPACE_PID_CLAIM
+    }
+    assert by_workspace[12].last_caller_tag == "spawn-claim"
+    assert by_workspace[23].last_caller_tag == "gh-setup"
+    assert "spawn-claim" in by_workspace[12].message
+    assert "gh-setup" in by_workspace[23].message

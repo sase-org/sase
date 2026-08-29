@@ -4,6 +4,7 @@ The detect phase of the workspace-exclusivity epic (sase-q0) reports — and
 never auto-repairs — three conflict shapes:
 
 - the same workspace number claimed by more than one RUNNING row
+- a live pid claiming more than one numbered RUNNING workspace
 - a live claim whose checkout occupant names a different live pid
 - an occupant record with no corresponding RUNNING claim
 
@@ -38,6 +39,7 @@ from sase.workspace_provider.store import PRIMARY_WORKSPACE_NUM, WorkspaceStore
 ProcessRunningProbe = Callable[[int], bool]
 
 CODE_DUPLICATE_CLAIM = "duplicate_running_claim"
+CODE_MULTI_WORKSPACE_PID_CLAIM = "multi_workspace_pid_claim"
 CODE_OCCUPANT_PID_MISMATCH = "occupant_pid_mismatch"
 CODE_ORPHAN_OCCUPANT = "orphan_occupant"
 
@@ -141,6 +143,35 @@ def _conflicts_for_project(
                 claim_pids=pids,
             )
         )
+
+    by_live_pid: dict[int, list[WorkspaceClaim]] = defaultdict(list)
+    for claim in numbered:
+        if process_running(claim.pid):
+            by_live_pid[claim.pid].append(claim)
+
+    for pid, rows in sorted(by_live_pid.items()):
+        workspaces = tuple(sorted({claim.workspace_num for claim in rows}))
+        if len(workspaces) < 2:
+            continue
+        workspace_list = ", ".join(f"#{workspace_num}" for workspace_num in workspaces)
+        workflow_list = ", ".join(
+            f"#{claim.workspace_num} ({claim.workflow})"
+            for claim in sorted(rows, key=lambda item: item.workspace_num)
+        )
+        for workspace_num in workspaces:
+            conflicts.append(
+                OccupancyConflict(
+                    code=CODE_MULTI_WORKSPACE_PID_CLAIM,
+                    project=project,
+                    project_file=project_file,
+                    workspace_num=workspace_num,
+                    message=(
+                        f"Live PID {pid} holds more than one numbered RUNNING "
+                        f"workspace ({workspace_list}): {workflow_list}"
+                    ),
+                    claim_pids=(pid,),
+                )
+            )
 
     checkouts = _project_checkouts(project_record, claimed_nums=set(by_num))
     for workspace_num, checkout_dir in sorted(checkouts.items()):
@@ -319,6 +350,7 @@ def _pid_is_alive(pid: int) -> bool:
 
 __all__ = [
     "CODE_DUPLICATE_CLAIM",
+    "CODE_MULTI_WORKSPACE_PID_CLAIM",
     "CODE_OCCUPANT_PID_MISMATCH",
     "CODE_ORPHAN_OCCUPANT",
     "OccupancyConflict",
