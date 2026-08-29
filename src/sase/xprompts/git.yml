@@ -105,15 +105,15 @@ steps:
     finally: true
     if: "{{ setup.should_release }}"
     python: |
-      from sase.running_field import release_workspace
+      from sase.scripts.git_release import main
 
-      release_workspace(
-          {{ setup.project_file | tojson }},
-          {{ setup.workspace_num }},
-          {{ setup.workflow_name | tojson }},
-          {{ git_ref | tojson }} if "/" not in {{ git_ref | tojson }} else None,
+      main(
+          project_file={{ setup.project_file | tojson }},
+          workspace_num={{ setup.workspace_num }},
+          workspace_dir={{ setup.workspace_dir | tojson }},
+          workflow_name={{ setup.workflow_name | tojson }},
+          cl_name={{ git_ref | tojson }} if "/" not in {{ git_ref | tojson }} else None,
       )
-      print("released=true")
     output: { released: bool }
 
   - name: diff

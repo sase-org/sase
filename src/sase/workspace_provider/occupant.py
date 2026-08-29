@@ -140,6 +140,22 @@ def clear_occupant_record(checkout_dir: str) -> None:
         return
 
 
+def clear_owned_occupant_record(checkout_dir: str, expected_pid: int) -> bool:
+    """Clear the occupant marker only when it names *expected_pid*.
+
+    Returns True when the checkout has no occupant marker after the call
+    (cleared or already absent). Returns False when a marker naming a
+    different pid was left in place.
+    """
+    record = read_occupant_record(checkout_dir)
+    if record is None:
+        return True
+    if record.pid != expected_pid:
+        return False
+    clear_occupant_record(checkout_dir)
+    return True
+
+
 def new_occupant_record(
     *,
     pid: int,
@@ -168,6 +184,7 @@ __all__ = [
     "OCCUPANT_FILENAME",
     "OccupantRecord",
     "clear_occupant_record",
+    "clear_owned_occupant_record",
     "new_occupant_record",
     "read_occupant_record",
     "write_occupant_record",

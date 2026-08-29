@@ -3,7 +3,6 @@
 import os
 
 from sase.ace.patch import patch_lock, write_patch_atomic
-from sase.core.agent_launch_claims import list_workspace_claims_from_content
 from sase.logs.workspace_claim_ledger import record_running_field_mutation
 from sase.running_field._formatting import (
     clean_orphaned_blank_lines,
@@ -22,6 +21,8 @@ def release_workspace(
     workflow: str | None = None,
     cl_name: str | None = None,
     caller_tag: str | None = None,
+    *,
+    expected_pid: int | None = None,
 ) -> ClaimResult:
     """Release a workspace by removing it from the RUNNING field.
 
@@ -34,11 +35,14 @@ def release_workspace(
         cl_name: Optional Patch name to match (for more specific release)
         caller_tag: Optional short tag naming the calling code path, recorded
             in the workspace-claim mutation ledger.
+        expected_pid: When set, refuse the release (no-op plus a ledger
+            record) unless every matching RUNNING row still names this pid.
 
     Returns:
         ClaimResult.  ``success`` is True on a successful release; on
-        failure ``error`` carries the reason (missing project file or a
-        captured exception's ``repr``).
+        failure ``error`` carries the reason (missing project file, a pid
+        mismatch when ``expected_pid`` is set, or a captured exception's
+        ``repr``).
     """
     if not os.path.exists(project_file):
         return ClaimResult(
@@ -50,6 +54,23 @@ def release_workspace(
         with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 content = f.read()
+
+            matching = _matching_release_claims(
+                content, workspace_num, workflow, cl_name
+            )
+            if expected_pid is not None:
+                refused = _refuse_if_not_owned(
+                    matching,
+                    expected_pid=expected_pid,
+                    project_file=project_file,
+                    workspace_num=workspace_num,
+                    workflow=workflow,
+                    cl_name=cl_name,
+                    caller_tag=caller_tag,
+                    content=content,
+                )
+                if refused is not None:
+                    return refused
 
             from sase.core.agent_cleanup_execution import (
                 try_release_workspace_from_content,
@@ -114,16 +135,7 @@ def release_workspace(
                 result_content,
                 f"Release workspace #{workspace_num}",
             )
-            released_claim = next(
-                (
-                    item
-                    for item in list_workspace_claims_from_content(content)
-                    if item.workspace_num == workspace_num
-                    and (workflow is None or item.workflow == workflow)
-                    and (cl_name is None or item.cl_name == cl_name)
-                ),
-                None,
-            )
+            released_claim = matching[0] if matching else None
             record_running_field_mutation(
                 operation="release",
                 project_file=project_file,
@@ -144,3 +156,104 @@ def release_workspace(
             return ClaimResult(success=True)
     except (OSError, BlockingIOError) as exc:
         return ClaimResult(success=False, error=repr(exc))
+
+
+def _matching_release_claims(
+    content: str,
+    workspace_num: int,
+    workflow: str | None,
+    cl_name: str | None,
+) -> list[WorkspaceClaim]:
+    matching: list[WorkspaceClaim] = []
+    in_running_field = False
+    for line in content.split("\n"):
+        if line.startswith("RUNNING:"):
+            in_running_field = True
+            continue
+        if in_running_field and line.startswith("  "):
+            claim = WorkspaceClaim.from_line(line)
+            if not claim or claim.workspace_num != workspace_num:
+                continue
+            if workflow and claim.workflow != workflow:
+                continue
+            if cl_name and claim.cl_name != cl_name:
+                continue
+            matching.append(claim)
+        elif in_running_field:
+            in_running_field = False
+    return matching
+
+
+def _refuse_if_not_owned(
+    matching: list[WorkspaceClaim],
+    *,
+    expected_pid: int,
+    project_file: str,
+    workspace_num: int,
+    workflow: str | None,
+    cl_name: str | None,
+    caller_tag: str | None,
+    content: str,
+) -> ClaimResult | None:
+    if not matching:
+        error = (
+            f"no RUNNING claim for workspace #{workspace_num} "
+            f"owned by pid {expected_pid}"
+        )
+        return _record_refused_release(
+            project_file=project_file,
+            workspace_num=workspace_num,
+            workflow=workflow,
+            cl_name=cl_name,
+            caller_tag=caller_tag,
+            content=content,
+            error=error,
+            claim_pid=None,
+        )
+    foreign = next((claim for claim in matching if claim.pid != expected_pid), None)
+    if foreign is None:
+        return None
+    error = (
+        f"RUNNING row pid mismatch: claim pid {foreign.pid} "
+        f"!= runner pid {expected_pid}"
+    )
+    return _record_refused_release(
+        project_file=project_file,
+        workspace_num=workspace_num,
+        workflow=workflow,
+        cl_name=cl_name,
+        caller_tag=caller_tag,
+        content=content,
+        error=error,
+        claim_pid=foreign.pid,
+        artifacts_timestamp=foreign.artifacts_timestamp,
+    )
+
+
+def _record_refused_release(
+    *,
+    project_file: str,
+    workspace_num: int,
+    workflow: str | None,
+    cl_name: str | None,
+    caller_tag: str | None,
+    content: str,
+    error: str,
+    claim_pid: int | None,
+    artifacts_timestamp: str | None = None,
+) -> ClaimResult:
+    record_running_field_mutation(
+        operation="release",
+        project_file=project_file,
+        workspace_num=workspace_num,
+        success=False,
+        before_content=content,
+        after_content=content,
+        workflow=workflow,
+        cl_name=cl_name,
+        artifacts_timestamp=artifacts_timestamp,
+        claim_pid=claim_pid,
+        error=error,
+        caller_tag=caller_tag,
+    )
+    return ClaimResult(success=False, error=error)

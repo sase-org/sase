@@ -8,6 +8,7 @@ from sase.workspace_provider.occupant import (
     OccupantRecord,
     _occupant_marker_path,
     clear_occupant_record,
+    clear_owned_occupant_record,
     new_occupant_record,
     read_occupant_record,
     write_occupant_record,
@@ -100,6 +101,31 @@ class TestClearOccupantRecord:
         empty = tmp_path / "empty"
         empty.mkdir()
         clear_occupant_record(str(empty))  # must not raise
+
+
+class TestClearOwnedOccupantRecord:
+    def test_clears_matching_pid(self, tmp_path: Path) -> None:
+        checkout = tmp_path / "checkout"
+        checkout.mkdir()
+        write_occupant_record(str(checkout), _record(pid=99))
+
+        assert clear_owned_occupant_record(str(checkout), 99) is True
+        assert read_occupant_record(str(checkout)) is None
+
+    def test_leaves_foreign_pid_in_place(self, tmp_path: Path) -> None:
+        checkout = tmp_path / "checkout"
+        checkout.mkdir()
+        write_occupant_record(str(checkout), _record(pid=99))
+
+        assert clear_owned_occupant_record(str(checkout), 100) is False
+        occupant = read_occupant_record(str(checkout))
+        assert occupant is not None
+        assert occupant.pid == 99
+
+    def test_missing_record_is_owned(self, tmp_path: Path) -> None:
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        assert clear_owned_occupant_record(str(empty), 99) is True
 
 
 class TestNewOccupantRecord:
