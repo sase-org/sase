@@ -11,11 +11,16 @@ import pytest
 
 from sase.ace import update_receipt
 from sase.ace.testing import AcePage
+from sase.ace.tui import update_restart as update_restart_mod
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals import plugins_browser_sase_update as pbsu
 from sase.ace.tui.modals import plugins_browser_sase_update_procs as pbsup
 from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
-from sase.ace.tui.proc_observer import ObservedProc, ProcProjection
+from sase.ace.tui.proc_observer import (
+    ObservedProc,
+    ProcProjection,
+    proc_status_is_active,
+)
 from sase.uv_tool.render import UpdateOutcome as SaseUpdateOutcome
 from sase.uv_tool.render import UpdateSummary
 from sase.uv_tool.runner import ChangeKind
@@ -83,6 +88,46 @@ def _set_projection(app: object, *procs: ObservedProc) -> None:
         stop()
     app._proc_observer = _NoopProcObserver()
     app._proc_projection = _projection(*procs)
+
+
+def _hold_background_proc(monkeypatch: pytest.MonkeyPatch, proc: ObservedProc) -> None:
+    """Keep *proc* visible to restart-queue checks across observer snapshot races."""
+
+    def _blockers(_app: object) -> list[Any]:
+        return [proc] if proc_status_is_active(proc.status) else []
+
+    monkeypatch.setattr(update_restart_mod, "running_background_procs", _blockers)
+
+
+def _capture_restart_polls(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    """Capture only the restart helper's 1s poll timer, not App.set_timer globally."""
+    polls: list[Any] = []
+    original = update_restart_mod.restart_after_update_when_ready
+
+    def _when_ready(app: Any, message: str, **kwargs: Any) -> None:
+        original_set_timer = app.set_timer
+
+        def _set_timer(
+            delay: float,
+            callback: Any,
+            *timer_args: Any,
+            **timer_kwargs: Any,
+        ) -> object:
+            if delay == 1.0:
+                polls.append(callback)
+                return SimpleNamespace(stop=lambda: None)
+            return original_set_timer(delay, callback, *timer_args, **timer_kwargs)
+
+        app.set_timer = _set_timer
+        try:
+            original(app, message, **kwargs)
+        finally:
+            app.set_timer = original_set_timer
+
+    monkeypatch.setattr(
+        update_restart_mod, "restart_after_update_when_ready", _when_ready
+    )
+    return polls
 
 
 def test_restart_blockers_include_running_tracked_background_procs() -> None:
@@ -284,21 +329,11 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
             "_restart_tui",
             lambda *, restart_axe: restart_calls.append(restart_axe),
         )
-        timer_callbacks: list[Any] = []
-        original_set_timer = page.app.set_timer
-
-        def _set_timer(
-            delay: float, callback: Any, *args: Any, **kwargs: Any
-        ) -> object:
-            if delay == 1.0:
-                timer_callbacks.append(callback)
-                return SimpleNamespace(stop=lambda: None)
-            return original_set_timer(delay, callback, *args, **kwargs)
-
-        monkeypatch.setattr(page.app, "set_timer", _set_timer)
         background = _task("sync-feature-a", "sync")
         background.display_name = "sync feature_a"
         _set_projection(page.app, background)
+        _hold_background_proc(monkeypatch, background)
+        timer_callbacks = _capture_restart_polls(monkeypatch)
         submitted_workers: list[Any] = []
         original_submit_session_worker = page.app._submit_session_worker
 
@@ -321,9 +356,8 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
 
         await page.wait_for(lambda _s: bool(submitted_workers), timeout=15.0)
         await submitted_workers[0].wait()
-        await page.wait_for(
-            lambda _s: bool(executed) and bool(timer_callbacks), timeout=15.0
-        )
+        await page.wait_for(lambda _s: bool(executed), timeout=15.0)
+        await page.wait_for(lambda _s: bool(timer_callbacks), timeout=15.0)
         assert restart_calls == []
         assert calls  # initial load happened; changed update does not need a reload
         assert any(
