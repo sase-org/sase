@@ -75,6 +75,8 @@ def test_visual_mode_selects_visual_marker() -> None:
     result = runner._pytest_command("visual", ["tests/ace/tui/visual"])
 
     assert result[0:3] == [runner.sys.executable, "-m", "pytest"]
+    for path in runner.VISUAL_TEST_PATHS:
+        assert f"--ignore={path}" not in result
     assert result[-3:] == [
         "-m",
         runner.VISUAL_MARKER_EXPRESSION,
@@ -92,6 +94,8 @@ def test_fast_mode_selects_not_slow_and_not_visual_marker(
 
     assert "-n" in result
     assert "--dist=worksteal" in result
+    for path in runner.VISUAL_TEST_PATHS:
+        assert f"--ignore={path}" in result
     assert result[-2:] == ["-m", runner.FAST_MARKER_EXPRESSION]
     assert result[-1] == "not slow and not visual"
 
@@ -105,6 +109,8 @@ def test_cost_mode_selects_the_fast_suite_marker(
     result = runner._pytest_command("cost", [], worker_count=3)
 
     assert result[3:6] == ["-n", "3", "--dist=worksteal"]
+    for path in runner.VISUAL_TEST_PATHS:
+        assert f"--ignore={path}" in result
     assert result[-2:] == ["-m", runner.FAST_MARKER_EXPRESSION]
 
 
@@ -311,6 +317,8 @@ def test_cov_mode_excludes_visual_tests_matching_dedicated_visual_test_job() -> 
 
     result = runner._pytest_command("cov", [])
 
+    for path in runner.VISUAL_TEST_PATHS:
+        assert f"--ignore={path}" in result
     assert [
         "-m",
         runner.FAST_MARKER_EXPRESSION,
@@ -324,8 +332,11 @@ def test_contexts_mode_records_which_test_ran_each_line() -> None:
     Which is useless to the selector: `tests._test_selection_contexts` would
     silently contribute nothing forever.
     """
-    result = load_run_pytest()._pytest_command("cov-contexts", [])
+    runner = load_run_pytest()
+    result = runner._pytest_command("cov-contexts", [])
 
+    for path in runner.VISUAL_TEST_PATHS:
+        assert f"--ignore={path}" in result
     assert "--cov-context=test" in result
     assert "--cov=src/sase" in result
 

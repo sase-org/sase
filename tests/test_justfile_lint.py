@@ -386,8 +386,16 @@ def test_test_scoped_runs_the_scoped_runner_mode() -> None:
     assert "tools/run_pytest scoped" in output
 
 
+def test_test_skips_the_visual_dependency_install() -> None:
+    output = _dry_run("test")
+
+    assert "tools/run_pytest fast" in output
+    assert '-e ".[dev,visual]"' not in output
+    assert '-e ".[dev]"' in output
+
+
 def test_test_scoped_skips_the_visual_dependency_install() -> None:
-    """The scoped lane is Pillow-free because the selector drops the visual tree.
+    """The scoped lane skips the pinned visual stack because it drops the visual tree.
 
     `_setup-visual` runs the `[dev,visual]` install; `_setup` does not. If the
     selector ever stops excluding `tests/ace/tui/visual/**`, this recipe has to

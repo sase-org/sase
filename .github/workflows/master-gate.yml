@@ -178,15 +178,12 @@ jobs:
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v4
-      # install-visual: `just test` still depends on `_setup-visual` because the
-      # visual conftest imports Pillow at collection and a handful of fast-suite
-      # tests import PIL. Switching this recipe without changing `just test`
-      # would just reinstall the visual extra during `_setup-visual`.
-      - name: Install visual dependencies
+      # `just test` ignores visual test directories before collection, so the
+      # fast shards do not need the pinned visual renderer stack.
+      - name: Install dependencies
         uses: ./.github/actions/setup-sase
         with:
           python-version: '3.12'
-          install-recipe: install-visual
       - name: Run sharded fast suite
         env:
           SASE_TEST_SHARD: ${{ matrix.shard }}/${{ env.SHARD_COUNT }}

@@ -217,16 +217,13 @@ def test_just_test_rust_install_targets_active_venv() -> None:
     ) in output
     assert (
         output.count("/tmp/sase-custom-venv/bin/python tools/validate_test_environment")
-        == 2
+        == 1
     )
     assert '--venv-dir "/tmp/sase-custom-venv"' in output
     assert 'check_core="--check-core"' in output
     assert "$check_core --check-editable --group dev" in output
-    assert "--group visual" in output
-    assert (
-        "uv pip install --python /tmp/sase-custom-venv/bin/python "
-        '--no-sources $(just _core-overrides-arg) -e ".[dev,visual]"'
-    ) in output
+    assert "--group visual" not in output
+    assert '-e ".[dev,visual]"' not in output
 
 
 def test_core_overrides_are_enabled_for_prebuilt_wheel(

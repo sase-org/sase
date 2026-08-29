@@ -97,6 +97,10 @@ PYTEST_ENV_UNSET_KEYS = (
 FAST_MARKER_EXPRESSION = "not slow and not visual"
 SLOW_MARKER_EXPRESSION = "slow"
 VISUAL_MARKER_EXPRESSION = "visual"
+VISUAL_TEST_PATHS = (
+    "tests/ace/tui/visual",
+    "tests/pager/visual",
+)
 TERMINAL_SMOKE_MARKER_EXPRESSION = "terminal_smoke"
 # `scoped` is serial by default: `-n 1` makes `_xdist_worker_count` return
 # None, so no suite-gate path runs at all and the run never queues for tokens.
@@ -166,6 +170,17 @@ TIMINGS_PLUGIN_MODULE = "tests._test_selection_timings_plugin"
 TIMINGS_RECORDING_MODES = frozenset({*FULL_LANE_MODES, SCOPED_MODE})
 TEST_COST_PLUGIN_MODULE = "tests._test_cost_plugin"
 GLOBAL_STATE_LEAK_PLUGIN_MODULE = "tests._global_state_leak_detector"
+FAST_COLLECTION_MODES = frozenset(
+    {
+        "fast",
+        "cov",
+        CONTEXTS_MODE,
+        TEST_COST_MODE,
+        ACE_PAGE_GROUP_ISOLATION_MODE,
+        SCOPED_MODE,
+        CONTENTION_MODE,
+    }
+)
 PYTEST_DIST_ENV = "SASE_PYTEST_DIST"
 DEFAULT_PYTEST_DIST = "worksteal"
 SUPPORTED_PYTEST_DIST_MODES = ("loadfile", "worksteal")
@@ -341,6 +356,9 @@ def _pytest_command(
         if distribution_mode is None:
             distribution_mode = _configured_distribution_mode()
         command.extend(["-n", str(worker_count), f"--dist={distribution_mode}"])
+
+    if mode in FAST_COLLECTION_MODES:
+        command.extend(f"--ignore={path}" for path in VISUAL_TEST_PATHS)
 
     if mode == "slow":
         command.extend(["-m", SLOW_MARKER_EXPRESSION])

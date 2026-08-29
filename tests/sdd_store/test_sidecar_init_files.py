@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import json
+import struct
 from pathlib import Path
-
-from PIL import Image
 
 from sase.sdd._init_files import (
     ensure_sdd_sidecar_initialized,
@@ -13,6 +12,16 @@ from sase.sdd._init_files import (
     expected_sdd_sidecar_files,
     plan_sdd_sidecar_init_actions,
 )
+
+
+def _read_png_header(path: Path) -> tuple[int, int, int, int]:
+    data = path.read_bytes()
+    assert data.startswith(b"\x89PNG\r\n\x1a\n")
+    assert data[12:16] == b"IHDR"
+    width, height = struct.unpack(">II", data[16:24])
+    bit_depth = data[24]
+    color_type = data[25]
+    return width, height, bit_depth, color_type
 
 
 def test_sidecar_generated_files_are_deterministic_and_drift_tracked(
@@ -77,10 +86,7 @@ def test_agents_sidecar_generated_files_are_privacy_forward_and_idempotent(
     assert "`sase agent sync`" in readme
     assert "](assets/agents-directory-map.png)" in readme
     directory_map = root / "assets" / "agents-directory-map.png"
-    with Image.open(directory_map) as image:
-        assert image.format == "PNG"
-        assert image.size == (1600, 900)
-        assert image.mode == "RGB"
+    assert _read_png_header(directory_map) == (1600, 900, 8, 2)
     assert json.loads((root / "schema.json").read_text(encoding="utf-8")) == {
         "schema_version": 2,
         "format": "sase-agents-sidecar",

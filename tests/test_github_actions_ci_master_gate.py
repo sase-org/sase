@@ -80,10 +80,8 @@ def test_master_gate_test_job_runs_only_the_sharded_fast_lane() -> None:
         for step in job["steps"]
         if step.get("uses") == "./.github/actions/setup-sase"
     )
-    assert setup_step["with"] == {
-        "python-version": "3.12",
-        "install-recipe": "install-visual",
-    }
+    assert setup_step["name"] == "Install dependencies"
+    assert setup_step["with"] == {"python-version": "3.12"}
 
     run_step = next(step for step in job["steps"] if step.get("run") == "just test")
     assert run_step["env"] == {

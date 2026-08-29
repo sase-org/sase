@@ -21,11 +21,12 @@ from typing import Any
 
 GRAPH_CACHE_SCHEMA = 1
 
-# Excluding the visual lane keeps the scoped runner Pillow-free: visual test
-# files import shared helpers, so the closure reaches them, but every test they
-# contain carries the `visual` marker and is deselected anyway. `just
-# test-scoped` therefore depends on `_setup` rather than `_setup-visual`. If
-# this exclusion is ever removed, that recipe must go back to `_setup-visual`.
+# Excluding the visual lane keeps the scoped runner off the pinned visual
+# dependency stack: visual test files import shared helpers, so the closure
+# reaches them, but every test they contain carries the `visual` marker and is
+# deselected anyway. `just test-scoped` therefore depends on `_setup` rather
+# than `_setup-visual`. If this exclusion is ever removed, that recipe must go
+# back to `_setup-visual`.
 VISUAL_EXCLUDED_PREFIX = "tests/ace/tui/visual/"
 
 

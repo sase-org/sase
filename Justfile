@@ -391,10 +391,10 @@ fmt-md-check: _setup-prettier
 
 # Fast parallel test run, no coverage (use test-cov to enforce coverage gate).
 # Excludes the slow and PNG visual snapshot suites; use test-visual for those.
-# Still depends on `_setup-visual` because the visual conftest imports Pillow
-# at module scope, and marker deselection happens after collection.
+# The runner ignores visual test directories before collection, so this lane
+# does not need the pinned visual renderer stack.
 [positional-arguments]
-test *args: _setup-visual (_header "test")
+test *args: _setup (_header "test")
     @printf "\n---------- Running pytest (parallel, no coverage)... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest fast "$@"
 
@@ -402,7 +402,7 @@ test *args: _setup-visual (_header "test")
 # latest attribution report. This loads the heavier cost plugin only for this
 # lane; ordinary fast/cov/scoped runs keep the cheap timing recorder.
 [positional-arguments]
-test-cost *args: _setup-visual (_header "test-cost")
+test-cost *args: _setup (_header "test-cost")
     @printf "\n---------- Running pytest cost attribution lane... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest cost "$@"
     @{{ venv_bin }}/python tools/test_cost_report
@@ -417,7 +417,7 @@ test-cost-budget *args: _setup
 # Run every test module migrated to AcePageGroup with forced fresh AcePage
 # instances. This keeps the shared-page optimization honest without recording
 # timings or selection-health evidence.
-test-ace-page-group-isolated: _setup-visual (_header "test-ace-page-group-isolated")
+test-ace-page-group-isolated: _setup (_header "test-ace-page-group-isolated")
     @printf "\n---------- Running ACE shared-page forced-isolation lane... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest ace-page-group-isolated
 
@@ -502,7 +502,7 @@ test-visual-contention *args: _setup-visual (_header "test-visual-contention")
 # Override the CPU list, worker count, or repeat count with
 # SASE_CONTENTION_CPUS, SASE_CONTENTION_WORKERS, and SASE_CONTENTION_REPEAT.
 [positional-arguments]
-test-contention *args: _setup-visual (_header "test-contention")
+test-contention *args: _setup (_header "test-contention")
     @printf "\n---------- Running default-lane pytest contention harness... ----------\n"
     @command -v taskset >/dev/null || { printf "test-contention requires taskset\\n" >&2; exit 1; }
     @taskset -c "${SASE_CONTENTION_CPUS:-0,1}" env SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest contention "$@"
@@ -521,9 +521,9 @@ test-terminal-smoke *args: _setup-terminal-smoke (_header "test-terminal-smoke")
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest terminal-smoke tests/ace/tui/terminal_smoke "$@"
 
 # Parallel test run with coverage reports + 50% gate (used by CI). Excludes
-# the visual snapshot suite; still depends on `_setup-visual` for collection.
+# the visual snapshot suite before collection.
 [positional-arguments]
-test-cov *args: _setup-visual (_header "test-cov")
+test-cov *args: _setup (_header "test-cov")
     @printf "\n---------- Running pytest with coverage... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest cov "$@"
 
@@ -537,7 +537,7 @@ test-cov *args: _setup-visual (_header "test-cov")
 # is how an agent gets that artifact instead. Set
 # `SASE_TEST_SELECTION_INSTALL_CONTEXTS=0` to record without caching.
 [positional-arguments]
-test-contexts *args: _setup-visual (_header "test-contexts")
+test-contexts *args: _setup (_header "test-contexts")
     @printf "\n---------- Recording per-test coverage contexts... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest cov-contexts "$@"
     @{{ venv_bin }}/python tools/install_coverage_contexts --if-enabled
@@ -545,7 +545,7 @@ test-contexts *args: _setup-visual (_header "test-contexts")
 # Run the default test suite and fail if it mutates the production sidecar
 # bead store.
 [positional-arguments]
-test-bead-store-soak *args: _setup-visual (_header "test-bead-store-soak")
+test-bead-store-soak *args: _setup (_header "test-bead-store-soak")
     @printf "\n---------- Running bead-store soak check... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/check_bead_store_soak -- {{ venv_bin }}/python tools/run_pytest fast "$@"
 

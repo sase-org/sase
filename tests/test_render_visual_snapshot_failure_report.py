@@ -10,14 +10,14 @@ import base64
 import importlib.machinery
 import importlib.util
 import json
+import struct
 import subprocess
 import sys
 import types
-from io import BytesIO
+import zlib
 from pathlib import Path
 
 import pytest
-from PIL import Image
 
 
 SCRIPT_PATH = (
@@ -46,10 +46,20 @@ def script() -> types.ModuleType:
 
 
 def _png(color: tuple[int, int, int, int], size: tuple[int, int] = (1, 1)) -> bytes:
-    image = Image.new("RGBA", size, color)
-    output = BytesIO()
-    image.save(output, format="PNG")
-    return output.getvalue()
+    width, height = size
+    raw = b"".join(b"\x00" + bytes(color) * width for _ in range(height))
+
+    def chunk(kind: bytes, payload: bytes) -> bytes:
+        crc = zlib.crc32(kind + payload) & 0xFFFFFFFF
+        return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", crc)
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", header)
+        + chunk(b"IDAT", zlib.compress(raw))
+        + chunk(b"IEND", b"")
+    )
 
 
 def _write_failure(
