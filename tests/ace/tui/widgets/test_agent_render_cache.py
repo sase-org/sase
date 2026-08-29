@@ -20,6 +20,7 @@ from sase.ace.tui.widgets._agent_list_rendering import (
 )
 from sase.ace.tui.widgets._agent_list_styling import _FOLD_RESTORE_GLYPH_STYLE
 
+from .agent_list_runtime_helpers import family_container, gate_shell
 from ._agent_render_cache_helpers import agent as _agent
 from ._agent_render_cache_helpers import bead_key as _bead_key
 from ._agent_render_cache_helpers import style_at as _style_at
@@ -340,6 +341,39 @@ def test_cached_family_runtime_invalidates_when_active_shell_timing_changes() ->
     assert before[1].plain == "🏃‍♂️ 5m / 5m"
     assert after[1].plain == "🏃‍♂️ 3m / 3m"
     assert before[1] is not after[1]
+
+
+def test_cached_family_row_invalidates_when_gate_settles() -> None:
+    cache = AgentRenderCache()
+    planner = _agent(cl_name="family--plan", status="DONE", agent_name="family--plan")
+    planner.agent_family = "family"
+    planner.agent_family_role = "plan"
+    planner.role_suffix = "--plan"
+    planner.start_time = datetime(2026, 4, 25, 14, 0, 0)
+    planner.run_start_time = datetime(2026, 4, 25, 14, 0, 0)
+    planner.stop_time = datetime(2026, 4, 25, 14, 30, 0)
+    gate = gate_shell(
+        status="PLAN",
+        start=datetime(2026, 4, 25, 14, 30, 0),
+        stop=None,
+        gate_state="pending",
+        raw_suffix="gate",
+        cl_name="family--gate",
+    )
+    gate.agent_family = "family"
+    root = family_container(planner)
+    root.runtime_children.append(gate)
+    root.followup_agents.append(gate)
+    now = datetime(2026, 4, 25, 16, 0, 0)
+
+    before = cached_format_agent_option(cache, root, 0, is_selected=False, now=now)
+    gate.gate_state = "answered"
+    gate.status = "ANSWERED"
+    gate.stop_time = datetime(2026, 4, 25, 16, 0, 0)
+    after = cached_format_agent_option(cache, root, 0, is_selected=False, now=now)
+
+    assert before[0] is not after[0] or before[1] is not after[1]
+    assert before[1].plain == after[1].plain
 
 
 def _clan_with_lane() -> tuple[Agent, Agent]:

@@ -18,6 +18,7 @@ from sase.ace.tui.models.agent_time import (
 from .agent_list_runtime_helpers import (
     agent,
     family_container,
+    gate_shell,
     linked_followup_workflow,
     monitor_shell,
     workflow_child,
@@ -173,6 +174,43 @@ def test_settled_starter_with_running_non_monitor_child_still_ticks(
     )
 
     assert ticks(starter) is True
+
+
+@pytest.mark.parametrize("ticks", _TICK_DECISIONS)
+@pytest.mark.parametrize("gate_state", ["pending", "settling"])
+def test_family_container_does_not_tick_for_gate(
+    ticks: Callable[[Agent], bool],
+    gate_state: str,
+) -> None:
+    planner = agent(
+        status="DONE",
+        stop=datetime(2026, 4, 25, 14, 30, 0),
+        cl_name="demo--plan",
+        role_suffix="--plan",
+        raw_suffix="20260425140000",
+    )
+    gate = gate_shell(
+        status="PLAN",
+        start=datetime(2026, 4, 25, 14, 30, 0),
+        stop=None,
+        gate_state=gate_state,
+    )
+    container = family_container(planner)
+    container.runtime_children.append(gate)
+    container.followup_agents.append(gate)
+
+    assert ticks(container) is False
+
+
+@pytest.mark.parametrize("ticks", _TICK_DECISIONS)
+def test_gate_row_ticks_while_settling_not_pending(
+    ticks: Callable[[Agent], bool],
+) -> None:
+    pending = gate_shell(status="PLAN", gate_state="pending")
+    settling = gate_shell(status="PLAN", gate_state="settling")
+
+    assert ticks(pending) is False
+    assert ticks(settling) is True
 
 
 def test_wait_countdown_ticks_waiting_with_wait_until() -> None:

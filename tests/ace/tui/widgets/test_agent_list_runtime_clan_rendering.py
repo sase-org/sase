@@ -7,6 +7,7 @@ from datetime import datetime
 import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_time import compute_lowest_row_runtime
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.agent_list import AgentList
 
@@ -14,6 +15,8 @@ from .agent_list_runtime_helpers import (
     AgentListHarness,
     agent,
     agent_row_index,
+    family_container,
+    gate_shell,
     workflow_child,
 )
 
@@ -348,3 +351,46 @@ async def test_clan_runtime_suffix_follows_new_minimum_when_fresh_lane_starts() 
 
         after = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
         assert after.rstrip().endswith("🏃‍♂️ 5s / 10m05s")
+
+
+def test_clan_excludes_pending_gate_and_does_not_pin_lowest_lane() -> None:
+    planner = agent(
+        status="DONE",
+        start=datetime(2026, 4, 25, 14, 0, 0),
+        stop=datetime(2026, 4, 25, 14, 30, 0),
+        cl_name="demo--plan",
+        role_suffix="--plan",
+        raw_suffix="20260425140000",
+    )
+    gate = gate_shell(
+        status="PLAN",
+        start=datetime(2026, 4, 25, 14, 30, 0),
+        stop=None,
+        gate_state="pending",
+        raw_suffix="20260425143000",
+    )
+    family = family_container(planner)
+    family.runtime_children.append(gate)
+    family.followup_agents.append(gate)
+    family.agent_clan = "research"
+    family.agent_clan_generation = "gen-1"
+
+    running = agent(
+        status="RUNNING",
+        start=datetime(2026, 4, 25, 15, 50, 0),
+        run_start=datetime(2026, 4, 25, 15, 50, 0),
+        raw_suffix="lane-b",
+        cl_name="research.b",
+    )
+    running.agent_clan = "research"
+    running.agent_clan_generation = "gen-1"
+
+    clan = _clan_container()
+    clan.runtime_children = [family, running]
+    now = datetime(2026, 4, 25, 16, 0, 0)
+
+    _, clan_suffix, _ = format_agent_option(clan, 0, is_selected=False, now=now)
+
+    assert clan_suffix.plain == "🏃‍♂️ 10m / 40m"
+    assert compute_lowest_row_runtime([family], now=now) is None
+    assert compute_lowest_row_runtime([family, running], now=now) == "10m"

@@ -6,15 +6,17 @@ from datetime import datetime
 
 import pytest
 
-from sase.ace.tui.models.agent import compute_row_runtime
+from sase.ace.tui.models.agent import Agent, compute_row_runtime
 from sase.ace.tui.models.agent_time import (
     compute_leaf_row_runtime,
+    compute_lowest_row_runtime,
     runtime_suffix_ticks,
 )
 
 from .agent_list_runtime_helpers import (
     agent,
     family_container,
+    gate_shell,
     linked_followup_workflow,
     monitor_shell,
     workflow_child,
@@ -315,3 +317,177 @@ def test_compute_row_runtime_family_container_spans_running_monitor() -> None:
     assert ts is None
     assert elapsed == "6m"
     assert runtime_suffix_ticks(container) is True
+
+
+def _planner_and_pending_gate() -> tuple[Agent, Agent]:
+    planner = agent(
+        status="DONE",
+        start=datetime(2026, 4, 25, 14, 0, 0),
+        stop=datetime(2026, 4, 25, 14, 30, 0),
+        cl_name="demo--plan",
+        role_suffix="--plan",
+        raw_suffix="20260425140000",
+    )
+    gate = gate_shell(
+        status="PLAN",
+        start=datetime(2026, 4, 25, 14, 30, 0),
+        stop=None,
+        gate_state="pending",
+        raw_suffix="20260425143000",
+    )
+    return planner, gate
+
+
+def test_family_container_excludes_pending_gate_review_window() -> None:
+    planner, gate = _planner_and_pending_gate()
+    container = family_container(planner)
+    container.runtime_children.append(gate)
+    container.followup_agents.append(gate)
+    now = datetime(2026, 4, 25, 16, 0, 0)
+
+    ts, elapsed = compute_row_runtime(container, now=now)
+    assert elapsed == "30m"
+    assert ts == ("", "14:30:00")
+    assert runtime_suffix_ticks(container) is False
+
+
+def test_family_container_excludes_settled_gate_after_coder_starts() -> None:
+    planner, _pending = _planner_and_pending_gate()
+    gate = gate_shell(
+        status="ANSWERED",
+        start=datetime(2026, 4, 25, 14, 30, 0),
+        stop=datetime(2026, 4, 25, 16, 0, 0),
+        gate_state="answered",
+        raw_suffix="20260425143000",
+    )
+    coder = agent(
+        status="RUNNING",
+        start=datetime(2026, 4, 25, 16, 0, 0),
+        cl_name="demo--code",
+        role_suffix="--code",
+        raw_suffix="20260425160000",
+    )
+    container = family_container(planner)
+    container.runtime_children.extend([gate, coder])
+    container.followup_agents.extend([gate, coder])
+    now = datetime(2026, 4, 25, 16, 10, 0)
+
+    ts, elapsed = compute_row_runtime(container, now=now)
+    assert ts is None
+    assert elapsed == "40m"
+    assert runtime_suffix_ticks(container) is True
+
+
+def test_family_container_finish_timestamp_ignores_settled_gate() -> None:
+    planner, _pending = _planner_and_pending_gate()
+    gate = gate_shell(
+        status="ANSWERED",
+        start=datetime(2026, 4, 25, 14, 30, 0),
+        stop=datetime(2026, 4, 25, 16, 0, 0),
+        gate_state="answered",
+        raw_suffix="20260425143000",
+    )
+    container = family_container(planner)
+    container.runtime_children.append(gate)
+    container.followup_agents.append(gate)
+    now = datetime(2026, 4, 25, 16, 5, 0)
+
+    ts, elapsed = compute_row_runtime(container, now=now)
+    assert elapsed == "30m"
+    assert ts == ("", "14:30:00")
+
+
+def test_gate_shell_own_row_still_reports_leaf_runtime() -> None:
+    gate = gate_shell(
+        status="ANSWERED",
+        start=datetime(2026, 4, 25, 14, 30, 0),
+        stop=datetime(2026, 4, 25, 16, 0, 0),
+        gate_state="answered",
+    )
+    now = datetime(2026, 4, 25, 16, 5, 0)
+
+    ts, elapsed = compute_leaf_row_runtime(gate, now=now)
+    assert elapsed == "1h30m"
+    assert ts == ("", "16:00:00")
+    assert compute_row_runtime(gate, now=now) == (ts, elapsed)
+
+
+def test_family_container_includes_agent_attached_beneath_gate() -> None:
+    planner, gate = _planner_and_pending_gate()
+    coder = agent(
+        status="RUNNING",
+        start=datetime(2026, 4, 25, 16, 0, 0),
+        cl_name="demo--code",
+        role_suffix="--code",
+        raw_suffix="20260425160000",
+    )
+    gate.runtime_children.append(coder)
+    container = family_container(planner)
+    container.runtime_children.append(gate)
+    container.followup_agents.append(gate)
+    now = datetime(2026, 4, 25, 16, 10, 0)
+
+    ts, elapsed = compute_row_runtime(container, now=now)
+    assert ts is None
+    assert elapsed == "40m"
+
+
+def test_family_container_includes_monitor_but_not_gate() -> None:
+    starter = agent(
+        status="DONE",
+        start=datetime(2026, 4, 25, 14, 30, 0),
+        stop=datetime(2026, 4, 25, 14, 35, 0),
+        cl_name="demo--code",
+        role_suffix="--code",
+        raw_suffix="20260425143100",
+    )
+    starter.runtime_children.append(
+        monitor_shell(start=datetime(2026, 4, 25, 14, 34, 0))
+    )
+    gate = gate_shell(
+        status="PLAN",
+        start=datetime(2026, 4, 25, 14, 30, 0),
+        stop=None,
+        gate_state="pending",
+        raw_suffix="20260425143000",
+    )
+    container = family_container(starter)
+    container.runtime_children.append(gate)
+    container.followup_agents.append(gate)
+    now = datetime(2026, 4, 25, 14, 40, 0)
+
+    ts, elapsed = compute_row_runtime(container, now=now)
+    assert ts is None
+    assert elapsed == "6m"
+    assert runtime_suffix_ticks(container) is True
+
+
+def test_family_container_chained_gates_do_not_resurrect_intervals() -> None:
+    planner, outer = _planner_and_pending_gate()
+    inner = gate_shell(
+        status="PLAN",
+        start=datetime(2026, 4, 25, 14, 45, 0),
+        stop=None,
+        gate_state="pending",
+        raw_suffix="20260425144500",
+        cl_name="demo--gate-0",
+    )
+    outer.runtime_children.append(inner)
+    container = family_container(planner)
+    container.runtime_children.append(outer)
+    container.followup_agents.extend([outer, inner])
+    now = datetime(2026, 4, 25, 16, 0, 0)
+
+    ts, elapsed = compute_row_runtime(container, now=now)
+    assert elapsed == "30m"
+    assert ts == ("", "14:30:00")
+
+
+def test_lowest_row_runtime_drops_family_parked_on_pending_gate() -> None:
+    planner, gate = _planner_and_pending_gate()
+    container = family_container(planner)
+    container.runtime_children.append(gate)
+    container.followup_agents.append(gate)
+    now = datetime(2026, 4, 25, 16, 0, 0)
+
+    assert compute_lowest_row_runtime([container], now=now) is None

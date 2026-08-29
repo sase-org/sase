@@ -124,6 +124,31 @@ def monitor_shell(
     return result
 
 
+def gate_shell(
+    *,
+    status: str = "GATE",
+    start: datetime | None = datetime(2026, 4, 25, 14, 35, 0),
+    run_start: datetime | None | Any = _DEFAULT_RUN_START,
+    stop: datetime | None = None,
+    raw_suffix: str = "20260425143500",
+    cl_name: str = "demo--gate",
+    gate_state: str = "pending",
+) -> Agent:
+    result = agent(
+        status=status,
+        start=start,
+        run_start=run_start,
+        stop=stop,
+        role_suffix="--gate",
+        raw_suffix=raw_suffix,
+        cl_name=cl_name,
+    )
+    result.agent_family_role = "gate"
+    result.gate_id = "g-demo"
+    result.gate_state = gate_state
+    return result
+
+
 def family_container(
     member: Agent,
     *,

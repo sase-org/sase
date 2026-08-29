@@ -372,8 +372,41 @@ def _aggregates_family_shells(agent: "Agent") -> bool:
     return agent.is_clan_container or agent.is_family_container_row
 
 
-def _is_family_shell(agent: "Agent") -> bool:
-    return agent.is_monitor or agent.is_gate
+def _runtime_child_rows(
+    agent: "Agent",
+    *,
+    include_monitor_shells: bool,
+    _seen: set[int] | None = None,
+) -> tuple["Agent", ...]:
+    """Return the child rows whose runtime an ancestor row may absorb.
+
+    A gate shell owns a human decision window rather than agent runtime, so
+    it never contributes its own interval to an ancestor at any level. Its
+    own children are yielded in its place, so an agent a gate started is not
+    dropped along with the gate. Monitor shells still contribute, but only to
+    family and clan container rows.
+    """
+    if _seen is None:
+        _seen = {id(agent)}
+    rows: list[Agent] = []
+    for child in getattr(agent, "runtime_children", ()):
+        child_id = id(child)
+        if child_id in _seen:
+            continue
+        _seen.add(child_id)
+        if child.is_gate:
+            rows.extend(
+                _runtime_child_rows(
+                    child,
+                    include_monitor_shells=include_monitor_shells,
+                    _seen=_seen,
+                )
+            )
+            continue
+        if child.is_monitor and not include_monitor_shells:
+            continue
+        rows.append(child)
+    return tuple(rows)
 
 
 def _aggregate_runtime(
@@ -384,7 +417,7 @@ def _aggregate_runtime(
     if not children:
         return None
 
-    include_family_shells = _aggregates_family_shells(agent)
+    include_monitor_shells = _aggregates_family_shells(agent)
     runtime_members: list[ClanRuntimeMemberWire] = []
     terminal_times: list[datetime] = []
 
@@ -396,15 +429,15 @@ def _aggregate_runtime(
         return value.isoformat()
 
     def append_runtime_member(child: "Agent") -> None:
-        if _is_family_shell(child) and not include_family_shells:
-            return
         child_id = id(child)
         if child_id in seen:
             return
         seen.add(child_id)
         grandchildren = getattr(child, "runtime_children", ())
         if grandchildren:
-            for grandchild in grandchildren:
+            for grandchild in _runtime_child_rows(
+                child, include_monitor_shells=include_monitor_shells
+            ):
                 append_runtime_member(grandchild)
             return
         terminal = _row_runtime_terminal_time(child)
@@ -441,7 +474,9 @@ def _aggregate_runtime(
             )
         )
 
-    for child in children:
+    for child in _runtime_child_rows(
+        agent, include_monitor_shells=include_monitor_shells
+    ):
         append_runtime_member(child)
 
     if not runtime_members:
@@ -576,9 +611,9 @@ def runtime_suffix_ticks(
 
     if not should_display_runtime_suffix(agent):
         return False
-    for child in getattr(agent, "runtime_children", ()):
-        if _is_family_shell(child) and not include_monitor_shells:
-            continue
+    for child in _runtime_child_rows(
+        agent, include_monitor_shells=include_monitor_shells
+    ):
         if runtime_suffix_ticks(
             child, _seen, _include_monitor_shells=include_monitor_shells
         ):
@@ -651,9 +686,9 @@ def row_runtime_or_wait_ticks(
         return True
     if wait_countdown_ticks(agent):
         return True
-    for child in getattr(agent, "runtime_children", ()):
-        if _is_family_shell(child) and not include_monitor_shells:
-            continue
+    for child in _runtime_child_rows(
+        agent, include_monitor_shells=include_monitor_shells
+    ):
         if row_runtime_or_wait_ticks(
             child, _seen, _include_monitor_shells=include_monitor_shells
         ):

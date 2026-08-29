@@ -2137,7 +2137,9 @@ rows with no `BEGIN` time hide the suffix so admission waits do not look like li
 runtime. On an active sequential-family container, the live suffix is
 `🏃‍♂️ <current-shell-runtime> / <family-total-runtime>`: the left value is the concrete
 agent or monitor shell currently executing, and the right value is the aggregate family
-interval. On an active clan container the live suffix is
+interval. Gate-shell windows are excluded from that family total — they measure the
+human decision, not agent runtime — and the same exclusion applies to clan totals. On an
+active clan container the live suffix is
 `<lowest-running-lane-runtime> / <clan-total-runtime>` (same marker), where the left
 value is the smallest current runtime among the clan's running lanes (a sequential
 family lane contributes its total runtime, the same value its own row shows on the right

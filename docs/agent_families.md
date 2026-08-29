@@ -190,14 +190,15 @@ direct members sort by status priority — Failed, Stopped, Running/Starting, Qu
 Waiting, Done — and then by launch recency within a bucket. The metadata roster uses
 chronological launch order instead, keeping its number-to-member mapping stable while
 statuses change. The runtime is the union of member run intervals, with human-wait
-windows excluded, so concurrent members are not double-counted. When a sequential family
-has a concrete agent or monitor shell currently executing, the collapsed and expanded
-family container row shows `🏃‍♂️ <current-shell-runtime> / <family-total-runtime>` so the
-active shell duration is visible without opening the family. A clan container's live
-suffix collapses its parallel lanes with a minimum instead, since more than one lane can
-be live at once: `<lowest-running-lane-runtime> / <clan-total-runtime>`, where a
-sequential-family lane contributes its own total runtime -- the same value its own row
-shows to the right of its suffix.
+windows excluded — including a gate shell's pending and settling window — so concurrent
+members are not double-counted. When a sequential family has a concrete agent or monitor
+shell currently executing, the collapsed and expanded family container row shows
+`🏃‍♂️ <current-shell-runtime> / <family-total-runtime>` so the active shell duration is
+visible without opening the family. A clan container's live suffix collapses its
+parallel lanes with a minimum instead, since more than one lane can be live at once:
+`<lowest-running-lane-runtime> / <clan-total-runtime>`, where a sequential-family lane
+contributes its own total runtime -- the same value its own row shows to the right of
+its suffix.
 
 ### Clan summary folding
 
@@ -307,12 +308,13 @@ LLM turn, created by `sase monitor start`. See [Monitors](monitors.md).
 
 A `--gate` suffix (then `--gate-0`, `--gate-1`, …) is a **gate shell**: a named, non-LLM
 family member that owns a durable user decision. The asking agent ends its turn, the
-pending gate occupies no runner slot, and the shell settles after the decision's
-commands complete. It can retain or release the workspace claim according to its shell
-policy. An answered branch may launch the next agent-shell member; timeout, stop,
-failure, and loss do so only when that branch explicitly declares a follow-up. The
-built-in question, plan, workflow HITL, and agent-initiated launch flows use this model,
-as can custom `sase gate create --shell` requests. See
+pending gate occupies no runner slot and contributes no accumulated family or clan
+runtime, and the shell settles after the decision's commands complete. It can retain or
+release the workspace claim according to its shell policy. An answered branch may launch
+the next agent-shell member; timeout, stop, failure, and loss do so only when that
+branch explicitly declares a follow-up. The built-in question, plan, workflow HITL, and
+agent-initiated launch flows use this model, as can custom `sase gate create --shell`
+requests. See
 [Command-backed interaction gates](notifications.md#command-backed-interaction-gates).
 
 `sase pipe '<prompt>'` creates a family member the same way a plan approval or a
