@@ -14,6 +14,8 @@ from sase.sdd.store import materialize_sdd_store
 from sase.workspace_provider.plugins.bare_git_workspace import resolve_git_ref
 from sase.workspace_provider.utils import ensure_workspace_checkout
 
+_CALLER_TAG = "git-setup"
+
 
 def main(
     *,
@@ -31,9 +33,15 @@ def main(
     project_name = resolved.project_name
     project_file = resolved.project_file
 
-    pid = os.getpid()
-    runner_pid = os.getppid()
+    # Use the parent process PID, not our own.  This setup step runs as a
+    # short-lived subprocess of the workflow runner, so ``os.getpid()`` dies
+    # the moment setup returns: ``stale_running_cleanup`` would reap the
+    # RUNNING row while the runner still holds the checkout, and the
+    # identity-checked release step would refuse a row whose pid no longer
+    # matches the runner.  ``#gh:`` setup claims the same way.
+    pid = os.getppid()
     workflow_name = workflow_label or f"git-{git_ref}"
+    cl_name = None if "/" in git_ref else git_ref
     runner_bound_workspace = False
 
     # Check if workspace was pre-allocated by the TUI
@@ -52,8 +60,9 @@ def main(
             workspace_num,
             workflow_name,
             pid,
-            None,
+            cl_name,
             pinned=not release,
+            caller_tag=_CALLER_TAG,
         )
         if not claim_result.success:
             raise WorkspaceClaimError(
@@ -66,7 +75,13 @@ def main(
                 resolved.primary_workspace_dir, workspace_num
             )
         except Exception:
-            release_workspace(project_file, workspace_num, workflow_name)
+            release_workspace(
+                project_file,
+                workspace_num,
+                workflow_name,
+                cl_name,
+                caller_tag=_CALLER_TAG,
+            )
             raise
     else:
         adopted = _adopt_runner_workspace(
@@ -80,7 +95,7 @@ def main(
             pre_allocated = True
         else:
             runner_bound_workspace = runner_has_placeholder_workspace(
-                project_file, pid=runner_pid
+                project_file, pid=pid
             )
             # Atomically find + claim to prevent TOCTOU races where two
             # concurrent processes (e.g. mentors) both see the same workspace
@@ -88,8 +103,10 @@ def main(
             workspace_num = claim_next_axe_workspace(
                 project_file,
                 workflow_name,
-                runner_pid if runner_bound_workspace else pid,
+                pid,
+                cl_name=cl_name,
                 pinned=not release,
+                caller_tag=_CALLER_TAG,
             )
             workspace_dir = ensure_workspace_checkout(
                 resolved.primary_workspace_dir, workspace_num
