@@ -51,6 +51,8 @@ class AgentExecResult:
     video_paths: list[str] = field(default_factory=list)
     current_artifacts_dir: str = ""
     step_output: dict[str, Any] | None = None
+    workspace_dir: str | None = None
+    workspace_num: int | None = None
 
 
 @dataclass

@@ -36,6 +36,7 @@ steps:
       checkout_target: word
       primary_workspace_dir: path
       should_release: bool
+      runner_bound_workspace: bool
       workflow_name: word
 
   - name: prepare

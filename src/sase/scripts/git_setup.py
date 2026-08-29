@@ -8,6 +8,7 @@ from sase.running_field import (
     claim_workspace,
     find_runner_numbered_workspace,
     release_workspace,
+    runner_has_placeholder_workspace,
 )
 from sase.sdd.store import materialize_sdd_store
 from sase.workspace_provider.plugins.bare_git_workspace import resolve_git_ref
@@ -31,7 +32,9 @@ def main(
     project_file = resolved.project_file
 
     pid = os.getpid()
+    runner_pid = os.getppid()
     workflow_name = workflow_label or f"git-{git_ref}"
+    runner_bound_workspace = False
 
     # Check if workspace was pre-allocated by the TUI
     pre_allocated = (
@@ -76,13 +79,16 @@ def main(
             workspace_num, workspace_dir = adopted
             pre_allocated = True
         else:
+            runner_bound_workspace = runner_has_placeholder_workspace(
+                project_file, pid=runner_pid
+            )
             # Atomically find + claim to prevent TOCTOU races where two
             # concurrent processes (e.g. mentors) both see the same workspace
             # as available and both claim it.
             workspace_num = claim_next_axe_workspace(
                 project_file,
                 workflow_name,
-                pid,
+                runner_pid if runner_bound_workspace else pid,
                 pinned=not release,
             )
             workspace_dir = ensure_workspace_checkout(
@@ -96,8 +102,9 @@ def main(
     print(f"checkout_target={resolved.checkout_target}")
     print(f"primary_workspace_dir={resolved.primary_workspace_dir}")
     # Don't release pre-allocated workspaces — the launcher handles that
-    should_release = release and not pre_allocated
+    should_release = release and not pre_allocated and not runner_bound_workspace
     print(f"should_release={'true' if should_release else 'false'}")
+    print(f"runner_bound_workspace={'true' if runner_bound_workspace else 'false'}")
     print(f"_chdir={workspace_dir}")
     print(f"meta_workspace={workspace_num}")
     print(f"workflow_name={workflow_name}")

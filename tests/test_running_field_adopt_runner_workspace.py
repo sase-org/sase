@@ -8,6 +8,7 @@ from pathlib import Path
 from sase.running_field import (
     WorkspaceClaim,
     find_runner_numbered_workspace,
+    runner_has_placeholder_workspace,
 )
 from tests._running_field_helpers import create_project_file_with_running
 
@@ -47,6 +48,19 @@ def test_ignores_primary_placeholder_claim(tmp_path: Path) -> None:
     )
 
     assert find_runner_numbered_workspace(project_file) is None
+
+
+def test_detects_parent_placeholder_claim(tmp_path: Path) -> None:
+    parent_pid = os.getppid()
+    project_file = create_project_file_with_running(
+        tmp_path,
+        running_claims=[
+            WorkspaceClaim(0, "ace(run)-launcher", "feature", pid=parent_pid)
+        ],
+    )
+
+    assert runner_has_placeholder_workspace(project_file)
+    assert not runner_has_placeholder_workspace(project_file, pid=4242)
 
 
 def test_ignores_reserved_workspace_numbers(tmp_path: Path) -> None:

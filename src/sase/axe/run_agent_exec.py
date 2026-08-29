@@ -26,6 +26,9 @@ from sase.axe.run_agent_exec_types import (
     AgentExecResult as _AgentExecResult,
     LoopState,
 )
+from sase.axe.run_agent_workspace_identity import (
+    rebind_agent_workspace_identity_from_output,
+)
 from sase.axe.run_agent_helpers import (
     extract_step_output_and_diff_path,
     is_workflow_noop,
@@ -239,6 +242,14 @@ def run_execution_loop(
     )
     result = None
 
+    def _rebind_workspace_identity(output: dict[str, Any], workspace_dir: str) -> None:
+        rebind_agent_workspace_identity_from_output(
+            ctx,
+            artifacts_dir=state.current_artifacts_dir,
+            output=output,
+            workspace_dir=workspace_dir,
+        )
+
     while True:
         reset_killed()
         _publish_phase_env(state.current_artifacts_dir)
@@ -255,6 +266,7 @@ def run_execution_loop(
                 silent=True,
                 workflow_obj=anon_workflow,
                 project=_resolve_workflow_project(ctx),
+                workspace_rebind_callback=_rebind_workspace_identity,
             )
         except Exception as wf_exc:
             if not was_killed():

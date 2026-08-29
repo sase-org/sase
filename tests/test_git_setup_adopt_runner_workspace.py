@@ -65,7 +65,7 @@ def test_adopts_parent_numbered_claim_without_second_claim(
     assert "meta_workspace=12" in out
 
 
-def test_does_not_adopt_when_parent_only_holds_placeholder(
+def test_parent_placeholder_allocation_is_runner_bound(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     project_file = create_project_file_with_running(
@@ -91,11 +91,13 @@ def test_does_not_adopt_when_parent_only_holds_placeholder(
         git_setup.main(git_ref="proj", n=None, release=True)
 
     claim_next.assert_called_once()
+    assert claim_next.call_args.args[2] == os.getppid()
     claim.assert_not_called()
     materialize.assert_not_called()
     out = capsys.readouterr().out
     assert "workspace_num=10" in out
-    assert "should_release=true" in out
+    assert "should_release=false" in out
+    assert "runner_bound_workspace=true" in out
 
 
 def test_pinned_n_does_not_adopt_parent_claim(

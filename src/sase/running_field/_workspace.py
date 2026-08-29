@@ -40,6 +40,19 @@ def find_runner_numbered_workspace(
     return min(numbered)
 
 
+def runner_has_placeholder_workspace(
+    project_file: str,
+    *,
+    pid: int | None = None,
+) -> bool:
+    """Return whether the calling runner holds the ``#0`` placeholder claim."""
+    runner_pid = os.getppid() if pid is None else pid
+    return any(
+        claim.pid == runner_pid and claim.workspace_num == 0
+        for claim in get_claimed_workspaces(project_file)
+    )
+
+
 def get_first_available_workspace(
     project_file: str,
     min_workspace: int = UNIFIED_MIN_WORKSPACE,

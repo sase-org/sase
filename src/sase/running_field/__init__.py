@@ -44,6 +44,7 @@ from sase.running_field._workspace import (
     get_first_available_workspace,
     get_workspace_directory,
     get_workspace_directory_for_num,
+    runner_has_placeholder_workspace,
 )
 
 __all__ = [
@@ -64,6 +65,7 @@ __all__ = [
     "is_operational_lease_claim_workflow",
     "operational_lease_claim_workflow",
     "release_workspace",
+    "runner_has_placeholder_workspace",
     "transfer_workspace_claim",
     "update_running_field_cl_name",
 ]

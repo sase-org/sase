@@ -3,6 +3,7 @@
 import logging
 import os
 import warnings
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -380,6 +381,7 @@ def execute_workflow(
     project: str | None = None,
     workflow_obj: "Workflow | None" = None,
     hitl_override: bool | None = None,
+    workspace_rebind_callback: Callable[[dict[str, Any], str], None] | None = None,
 ) -> WorkflowResult:
     """Execute a workflow and return its result.
 
@@ -396,6 +398,8 @@ def execute_workflow(
         hitl_override: Force HITL on (True) or off (False) for all steps,
             overriding individual step ``hitl`` settings.  None preserves
             per-step behavior.
+        workspace_rebind_callback: Optional hook invoked when a script step
+            changes into a known SASE workspace.
 
     Returns:
         WorkflowResult with output, response text, and artifacts directory.
@@ -548,6 +552,7 @@ def execute_workflow(
         hitl_override=hitl_override,
         inherited_model_override=inherited_model_override,
         inherited_vcs_tag=inherited_vcs_tag,
+        workspace_rebind_callback=workspace_rebind_callback,
     )
 
     success = executor.execute()

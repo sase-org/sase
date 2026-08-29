@@ -279,3 +279,9 @@ def launch_agent_run(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None:
     state.video_paths = exec_result.video_paths
     state.current_artifacts_dir = exec_result.current_artifacts_dir
     state.step_output = exec_result.step_output
+    exec_workspace_dir = getattr(exec_result, "workspace_dir", None)
+    if exec_workspace_dir is not None:
+        state.workspace_dir = exec_workspace_dir
+    exec_workspace_num = getattr(exec_result, "workspace_num", None)
+    if exec_workspace_num is not None:
+        state.workspace_num = exec_workspace_num

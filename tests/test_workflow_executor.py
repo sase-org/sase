@@ -463,6 +463,59 @@ class TestScriptStepChdir:
         finally:
             os.chdir(original_dir)
 
+    def test_chdir_runner_bound_workspace_updates_env_and_callback(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Runner-bound workspace outputs update env and notify the runner."""
+        original_dir = os.getcwd()
+        target_dir = tmp_path / "project_21"
+        target_dir.mkdir()
+        monkeypatch.delenv("SASE_ACTIVE_PROJECT_DIR", raising=False)
+        monkeypatch.delenv("SASE_AGENT_WORKSPACE_NUM", raising=False)
+        events: list[tuple[dict[str, object], str]] = []
+        step = WorkflowStep(
+            name="change_dir",
+            bash=(
+                f"echo '_chdir={target_dir}'\n"
+                "echo 'workspace_num=21'\n"
+                "echo 'runner_bound_workspace=true'"
+            ),
+            output=OutputSpec(
+                type="json_schema",
+                schema={
+                    "properties": {
+                        "workspace_num": {"type": "int"},
+                        "runner_bound_workspace": {"type": "bool"},
+                    },
+                },
+            ),
+        )
+        workflow = _create_test_workflow(steps=[step])
+
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                executor = WorkflowExecutor(
+                    workflow=workflow,
+                    args={},
+                    artifacts_dir=tmpdir,
+                    workspace_rebind_callback=(
+                        lambda output, path: events.append((dict(output), path))
+                    ),
+                )
+
+                assert executor.execute() is True
+
+            assert os.environ["SASE_ACTIVE_PROJECT_DIR"] == str(target_dir)
+            assert os.environ["SASE_AGENT_WORKSPACE_NUM"] == "21"
+            assert events == [
+                (
+                    {"workspace_num": 21, "runner_bound_workspace": True},
+                    str(target_dir),
+                )
+            ]
+        finally:
+            os.chdir(original_dir)
+
 
 class TestParseBashOutput:
     """Tests for parse_bash_output function."""

@@ -295,6 +295,8 @@ def finalize_loop(
         video_paths=video_paths,
         current_artifacts_dir=state.current_artifacts_dir,
         step_output=step_output,
+        workspace_dir=ctx.workspace_dir,
+        workspace_num=ctx.workspace_num,
     )
 
 

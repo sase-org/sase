@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import threading
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from sase.xprompt.workflow_executor_types import HITLHandler, output_types_from_step
@@ -12,6 +13,7 @@ from sase.xprompt.workflow_executor_utils import (
     coerce_output_types,
     parse_bash_output,
     render_template,
+    runner_bound_workspace_from_output,
 )
 from sase.xprompt.workflow_models import (
     StepState,
@@ -45,6 +47,7 @@ class ScriptStepMixin:
     hitl_handler: HITLHandler | None
     output_handler: "WorkflowOutputHandler | None"
     state: WorkflowState
+    workspace_rebind_callback: Callable[[dict[str, Any], str], None] | None
 
     # Method stubs for type checking - implemented in main class
     def _should_hitl(self, step: "WorkflowStep") -> bool:
@@ -150,7 +153,13 @@ class ScriptStepMixin:
         # Handle _chdir special output: change executor's working directory
         # Must happen before path resolution so relative paths resolve against
         # the post-chdir CWD.
-        apply_chdir_output(output)
+        chdir_path = apply_chdir_output(output)
+        if (
+            chdir_path is not None
+            and runner_bound_workspace_from_output(output)
+            and self.workspace_rebind_callback is not None
+        ):
+            self.workspace_rebind_callback(output, chdir_path)
 
         # Validate output against schema if specified
         if step.output and step.output.schema:
@@ -322,7 +331,13 @@ class ScriptStepMixin:
         # Handle _chdir special output: change executor's working directory
         # Must happen before path resolution so relative paths resolve against
         # the post-chdir CWD.
-        apply_chdir_output(output)
+        chdir_path = apply_chdir_output(output)
+        if (
+            chdir_path is not None
+            and runner_bound_workspace_from_output(output)
+            and self.workspace_rebind_callback is not None
+        ):
+            self.workspace_rebind_callback(output, chdir_path)
 
         # Validate output against schema if specified
         if step.output and step.output.schema:

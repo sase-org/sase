@@ -3,11 +3,15 @@
 import json
 import os
 import re
+from collections.abc import Mapping
 from typing import Any
 
 from jinja2 import Environment, StrictUndefined
 
-from sase.env_contracts import SASE_ACTIVE_PROJECT_DIR_ENV
+from sase.env_contracts import (
+    SASE_ACTIVE_PROJECT_DIR_ENV,
+    SASE_AGENT_WORKSPACE_NUM_ENV,
+)
 from sase.xprompt._disabled_regions import (
     protect_disabled_regions,
     unprotect_disabled_regions,
@@ -149,6 +153,32 @@ def coerce_output_types(
     return output
 
 
+def workspace_num_from_output(output: Mapping[str, Any]) -> int | None:
+    """Return a workspace number advertised by a workflow step, if present."""
+    for field in ("meta_workspace", "workspace_num"):
+        value = output.get(field)
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            try:
+                return int(value.strip())
+            except ValueError:
+                continue
+    return None
+
+
+def runner_bound_workspace_from_output(output: Mapping[str, Any]) -> bool:
+    """Return whether a step asks the runner to adopt its workspace output."""
+    value = output.get("runner_bound_workspace")
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return False
+
+
 def apply_chdir_output(output: dict[str, Any]) -> str | None:
     """Apply and remove a workflow ``_chdir`` output value if present."""
     if "_chdir" not in output:
@@ -159,4 +189,14 @@ def apply_chdir_output(output: dict[str, Any]) -> str | None:
         chdir_path = os.path.abspath(chdir_path)
     os.chdir(chdir_path)
     os.environ[SASE_ACTIVE_PROJECT_DIR_ENV] = chdir_path
+    workspace_num = workspace_num_from_output(output)
+    if workspace_num is not None:
+        os.environ[SASE_AGENT_WORKSPACE_NUM_ENV] = str(workspace_num)
+        from sase.sdd.env import set_sdd_dir_env
+
+        set_sdd_dir_env(
+            os.environ,
+            workspace_dir=chdir_path,
+            workspace_num=workspace_num,
+        )
     return chdir_path

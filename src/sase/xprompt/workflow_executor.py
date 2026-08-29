@@ -3,6 +3,7 @@
 import json
 import os
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from sase.core.agent_artifact_index_lifecycle import (
@@ -50,6 +51,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         hitl_override: bool | None = None,
         inherited_model_override: str | None = None,
         inherited_vcs_tag: str | None = None,
+        workspace_rebind_callback: Callable[[dict[str, Any], str], None] | None = None,
     ) -> None:
         """Initialize the workflow executor.
 
@@ -69,6 +71,8 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             inherited_vcs_tag: Optional workspace workflow tag inherited from
                 an outer wrapper prompt. Untagged agent prompt segments run
                 under this workspace ref.
+            workspace_rebind_callback: Optional hook invoked when a script
+                step changes into a known SASE workspace.
         """
         self.workflow = workflow
         self.context: dict[str, Any] = dict(args)
@@ -78,6 +82,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         self.hitl_override = hitl_override
         self.inherited_model_override = inherited_model_override
         self.inherited_vcs_tag = inherited_vcs_tag
+        self.workspace_rebind_callback = workspace_rebind_callback
         self._current_embedded_workflow_name: str | None = None
         self._zero_iteration_steps: set[str] = set()
         self._last_for_zero_iterations: bool = False
