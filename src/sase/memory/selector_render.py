@@ -91,7 +91,6 @@ def _note_json(note: ResolvedMemoryNote) -> dict[str, object]:
 def _web_section_json(section: MemoryWebReadSection) -> dict[str, object]:
     return {
         "web": section.web.slug,
-        "rendering_type": section.web.rendering_type,
         "strand_noun": section.web.strand_noun,
         "depth_limit": section.depth_limit,
         "truncated": section.truncated,

@@ -249,11 +249,10 @@ def _memory_web_root_plan(
             blockers.append(f"{web.path}: {error or 'failed to render strand roster'}")
             continue
         note_overlay[web.path] = content
-        if web.rendering_type == "core":
-            core_note_bodies[web.relative_path] = GeneratedShortMemoryNote(
-                body=strip_managed_roster_markers(body),
-                priority=web.priority,
-            )
+        core_note_bodies[web.relative_path] = GeneratedShortMemoryNote(
+            body=strip_managed_roster_markers(body),
+            priority=web.priority,
+        )
         if content != web.raw_text:
             expected.append(
                 MemoryExpectedFile(

@@ -60,7 +60,13 @@ _MEMORY_README_TEMPLATE_VARS = frozenset(
     }
 )
 _MEMORY_README_OPTIONAL_TEMPLATE_VARS = frozenset(
-    {"core_notes", "reference_notes", "short_notes", "long_notes"}
+    {
+        "core_notes",
+        "reference_notes",
+        "short_notes",
+        "long_notes",
+        "web_descriptor_notes",
+    }
 )
 
 
@@ -125,7 +131,15 @@ def _discover_memory_readme_notes(
 
     rows.sort(
         key=lambda row: (
-            {"core": 0, "reference": 1}.get(row.note.type or "", 2),
+            (
+                0
+                if row.note.type == "core"
+                else 1
+                if row.note.is_web_descriptor
+                else 2
+                if row.note.type == "reference"
+                else 3
+            ),
             row.note.relative_path,
         )
     )
@@ -151,13 +165,20 @@ def _render_memory_notes(
         if index:
             lines.append("")
         note = row.note
+        metadata_lines = (
+            ["- Kind: memory web descriptor"]
+            if note.is_web_descriptor
+            else [
+                f"- Type: `{_note_type(note)}`",
+                f"- Parent: `{note.parent}`",
+            ]
+        )
         lines.extend(
             [
                 f"### `{note.relative_path}`",
                 "",
-                f"- Type: `{_note_type(note)}`",
+                *metadata_lines,
                 f"- Description: {_note_description(note)}",
-                f"- Parent: `{note.parent}`",
                 f"- Lines: {row.stats.line_count}",
                 f"- Approx. tokens: {row.stats.approx_token_count}",
             ]
@@ -196,6 +217,9 @@ def _render_memory_readme(
             "core_notes": sum(1 for row in note_rows if row.note.type == "core"),
             "reference_notes": sum(
                 1 for row in note_rows if row.note.type == "reference"
+            ),
+            "web_descriptor_notes": sum(
+                1 for row in note_rows if row.note.is_web_descriptor
             ),
             # User template overrides may still reference the old variable names.
             "short_notes": sum(1 for row in note_rows if row.note.type == "core"),

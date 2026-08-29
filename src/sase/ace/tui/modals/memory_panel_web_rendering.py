@@ -51,7 +51,9 @@ def build_rail_node_card_meta(
     if parent is None or children is None:
         parent, children = memory_rail_node_relations(snapshot, node)
     sections: list[RenderableType] = []
-    badges = build_note_badge_row(snapshot, node.note, accent=accent)
+    badges = build_note_badge_row(
+        snapshot, node.note, accent=accent, include_type=False
+    )
     if badges is not None:
         sections.append(badges)
     extra_badges = _build_web_or_strand_badges(node, strand_read_state, accent=accent)
@@ -119,7 +121,6 @@ def _build_web_property_grid(
     assert web is not None
     strand_word = web.strand_noun if len(web.strands) == 1 else f"{web.strand_noun}s"
     rows = [
-        ("Renders", web.rendering_type),
         ("Strands", f"{len(web.strands)} {strand_word}"),
         ("Roster", web.roster),
         ("Closure", web.closure),
@@ -139,7 +140,6 @@ def _build_strand_property_grid(
         ("Web", web.slug),
         ("Keyword", strand.keyword),
         ("Slug", strand.slug),
-        ("Renders", web.rendering_type),
         ("Scope", node.strand_scope or snapshot.scope.kind),
     ]
     if strand.aliases:

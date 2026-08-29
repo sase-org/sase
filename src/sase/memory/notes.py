@@ -68,6 +68,11 @@ class MemoryNote:
         """Return the root-relative on-disk source used to read this note."""
         return self.source_path or self.path
 
+    @property
+    def is_web_descriptor(self) -> bool:
+        """Return whether this flat note declares a memory web descriptor."""
+        return self.frontmatter.get("web") is True
+
 
 @dataclass(frozen=True)
 class GeneratedShortMemoryNote:

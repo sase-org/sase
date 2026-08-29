@@ -1,6 +1,4 @@
 ---
-type: core
-parent: AGENTS.md
 web: true
 roster: list
 strand_noun: task type

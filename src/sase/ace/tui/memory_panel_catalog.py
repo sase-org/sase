@@ -269,12 +269,12 @@ def memory_strand_note(web: MemoryWeb, strand: MemoryStrand) -> MemoryNote:
         description_parts.append("Aliases: " + ", ".join(strand.aliases))
     return MemoryNote(
         path=Path(f"{web.slug}:{strand.slug}"),
-        type=web.rendering_type,
+        type=None,
         parent=web.relative_path,
         description=" ".join(description_parts) or None,
         body=strand.body,
         frontmatter=strand.frontmatter,
-        type_source="frontmatter",
+        type_source="missing",
         parent_source="frontmatter",
         source_path=Path(strand.relative_path),
     )
@@ -519,7 +519,7 @@ def _add_file_metadata(
 def _build_note_tree(
     notes: tuple[MemoryNote, ...], webs: tuple[MemoryWeb, ...] = ()
 ) -> tuple[MemoryRailNode, ...]:
-    """Order notes as Tier 1, then Tier 2 roots with children indented once."""
+    """Order inlined notes first, then reference roots with children indented once."""
     emitted: set[str] = set()
     tree: list[MemoryRailNode] = []
     webs_by_path = {web.relative_path: web for web in webs}
@@ -537,11 +537,11 @@ def _build_note_tree(
             tree.append(_rail_node_for_note(child, depth=1, webs_by_path=webs_by_path))
             emitted.add(child.relative_path)
 
-    shorts = sorted(
-        (note for note in notes if note.type == "core"),
+    inlined_notes = sorted(
+        (note for note in notes if note.type == "core" or note.is_web_descriptor),
         key=lambda note: (note.priority, note.relative_path),
     )
-    for note in shorts:
+    for note in inlined_notes:
         tree.append(_rail_node_for_note(note, depth=0, webs_by_path=webs_by_path))
         emitted.add(note.relative_path)
 

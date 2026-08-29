@@ -141,7 +141,6 @@ def memory_web_with_mentioning_strands(root: Path = Path("/tmp/memory")) -> Memo
         slug="glossary",
         path=memory_root / "glossary.md",
         relative_path="sase/memory/glossary.md",
-        rendering_type="core",
         description="Glossary.",
         roster="inline",
         roster_label="GLOSSARY TERMS",

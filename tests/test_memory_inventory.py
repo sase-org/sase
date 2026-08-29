@@ -228,6 +228,25 @@ def test_inlined_short_note_is_loaded_in_inventory(tmp_path: Path) -> None:
     assert inventory.entry_for("sase/memory/note.md").status == "loaded"
 
 
+def test_inlined_typeless_web_descriptor_is_loaded_in_inventory(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "AGENTS.md",
+        "# Title\n\n## Tier 1 (core) Memory\n\n"
+        "### 1. Glossary Terms (glossary)\n\nInlined descriptor.\n",
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "glossary.md",
+        "---\nweb: true\n---\n# Glossary Terms\n\nInlined descriptor.\n",
+    )
+
+    inventory = build_memory_inventory(tmp_path)
+
+    assert inventory.entry_for("sase/memory/glossary.md").status == "loaded"
+    assert unreferenced_memory_files_for_init(tmp_path) == ()
+
+
 def test_init_reachability_follows_long_note_parent_metadata(
     tmp_path: Path,
 ) -> None:

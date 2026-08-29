@@ -127,6 +127,12 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
                 severity="warning",
             )
             return
+        if node.is_web:
+            self.app.notify(
+                "memory web descriptors are edited from their source file",
+                severity="warning",
+            )
+            return
         if node.note.relative_path in snapshot.generated_paths:
             self.app.notify(
                 f"generated memory note is read-only: {node.note.relative_path}",

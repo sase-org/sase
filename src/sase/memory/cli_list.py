@@ -88,13 +88,11 @@ def _webs_panel(inventory: MemoryInventory) -> Panel | None:
 
     table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
     table.add_column("Web")
-    table.add_column("Renders", no_wrap=True)
     table.add_column("Strands", justify="right", no_wrap=True)
     table.add_column("Description")
     for scoped in scoped_webs:
         table.add_row(
             scoped.slug,
-            scoped.web.rendering_type,
             str(len(scoped.strands)),
             scoped.web.description or "",
         )

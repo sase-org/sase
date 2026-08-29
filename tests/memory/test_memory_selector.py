@@ -130,13 +130,16 @@ def test_unknown_web_selector_raises(tmp_path: Path) -> None:
         )
 
 
-def test_core_web_descriptor_cannot_be_read_but_strands_can(tmp_path: Path) -> None:
+def test_web_descriptor_cannot_be_read_but_strands_can(tmp_path: Path) -> None:
     _seed_glossary_web(tmp_path)
 
-    with pytest.raises(_MemorySelectorError, match="always-loaded"):
+    with pytest.raises(_MemorySelectorError) as exc:
         resolve_memory_selector_batch(
             ["glossary.md"], project_root=tmp_path, home_root=tmp_path / "home"
         )
+    message = str(exc.value)
+    assert "always-loaded memory web descriptor" in message
+    assert "sase memory read glossary:<keyword>" in message
 
     # The descriptor is refused, but its strands are not.
     batch = resolve_memory_selector_batch(

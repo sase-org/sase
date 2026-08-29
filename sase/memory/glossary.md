@@ -1,5 +1,4 @@
 ---
-type: core
 web: true
 roster: inline
 roster_label: GLOSSARY TERMS

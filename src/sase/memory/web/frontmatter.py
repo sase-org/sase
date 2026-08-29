@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 import yaml  # type: ignore[import-untyped]
 
@@ -14,7 +14,6 @@ from sase.memory.notes import (
     DEFAULT_MEMORY_PRIORITY,
     collapse_description,
     normalize_memory_priority,
-    normalize_memory_note_type,
     render_frontmatter_block,
 )
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
@@ -112,10 +111,47 @@ def _raw_frontmatter_mentions_key(parsed: _ParsedFrontmatter, key: str) -> bool:
     return bool(pattern.search(parsed.raw_frontmatter))
 
 
-def replace_web_body(web: MemoryWeb, body: str) -> str:
+def _replace_web_body(web: MemoryWeb, body: str) -> str:
     """Return descriptor content with only the body replaced."""
 
     return f"{web.raw_text[: web.body_start]}{body}"
+
+
+_TOP_LEVEL_FRONTMATTER_KEY_RE = re.compile(r"^([A-Za-z_][\w-]*)\s*:")
+_WEB_DESCRIPTOR_RETIRED_FRONTMATTER_KEYS = frozenset({"type", "parent"})
+
+
+def _strip_web_descriptor_retired_frontmatter_keys(raw_frontmatter: str) -> str:
+    """Return raw descriptor frontmatter without retired memory-note keys."""
+    output: list[str] = []
+    skipping_retired_key = False
+    for line in raw_frontmatter.splitlines(keepends=True):
+        match = _TOP_LEVEL_FRONTMATTER_KEY_RE.match(line)
+        if match is not None:
+            skipping_retired_key = (
+                match.group(1) in _WEB_DESCRIPTOR_RETIRED_FRONTMATTER_KEYS
+            )
+            if skipping_retired_key:
+                continue
+        elif skipping_retired_key:
+            if line.startswith((" ", "\t")) or not line.strip():
+                continue
+            skipping_retired_key = False
+
+        output.append(line)
+    return "".join(output)
+
+
+def replace_web_body_with_canonical_frontmatter(web: MemoryWeb, body: str) -> str:
+    """Return descriptor content with retired web descriptor frontmatter stripped."""
+    parsed = _parse_frontmatter_text(web.raw_text)
+    if not parsed.had_frontmatter or parsed.error is not None:
+        return _replace_web_body(web, body)
+
+    frontmatter = _strip_web_descriptor_retired_frontmatter_keys(parsed.raw_frontmatter)
+    if frontmatter and not frontmatter.endswith(("\n", "\r")):
+        frontmatter += "\n"
+    return f"---\n{frontmatter}---\n\n{body}"
 
 
 def slug_to_keyword(slug: str) -> str:
@@ -226,11 +262,6 @@ def parse_web_descriptor(
     if raw_web is not True:
         return None, None
 
-    raw_type = _normalized_scalar(parsed.frontmatter.get("type"))
-    rendering_type = normalize_memory_note_type(raw_type)
-    if rendering_type not in {"core", "reference"}:
-        return None, f"{path}: web descriptor type must be core or reference"
-
     raw_roster = parsed.frontmatter.get("roster", "inline")
     roster = _normalized_scalar(raw_roster)
     if roster not in _VALID_ROSTERS:
@@ -247,8 +278,6 @@ def parse_web_descriptor(
         )
         if priority_source == "invalid":
             return None, f"{path}: priority must be a non-negative integer"
-        if rendering_type == "reference":
-            return None, f"{path}: priority is only meaningful on core memory webs"
     else:
         priority = DEFAULT_MEMORY_PRIORITY
 
@@ -268,7 +297,6 @@ def parse_web_descriptor(
             slug=path.stem,
             path=path,
             relative_path=relative.as_posix(),
-            rendering_type=cast(Literal["core", "reference"], rendering_type),
             description=collapse_description(
                 _normalized_scalar(parsed.frontmatter.get("description"))
             ),
@@ -355,6 +383,6 @@ __all__ = [
     "parse_memory_strand",
     "parse_web_descriptor",
     "render_strand_frontmatter",
-    "replace_web_body",
+    "replace_web_body_with_canonical_frontmatter",
     "slug_to_keyword",
 ]

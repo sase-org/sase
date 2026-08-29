@@ -72,7 +72,6 @@ def test_web_list_json_reports_discovered_webs(
         "webs": [
             {
                 "web": "glossary",
-                "rendering_type": "core",
                 "scope": "project",
                 "strand_count": 2,
                 "description": "Test web.",

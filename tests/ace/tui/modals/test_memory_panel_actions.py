@@ -25,6 +25,7 @@ from tests.ace.tui.modals.memory_panel_actions_test_helpers import (
 from tests.ace.tui.modals.memory_panel_test_helpers import (
     install_fixed_load,
     memory_note,
+    memory_web_with_mentioning_strands,
     panel_static_text,
     scope_ref,
     scope_snapshot,
@@ -273,6 +274,32 @@ async def test_generated_note_refuses_edit_and_delete(
 
     assert app.session_calls == []
     assert all("read-only" in msg for msg, _sev in app.notifications)
+
+
+async def test_web_descriptor_refuses_flat_note_edit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = scope_ref("sase", "sase")
+    note = memory_note("glossary", note_type=None, type_source="missing")
+    web = memory_web_with_mentioning_strands()
+    snapshots = {"sase": scope_snapshot(ref, (note,), webs=(web,))}
+    install_fixed_load(monkeypatch, (ref,), snapshots)
+
+    panel = MemoryPane()
+    app = MemoryPanelActionsApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.press("e")
+        await wait_for(
+            pilot,
+            lambda: any(
+                "memory web descriptors are edited from their source file" in msg
+                for msg, _sev in app.notifications
+            ),
+        )
+        assert not isinstance(app.screen, MemoryNoteFormModal)
+
+    assert app.session_calls == []
 
 
 async def test_conflict_toasts_and_refreshes(

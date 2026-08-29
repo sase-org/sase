@@ -187,11 +187,11 @@ class MemoryNoteFormModal(ModalScreen[MemoryNoteFormDraft | None]):
                     id="memory-note-form-stem-error",
                     classes="memory-note-form-error",
                 )
-                yield Static("Tier", classes="memory-note-form-label")
+                yield Static("Type", classes="memory-note-form-label")
                 yield Select(
                     (
-                        ("core — Tier 1, always loaded", "core"),
-                        ("reference — Tier 2", "reference"),
+                        ("core — always loaded", "core"),
+                        ("reference — read on demand", "reference"),
                     ),
                     value=self._initial_type,
                     allow_blank=False,

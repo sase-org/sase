@@ -242,6 +242,12 @@ def _validate_memory_read_candidate(
         path=candidate,
         raw_path=raw_path,
     )
+    if note.is_web_descriptor:
+        slug = Path(note.relative_path).stem
+        raise MemoryReadPathError(
+            f"{note.relative_path} is an always-loaded memory web descriptor; "
+            f"read its strands with `sase memory read {slug}:<keyword>`"
+        )
     if note.type == "core":
         raise MemoryReadPathError(
             f"{note.relative_path} is always-loaded context and cannot be read with this command"
@@ -290,6 +296,8 @@ def _read_validated_memory_note(
         type_source=note.type_source,
         parent_source=note.parent_source,
         source_path=None,
+        priority=note.priority,
+        priority_source=note.priority_source,
     )
 
 

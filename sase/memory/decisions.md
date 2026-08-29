@@ -1,6 +1,4 @@
 ---
-type: core
-parent: AGENTS.md
 web: true
 description:
   Architectural decision records — accepted choices, their rejected alternatives, and

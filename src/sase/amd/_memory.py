@@ -134,7 +134,7 @@ def _long_memory_descriptions(
             existing_agents_descriptions=existing_agents_descriptions,
         )
         for note in notes
-        if note.type == "reference"
+        if note.type == "reference" and not note.is_web_descriptor
     }
     descriptions.update(
         {
@@ -159,6 +159,8 @@ def _memory_frontmatter_updates(
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
     ):
+        if note.is_web_descriptor:
+            continue
         if note.type not in {"core", "reference"}:
             continue
         if note.type_source in {"invalid", "missing"}:
@@ -238,6 +240,7 @@ def _short_memory_bodies(
         )
         for note in discover_memory_notes(root, source_memory_root=source_memory_root)
         if note.type == "core"
+        and not note.is_web_descriptor
         and note.relative_path not in excluded_note_paths
         and note.relative_path not in generated_long_note_paths
     }
@@ -266,6 +269,8 @@ def _memory_priority_blockers(notes: tuple[MemoryNote, ...]) -> tuple[str, ...]:
     """Return blockers for invalid or misplaced memory priority frontmatter."""
     blockers: list[str] = []
     for note in sorted(notes, key=lambda item: item.relative_path):
+        if note.is_web_descriptor:
+            continue
         if note.priority_source == "invalid":
             blockers.append(
                 f"{note.relative_path}: memory note priority must be a "
@@ -330,7 +335,9 @@ def _render_managed_agents(
             (
                 note
                 for note in notes_by_relative_path.values()
-                if note.type == "reference" and note.parent == AGENTS_PARENT
+                if note.type == "reference"
+                and not note.is_web_descriptor
+                and note.parent == AGENTS_PARENT
             ),
             key=lambda note: note.relative_path,
         )

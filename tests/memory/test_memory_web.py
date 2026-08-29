@@ -29,15 +29,18 @@ def _write(path: Path, content: str) -> None:
 
 def _descriptor(
     *,
-    note_type: str = "core",
+    note_type: str | None = "core",
+    parent: str | None = "AGENTS.md",
     roster: str = "inline",
     extra: str = "",
     body: str = "Descriptor body.\n",
 ) -> str:
+    type_line = "" if note_type is None else f"type: {note_type}\n"
+    parent_line = "" if parent is None else f"parent: {parent}\n"
     return (
         "---\n"
-        f"type: {note_type}\n"
-        "parent: AGENTS.md\n"
+        f"{type_line}"
+        f"{parent_line}"
         "web: true\n"
         f"roster: {roster}\n"
         "roster_label: TERMS\n"
@@ -79,6 +82,21 @@ def test_parse_defaults_and_discovery_keeps_note_inventory_flat(tmp_path: Path) 
     )
 
 
+def test_parse_accepts_typeless_web_descriptor(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "terms.md",
+        _descriptor(note_type=None, parent=None, extra="priority: 5\n"),
+    )
+    _write(tmp_path / "sase" / "memory" / "terms" / "alpha.md", _strand())
+
+    (web,) = discover_memory_webs(tmp_path).webs
+
+    assert web.priority == 5
+    assert web.frontmatter["web"] is True
+    assert "type" not in web.frontmatter
+    assert "parent" not in web.frontmatter
+
+
 def test_roster_renders_inline_and_replaces_single_region(tmp_path: Path) -> None:
     body = f"Intro.\n\n{START_MARKER}\nold\n{END_MARKER}\n"
     _write(tmp_path / "sase" / "memory" / "terms.md", _descriptor(body=body))
@@ -91,6 +109,30 @@ def test_roster_renders_inline_and_replaces_single_region(tmp_path: Path) -> Non
     assert content is not None
     assert "**TERMS:** Alpha Term (alpha)" in content
     assert "old" not in content
+
+
+def test_descriptor_roster_render_strips_retired_type_and_parent_frontmatter(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "terms.md",
+        _descriptor(extra="description: Terms web.\nmetadata: {owner: docs}\n"),
+    )
+    _write(tmp_path / "sase" / "memory" / "terms" / "alpha.md", _strand())
+
+    (web,) = discover_memory_webs(tmp_path).webs
+    content, error = render_web_descriptor_with_roster(web)
+
+    assert error is None
+    assert content is not None
+    frontmatter = content.split("---", 2)[1]
+    assert "type:" not in frontmatter
+    assert "parent:" not in frontmatter
+    assert "web: true" in frontmatter
+    assert "roster: inline" in frontmatter
+    assert "description: Terms web." in frontmatter
+    assert "metadata: {owner: docs}" in frontmatter
+    assert "Descriptor body." in content
 
 
 def test_strip_managed_roster_markers_keeps_roster_payload_shape(
@@ -311,10 +353,6 @@ def test_validation_blocks_orphan_mismatch_reserved_nested_and_symlink(
             _descriptor(extra="priority: true\n"),
             "priority must be a non-negative integer",
         ),
-        (
-            _descriptor(note_type="reference", extra="priority: 5\n"),
-            "priority is only meaningful on core memory webs",
-        ),
     ],
 )
 def test_validation_blocks_bad_memory_web_priority(
@@ -328,6 +366,20 @@ def test_validation_blocks_bad_memory_web_priority(
     report = validate_memory_webs(discover_memory_webs(tmp_path))
 
     assert any(expected in blocker for blocker in report.blockers)
+
+
+def test_validation_allows_legacy_reference_web_priority(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "terms.md",
+        _descriptor(note_type="reference", extra="priority: 5\n"),
+    )
+    _write(tmp_path / "sase" / "memory" / "terms" / "alpha.md", _strand())
+
+    discovery = discover_memory_webs(tmp_path)
+    report = validate_memory_webs(discovery)
+
+    assert report.blockers == ()
+    assert discovery.webs[0].priority == 5
 
 
 def test_lookup_precedence_and_scope_origin_tracking(tmp_path: Path) -> None:

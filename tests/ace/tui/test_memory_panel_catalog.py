@@ -397,7 +397,6 @@ def test_snapshot_includes_collapsed_web_rows_and_strand_metadata(
     memory_root.mkdir(parents=True)
     (memory_root / "decisions.md").write_text(
         "---\n"
-        "type: core\n"
         "web: true\n"
         "description: Decision index.\n"
         "strand_noun: decision\n"
@@ -432,9 +431,15 @@ def test_snapshot_includes_collapsed_web_rows_and_strand_metadata(
     web_node = snapshot.tree[0]
     assert web_node.is_web
     assert web_node.web is not None
+    assert web_node.note.type is None
+    assert web_node.note.type_source == "missing"
     assert web_node.web.slug == "decisions"
     assert len(web_node.web.strands) == 1
     assert snapshot.webs == (web_node.web,)
+    assert (
+        panel_catalog.memory_strand_note(web_node.web, web_node.web.strands[0]).type
+        is None
+    )
     assert snapshot.stats["decisions:alpha"].line_count > 0
     assert snapshot.digests["decisions:alpha"].sha256
     assert snapshot.mention_catalogs == {}

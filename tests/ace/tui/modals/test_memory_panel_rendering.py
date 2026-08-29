@@ -20,6 +20,7 @@ from sase.ace.tui.modals.memory_panel_rendering import (
 )
 from tests.ace.tui.modals.memory_panel_test_helpers import (
     memory_note,
+    memory_web_with_mentioning_strands,
     scope_ref,
     scope_snapshot,
 )
@@ -175,6 +176,18 @@ def test_note_row_text_marks_generated_and_invalid() -> None:
     invalid = memory_note("broken", type_source="invalid")
     text = build_note_row_text(_row(invalid), generated_paths=frozenset()).plain
     assert "⚠" in text
+
+
+def test_web_row_text_uses_web_marker_without_invalid_warning() -> None:
+    web = memory_web_with_mentioning_strands()
+    note = memory_note("glossary", note_type=None, type_source="missing")
+    row = MemoryRailNode(note=note, depth=0, web=web)
+
+    text = build_note_row_text(row, generated_paths=frozenset()).plain
+
+    assert text.startswith("▸ ◆ ")
+    assert "⚠" not in text
+    assert "glossary" in text
 
 
 def test_note_row_text_includes_description_snippet() -> None:

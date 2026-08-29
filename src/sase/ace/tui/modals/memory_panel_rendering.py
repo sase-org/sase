@@ -40,6 +40,7 @@ _FALLBACK_ACCENT = "#87D7FF"
 
 _TIER1_MARK = "●"  # ●
 _TIER2_MARK = "○"  # ○
+_WEB_MARK = "◆"  # ◆
 _CHILD_INDENT = "└ "  # └
 _WEB_COLLAPSED_MARK = "▸"  # ▸
 _WEB_EXPANDED_MARK = "▾"  # ▾
@@ -152,8 +153,7 @@ def _build_web_row_text(
     if node.depth > 0:
         text.append(_CHILD_INDENT, style="dim")
     text.append(f"{_WEB_EXPANDED_MARK if node.expanded else _WEB_COLLAPSED_MARK} ")
-    marker = _TIER1_MARK if web.rendering_type == "core" else _TIER2_MARK
-    text.append(f"{marker} ")
+    text.append(f"{_WEB_MARK} ")
     if node.note.relative_path in generated_paths:
         text.append(f"{_GENERATED_MARK} ")
     text.append(web.slug)
@@ -309,11 +309,16 @@ def append_badge(text: Text, label: str, *, accent: str) -> None:
 
 
 def build_note_badge_row(
-    snapshot: MemoryScopeSnapshot, note: MemoryNote, *, accent: str
+    snapshot: MemoryScopeSnapshot,
+    note: MemoryNote,
+    *,
+    accent: str,
+    include_type: bool = True,
 ) -> Text | None:
     """Build the tier/generated/shadow/orphan/invalid badge row."""
     badges: list[str] = []
-    badges.append("TIER 1 · always loaded" if note.type == "core" else "TIER 2")
+    if include_type:
+        badges.append("TIER 1 · always loaded" if note.type == "core" else "TIER 2")
     if note.relative_path in snapshot.generated_paths:
         badges.append("GENERATED")
     if note.path.stem in snapshot.shadowed_stems:

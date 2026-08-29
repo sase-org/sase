@@ -9,8 +9,6 @@ from sase.amd.inline_memory import validate_short_memory_structure
 from sase.content_layout import resolve_project_layout
 from sase.mdtemplates import render_markdown_template
 from sase.memory.notes import (
-    AGENTS_PARENT,
-    apply_memory_frontmatter,
     collapse_description,
     parse_memory_note_text,
     render_frontmatter_block,
@@ -233,12 +231,10 @@ def _render_task_types_descriptor_content() -> tuple[str | None, str | None]:
             f"packaged {MEMORY_SASE_TASK_TYPES_TEMPLATE_FILENAME}: {structure_error}",
         )
     return (
-        apply_memory_frontmatter(
-            formatted,
-            note_type="core",
-            parent=AGENTS_PARENT,
-            extra={"web": True, "roster": "list", "strand_noun": "task type"},
-        ),
+        render_frontmatter_block(
+            {"web": True, "roster": "list", "strand_noun": "task type"}
+        )
+        + formatted.lstrip("\n"),
         None,
     )
 
@@ -293,14 +289,12 @@ def is_generated_task_types_memory_content(text: str) -> bool:
     cleanly.
     """
     note = parse_memory_note_text(text, generated_task_types_memory_relative_path())
-    if note.type != "core":
-        return False
     headings = set(note.body.splitlines())
     if _TASK_TYPES_NOTE_TITLE_HEADING not in headings:
         return False
     if note.frontmatter.get("web") is True:
         return True
-    return _LEGACY_TASK_TYPES_NOTE_TYPES_HEADING in headings
+    return note.type == "core" and _LEGACY_TASK_TYPES_NOTE_TYPES_HEADING in headings
 
 
 def is_generated_task_type_strand_content(slug: str, text: str) -> bool:

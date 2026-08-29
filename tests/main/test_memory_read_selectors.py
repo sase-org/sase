@@ -98,7 +98,9 @@ def test_read_core_web_descriptor_is_refused_but_strand_is_allowed(
             )
         )
     assert exc.value.code == 1
-    assert "always-loaded" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "always-loaded memory web descriptor" in err
+    assert "sase memory read glossary:<keyword>" in err
     assert not memory_read_log_path(cwd=tmp_path).exists()
 
     handle_memory_read_command(

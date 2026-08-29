@@ -149,7 +149,6 @@ def _web_summary_json(
 ) -> dict[str, object]:
     return {
         "web": scoped.slug,
-        "rendering_type": scoped.web.rendering_type,
         "scope": _web_scope(scoped, project_root=project_root, home_root=home_root),
         "strand_count": len(scoped.strands),
         "description": scoped.web.description,
@@ -164,14 +163,12 @@ def _list_table(
 
     table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
     table.add_column("Web")
-    table.add_column("Renders", no_wrap=True)
     table.add_column("Scope", no_wrap=True)
     table.add_column("Strands", justify="right", no_wrap=True)
     table.add_column("Description")
     for scoped in scoped_webs:
         table.add_row(
             scoped.slug,
-            scoped.web.rendering_type,
             _web_scope(scoped, project_root=project_root, home_root=home_root),
             str(len(scoped.strands)),
             scoped.web.description or "",

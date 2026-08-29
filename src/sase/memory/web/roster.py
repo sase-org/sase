@@ -6,7 +6,7 @@ from sase.agents_sync.rendering_markdown import md_escape
 from sase.markdown_width import markdown_print_width
 from sase.markdown_wrap import wrap_markdown
 
-from .frontmatter import replace_web_body
+from .frontmatter import replace_web_body_with_canonical_frontmatter
 from .lookup import ordered_web_strands, strand_glossary_catalog
 from .models import MemoryWeb
 
@@ -119,7 +119,7 @@ def render_web_descriptor_with_roster(web: MemoryWeb) -> tuple[str | None, str |
     body, error = render_web_body_with_roster(web)
     if error is not None or body is None:
         return None, error
-    return replace_web_body(web, body), None
+    return replace_web_body_with_canonical_frontmatter(web, body), None
 
 
 __all__ = [

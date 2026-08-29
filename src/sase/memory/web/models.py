@@ -43,7 +43,6 @@ class MemoryWeb:
     slug: str
     path: Path
     relative_path: str
-    rendering_type: Literal["core", "reference"]
     description: str | None
     roster: WebRosterStyle
     roster_label: str

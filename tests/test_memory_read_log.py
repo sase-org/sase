@@ -162,6 +162,22 @@ def test_validate_memory_read_path_rejects_flat_short_memory(tmp_path: Path) -> 
         validate_memory_read_path("foo.md", project_root=tmp_path)
 
 
+def test_validate_memory_read_path_rejects_web_descriptor_with_strand_hint(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "glossary.md",
+        "---\nweb: true\n---\n# Glossary\n",
+    )
+
+    with pytest.raises(MemoryReadPathError) as exc:
+        validate_memory_read_path("glossary.md", project_root=tmp_path)
+
+    message = str(exc.value)
+    assert "always-loaded memory web descriptor" in message
+    assert "sase memory read glossary:<keyword>" in message
+
+
 def test_validate_memory_read_path_rejects_traversal(tmp_path: Path) -> None:
     _write(tmp_path / "sase" / "memory" / "foo.md", _long_note())
 

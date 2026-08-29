@@ -78,7 +78,6 @@ def _web_with_one_strand(root: Path) -> MemoryWeb:
         slug="decisions",
         path=memory_root / "decisions.md",
         relative_path="sase/memory/decisions.md",
-        rendering_type="core",
         description="Decision index.",
         roster="list",
         roster_label="DECISIONS",

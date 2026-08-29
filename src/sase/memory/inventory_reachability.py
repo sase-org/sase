@@ -49,15 +49,15 @@ def _memory_note_for_init(
     )
 
 
-def _is_short_memory_note(
+def _is_inlined_memory_note(
     root: Path,
     path: Path,
     *,
     overlay: Mapping[Path, str],
 ) -> bool:
-    """Return whether the memory file at *path* is a ``type: core`` note."""
+    """Return whether the memory file at *path* is inlined into agent docs."""
     note = _memory_note_for_init(root, path, overlay=overlay)
-    return note is not None and note.type == "core"
+    return note is not None and (note.type == "core" or note.is_web_descriptor)
 
 
 def inlined_short_memory_files(
@@ -89,7 +89,7 @@ def inlined_short_memory_files(
         if (
             resolved is not None
             and resolved.exists
-            and _is_short_memory_note(root, resolved.target, overlay=overlay)
+            and _is_inlined_memory_note(root, resolved.target, overlay=overlay)
         ):
             targets.append(resolved.target)
     return tuple(targets)
@@ -271,13 +271,14 @@ def _reachable_memory_files_for_init(
         memory_files,
         overlay=overlay_files,
     )
-    # Short notes are always inlined into ``AGENTS.md`` rather than ``@``-imported,
-    # so they are inherently reachable; treat them as such explicitly instead of
-    # relying on generated headers to look like memory path references.
+    # Core notes and memory-web descriptors are inlined into ``AGENTS.md`` rather
+    # than ``@``-imported, so they are inherently reachable; treat them as such
+    # explicitly instead of relying on generated headers to look like memory path
+    # references.
     reachable: set[Path] = {
         path
         for path in memory_files
-        if _is_short_memory_note(root_resolved, path, overlay=overlay_files)
+        if _is_inlined_memory_note(root_resolved, path, overlay=overlay_files)
     }
     visited: set[Path] = {agents_path}
     queue: deque[Path] = deque(
