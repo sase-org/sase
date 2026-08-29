@@ -77,4 +77,3 @@ Use flake instead when a rerun on the same tree passed.
 - Provenance label: `builtin:sase`
 - Source: `builtin`
 - Package: `sase`
-- Version: `0.16.0`

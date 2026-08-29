@@ -74,4 +74,3 @@ owner.
 - Provenance label: `builtin:sase`
 - Source: `builtin`
 - Package: `sase`
-- Version: `0.16.0`

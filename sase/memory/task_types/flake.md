@@ -78,4 +78,3 @@ instead when the failure is confirmed and reproducible.
 - Provenance label: `builtin:sase`
 - Source: `builtin`
 - Package: `sase`
-- Version: `0.16.0`

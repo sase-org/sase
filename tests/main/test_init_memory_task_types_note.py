@@ -235,9 +235,13 @@ def test_generated_task_type_strand_represents_shared_show_detail() -> None:
         detail_payload["provenance"]["label"],
         detail_payload["provenance"]["source"],
         detail_payload["provenance"]["package"],
-        detail_payload["provenance"]["version"],
     ):
         assert str(expected) in flat
+    # The installed distribution version is the one detail field the strand
+    # must not carry: it changes on every release bump while the committed
+    # file does not, which would make the drift gate red on every release.
+    assert "- Version:" not in strand
+    assert detail_payload["provenance"]["version"] not in strand
     assert "Agent creatable: no" in flat
     for field in detail_payload["fields"]:
         assert f"Field `{field['name']}`" in flat

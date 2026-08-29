@@ -156,7 +156,12 @@ def _render_task_type_strand_body(detail: TaskTypeDetail) -> str:
             f"- Provenance label: `{detail.provenance.label}`",
             f"- Source: `{detail.provenance.source}`",
             f"- Package: `{detail.provenance.package}`",
-            f"- Version: `{detail.provenance.version}`",
+            # `provenance.version` is deliberately absent: it reads the
+            # *installed* distribution's version, so committing it makes this
+            # generated file drift on every release bump and on any checkout
+            # whose editable metadata lags `pyproject.toml`. The committed
+            # `sase/task_types.json` snapshot omits it for the same reason;
+            # `sase bead task-type show` reports the live version instead.
         ]
     )
     return "\n".join(lines) + "\n"
