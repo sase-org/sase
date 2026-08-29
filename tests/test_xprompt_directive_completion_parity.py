@@ -11,6 +11,7 @@ import sase_core_rs
 
 from sase.ace.tui.widgets.directive_completion import (
     build_directive_completion_candidates,
+    classify_directive_completion,
 )
 from sase.feature_flags import override_flags
 from tests._xprompt_directive_completion_parity_helpers import _write_failing_helper
@@ -123,6 +124,24 @@ def test_wait_colon_form_never_advertises_structured_keywords(
 
     assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
     assert all(not row.insertion.endswith("=") for row in lsp_rows)
+
+
+def test_ace_and_lsp_wait_prose_replacement_ranges_match(tmp_path: Path) -> None:
+    text = "%wait:co and then do the thing"
+    character = len("%wait:co")
+    clause = classify_directive_completion(text, character)
+    assert clause is not None
+    assert (clause.start, clause.end) == (6, 8)
+
+    with LspSession(tmp_path) as lsp:
+        lsp_rows = lsp.complete(text, character=character)
+
+    coder = next(row for row in lsp_rows if row.insertion == "coder")
+    assert coder.raw is not None
+    assert coder.raw["textEdit"]["range"] == {
+        "start": {"line": 0, "character": clause.start},
+        "end": {"line": 0, "character": clause.end},
+    }
 
 
 def test_failure_degradation_retains_static_directive_rows(tmp_path: Path) -> None:

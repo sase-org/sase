@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sase.ace.tui.widgets.directive_completion import (
+    classify_directive_completion,
     extract_directive_arg_token_around_cursor,
     selected_wait_values_around_cursor,
 )
@@ -108,6 +109,38 @@ def test_wait_arg_extraction_supports_paren_form_and_time_fragment() -> None:
         "wait",
         "5m",
     )
+
+
+def test_directive_arg_completion_ranges_stop_at_unterminated_body_prose() -> None:
+    _assert_clause_range("%wait:co and then do the thing", 8, 6, 8, "co")
+    _assert_clause_range("%wait: do the thing", len("%wait:"), 6, 6, "")
+    _assert_clause_range("%wait:planner, co", len("%wait:planner, co"), 15, 17, "co")
+    _assert_clause_range("%wait:planner,", len("%wait:planner,"), 14, 14, "")
+    _assert_clause_range("%wait(planner, co", len("%wait(planner, co"), 15, 17, "co")
+
+    closed = "%wait(planner, co) and more prose"
+    _assert_clause_range(closed, closed.index(")"), 15, 17, "co")
+
+    _assert_clause_range("%id(foo and more prose", len("%id(fo"), 4, 7, "foo")
+    _assert_clause_range(
+        "%model(son and more prose",
+        len("%model(son"),
+        7,
+        10,
+        "son",
+    )
+    _assert_clause_range("%clan(rev and more prose", len("%clan(rev"), 6, 9, "rev")
+    _assert_clause_range(
+        "%final(sase and more prose",
+        len("%final(sase"),
+        7,
+        11,
+        "sase",
+    )
+    _assert_clause_range("%wait:`my agent` ", len("%wait:`my"), 6, 16, "`my agent`")
+
+    prose = "%w:sase-59 Can you help me get rid of the ,"
+    assert classify_directive_completion(prose, len(prose)) is None
 
 
 def test_wait_arg_extraction_reports_selected_values_on_both_sides() -> None:
@@ -218,3 +251,16 @@ def test_directive_arg_extraction_rejects_non_argument_contexts() -> None:
         )
         is None
     )
+
+
+def _assert_clause_range(
+    line: str,
+    col: int,
+    start: int,
+    end: int,
+    replaced_text: str,
+) -> None:
+    clause = classify_directive_completion(line, col)
+    assert clause is not None
+    assert (clause.start, clause.end) == (start, end)
+    assert line[clause.start : clause.end] == replaced_text

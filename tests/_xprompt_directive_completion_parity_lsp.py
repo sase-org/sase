@@ -158,7 +158,9 @@ class LspSession:
             self._proc = None
         assert proc.returncode == 0, stderr.decode(errors="replace")
 
-    def complete(self, text: str) -> list[LspSurfaceRow]:
+    def complete(
+        self, text: str, *, character: int | None = None
+    ) -> list[LspSurfaceRow]:
         self._version += 1
         method = "textDocument/didChange" if self._opened else "textDocument/didOpen"
         params: dict[str, Any]
@@ -186,7 +188,12 @@ class LspSession:
                 "method": "textDocument/completion",
                 "params": {
                     "textDocument": {"uri": self._uri},
-                    "position": {"line": 0, "character": _utf16_len(text)},
+                    "position": {
+                        "line": 0,
+                        "character": _utf16_len(
+                            text if character is None else text[:character]
+                        ),
+                    },
                 },
             }
         )

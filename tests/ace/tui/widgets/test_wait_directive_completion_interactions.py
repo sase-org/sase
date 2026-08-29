@@ -67,6 +67,27 @@ async def test_wait_arg_completion_replaces_only_active_fragment() -> None:
     assert ta._file_completion_active is False
 
 
+async def test_wait_arg_completion_preserves_prose_to_cursor_right() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        agent_candidate("coder")
+    ]
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%wait:co and then do the thing")
+        ta.cursor_location = (0, len("%wait:co"))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "%wait:coder and then do the thing"
+    assert ta._file_completion_active is False
+
+
 async def test_wait_arg_completion_excludes_selected_agent_and_groups() -> None:
     app = CompletionTestApp()
     app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
