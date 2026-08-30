@@ -83,7 +83,6 @@ def test_parse_defaults_and_discovery_keeps_note_inventory_flat(tmp_path: Path) 
     (web,) = discovery.webs
     (strand,) = web.strands
     assert web.roster == "inline"
-    assert web.closure == "none"
     assert web.link_reference == "explicit"
     assert web.link_rendering == "reference"
     assert web.strand_noun == "strand"
@@ -139,19 +138,15 @@ def test_descriptor_link_strategies_and_legacy_closure_alias(tmp_path: Path) -> 
     )
 
     assert mentions_error is None and mentions is not None
-    assert mentions.closure == "mentions"
     assert mentions.link_reference == "implicit"
     assert mentions.link_rendering == "reference"
     assert none_error is None and none_alias is not None
-    assert none_alias.closure == "none"
     assert none_alias.link_reference == "none"
     assert implicit_error is None and implicit is not None
     assert implicit.link_reference == "implicit"
     assert implicit.link_rendering == "inline"
-    assert implicit.closure == "mentions"
     assert none_ref_error is None and none_ref is not None
     assert none_ref.link_reference == "none"
-    assert none_ref.closure == "none"
 
 
 @pytest.mark.parametrize(

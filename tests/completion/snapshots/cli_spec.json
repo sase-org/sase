@@ -12376,7 +12376,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "c74a7f3ed76015a6",
+            "description_digest": "4034fd54741931a0",
             "hidden": false,
             "mutex_groups": [],
             "name": "read",
@@ -12465,7 +12465,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "83c711f12d6b8626",
+            "description_digest": "4f38a03aeb95eb1a",
             "hidden": false,
             "mutex_groups": [],
             "name": "show",

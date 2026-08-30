@@ -24,7 +24,7 @@ from sase.memory.notes import (
 )
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
 
-from .models import MemoryStrand, MemoryWeb, WebClosureMode, WebRosterStyle, WebSource
+from .models import MemoryStrand, MemoryWeb, WebRosterStyle, WebSource
 
 _SLUG_WORD_RE = re.compile(r"[-_\s]+")
 _VALID_ROSTERS: frozenset[str] = frozenset({"inline", "list"})
@@ -241,10 +241,6 @@ def _aliases(value: Any, *, path: Path) -> tuple[tuple[str, ...], str | None]:
     return tuple(aliases), None
 
 
-def _closure_for_link_reference(link_reference: MemoryLinkReference) -> WebClosureMode:
-    return "mentions" if link_reference == "implicit" else "none"
-
-
 def _parse_link_rendering(
     frontmatter: Mapping[str, Any],
     *,
@@ -261,7 +257,7 @@ def _parse_link_rendering(
 
 def _parse_descriptor_link_reference(
     frontmatter: Mapping[str, Any], *, path: Path
-) -> tuple[tuple[MemoryLinkReference, WebClosureMode] | None, str | None]:
+) -> tuple[MemoryLinkReference | None, str | None]:
     has_closure = "closure" in frontmatter
     has_link_reference = "link_reference" in frontmatter
     if has_closure and has_link_reference:
@@ -270,17 +266,13 @@ def _parse_descriptor_link_reference(
         parsed = parse_memory_link_reference(frontmatter.get("link_reference"))
         if parsed is None:
             return None, f"{path}: {_LINK_REFERENCE_ERROR}"
-        return (parsed, _closure_for_link_reference(parsed)), None
+        return parsed, None
     if has_closure:
         closure = _normalized_scalar(frontmatter.get("closure"))
         if closure not in _VALID_CLOSURES:
             return None, f"{path}: closure must be none or mentions"
-        resolved_closure = cast(WebClosureMode, closure)
-        link_reference: MemoryLinkReference = (
-            "implicit" if resolved_closure == "mentions" else "none"
-        )
-        return (link_reference, resolved_closure), None
-    return (DEFAULT_MEMORY_LINK_REFERENCE, "none"), None
+        return ("implicit" if closure == "mentions" else "none"), None
+    return DEFAULT_MEMORY_LINK_REFERENCE, None
 
 
 def _parse_strand_link_reference(
@@ -343,7 +335,7 @@ def parse_web_descriptor(
     )
     if link_reference_error is not None or link_reference_result is None:
         return None, link_reference_error
-    link_reference, closure = link_reference_result
+    link_reference = link_reference_result
     link_rendering, link_rendering_error = _parse_link_rendering(
         parsed.frontmatter, path=path
     )
@@ -381,7 +373,6 @@ def parse_web_descriptor(
             roster=cast(WebRosterStyle, roster),
             roster_label=roster_label,
             strand_noun=strand_noun,
-            closure=closure,
             metadata=metadata,
             body=parsed.body,
             raw_text=text,

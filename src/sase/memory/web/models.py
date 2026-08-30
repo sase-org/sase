@@ -15,7 +15,6 @@ from sase.memory.notes import (
 )
 
 WebRosterStyle = Literal["inline", "list"]
-WebClosureMode = Literal["none", "mentions"]
 WebScope = Literal["project", "home"]
 WebSource = Literal["file", "generated"]
 
@@ -55,7 +54,6 @@ class MemoryWeb:
     roster: WebRosterStyle
     roster_label: str
     strand_noun: str
-    closure: WebClosureMode
     metadata: dict[str, Any]
     body: str
     raw_text: str
@@ -126,7 +124,6 @@ __all__ = [
     "MemoryWebDiscoveryIssue",
     "MemoryWebValidationReport",
     "ScopedMemoryWeb",
-    "WebClosureMode",
     "WebRosterStyle",
     "WebScope",
     "WebSource",

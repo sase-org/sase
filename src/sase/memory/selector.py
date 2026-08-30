@@ -501,16 +501,16 @@ def _resolve_web_sections(
             node_links.setdefault(edge.strand.slug, []).append(
                 _MemoryWebReadLink(target=edge.target, kind=kind)
             )
-            if edge.inline and isinstance(edge.target, MemoryStrandLinkTarget):
+            if isinstance(edge.target, MemoryStrandLinkTarget):
                 if (
                     edge.target.web.slug == slug
                     and edge.target.strand.slug in rendered_slugs
                 ):
-                    continue  # already inline-expanded in this section
-                if edge.target.web.slug != slug:
+                    continue  # already rendered in this section
+                if edge.inline and edge.target.web.slug != slug:
                     cross_web_pending.append((edge.strand, edge.target, edge.link))
                     continue
-                # Same-web inline that depth truncated: list it as a reference.
+                # A same-web inline link that depth truncated lists as a reference.
             elif edge.inline and isinstance(edge.target, MemoryNoteLinkTarget):
                 cross_note_pending.append(edge.target)
                 continue

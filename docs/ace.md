@@ -5665,15 +5665,17 @@ Two navigation axes stay synchronized:
 - **Relational.** An ordinary note's card carries a numbered `PARENT` chip (omitted when
   the parent is `AGENTS.md` rather than another memory note) and numbered `CHILDREN`
   chips. A strand's card carries the same chip row labeled `SEE ALSO` (outbound) and
-  `REFERENCED BY` (inbound) instead, when its web sets `closure: mentions` — the same
-  mention-closure graph `sase memory read`'s depth-limited resolution walks (see
-  [Memory Webs](memory.md#memory-webs)). Numbering is continuous across both rows so
-  `.1`–`.9` is never ambiguous. `Tab` / `Shift+Tab` move a chip cursor, and `l` follows
-  the focused chip -- or chip ① when none is focused. `.` then `1`–`9` jumps straight to
-  a numbered chip. Following pushes the previous note onto a trail bounded at 32 entries
-  and clears an active filter when the target is hidden. `h` or `Backspace` walks back.
-  A non-empty trail renders as `TRAIL  a › b › c` above the footer. On the embedded
-  Admin Center Config sub-tab, bare `1`–`9` remain top-level Admin Center tab selectors.
+  `REFERENCED BY` (inbound) instead, when its web sets `link_reference: implicit` — the
+  same mention graph `sase memory read`'s depth-limited resolution walks, plus the
+  same-web `[[target]]` links the strand bodies author (see
+  [Memory Webs](memory.md#memory-webs) and [Memory Links](memory.md#memory-links)).
+  Numbering is continuous across both rows so `.1`–`.9` is never ambiguous. `Tab` /
+  `Shift+Tab` move a chip cursor, and `l` follows the focused chip -- or chip ① when
+  none is focused. `.` then `1`–`9` jumps straight to a numbered chip. Following pushes
+  the previous note onto a trail bounded at 32 entries and clears an active filter when
+  the target is hidden. `h` or `Backspace` walks back. A non-empty trail renders as
+  `TRAIL  a › b › c` above the footer. On the embedded Admin Center Config sub-tab, bare
+  `1`–`9` remain top-level Admin Center tab selectors.
 
 `follow_link` ships as `enter,l`, but only `l` currently follows a chip: the note rail
 holds focus and consumes `Enter` for its own selection action. Use `l` or `.1`–`.9`.

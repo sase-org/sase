@@ -256,14 +256,14 @@ exists.
 ### Browsing and editing strands
 
 ACE's [Memory panel](ace.md#memory-panel) is the browse-and-edit surface for webs and
-strands alongside flat notes: expand a web row to walk its strands, follow
-mention-closure relation chips the same way `read`'s closure does, and use `a`/`d` to
-add or delete a strand — `a` on a web row opens an add-strand form, `d` on a strand row
-confirms a delete after showing its aliases, body, source path, and reverse mention
-references. There is no CLI write path for strand content; every write goes through the
-panel's tracked mutation engine, which validates frontmatter, checks catalog ambiguity
-for digest conflicts, and refreshes the descriptor roster through the normal
-`sase memory init` publish path described in [Memory panel](ace.md#memory-panel).
+strands alongside flat notes: expand a web row to walk its strands, follow the same
+relation chips `read`'s closure walks, and use `a`/`d` to add or delete a strand — `a`
+on a web row opens an add-strand form, `d` on a strand row confirms a delete after
+showing its aliases, body, source path, and reverse mention references. There is no CLI
+write path for strand content; every write goes through the panel's tracked mutation
+engine, which validates frontmatter, checks catalog ambiguity for digest conflicts, and
+refreshes the descriptor roster through the normal `sase memory init` publish path
+described in [Memory panel](ace.md#memory-panel).
 
 ## Memory Links
 
@@ -307,7 +307,9 @@ warnings, not blockers.
 resolved reference-rendering link, each showing the target's selector, label, and
 summary or description. A target that is always-loaded context — a `type: core` note or
 a web descriptor — is marked `(always-loaded core memory — already in your context)`
-instead of a read suggestion, because `sase memory read` refuses those targets. The
-`json` format carries the same data as `linked_references` on the note or web-section
-payload, plus a per-node `links` list distinguishing `inline` from `reference` targets.
-A unit with no reference-rendering links emits no section.
+instead of a read suggestion, because `sase memory read` refuses those targets. A target
+the same unit already prints — the requested strand itself, or one an inline link
+expanded into the section — is never listed, so a back-link between two strands rendered
+together adds no entry. The `json` format carries the same data as `linked_references`
+on the note or web-section payload, plus a per-node `links` list distinguishing `inline`
+from `reference` targets. A unit with no reference-rendering links emits no section.

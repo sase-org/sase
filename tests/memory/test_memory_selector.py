@@ -233,6 +233,37 @@ def test_same_web_inline_link_expands_into_closure(tmp_path: Path) -> None:
     assert section.resolved_links == ()
 
 
+def test_back_link_to_a_rendered_strand_is_not_listed(tmp_path: Path) -> None:
+    _write(tmp_path / "sase" / "memory" / "decisions.md", _link_descriptor())
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "gates-never-block.md",
+        "---\nkeyword: A Gate Never Blocks\nsummary: Gate summary.\n---\n"
+        "See ![[decisions/single-turn-agents]] for more.\n",
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "single-turn-agents.md",
+        "---\nkeyword: Agents Are Single-Turn\nsummary: Turn summary.\n---\n"
+        "Per [[decisions/gates-never-block]], see also [[decisions/host-owned]].\n",
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "host-owned.md",
+        "---\nkeyword: Completion Is Host-Owned\nsummary: Host summary.\n---\nLeaf.\n",
+    )
+
+    batch = resolve_memory_selector_batch(
+        ["decisions:gates-never-block"],
+        project_root=tmp_path,
+        home_root=tmp_path / "home",
+    )
+
+    (section,) = batch.web_sections
+    assert {node.strand.slug for node in section.nodes} == {
+        "gates-never-block",
+        "single-turn-agents",
+    }
+    assert [link.address for link in section.resolved_links] == ["decisions:host-owned"]
+
+
 def test_reference_style_link_does_not_expand_but_is_collected(tmp_path: Path) -> None:
     _write(tmp_path / "sase" / "memory" / "decisions.md", _link_descriptor())
     _write(

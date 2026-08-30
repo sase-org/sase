@@ -119,10 +119,9 @@ def memory_web_with_mentioning_strands(
 
     *link_reference* mirrors the effective value a real descriptor/strand
     parse would resolve (see ``sase.memory.web.frontmatter``); pass ``"none"``
-    to build the closure-disabled variant of this fixture.
+    to build the link-detection-disabled variant of this fixture.
     """
     memory_root = root / "sase" / "memory"
-    closure = "mentions" if link_reference == "implicit" else "none"
     link_rendering = "inline" if link_reference == "implicit" else "reference"
     if link_reference == "implicit":
         strategy_frontmatter = "link_reference: implicit\nlink_rendering: inline\n"
@@ -167,7 +166,6 @@ def memory_web_with_mentioning_strands(
         roster="inline",
         roster_label="GLOSSARY TERMS",
         strand_noun="term",
-        closure=closure,  # type: ignore[arg-type]
         metadata={},
         body="Glossary body.",
         raw_text=(

@@ -30,9 +30,12 @@ batch, resolved together before anything is printed or logged:
 - a `web:keyword` strand reference, e.g. `glossary:stitch`, resolved by canonical
   keyword, alias, or an unambiguous prefix
 
-A web whose descriptor sets `closure: mentions` (`glossary` is one) additionally walks
-the recursive closure of strands each requested strand's body mentions; `-d/--depth N`
-caps the recursion (`-d 0` prints only the requested strands; the default is unlimited).
+A note or strand can link other memory as `[[target]]`, listed under a numbered
+`## Linked References` section, or `![[target]]`, rendered inline in the body. A web
+whose descriptor sets `link_reference: implicit` (`glossary` is one) additionally treats
+every strand its body mentions as such a link. `-d/--depth N` caps how far inline links
+recurse (`-d 0` prints only the requested selectors and lists every link as a reference;
+the default is unlimited).
 
 ## Rules
 

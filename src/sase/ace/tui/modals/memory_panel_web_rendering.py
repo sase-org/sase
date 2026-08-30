@@ -123,7 +123,7 @@ def _build_web_property_grid(
     rows = [
         ("Strands", f"{len(web.strands)} {strand_word}"),
         ("Roster", web.roster),
-        ("Closure", web.closure),
+        ("Links", f"{web.link_reference} · {web.link_rendering}"),
     ]
     _append_file_rows(snapshot, node.note, rows)
     rows.append(("Source", memory_note_source_path(snapshot.scope, node.note)))

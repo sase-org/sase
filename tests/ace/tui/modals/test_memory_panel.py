@@ -83,7 +83,6 @@ def _web_with_one_strand(root: Path) -> MemoryWeb:
         roster="list",
         roster_label="DECISIONS",
         strand_noun="decision",
-        closure="none",
         metadata={},
         body="Descriptor body.",
         raw_text="---\ntype: core\nweb: true\n---\nDescriptor body.",

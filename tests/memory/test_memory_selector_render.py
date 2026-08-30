@@ -318,10 +318,34 @@ def test_web_section_dedupes_reference_links_across_rendered_nodes(
         "---\nkeyword: Gamma\nsummary: Gamma.\n---\nLeaf.\n",
     )
 
-    output = memory_selector_batch_markdown(_resolve(tmp_path, ["decisions"]))
+    output = memory_selector_batch_markdown(
+        _resolve(tmp_path, ["decisions:alpha", "decisions:beta"])
+    )
 
     assert output.count("### 1. `decisions:gamma`") == 1
     assert "### 2." not in output
+
+
+def test_web_section_omits_links_to_strands_it_already_renders(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "decisions.md",
+        "---\nweb: true\ndescription: Decision records.\nroster: list\n---\n\nPreamble.\n",
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "alpha.md",
+        "---\nkeyword: Alpha\nsummary: Alpha.\n---\nSee ![[decisions/beta]].\n",
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "beta.md",
+        "---\nkeyword: Beta\nsummary: Beta.\n---\nBack to [[decisions/alpha]].\n",
+    )
+
+    output = memory_selector_batch_markdown(_resolve(tmp_path, ["decisions:alpha"]))
+
+    assert "# Beta" in output
+    assert "## Linked References" not in output
 
 
 def test_depth_zero_lists_inline_link_as_a_reference(tmp_path: Path) -> None:
