@@ -15724,7 +15724,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "e22e946be59eac09",
+            "description_digest": "dee1ac32a100c762",
             "hidden": false,
             "mutex_groups": [],
             "name": "approve",
@@ -15779,6 +15779,18 @@
                 "strings": [
                   "-p",
                   "--prompt"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "wait",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-w",
+                  "--wait"
                 ],
                 "takes_value": true
               }
