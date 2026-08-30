@@ -62,7 +62,7 @@
 # in-flight launch" (committed 2026-08-17T08:54:01Z). The foreign lock holder
 # forked from a multi-threaded xdist worker; it now takes the same flock
 # in-process, which no fork hazard can reach.
-# fixed-at: 2026-08-17T08:54:01Z tests/test_plan_approval_actions.py::test_headless_epic_approval_submits_while_inflight_launch_holds_anchor
+# fixed-at: 2026-08-17T08:54:01Z tests/test_plan_approval_actions_epic.py::test_headless_epic_approval_submits_while_inflight_launch_holds_anchor
 #
 # sase-ob: stop exact == on TemporaryProviderDisable timestamps after the
 # JSON store round-trip. The sibling disable is checked by provider/source/
