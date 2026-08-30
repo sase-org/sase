@@ -110,9 +110,19 @@ def memory_note(
     )
 
 
-def memory_web_with_mentioning_strands(root: Path = Path("/tmp/memory")) -> MemoryWeb:
-    """A ``closure: mentions`` web whose ``alpha`` strand mentions ``beta``."""
+def memory_web_with_mentioning_strands(
+    root: Path = Path("/tmp/memory"),
+    *,
+    link_reference: str = "implicit",
+) -> MemoryWeb:
+    """A web whose ``alpha`` strand mentions ``beta``.
+
+    *link_reference* mirrors the effective value a real descriptor/strand
+    parse would resolve (see ``sase.memory.web.frontmatter``); pass ``"none"``
+    to build the closure-disabled variant of this fixture.
+    """
     memory_root = root / "sase" / "memory"
+    closure = "mentions" if link_reference == "implicit" else "none"
 
     def _strand(slug: str, keyword: str, body: str) -> MemoryStrand:
         relative_path = f"sase/memory/glossary/{slug}.md"
@@ -131,6 +141,7 @@ def memory_web_with_mentioning_strands(root: Path = Path("/tmp/memory")) -> Memo
             raw_text=f"---\nkeyword: {keyword}\n---\n{body}",
             body_start=0,
             frontmatter={"keyword": keyword},
+            link_reference=link_reference,  # type: ignore[arg-type]
         )
 
     alpha = _strand("alpha", "Alpha Term", "Alpha body mentions Beta Term.")
@@ -145,13 +156,14 @@ def memory_web_with_mentioning_strands(root: Path = Path("/tmp/memory")) -> Memo
         roster="inline",
         roster_label="GLOSSARY TERMS",
         strand_noun="term",
-        closure="mentions",
+        closure=closure,  # type: ignore[arg-type]
         metadata={},
         body="Glossary body.",
         raw_text="---\ntype: core\nweb: true\nclosure: mentions\n---\nGlossary body.",
         body_start=0,
         frontmatter={"type": "core", "web": True, "closure": "mentions"},
         strands=(alpha, beta),
+        link_reference=link_reference,  # type: ignore[arg-type]
     )
 
 

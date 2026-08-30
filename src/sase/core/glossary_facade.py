@@ -11,9 +11,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from sase.core.rust import require_rust_binding
+
+GlossarySpanKind = Literal["mention", "link"]
 
 
 @dataclass(frozen=True)
@@ -133,6 +135,7 @@ class GlossarySpan:
     byte_end: int
     range: Mapping[str, Any]
     segments: tuple[Mapping[str, Any], ...]
+    kind: GlossarySpanKind = "mention"
 
     @classmethod
     def from_wire(cls, payload: Mapping[str, Any]) -> GlossarySpan:

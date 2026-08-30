@@ -18,6 +18,7 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.cli_show_palette import PATH_COLOR, SECTION_COLOR
+from sase.memory.link_resolve import MemoryLinkTarget
 from sase.memory.notes import MemoryNote, render_children_section
 from sase.memory.read_log import MemoryReadContent
 
@@ -34,6 +35,7 @@ class ResolvedMemoryNote:
     children: tuple[MemoryNote, ...]
     origin: Literal["home", "project"]
     project_name: str
+    resolved_links: tuple[MemoryLinkTarget, ...] = ()
 
 
 def render_memory_note(

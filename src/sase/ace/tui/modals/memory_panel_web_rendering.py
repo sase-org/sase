@@ -59,13 +59,13 @@ def build_rail_node_card_meta(
     extra_badges = _build_web_or_strand_badges(node, strand_read_state, accent=accent)
     if extra_badges is not None:
         sections.append(extra_badges)
-    is_mention_strand = (
+    has_strand_relations = (
         node.strand is not None
         and node.web is not None
-        and node.web.closure == "mentions"
+        and node.web.link_reference == "implicit"
     )
-    first_label = "SEE ALSO" if is_mention_strand else "PARENT"
-    second_label = "REFERENCED BY" if is_mention_strand else "CHILDREN"
+    first_label = "SEE ALSO" if has_strand_relations else "PARENT"
+    second_label = "REFERENCED BY" if has_strand_relations else "CHILDREN"
     chip_rows = build_numbered_chip_rows(
         (
             (

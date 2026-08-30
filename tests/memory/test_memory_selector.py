@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.memory.link_resolve import MemoryStrandLinkTarget
 from sase.memory.selector import _MemorySelectorError, resolve_memory_selector_batch
 
 
@@ -162,3 +163,242 @@ def test_nested_note_selector_suggests_web_keyword_form(tmp_path: Path) -> None:
 def test_empty_selector_batch_raises() -> None:
     with pytest.raises(_MemorySelectorError, match="at least one"):
         resolve_memory_selector_batch([])
+
+
+# --- authored [[...]]/![[...]] link closure integration -------------------
+
+
+def _link_descriptor(*, description: str = "A web.") -> str:
+    """A descriptor with no ``closure``/``link_reference`` override.
+
+    Strands default to ``link_reference: explicit`` and
+    ``link_rendering: reference``, so ``[[target]]`` stays a reference and
+    only ``![[target]]`` forces inline expansion.
+    """
+    return (
+        "---\nweb: true\n"
+        f"description: {description}\n"
+        "roster: inline\n---\n\nPreamble.\n"
+    )
+
+
+def _seed_decisions_web(root: Path) -> None:
+    _write(root / "sase" / "memory" / "decisions.md", _link_descriptor())
+    _write(
+        root / "sase" / "memory" / "decisions" / "gates-never-block.md",
+        "---\nkeyword: A Gate Never Blocks\nsummary: Gate summary.\n---\n"
+        "See ![[decisions/single-turn-agents]] for more.\n",
+    )
+    _write(
+        root / "sase" / "memory" / "decisions" / "single-turn-agents.md",
+        "---\nkeyword: Agents Are Single-Turn\nsummary: Turn summary.\n---\n"
+        "A run is one turn.\n",
+    )
+
+
+def test_same_web_inline_link_expands_into_closure(tmp_path: Path) -> None:
+    _seed_decisions_web(tmp_path)
+
+    batch = resolve_memory_selector_batch(
+        ["decisions:gates-never-block"],
+        project_root=tmp_path,
+        home_root=tmp_path / "home",
+    )
+
+    (section,) = batch.web_sections
+    slugs = {node.strand.slug: node.origin for node in section.nodes}
+    assert slugs == {
+        "gates-never-block": "requested",
+        "single-turn-agents": "related",
+    }
+    related = next(n for n in section.nodes if n.strand.slug == "single-turn-agents")
+    assert related.referrer is not None
+    term, _matched_text, kind = related.referrer
+    assert kind == "link"
+    assert term == "A Gate Never Blocks"
+    assert section.resolved_links == ()
+
+
+def test_reference_style_link_does_not_expand_but_is_collected(tmp_path: Path) -> None:
+    _write(tmp_path / "sase" / "memory" / "decisions.md", _link_descriptor())
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "gates-never-block.md",
+        "---\nkeyword: A Gate Never Blocks\nsummary: Gate summary.\n---\n"
+        "See [[decisions/single-turn-agents]] for more.\n",
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "single-turn-agents.md",
+        "---\nkeyword: Agents Are Single-Turn\nsummary: Turn summary.\n---\n"
+        "A run is one turn.\n",
+    )
+
+    batch = resolve_memory_selector_batch(
+        ["decisions:gates-never-block"],
+        project_root=tmp_path,
+        home_root=tmp_path / "home",
+    )
+
+    (section,) = batch.web_sections
+    assert [node.strand.slug for node in section.nodes] == ["gates-never-block"]
+    (link,) = section.resolved_links
+    assert link.kind == "strand"
+    assert link.address == "decisions:single-turn-agents"
+
+
+def test_mixed_inline_and_reference_links_in_one_body(tmp_path: Path) -> None:
+    _write(tmp_path / "sase" / "memory" / "decisions.md", _link_descriptor())
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "alpha.md",
+        "---\nkeyword: Alpha\nsummary: Alpha.\n---\n"
+        "Inline ![[decisions/beta]] and reference [[decisions/gamma]].\n",
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "beta.md",
+        "---\nkeyword: Beta\nsummary: Beta.\n---\nLeaf.\n",
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "gamma.md",
+        "---\nkeyword: Gamma\nsummary: Gamma.\n---\nLeaf.\n",
+    )
+
+    batch = resolve_memory_selector_batch(
+        ["decisions:alpha"], project_root=tmp_path, home_root=tmp_path / "home"
+    )
+
+    (section,) = batch.web_sections
+    assert {node.strand.slug for node in section.nodes} == {"alpha", "beta"}
+    (link,) = section.resolved_links
+    assert isinstance(link, MemoryStrandLinkTarget)
+    assert link.address == "decisions:gamma"
+
+
+def test_depth_zero_treats_every_link_as_reference(tmp_path: Path) -> None:
+    _seed_decisions_web(tmp_path)
+
+    batch = resolve_memory_selector_batch(
+        ["decisions:gates-never-block"],
+        project_root=tmp_path,
+        home_root=tmp_path / "home",
+        depth=0,
+    )
+
+    (section,) = batch.web_sections
+    assert [node.strand.slug for node in section.nodes] == ["gates-never-block"]
+    (link,) = section.resolved_links
+    assert isinstance(link, MemoryStrandLinkTarget)
+    assert link.address == "decisions:single-turn-agents"
+
+
+def test_depth_limit_truncates_chained_inline_links(tmp_path: Path) -> None:
+    _write(tmp_path / "sase" / "memory" / "decisions.md", _link_descriptor())
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "alpha.md",
+        "---\nkeyword: Alpha\nsummary: Alpha.\n---\nSee ![[decisions/beta]].\n",
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "beta.md",
+        "---\nkeyword: Beta\nsummary: Beta.\n---\nSee ![[decisions/gamma]].\n",
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "gamma.md",
+        "---\nkeyword: Gamma\nsummary: Gamma.\n---\nLeaf.\n",
+    )
+
+    batch = resolve_memory_selector_batch(
+        ["decisions:alpha"],
+        project_root=tmp_path,
+        home_root=tmp_path / "home",
+        depth=1,
+    )
+
+    (section,) = batch.web_sections
+    assert [node.strand.slug for node in section.nodes] == ["alpha", "beta"]
+    assert section.truncated is True
+
+
+def test_strand_link_reference_none_disables_authored_links(tmp_path: Path) -> None:
+    _write(tmp_path / "sase" / "memory" / "decisions.md", _link_descriptor())
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "gates-never-block.md",
+        "---\nkeyword: A Gate Never Blocks\nsummary: Gate summary.\n"
+        "link_reference: none\n---\n"
+        "See ![[decisions/single-turn-agents]] for more.\n",
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "single-turn-agents.md",
+        "---\nkeyword: Agents Are Single-Turn\nsummary: Turn summary.\n---\n"
+        "A run is one turn.\n",
+    )
+
+    batch = resolve_memory_selector_batch(
+        ["decisions:gates-never-block"],
+        project_root=tmp_path,
+        home_root=tmp_path / "home",
+    )
+
+    (section,) = batch.web_sections
+    assert [node.strand.slug for node in section.nodes] == ["gates-never-block"]
+    assert section.resolved_links == ()
+
+
+def test_unresolved_link_is_collected_with_no_candidates(tmp_path: Path) -> None:
+    _write(tmp_path / "sase" / "memory" / "decisions.md", _link_descriptor())
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "alpha.md",
+        "---\nkeyword: Alpha\nsummary: Alpha.\n---\nSee [[does-not-exist]].\n",
+    )
+
+    batch = resolve_memory_selector_batch(
+        ["decisions:alpha"], project_root=tmp_path, home_root=tmp_path / "home"
+    )
+
+    (section,) = batch.web_sections
+    (link,) = section.resolved_links
+    assert link.kind == "unresolved"
+    assert link.raw == "does-not-exist"
+
+
+def test_cross_web_inline_link_adds_extra_root_section(tmp_path: Path) -> None:
+    _seed_glossary_web(tmp_path, closure="none")
+    _write(tmp_path / "sase" / "memory" / "decisions.md", _link_descriptor())
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "alpha.md",
+        "---\nkeyword: Alpha\nsummary: Alpha.\n---\nSee ![[glossary:stitch]] for context.\n",
+    )
+
+    batch = resolve_memory_selector_batch(
+        ["decisions:alpha"], project_root=tmp_path, home_root=tmp_path / "home"
+    )
+
+    sections_by_slug = {section.web.slug: section for section in batch.web_sections}
+    assert set(sections_by_slug) == {"decisions", "glossary"}
+    glossary_section = sections_by_slug["glossary"]
+    assert [node.strand.slug for node in glossary_section.nodes] == ["stitch"]
+    (node,) = glossary_section.nodes
+    assert node.origin == "related"
+    assert node.referrer is not None
+    assert node.referrer[2] == "link"
+
+
+def test_flat_note_links_are_always_collected_as_references(tmp_path: Path) -> None:
+    _write(tmp_path / "sase" / "memory" / "decisions.md", _link_descriptor())
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "single-turn-agents.md",
+        "---\nkeyword: Agents Are Single-Turn\nsummary: Turn summary.\n---\n"
+        "A run is one turn.\n",
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "foo.md",
+        _note(
+            body="# Body\n"
+            "See ![[decisions:single-turn-agents]] and [[does-not-exist]].\n"
+        ),
+    )
+
+    batch = resolve_memory_selector_batch(
+        ["foo.md"], project_root=tmp_path, home_root=tmp_path / "home"
+    )
+
+    (note,) = batch.notes
+    kinds = {link.kind for link in note.resolved_links}
+    assert kinds == {"strand", "unresolved"}

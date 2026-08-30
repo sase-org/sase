@@ -162,13 +162,22 @@ def _web_section_markdown(section: MemoryWebReadSection) -> str:
     return "\n".join(pieces)
 
 
+def _provenance_reference(node: MemoryWebReadNode) -> str | None:
+    if node.referrer is None:
+        return None
+    term, matched_text, kind = node.referrer
+    if kind == "link":
+        return f"linked from {term}"
+    return f'mentioned as "{matched_text}" in {term}'
+
+
 def _provenance_label(node: MemoryWebReadNode) -> str:
     if node.origin == "requested":
         return f"Requested · {node.scope}"
     parts = [f"Related · depth {node.depth} · {node.scope}"]
-    if node.referrer is not None:
-        term, matched_text = node.referrer
-        parts.append(f'mentioned as "{matched_text}" in {term}')
+    reference = _provenance_reference(node)
+    if reference is not None:
+        parts.append(reference)
     if node.also_referenced_by:
         parts.append("also mentioned by " + ", ".join(node.also_referenced_by))
     return " — ".join(parts)
@@ -239,12 +248,16 @@ def _node_blocks(node: MemoryWebReadNode) -> list[RenderableType]:
 
     lines: list[RenderableType] = []
     if node.referrer is not None:
-        term, matched_text = node.referrer
+        term, matched_text, kind = node.referrer
         provenance = Text()
-        provenance.append("↳ mentioned as ", style="dim")
-        provenance.append(f'"{matched_text}"', style=f"italic {_ACCENT}")
-        provenance.append(" in ", style="dim")
-        provenance.append(term, style="dim")
+        if kind == "link":
+            provenance.append("↳ linked from ", style="dim")
+            provenance.append(term, style=f"italic {_ACCENT}")
+        else:
+            provenance.append("↳ mentioned as ", style="dim")
+            provenance.append(f'"{matched_text}"', style=f"italic {_ACCENT}")
+            provenance.append(" in ", style="dim")
+            provenance.append(term, style="dim")
         lines.append(provenance)
     if node.also_referenced_by:
         lines.append(

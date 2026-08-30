@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 import pytest
 
 from sase.ace.testing import wait_for
@@ -98,7 +96,7 @@ async def test_closure_none_web_strand_keeps_parent_child_chips(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ref = scope_ref("sase", "sase")
-    non_mentions_web = replace(memory_web_with_mentioning_strands(), closure="none")
+    non_mentions_web = memory_web_with_mentioning_strands(link_reference="none")
     snapshot = scope_snapshot(ref, (_descriptor_note(),), webs=(non_mentions_web,))
     install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
     install_fake_strand_read(monkeypatch)

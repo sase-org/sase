@@ -13,6 +13,7 @@ from sase.core.glossary_facade import (
     GlossaryCatalog,
     GlossaryEntry,
     GlossarySpan,
+    GlossarySpanKind,
     scan_glossary_spans,
 )
 
@@ -75,6 +76,7 @@ class _GlossaryReferrer:
 
     term: str
     matched_text: str
+    kind: GlossarySpanKind = "mention"
 
 
 @dataclass(frozen=True, slots=True)
@@ -257,6 +259,7 @@ def resolve_glossary_closure(
                 referrer=_GlossaryReferrer(
                     term=current.entry.term,
                     matched_text=span.matched_text,
+                    kind=span.kind,
                 ),
             )
             builders.append(related)

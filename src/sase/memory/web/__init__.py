@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .cli import handle_memory_web_list_command, handle_memory_web_show_command
-from .closure import resolve_strand_closure
+from .closure import StrandLinkSpan, resolve_strand_closure
 from .discovery import FileMemoryWebProvider, MemoryWebProvider, discover_memory_webs
 from .frontmatter import (
     parse_memory_strand,
@@ -90,6 +90,7 @@ __all__ = [
     "MemoryWebProvider",
     "MemoryWebValidationReport",
     "ScopedMemoryWeb",
+    "StrandLinkSpan",
     "WebClosureMode",
     "WebRosterStyle",
     "WebScope",

@@ -36,6 +36,7 @@ from sase.memory.read_log import (
 from sase.memory.web.closure import (
     StrandMentionCatalog,
     build_strand_mention_catalog,
+    strand_link_spans,
     strand_mention_relations,
 )
 from sase.memory.web.discovery import discover_memory_webs
@@ -228,8 +229,9 @@ def memory_rail_node_relations(
     """Return the ordered relation-chip notes for *node*'s card.
 
     Web-descriptor and flat-note rows use the parent/child hierarchy from
-    :func:`memory_note_relations`. A strand row in a ``closure: mentions`` web
-    instead surfaces outbound/inbound mention relations from that web's cached
+    :func:`memory_note_relations`. A strand row in a web whose effective
+    ``link_reference`` isn't ``none`` instead surfaces outbound/inbound
+    mention/link relations from that web's cached
     :class:`~sase.memory.web.closure.StrandMentionCatalog`.
     """
     if node.strand is not None and node.web is not None:
@@ -446,15 +448,20 @@ def _load_memory_scope_snapshot(ref: MemoryScopeRef) -> MemoryScopeSnapshot:
 def _mention_catalogs_for(
     webs: tuple[MemoryWeb, ...],
 ) -> dict[str, StrandMentionCatalog]:
-    """Precompute each mentions-closure web's phrase catalog once per load.
+    """Precompute each ``link_reference: implicit`` web's phrase/link catalog.
 
     Rebuilding this per selection change would recompile the phrase matcher
-    on the event loop; see the TUI performance rules.
+    on the event loop; see the TUI performance rules. Explicit-only webs
+    (the vast majority) skip this entirely -- their strands rarely author
+    links, and per-web relations there aren't worth an unconditional catalog
+    build on every load.
     """
     return {
-        web.slug: build_strand_mention_catalog(web, web.strands)
+        web.slug: build_strand_mention_catalog(
+            web, web.strands, link_spans=strand_link_spans(web, web.strands)
+        )
         for web in webs
-        if web.closure == "mentions" and web.strands
+        if web.link_reference == "implicit" and web.strands
     }
 
 
