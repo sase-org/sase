@@ -252,10 +252,11 @@ second checkout, and rebinds a deferred `#0` runner to the real numbered workspa
 setup reports it.
 
 The matching release step is handoff- and identity-aware. It leaves the claim and
-checkout occupant in place while a monitor, gate, pipe, plan, or proc handoff still owns
-the workspace, and otherwise releases only a RUNNING claim whose pid still matches the
-calling runner. A mismatched pid is recorded as a refused no-op rather than clearing a
-successor's claim.
+checkout occupant in place when the run has written a pending plan, question, monitor,
+gate, or pipe handoff marker. Otherwise it releases only a matching RUNNING claim whose
+pid still belongs to the calling runner. Claim release and occupant cleanup are checked
+separately: a claim-pid mismatch is a recorded no-op for the claim, and an occupant
+record is cleared only when its pid matches the caller.
 
 ## Relationship to VCS Provider
 

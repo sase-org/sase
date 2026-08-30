@@ -44,11 +44,13 @@ is: inspect loaded context with `sase memory list`, have agents use `sase memory
 for audited reference reads, have agents route every memory write through
 `/sase_memory_write`.
 
-ACE's **Memory panel** is the interactive surface for browsing, adding, editing, and
-deleting these notes by hand across every memory-bearing project plus Home. From a
-prompt, press `gm` or `Ctrl+G m`; see [Memory panel](ace.md#memory-panel). It is a human
-surface only: it never edits `AGENTS.md` or the provider shims directly — only
-`sase memory init` (run from the panel's publish flow, or by hand) does that.
+ACE's **Memory panel** is the interactive surface for browsing memory across every
+memory-bearing project plus Home. It can add/edit/delete flat-note metadata and
+add/delete web strands; note bodies, existing strand bodies, and web descriptors open in
+`$EDITOR`. From a prompt, press `gm` or `Ctrl+G m`; see
+[Memory panel](ace.md#memory-panel). It is a human surface only: it never edits
+`AGENTS.md` or the provider shims directly — only `sase memory init` (run from the
+panel's publish flow, or by hand) does that.
 
 ## XPrompt Inclusion
 
@@ -260,10 +262,11 @@ strands alongside flat notes: expand a web row to walk its strands, follow the s
 relation chips `read`'s closure walks, and use `a`/`d` to add or delete a strand — `a`
 on a web row opens an add-strand form, `d` on a strand row confirms a delete after
 showing its aliases, body, source path, and reverse mention references. There is no CLI
-write path for strand content; every write goes through the panel's tracked mutation
-engine, which validates frontmatter, checks catalog ambiguity for digest conflicts, and
-refreshes the descriptor roster through the normal `sase memory init` publish path
-described in [Memory panel](ace.md#memory-panel).
+write path for strand content. Add/delete uses the panel's tracked mutation engine,
+which validates frontmatter, checks catalog ambiguity and digest conflicts, and updates
+the descriptor roster. To change an existing strand body or web descriptor, press `o` in
+the panel and edit its source in `$EDITOR`. Publish either route through the panel's
+normal `sase memory init` flow described in [Memory panel](ace.md#memory-panel).
 
 ## Memory Links
 

@@ -2062,9 +2062,9 @@ not occupy a runner slot, but it may retain the family's workspace claim. Its st
 one of pending, settling, answered, completed, failed, timeout, stopped, or lost. Family
 and tribe chips count pending/running, settled, and failed gates separately by color.
 After a decision, the gate member owns the displayed outcome: handoff outcomes
-`PLAN APPROVED`, `TALE APPROVED`, `EPIC APPROVED`, and `ANSWERED` stay in the Running
-bucket while their successor comes up; rejection and cancellation settle under Done,
-while timeout and failure settle under Failed.
+`PLAN APPROVED`, `TALE APPROVED`, `EPIC APPROVED`, and `ANSWERED` use the Running bucket
+even though the gate itself has settled, so the row represents the successor handoff.
+Rejection and cancellation use Done; timeout, failure, and lost gates use Failed.
 
 A monitor row nests under the agent that started it, not under a synthetic aggregate —
 one gear-glyph row at the starter's depth plus one. It is revealed by its **agent
@@ -4055,17 +4055,21 @@ single-dash suffixes (`-plan`, `-2`, `-code`, etc.) when reading legacy artifact
 
 ## Agent Statuses
 
-Each agent in the Agents tab displays a status label indicating its current state.
-Statuses fall into two categories: active (the agent is still running or awaiting input)
-and completed (the agent has finished).
+Each row in the Agents tab displays a status label. The sections below separate labels
+that represent execution, waiting, review, or a successor handoff from labels that
+represent completed work. This is a display-oriented grouping: a gate shell can be
+processless or already settled while its label still uses the Running bucket to
+represent an in-progress handoff.
 
-### Active Statuses
+### Execution, Waiting, Review, and Handoff Statuses
 
 Gate-shell rows use lifecycle presentation rather than a separate hard-coded color for
 every plan or question label: pending/settling labels use the gate's configured or
 deterministic accent, answered/completed/stopped labels turn grey, and
 failed/timeout/lost labels turn red. Legacy non-shell rows retain their older status
 presentation where noted, with specialized lifecycle labels falling back to dim text.
+Presentation and bucket are separate: a grey settled gate can still appear in the
+Running bucket when it handed off to a successor.
 
 | Status            | Presentation                   | Description                                                                                                      |
 | ----------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------- |

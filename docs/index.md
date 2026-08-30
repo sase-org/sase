@@ -88,7 +88,7 @@ title: Structured Agentic Software Engineering
 
   <p>
     Use instruction memory loaded through AGENTS.md, audited reference reads, and the ACE Memory panel for
-    tracked edits to notes and memory webs.
+    flat-note changes plus memory-web strand creation and deletion.
   </p>
 
 <a href="memory/">Open memory</a>

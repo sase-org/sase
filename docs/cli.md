@@ -12,8 +12,9 @@ running-only — add `-a` for recent DONE/FAILED.
 
 Compact help's `memory` blurb still mentions reviewing proposals, but that CLI workflow
 has been removed. Current memory commands inspect, read, initialize, and audit memory;
-humans edit notes and strands through ACE's Memory panel, while agents must use the
-`/sase_memory_write` gate before changing memory files.
+the ACE Memory panel can add/edit/delete flat notes and add/delete strands, while
+existing strand bodies and web descriptors are edited in `$EDITOR`. Agents must route
+all memory-file changes through `/sase_memory_write` first.
 
 For exhaustive flag tables, see the
 [configuration reference](configuration.md#cli-flags).
