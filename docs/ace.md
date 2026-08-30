@@ -5673,16 +5673,17 @@ Two navigation axes stay synchronized:
 `follow_link` ships as `enter,l`, but only `l` currently follows a chip: the note rail
 holds focus and consumes `Enter` for its own selection action. Use `l` or `.1`–`.9`.
 
-The note card also shows a badge row (`TIER 1 · always loaded` / `TIER 2`, plus
-`GENERATED`, `SHADOWS HOME`, `ORPHANED`, and `INVALID` when they apply), the
-description, the rendered Markdown body, and a property grid: type, parent, child count,
-size (lines and approximate tokens), last modified, last audited read, and the on-disk
-source path. A web row instead shows `WEB` plus `EXPANDED`/`COLLAPSED`, and its property
-grid names rendering type, strand count, and scope. A strand row shows `STRAND`, plus
-`AUDITED`, `AUDITING`, or `AUDIT FAILED` once the panel has recorded (or tried to
-record) an audited read for it: selecting a strand's card records an audited read the
-same way `sase memory read <web>:<keyword>` does, so previewing a strand in the panel is
-itself an attributable access, not a silent peek.
+The note card also shows a badge row (`CORE · always loaded` /
+`REFERENCE · read on demand`, plus `GENERATED`, `SHADOWS HOME`, `ORPHANED`, and
+`INVALID` when they apply), the description, the rendered Markdown body, and a property
+grid: type, parent, child count, size (lines and approximate tokens), last modified,
+last audited read, and the on-disk source path. A web row instead shows `WEB` plus
+`EXPANDED`/`COLLAPSED`, and its property grid names strand count and scope -- a web
+descriptor declares no `type:`, so there is no rendering-type row. A strand row shows
+`STRAND`, plus `AUDITED`, `AUDITING`, or `AUDIT FAILED` once the panel has recorded (or
+tried to record) an audited read for it: selecting a strand's card records an audited
+read the same way `sase memory read <web>:<keyword>` does, so previewing a strand in the
+panel is itself an attributable access, not a silent peek.
 
 `p` and `P` cycle the scope ring -- every enabled project with a memory root, the
 project you opened from even when it has none (so `a` can bootstrap it), and one `Home`
@@ -5696,8 +5697,8 @@ count, for reaching a scope with many registered projects without cycling throug
 them.
 
 `a` and `d` branch on the selected row. On an ordinary note row, `a` opens an add form
-(stem, tier, parent, and description) with live validation; the parent list offers
-`AGENTS.md` plus every `long` note in the scope, illegal stems, tiers, parents, and
+(stem, type, parent, and description) with live validation; the parent list offers
+`AGENTS.md` plus every reference note in the scope, illegal stems, types, parents, and
 parent cycles are rejected before any write, and a successful create offers to open the
 new note's body in `$EDITOR`. `e` opens the same form pre-filled to retype, reparent, or
 redescribe the selected note; the note body itself is not edited in the panel -- press

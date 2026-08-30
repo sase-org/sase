@@ -38,8 +38,8 @@ _COLOR_LABEL = "dim"
 _BADGE_FOREGROUND = "#1a1a1a"
 _FALLBACK_ACCENT = "#87D7FF"
 
-_TIER1_MARK = "●"  # ●
-_TIER2_MARK = "○"  # ○
+_CORE_MARK = "●"  # ●
+_REFERENCE_MARK = "○"  # ○
 _WEB_MARK = "◆"  # ◆
 _CHILD_INDENT = "└ "  # └
 _WEB_COLLAPSED_MARK = "▸"  # ▸
@@ -130,7 +130,7 @@ def build_note_row_text(
     text = Text()
     if node.depth > 0:
         text.append(_CHILD_INDENT, style="dim")
-    marker = _TIER1_MARK if note.type == "core" else _TIER2_MARK
+    marker = _CORE_MARK if note.type == "core" else _REFERENCE_MARK
     text.append(f"{marker} ")
     if note.relative_path in generated_paths:
         text.append(f"{_GENERATED_MARK} ")
@@ -315,10 +315,14 @@ def build_note_badge_row(
     accent: str,
     include_type: bool = True,
 ) -> Text | None:
-    """Build the tier/generated/shadow/orphan/invalid badge row."""
+    """Build the type/generated/shadow/orphan/invalid badge row."""
     badges: list[str] = []
     if include_type:
-        badges.append("TIER 1 · always loaded" if note.type == "core" else "TIER 2")
+        badges.append(
+            "CORE · always loaded"
+            if note.type == "core"
+            else "REFERENCE · read on demand"
+        )
     if note.relative_path in snapshot.generated_paths:
         badges.append("GENERATED")
     if note.path.stem in snapshot.shadowed_stems:

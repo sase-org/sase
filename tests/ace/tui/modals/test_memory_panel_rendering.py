@@ -196,7 +196,7 @@ def test_note_row_text_includes_description_snippet() -> None:
     assert "Line one. Line two." in text
 
 
-def test_note_badge_row_marks_tier_generated_shadowed_orphaned_invalid() -> None:
+def test_note_badge_row_marks_type_generated_shadowed_orphaned_invalid() -> None:
     ref = scope_ref("sase", "sase")
 
     short_note = memory_note("always", note_type="core")
@@ -204,14 +204,14 @@ def test_note_badge_row_marks_tier_generated_shadowed_orphaned_invalid() -> None
         build_note_badge_row(
             scope_snapshot(ref, (short_note,)), short_note, accent="#fff"
         ).plain
-    ) == " TIER 1 · always loaded "
+    ) == " CORE · always loaded "
 
     long_note = memory_note("hub")
     assert (
         build_note_badge_row(
             scope_snapshot(ref, (long_note,)), long_note, accent="#fff"
         ).plain
-    ) == " TIER 2 "
+    ) == " REFERENCE · read on demand "
 
     generated_note = memory_note("sase")
     snapshot = scope_snapshot(

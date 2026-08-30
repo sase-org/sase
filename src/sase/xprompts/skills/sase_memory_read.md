@@ -11,14 +11,14 @@ log_skill_use: false
 Use this skill when project instructions or a prompt require reading SASE reference
 memory.
 
-Memory has two independent axes. **Kind** — note, web, or strand — is what the memory
-is: a flat note, a keyword-addressed web of small strand files (such as the bundled
-`glossary` web), or one strand inside a web. **Rendering** — `core` or `reference`, set
-by `type:` frontmatter — is how it reaches an agent: core renders always-loaded,
-reference is read on demand. The axes are independent: a web's own descriptor can render
-at either tier, but a strand's body is never inlined into always-loaded instructions, no
-matter what tier its web renders at. Legacy `type: short` and `type: long` values are
-still accepted and mean core and reference respectively.
+A memory's **kind** — note, web, or strand — decides how it reaches an agent. A flat
+note declares `type: core` (inlined into generated agent instructions, always loaded) or
+`type: reference` (named with its description only, read on demand through this
+command); legacy `type: short` and `type: long` still parse and mean the same two
+things. A web is a keyword-addressed collection of small strand files (the bundled
+`glossary` web is one): its descriptor declares no `type:` and always inlines into the
+generated Memory Webs section, while a strand's body never inlines and is always read on
+demand.
 
 Core memory cannot be read with this command because it is already in context.
 
