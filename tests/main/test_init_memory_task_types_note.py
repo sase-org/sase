@@ -140,12 +140,21 @@ def test_project_root_writes_task_type_web_descriptor_and_strands(
     assert "generated_by: sase.task_types.generated-strand.v1" in strand_text
     assert "## Identity" in strand_text
     assert "- Task type: `bug`" in strand_text
+    assert "## Related Task Types" in strand_text
+    assert "- [[task_types/ci]]" in strand_text
+    assert "- [[task_types/flake]]" in strand_text
+    assert "[[task_types/bug]]" not in strand_text
     assert "## Fields" in strand_text
     assert "**Field `location`**" in strand_text
     assert "## Body Template" in strand_text
     assert "```markdown\n## Bug\n" in strand_text
     assert "## Provenance" in strand_text
     assert "Run `sase bead task-type show bug`" not in strand_text
+
+    feature_text = (
+        project_root / "sase" / "memory" / "task_types" / "feature.md"
+    ).read_text(encoding="utf-8")
+    assert "## Related Task Types" not in feature_text
 
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
     capsys.readouterr()
@@ -259,6 +268,65 @@ def test_generated_task_type_strand_represents_shared_show_detail() -> None:
                 continue
             assert str(value) in flat
     assert "```markdown\n## Audit\n\n{{ evidence }}\n```" in strand
+    assert "## Related Task Types" not in strand
+
+
+def test_related_task_types_section_lists_matching_catalog_types_by_slug() -> None:
+    alpha = _fake_record(
+        "alpha",
+        "Alpha",
+        spec_overrides={
+            "summary": "Mentions the zeta type.",
+            "when_to_use": "Do not use this for a Zeta, a confirmed CI failure.",
+            "create_refusal": "Use beta instead of inventing a new slug.",
+        },
+    )
+    beta = _fake_record("beta", "Beta")
+    ci = _fake_record("ci", "CI failure")
+    zeta = _fake_record("zeta", "Zeta")
+    unused = _fake_record("unused", "Unused")
+    catalog = (zeta, unused, ci, beta, alpha)
+
+    strand = task_types_rendering._render_task_type_strand_content(
+        alpha, catalog=catalog
+    )
+
+    related_block = strand.split("## Related Task Types", 1)[1].split("## Fields", 1)[0]
+    assert related_block.index("[[task_types/beta]]") < related_block.index(
+        "[[task_types/ci]]"
+    )
+    assert related_block.index("[[task_types/ci]]") < related_block.index(
+        "[[task_types/zeta]]"
+    )
+    assert "[[task_types/alpha]]" not in strand
+    assert "[[task_types/unused]]" not in strand
+    reversed_catalog = tuple(reversed(catalog))
+    again = task_types_rendering._render_task_type_strand_content(
+        alpha, catalog=reversed_catalog
+    )
+    assert again == strand
+
+
+def test_related_task_types_section_omitted_when_nothing_matches() -> None:
+    lone = _fake_record(
+        "lone",
+        "Lone",
+        spec_overrides={
+            "summary": "A lone type that names only itself.",
+            "when_to_use": "File a lone when the work is a lone task.",
+            "create_refusal": "Do not refile a lone as a social accident.",
+        },
+    )
+    ci = _fake_record("ci", "CI failure")
+    flake = _fake_record("flake", "Flaky test")
+    strand = task_types_rendering._render_task_type_strand_content(
+        lone, catalog=(lone, ci, flake)
+    )
+
+    assert "## Related Task Types" not in strand
+    assert "[[task_types/ci]]" not in strand
+    assert "[[task_types/flake]]" not in strand
+    assert "[[task_types/lone]]" not in strand
 
 
 def test_generated_task_type_web_uses_committed_agent_creatable_records(

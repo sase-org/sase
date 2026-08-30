@@ -11,6 +11,9 @@ from sase.main.init_memory.root_rendering import (
     generated_short_notes,
     render_generated_project_long_memory_contents,
 )
+from sase.main.init_memory.root_rendering_task_types import (
+    _render_generated_task_types_web_sources,
+)
 from sase.memory.mutation import (
     MemoryGeneratedNoteError,
     delete_memory_note,
@@ -136,6 +139,28 @@ def test_project_scope_allows_user_owned_glossary_note(tmp_path: Path) -> None:
     )
     assert deleted.relative_path == "sase/memory/glossary.md"
     assert not glossary.exists()
+
+
+def test_generated_task_type_strands_emit_related_links_outside_mutation_paths() -> (
+    None
+):
+    """Generated strands carry Related links; mutation still targets the descriptor."""
+    source, error = _render_generated_task_types_web_sources()
+    assert error is None
+    assert source is not None
+    by_slug = {strand.slug: strand.content for strand in source.strands}
+    bug = by_slug["bug"]
+    assert "## Related Task Types" in bug
+    assert "- [[task_types/ci]]" in bug
+    assert "- [[task_types/flake]]" in bug
+    assert "[[task_types/bug]]" not in bug
+    assert "## Related Task Types" not in by_slug["feature"]
+    generated_notes = {
+        path.as_posix()
+        for path in generated_memory_note_relative_paths(include_project_memory=True)
+    }
+    assert "sase/memory/task_types.md" in generated_notes
+    assert "sase/memory/task_types/bug.md" not in generated_notes
 
 
 def test_home_scope_allows_the_project_only_task_types_name(tmp_path: Path) -> None:

@@ -26,6 +26,10 @@ File one when a test or lint failed and you confirmed it is a true failure, not 
 Record the pytest node ID, the failing SHA if known, and why this is not intermittent.
 Use flake instead when a rerun on the same tree passed.
 
+## Related Task Types
+
+- [[task_types/flake]]
+
 ## Fields
 
 **Field `node_id`**

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -110,7 +112,44 @@ def _body_template_markdown(template: str) -> list[str]:
     return ["```markdown", template.rstrip("\n"), "```"]
 
 
-def _render_task_type_strand_body(detail: TaskTypeDetail) -> str:
+def _task_type_mention_prose(detail: TaskTypeDetail) -> str:
+    parts = [detail.summary, detail.when_to_use]
+    if detail.create_refusal:
+        parts.append(detail.create_refusal)
+    return "\n".join(parts)
+
+
+def _whole_word_in_prose(prose: str, token: str) -> bool:
+    if not token.strip():
+        return False
+    return (
+        re.search(rf"(?<!\w){re.escape(token)}(?!\w)", prose, flags=re.IGNORECASE)
+        is not None
+    )
+
+
+def _related_task_type_slugs(
+    detail: TaskTypeDetail,
+    catalog: Sequence[TaskTypeRecord],
+) -> tuple[str, ...]:
+    """Return other catalog slugs this type's own prose names, ordered by slug."""
+    prose = _task_type_mention_prose(detail)
+    related: list[str] = []
+    for record in catalog:
+        if record.task_type == detail.task_type:
+            continue
+        label = str(record.spec.get("label") or record.task_type)
+        if _whole_word_in_prose(prose, record.task_type) or _whole_word_in_prose(
+            prose, label
+        ):
+            related.append(record.task_type)
+    return tuple(sorted(related))
+
+
+def _render_task_type_strand_body(
+    detail: TaskTypeDetail,
+    catalog: Sequence[TaskTypeRecord] = (),
+) -> str:
     lines = [
         "## Identity",
         "",
@@ -132,6 +171,16 @@ def _render_task_type_strand_body(detail: TaskTypeDetail) -> str:
     ]
     if detail.create_refusal:
         lines.extend(["", "## Create Refusal", "", detail.create_refusal])
+    related = _related_task_type_slugs(detail, catalog)
+    if related:
+        lines.extend(
+            [
+                "",
+                "## Related Task Types",
+                "",
+                *(f"- [[task_types/{slug}]]" for slug in related),
+            ]
+        )
     lines.extend(["", "## Fields", ""])
     if detail.fields:
         for index, field in enumerate(detail.fields):
@@ -167,7 +216,10 @@ def _render_task_type_strand_body(detail: TaskTypeDetail) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _render_task_type_strand_content(record: TaskTypeRecord) -> str:
+def _render_task_type_strand_content(
+    record: TaskTypeRecord,
+    catalog: Sequence[TaskTypeRecord] = (),
+) -> str:
     """Render one generated strand file's full content for *record*."""
     detail = task_type_detail(record)
     summary = collapse_description(detail.summary) or detail.label
@@ -181,7 +233,9 @@ def _render_task_type_strand_content(record: TaskTypeRecord) -> str:
             },
         }
     )
-    body = format_generated_memory_markdown(_render_task_type_strand_body(detail))
+    body = format_generated_memory_markdown(
+        _render_task_type_strand_body(detail, catalog=catalog)
+    )
     return frontmatter + body
 
 
@@ -252,12 +306,13 @@ def _render_generated_task_types_web_sources() -> tuple[
     if descriptor_error is not None or descriptor_content is None:
         return None, descriptor_error
 
+    records = _agent_creatable_task_type_records()
     strands = tuple(
         GeneratedStrandSource(
             slug=record.task_type,
-            content=_render_task_type_strand_content(record),
+            content=_render_task_type_strand_content(record, catalog=records),
         )
-        for record in _agent_creatable_task_type_records()
+        for record in records
     )
     return (
         GeneratedWebSource(

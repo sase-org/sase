@@ -26,6 +26,10 @@ File one when a test or lint failed, a rerun on the same tree passed, and you di
 cause the failure. Record the fail rate and whether it reproduces serially. Use ci
 instead when the failure is confirmed and reproducible.
 
+## Related Task Types
+
+- [[task_types/ci]]
+
 ## Fields
 
 **Field `node_id`**
