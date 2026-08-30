@@ -129,6 +129,16 @@ class NotificationBasicActionsMixin:
             highlight = self._first_visible_notification_index()
         self._rebuild_list(highlight_index=highlight)
 
+    def _forget_removed_notification_targets(self: Any, removed_ids: set[str]) -> None:
+        """Drop marks and pending confirmations aimed at rows that are gone."""
+        self._marked_notification_ids.difference_update(removed_ids)
+        if self._pending_confirm_notification_id in removed_ids:
+            self._pending_confirm_notification_id = None
+        pending_ids = self._pending_confirm_notification_ids
+        if pending_ids is not None:
+            remaining = [n_id for n_id in pending_ids if n_id not in removed_ids]
+            self._pending_confirm_notification_ids = remaining or None
+
     def action_toggle_mark(self: Any) -> None:
         """Toggle the mark on the highlighted notification and advance."""
         idx = self._get_selected_index()
@@ -269,13 +279,21 @@ class NotificationBasicActionsMixin:
             return
 
         acted_ids = set(result.ids)
+        previous_tabs = self._tag_tabs()
         current = self._get_highlighted_notification()
         preferred_id = current.id if current is not None else None
+        indices = [i for i, n in enumerate(self._notifications) if n.id in acted_ids]
+        replacement_id = self._replacement_notification_id_after_bulk_dismiss(indices)
         for notification in self._notifications:
             if notification.id in acted_ids:
                 notification.read = True
-
-        highlight = self._visible_notification_index_for_id(preferred_id)
-        if highlight is None:
-            highlight = self._first_visible_notification_index()
-        self._rebuild_list(highlight_index=highlight)
+        self._notifications = [n for n in self._notifications if n.id not in acted_ids]
+        self._forget_removed_notification_targets(acted_ids)
+        self._rebuild_after_bulk_notification_reclassification(
+            previous_tabs=previous_tabs,
+            replacement_notification_id=replacement_id,
+            preferred_notification_id=preferred_id,
+        )
+        count = result.matched_count or len(indices)
+        if count:
+            self.notify(f"Marked {count} notification{'s' if count != 1 else ''} read")

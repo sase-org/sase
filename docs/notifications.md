@@ -53,7 +53,11 @@ danger confirmation naming the tab (`Mark Notification Tab Read?`) that defaults
 **Cancel**; it cannot be undone from ACE. The target is frozen when the prompt opens, so
 switching tabs while the confirmation is up cannot redirect the write to a different
 tab, and a tab with nothing in the visible list never prompts at all. The mutation
-itself runs as a proc, so a slow store write does not block the modal.
+itself runs as a proc, so a slow store write does not block the modal. On confirmation
+the marked-read rows leave the visible list immediately, the emptied tab disappears from
+the tab strip, and the modal moves to the nearest surviving tab (or shows
+`No unread notifications` when that was the last tab). A toast reports how many
+notifications the store marked read.
 
 ### Gate Detail Pane
 

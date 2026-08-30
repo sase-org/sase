@@ -14,7 +14,7 @@ from sase.ace.tui.modals.notification_modal_tags import NotificationTagTab
 from sase.ops.names import NOTIFY_APPLY_STATE
 from sase.notification_gates.presentation import GATE_PANEL_ACTION_DATA_KEY
 
-from tests._notification_modal_helpers import _make_notification
+from tests._notification_modal_helpers import _make_notification, _wire_fake_option_list
 
 
 def _pushed_confirm(
@@ -265,18 +265,20 @@ def test_complete_read_tab_error_leaves_read_flags_unchanged_and_notifies() -> N
         modal._complete_read_tab(result)
 
     assert n1.read is False
+    assert modal._notifications == [n1]
     modal.notify.assert_called_once_with(
         "Could not mark tab read: disk busy", severity="error"
     )
     modal._rebuild_list.assert_not_called()
 
 
-def test_complete_read_tab_success_marks_only_captured_ids_and_refreshes() -> None:
-    """A successful write marks only the captured ids and rebuilds the list."""
+def test_complete_read_tab_success_drops_acted_rows_and_refreshes() -> None:
+    """A successful write drops acted rows and rebuilds the list."""
     n1 = _make_notification("n1", tags=["alpha"])
     n2 = _make_notification("n2", tags=["alpha"])
     modal = NotificationModal([n1, n2])
     modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
 
     with patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app:
         mock_app.screen = modal
@@ -286,6 +288,8 @@ def test_complete_read_tab_success_marks_only_captured_ids_and_refreshes() -> No
         modal._complete_read_tab(result)
 
     assert n1.read is True
+    assert n1 not in modal._notifications
+    assert modal._notifications == [n2]
     assert n2.read is False
     mock_app._schedule_notification_poll.assert_called_once_with(source="mutation")
     modal._rebuild_list.assert_called_once()
@@ -302,6 +306,7 @@ def test_complete_read_tab_after_tab_switch_keeps_new_tab_and_leaves_it_unread()
     # Simulate the user navigating to another tab while persistence is in flight.
     modal._active_notification_tag = "beta"
     modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
 
     with patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app:
         mock_app.screen = modal
@@ -311,5 +316,160 @@ def test_complete_read_tab_after_tab_switch_keeps_new_tab_and_leaves_it_unread()
         modal._complete_read_tab(result)
 
     assert a1.read is True
+    assert a1 not in modal._notifications
+    assert modal._notifications == [b1]
     assert b1.read is False
     assert modal._active_notification_tag == "beta"
+
+
+def test_complete_read_tab_emptied_tab_moves_to_neighbor() -> None:
+    """Reading the last row of a tab drops it and selects a surviving neighbor."""
+    a1 = _make_notification("a1", tags=["alpha"])
+    b1 = _make_notification("b1", tags=["beta"])
+    modal = NotificationModal([a1, b1])
+    modal._active_notification_tag = "alpha"
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app:
+        mock_app.screen = modal
+        result = NotificationMutationResult(
+            action="read", ids=("a1",), success=True, message="Tab marked read"
+        )
+        modal._complete_read_tab(result)
+
+    assert modal._notifications == [b1]
+    assert modal._active_notification_tag == "beta"
+    assert "alpha" not in [tab.tag for tab in modal._tag_tabs()]
+
+
+def test_complete_read_tab_last_tab_empties_the_modal() -> None:
+    """Reading the last remaining tab leaves an empty unread list."""
+    a1 = _make_notification("a1", tags=["alpha"])
+    modal = NotificationModal([a1])
+    modal._active_notification_tag = "alpha"
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app:
+        mock_app.screen = modal
+        result = NotificationMutationResult(
+            action="read", ids=("a1",), success=True, message="Tab marked read"
+        )
+        modal._complete_read_tab(result)
+
+    assert modal._notifications == []
+    assert modal._active_notification_tag is None
+    assert modal._tag_tabs() == []
+
+
+def test_complete_read_tab_rebuilds_option_list_without_acted_rows() -> None:
+    """The visible option list drops acted rows instead of keeping a read marker."""
+    a1 = _make_notification("a1", tags=["alpha"])
+    a2 = _make_notification("a2", tags=["alpha"])
+    b1 = _make_notification("b1", tags=["beta"])
+    modal = NotificationModal([a1, a2, b1])
+    modal._active_notification_tag = "alpha"
+    option_list = _wire_fake_option_list(modal)
+    modal._display_file = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app:
+        mock_app.screen = modal
+        result = NotificationMutationResult(
+            action="read", ids=("a1",), success=True, message="Tab marked read"
+        )
+        modal._complete_read_tab(result)
+
+    visible_ids = [
+        modal._notifications[int(option.id)].id
+        for option in option_list.options
+        if not option.disabled and option.id is not None
+    ]
+    assert "a1" not in visible_ids
+    assert visible_ids == ["a2"]
+    assert modal._active_notification_tag == "alpha"
+
+
+def test_complete_read_tab_forgets_marks_and_pending_confirmations() -> None:
+    """Marks and pending dismiss confirmations do not survive removed rows."""
+    a1 = _make_notification("a1", tags=["alpha"])
+    a2 = _make_notification("a2", tags=["alpha"])
+    modal = NotificationModal([a1, a2])
+    modal._active_notification_tag = "alpha"
+    modal._marked_notification_ids = {"a1", "a2"}
+    modal._pending_confirm_notification_id = "a1"
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app:
+        mock_app.screen = modal
+        result = NotificationMutationResult(
+            action="read",
+            ids=("a1", "a2"),
+            success=True,
+            message="Tab marked read",
+        )
+        modal._complete_read_tab(result)
+
+    assert modal._marked_notification_ids == set()
+    assert modal._pending_confirm_notification_id is None
+
+
+def test_complete_read_tab_toast_reports_store_count() -> None:
+    """The toast uses the store-side matched count, including the singular form."""
+    n1 = _make_notification("n1", tags=["alpha"])
+    leftover = _make_notification("n2", tags=["alpha"])
+    modal = NotificationModal([n1, leftover])
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app:
+        mock_app.screen = modal
+        result = NotificationMutationResult(
+            action="read",
+            ids=("n1",),
+            success=True,
+            message="Tab marked read",
+            matched_count=5,
+        )
+        modal._complete_read_tab(result)
+
+    modal.notify.assert_called_once_with("Marked 5 notifications read")
+
+    n1 = _make_notification("n1", tags=["alpha"])
+    leftover = _make_notification("n2", tags=["alpha"])
+    modal = NotificationModal([n1, leftover])
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app:
+        mock_app.screen = modal
+        result = NotificationMutationResult(
+            action="read",
+            ids=("n1",),
+            success=True,
+            message="Tab marked read",
+            matched_count=1,
+        )
+        modal._complete_read_tab(result)
+
+    modal.notify.assert_called_once_with("Marked 1 notification read")
+
+    leftover = _make_notification("n2", tags=["alpha"])
+    modal = NotificationModal([leftover])
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app:
+        mock_app.screen = modal
+        result = NotificationMutationResult(
+            action="read",
+            ids=("missing",),
+            success=True,
+            message="Tab marked read",
+            matched_count=0,
+        )
+        modal._complete_read_tab(result)
+
+    modal.notify.assert_not_called()
