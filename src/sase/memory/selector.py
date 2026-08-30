@@ -89,6 +89,14 @@ class _StrandSelector:
 
 
 @dataclass(frozen=True, slots=True)
+class _MemoryWebReadLink:
+    """One authored link from a rendered strand, classified for output."""
+
+    target: MemoryLinkTarget
+    kind: Literal["inline", "reference"]
+
+
+@dataclass(frozen=True, slots=True)
 class MemoryWebReadNode:
     """One strand printed as part of a resolved web section."""
 
@@ -98,6 +106,7 @@ class MemoryWebReadNode:
     depth: int
     referrer: tuple[str, str, GlossarySpanKind] | None
     also_referenced_by: tuple[str, ...]
+    links: tuple[_MemoryWebReadLink, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -476,23 +485,33 @@ def _resolve_web_sections(
         closure, strand_by_index = resolve_strand_closure(
             merged_web, scoped.strands, roots, depth=depth, link_spans=same_web_spans
         )
-        nodes = tuple(
-            _closure_node(node, strand_by_index, scoped.origins)
-            for node in closure.nodes
-        )
-        rendered_slugs = {node.strand.slug for node in nodes}
+        rendered_slugs = {
+            strand_by_index[node.entry.index].slug for node in closure.nodes
+        }
 
+        node_links: dict[str, list[_MemoryWebReadLink]] = {}
         resolved_links: list[MemoryLinkTarget] = []
         seen_link_keys: set[str] = set()
         for edge in link_edges:
             if edge.strand.slug not in rendered_slugs:
                 continue
+            kind: Literal["inline", "reference"] = (
+                "inline" if edge.inline else "reference"
+            )
+            node_links.setdefault(edge.strand.slug, []).append(
+                _MemoryWebReadLink(target=edge.target, kind=kind)
+            )
             if edge.inline and isinstance(edge.target, MemoryStrandLinkTarget):
-                if edge.target.web.slug == slug:
-                    continue  # already inline-expanded via the closure spans
-                cross_web_pending.append((edge.strand, edge.target, edge.link))
-                continue
-            if edge.inline and isinstance(edge.target, MemoryNoteLinkTarget):
+                if (
+                    edge.target.web.slug == slug
+                    and edge.target.strand.slug in rendered_slugs
+                ):
+                    continue  # already inline-expanded in this section
+                if edge.target.web.slug != slug:
+                    cross_web_pending.append((edge.strand, edge.target, edge.link))
+                    continue
+                # Same-web inline that depth truncated: list it as a reference.
+            elif edge.inline and isinstance(edge.target, MemoryNoteLinkTarget):
                 cross_note_pending.append(edge.target)
                 continue
             key = _link_target_key(edge.target)
@@ -500,6 +519,16 @@ def _resolve_web_sections(
                 continue
             seen_link_keys.add(key)
             resolved_links.append(edge.target)
+
+        nodes = tuple(
+            _closure_node(
+                node,
+                strand_by_index,
+                scoped.origins,
+                links=tuple(node_links.get(strand_by_index[node.entry.index].slug, ())),
+            )
+            for node in closure.nodes
+        )
 
         sections.append(
             MemoryWebReadSection(
@@ -609,6 +638,8 @@ def _closure_node(
     node: GlossaryClosureNode,
     strand_by_index: dict[int, MemoryStrand],
     origins: dict[str, WebStrandOrigin],
+    *,
+    links: tuple[_MemoryWebReadLink, ...] = (),
 ) -> MemoryWebReadNode:
     strand = strand_by_index[node.entry.index]
     return MemoryWebReadNode(
@@ -622,6 +653,7 @@ def _closure_node(
             else (node.referrer.term, node.referrer.matched_text, node.referrer.kind)
         ),
         also_referenced_by=node.also_referenced_by,
+        links=links,
     )
 
 

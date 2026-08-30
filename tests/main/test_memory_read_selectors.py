@@ -213,3 +213,107 @@ def test_show_records_no_audit_event_for_web_selector(
 
     assert "Stitch" in capsys.readouterr().out
     assert not memory_read_log_path(cwd=tmp_path).exists()
+
+
+def _seed_decisions_web(root: Path) -> None:
+    write(
+        root / "sase" / "memory" / "decisions.md",
+        "---\nweb: true\ndescription: Decision records.\nroster: list\n---\n\nPreamble.\n",
+    )
+    write(
+        root / "sase" / "memory" / "decisions" / "gates-never-block.md",
+        "---\nkeyword: A Gate Never Blocks\nsummary: Gate summary.\n---\n"
+        "See ![[decisions/single-turn-agents]] for more.\n",
+    )
+    write(
+        root / "sase" / "memory" / "decisions" / "single-turn-agents.md",
+        "---\nkeyword: Agents Are Single-Turn\nsummary: Turn summary.\n---\n"
+        "A run is one turn.\n",
+    )
+
+
+def test_show_inline_link_expands_strand_without_linked_references_listing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _prepare(tmp_path, monkeypatch)
+    _seed_decisions_web(tmp_path)
+
+    handle_memory_show_command(
+        create_parser().parse_args(["memory", "show", "decisions:gates-never-block"])
+    )
+
+    out = capsys.readouterr().out
+    assert "A Gate Never Blocks" in out
+    assert "Agents Are Single-Turn" in out
+    assert out.index("A Gate Never Blocks") < out.index("Agents Are Single-Turn")
+    assert "Linked References" not in out
+
+
+def test_show_and_read_match_for_a_note_with_linked_references(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _prepare(tmp_path, monkeypatch)
+    _seed_decisions_web(tmp_path)
+    write(
+        tmp_path / "sase" / "memory" / "foo.md",
+        _note("# Body\nSee [[decisions:single-turn-agents]].\n"),
+    )
+
+    handle_memory_show_command(create_parser().parse_args(["memory", "show", "foo.md"]))
+    show_out = capsys.readouterr().out
+
+    handle_memory_read_command(
+        create_parser().parse_args(["memory", "read", "foo.md", "-r", "need it"])
+    )
+    read_out = capsys.readouterr().out
+
+    assert show_out == read_out
+    assert "## Linked References" in show_out
+    assert "### 1. `decisions:single-turn-agents`" in show_out
+    events = read_memory_read_events(log_path=memory_read_log_path(cwd=tmp_path))
+    assert len(events) == 1
+    assert events[0].byte_count == len(
+        (tmp_path / "sase" / "memory" / "foo.md")
+        .read_text(encoding="utf-8")
+        .encode("utf-8")
+    )
+
+
+def test_show_json_includes_linked_references_for_notes_and_webs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _prepare(tmp_path, monkeypatch)
+    _seed_decisions_web(tmp_path)
+    write(
+        tmp_path / "sase" / "memory" / "foo.md",
+        _note("# Body\nSee [[decisions:single-turn-agents]].\n"),
+    )
+
+    handle_memory_show_command(
+        create_parser().parse_args(["memory", "show", "foo.md", "-f", "json"])
+    )
+    note_payload = json.loads(capsys.readouterr().out)
+    assert note_payload["linked_references"][0]["address"] == (
+        "decisions:single-turn-agents"
+    )
+    assert note_payload["note"]["links"][0]["kind"] == "reference"
+
+    handle_memory_show_command(
+        create_parser().parse_args(
+            ["memory", "show", "decisions:gates-never-block", "-f", "json"]
+        )
+    )
+    web_payload = json.loads(capsys.readouterr().out)
+    (web,) = web_payload["webs"]
+    assert web["linked_references"] == []
+    requested = next(
+        node for node in web["nodes"] if node["slug"] == "gates-never-block"
+    )
+    assert requested["links"][0]["kind"] == "inline"
+    assert requested["links"][0]["address"] == "decisions:single-turn-agents"

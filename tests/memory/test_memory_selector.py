@@ -270,6 +270,9 @@ def test_mixed_inline_and_reference_links_in_one_body(tmp_path: Path) -> None:
     (link,) = section.resolved_links
     assert isinstance(link, MemoryStrandLinkTarget)
     assert link.address == "decisions:gamma"
+    alpha = next(node for node in section.nodes if node.strand.slug == "alpha")
+    kinds = {item.target.address: item.kind for item in alpha.links}
+    assert kinds == {"decisions:beta": "inline", "decisions:gamma": "reference"}
 
 
 def test_depth_zero_treats_every_link_as_reference(tmp_path: Path) -> None:
@@ -314,6 +317,9 @@ def test_depth_limit_truncates_chained_inline_links(tmp_path: Path) -> None:
     (section,) = batch.web_sections
     assert [node.strand.slug for node in section.nodes] == ["alpha", "beta"]
     assert section.truncated is True
+    (link,) = section.resolved_links
+    assert isinstance(link, MemoryStrandLinkTarget)
+    assert link.address == "decisions:gamma"
 
 
 def test_strand_link_reference_none_disables_authored_links(tmp_path: Path) -> None:

@@ -18,6 +18,13 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.cli_show_palette import PATH_COLOR, SECTION_COLOR
+from sase.memory.link_render import (
+    append_memory_sections,
+    linked_references_json,
+    linked_references_markdown,
+    linked_references_renderable,
+    memory_links_json,
+)
 from sase.memory.link_resolve import MemoryLinkTarget
 from sase.memory.notes import MemoryNote, render_children_section
 from sase.memory.read_log import MemoryReadContent
@@ -82,15 +89,8 @@ def _note_children(view: ResolvedMemoryNote) -> tuple[MemoryNote, ...]:
 def _memory_note_markdown(view: ResolvedMemoryNote) -> str:
     """Render *view* as the plain Markdown ``sase memory read`` prints today."""
     children_section = render_children_section(view.children, view.content.path.note)
-    if not children_section:
-        return view.content.body
-
-    body = view.content.body
-    if body and not body.endswith("\n"):
-        body += "\n"
-    if body and not body.endswith("\n\n"):
-        body += "\n"
-    return body + children_section
+    linked_section = linked_references_markdown(view.resolved_links)
+    return append_memory_sections(view.content.body, children_section, linked_section)
 
 
 def memory_note_markdown(view: ResolvedMemoryNote) -> str:
@@ -116,8 +116,12 @@ def _memory_note_json_payload(view: ResolvedMemoryNote) -> dict[str, object]:
             "body": view.content.body,
             "byte_count": view.content.byte_count,
             "frontmatter_stripped": view.content.frontmatter_stripped,
+            "links": memory_links_json(
+                [(link, "reference") for link in view.resolved_links]
+            ),
         },
         "children": [_child_json(child) for child in _note_children(view)],
+        "linked_references": linked_references_json(view.resolved_links),
     }
 
 
@@ -140,6 +144,10 @@ def _memory_note_renderable(view: ResolvedMemoryNote) -> Group:
     if children:
         blocks.append(Text(""))
         blocks.append(_build_children_block(children))
+    linked_block = linked_references_renderable(view.resolved_links)
+    if linked_block is not None:
+        blocks.append(Text(""))
+        blocks.append(linked_block)
     return Group(*blocks)
 
 

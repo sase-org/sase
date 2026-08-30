@@ -19,6 +19,12 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.cli_show_palette import PATH_COLOR, SECTION_COLOR
+from sase.memory.link_render import (
+    linked_references_json,
+    linked_references_markdown,
+    linked_references_renderable,
+    memory_links_json,
+)
 from sase.memory.render import (
     MemoryShowFormat,
     ResolvedMemoryNote,
@@ -85,6 +91,10 @@ def _note_json(note: ResolvedMemoryNote) -> dict[str, object]:
         "body": note.content.body,
         "byte_count": note.content.byte_count,
         "origin": note.origin,
+        "links": memory_links_json(
+            [(link, "reference") for link in note.resolved_links]
+        ),
+        "linked_references": linked_references_json(note.resolved_links),
     }
 
 
@@ -95,6 +105,7 @@ def _web_section_json(section: MemoryWebReadSection) -> dict[str, object]:
         "depth_limit": section.depth_limit,
         "truncated": section.truncated,
         "nodes": [_node_json(node) for node in section.nodes],
+        "linked_references": linked_references_json(section.resolved_links),
     }
 
 
@@ -110,6 +121,7 @@ def _node_json(node: MemoryWebReadNode) -> dict[str, object]:
         "scope": node.scope,
         "referrer": None if node.referrer is None else list(node.referrer),
         "also_referenced_by": list(node.also_referenced_by),
+        "links": memory_links_json([(link.target, link.kind) for link in node.links]),
     }
 
 
@@ -159,6 +171,9 @@ def _web_section_markdown(section: MemoryWebReadSection) -> str:
         if node.strand.aliases:
             pieces.append("aka " + ", ".join(node.strand.aliases) + "\n")
         pieces.append(node.strand.body.strip() + "\n")
+    linked = linked_references_markdown(section.resolved_links)
+    if linked:
+        pieces.append(linked)
     return "\n".join(pieces)
 
 
@@ -203,6 +218,9 @@ def _web_section_renderable(section: MemoryWebReadSection) -> Group:
                 style="dim",
             )
         )
+    linked_block = linked_references_renderable(section.resolved_links)
+    if linked_block is not None:
+        blocks.append(linked_block)
     return Group(*blocks)
 
 
