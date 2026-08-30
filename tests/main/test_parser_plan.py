@@ -27,6 +27,8 @@ def test_plan_command_group_parses_subcommands() -> None:
             "worker",
             "-p",
             "Focus tests",
+            "-w",
+            "sase-s7.2,bead=sase-64.3",
         ]
     )
 
@@ -40,6 +42,7 @@ def test_plan_command_group_parses_subcommands() -> None:
     assert approve_args.kind == "tale"
     assert approve_args.model == "worker"
     assert approve_args.prompt == "Focus tests"
+    assert approve_args.wait == "sase-s7.2,bead=sase-64.3"
 
 
 def test_plan_approve_kind_defaults_from_plan_at_execution_time() -> None:
@@ -191,8 +194,14 @@ def test_plan_subcommand_help_is_complete() -> None:
     assert "--model MODEL" in approve_help
     assert "-p PROMPT" in approve_help
     assert "--prompt PROMPT" in approve_help
+    assert "-w SPEC" in approve_help
+    assert "--wait SPEC" in approve_help
     assert "sase plan approve abcdef12 --kind tale --prompt 'Focus tests'" in (
         approve_help
+    )
+    assert (
+        "sase plan approve abcdef12 --kind tale --wait 'sase-s7.2,bead=sase-64.3'"
+        in approve_help
     )
     assert "-j" in list_help
     assert "--json" in list_help

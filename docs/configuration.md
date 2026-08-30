@@ -5332,7 +5332,7 @@ With no subcommand, `sase plan` defaults to the `sase plan list` dashboard.
 
 | Form                             | Flags                                                                                                                         | Description                                                             |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `sase plan approve [selector]`   | `-k/--kind`, `-m/--model`, `-p/--prompt`                                                                                      | Approve one pending proposal by notification ID or unique ID prefix.    |
+| `sase plan approve [selector]`   | `-k/--kind`, `-m/--model`, `-p/--prompt`, `-w/--wait`                                                                         | Approve one pending proposal by notification ID or unique ID prefix.    |
 | `sase plan` / `sase plan list`   | `-j/--json`, `-n/--limit`, `-s/--status`, `-t/--tier`                                                                         | List pending proposals, approvals, and inferred rejected rows.          |
 | `sase plan propose <plan_file>`  | -                                                                                                                             | Submit a Markdown plan file for approval from the `/sase_plan` skill.   |
 | `sase plan reject [selector]`    | -                                                                                                                             | Reject one pending proposal by notification ID or unique ID prefix.     |
@@ -5361,8 +5361,10 @@ SDD plan, `tale` commits the plan as an SDD tale and then runs the coder, `epic`
 the matching SDD tier and launches the bead follow-up, and `commit` records the approved
 plan in SDD without launching a coder. The `-m/--model` flag applies to the follow-up
 agent; `-p/--prompt` adds extra coder instructions only for the `approve` and `tale`
-paths. `sase plan reject` writes the rejection response first, then attempts the same
-durable cleanup path as TUI no-feedback rejection when the matching planner row is still
+paths. Use `-w/--wait` with comma-separated agent names and `bead=<id>` entries to hold
+the approved coder or launched epic phases until those dependencies finish.
+`sase plan reject` writes the rejection response first, then attempts the same durable
+cleanup path as TUI no-feedback rejection when the matching planner row is still
 discoverable.
 
 `sase plan search [query]` scans plans in the resolved SDD store (the `repo` source) and

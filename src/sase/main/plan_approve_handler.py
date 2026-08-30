@@ -116,6 +116,7 @@ def handle_plan_approve_command(args: argparse.Namespace) -> NoReturn:
             kind=getattr(args, "kind", None),
             coder_prompt=getattr(args, "prompt", None),
             coder_model=getattr(args, "model", None),
+            wait=getattr(args, "wait", None),
         )
     except PlanApprovalValidationError as exc:
         from sase.main.plan_validate_render import render_validation_human
@@ -161,8 +162,10 @@ def _approve_plan_from_cli(
     kind: str | None,
     coder_prompt: str | None = None,
     coder_model: str | None = None,
+    wait: str | None = None,
 ) -> PlanApprovalActionResult:
     """Resolve and approve a pending PlanApproval notification."""
+    _validate_wait_spec_for_cli(wait)
     notification = resolve_pending_plan(selector)
     ensure_plan_notification_available(notification)
     return execute_plan_approval_response(
@@ -170,9 +173,23 @@ def _approve_plan_from_cli(
         kind,
         coder_prompt=coder_prompt,
         coder_model=coder_model,
+        wait=wait,
         epic_launch_mode="launch",
         epic_launch_origin="cli",
     )
+
+
+def _validate_wait_spec_for_cli(wait: str | None) -> None:
+    """Validate ``sase plan approve --wait`` before resolving the proposal."""
+    text = wait.strip() if isinstance(wait, str) else None
+    if not text:
+        return
+    from sase.wait_spec import WaitSpecError, parse_wait_spec
+
+    try:
+        parse_wait_spec(text)
+    except WaitSpecError as exc:
+        raise PlanApprovalActionError("invalid_request", "wait", str(exc)) from exc
 
 
 def is_auto_approve_active() -> bool:

@@ -177,7 +177,9 @@ remains `EPIC APPROVED` until successful metadata back-fill makes the created ep
 known.
 
 `--kind approve` runs the coder without committing an SDD plan, while `--kind commit`
-records the approved plan in SDD without launching a coder.
+records the approved plan in SDD without launching a coder. `--wait` accepts
+comma-separated agent names and `bead=<id>` entries; tale approvals apply that wait to
+the coder, and epic approvals apply it to the launched phase agents.
 `sase plan reject <id-prefix>` writes the same no-feedback rejection response as the
 TUI, then attempts to dismiss and user-kill the matching planner row when it can be
 found.

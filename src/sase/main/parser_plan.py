@@ -58,6 +58,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plan approve\n"
             "  sase plan approve abcdef12 --kind approve\n"
             "  sase plan approve abcdef12 --kind tale --prompt 'Focus tests'\n"
+            "  sase plan approve abcdef12 --kind tale --wait 'sase-s7.2,bead=sase-64.3'\n"
             "  sase plan approve abcdef12 --kind commit"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -89,6 +90,15 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "-p",
         "--prompt",
         help="Optional extra prompt text for approve/tale coder follow-up",
+    )
+    approve_parser.add_argument(
+        "-w",
+        "--wait",
+        metavar="SPEC",
+        help=(
+            "Comma-separated agent names and bead=<id> entries the approved "
+            "work waits for"
+        ),
     )
     links_parser = plan_subparsers.add_parser(
         "links",

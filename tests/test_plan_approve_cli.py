@@ -447,6 +447,53 @@ def test_plan_approve_can_include_coder_prompt_and_model(tmp_path: Path) -> None
     assert notification.dismissed is True
 
 
+def test_plan_approve_can_include_wait_spec(tmp_path: Path) -> None:
+    response_dir = _response_dir(tmp_path)
+    plan = _plan_file(tmp_path)
+    _append_plan_notification("abcdef12-plan", plan, response_dir)
+
+    result = _approve_plan_from_cli(
+        selector="abcdef12",
+        kind="approve",
+        wait="sase-s7.2,bead=sase-64.3,sase-s7.2",
+    )
+
+    assert result.response_json == {
+        "action": "approve",
+        "commit_plan": False,
+        "run_coder": True,
+        "wait_agents": ["sase-s7.2"],
+        "wait_beads": ["sase-64.3"],
+        "plan_archive_owner": "none",
+        "plan_archive_state": "not_requested",
+    }
+    assert json.loads((response_dir / "plan_response.json").read_text())[
+        "wait_beads"
+    ] == ["sase-64.3"]
+
+
+def test_plan_approve_bad_wait_spec_exits_2_before_resolving_plan(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = argparse.Namespace(
+        selector="abcdef12",
+        kind="approve",
+        prompt=None,
+        model=None,
+        wait="time=5m",
+    )
+
+    with (
+        patch("sase.main.plan_approve_handler.resolve_pending_plan") as resolve,
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        handle_plan_approve_command(args)
+
+    assert exc_info.value.code == 2
+    resolve.assert_not_called()
+    assert "wait spec does not accept time=" in capsys.readouterr().err
+
+
 def test_plan_approve_omitted_selector_succeeds_with_one_pending_plan(
     tmp_path: Path,
 ) -> None:
