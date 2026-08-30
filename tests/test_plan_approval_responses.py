@@ -204,3 +204,69 @@ def test_handle_plan_approval_approve_with_options(
     assert result.commit_plan is False
     assert result.run_coder is True
     assert result.coder_prompt == "#review+"
+    assert result.wait_agents == ()
+    assert result.wait_beads == ()
+
+
+def _approve_with_translated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    extra: dict[str, Any],
+) -> PlanApprovalResult | None:
+    plan = tmp_path / "plan.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    from sase.plan_gate import translate_plan_gate_response as real_translate
+
+    def translate(bundle_path: Path, payload: Any) -> dict[str, Any]:
+        data = real_translate(bundle_path, payload)
+        data.update(extra)
+        return data
+
+    with patch("sase.plan_gate.translate_plan_gate_response", side_effect=translate):
+        return _approve(str(plan), "wait-fields-session", "approve")
+
+
+def test_handle_plan_approval_reads_wait_agents_and_beads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = _approve_with_translated(
+        tmp_path,
+        monkeypatch,
+        {
+            "wait_agents": ["sase-s7.2", "sase-vs.1"],
+            "wait_beads": ["sase-64.3"],
+        },
+    )
+
+    assert result is not None
+    assert result.wait_agents == ("sase-s7.2", "sase-vs.1")
+    assert result.wait_beads == ("sase-64.3",)
+
+
+@pytest.mark.parametrize(
+    ("extra", "expected_agents", "expected_beads"),
+    [
+        ({"wait_agents": ["sase-s7.2"]}, ("sase-s7.2",), ()),
+        ({"wait_beads": ["sase-64.3"]}, (), ("sase-64.3",)),
+        ({"wait_agents": [], "wait_beads": []}, (), ()),
+        ({"wait_agents": "sase-s7.2", "wait_beads": "sase-64.3"}, (), ()),
+        ({"wait_agents": [""], "wait_beads": ["sase-64.3"]}, (), ("sase-64.3",)),
+        ({"wait_agents": ["sase-s7.2"], "wait_beads": [""]}, ("sase-s7.2",), ()),
+        ({"wait_agents": [1], "wait_beads": ["sase-64.3"]}, (), ("sase-64.3",)),
+        ({"wait_agents": ["sase-s7.2"], "wait_beads": [None]}, ("sase-s7.2",), ()),
+        ({"wait_agents": ("sase-s7.2",), "wait_beads": ("sase-64.3",)}, (), ()),
+    ],
+)
+def test_handle_plan_approval_accepts_only_nonempty_string_wait_lists(
+    extra: dict[str, Any],
+    expected_agents: tuple[str, ...],
+    expected_beads: tuple[str, ...],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _approve_with_translated(tmp_path, monkeypatch, extra)
+
+    assert result is not None
+    assert result.wait_agents == expected_agents
+    assert result.wait_beads == expected_beads

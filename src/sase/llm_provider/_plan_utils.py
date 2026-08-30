@@ -21,6 +21,8 @@ class PlanApprovalResult:
     run_coder: bool = True
     coder_prompt: str | None = None
     coder_model: str | None = None
+    wait_agents: tuple[str, ...] = ()
+    wait_beads: tuple[str, ...] = ()
     auto_approved: bool = field(default=False, compare=False)
     epic_launch_owner: Literal["host"] | None = field(default=None, compare=False)
     saved_plan_path: str | None = None
@@ -153,6 +155,18 @@ def move_plan_to_sase(plan_file: str) -> Path:
     return dest
 
 
+def _nonempty_string_tuple(value: object) -> tuple[str, ...]:
+    """Return *value* when it is a list of non-empty strings; otherwise ``()``."""
+    if not isinstance(value, list):
+        return ()
+    names: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not item:
+            return ()
+        names.append(item)
+    return tuple(names)
+
+
 def plan_approval_result_from_gate_response(
     bundle_path: Path,
     response: Mapping[str, object],
@@ -217,6 +231,8 @@ def plan_approval_result_from_gate_response(
             if isinstance(raw_archive_ref, str)
             else None
         )
+        wait_agents = _nonempty_string_tuple(response_data.get("wait_agents"))
+        wait_beads = _nonempty_string_tuple(response_data.get("wait_beads"))
         return PlanApprovalResult(
             action=action,
             plan_file=str(reviewed_plan),
@@ -224,6 +240,8 @@ def plan_approval_result_from_gate_response(
             run_coder=run_coder,
             coder_prompt=coder_prompt,
             coder_model=coder_model,
+            wait_agents=wait_agents,
+            wait_beads=wait_beads,
             auto_approved=auto_resolved,
             epic_launch_owner=epic_launch_owner,
             saved_plan_path=saved_plan_path,

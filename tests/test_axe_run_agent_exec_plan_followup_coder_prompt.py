@@ -6,6 +6,8 @@ from unittest.mock import patch
 import pytest
 
 from sase.llm_provider._plan_utils import PlanApprovalResult
+from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait
+from sase.xprompt.directives import extract_prompt_directives
 from tests._axe_run_agent_exec_plan_followup_prompt_helpers import (
     patch_plan_deps,
     run_followup_plan,
@@ -125,3 +127,80 @@ class TestPlanFollowupCoderPrompt:
             state.current_prompt,
             label="Full coder prompt",
         )
+
+
+def _approve_coder_prompt(
+    tmp_path,
+    *,
+    wait_agents: tuple[str, ...] = (),
+    wait_beads: tuple[str, ...] = (),
+) -> str:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    plan_file = write_plan_file(tmp_path)
+    approval = PlanApprovalResult(
+        action="approve",
+        plan_file=plan_file,
+        wait_agents=wait_agents,
+        wait_beads=wait_beads,
+    )
+    _, state, _ = run_plan_approval(
+        tmp_path,
+        approval=approval,
+        agent_model="opus",
+        agent_llm_provider="claude",
+    )
+    return state.current_prompt
+
+
+def _assert_coder_prompt_refs(prompt: str) -> None:
+    _, directives = extract_prompt_directives(prompt)
+    assert "%model:@small" in prompt
+    assert directives.model == "small"
+    assert "#gh:sase" in prompt
+    assert "@plan.md" in prompt
+
+
+class TestPlanFollowupCoderWait:
+    """Approval waits stamp a canonical ``%wait`` onto the coder successor."""
+
+    def test_empty_wait_leaves_coder_prompt_byte_identical(self, tmp_path) -> None:
+        with patch("sase.xprompt.directive_edit.set_prompt_wait") as set_wait:
+            prompt = _approve_coder_prompt(tmp_path)
+
+        set_wait.assert_not_called()
+        assert "%wait" not in prompt
+        _assert_coder_prompt_refs(prompt)
+        assert prompt.startswith("%model:@small\n")
+
+    @pytest.mark.parametrize(
+        ("wait_agents", "wait_beads"),
+        [
+            (("sase-s7.2",), ()),
+            ((), ("sase-64.3",)),
+            (("sase-s7.2", "sase-vs.1"), ("sase-64.3",)),
+        ],
+        ids=("agents", "beads", "mixed"),
+    )
+    def test_wait_fields_stamp_canonical_wait_directive(
+        self,
+        tmp_path,
+        wait_agents: tuple[str, ...],
+        wait_beads: tuple[str, ...],
+    ) -> None:
+        empty_prompt = _approve_coder_prompt(tmp_path / "empty")
+        waited_prompt = _approve_coder_prompt(
+            tmp_path / "waited",
+            wait_agents=wait_agents,
+            wait_beads=wait_beads,
+        )
+        expected = set_prompt_wait(
+            empty_prompt,
+            PromptWaitDirective(agents=wait_agents, beads=wait_beads),
+        )
+
+        assert waited_prompt == expected
+        assert waited_prompt != empty_prompt
+        _assert_coder_prompt_refs(waited_prompt)
+        _, directives = extract_prompt_directives(waited_prompt)
+        assert directives.wait == list(wait_agents)
+        assert directives.wait_beads == list(wait_beads)

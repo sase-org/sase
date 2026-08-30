@@ -82,6 +82,18 @@ class _AcceptedPlanPreparation:
     successor: SuccessorRequest | None = None
 
 
+def _wait_name_tuple(value: object) -> tuple[str, ...]:
+    """Return *value* when it is a sequence of non-empty strings; otherwise ``()``."""
+    if not isinstance(value, (list, tuple)):
+        return ()
+    names: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not item:
+            return ()
+        names.append(item)
+    return tuple(names)
+
+
 def _validate_current_archive_protocol(
     plan_result: Any,
     published_plan_path: Path | None,
@@ -533,15 +545,25 @@ def prepare_accepted_plan_successor(
 
     # The coder starts with a fresh context window; the approved plan file is
     # the hand-off artifact. It does not inherit the planner's chat.
+    successor_prompt = (
+        f"{model_prefix}{vcs_prefix}"
+        f"@{coder_plan_ref}\n\n"
+        "The above plan has been reviewed and approved. "
+        f"Implement it now.{coder_extra}\n{embedded_refs}"
+    )
+    wait_agents = _wait_name_tuple(getattr(plan_result, "wait_agents", ()))
+    wait_beads = _wait_name_tuple(getattr(plan_result, "wait_beads", ()))
+    if wait_agents or wait_beads:
+        from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait
+
+        successor_prompt = set_prompt_wait(
+            successor_prompt,
+            PromptWaitDirective(agents=wait_agents, beads=wait_beads),
+        )
     return _AcceptedPlanPreparation(
         successor=SuccessorRequest(
             base_meta=followup_base_meta,
-            prompt=(
-                f"{model_prefix}{vcs_prefix}"
-                f"@{coder_plan_ref}\n\n"
-                "The above plan has been reviewed and approved. "
-                f"Implement it now.{coder_extra}\n{embedded_refs}"
-            ),
+            prompt=successor_prompt,
             suffix=PLAN_CHAIN_CODER_SUFFIX,
             relationships={
                 "plan_path": plan_result.plan_file,
