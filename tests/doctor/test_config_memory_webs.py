@@ -69,3 +69,63 @@ def test_doctor_memory_webs_ignores_retired_config_glossary_key(
 
     assert check.status == "OK"
     assert check.details == ()
+
+
+def test_doctor_memory_webs_warns_on_unresolved_strand_link(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    home = tmp_path / "home"
+    _write(
+        project / "sase" / "memory" / "terms.md",
+        "---\nweb: true\nroster: inline\n---\n\nTerms.\n",
+    )
+    _write(
+        project / "sase" / "memory" / "terms" / "alpha.md",
+        "---\nkeyword: Alpha Term\n---\n\nSee [[missing-target]].\n",
+    )
+    home.mkdir()
+    context = DoctorContext(
+        cwd=project,
+        project=None,
+        sase_home=tmp_path / "state",
+        env={"HOME": str(home)},
+    )
+
+    check = check_config_memory_webs(context)
+
+    assert check.status == "WARN"
+    assert any(
+        "unresolved memory link [[missing-target]]" in detail
+        for detail in check.details
+    )
+    assert all(detail.startswith("project:") for detail in check.details)
+
+
+def test_doctor_memory_webs_warns_on_flat_note_link_issues(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    home = tmp_path / "home"
+    _write(
+        project / "sase" / "memory" / "lint.md",
+        "---\n"
+        "type: reference\n"
+        "parent: AGENTS.md\n"
+        "description: Lint notes.\n"
+        "link_reference: bogus\n"
+        "link_rendering: sideways\n"
+        "---\n"
+        "See [[no-such.md]].\n",
+    )
+    home.mkdir()
+    context = DoctorContext(
+        cwd=project,
+        project=None,
+        sase_home=tmp_path / "state",
+        env={"HOME": str(home)},
+    )
+
+    check = check_config_memory_webs(context)
+
+    assert check.status == "WARN"
+    details = "\n".join(check.details)
+    assert "link_reference must be explicit, implicit, or none" in details
+    assert "link_rendering must be reference or inline" in details
+    assert "unresolved memory link [[no-such.md]]" in details

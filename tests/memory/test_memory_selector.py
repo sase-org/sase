@@ -20,20 +20,34 @@ def _note(body: str = "# Body\n", *, description: str = "A note.") -> str:
 
 
 def _descriptor(
-    *, note_type: str = "core", roster: str = "inline", closure: str = "none"
+    *,
+    note_type: str = "core",
+    roster: str = "inline",
+    link_reference: str | None = None,
+    closure: str | None = None,
 ) -> str:
+    extra = ""
+    if closure is not None:
+        extra += f"closure: {closure}\n"
+    elif link_reference is not None:
+        extra += f"link_reference: {link_reference}\n"
     return (
         "---\n"
         f"type: {note_type}\n"
         "web: true\n"
         f"roster: {roster}\n"
-        f"closure: {closure}\n"
+        f"{extra}"
         "---\n\nPreamble.\n"
     )
 
 
-def _seed_glossary_web(root: Path, *, closure: str = "none") -> None:
-    _write(root / "sase" / "memory" / "glossary.md", _descriptor(closure=closure))
+def _seed_glossary_web(
+    root: Path, *, link_reference: str | None = None, closure: str | None = None
+) -> None:
+    _write(
+        root / "sase" / "memory" / "glossary.md",
+        _descriptor(link_reference=link_reference, closure=closure),
+    )
     _write(
         root / "sase" / "memory" / "glossary" / "stitch.md",
         "---\naliases: [commit-ish]\nsummary: A change record.\n---\n"
@@ -71,7 +85,7 @@ def test_bare_web_selector_reads_every_strand(tmp_path: Path) -> None:
 
 
 def test_strand_selector_with_closure_none_does_not_expand(tmp_path: Path) -> None:
-    _seed_glossary_web(tmp_path, closure="none")
+    _seed_glossary_web(tmp_path, link_reference="none")
 
     batch = resolve_memory_selector_batch(
         ["glossary:stitch"], project_root=tmp_path, home_root=tmp_path / "home"
@@ -365,7 +379,7 @@ def test_unresolved_link_is_collected_with_no_candidates(tmp_path: Path) -> None
 
 
 def test_cross_web_inline_link_adds_extra_root_section(tmp_path: Path) -> None:
-    _seed_glossary_web(tmp_path, closure="none")
+    _seed_glossary_web(tmp_path, link_reference="none")
     _write(tmp_path / "sase" / "memory" / "decisions.md", _link_descriptor())
     _write(
         tmp_path / "sase" / "memory" / "decisions" / "alpha.md",

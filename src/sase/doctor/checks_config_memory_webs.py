@@ -7,9 +7,12 @@ from typing import TYPE_CHECKING, Any
 
 from sase.diagnostics import CheckStatus, DiagnosticCheck
 from sase.doctor.checks_config_common import MAX_DETAIL_ROWS
+from sase.memory.notes import discover_memory_notes
 from sase.memory.web import (
     cross_scope_keyword_warnings,
     discover_memory_webs,
+    memory_note_link_warnings,
+    merge_memory_web_scopes,
     validate_memory_webs,
 )
 
@@ -32,13 +35,37 @@ def check_config_memory_webs(context: DoctorContext) -> DiagnosticCheck:
     home_report = (
         None if home_discovery is None else validate_memory_webs(home_discovery)
     )
+    project_notes = discover_memory_notes(context.cwd)
+    project_scoped = merge_memory_web_scopes(project_webs=project_discovery.webs)
+    home_notes = () if home_discovery is None else discover_memory_notes(home_root)
+    home_scoped = (
+        ()
+        if home_discovery is None
+        else merge_memory_web_scopes(project_webs=home_discovery.webs)
+    )
     blockers = [
         *_prefixed("project", project_report.blockers),
         *(() if home_report is None else _prefixed("home", home_report.blockers)),
     ]
     warnings = [
-        *_prefixed("project", project_report.warnings),
-        *(() if home_report is None else _prefixed("home", home_report.warnings)),
+        *_prefixed(
+            "project",
+            (
+                *project_report.warnings,
+                *memory_note_link_warnings(project_notes, scoped_webs=project_scoped),
+            ),
+        ),
+        *(
+            ()
+            if home_report is None
+            else _prefixed(
+                "home",
+                (
+                    *home_report.warnings,
+                    *memory_note_link_warnings(home_notes, scoped_webs=home_scoped),
+                ),
+            )
+        ),
     ]
     if (
         home_report is not None

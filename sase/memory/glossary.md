@@ -3,7 +3,8 @@ web: true
 roster: inline
 roster_label: GLOSSARY TERMS
 strand_noun: term
-closure: mentions
+link_reference: implicit
+link_rendering: inline
 ---
 
 # Glossary Terms

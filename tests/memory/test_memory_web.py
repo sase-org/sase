@@ -65,6 +65,12 @@ def _strand(
     return f"---\n{keyword_line}{aliases}{summary}{extra}---\n\n{body}"
 
 
+def test_web_package_import_does_not_cycle_with_link_resolve() -> None:
+    from sase.memory.cli_show import handle_memory_show_command
+
+    assert callable(handle_memory_show_command)
+
+
 def test_parse_defaults_and_discovery_keeps_note_inventory_flat(tmp_path: Path) -> None:
     _write(tmp_path / "sase" / "memory" / "terms.md", _descriptor(extra=""))
     _write(
@@ -550,6 +556,44 @@ def test_validation_allows_legacy_reference_web_priority(tmp_path: Path) -> None
 
     assert report.blockers == ()
     assert discovery.webs[0].priority == 5
+
+
+def test_validation_warns_on_unresolved_explicit_links(tmp_path: Path) -> None:
+    _write(tmp_path / "sase" / "memory" / "terms.md", _descriptor())
+    _write(
+        tmp_path / "sase" / "memory" / "terms" / "alpha.md",
+        _strand(body="See [[missing-target]] and [[beta]].\n"),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "terms" / "beta.md",
+        _strand(keyword="Beta Term", aliases="", body="Resolved target.\n"),
+    )
+
+    report = validate_memory_webs(discover_memory_webs(tmp_path))
+
+    assert report.blockers == ()
+    assert len(report.warnings) == 1
+    warning = report.warnings[0]
+    assert "unresolved memory link [[missing-target]]" in warning
+    assert "alpha.md" in warning
+
+
+def test_validation_skips_authored_links_when_link_reference_is_none(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "terms.md",
+        _descriptor(extra="link_reference: none\n"),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "terms" / "alpha.md",
+        _strand(body="See [[missing-target]].\n"),
+    )
+
+    report = validate_memory_webs(discover_memory_webs(tmp_path))
+
+    assert report.blockers == ()
+    assert report.warnings == ()
 
 
 def test_lookup_precedence_and_scope_origin_tracking(tmp_path: Path) -> None:

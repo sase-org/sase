@@ -123,6 +123,16 @@ def memory_web_with_mentioning_strands(
     """
     memory_root = root / "sase" / "memory"
     closure = "mentions" if link_reference == "implicit" else "none"
+    link_rendering = "inline" if link_reference == "implicit" else "reference"
+    if link_reference == "implicit":
+        strategy_frontmatter = "link_reference: implicit\nlink_rendering: inline\n"
+        strategy_keys = {
+            "link_reference": "implicit",
+            "link_rendering": "inline",
+        }
+    else:
+        strategy_frontmatter = f"link_reference: {link_reference}\n"
+        strategy_keys = {"link_reference": link_reference}
 
     def _strand(slug: str, keyword: str, body: str) -> MemoryStrand:
         relative_path = f"sase/memory/glossary/{slug}.md"
@@ -142,6 +152,7 @@ def memory_web_with_mentioning_strands(
             body_start=0,
             frontmatter={"keyword": keyword},
             link_reference=link_reference,  # type: ignore[arg-type]
+            link_rendering=link_rendering,  # type: ignore[arg-type]
         )
 
     alpha = _strand("alpha", "Alpha Term", "Alpha body mentions Beta Term.")
@@ -159,11 +170,14 @@ def memory_web_with_mentioning_strands(
         closure=closure,  # type: ignore[arg-type]
         metadata={},
         body="Glossary body.",
-        raw_text="---\ntype: core\nweb: true\nclosure: mentions\n---\nGlossary body.",
+        raw_text=(
+            f"---\ntype: core\nweb: true\n{strategy_frontmatter}---\nGlossary body."
+        ),
         body_start=0,
-        frontmatter={"type": "core", "web": True, "closure": "mentions"},
+        frontmatter={"type": "core", "web": True, **strategy_keys},
         strands=(alpha, beta),
         link_reference=link_reference,  # type: ignore[arg-type]
+        link_rendering=link_rendering,  # type: ignore[arg-type]
     )
 
 

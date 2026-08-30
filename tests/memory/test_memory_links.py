@@ -25,13 +25,23 @@ def _note(body: str = "# Body\n", *, description: str = "A note.") -> str:
     return f"---\ntype: reference\nparent: AGENTS.md\ndescription: {description}\n---\n{body}"
 
 
-def _descriptor(*, closure: str = "none", description: str = "A web.") -> str:
+def _descriptor(
+    *,
+    link_reference: str | None = None,
+    closure: str | None = None,
+    description: str = "A web.",
+) -> str:
+    extra = ""
+    if closure is not None:
+        extra += f"closure: {closure}\n"
+    elif link_reference is not None:
+        extra += f"link_reference: {link_reference}\n"
     return (
         "---\n"
         "web: true\n"
         f"description: {description}\n"
         "roster: inline\n"
-        f"closure: {closure}\n"
+        f"{extra}"
         "---\n\n"
         "Descriptor body.\n"
     )

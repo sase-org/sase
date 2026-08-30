@@ -19,10 +19,17 @@ def _note(body: str = "# Body\n", *, description: str = "A note.") -> str:
     return f"---\ntype: reference\nparent: AGENTS.md\ndescription: {description}\n---\n{body}"
 
 
-def _seed_glossary_web(root: Path, *, closure: str = "mentions") -> None:
+def _seed_glossary_web(
+    root: Path, *, link_reference: str | None = "implicit", closure: str | None = None
+) -> None:
+    extra = (
+        f"closure: {closure}\n"
+        if closure is not None
+        else ("" if link_reference is None else f"link_reference: {link_reference}\n")
+    )
     write(
         root / "sase" / "memory" / "glossary.md",
-        f"---\ntype: core\nweb: true\nroster: inline\nclosure: {closure}\n---\n\nPreamble.\n",
+        f"---\ntype: core\nweb: true\nroster: inline\n{extra}---\n\nPreamble.\n",
     )
     write(
         root / "sase" / "memory" / "glossary" / "stitch.md",
@@ -149,7 +156,7 @@ def test_show_mixed_batch_json_includes_notes_and_webs(
 ) -> None:
     _prepare(tmp_path, monkeypatch)
     write(tmp_path / "sase" / "memory" / "foo.md", _note())
-    _seed_glossary_web(tmp_path, closure="none")
+    _seed_glossary_web(tmp_path, link_reference="none")
 
     handle_memory_show_command(
         create_parser().parse_args(

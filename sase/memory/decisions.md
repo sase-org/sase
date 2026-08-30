@@ -6,7 +6,6 @@ description:
 roster: list
 roster_label: DECISIONS
 strand_noun: decision
-closure: none
 ---
 
 # Decisions

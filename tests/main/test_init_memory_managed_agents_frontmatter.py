@@ -321,5 +321,5 @@ def test_tier2_section_heading_keeps_top_level_long_note_reachable(
     assert run_handler() == 0
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "### 3.1 `sase/memory/only.md`" in agents
+    assert "### 2.1 `sase/memory/only.md`" in agents
     assert unreferenced_memory_files_for_init(project_root) == ()

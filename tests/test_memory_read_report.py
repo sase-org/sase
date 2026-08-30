@@ -30,14 +30,16 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def _descriptor(*, closure: str = "none") -> str:
+def _descriptor(
+    *, link_reference: str | None = None, closure: str | None = None
+) -> str:
+    extra = ""
+    if closure is not None:
+        extra += f"closure: {closure}\n"
+    elif link_reference is not None:
+        extra += f"link_reference: {link_reference}\n"
     return (
-        "---\n"
-        "type: core\n"
-        "web: true\n"
-        "roster: inline\n"
-        f"closure: {closure}\n"
-        "---\n\nDecision records.\n"
+        f"---\ntype: core\nweb: true\nroster: inline\n{extra}---\n\nDecision records.\n"
     )
 
 
@@ -50,8 +52,13 @@ def _strand(*, summary: str, body: str, keyword: str | None = None) -> str:
     return f"---\n{keyword_line}summary: {summary}\n---\n{body}"
 
 
-def _seed_decisions_web(root: Path, *, closure: str = "mentions") -> None:
-    _write(root / "sase" / "memory" / "decisions.md", _descriptor(closure=closure))
+def _seed_decisions_web(
+    root: Path, *, link_reference: str | None = None, closure: str | None = None
+) -> None:
+    _write(
+        root / "sase" / "memory" / "decisions.md",
+        _descriptor(link_reference=link_reference, closure=closure),
+    )
     _write(
         root / "sase" / "memory" / "decisions" / "corpus-before-mechanism.md",
         _strand(
@@ -133,7 +140,7 @@ def test_report_path_is_deterministic_and_project_state_scoped(
 def test_build_report_uses_memory_show_command_and_current_markdown_output(
     tmp_path: Path,
 ) -> None:
-    _seed_decisions_web(tmp_path, closure="none")
+    _seed_decisions_web(tmp_path, link_reference="none")
     event = _event(cwd=tmp_path, depth=0)
 
     report = _build_memory_read_report(_spec(event))
@@ -155,7 +162,7 @@ def test_build_report_uses_memory_show_command_and_current_markdown_output(
 
 
 def test_build_report_renders_bare_web_multi_target_output(tmp_path: Path) -> None:
-    _seed_decisions_web(tmp_path, closure="none")
+    _seed_decisions_web(tmp_path, link_reference="none")
     event = _event(
         cwd=tmp_path,
         selectors=("decisions",),
@@ -276,7 +283,7 @@ def test_mixed_note_and_strand_report_uses_original_selector_batch(
     tmp_path: Path,
 ) -> None:
     _write(tmp_path / "sase" / "memory" / "tui_perf.md", _note("# Perf\n"))
-    _seed_decisions_web(tmp_path, closure="none")
+    _seed_decisions_web(tmp_path, link_reference="none")
     event = _event(
         cwd=tmp_path,
         selectors=("decisions:corpus-before-mechanism", "tui_perf.md"),

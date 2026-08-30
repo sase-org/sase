@@ -62,6 +62,7 @@ from .roster import (
 )
 from .scope import cross_scope_keyword_warnings, merge_memory_web_scopes
 from .validation import (
+    memory_note_link_warnings,
     reserved_memory_web_names,
     validate_memory_web_root,
     validate_memory_webs,
@@ -103,6 +104,7 @@ __all__ = [
     "discover_scoped_memory_webs",
     "handle_memory_web_list_command",
     "handle_memory_web_show_command",
+    "memory_note_link_warnings",
     "memory_strand_digest",
     "merge_memory_web_scopes",
     "normalize_memory_web_reference",

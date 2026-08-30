@@ -26,20 +26,34 @@ def _note(body: str = "# Body\n", *, description: str = "A note.") -> str:
 
 
 def _descriptor(
-    *, note_type: str = "core", roster: str = "inline", closure: str = "none"
+    *,
+    note_type: str = "core",
+    roster: str = "inline",
+    link_reference: str | None = None,
+    closure: str | None = None,
 ) -> str:
+    extra = ""
+    if closure is not None:
+        extra += f"closure: {closure}\n"
+    elif link_reference is not None:
+        extra += f"link_reference: {link_reference}\n"
     return (
         "---\n"
         f"type: {note_type}\n"
         "web: true\n"
         f"roster: {roster}\n"
-        f"closure: {closure}\n"
+        f"{extra}"
         "---\n\nPreamble.\n"
     )
 
 
-def _seed_glossary_web(root: Path, *, closure: str = "none") -> None:
-    _write(root / "sase" / "memory" / "glossary.md", _descriptor(closure=closure))
+def _seed_glossary_web(
+    root: Path, *, link_reference: str | None = None, closure: str | None = None
+) -> None:
+    _write(
+        root / "sase" / "memory" / "glossary.md",
+        _descriptor(link_reference=link_reference, closure=closure),
+    )
     _write(
         root / "sase" / "memory" / "glossary" / "stitch.md",
         "---\naliases: [commit-ish]\nsummary: A change record.\n---\n"
