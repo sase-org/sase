@@ -30,6 +30,9 @@ reopen it.
   commits, branches, or PRs; it submits a declaration and host-owned finalizers act.
 - **Memory Webs** (`memory-webs`) - A keyed memory collection is a flat descriptor note
   plus a sibling strand directory, addressed web:keyword.
+- **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`) - A
+  memory web's placement in generated agent instructions follows from its kind, not from
+  a `type:` declaration on its descriptor.
 - **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`) - SASE does
   not build memory retrieval or linking machinery ahead of a corpus that demonstrably
   needs it.

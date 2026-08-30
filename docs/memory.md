@@ -2,11 +2,11 @@
 
 SASE memory is durable context that survives individual agent chats. Project notes live
 as Markdown files directly under `sase/memory/`; home notes live under `~/sase/memory/`.
-Each non-README note declares its tier in YAML frontmatter:
+Each non-README flat note declares its type in YAML frontmatter:
 
 - **Core memory** uses `type: core`. It is always-loaded instruction context:
-  `sase memory init` inlines each core note into the `## 1. Tier 1 (core) Memory` block
-  of the managed `AGENTS.md`; generated section numbers span the whole document (e.g.
+  `sase memory init` inlines each core note into the `## Core Memory` block of the
+  managed `AGENTS.md`; generated section numbers span the whole document (e.g.
   `### 1.1 SASE = Structured Agentic Software Engineering (sase)` and
   `#### 1.1.1 SASE Memory`) when the root opts in with project-local
   `is_sase_managed: true`. A core note may set `priority:` to a non-negative integer;
@@ -18,8 +18,8 @@ Each non-README note declares its tier in YAML frontmatter:
   `description` frontmatter, and can set `parent: sase/memory/<note>.md` to appear under
   another reference note's `## Children` section. A reference note description may be a
   Markdown block authored as a YAML literal block scalar; that block renders verbatim as
-  the body of the note's numbered Tier 2 section, while single-line surfaces collapse
-  it.
+  the body of the note's numbered `## Reference Memory` section, while single-line
+  surfaces collapse it.
 - **Audited memory operations** live under the project state directory and record agent
   reads.
 
@@ -37,11 +37,11 @@ additionally generates the core `sase/memory/task_types.md` catalog note
 `sase/memory/sase_beads.md` for bead workflows, and `sase/memory/sase_sizes.md`
 size-scale guidance nested under `sase_beads.md` and surfaced through that note's
 `## Children` section on an audited read. The top-level reference notes are listed in
-Tier 2 of managed agent instructions. The project-root task-type note and
-`sase/task_types.json` snapshot render from the committed catalog (builtins,
-`plugins.required` types, and `bead.task_types`). Day to day, the usual order is:
-inspect loaded context with `sase memory list`, have agents use `sase memory read` for
-audited reference reads, have agents route every memory write through
+the `## Reference Memory` section of managed agent instructions. The project-root
+task-type note and `sase/task_types.json` snapshot render from the committed catalog
+(builtins, `plugins.required` types, and `bead.task_types`). Day to day, the usual order
+is: inspect loaded context with `sase memory list`, have agents use `sase memory read`
+for audited reference reads, have agents route every memory write through
 `/sase_memory_write`.
 
 ACE's **Memory panel** is the interactive surface for browsing, adding, editing, and
@@ -59,12 +59,12 @@ xprompt reference: `sase/memory/sase_artifacts.md` expands with
 alias, and an ordinary xprompt cannot claim the `memory/` namespace. A selected
 project's note shadows a same-stem home note using the same first-wins precedence
 described in [Audited Reads](#audited-reads) below. The bundled `glossary` memory web's
-descriptor renders as the core note `sase/memory/glossary.md`, so `#memory/glossary` is
-a valid xprompt reference and the note appears in `sase memory list`. That expansion is
+descriptor is always inlined as `sase/memory/glossary.md`, so `#memory/glossary` is a
+valid xprompt reference and the note appears in `sase memory list`. That expansion is
 the descriptor body only — strand bodies never inline. Full definitions still come from
 `sase memory read glossary:<term>`, covered in [Memory Webs](#memory-webs) below;
-`sase memory read glossary.md` still fails because `read` rejects core notes as
-already-loaded context.
+`sase memory read glossary.md` still fails because `read` rejects an always-loaded
+memory web descriptor the same way it rejects core notes as already-loaded context.
 
 This is explicit, launch-time prompt composition, not an audited lookup: expanding
 `#memory/<stem>` strips frontmatter and inlines the note body but does not append the
@@ -152,21 +152,23 @@ note.
 
 A memory web is a third kind of memory alongside flat notes: a project- or home-owned
 catalog of small, keyword-addressed entries called strands. Kind (note, web, or strand)
-and rendering (`core` or `reference`) are independent axes. A web's own descriptor
-renders exactly like an ordinary note — a `core` descriptor inlines into Tier 1 of
-`AGENTS.md`, a `reference` descriptor is read on demand — but a strand's body is never
-inlined into `AGENTS.md`, no matter what tier its web renders at.
+decides placement, not a rendering declaration: a web descriptor must not set `type:` or
+`parent:` (both are ignored if present and stripped by `sase memory init`), and its body
+always renders in its own subsection of the generated `## Memory Webs` section — never
+in Core Memory or Reference Memory. A strand's body is never inlined into `AGENTS.md`,
+no matter what its web's descriptor looks like.
 
 A web lives as one flat descriptor note plus a sibling strand directory: the descriptor
 `sase/memory/<web>.md` describes the collection, and `sase/memory/<web>/<strand>.md`
 files are its strands. The bundled `glossary` web ships this way:
-`sase/memory/glossary.md` is the core descriptor, and each term is a strand file under
-`sase/memory/glossary/`. `sase memory init` inlines a core web's descriptor body into
-Tier 1 of `AGENTS.md`, plus — for a web that opts into an inline roster, as `glossary`
-does — a single semicolon-separated `**GLOSSARY TERMS:**` line naming every strand
-keyword and alias. The descriptor note is listed by `sase memory list` and is available
-as `#memory/glossary`; `sase memory read glossary.md` still fails because `read` rejects
-core notes as already-loaded context.
+`sase/memory/glossary.md` is the descriptor, and each term is a strand file under
+`sase/memory/glossary/`. `sase memory init` always inlines a web's descriptor body into
+its Memory Webs subsection, plus — for a web that opts into an inline roster, as
+`glossary` does — a single semicolon-separated `**GLOSSARY TERMS:**` line naming every
+strand keyword and alias. The descriptor note is listed by `sase memory list` and is
+available as `#memory/glossary`; `sase memory read glossary.md` still fails because
+`read` rejects an always-loaded memory web descriptor the same way it rejects core notes
+as already-loaded context.
 
 ### Inspecting webs
 
@@ -178,9 +180,10 @@ sase memory web show glossary stitch
 sase memory web show glossary -b -f json
 ```
 
-`sase memory web list` prints every discovered web: slug, rendering type
-(`core`/`reference`), scope (`project`/`home`), strand count, and description.
-`-f/--format` selects `table` (the default), `names`, or `json`.
+`sase memory web list` prints every discovered web: slug, scope (`project`/`home`),
+strand count, and description. It no longer reports a rendering type, in either the
+table or the `json` format. `-f/--format` selects `table` (the default), `names`, or
+`json`.
 
 `sase memory web show WEB [PATTERN]` prints one web's filterable strand _index_ —
 keyword, slug, aliases, mention-reference count, and a one-line summary — never a

@@ -200,25 +200,26 @@ chezmoi source counterpart). Template variables and validation rules are listed 
 `sase/memory/glossary.md` is not a generated note — it is a user-owned memory-web
 descriptor, exactly like any other `sase/memory/<web>.md` file, with the project's terms
 authored as sibling strand files under `sase/memory/glossary/`. Memory initialization
-inlines its (core) descriptor body into Tier 1 of `AGENTS.md` and the provider
-instruction files, plus the descriptor's inline `**GLOSSARY TERMS:**` roster naming
-every strand keyword and alias, semicolon-separated. Strand bodies never inline into
-`AGENTS.md`; agents fetch a definition on demand with
+always inlines its descriptor body into the `## Memory Webs` section of `AGENTS.md` and
+the provider instruction files, plus the descriptor's inline `**GLOSSARY TERMS:**`
+roster naming every strand keyword and alias, semicolon-separated. Strand bodies never
+inline into `AGENTS.md`; agents fetch a definition on demand with
 `sase memory read glossary:<keyword> -r "<why>"`, passing every keyword needed in one
 command. See [Memory Webs](memory.md#memory-webs) for the full read, browse, and edit
 workflow.
 
-For a SASE-managed project, `sase memory init` inlines each core note into Tier 1 and
-numbers every heading in the generated document, renders Tier 2 as one numbered H3
-subsection per reference note (headed by the note path, with the description as the
-body), adds missing canonical frontmatter, and validates reachability. The instruction
-paragraph pointing agents at `/sase_memory_read` is direct body content of the
-`## Tier 2 (reference) Memory` heading, immediately followed by those per-note H3
-subsections; both the paragraph and the subsections are omitted when a root has no
-top-level reference notes. Missing, false, merged-global, or `memory.h1_title`-only
-configuration does not authorize any project memory or root `AGENTS.md` creation,
-refresh, or validation. The retired `memory.enabled` key is not an alias. Existing
-projects must replace it once with:
+For a SASE-managed project, `sase memory init` inlines each core note into
+`## Core Memory` and numbers every heading in the generated document, renders each
+memory web as its own numbered H3 subsection of `## Memory Webs` (omitted entirely when
+the root has no webs), and renders reference memory as one numbered H3 subsection per
+reference note (headed by the note path, with the description as the body), adds missing
+canonical frontmatter, and validates reachability. The instruction paragraph pointing
+agents at `/sase_memory_read` is direct body content of the `## Reference Memory`
+heading, immediately followed by those per-note H3 subsections; both the paragraph and
+the subsections are omitted when a root has no top-level reference notes. Missing,
+false, merged-global, or `memory.h1_title`-only configuration does not authorize any
+project memory or root `AGENTS.md` creation, refresh, or validation. The retired
+`memory.enabled` key is not an alias. Existing projects must replace it once with:
 
 ```yaml
 is_sase_managed: true
@@ -243,15 +244,15 @@ and the `/sase_final` terminal-action contract for end-of-turn declarations. The
 generated reference `sase/memory/sase_artifacts.md` note owns artifact-reference and
 indexed-file workflow guidance. The generated reference `sase/memory/sase_beads.md` note
 provides shared bead workflow guidance and has `sase/memory/sase_sizes.md` as a child
-size-scale note. Top-level project-only reference notes are listed in Tier 2 of managed
-agent instructions, generated for SASE-managed project repositories only and never for
-home or chezmoi-home roots. The core `sase/memory/task_types.md` catalog note is
-likewise project-only. A root that no longer manages those notes (for example, a home
-root that previously generated them) deletes generated copies on the next
-`sase memory init` pass; copies a human has since edited are left alone and keep
-behaving as ordinary notes. Project memory reads linked-repo descriptions from the
-project-local `sase/sase.yml`; home memory reads them from the global config
-`~/.config/sase/sase.yml`, or from the chezmoi-managed config path when
+size-scale note. Top-level project-only reference notes are listed in the
+`## Reference Memory` section of managed agent instructions, generated for SASE-managed
+project repositories only and never for home or chezmoi-home roots. The core
+`sase/memory/task_types.md` catalog note is likewise project-only. A root that no longer
+manages those notes (for example, a home root that previously generated them) deletes
+generated copies on the next `sase memory init` pass; copies a human has since edited
+are left alone and keep behaving as ordinary notes. Project memory reads linked-repo
+descriptions from the project-local `sase/sase.yml`; home memory reads them from the
+global config `~/.config/sase/sase.yml`, or from the chezmoi-managed config path when
 `use_chezmoi: true`. Generated memory requires agents to use `/sase_repo` before reading
 or modifying any repository outside their own workspace checkout. This rule applies to
 configured linked repos and sidecars, other SASE projects, and unlinked GitHub repos

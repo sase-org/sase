@@ -5640,13 +5640,14 @@ The header reads `MEMORY · <scope> · N notes · scope i/N`, always using the c
 below).
 
 The note rail is a tree, not a flat list, so the `parent` edge is visible before you
-follow any link: Tier 1 (`short`) notes sort first, then Tier 2 (`long`) root notes
-alphabetically, each immediately followed by its children indented one level under a
-`└ ` mark. A memory web (such as `glossary`) is a Tier 2 root row like any other note;
-`toggle_web` (`space`) expands or collapses it in place, nesting its strands one level
-deeper the same way note children nest. Each row shows `●` for a Tier 1 note or `○` for
-Tier 2, then `⚙` for a generated note and `⚠` for a note with an invalid `type` or
-`parent`, then the stem and a dim description snippet.
+follow any link: core (`type: core`) notes sort first by priority then path, then memory
+webs (such as `glossary`) sort by priority then slug, then reference (`type: reference`)
+root notes sort alphabetically, each immediately followed by its children indented one
+level under a `└ ` mark. `toggle_web` (`space`) expands or collapses a web row in place,
+nesting its strands one level deeper the same way note children nest. Each row shows `●`
+for a core note, `○` for a reference note, or `◆` for a memory web, then `⚙` for a
+generated note and `⚠` for a note with an invalid `type` or `parent`, then the stem and
+a dim description snippet.
 
 Two navigation axes stay synchronized:
 

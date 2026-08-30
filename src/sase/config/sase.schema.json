@@ -656,13 +656,13 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 120,
-          "description": "One-line summary inlined into every agent's Tier 1 context."
+          "description": "One-line summary inlined into every agent's core memory."
         },
         "when_to_use": {
           "type": "string",
           "minLength": 1,
           "maxLength": 400,
-          "description": "Agent-facing guidance on when to file this task type, inlined into every agent's Tier 1 context."
+          "description": "Agent-facing guidance on when to file this task type, inlined into every agent's core memory."
         },
         "create_refusal": {
           "type": "string",

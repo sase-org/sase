@@ -52,9 +52,9 @@ canonical path labels are:
 - `sase validate`
 
 The remaining labels describe frontmatter (`type: short | long`, `parent:`,
-`description:`), Tier 1 short notes, `AGENTS.md`, provider shims (`CLAUDE.md`,
-`GEMINI.md`, `QWEN.md`, `OPENCODE.md`), Tier 2 long notes, audited reference fetching,
-agent context, regeneration, and the drift gate.
+`description:`), core (short) notes, `AGENTS.md`, provider shims (`CLAUDE.md`,
+`GEMINI.md`, `QWEN.md`, `OPENCODE.md`), reference (long) notes, audited reference
+fetching, agent context, regeneration, and the drift gate.
 
 ## Post-Processing Record
 
@@ -78,8 +78,8 @@ The label anchors on the 1600×900 canvas are grouped as follows:
 | Region                 | Anchor labels                                                                                      |
 | ---------------------- | -------------------------------------------------------------------------------------------------- |
 | Source documents       | `(85,106)`, `(85,244)`, `(85,385)`, `(85,525)`                                                     |
-| Tier 1                 | lane tab `(540,49)`, source `(487,206)`, `AGENTS.md` `(789,187)`, provider shims near `x=1110`     |
-| Tier 2                 | lane tab `(535,472)`, source `(510,545)`, audited read gate near `(770,542)`, context `(1037,545)` |
+| Core memory lane       | lane tab `(540,49)`, source `(487,206)`, `AGENTS.md` `(789,187)`, provider shims near `x=1110`     |
+| Reference memory lane  | lane tab `(535,472)`, source `(510,545)`, audited read gate near `(770,542)`, context `(1037,545)` |
 | Agent context / README | context cards at `x=1417`; README path at `(1417,638)` and `(1417,670)`                            |
 | Freshness loop         | tab `(303,727)`, init `(333,774)`, regenerate `(653,774)`, validate `(1110,766)`                   |
 

@@ -9,9 +9,9 @@ detailed **reference** notes that agents read only when relevant.
 
 - Non-README Markdown files live directly under `sase/memory/` and use YAML frontmatter. Ordinary notes use `type`,
   `parent`, `priority`, and `description`; memory web descriptors use `web: true` and omit `type` and `parent`.
-- `type: core` notes are Tier 1 context. `sase memory init` inlines them into `AGENTS.md`, then copies that exact content
-  to each provider instruction shim.
-- `type: reference` notes are detailed reference material for Tier 2. They require a `description` and are fetched
+- `type: core` notes are always-loaded context. `sase memory init` inlines them into `AGENTS.md`, then copies that exact
+  content to each provider instruction shim.
+- `type: reference` notes are detailed reference material read on demand. They require a `description` and are fetched
   explicitly with audited `sase memory read` calls.
 - A memory web is a flat descriptor note (`sase/memory/<web>.md`) plus a sibling strand directory
   (`sase/memory/<web>/<strand>.md`) — a project- or home-owned catalog of small, keyword-addressed entries. The bundled
@@ -31,13 +31,15 @@ detailed **reference** notes that agents read only when relevant.
 - `parent`: `AGENTS.md` for top-level ordinary notes, or `sase/memory/<note>.md` when a reference note belongs under
   another reference note.
 - `priority`: optional non-negative integer for core notes and memory web descriptors. The default is `20`; lower values
-  render earlier in Tier 1, with ties broken by path. The generated `sase/memory/sase.md` note uses `priority: 10`.
+  render earlier among notes of the same kind, with ties broken by path. The generated `sase/memory/sase.md` note uses
+  `priority: 10`.
 - `description`: required for reference notes and used in generated agent instructions and this README. Reference-note
-  descriptions may be Markdown blocks authored as YAML literal block scalars; Tier 2 sections render those blocks
+  descriptions may be Markdown blocks authored as YAML literal block scalars; reference sections render those blocks
   verbatim, while single-line surfaces collapse them.
 
-Memory web descriptors are always loaded and do not declare a rendering type. A strand inherits no `type:` of its own
-and never inlines into `AGENTS.md`.
+A memory web descriptor must not declare `type:` or `parent:`; both are stripped on init if present. A web's kind
+decides its placement — its descriptor is always inlined into the generated document's Memory Webs section, never into
+core or reference memory. A strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 
 ### Linking
 

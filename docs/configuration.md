@@ -519,17 +519,21 @@ memory:
   readme_template: templates/memory-README.template.md
 ```
 
-| Field                            | Required Jinja variables                                                                  | Generated target or use               |
-| -------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------- |
-| `memory.agents_template`         | `title`, `tier1_sections`, `tier2_entries`                                                | Managed root `AGENTS.md`              |
-| `memory.agents_minimal_template` | `title`, `tier1_sections`                                                                 | Create-if-missing minimal `AGENTS.md` |
-| `memory.sase_template`           | `project_name`, `linked_repo_entries`                                                     | Generated `sase/memory/sase.md`       |
-| `memory.readme_template`         | `memory_notes`, `total_notes`, `short_notes`, `long_notes`, `total_lines`, `total_tokens` | Generated `sase/memory/README.md`     |
+| Field                            | Required Jinja variables                                                                                              | Generated target or use               |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `memory.agents_template`         | `title`, `core_sections`, `web_sections`, `reference_entries`                                                         | Managed root `AGENTS.md`              |
+| `memory.agents_minimal_template` | `title`, `core_sections`                                                                                              | Create-if-missing minimal `AGENTS.md` |
+| `memory.sase_template`           | `project_name`, `linked_repo_entries`                                                                                 | Generated `sase/memory/sase.md`       |
+| `memory.readme_template`         | `memory_notes`, `total_notes`, `core_notes`, `reference_notes`, `web_descriptor_notes`, `total_lines`, `total_tokens` | Generated `sase/memory/README.md`     |
 
-`{{ tier2_entries }}` renders the entire Tier 2 body: the reference-memory instruction
-paragraph plus one H3 subsection per top-level reference note. A custom
-`agents_template` must not repeat that prose above `{{ tier2_entries }}`. When a root
-has no top-level reference notes, `{{ tier2_entries }}` is empty.
+`{{ web_sections }}` renders the entire `## Memory Webs` section, including its own
+heading, as one numbered H3 subsection per memory web; it is the empty string when a
+root has no webs, which is what makes the whole section disappear cleanly for a webless
+root. `{{ reference_entries }}` renders the entire Reference Memory body: the
+reference-memory instruction paragraph plus one H3 subsection per top-level reference
+note. A custom `agents_template` must not repeat that prose above `{{ web_sections }}`
+or `{{ reference_entries }}`. When a root has no top-level reference notes,
+`{{ reference_entries }}` is empty.
 
 The legacy top-level `amd_agents_template`, `amd_agents_minimal_template`,
 `memory_sase_template`, and `memory_readme_template` keys are deprecated but still read
@@ -4599,8 +4603,8 @@ instruction file (`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md`) with a
 byte-for-byte copy of that root's `AGENTS.md` (legacy `@AGENTS.md` / `*.md.tmpl` import
 shims are recognized and migrated to full copies). This copy applies to every existing
 project-tree `AGENTS.md`; directories without one are untouched. For managed roots,
-memory init synchronizes memory: core notes are inlined into the Tier 1 block of
-`AGENTS.md`, every heading in the generated document is numbered, reference notes are
+memory init synchronizes memory: core notes are inlined into the `## Core Memory` block
+of `AGENTS.md`, every heading in the generated document is numbered, reference notes are
 rendered as numbered sections headed by the note path with the description as the body,
 and missing reference-memory `description` frontmatter is inserted. By default it also
 tries to commit, rebase-pull, and push generated project-side files. `sase init memory`
@@ -4608,9 +4612,9 @@ is a compatibility alias for this command. Generated repository memory requires 
 to use `/sase_repo` before reading or modifying any repo outside their own workspace
 checkout. The rule covers linked repos, sidecars, different SASE projects, and unlinked
 GitHub repos even when no linked repositories are configured. The same run also
-refreshes each core memory web's inline strand roster — for example the `glossary` web's
+refreshes each memory web's inline strand roster — for example the `glossary` web's
 `**GLOSSARY TERMS:**` line in `sase/memory/glossary.md` — from its current strand files;
-`sase memory init --check` reports drift if a web's rendered roster or its Tier 1
+`sase memory init --check` reports drift if a web's rendered roster or its Memory Webs
 inlining is stale. Unlike the generated notes above, `sase/memory/glossary.md` and every
 other web descriptor are user-owned content: memory init rewrites only the roster it
 renders, never the rest of the descriptor body.
