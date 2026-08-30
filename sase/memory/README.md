@@ -99,8 +99,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Kind: memory web descriptor
 - Description: Architectural decision records — accepted choices, their rejected
   alternatives, and what would reopen them.
-- Lines: 44
-- Approx. tokens: 538
+- Lines: 47
+- Approx. tokens: 586
 
 ### `sase/memory/glossary.md`
 
@@ -145,7 +145,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
   gate, the `just install` prerequisite for ephemeral workspace clones, and the PNG
   snapshot suite.
 - Lines: 66
-- Approx. tokens: 878
+- Approx. tokens: 870
 
 ### `sase/memory/sase_artifacts.md`
 
@@ -165,7 +165,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
   phase-bead description prefixes, and non-cascading close, resolution, and note
   semantics.
 - Lines: 142
-- Approx. tokens: 1924
+- Approx. tokens: 1907
 
 ### `sase/memory/sase_flags.md`
 
@@ -220,8 +220,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 10
 - Web descriptor notes: 3
-- Total lines: 1061
-- Total approx. tokens: 13437
+- Total lines: 1064
+- Total approx. tokens: 13460
 
 ## Commands
 

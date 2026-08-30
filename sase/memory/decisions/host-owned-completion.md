@@ -29,7 +29,8 @@ does not activate it.
 before the turn, publish immutable context, and verify postconditions independently,
 which is more machinery than "the agent ran `git commit`." The mechanical exemptions
 (`/sase_plan`, `/sase_monitor`, `/sase_pipe`, `/sase_questions`) exist because they
-terminate the runner before the success path — they are not violations of the rule.
+terminate the runner before the success path — they are not violations of the rule, per
+[[decisions/single-turn-agents]] and [[decisions/gates-never-block]].
 
 **Reopens when.** After operational soak across enough real runs to know whether the
 protocol's complexity is paying for itself; this decision is recent and explicitly

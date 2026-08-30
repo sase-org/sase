@@ -28,8 +28,8 @@ tested against a real alternative and settling here.
 **Cost.** Every durable wait must go through mechanical infrastructure — a monitor, a
 family pipe, a plan or questions handoff — instead of the agent simply continuing to
 exist. That infrastructure has to exist and stay reliable for every kind of wait an
-agent needs.
+agent needs. A successful turn still ends through [[decisions/host-owned-completion]].
 
 **Reopens when.** A hosting platform ships a true suspend/resume primitive that
-preserves workspace claims and provider budget across the pause. No such primitive
-exists today.
+preserves workspace claims and provider budget across the pause, per
+[[decisions/gates-never-block]]. No such primitive exists today.

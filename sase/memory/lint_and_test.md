@@ -44,8 +44,8 @@ landing an epic's combined tree, when the change touches the broadening set, or 
 `just check-full` routinely outruns a single agent turn, so run it **only** through your
 `/sase_monitor` skill, never inline, using the `TESTING` / `TESTED` status pair.
 `just check` may be run inline, but hand it to a monitor the same way whenever it is
-taking a long time. `sase memory read decisions:two-speed-verification` has the host
-capacity measurements that make this rule non-negotiable.
+taking a long time. [[decisions/two-speed-verification]] has the host capacity
+measurements that make this rule non-negotiable.
 
 **IMPORTANT**: SASE agents run from ephemeral `sase_<N>` workspace clones that each own
 an isolated virtualenv, so you MAY need to run `just install` before `just check` — this
@@ -53,8 +53,8 @@ workspace may have sat unused while pinned dependencies changed.
 
 ## Gate-Specific Help
 
-`sase memory read symvision.md` covers the `symvision` unused/misused-symbol gate, whose
-failures are the ones least often fixed correctly by deleting the reported symbol.
+[[symvision.md]] covers the `symvision` unused/misused-symbol gate, whose failures are
+the ones least often fixed correctly by deleting the reported symbol.
 
 ## PNG Snapshot Tests
 

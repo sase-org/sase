@@ -108,6 +108,8 @@ def test_default_beads_template_renders_canonical_long_note() -> None:
     generated = generated_long_notes({relative_path: content})[relative_path]
     assert generated.description == note.description
     assert generated.parent == "AGENTS.md"
+    assert "[[task_types]]" in content
+    assert "[[sase_sizes.md]]" in content
 
 
 def test_default_artifacts_template_renders_canonical_long_note() -> None:

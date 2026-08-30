@@ -16,19 +16,19 @@ own subsection of a dedicated Memory Webs section in generated agent instruction
 between core memory and reference memory, and a strand body never inlines regardless of
 the web's frontmatter.
 
-**Why.** The prior shape (`memory-webs`) treated a descriptor as an ordinary note that
-happened to declare `type: core` or `type: reference`, so kind and rendering tier were
-two independent axes for something that is structurally a third kind. That record's own
-Why section names the cost this caused directly: "the glossary note alone moved between
-core and reference tiers four times because a collection's rendering tier had nowhere to
-be declared." This decision supersedes the sentence in `memory-webs` reading "The
-descriptor's own body, not any strand body, participates in core or reference rendering"
-— a descriptor's body now participates in neither; it has its own section. Rejected
-alternatives: keep `type:` on descriptors (the status quo that caused the churn above);
-add a numbered third tier such as "Tier 3: web memory" (rejected because the goal was
-for no tier vocabulary to survive anywhere in the repo, its generated output, or its
-linked repos — a third numbered tier just relocates the vocabulary instead of retiring
-it).
+**Why.** The prior shape ([[decisions/memory-webs]]) treated a descriptor as an ordinary
+note that happened to declare `type: core` or `type: reference`, so kind and rendering
+tier were two independent axes for something that is structurally a third kind. That
+record's own Why section names the cost this caused directly: "the glossary note alone
+moved between core and reference tiers four times because a collection's rendering tier
+had nowhere to be declared." This decision supersedes the sentence in
+[[decisions/memory-webs]] reading "The descriptor's own body, not any strand body,
+participates in core or reference rendering" — a descriptor's body now participates in
+neither; it has its own section. Rejected alternatives: keep `type:` on descriptors (the
+status quo that caused the churn above); add a numbered third tier such as "Tier 3: web
+memory" (rejected because the goal was for no tier vocabulary to survive anywhere in the
+repo, its generated output, or its linked repos — a third numbered tier just relocates
+the vocabulary instead of retiring it).
 
 **Cost.** A web descriptor's body is now always paid for on every turn; there is no
 longer a way to make one read-on-demand the way a `type: reference` flat note is.

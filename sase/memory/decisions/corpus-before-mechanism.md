@@ -28,6 +28,7 @@ something concrete demonstrates the need, which can feel slow when the need is r
 not yet evidenced.
 
 **Reopens when.** A specific, already-existing corpus demonstrably needs a mechanism
-that plain audited reads cannot serve — never speculatively. The `memory-webs` decision
-itself leans on this record: the `decisions` web ships with a real corpus of six records
-and deliberately no closure engine or typed links in its first version.
+that plain audited reads cannot serve — never speculatively. The
+[[decisions/memory-webs]] decision itself leans on this record: the `decisions` web
+ships with a real corpus of six records and deliberately no closure engine or typed
+links in its first version.

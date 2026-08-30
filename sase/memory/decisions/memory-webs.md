@@ -13,7 +13,7 @@ metadata:
 (`sase/memory/<web>.md`) plus a sibling directory of independently addressable strands
 (`sase/memory/<web>/<slug>.md`), read on demand as `sase memory read <web>:<keyword>`.
 The descriptor's own body, not any strand body, participates in core or reference
-rendering.
+rendering. [[glossary/memory-web]] and [[glossary/memory-strand]] name this same shape.
 
 **Why.** This shape had been hand-built three times before it had a name: the glossary,
 task types, and artifact relations each grew their own keyed-collection code, and the
@@ -25,8 +25,8 @@ filename with a character class that excludes `/`, so nesting would force change
 all of them), one large note per collection (reintroduces the "inline everything or
 nothing" problem this decision exists to solve), and a generic artifact database
 (over-general for what is, in practice, always a small keyed set of short records). Per
-`corpus-before-mechanism`, this ships only with three real corpora already proven:
-decisions, task types, and the migrated glossary.
+[[decisions/corpus-before-mechanism]], this ships only with three real corpora already
+proven: decisions, task types, and the migrated glossary.
 
 **Cost.** One extra frontmatter field (`web: true`) to tell a web descriptor from an
 ordinary note; per-strand scope merge across project and home roots; and an eleven-rule

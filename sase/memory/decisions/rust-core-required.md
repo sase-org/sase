@@ -20,7 +20,7 @@ bug in one and not the other, discovered late. Rejected alternatives: keep every
 Python (loses cross-frontend consistency as more frontends land), or move the whole
 application into Rust (throws away Python's plugin dispatch, filesystem/process side
 effects, and TUI presentation, none of which belong in a deterministic core). The
-accepted boundary is the litmus test in `rust_core_backend_boundary.md`: if a web app,
+accepted boundary is the litmus test in [[rust_core_backend_boundary.md]]: if a web app,
 CLI, editor integration, or another frontend would need the behavior to match the TUI,
 it is core backend logic and belongs in Rust.
 

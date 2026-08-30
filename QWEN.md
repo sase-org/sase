@@ -179,6 +179,9 @@ reopen it.
   turn; continuation is always mechanical, never a promise to resume.
 - **Completion Is Host-Owned** (`host-owned-completion`) - An agent never creates
   commits, branches, or PRs; it submits a declaration and host-owned finalizers act.
+- **Memory Links Are Authored** (`memory-links-are-authored`) - A memory file declares
+  how its links are detected and rendered, and authors links inline as `[[target]]` /
+  `![[target]]`.
 - **Memory Webs** (`memory-webs`) - A keyed memory collection is a flat descriptor note
   plus a sibling strand directory, addressed web:keyword.
 - **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`) - A

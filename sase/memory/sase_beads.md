@@ -34,8 +34,8 @@ Output and stored relationships always use full IDs.
   agent-creatable slugs. `task_type` is immutable once set (`sase bead update` has no
   `--task-type`), and a typed task takes repeatable `-f/--field k=v` values for its
   declared fields (`@<path>` reads a value from a file). Read the generated
-  `task_types.md` core note for the current catalog and
-  `sase memory read task_types:<slug> -r "<why>"` for one type in full.
+  [[task_types]] catalog and `sase memory read task_types:<slug> -r "<why>"` for one
+  type in full.
 
 `sase bead work <epic-id|plan.md|task-id>` launches an epic's phase and land agents or
 one task worker. Epic launches normally come from plan approval and task launches from a
@@ -78,9 +78,9 @@ sase bead update <id> -s ready
 A genuinely new task starts as an `open` draft; refine its description, evidence refs,
 dependencies, and scope before marking it `ready`. Each ready bead raises one
 `TaskTriage` gate, from which the owner either launches `sase bead work <id>` or closes
-it as `canceled`. Every new task requires an intentional size; read the `sase_sizes.md`
-child note with `/sase_memory_read` before choosing it. Legacy sizeless tasks remain
-readable and launch through the small-task fallback.
+it as `canceled`. Every new task requires an intentional size; read [[sase_sizes.md]]
+before choosing it. Legacy sizeless tasks remain readable and launch through the
+small-task fallback.
 
 Each reporter contributes at most one +1, and the original creator does not count as an
 additional reporter. A +1 is append-only evidence, not a vote; repeat reporters use
