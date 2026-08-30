@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -98,11 +99,14 @@ def test_memory_web_priority_orders_web_section(
     assert parsed.short_memory_paths[0] == "sase/memory/sase.md"
     assert parsed.web_memory_paths[0] == "sase/memory/terms.md"
     assert "## 1. Core Memory" in agents
-    assert "## 2. Memory Webs" in agents
-    assert "## 3. Reference Memory" in agents
-    core_end = agents.index("## 2. Memory Webs")
-    assert "Terms (terms)" not in agents[:core_end]
-    assert "### 2.1 Terms (terms)" in agents
+    assert "## 2. Reference Memory" in agents
+    assert "## 3. Memory Webs" in agents
+    core_index = agents.index("## 1. Core Memory")
+    reference_index = agents.index("## 2. Reference Memory")
+    web_index = agents.index("## 3. Memory Webs")
+    assert core_index < reference_index < web_index
+    assert "Terms (terms)" not in agents[:web_index]
+    assert "### 3.1 Terms (terms)" in agents
 
 
 def test_memory_web_blocks_invalid_descriptor_structure(
@@ -139,13 +143,17 @@ def test_project_root_renders_three_memory_sections(
 
     project_agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
     assert "## 1. Core Memory" in project_agents
-    assert "## 2. Memory Webs" in project_agents
-    assert "## 3. Reference Memory" in project_agents
+    assert "## 2. Reference Memory" in project_agents
+    assert "## 3. Memory Webs" in project_agents
     parsed_project = parse_amd_agents_document(project_agents)
     assert parsed_project.has_web_section
     assert parsed_project.web_memory_paths == ("sase/memory/task_types.md",)
-    core_end = project_agents.index("## 2. Memory Webs")
-    assert "Task Bead Types" not in project_agents[:core_end]
+    core_index = project_agents.index("## 1. Core Memory")
+    reference_index = project_agents.index("## 2. Reference Memory")
+    web_index = project_agents.index("## 3. Memory Webs")
+    assert core_index < reference_index < web_index
+    assert "Task Bead Types" not in project_agents[:web_index]
+    assert not re.search(r"\n## (?!#)", project_agents[web_index + 1 :])
 
 
 def test_memory_web_blocks_invalid_webs_before_writing(

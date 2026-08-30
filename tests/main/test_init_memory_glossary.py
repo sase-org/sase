@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -36,16 +37,25 @@ def _setup_project(
     return project_root, home_root, config_dir
 
 
+_WEB_HEADING_RE = re.compile(r"^## (?:\d+\. )?Memory Webs$", re.MULTILINE)
+_REFERENCE_HEADING_RE = re.compile(r"^## (?:\d+\. )?Reference Memory$", re.MULTILINE)
+
+
 def _web_memory(agents: str) -> str:
-    heading = "## 2. Memory Webs"
-    return agents.split(heading, 1)[1].split("## 3. Reference Memory", 1)[0]
+    match = _WEB_HEADING_RE.search(agents)
+    if match is None:
+        raise AssertionError("Memory Webs heading not found")
+    return agents[match.end() :]
 
 
 def _reference_memory(agents: str) -> str:
-    for heading in ("## 3. Reference Memory", "## 2. Reference Memory"):
-        if heading in agents:
-            return agents.split(heading, 1)[1]
-    raise AssertionError("Reference Memory heading not found")
+    match = _REFERENCE_HEADING_RE.search(agents)
+    if match is None:
+        raise AssertionError("Reference Memory heading not found")
+    start = match.end()
+    web_match = _WEB_HEADING_RE.search(agents, start)
+    end = web_match.start() if web_match else len(agents)
+    return agents[start:end]
 
 
 def _normalized(text: str) -> str:

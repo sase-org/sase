@@ -531,9 +531,14 @@ heading, as one numbered H3 subsection per memory web; it is the empty string wh
 root has no webs, which is what makes the whole section disappear cleanly for a webless
 root. `{{ reference_entries }}` renders the entire Reference Memory body: the
 reference-memory instruction paragraph plus one H3 subsection per top-level reference
-note. A custom `agents_template` must not repeat that prose above `{{ web_sections }}`
-or `{{ reference_entries }}`. When a root has no top-level reference notes,
-`{{ reference_entries }}` is empty.
+note. When a root has no top-level reference notes, `{{ reference_entries }}` is empty.
+A custom `agents_template` must not repeat either section's prose.
+
+The packaged managed template places `{{ web_sections }}` after the Reference Memory
+block, so `## Memory Webs` renders as the final generated H2 when a root has webs. A
+custom `agents_template` controls its own authored layout instead: SASE does not reorder
+an arbitrary custom template's H2 sections, so a project that keeps its own template in
+the former Core → Memory Webs → Reference order continues to render in that order.
 
 The legacy top-level `amd_agents_template`, `amd_agents_minimal_template`,
 `memory_sase_template`, and `memory_readme_template` keys are deprecated but still read

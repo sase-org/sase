@@ -79,14 +79,14 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     assert "## Tier 2 (dynamic) Memory" not in agents
     assert "## Dynamic Memory Files" not in agents
     assert "### DYNAMIC MEMORY" not in agents
-    assert "## 2. Memory Webs" in agents
-    assert "### 2.1 Task Bead Types (task_types)" in agents
-    assert "## 3. Reference Memory" in agents
+    assert "## 2. Reference Memory" in agents
     assert "## Tier 3 (reference) Memory" not in agents
     assert "Long-Term Memory Files" not in agents
     assert "Glossary Terms" not in agents
-    assert "### 3.1 `sase/memory/curated.md`\n\nCurated description survives." in agents
-    assert "### 3.2 `sase/memory/described.md`\n\nExisting description." in agents
+    assert "### 2.1 `sase/memory/curated.md`\n\nCurated description survives." in agents
+    assert "### 2.2 `sase/memory/described.md`\n\nExisting description." in agents
+    assert "## 3. Memory Webs" in agents
+    assert "### 3.1 Task Bead Types (task_types)" in agents
     assert ("sase-" + "amd:") not in agents
 
     generated_sase = (project_root / "sase" / "memory" / "sase.md").read_text(

@@ -15,11 +15,11 @@ def test_numbers_managed_document_shape() -> None:
         "\n"
         "#### IMPORTANT: Two-Speed Verification\n"
         "\n"
+        "## Reference Memory\n"
+        "\n"
         "## Memory Webs\n"
         "\n"
         "### Decisions (decisions)\n"
-        "\n"
-        "## Reference Memory\n"
     )
 
     assert number_agent_document_sections(text) == (
@@ -31,11 +31,11 @@ def test_numbers_managed_document_shape() -> None:
         "\n"
         "#### 1.1.1 IMPORTANT: Two-Speed Verification\n"
         "\n"
-        "## 2. Memory Webs\n"
+        "## 2. Reference Memory\n"
         "\n"
-        "### 2.1 Decisions (decisions)\n"
+        "## 3. Memory Webs\n"
         "\n"
-        "## 3. Reference Memory\n"
+        "### 3.1 Decisions (decisions)\n"
     )
 
 
