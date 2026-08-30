@@ -6,7 +6,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from sase.memory.notes import DEFAULT_MEMORY_PRIORITY
+from sase.memory.notes import (
+    DEFAULT_MEMORY_LINK_REFERENCE,
+    DEFAULT_MEMORY_LINK_RENDERING,
+    DEFAULT_MEMORY_PRIORITY,
+    MemoryLinkReference,
+    MemoryLinkRendering,
+)
 
 WebRosterStyle = Literal["inline", "list"]
 WebClosureMode = Literal["none", "mentions"]
@@ -32,6 +38,8 @@ class MemoryStrand:
     raw_text: str
     body_start: int
     frontmatter: dict[str, Any]
+    link_reference: MemoryLinkReference = DEFAULT_MEMORY_LINK_REFERENCE
+    link_rendering: MemoryLinkRendering = DEFAULT_MEMORY_LINK_RENDERING
 
 
 @dataclass(frozen=True)
@@ -56,6 +64,8 @@ class MemoryWeb:
     priority: int = DEFAULT_MEMORY_PRIORITY
     strands: tuple[MemoryStrand, ...] = ()
     source: WebSource = "file"
+    link_reference: MemoryLinkReference = DEFAULT_MEMORY_LINK_REFERENCE
+    link_rendering: MemoryLinkRendering = DEFAULT_MEMORY_LINK_RENDERING
 
 
 @dataclass(frozen=True)
@@ -108,6 +118,8 @@ class MemoryWebValidationReport:
 
 
 __all__ = [
+    "MemoryLinkReference",
+    "MemoryLinkRendering",
     "MemoryStrand",
     "MemoryWeb",
     "MemoryWebDiscovery",

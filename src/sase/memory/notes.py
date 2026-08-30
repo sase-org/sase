@@ -27,10 +27,20 @@ MemoryNoteType = Literal["core", "reference"]
 MemoryNoteTypeSource = Literal["frontmatter", "missing", "invalid"]
 MemoryNoteParentSource = Literal["frontmatter", "missing", "invalid"]
 MemoryNotePrioritySource = Literal["frontmatter", "missing", "invalid"]
+MemoryLinkReference = Literal["explicit", "implicit", "none"]
+MemoryLinkRendering = Literal["reference", "inline"]
+DEFAULT_MEMORY_LINK_REFERENCE: MemoryLinkReference = "explicit"
+DEFAULT_MEMORY_LINK_RENDERING: MemoryLinkRendering = "reference"
 
 _LEGACY_NOTE_TYPES = {"short": "core", "long": "reference"}
 _VALID_NOTE_TYPES = frozenset({"core", "reference"})
-_CANONICAL_FRONTMATTER_KEYS = frozenset({"type", "parent", "priority", "description"})
+_VALID_MEMORY_LINK_REFERENCES: frozenset[str] = frozenset(
+    {"explicit", "implicit", "none"}
+)
+_VALID_MEMORY_LINK_RENDERINGS: frozenset[str] = frozenset({"reference", "inline"})
+_CANONICAL_FRONTMATTER_KEYS = frozenset(
+    {"type", "parent", "priority", "description", "link_reference", "link_rendering"}
+)
 _RETIRED_FRONTMATTER_KEYS = frozenset({"keywords"})
 _NON_EXTENSION_FRONTMATTER_KEYS = (
     _CANONICAL_FRONTMATTER_KEYS | _RETIRED_FRONTMATTER_KEYS
@@ -57,6 +67,8 @@ class MemoryNote:
     source_path: Path | None = None
     priority: int = DEFAULT_MEMORY_PRIORITY
     priority_source: MemoryNotePrioritySource = "missing"
+    link_reference: MemoryLinkReference = DEFAULT_MEMORY_LINK_REFERENCE
+    link_rendering: MemoryLinkRendering = DEFAULT_MEMORY_LINK_RENDERING
 
     @property
     def relative_path(self) -> str:
@@ -200,6 +212,43 @@ def normalize_memory_note_type(value: str | None) -> str | None:
     return _LEGACY_NOTE_TYPES.get(value, value)
 
 
+def parse_memory_link_reference(value: Any) -> MemoryLinkReference | None:
+    """Return a canonical link-reference strategy, or None if *value* is invalid."""
+    raw = _normalized_scalar(value)
+    if raw in _VALID_MEMORY_LINK_REFERENCES:
+        return cast(MemoryLinkReference, raw)
+    return None
+
+
+def parse_memory_link_rendering(value: Any) -> MemoryLinkRendering | None:
+    """Return a canonical link-rendering strategy, or None if *value* is invalid."""
+    raw = _normalized_scalar(value)
+    if raw in _VALID_MEMORY_LINK_RENDERINGS:
+        return cast(MemoryLinkRendering, raw)
+    return None
+
+
+def _link_reference_from_legacy_closure(value: Any) -> MemoryLinkReference:
+    raw = _normalized_scalar(value)
+    if raw == "mentions":
+        return "implicit"
+    if raw == "none":
+        return "none"
+    return DEFAULT_MEMORY_LINK_REFERENCE
+
+
+def _link_strategy_from_frontmatter(
+    frontmatter: Mapping[str, Any],
+) -> tuple[MemoryLinkReference | None, MemoryLinkRendering | None]:
+    link_reference: MemoryLinkReference | None = None
+    link_rendering: MemoryLinkRendering | None = None
+    if "link_reference" in frontmatter:
+        link_reference = parse_memory_link_reference(frontmatter.get("link_reference"))
+    if "link_rendering" in frontmatter:
+        link_rendering = parse_memory_link_rendering(frontmatter.get("link_rendering"))
+    return link_reference, link_rendering
+
+
 def parse_memory_note_text(text: str, path: str | Path) -> MemoryNote:
     """Parse a markdown memory note from ``text`` and root-relative ``path``."""
     relative_path = Path(path)
@@ -237,6 +286,20 @@ def parse_memory_note_text(text: str, path: str | Path) -> MemoryNote:
         priority = DEFAULT_MEMORY_PRIORITY
         priority_source = "missing"
     description = _normalized_description(frontmatter.get("description"))
+    if "link_reference" in frontmatter:
+        link_reference = (
+            parse_memory_link_reference(frontmatter.get("link_reference"))
+            or DEFAULT_MEMORY_LINK_REFERENCE
+        )
+    else:
+        link_reference = _link_reference_from_legacy_closure(frontmatter.get("closure"))
+    if "link_rendering" in frontmatter:
+        link_rendering = (
+            parse_memory_link_rendering(frontmatter.get("link_rendering"))
+            or DEFAULT_MEMORY_LINK_RENDERING
+        )
+    else:
+        link_rendering = DEFAULT_MEMORY_LINK_RENDERING
 
     return MemoryNote(
         path=relative_path,
@@ -249,6 +312,8 @@ def parse_memory_note_text(text: str, path: str | Path) -> MemoryNote:
         parent_source=parent_source,
         priority=priority,
         priority_source=priority_source,
+        link_reference=link_reference,
+        link_rendering=link_rendering,
     )
 
 
@@ -307,6 +372,8 @@ def _render_memory_frontmatter(
     priority: int | None = None,
     description: str | None = None,
     extra: Mapping[str, Any] | None = None,
+    link_reference: MemoryLinkReference | None = None,
+    link_rendering: MemoryLinkRendering | None = None,
 ) -> str:
     """Render canonical YAML frontmatter for a memory note."""
     data: dict[str, Any] = {
@@ -323,6 +390,10 @@ def _render_memory_frontmatter(
             ):
                 normalized_description = collapse_description(normalized_description)
             data["description"] = normalized_description
+    if link_reference is not None and link_reference != DEFAULT_MEMORY_LINK_REFERENCE:
+        data["link_reference"] = link_reference
+    if link_rendering is not None and link_rendering != DEFAULT_MEMORY_LINK_RENDERING:
+        data["link_rendering"] = link_rendering
     if extra is not None:
         for key, value in extra.items():
             if key not in _NON_EXTENSION_FRONTMATTER_KEYS:
@@ -450,6 +521,14 @@ def apply_memory_frontmatter(
             if priority_source == "frontmatter":
                 priority = parsed_priority
     preserved_extra: dict[str, Any] = {}
+    extra_link_reference: MemoryLinkReference | None = None
+    extra_link_rendering: MemoryLinkRendering | None = None
+    if extra is not None:
+        extra_link_reference, extra_link_rendering = _link_strategy_from_frontmatter(
+            extra
+        )
+    preserved_link_reference: MemoryLinkReference | None = None
+    preserved_link_rendering: MemoryLinkRendering | None = None
     if preserve_existing_extra:
         preserved_extra.update(
             {
@@ -457,6 +536,9 @@ def apply_memory_frontmatter(
                 for key, value in block.frontmatter.items()
                 if key not in _NON_EXTENSION_FRONTMATTER_KEYS
             }
+        )
+        preserved_link_reference, preserved_link_rendering = (
+            _link_strategy_from_frontmatter(block.frontmatter)
         )
     if extra is not None:
         preserved_extra.update(
@@ -475,6 +557,8 @@ def apply_memory_frontmatter(
             priority=priority,
             description=description,
             extra=preserved_extra,
+            link_reference=extra_link_reference or preserved_link_reference,
+            link_rendering=extra_link_rendering or preserved_link_rendering,
         )
         + body
     )
@@ -564,10 +648,14 @@ def render_children_section(
 
 __all__ = [
     "AGENTS_PARENT",
+    "DEFAULT_MEMORY_LINK_REFERENCE",
+    "DEFAULT_MEMORY_LINK_RENDERING",
     "DEFAULT_MEMORY_PRIORITY",
     "GeneratedShortMemoryNote",
     "GeneratedLongMemoryNote",
     "MEMORY_DIR",
+    "MemoryLinkReference",
+    "MemoryLinkRendering",
     "MemoryNote",
     "MemoryNoteParentSource",
     "MemoryNotePrioritySource",
@@ -579,6 +667,8 @@ __all__ = [
     "discover_memory_notes",
     "normalize_memory_priority",
     "normalize_memory_note_type",
+    "parse_memory_link_reference",
+    "parse_memory_link_rendering",
     "parse_memory_note_text",
     "render_children_section",
     "render_frontmatter_block",

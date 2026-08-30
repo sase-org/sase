@@ -80,7 +80,7 @@ class FileMemoryWebProvider:
                 strands = _discover_strands(
                     root_resolved,
                     memory_root,
-                    web.slug,
+                    web,
                     strand_dir,
                     issues,
                 )
@@ -116,7 +116,7 @@ class FileMemoryWebProvider:
 def _discover_strands(
     root: Path,
     memory_root: Path,
-    web_slug: str,
+    web: MemoryWeb,
     strand_dir: Path,
     issues: list[MemoryWebDiscoveryIssue],
 ) -> tuple[MemoryStrand, ...]:
@@ -137,8 +137,10 @@ def _discover_strands(
         strand, error = parse_memory_strand(
             root=root,
             memory_root=memory_root,
-            web_slug=web_slug,
+            web_slug=web.slug,
             path=child,
+            link_reference=web.link_reference,
+            link_rendering=web.link_rendering,
         )
         if error is not None:
             issues.append(_issue("frontmatter", child, error))

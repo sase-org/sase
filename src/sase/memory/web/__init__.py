@@ -22,6 +22,8 @@ from .lookup import (
     resolve_memory_strand,
 )
 from .models import (
+    MemoryLinkReference,
+    MemoryLinkRendering,
     MemoryStrand,
     MemoryWeb,
     MemoryWebDiscovery,
@@ -73,6 +75,8 @@ __all__ = [
     "GeneratedStrandSource",
     "GeneratedWebSource",
     "MemoryConflictError",
+    "MemoryLinkReference",
+    "MemoryLinkRendering",
     "MemoryStrand",
     "MemoryStrandDraft",
     "MemoryStrandDraftValidation",

@@ -97,6 +97,8 @@ def create_memory_strand(
         web_slug=web.slug,
         path=dest,
         text=content,
+        link_reference=web.link_reference,
+        link_rendering=web.link_rendering,
     )
     if parse_error is not None or new_strand is None:
         raise MemoryStrandMutationError(

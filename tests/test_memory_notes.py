@@ -4,6 +4,8 @@ from pathlib import Path
 
 from sase.memory.notes import (
     AGENTS_PARENT,
+    DEFAULT_MEMORY_LINK_REFERENCE,
+    DEFAULT_MEMORY_LINK_RENDERING,
     DEFAULT_MEMORY_PRIORITY,
     MemoryNote,
     _children_of,
@@ -107,6 +109,113 @@ def test_parse_memory_note_priority_rejects_bool_and_non_integer_values() -> Non
         )
         assert note.priority == DEFAULT_MEMORY_PRIORITY
         assert note.priority_source == "invalid"
+
+
+def test_parse_memory_note_link_strategies_default_and_valid_values() -> None:
+    default = parse_memory_note_text(
+        "---\ntype: core\nparent: AGENTS.md\n---\n# Core\n",
+        "sase/memory/core.md",
+    )
+    explicit = parse_memory_note_text(
+        "---\n"
+        "type: reference\n"
+        "parent: AGENTS.md\n"
+        "link_reference: implicit\n"
+        "link_rendering: inline\n"
+        "---\n"
+        "# Ref\n",
+        "sase/memory/ref.md",
+    )
+    alias = parse_memory_note_text(
+        "---\ntype: core\nparent: AGENTS.md\nclosure: mentions\n---\n# Core\n",
+        "sase/memory/glossary.md",
+    )
+    none_alias = parse_memory_note_text(
+        "---\ntype: core\nparent: AGENTS.md\nclosure: none\n---\n# Core\n",
+        "sase/memory/decisions.md",
+    )
+    prefers_link_reference = parse_memory_note_text(
+        "---\n"
+        "type: core\n"
+        "parent: AGENTS.md\n"
+        "closure: mentions\n"
+        "link_reference: none\n"
+        "---\n"
+        "# Core\n",
+        "sase/memory/both.md",
+    )
+
+    assert default.link_reference == DEFAULT_MEMORY_LINK_REFERENCE
+    assert default.link_rendering == DEFAULT_MEMORY_LINK_RENDERING
+    assert explicit.link_reference == "implicit"
+    assert explicit.link_rendering == "inline"
+    assert alias.link_reference == "implicit"
+    assert none_alias.link_reference == "none"
+    assert prefers_link_reference.link_reference == "none"
+
+
+def test_parse_memory_note_link_strategies_fall_back_on_invalid_values() -> None:
+    note = parse_memory_note_text(
+        "---\n"
+        "type: core\n"
+        "parent: AGENTS.md\n"
+        "link_reference: bogus\n"
+        "link_rendering: sideways\n"
+        "---\n"
+        "# Core\n",
+        "sase/memory/core.md",
+    )
+
+    assert note.link_reference == DEFAULT_MEMORY_LINK_REFERENCE
+    assert note.link_rendering == DEFAULT_MEMORY_LINK_RENDERING
+    assert note.frontmatter["link_reference"] == "bogus"
+    assert note.frontmatter["link_rendering"] == "sideways"
+
+
+def test_apply_memory_frontmatter_round_trips_link_strategies() -> None:
+    original = (
+        "---\n"
+        "type: reference\n"
+        "parent: AGENTS.md\n"
+        "link_reference: implicit\n"
+        "link_rendering: inline\n"
+        "description: Old.\n"
+        "---\n"
+        "# Body\n"
+    )
+    rewritten = apply_memory_frontmatter(
+        original,
+        note_type="reference",
+        parent=AGENTS_PARENT,
+        description="New.",
+    )
+    omitted = apply_memory_frontmatter(
+        "# Body\n",
+        note_type="core",
+        extra={"link_reference": "explicit", "link_rendering": "reference"},
+    )
+    from_extra = apply_memory_frontmatter(
+        "# Body\n",
+        note_type="core",
+        extra={"link_reference": "none", "link_rendering": "inline"},
+    )
+
+    assert rewritten.startswith(
+        "---\n"
+        "type: reference\n"
+        "parent: AGENTS.md\n"
+        "description: New.\n"
+        "link_reference: implicit\n"
+        "link_rendering: inline\n"
+        "---\n"
+    )
+    assert parse_memory_note_text(rewritten, "sase/memory/ref.md").link_reference == (
+        "implicit"
+    )
+    assert "link_reference:" not in omitted
+    assert "link_rendering:" not in omitted
+    assert "link_reference: none\n" in from_extra
+    assert "link_rendering: inline\n" in from_extra
 
 
 def test_apply_memory_frontmatter_renders_priority_only_when_non_default() -> None:

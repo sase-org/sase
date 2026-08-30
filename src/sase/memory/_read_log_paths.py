@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from sase.content_layout import LayoutCollisionError
@@ -174,18 +175,10 @@ def _read_validated_memory_note(
         text,
         CANONICAL_MEMORY_RELATIVE_ROOT / relative,
     )
-    return MemoryNote(
-        path=note.path,
-        type=note.type,
+    return replace(
+        note,
         parent=canonical_memory_reference(note.parent).as_posix(),
-        description=note.description,
-        body=note.body,
-        frontmatter=note.frontmatter,
-        type_source=note.type_source,
-        parent_source=note.parent_source,
         source_path=None,
-        priority=note.priority,
-        priority_source=note.priority_source,
     )
 
 

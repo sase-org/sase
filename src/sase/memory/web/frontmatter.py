@@ -11,9 +11,15 @@ from typing import Any, cast
 import yaml  # type: ignore[import-untyped]
 
 from sase.memory.notes import (
+    DEFAULT_MEMORY_LINK_REFERENCE,
+    DEFAULT_MEMORY_LINK_RENDERING,
     DEFAULT_MEMORY_PRIORITY,
+    MemoryLinkReference,
+    MemoryLinkRendering,
     collapse_description,
     normalize_memory_priority,
+    parse_memory_link_reference,
+    parse_memory_link_rendering,
     render_frontmatter_block,
 )
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
@@ -23,6 +29,9 @@ from .models import MemoryStrand, MemoryWeb, WebClosureMode, WebRosterStyle, Web
 _SLUG_WORD_RE = re.compile(r"[-_\s]+")
 _VALID_ROSTERS: frozenset[str] = frozenset({"inline", "list"})
 _VALID_CLOSURES: frozenset[str] = frozenset({"none", "mentions"})
+_LINK_REFERENCE_ERROR = "link_reference must be explicit, implicit, or none"
+_LINK_RENDERING_ERROR = "link_rendering must be reference or inline"
+_CLOSURE_AND_LINK_REFERENCE_ERROR = "cannot declare both closure and link_reference"
 
 
 @dataclass(frozen=True)
@@ -168,6 +177,8 @@ def render_strand_frontmatter(
     summary: str | None = None,
     metadata: Mapping[str, Any] | None = None,
     body: str = "",
+    link_reference: MemoryLinkReference | None = None,
+    link_rendering: MemoryLinkRendering | None = None,
 ) -> str:
     """Render one strand file's full content: frontmatter, then *body*.
 
@@ -184,6 +195,10 @@ def render_strand_frontmatter(
         data["aliases"] = list(aliases)
     if summary is not None:
         data["summary"] = summary
+    if link_reference is not None:
+        data["link_reference"] = link_reference
+    if link_rendering is not None:
+        data["link_rendering"] = link_rendering
     if metadata:
         data["metadata"] = dict(metadata)
     return render_frontmatter_block(data) + body.lstrip("\n")
@@ -224,6 +239,62 @@ def _aliases(value: Any, *, path: Path) -> tuple[tuple[str, ...], str | None]:
             return (), f"{path}: aliases must be a list of strings"
         aliases.append(alias)
     return tuple(aliases), None
+
+
+def _closure_for_link_reference(link_reference: MemoryLinkReference) -> WebClosureMode:
+    return "mentions" if link_reference == "implicit" else "none"
+
+
+def _parse_link_rendering(
+    frontmatter: Mapping[str, Any],
+    *,
+    path: Path,
+    default: MemoryLinkRendering = DEFAULT_MEMORY_LINK_RENDERING,
+) -> tuple[MemoryLinkRendering | None, str | None]:
+    if "link_rendering" not in frontmatter:
+        return default, None
+    parsed = parse_memory_link_rendering(frontmatter.get("link_rendering"))
+    if parsed is None:
+        return None, f"{path}: {_LINK_RENDERING_ERROR}"
+    return parsed, None
+
+
+def _parse_descriptor_link_reference(
+    frontmatter: Mapping[str, Any], *, path: Path
+) -> tuple[tuple[MemoryLinkReference, WebClosureMode] | None, str | None]:
+    has_closure = "closure" in frontmatter
+    has_link_reference = "link_reference" in frontmatter
+    if has_closure and has_link_reference:
+        return None, f"{path}: {_CLOSURE_AND_LINK_REFERENCE_ERROR}"
+    if has_link_reference:
+        parsed = parse_memory_link_reference(frontmatter.get("link_reference"))
+        if parsed is None:
+            return None, f"{path}: {_LINK_REFERENCE_ERROR}"
+        return (parsed, _closure_for_link_reference(parsed)), None
+    if has_closure:
+        closure = _normalized_scalar(frontmatter.get("closure"))
+        if closure not in _VALID_CLOSURES:
+            return None, f"{path}: closure must be none or mentions"
+        resolved_closure = cast(WebClosureMode, closure)
+        link_reference: MemoryLinkReference = (
+            "implicit" if resolved_closure == "mentions" else "none"
+        )
+        return (link_reference, resolved_closure), None
+    return (DEFAULT_MEMORY_LINK_REFERENCE, "none"), None
+
+
+def _parse_strand_link_reference(
+    frontmatter: Mapping[str, Any],
+    *,
+    path: Path,
+    default: MemoryLinkReference,
+) -> tuple[MemoryLinkReference | None, str | None]:
+    if "link_reference" not in frontmatter:
+        return default, None
+    parsed = parse_memory_link_reference(frontmatter.get("link_reference"))
+    if parsed is None:
+        return None, f"{path}: {_LINK_REFERENCE_ERROR}"
+    return parsed, None
 
 
 def parse_web_descriptor(
@@ -267,10 +338,17 @@ def parse_web_descriptor(
     if roster not in _VALID_ROSTERS:
         return None, f"{path}: roster must be inline or list"
 
-    raw_closure = parsed.frontmatter.get("closure", "none")
-    closure = _normalized_scalar(raw_closure)
-    if closure not in _VALID_CLOSURES:
-        return None, f"{path}: closure must be none or mentions"
+    link_reference_result, link_reference_error = _parse_descriptor_link_reference(
+        parsed.frontmatter, path=path
+    )
+    if link_reference_error is not None or link_reference_result is None:
+        return None, link_reference_error
+    link_reference, closure = link_reference_result
+    link_rendering, link_rendering_error = _parse_link_rendering(
+        parsed.frontmatter, path=path
+    )
+    if link_rendering_error is not None or link_rendering is None:
+        return None, link_rendering_error
 
     if "priority" in parsed.frontmatter:
         priority, priority_source = normalize_memory_priority(
@@ -303,7 +381,7 @@ def parse_web_descriptor(
             roster=cast(WebRosterStyle, roster),
             roster_label=roster_label,
             strand_noun=strand_noun,
-            closure=cast(WebClosureMode, closure),
+            closure=closure,
             metadata=metadata,
             body=parsed.body,
             raw_text=text,
@@ -311,6 +389,8 @@ def parse_web_descriptor(
             frontmatter=dict(parsed.frontmatter),
             priority=priority,
             source=source,
+            link_reference=link_reference,
+            link_rendering=link_rendering,
         ),
         None,
     )
@@ -323,10 +403,14 @@ def parse_memory_strand(
     web_slug: str,
     path: Path,
     text: str | None = None,
+    link_reference: MemoryLinkReference = DEFAULT_MEMORY_LINK_REFERENCE,
+    link_rendering: MemoryLinkRendering = DEFAULT_MEMORY_LINK_RENDERING,
 ) -> tuple[MemoryStrand | None, str | None]:
     """Parse one strand file.
 
     Pass *text* to parse in-memory content instead of reading *path* from disk.
+    *link_reference* and *link_rendering* are the owning descriptor's effective
+    values; per-strand frontmatter overrides them when present.
     """
 
     if text is None:
@@ -356,6 +440,16 @@ def parse_memory_strand(
     metadata, metadata_error = _metadata(parsed.frontmatter.get("metadata"), path=path)
     if metadata_error is not None:
         return None, metadata_error
+    effective_link_reference, link_reference_error = _parse_strand_link_reference(
+        parsed.frontmatter, path=path, default=link_reference
+    )
+    if link_reference_error is not None or effective_link_reference is None:
+        return None, link_reference_error
+    effective_link_rendering, link_rendering_error = _parse_link_rendering(
+        parsed.frontmatter, path=path, default=link_rendering
+    )
+    if link_rendering_error is not None or effective_link_rendering is None:
+        return None, link_rendering_error
 
     relative = CANONICAL_MEMORY_RELATIVE_ROOT / web_slug / path.name
     return (
@@ -374,6 +468,8 @@ def parse_memory_strand(
             raw_text=text,
             body_start=parsed.body_start,
             frontmatter=dict(parsed.frontmatter),
+            link_reference=effective_link_reference,
+            link_rendering=effective_link_rendering,
         ),
         None,
     )

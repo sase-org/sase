@@ -77,6 +77,8 @@ class GeneratedMemoryWebProvider:
                 web_slug=self._source.slug,
                 path=strand_dir / f"{strand_source.slug}.md",
                 text=strand_source.content,
+                link_reference=web.link_reference,
+                link_rendering=web.link_rendering,
             )
             if strand_error is not None or strand is None:
                 raise AssertionError(

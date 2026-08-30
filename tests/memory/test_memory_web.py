@@ -14,6 +14,9 @@ from sase.memory.web import (
     cross_scope_keyword_warnings,
     discover_memory_webs,
     merge_memory_web_scopes,
+    parse_memory_strand,
+    parse_web_descriptor,
+    render_strand_frontmatter,
     render_web_body_with_roster,
     render_web_descriptor_with_roster,
     resolve_memory_strand,
@@ -55,10 +58,11 @@ def _strand(
     keyword: str | None = "Alpha Term",
     aliases: str = "aliases: [alpha]\n",
     summary: str = "summary: First term.\n",
+    extra: str = "",
     body: str = "Strand body.\n",
 ) -> str:
     keyword_line = "" if keyword is None else f"keyword: {keyword}\n"
-    return f"---\n{keyword_line}{aliases}{summary}---\n\n{body}"
+    return f"---\n{keyword_line}{aliases}{summary}{extra}---\n\n{body}"
 
 
 def test_parse_defaults_and_discovery_keeps_note_inventory_flat(tmp_path: Path) -> None:
@@ -74,8 +78,12 @@ def test_parse_defaults_and_discovery_keeps_note_inventory_flat(tmp_path: Path) 
     (strand,) = web.strands
     assert web.roster == "inline"
     assert web.closure == "none"
+    assert web.link_reference == "explicit"
+    assert web.link_rendering == "reference"
     assert web.strand_noun == "strand"
     assert strand.keyword == "Agent Hood"
+    assert strand.link_reference == "explicit"
+    assert strand.link_rendering == "reference"
     assert strand.aliases == ()
     assert tuple(note.relative_path for note in discover_memory_notes(tmp_path)) == (
         "sase/memory/terms.md",
@@ -95,6 +103,168 @@ def test_parse_accepts_typeless_web_descriptor(tmp_path: Path) -> None:
     assert web.frontmatter["web"] is True
     assert "type" not in web.frontmatter
     assert "parent" not in web.frontmatter
+
+
+def test_descriptor_link_strategies_and_legacy_closure_alias(tmp_path: Path) -> None:
+    path = tmp_path / "sase" / "memory" / "terms.md"
+    mentions, mentions_error = parse_web_descriptor(
+        root=tmp_path,
+        memory_root=path.parent,
+        path=path,
+        text=_descriptor(extra="closure: mentions\n"),
+    )
+    none_alias, none_error = parse_web_descriptor(
+        root=tmp_path,
+        memory_root=path.parent,
+        path=path,
+        text=_descriptor(extra="closure: none\n"),
+    )
+    implicit, implicit_error = parse_web_descriptor(
+        root=tmp_path,
+        memory_root=path.parent,
+        path=path,
+        text=_descriptor(extra="link_reference: implicit\nlink_rendering: inline\n"),
+    )
+    none_ref, none_ref_error = parse_web_descriptor(
+        root=tmp_path,
+        memory_root=path.parent,
+        path=path,
+        text=_descriptor(extra="link_reference: none\n"),
+    )
+
+    assert mentions_error is None and mentions is not None
+    assert mentions.closure == "mentions"
+    assert mentions.link_reference == "implicit"
+    assert mentions.link_rendering == "reference"
+    assert none_error is None and none_alias is not None
+    assert none_alias.closure == "none"
+    assert none_alias.link_reference == "none"
+    assert implicit_error is None and implicit is not None
+    assert implicit.link_reference == "implicit"
+    assert implicit.link_rendering == "inline"
+    assert implicit.closure == "mentions"
+    assert none_ref_error is None and none_ref is not None
+    assert none_ref.link_reference == "none"
+    assert none_ref.closure == "none"
+
+
+@pytest.mark.parametrize(
+    ("extra", "expected"),
+    [
+        (
+            "link_reference: bogus\n",
+            "link_reference must be explicit, implicit, or none",
+        ),
+        (
+            "link_rendering: sideways\n",
+            "link_rendering must be reference or inline",
+        ),
+        (
+            "closure: mentions\nlink_reference: implicit\n",
+            "cannot declare both closure and link_reference",
+        ),
+        ("closure: maybe\n", "closure must be none or mentions"),
+    ],
+)
+def test_descriptor_link_strategy_validation_errors(
+    tmp_path: Path, extra: str, expected: str
+) -> None:
+    path = tmp_path / "sase" / "memory" / "terms.md"
+    web, error = parse_web_descriptor(
+        root=tmp_path,
+        memory_root=path.parent,
+        path=path,
+        text=_descriptor(extra=extra),
+    )
+
+    assert web is None
+    assert error is not None
+    assert expected in error
+
+
+def test_strand_link_strategies_override_web_defaults(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "terms.md",
+        _descriptor(extra="link_reference: implicit\nlink_rendering: inline\n"),
+    )
+    _write(tmp_path / "sase" / "memory" / "terms" / "inherited.md", _strand())
+    _write(
+        tmp_path / "sase" / "memory" / "terms" / "override.md",
+        _strand(extra="link_reference: none\nlink_rendering: reference\n"),
+    )
+
+    (web,) = discover_memory_webs(tmp_path).webs
+    inherited = next(strand for strand in web.strands if strand.slug == "inherited")
+    override = next(strand for strand in web.strands if strand.slug == "override")
+
+    assert web.link_reference == "implicit"
+    assert web.link_rendering == "inline"
+    assert inherited.link_reference == "implicit"
+    assert inherited.link_rendering == "inline"
+    assert override.link_reference == "none"
+    assert override.link_rendering == "reference"
+
+
+@pytest.mark.parametrize(
+    ("extra", "expected"),
+    [
+        (
+            "link_reference: bogus\n",
+            "link_reference must be explicit, implicit, or none",
+        ),
+        (
+            "link_rendering: sideways\n",
+            "link_rendering must be reference or inline",
+        ),
+    ],
+)
+def test_strand_link_strategy_validation_errors(
+    tmp_path: Path, extra: str, expected: str
+) -> None:
+    path = tmp_path / "sase" / "memory" / "terms" / "alpha.md"
+    strand, error = parse_memory_strand(
+        root=tmp_path,
+        memory_root=tmp_path / "sase" / "memory",
+        web_slug="terms",
+        path=path,
+        text=_strand(extra=extra),
+    )
+
+    assert strand is None
+    assert error is not None
+    assert expected in error
+
+
+def test_render_strand_frontmatter_emits_and_round_trips_link_strategies(
+    tmp_path: Path,
+) -> None:
+    content = render_strand_frontmatter(
+        keyword="Alpha Term",
+        aliases=("alpha",),
+        summary="First term.",
+        link_reference="implicit",
+        link_rendering="inline",
+        body="Strand body.\n",
+    )
+    omitted = render_strand_frontmatter(keyword="Alpha Term", body="Strand body.\n")
+    path = tmp_path / "sase" / "memory" / "terms" / "alpha.md"
+    strand, error = parse_memory_strand(
+        root=tmp_path,
+        memory_root=tmp_path / "sase" / "memory",
+        web_slug="terms",
+        path=path,
+        text=content,
+        link_reference="explicit",
+        link_rendering="reference",
+    )
+
+    assert "link_reference: implicit\n" in content
+    assert "link_rendering: inline\n" in content
+    assert "link_reference:" not in omitted
+    assert "link_rendering:" not in omitted
+    assert error is None and strand is not None
+    assert strand.link_reference == "implicit"
+    assert strand.link_rendering == "inline"
 
 
 def test_roster_renders_inline_and_replaces_single_region(tmp_path: Path) -> None:
