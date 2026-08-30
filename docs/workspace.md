@@ -244,7 +244,18 @@ Launches that start with a wait directive keep workspace number `0` until the de
 is ready, then resolve a real workspace during normal runner setup. Before applying the
 current launch context, SASE removes inherited `SASE_*_PRE_ALLOCATED`,
 `SASE_*_WORKSPACE_NUM`, and `SASE_*_WORKSPACE_DIR` variables so nested or follow-up
-launches do not accidentally reuse a stale parent workspace.
+launches do not accidentally reuse a stale parent workspace. When a family follow-up's
+composed prompt still carries its `#git:` or `#gh:` ref, SASE then supplies fresh
+pre-allocation variables for the workspace that successor actually received. The VCS
+setup step adopts a numbered claim already owned by its runner instead of allocating a
+second checkout, and rebinds a deferred `#0` runner to the real numbered workspace once
+setup reports it.
+
+The matching release step is handoff- and identity-aware. It leaves the claim and
+checkout occupant in place while a monitor, gate, pipe, plan, or proc handoff still owns
+the workspace, and otherwise releases only a RUNNING claim whose pid still matches the
+calling runner. A mismatched pid is recorded as a refused no-op rather than clearing a
+successor's claim.
 
 ## Relationship to VCS Provider
 
@@ -487,11 +498,11 @@ visible with `exists: false`; preview reconciliation with
 
 `sase doctor -C workspace.occupancy_conflicts` is the read-only occupancy check. It
 reads every project's RUNNING field and each checkout's occupant record, then reports
-duplicate workspace-number claims, a live claim whose occupant names a different live
-pid, and occupant records with no matching claim. Conflicts include the last
-workspace-claim ledger mutation and caller tag when one exists. The check never
-auto-repairs; use `sase workspace repair -n` to preview registry/checkout reconciliation
-separately.
+duplicate workspace-number claims, one live pid claiming multiple numbered workspaces, a
+live claim whose occupant names a different live pid, and occupant records with no
+matching claim. Conflicts include the last workspace-claim ledger mutation and caller
+tag when one exists. The check never auto-repairs; use `sase workspace repair -n` to
+preview registry/checkout reconciliation separately.
 
 `path` always resolves `#0` to the primary checkout. For other numbers, it prints the
 configured path without cloning. Use this command when you only need to inspect the

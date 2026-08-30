@@ -10,6 +10,11 @@ page is a discovery index, not a dump of every flag. Compact help's one-line `ag
 blurb says "active and recent"; default `sase agent list` (and bare `sase agent`) is
 running-only — add `-a` for recent DONE/FAILED.
 
+Compact help's `memory` blurb still mentions reviewing proposals, but that CLI workflow
+has been removed. Current memory commands inspect, read, initialize, and audit memory;
+humans edit notes and strands through ACE's Memory panel, while agents must use the
+`/sase_memory_write` gate before changing memory files.
+
 For exhaustive flag tables, see the
 [configuration reference](configuration.md#cli-flags).
 
@@ -197,7 +202,7 @@ command, keep the `list` subcommand explicit, for example `sase notify list -j`,
 | `sase memory log`                            | Summarize audited memory reads; `--include glossary` folds in legacy pre-web glossary reads.                                                                                           | [Memory](memory.md#audited-reads)                                 |
 | `sase memory init`                           | Refresh home and SASE-managed project memory; copy existing AGENTS.md files to provider instructions.                                                                                  | [Initialization](init.md#memory-initialization)                   |
 | `sase init memory`                           | Alias for `sase memory init`.                                                                                                                                                          | [Initialization](init.md#memory-initialization)                   |
-| `sase memory web` / `sase memory web list`   | List discovered memory webs: slug, rendering, scope, and strand count.                                                                                                                 | [Memory Webs](memory.md#memory-webs)                              |
+| `sase memory web` / `sase memory web list`   | List discovered memory webs: slug, scope, strand count, and description.                                                                                                               | [Memory Webs](memory.md#memory-webs)                              |
 | `sase memory web show WEB [PATTERN]`         | Print one web's filterable strand index (keyword, aliases, reference count, summary); never strand bodies.                                                                             | [Memory Webs](memory.md#memory-webs)                              |
 | `sase repo init`                             | Initialize configured sidecars, generated guides, config, and repository ignores.                                                                                                      | [Initialization](init.md)                                         |
 | `sase init repo`                             | Alias for `sase repo init`.                                                                                                                                                            | [Initialization](init.md)                                         |

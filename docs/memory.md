@@ -52,19 +52,17 @@ surface only: it never edits `AGENTS.md` or the provider shims directly — only
 
 ## XPrompt Inclusion
 
-Every valid, flat, non-README note is also available as an explicit `#memory/<stem>`
-xprompt reference: `sase/memory/sase_artifacts.md` expands with
-`#memory/sase_artifacts`, and `sase/memory/sase_beads.md` expands with
-`#memory/sase_beads`. The `memory/` prefix is required — there is no bare `#<stem>`
-alias, and an ordinary xprompt cannot claim the `memory/` namespace. A selected
-project's note shadows a same-stem home note using the same first-wins precedence
-described in [Audited Reads](#audited-reads) below. The bundled `glossary` memory web's
-descriptor is always inlined as `sase/memory/glossary.md`, so `#memory/glossary` is a
-valid xprompt reference and the note appears in `sase memory list`. That expansion is
-the descriptor body only — strand bodies never inline. Full definitions still come from
-`sase memory read glossary:<term>`, covered in [Memory Webs](#memory-webs) below;
-`sase memory read glossary.md` still fails because `read` rejects an always-loaded
-memory web descriptor the same way it rejects core notes as already-loaded context.
+Every valid ordinary flat note that declares `type: core` or `type: reference` is also
+available as an explicit `#memory/<stem>` xprompt reference:
+`sase/memory/sase_artifacts.md` expands with `#memory/sase_artifacts`, and
+`sase/memory/sase_beads.md` expands with `#memory/sase_beads`. The `memory/` prefix is
+required — there is no bare `#<stem>` alias, and an ordinary xprompt cannot claim the
+`memory/` namespace. A selected project's note shadows a same-stem home note using the
+same first-wins precedence described in [Audited Reads](#audited-reads) below. A
+type-free memory-web descriptor is not an xprompt catalog entry: its body is already
+inlined into the generated `## Memory Webs` instruction section. Strand bodies stay on
+demand; read them with `sase memory read <web>:<keyword>`, covered in
+[Memory Webs](#memory-webs) below.
 
 This is explicit, launch-time prompt composition, not an audited lookup: expanding
 `#memory/<stem>` strips frontmatter and inlines the note body but does not append the
@@ -168,10 +166,11 @@ files are its strands. The bundled `glossary` web ships this way:
 `sase/memory/glossary/`. `sase memory init` always inlines a web's descriptor body into
 its Memory Webs subsection, plus — for a web that opts into an inline roster, as
 `glossary` does — a single semicolon-separated `**GLOSSARY TERMS:**` line naming every
-strand keyword and alias. The descriptor note is listed by `sase memory list` and is
-available as `#memory/glossary`; `sase memory read glossary.md` still fails because
-`read` rejects an always-loaded memory web descriptor the same way it rejects core notes
-as already-loaded context.
+strand keyword and alias. The descriptor note is listed by `sase memory list` and is not
+a `#memory/<stem>` xprompt catalog entry because it declares no flat-note `type:`.
+`sase memory read glossary.md` also fails because `read` rejects an always-loaded memory
+web descriptor the same way it rejects core notes as already-loaded context; read its
+strand bodies with `glossary:<keyword>` selectors instead.
 
 ### Inspecting webs
 
@@ -185,8 +184,9 @@ sase memory web show glossary -b -f json
 
 `sase memory web list` prints every discovered web: slug, scope (`project`/`home`),
 strand count, and description. It no longer reports a rendering type, in either the
-table or the `json` format. `-f/--format` selects `table` (the default), `names`, or
-`json`.
+table or the `json` format. Its current one-line `--help` description still mentions a
+core/reference rendering field; that help text is stale. `-f/--format` selects `table`
+(the default), `names`, or `json`.
 
 `sase memory web show WEB [PATTERN]` prints one web's filterable strand _index_ —
 keyword, slug, aliases, mention-reference count, and a one-line summary — never a

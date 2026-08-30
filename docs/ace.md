@@ -2039,7 +2039,7 @@ badges instead of verbose text:
 | `⚙`   | Monitor shell (row label)                                                                          |
 | `⚙N`  | N running monitors in a family/clan subtree, or in a tribe panel title for its whole tribe (amber) |
 | `⚙N`  | N finished monitors in a family/clan subtree, or in a tribe panel title for its whole tribe (grey) |
-| `⋔`   | Gate shell; cyan while pending/running, grey when settled, red on failure                          |
+| `⋔`   | Gate shell; its gate accent while pending/running, grey when settled, red on failure               |
 | `⋔N`  | N gates in a family/clan subtree or tribe panel title, colored by lifecycle bucket                 |
 | `▣`   | Stand-alone `%proc` proc shell (row label; beta, `typed_launch_units`)                             |
 | `▣N`  | N stand-alone proc shells in a panel title's separate proc chip                                    |
@@ -2061,6 +2061,10 @@ Gate shells use `⋔` and their authored pending/settled labels, such as `GATE`/
 not occupy a runner slot, but it may retain the family's workspace claim. Its state is
 one of pending, settling, answered, completed, failed, timeout, stopped, or lost. Family
 and tribe chips count pending/running, settled, and failed gates separately by color.
+After a decision, the gate member owns the displayed outcome: handoff outcomes
+`PLAN APPROVED`, `TALE APPROVED`, `EPIC APPROVED`, and `ANSWERED` stay in the Running
+bucket while their successor comes up; rejection and cancellation settle under Done,
+while timeout and failure settle under Failed.
 
 A monitor row nests under the agent that started it, not under a synthetic aggregate —
 one gear-glyph row at the starter's depth plus one. It is revealed by its **agent
@@ -4057,20 +4061,27 @@ and completed (the agent has finished).
 
 ### Active Statuses
 
-| Status             | Color           | Description                                                                                                      |
-| ------------------ | --------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **RUNNING**        | Gold            | Agent subprocess is executing                                                                                    |
-| **QUEUED**         | Cornflower blue | Cleared dependency, bead, and time waits; parked for runner capacity                                             |
-| **WAITING**        | Amethyst/purple | Paused on a dependency, bead, or time wait; `?N` marks unknown targets; matching bead tokens follow agent tokens |
-| **WAITING INPUT**  | Amber/orange    | Workflow is paused at a human-in-the-loop (HITL) step                                                            |
-| **TALE**           | Pink/magenta    | An authored tale is waiting for user review                                                                      |
-| **EPIC**           | Orchid          | An authored epic is waiting for user review                                                                      |
-| **PLAN**           | Pink/magenta    | A legacy or unreadable-tier plan is waiting for user review                                                      |
-| **PLAN APPROVED**  | Cyan            | Plan was approved; follow-up agent has been spawned                                                              |
-| **EPIC APPROVED**  | Cyan            | Epic was approved, but no created epic ID has been back-filled yet                                               |
-| **PLAN COMMITTED** | Cyan            | Plan was approved with auto-commit; `--commit` follow-up is running                                              |
-| **QUESTION**       | Amber           | Agent is asking the user a question (via `/sase_questions`)                                                      |
-| **RETRYING**       | Orange          | Agent hit a retryable error and is in a countdown before retrying                                                |
+Gate-shell rows use lifecycle presentation rather than a separate hard-coded color for
+every plan or question label: pending/settling labels use the gate's configured or
+deterministic accent, answered/completed/stopped labels turn grey, and
+failed/timeout/lost labels turn red. Legacy non-shell rows retain their older status
+presentation where noted, with specialized lifecycle labels falling back to dim text.
+
+| Status            | Presentation                   | Description                                                                                                      |
+| ----------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| **RUNNING**       | Gold                           | Agent subprocess is executing                                                                                    |
+| **QUEUED**        | Cornflower blue                | Cleared dependency, bead, and time waits; parked for runner capacity                                             |
+| **WAITING**       | Amethyst/purple                | Paused on a dependency, bead, or time wait; `?N` marks unknown targets; matching bead tokens follow agent tokens |
+| **WAITING INPUT** | Gate accent; legacy dim        | Workflow is paused at a human-in-the-loop (HITL) step                                                            |
+| **TALE**          | Gate accent; legacy dim        | An authored tale is waiting for user review                                                                      |
+| **EPIC**          | Gate accent; legacy dim        | An authored epic is waiting for user review                                                                      |
+| **PLAN**          | Gate accent; legacy dim        | A legacy or unreadable-tier plan is waiting for user review                                                      |
+| **PLAN APPROVED** | Grey on the settled gate shell | Plan was approved; follow-up agent has been spawned                                                              |
+| **TALE APPROVED** | Grey on the settled gate shell | Tale was approved and its coder follow-up was launched                                                           |
+| **EPIC APPROVED** | Grey on the settled gate shell | Epic was approved, but no created epic ID has been back-filled yet                                               |
+| **QUESTION**      | Gate accent; legacy dim        | Agent is asking the user a question (via `/sase_questions`)                                                      |
+| **ANSWERED**      | Grey on the settled gate shell | The answer was accepted and a successor is being launched                                                        |
+| **RETRYING**      | Orange                         | Agent hit a retryable error and is in a countdown before retrying                                                |
 
 Modern `/sase_questions` calls hand the family to a processless `QUESTION` gate shell
 and end the asking LLM turn. The shell owns the durable question until it is answered,
@@ -4112,13 +4123,17 @@ if the mount signal never fires.
 
 ### Completed Statuses
 
-| Status           | Color | Description                                                      |
-| ---------------- | ----- | ---------------------------------------------------------------- |
-| **DONE**         | Green | Agent completed successfully                                     |
-| **PLAN DONE**    | Green | Plan workflow fully completed (all steps)                        |
-| **TALE DONE**    | Green | Tale plan workflow fully completed (all follow-ups)              |
-| **EPIC CREATED** | Green | A created epic ID is known, or a legacy epic follow-up completed |
-| **FAILED**       | Red   | Agent exited with an error                                       |
+The ordinary-row renderer reserves green for plain `DONE`; specialized terminal labels
+fall back to dim text unless a gate or monitor supplies lifecycle presentation.
+
+| Status             | Presentation                          | Description                                                      |
+| ------------------ | ------------------------------------- | ---------------------------------------------------------------- |
+| **DONE**           | Green                                 | Agent completed successfully                                     |
+| **PLAN DONE**      | Dim                                   | Plan workflow fully completed (all steps)                        |
+| **TALE DONE**      | Dim                                   | Tale plan workflow fully completed (all follow-ups)              |
+| **PLAN COMMITTED** | Grey on a settled gate; otherwise dim | Plan was recorded without launching a coder                      |
+| **EPIC CREATED**   | Dim                                   | A created epic ID is known, or a legacy epic follow-up completed |
+| **FAILED**         | Red                                   | Agent exited with an error                                       |
 
 Monitor shells are the exception to this status table's success-oriented labels: a
 gate-approved epic monitor uses `EPIC APPROVED` as its start label and `EPIC CREATED` as

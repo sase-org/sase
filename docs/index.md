@@ -87,8 +87,8 @@ title: Structured Agentic Software Engineering
   <h3>I need shared agent memory</h3>
 
   <p>
-    Use instruction memory loaded through AGENTS.md, audited reference reads, and reviewed proposals for
-    agent-suggested updates.
+    Use instruction memory loaded through AGENTS.md, audited reference reads, and the ACE Memory panel for
+    tracked edits to notes and memory webs.
   </p>
 
 <a href="memory/">Open memory</a>

@@ -148,4 +148,4 @@ that blocks reads instead of merging them. There is no project-specific home mem
 scope and no plugin or package memory source. A selected project's notes shadow
 same-stem home notes rather than aggregating with them. See
 [Memory Field](xprompt.md#memory-field) for the reference-naming contract and
-[Memory](memory.md) for note tiers and the audited-read workflow.
+[Memory](memory.md) for note types, memory webs, and the audited-read workflow.

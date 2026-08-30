@@ -1292,10 +1292,10 @@ Every valid, flat, non-README [SASE memory note](memory.md) that declares `type:
 or `type: reference` frontmatter is automatically an xprompt — no opt-in field is
 required. A note's filename remains its identity: `sase/memory/sase_beads.md` (or the
 home equivalent) is invoked as `#memory/sase_beads`. Nested files such as
-`sase/memory/assets/**` and `README.md` are never catalog entries. The bundled
-`glossary` memory web's descriptor is `sase/memory/glossary.md`, so `#memory/glossary`
-is a valid reference; full definitions still come from
-`sase memory read glossary:<keyword>` (see [Memory Webs](memory.md#memory-webs)).
+`sase/memory/assets/**` and `README.md` are never catalog entries. Type-free memory-web
+descriptors are not catalog entries either: their bodies are already loaded through the
+generated `## Memory Webs` instruction section, while strand bodies come from
+`sase memory read <web>:<keyword>` (see [Memory Webs](memory.md#memory-webs)).
 
 The `memory/` reference segment is reserved. There is no bare `#sase_beads` alias for
 `#memory/sase_beads`, no `#memory/long/sase_beads` compatibility form, and an ordinary
