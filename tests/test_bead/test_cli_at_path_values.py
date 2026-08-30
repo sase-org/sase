@@ -521,6 +521,7 @@ _DELIBERATELY_LITERAL_FREE_TEXT = frozenset(
         ("work", "artifacts_dir"),
         ("work", "cl_name"),
         ("work", "parent"),
+        ("work", "wait"),
     }
 )
 

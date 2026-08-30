@@ -8,10 +8,13 @@ import io
 import json
 import sys
 from collections.abc import Callable
-from typing import Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from sase.bead.cli_common import get_project
 from sase.bead.model import BeadTier, IssueType
+
+if TYPE_CHECKING:
+    from sase.xprompt.directive_edit import PromptWaitDirective
 
 
 def handle_bead_work(
@@ -23,6 +26,7 @@ def handle_bead_work(
     json_output = bool(getattr(args, "json", False))
     targets = _normalize_targets(args)
     first_target = targets[0] if targets else ""
+    _wait_spec_from_args(args)
     from sase.dev_update.code_swap_lock import code_swap_reader_lock
 
     with code_swap_reader_lock(op="bead.work", command=sys.argv) as lock:
@@ -70,6 +74,7 @@ def _handle_bead_work_locked(
     parent = getattr(args, "parent", None)
     launch_feedback = getattr(args, "launch_feedback", None)
     expect_prompt_snapshot = bool(getattr(args, "expect_prompt_snapshot", False))
+    extra_waits = _wait_spec_from_args(args)
 
     from sase.bead.cli_work_from_plan import (
         PlanFileWorkError,
@@ -120,6 +125,7 @@ def _handle_bead_work_locked(
                     render=not json_output,
                     expect_prompt_snapshot=expect_prompt_snapshot,
                     timer=timer,
+                    extra_waits=extra_waits,
                 )
         except PlanFileWorkError as exc:
             finish_epic_launch(
@@ -311,6 +317,7 @@ def _handle_bead_work_locked(
                         no_push=no_push,
                         yes_to_all=yes_to_all,
                         timer=timer,
+                        extra_waits=extra_waits,
                     )
             except cli_work_handler.BeadWorkError as exc:
                 if json_output:
@@ -374,6 +381,20 @@ def _handle_bead_work_locked(
             target=target,
             json_output=json_output,
         )
+
+
+def _wait_spec_from_args(args: argparse.Namespace) -> PromptWaitDirective | None:
+    """Parse ``--wait`` before any bead or file mutation; exit 2 on failure."""
+    raw = getattr(args, "wait", None)
+    if raw is None:
+        return None
+    from sase.wait_spec import WaitSpecError, parse_wait_spec
+
+    try:
+        return parse_wait_spec(raw)
+    except WaitSpecError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
 
 
 def _code_swap_lock_error(blocked_by: str | None) -> str:

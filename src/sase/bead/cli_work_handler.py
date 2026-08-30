@@ -60,6 +60,7 @@ if TYPE_CHECKING:
         PatchLaunchContext,
         VCSLaunchContext,
     )
+    from sase.xprompt.directive_edit import PromptWaitDirective
 
 
 BEAD_WORK_TIMING_ENV = "SASE_BEAD_WORK_TIMING"
@@ -179,6 +180,7 @@ def launch_epic_bead_work(
     defer_push: bool = False,
     before_agent_launch: Callable[[BeadProject, str], Any] | None = None,
     timer: LaunchTimingRecorder | None = None,
+    extra_waits: PromptWaitDirective | None = None,
 ) -> _EpicWorkResult:
     """Run the epic bead-work path, returning the structured launch outcome.
 
@@ -199,6 +201,7 @@ def launch_epic_bead_work(
                 defer_push=defer_push,
                 before_agent_launch=before_agent_launch,
                 timer=owned_timer,
+                extra_waits=extra_waits,
             )
 
     if not dry_run:
@@ -254,6 +257,7 @@ def launch_epic_bead_work(
             vcs_context=vcs_context,
             patch_context=patch_context,
             declare_clan=plan.epic_id not in get_reserved_clan_names(),
+            extra_waits=extra_waits,
         )
 
     if issue.is_ready_to_work:
@@ -285,6 +289,7 @@ def launch_epic_bead_work(
             patch_context=patch_context,
             declare_clan=plan.epic_id not in get_reserved_clan_names(),
             launch_names=selection.launch_names,
+            extra_waits=extra_waits,
         )
         print("\n--- Multi-prompt (dry run) ---")
         print(dry_query)
@@ -367,6 +372,7 @@ def launch_epic_bead_work(
                 patch_context=patch_context,
                 declare_clan=plan.epic_id not in get_reserved_clan_names(),
                 launch_names=selection.launch_names,
+                extra_waits=extra_waits,
             )
             query = prepare_selected_bead_work_force_reuse(
                 query,

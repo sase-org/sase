@@ -8101,7 +8101,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "a62ad7bc692f1e30",
+            "description_digest": "97460ca162abeab1",
             "hidden": false,
             "mutex_groups": [],
             "name": "work",
@@ -8209,6 +8209,18 @@
                 "strings": [
                   "-p",
                   "--parent"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "wait",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-w",
+                  "--wait"
                 ],
                 "takes_value": true
               },

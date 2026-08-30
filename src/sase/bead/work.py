@@ -25,6 +25,7 @@ from sase.llm_provider.config import format_model_directive_value
 from sase.llm_provider.config import select_epic_land_model_expression
 
 if TYPE_CHECKING:
+    from sase.xprompt.directive_edit import PromptWaitDirective
     from sase.xprompt.workflow_models import Workflow
 
 SASE_BEAD_ID_ENV = "SASE_BEAD_ID"
@@ -363,6 +364,7 @@ def render_multi_prompt(
     *,
     declare_clan: bool = True,
     launch_names: frozenset[str] | None = None,
+    extra_waits: PromptWaitDirective | None = None,
 ) -> str:
     """Render *plan* as a ``---``-separated multi-prompt string.
 
@@ -388,6 +390,12 @@ def render_multi_prompt(
     targets the project ref and includes ``#pr`` to create/own the Patch;
     later phase segments and the land segment target the Patch ref
     directly.
+
+    When *extra_waits* is provided, its agents and beads are appended after
+    each unblocked segment's existing wait lines and before its ``#<xprompt>``
+    line. Unblocked means a phase whose ``waits_on`` is empty, or the land
+    segment when ``plan.land_waits_on`` is empty. Dependent segments inherit
+    the wait transitively and do not repeat it.
     """
     if vcs_context is not None and patch_context is not None:
         raise ValueError("provide either vcs_context or patch_context, not both")
@@ -425,6 +433,8 @@ def render_multi_prompt(
             lines.extend(
                 f"%w(bead={bead_id})" for bead_id in assignment.blocker_bead_ids
             )
+            if not assignment.waits_on:
+                lines.extend(_extra_wait_lines(extra_waits))
             lines.append(f"#{work_phase_xprompt.name}:{assignment.bead_id}")
             if phase_requires_plan(assignment.size):
                 lines.append("#plan")
@@ -449,10 +459,23 @@ def render_multi_prompt(
         if plan.land_waits_on:
             land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
         land_lines.extend(f"%w(bead={bead_id})" for bead_id in plan.phase_bead_ids)
+        if not plan.land_waits_on:
+            land_lines.extend(_extra_wait_lines(extra_waits))
         land_lines.append(f"#{land_epic_xprompt.name}:{plan.epic_id}")
         segments.append("\n".join(land_lines))
 
     return "\n---\n".join(segments)
+
+
+def _extra_wait_lines(extra_waits: PromptWaitDirective | None) -> list[str]:
+    """Render approval/CLI extra waits after a segment's intra-epic waits."""
+    if not extra_waits:
+        return []
+    lines: list[str] = []
+    if extra_waits.agents:
+        lines.append(f"%w:{','.join(extra_waits.agents)}")
+    lines.extend(f"%w(bead={bead_id})" for bead_id in extra_waits.beads)
+    return lines
 
 
 def _phase_size(size: PhaseSize | str | None) -> PhaseSize:

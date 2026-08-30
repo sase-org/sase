@@ -27,6 +27,7 @@ from sase.sdd.store import SddStore
 
 if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
+    from sase.xprompt.directive_edit import PromptWaitDirective
 
 
 class _CheckpointAndPublishGraph(Protocol):
@@ -61,6 +62,7 @@ def resume_linked_epic(
     publish_epic_rollback: Callable[[SddStore], bool],
     push_store_after_launch: _PushStoreAfterLaunch,
     timer: LaunchTimingRecorder,
+    extra_waits: PromptWaitDirective | None = None,
 ) -> PlanFileWorkResult:
     from sase.bead.cli_work_handler import BeadWorkError, launch_epic_bead_work
 
@@ -120,6 +122,7 @@ def resume_linked_epic(
                 defer_push=True,
                 before_agent_launch=publish_resumed_graph,
                 timer=timer,
+                extra_waits=extra_waits,
             )
             launch_result = normalize_epic_launch_result(
                 raw_launch_result,

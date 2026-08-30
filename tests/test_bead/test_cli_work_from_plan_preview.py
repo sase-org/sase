@@ -280,6 +280,9 @@ def test_bead_work_help_describes_both_targets_and_options(
     assert "--no-push" in help_text
     assert "--parent ID|top-level" in help_text
     assert "--parent top-level" in help_text
+    assert "--wait SPEC" in help_text
+    assert "-w SPEC" in help_text
+    assert "bead=<id>" in help_text
 
 
 def test_bead_work_parses_expect_prompt_snapshot_flag() -> None:

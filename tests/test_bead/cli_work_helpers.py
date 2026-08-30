@@ -66,6 +66,7 @@ def make_args(
     no_push: bool = False,
     json_output: bool = False,
     launch_feedback: str | None = None,
+    wait: str | None = None,
 ) -> Any:
     return argparse.Namespace(
         target=target,
@@ -75,6 +76,7 @@ def make_args(
         yes_to_all=yes_to_all,
         no_push=no_push,
         launch_feedback=launch_feedback,
+        wait=wait,
     )
 
 

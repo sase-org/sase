@@ -357,6 +357,7 @@ def register_bead_work_parser(
             "  sase bead work ./epic_plan.md --dry-run\n"
             "  sase bead work ./epic_plan.md --parent sase-64.2 --yes\n"
             "  sase bead work ./epic_plan.md --parent top-level --yes\n"
+            "  sase bead work ./epic_plan.md --wait sase-s7.2,bead=sase-64.3 --yes\n"
             "  sase bead work ./epic_plan.md --yes\n"
             "  sase bead work ./epic_plan.md sase-task --yes\n"
             "  sase bead work ./epic_plan.md ./followup_plan.md --yes-to-all\n"
@@ -428,6 +429,15 @@ def register_bead_work_parser(
         help=(
             "Override a plan file's parent_bead with a full or shorthand ID; "
             "use 'top-level' to create an unparented epic"
+        ),
+    )
+    parser.add_argument(
+        "-w",
+        "--wait",
+        metavar="SPEC",
+        help=(
+            "Comma-separated agent names and bead=<id> entries the launched "
+            "phases wait for"
         ),
     )
     parser.add_argument(

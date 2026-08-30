@@ -22,6 +22,7 @@ from sase.bead.work import (
     render_multi_prompt,
 )
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
+from sase.xprompt.directive_edit import PromptWaitDirective
 from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.workflow_models import Workflow
 
@@ -275,3 +276,187 @@ class TestRenderEdgeCases:
         assert all(env[SASE_EPIC_PLAN_SNAPSHOT_ENV] == snapshot for env in envs)
         assert envs[0][SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV] == EPIC_CLAN_SUMMARY_SCRIPT
         assert all(SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV not in env for env in envs[1:])
+
+
+def _render(plan: EpicWorkPlan, extra_waits: PromptWaitDirective | None = None) -> str:
+    return render_multi_prompt(
+        plan,
+        work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+        land_epic_xprompt=Workflow(name="bd/land_epic"),
+        extra_waits=extra_waits,
+    )
+
+
+class TestExtraWaits:
+    def test_extra_waits_land_on_root_and_land_only_not_dependents(self) -> None:
+        extra = PromptWaitDirective(agents=("dep",), beads=("sase-64.3",))
+        plan = EpicWorkPlan(
+            epic_id="sase-42",
+            launch_tag_id="sase-42",
+            total_phase_count=2,
+            phase_bead_ids=("sase-42.1", "sase-42.2"),
+            waves=(
+                (
+                    PhaseAssignment(
+                        bead_id="sase-42.1",
+                        agent_name="sase-42.1",
+                        waits_on=(),
+                        blocker_bead_ids=(),
+                        wave=0,
+                    ),
+                ),
+                (
+                    PhaseAssignment(
+                        bead_id="sase-42.2",
+                        agent_name="sase-42.2",
+                        waits_on=("sase-42.1",),
+                        blocker_bead_ids=("sase-42.1",),
+                        wave=1,
+                    ),
+                ),
+            ),
+            land_agent_name="sase-42.land",
+            land_waits_on=("sase-42.1", "sase-42.2"),
+        )
+
+        without = _render(plan)
+        with_extra = _render(plan, extra)
+        root, dependent, land = with_extra.split("\n---\n")
+
+        assert with_extra != without
+        assert root.splitlines()[-3:] == [
+            "%w:dep",
+            "%w(bead=sase-64.3)",
+            "#bd/work_phase_bead:sase-42.1",
+        ]
+        assert "%w:dep" not in dependent
+        assert "%w(bead=sase-64.3)" not in dependent
+        assert dependent.splitlines()[-3:] == [
+            "%w:sase-42.1",
+            "%w(bead=sase-42.1)",
+            "#bd/work_phase_bead:sase-42.2",
+        ]
+        assert "%w:dep" not in land
+        assert "%w(bead=sase-64.3)" not in land
+        assert land.splitlines()[-4:] == [
+            "%w:sase-42.1,sase-42.2",
+            "%w(bead=sase-42.1)",
+            "%w(bead=sase-42.2)",
+            "#bd/land_epic:sase-42",
+        ]
+
+    def test_extra_waits_append_after_blocker_bead_lines(self) -> None:
+        plan = EpicWorkPlan(
+            epic_id="sase-42",
+            launch_tag_id="sase-42",
+            total_phase_count=1,
+            phase_bead_ids=("sase-42.1",),
+            waves=(
+                (
+                    PhaseAssignment(
+                        bead_id="sase-42.1",
+                        agent_name="sase-42.1",
+                        waits_on=(),
+                        blocker_bead_ids=("sase-42.0",),
+                        wave=0,
+                    ),
+                ),
+            ),
+            land_agent_name="sase-42.land",
+            land_waits_on=("sase-42.1",),
+        )
+
+        rendered = _render(
+            plan,
+            PromptWaitDirective(agents=("dep",), beads=("sase-64.3",)),
+        )
+        root, _land = rendered.split("\n---\n")
+        assert root.splitlines()[-4:] == [
+            "%w(bead=sase-42.0)",
+            "%w:dep",
+            "%w(bead=sase-64.3)",
+            "#bd/work_phase_bead:sase-42.1",
+        ]
+
+    def test_land_only_plan_receives_extra_waits(self) -> None:
+        plan = EpicWorkPlan(
+            epic_id="sase-42",
+            launch_tag_id="sase-42",
+            total_phase_count=2,
+            phase_bead_ids=("sase-42.1", "sase-42.2"),
+            waves=(),
+            land_agent_name="sase-42.land",
+            land_waits_on=(),
+        )
+
+        rendered = _render(
+            plan,
+            PromptWaitDirective(agents=("dep",), beads=("sase-64.3",)),
+        )
+        assert "\n---\n" not in rendered
+        assert rendered.splitlines()[-5:] == [
+            "%w(bead=sase-42.1)",
+            "%w(bead=sase-42.2)",
+            "%w:dep",
+            "%w(bead=sase-64.3)",
+            "#bd/land_epic:sase-42",
+        ]
+
+    def test_agents_only_and_beads_only_extra_waits(self) -> None:
+        plan = EpicWorkPlan(
+            epic_id="sase-42",
+            launch_tag_id="sase-42",
+            total_phase_count=1,
+            phase_bead_ids=("sase-42.1",),
+            waves=(
+                (
+                    PhaseAssignment(
+                        bead_id="sase-42.1",
+                        agent_name="sase-42.1",
+                        waits_on=(),
+                        blocker_bead_ids=(),
+                        wave=0,
+                    ),
+                ),
+            ),
+            land_agent_name="sase-42.land",
+            land_waits_on=("sase-42.1",),
+        )
+
+        agents_only = _render(plan, PromptWaitDirective(agents=("dep", "other")))
+        beads_only = _render(plan, PromptWaitDirective(beads=("sase-1", "sase-2")))
+        root_agents, _ = agents_only.split("\n---\n")
+        root_beads, _ = beads_only.split("\n---\n")
+        assert root_agents.splitlines()[-2:] == [
+            "%w:dep,other",
+            "#bd/work_phase_bead:sase-42.1",
+        ]
+        assert root_beads.splitlines()[-3:] == [
+            "%w(bead=sase-1)",
+            "%w(bead=sase-2)",
+            "#bd/work_phase_bead:sase-42.1",
+        ]
+
+    def test_empty_extra_waits_leave_prompt_unchanged(self) -> None:
+        plan = EpicWorkPlan(
+            epic_id="sase-42",
+            launch_tag_id="sase-42",
+            total_phase_count=1,
+            phase_bead_ids=("sase-42.1",),
+            waves=(
+                (
+                    PhaseAssignment(
+                        bead_id="sase-42.1",
+                        agent_name="sase-42.1",
+                        waits_on=(),
+                        blocker_bead_ids=(),
+                        wave=0,
+                    ),
+                ),
+            ),
+            land_agent_name="sase-42.land",
+            land_waits_on=("sase-42.1",),
+        )
+
+        assert _render(plan) == _render(plan, PromptWaitDirective())
+        assert _render(plan) == _render(plan, None)

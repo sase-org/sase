@@ -55,6 +55,7 @@ from sase.sdd.store import SddStore
 
 if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
+    from sase.xprompt.directive_edit import PromptWaitDirective
 
 
 def work_from_plan_file(
@@ -68,6 +69,7 @@ def work_from_plan_file(
     render: bool = True,
     expect_prompt_snapshot: bool = False,
     timer: LaunchTimingRecorder | None = None,
+    extra_waits: PromptWaitDirective | None = None,
 ) -> _PlanFileWorkResult:
     """Validate, archive, materialize, link, and launch one epic plan."""
     if timer is None:
@@ -85,6 +87,7 @@ def work_from_plan_file(
                 render=render,
                 expect_prompt_snapshot=expect_prompt_snapshot,
                 timer=owned_timer,
+                extra_waits=extra_waits,
             )
 
     from sase.sdd.plan_archive import plan_archive_destination
@@ -266,6 +269,7 @@ def work_from_plan_file(
             render=render,
             expect_prompt_snapshot=expect_prompt_snapshot,
             timer=timer,
+            extra_waits=extra_waits,
         )
 
 
@@ -287,6 +291,7 @@ def _work_from_plan_file_locked(
     render: bool,
     expect_prompt_snapshot: bool = False,
     timer: LaunchTimingRecorder,
+    extra_waits: PromptWaitDirective | None = None,
 ) -> _PlanFileWorkResult:
     """Run one mutation transaction while its store launch lock is held."""
     from sase.bead.cli_work_handler import preload_launch_imports
@@ -399,6 +404,7 @@ def _work_from_plan_file_locked(
                 render=render,
                 waves=waves,
                 timer=timer,
+                extra_waits=extra_waits,
             )
         stale_epic_id = linked_epic_id
         if render:
@@ -468,6 +474,7 @@ def _work_from_plan_file_locked(
             defer_push=True,
             before_agent_launch=publish_created_graph,
             timer=timer,
+            extra_waits=extra_waits,
         )
         result = _normalize_epic_launch_result(
             raw_result,
@@ -569,6 +576,7 @@ def _resume_linked_epic(
     render: bool,
     waves: tuple[tuple[str, ...], ...],
     timer: LaunchTimingRecorder,
+    extra_waits: PromptWaitDirective | None = None,
 ) -> _PlanFileWorkResult:
     return _resume_linked_epic_impl(
         location,
@@ -585,6 +593,7 @@ def _resume_linked_epic(
         publish_epic_rollback=_publish_epic_rollback,
         push_store_after_launch=_push_store_after_launch,
         timer=timer,
+        extra_waits=extra_waits,
     )
 
 

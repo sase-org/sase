@@ -81,6 +81,7 @@ sase bead doctor --fix-issue-prefix                     # Reset a leaked Project
 sase bead doctor --fix-projection                       # Repair issues.jsonl from canonical events
 sase bead work "$PLANS_ROOT/202605/epic.md" --dry-run   # Preview bead creation and launch waves
 sase bead work "$PLANS_ROOT/202605/epic.md" --yes       # Create, link, and launch an epic plan
+sase bead work "$PLANS_ROOT/202605/epic.md" --wait 'sase-s7.2,bead=sase-64.3' --yes
 sase bead work beads-001                                # Launch agents for an epic plan bead
 sase bead work beads-002 --dry-run                      # Preview one standalone task worker
 sase bead work beads-002 --yes                          # Launch one standalone task worker
@@ -1940,6 +1941,15 @@ sequence if a later bead-ID target reaches the same incompatible flag. `--json` 
 one complete result object per processed target. A one-target JSON run is unchanged; a
 multi-target JSON run is newline-delimited JSON, one object per line, including the
 first failing target's error object when the command stops.
+
+`-w/--wait SPEC` holds launched epic phases until every named dependency finishes.
+`SPEC` is a comma-separated list of agent names and `bead=<id>` entries; `time=`,
+`runners=`, `priority=`, `unit=`, and `proc=` are rejected. A parse error exits 2 before
+any bead or file mutation. The option applies to plan-file targets and existing epic
+beads. Extra waits are appended only to segments whose intra-epic `waits_on` is empty —
+the current root wave, and the land segment when it does not wait on phases — after
+those segments' existing wait lines and before their `#<xprompt>` line. Dependent
+segments inherit the wait transitively and do not repeat it.
 
 For a task bead, `sase bead work <task-id>` accepts `ready` (normal), `open` (manual
 launch), or recoverable `in_progress` state. It does not launch a duplicate when the
