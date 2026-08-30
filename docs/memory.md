@@ -114,10 +114,13 @@ sase memory show cli_rules.md -f json
 Path resolution is identical to `read`: project `sase/memory/` first, then
 `~/sase/memory/`, and only `type: reference` notes are accepted. Leading YAML
 frontmatter is stripped, and a `## Children` section (or, in `rich`, a `Children` block)
-is appended when the note has nested reference children. `-f/--format` selects
-`markdown` (the default, byte-identical to `read`'s stdout for the same note), `rich` (a
-styled terminal view), or `json` (a structured payload with `project`, `origin`, `note`,
-and `children`). No audit event is written and no agent identity is required.
+is appended when the note has nested reference children, followed by a
+`## Linked References` section (or, in `rich`, a `Linked References` block) when the
+note authors any `[[target]]` reference links — see [Memory Links](#memory-links) below.
+`-f/--format` selects `markdown` (the default, byte-identical to `read`'s stdout for the
+same note), `rich` (a styled terminal view), or `json` (a structured payload with
+`project`, `origin`, `note`, `children`, and `linked_references`). No audit event is
+written and no agent identity is required.
 
 ## Audited Reads
 
@@ -226,11 +229,14 @@ header-free for backward compatibility and appends that note's nested `## Childr
 section. Multi-note and mixed Markdown batches currently omit the per-note children
 sections; read a parent note by itself when you need its child list.
 
-A web whose descriptor sets `closure: mentions` — `glossary` is one — additionally walks
-the recursive closure of strands each requested strand's body mentions. Every related
-strand shows why it appeared: which requesting strand's body mentioned it, and the exact
-matched phrase. `-d/--depth N` caps the recursion (`-d 0` prints only the requested
-strands; the default is unlimited). `-f/--format` selects `markdown` (the default for
+A web whose effective `link_reference` is `implicit` — `glossary` is one — additionally
+walks the recursive closure of strands each requested strand's body mentions by phrase,
+merged with any authored `[[...]]` / `![[...]]` links; see [Memory Links](#memory-links)
+below for the frontmatter that controls this and for inline versus reference link
+rendering. Every related strand shows why it appeared: which requesting strand's body
+mentioned or linked it, and the matched phrase or link. `-d/--depth N` caps the
+recursion (`-d 0` prints only the requested strands and lists every link as a reference;
+the default is unlimited). `-f/--format` selects `markdown` (the default for
 `read`/`show`), `rich` (a styled terminal view), or `json` (the closure with full
 provenance). This is not an audited read when used with `show`; agents must use `read`.
 
@@ -258,3 +264,50 @@ references. There is no CLI write path for strand content; every write goes thro
 panel's tracked mutation engine, which validates frontmatter, checks catalog ambiguity
 for digest conflicts, and refreshes the descriptor roster through the normal
 `sase memory init` publish path described in [Memory panel](ace.md#memory-panel).
+
+## Memory Links
+
+A flat note, a memory-web descriptor, and a strand can each declare how the links in
+their body are detected and rendered:
+
+- `link_reference: explicit | implicit | none` (default `explicit`) controls detection.
+  `explicit` honors only authored `[[target]]` / `![[target]]` links. `implicit` keeps
+  those and adds phrase-matched mentions the way `glossary` always has. `none` disables
+  both — authored `[[...]]` renders as plain text with no Linked References section, the
+  escape hatch for a note that discusses the syntax itself.
+- `link_rendering: reference | inline` (default `reference`) controls how a detected
+  link renders: as a listing in a `## Linked References` section, or expanded inline in
+  the closure the way `glossary` mentions are today. `![[target]]` always forces that
+  one link inline regardless of the strategy; `[[target]]` defers to `link_rendering`.
+
+A strand's own frontmatter overrides its web descriptor's, which overrides the built-in
+default; a flat note uses its own frontmatter or the default. The legacy web-descriptor
+key `closure: mentions` is still accepted as an alias for `link_reference: implicit`,
+and `closure: none` for `link_reference: none`; declaring both `closure:` and
+`link_reference:` on one descriptor is a validation error.
+
+Author a link as `[[target]]` or `![[target]]` in the note body (never in frontmatter),
+resolved in this order:
+
+1. `web:keyword` — a strand reference, resolved the same way `sase memory read` resolves
+   a `web:keyword` selector (canonical keyword, alias, or unambiguous prefix).
+2. `web/slug` — a strand reference by file slug.
+3. `note.md` — a flat note.
+4. A bare token — resolved against the linking strand's own web first, then a flat
+   note's file stem, then a web's slug.
+
+Links inside fenced or inline code are never scanned. A link to the note or strand that
+contains it is dropped. A target that fails to resolve renders on an `Unresolved:` line
+at the end of the Linked References section rather than failing the read; `sase doctor`
+reports unresolved links and invalid `link_reference` / `link_rendering` values as
+warnings, not blockers.
+
+`sase memory show`/`read` append a numbered `## Linked References` section (or, in
+`rich`, a `Linked References` block) after any `## Children` section, one entry per
+resolved reference-rendering link, each showing the target's selector, label, and
+summary or description. A target that is always-loaded context — a `type: core` note or
+a web descriptor — is marked `(always-loaded core memory — already in your context)`
+instead of a read suggestion, because `sase memory read` refuses those targets. The
+`json` format carries the same data as `linked_references` on the note or web-section
+payload, plus a per-node `links` list distinguishing `inline` from `reference` targets.
+A unit with no reference-rendering links emits no section.

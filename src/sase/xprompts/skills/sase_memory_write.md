@@ -45,5 +45,19 @@ and the proposed change. Do not edit the note.
    `AGENTS.md` or a provider shim such as `CLAUDE.md`; they are generated.
 2. A note that `sase memory init` generates itself (`sase/memory/sase.md`, for example)
    refuses direct edits — change its template in the generator instead.
-3. Run `sase memory init` to regenerate `AGENTS.md`, the provider shims, and the memory
+3. If the note now names, in prose, other memory it should point at, author `[[target]]`
+   links for those before republishing — see Links below.
+4. Run `sase memory init` to regenerate `AGENTS.md`, the provider shims, and the memory
    README. Authorization for the edit covers this; do not ask for it separately.
+
+## Links
+
+Every flat note, web descriptor, and strand can declare
+`link_reference: explicit | implicit | none` (default `explicit`) and
+`link_rendering: reference | inline` (default `reference`); a strand's frontmatter
+overrides its web's, which overrides the default. Author a link as `[[target]]`
+(rendered under a numbered `## Linked References` section) or `![[target]]` (rendered
+inline in the body), in one of: `web:keyword`, `web/slug`, `note.md`, or a bare token
+resolved against the source's own web, then a note stem, then a web slug. Links inside
+fenced or inline code are never scanned. When a note or strand already names other
+memory in prose, link it instead of leaving the reference as unlinked text.

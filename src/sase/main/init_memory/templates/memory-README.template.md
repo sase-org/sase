@@ -36,6 +36,10 @@ detailed **reference** notes that agents read only when relevant.
 - `description`: required for reference notes and used in generated agent instructions and this README. Reference-note
   descriptions may be Markdown blocks authored as YAML literal block scalars; reference sections render those blocks
   verbatim, while single-line surfaces collapse them.
+- `link_reference`: `explicit` (default), `implicit`, or `none` — which `[[...]]` links in the body are detected. The
+  legacy `closure: mentions` / `closure: none` web-descriptor keys are still accepted as aliases.
+- `link_rendering`: `reference` (default) or `inline` — whether a detected link lists in a `## Linked References`
+  section or expands inline. A strand's value overrides its web descriptor's, which overrides the default.
 
 A memory web descriptor must not declare `type:` or `parent:`; both are stripped on init if present. A web's kind
 decides its placement — its descriptor is always inlined into the generated document's Memory Webs section, never into
@@ -46,6 +50,10 @@ core or reference memory. A strand inherits no `type:` of its own and never inli
 - `@sase/memory/<note>.md` loads a note into agent context when the root instruction file is read.
 - Plain `sase/memory/<note>.md` mentions keep a note discoverable without loading it automatically.
 - Reference notes parented under another reference note are reachable through that parent for validation.
+- `[[target]]` in a note or strand body authors a link, listed under a `## Linked References` section on
+  `sase memory show`/`read`; `![[target]]` forces that link to expand inline instead. `target` is a `web:keyword`
+  strand reference, a `web/slug` strand reference, a `note.md` flat note, or a bare token resolved against the source's
+  own web, then a note stem, then a web slug. Links inside code fences or inline code are never scanned.
 
 ### Canonical And Legacy Roots
 

@@ -229,8 +229,9 @@ def _add_memory_view_arguments(
         default=None,
         metavar="N",
         help=(
-            "Cap strand mention-closure recursion depth (default: unlimited); "
-            "-d 0 prints only the requested strands"
+            "Cap link/mention closure recursion depth (default: unlimited); "
+            "-d 0 prints only the requested selectors and lists every link "
+            "as a reference"
         ),
     )
     parser.add_argument(
