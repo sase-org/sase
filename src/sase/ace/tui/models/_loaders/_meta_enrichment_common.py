@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from sase.agent.status_buckets import pending_plan_status_for_tier
 from sase.core.time import to_local
 from sase.core.artifact_file_helpers import select_canonical_plan_path
-from sase.gate_shell.state import gate_state_bucket, gate_state_is_terminal
+from sase.gate_shell.state import gate_member_status_bucket, gate_state_is_terminal
 from sase.gate_shell.status import gate_status_pair
 from sase.monitor_state import monitor_state_bucket
 from sase.monitor_status import (
@@ -241,8 +241,8 @@ def apply_gate_meta(
     )
     if not gate_member:
         return
-    agent.status_bucket = gate_state_bucket(state)
     agent.status = pair.stop if gate_state_is_terminal(state) else pair.start
+    agent.status_bucket = gate_member_status_bucket(state, agent.status)
 
 
 def apply_gate_done(
@@ -270,7 +270,6 @@ def apply_gate_done(
     state = gate_state if isinstance(gate_state, str) else agent.gate_state
     if isinstance(state, str) and state:
         agent.gate_state = state
-        agent.status_bucket = gate_state_bucket(state)
     if isinstance(gate_elapsed_seconds, (int, float)) and not isinstance(
         gate_elapsed_seconds, bool
     ):
@@ -289,6 +288,8 @@ def apply_gate_done(
         agent.status = pair.stop
     elif agent.gate_stop_status and gate_state_is_terminal(agent.gate_state):
         agent.status = agent.gate_stop_status
+    if isinstance(state, str) and state:
+        agent.status_bucket = gate_member_status_bucket(agent.gate_state, agent.status)
     if isinstance(gate_followup_outcome, str) and gate_followup_outcome:
         agent.gate_followup_outcome = gate_followup_outcome
     if isinstance(gate_followup_error, str) and gate_followup_error:

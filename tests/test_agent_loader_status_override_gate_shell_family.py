@@ -18,6 +18,7 @@ from sase.ace.tui.models._loaders._meta_enrichment_wire import (
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.agent.status_buckets import agent_status_bucket
 from sase.core.agent_scan_wire import (
     AgentMetaWire,
     FamilyShellGateWire,
@@ -207,6 +208,7 @@ def test_settled_approve_and_commit_gate_projects_tale_approved() -> None:
     assert root.gate_stop_status == gate.gate_stop_status == "TALE APPROVED"
     assert root.gate_state == gate.gate_state == "answered"
     assert root.gate_accent == gate.gate_accent
+    assert agent_status_bucket(root) == "Running"
 
 
 def test_settled_approve_gate_projects_plan_approved() -> None:

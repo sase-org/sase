@@ -8,7 +8,7 @@ from pathlib import Path
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
-from sase.gate_shell.state import gate_state_bucket
+from sase.gate_shell.state import gate_member_status_bucket
 from sase.monitor_state import monitor_state_bucket
 
 _FAMILY_NAME = "visual-family"
@@ -183,12 +183,13 @@ def _gate_family_agents(tmp_path: Path) -> list[Agent]:
             "stopped",
             "lost",
         }
+        status = stop_status if terminal else start_status
         return Agent(
             agent_type=AgentType.RUNNING,
             cl_name=f"visual-gate-{slug}",
             project_file="/workspace/sase/visual_project.sase",
-            status=stop_status if terminal else start_status,
-            status_bucket=gate_state_bucket(state),
+            status=status,
+            status_bucket=gate_member_status_bucket(state, status),
             start_time=started,
             run_start_time=started,
             stop_time=started + timedelta(minutes=1) if terminal else None,

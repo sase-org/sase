@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from sase.agent.status_buckets import (
+    HANDOFF_SETTLED_STATUSES,
+    status_bucket_for_values,
+)
 from sase.monitor_state import MONITOR_STATE_BUCKETS
 from sase.shells.state import (
     ShellStateConfig,
@@ -30,9 +34,23 @@ _GATE_STATE_CONFIG = ShellStateConfig(
 )
 
 
-def gate_state_bucket(gate_state: str | None) -> str:
+def _gate_state_bucket(gate_state: str | None) -> str:
     """Return the display bucket for ``gate_state``."""
     return shell_state_bucket(gate_state, _GATE_STATE_CONFIG)
+
+
+def gate_member_status_bucket(gate_state: str | None, status: str | None) -> str:
+    """Return the display bucket for a gate member row showing *status*.
+
+    A gate that settled into a handoff status (an approved plan, an answered
+    question) launched a successor instead of finishing, so the row keeps the
+    ``Running`` bucket its status implies.  Every other state -- pending,
+    settling, rejected, cancelled, timed out, failed -- keeps the bucket its
+    gate state implies.
+    """
+    if status in HANDOFF_SETTLED_STATUSES:
+        return status_bucket_for_values(status)
+    return _gate_state_bucket(gate_state)
 
 
 def gate_state_is_terminal(gate_state: str | None) -> bool:
@@ -66,7 +84,7 @@ __all__ = [
     "GATE_SETTLED_GLYPH_COLOR",
     "GATE_STATE_BUCKETS",
     "TERMINAL_GATE_STATES",
-    "gate_state_bucket",
+    "gate_member_status_bucket",
     "gate_state_is_terminal",
     "is_real_gate_member",
 ]

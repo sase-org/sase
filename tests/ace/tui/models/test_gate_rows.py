@@ -266,3 +266,198 @@ def test_filesystem_done_gate_row_projects_custom_stop_status(tmp_path: Path) ->
     assert agent.status == "APPROVED"
     assert agent.gate_stop_status == "APPROVED"
     assert agent.gate_state == "answered"
+
+
+def _enrich_gate_member(
+    *,
+    state: str,
+    start_status: str,
+    stop_status: str,
+    kind: str = "approval",
+) -> Agent:
+    agent = _base_agent()
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(
+            name="alpha--gate",
+            family_shell=FamilyShellWire(
+                kind="gate",
+                id="g123",
+                state=state,
+                start_status=start_status,
+                stop_status=stop_status,
+                gate=FamilyShellGateWire(kind=kind),
+            ),
+            agent_family="alpha",
+            agent_family_role="gate",
+            role_suffix="--gate",
+        ),
+        waiting=None,
+    )
+    return agent
+
+
+def test_answered_handoff_gate_members_bucket_running() -> None:
+    cases = (
+        ("TALE", "TALE APPROVED", "approval"),
+        ("PLAN", "PLAN APPROVED", "approval"),
+        ("EPIC", "EPIC APPROVED", "approval"),
+        ("QUESTION", "ANSWERED", "question"),
+    )
+    for start_status, stop_status, kind in cases:
+        agent = _enrich_gate_member(
+            state="answered",
+            start_status=start_status,
+            stop_status=stop_status,
+            kind=kind,
+        )
+        assert agent.status == stop_status
+        assert agent.status_bucket == "Running"
+        assert agent_status_bucket(agent) == "Running"
+
+
+def test_non_handoff_settled_gate_members_keep_gate_state_bucket() -> None:
+    rejected = _enrich_gate_member(
+        state="answered",
+        start_status="PLAN",
+        stop_status="PLAN REJECTED",
+    )
+    assert rejected.status == "PLAN REJECTED"
+    assert rejected.status_bucket == "Done"
+    assert agent_status_bucket(rejected) == "Done"
+
+    cancelled = _enrich_gate_member(
+        state="stopped",
+        start_status="PLAN",
+        stop_status="PLAN CANCELLED",
+    )
+    assert cancelled.status == "PLAN CANCELLED"
+    assert cancelled.status_bucket == "Done"
+    assert agent_status_bucket(cancelled) == "Done"
+
+    timed_out = _enrich_gate_member(
+        state="timeout",
+        start_status="PLAN",
+        stop_status="PLAN TIMED OUT",
+    )
+    assert timed_out.status == "PLAN TIMED OUT"
+    assert timed_out.status_bucket == "Failed"
+    assert agent_status_bucket(timed_out) == "Failed"
+
+    failed = _enrich_gate_member(
+        state="failed",
+        start_status="PLAN",
+        stop_status="PLAN FAILED",
+    )
+    assert failed.status == "PLAN FAILED"
+    assert failed.status_bucket == "Failed"
+    assert agent_status_bucket(failed) == "Failed"
+
+    pending = _enrich_gate_member(
+        state="pending",
+        start_status="TALE",
+        stop_status="TALE APPROVED",
+    )
+    assert pending.status == "TALE"
+    assert pending.status_bucket == "Stopped"
+    assert agent_status_bucket(pending) == "Stopped"
+
+
+def test_done_marker_answered_tale_approved_buckets_running() -> None:
+    snapshot = AgentArtifactScanWire(
+        schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
+        projects_root="/tmp/.sase/projects",
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[
+            AgentArtifactRecordWire(
+                project_name="sase",
+                project_dir="/tmp/.sase/projects/sase",
+                project_file="/tmp/.sase/projects/sase/sase.sase",
+                workflow_dir_name="ace-run",
+                artifact_dir="/tmp/.sase/projects/sase/artifacts/ace-run/20260812090000",
+                timestamp="20260812090000",
+                agent_meta=AgentMetaWire(
+                    name="alpha--gate",
+                    family_shell=FamilyShellWire(
+                        kind="gate",
+                        id="g123",
+                        state="settling",
+                        start_status="TALE",
+                        stop_status="TALE APPROVED",
+                        gate=FamilyShellGateWire(kind="approval"),
+                    ),
+                    run_started_at="2026-08-12T13:00:00Z",
+                    stopped_at="2026-08-12T13:03:00Z",
+                    agent_family="alpha",
+                    agent_family_role="gate",
+                    role_suffix="--gate",
+                ),
+                done=DoneMarkerWire(
+                    outcome="gated",
+                    cl_name="gate-row",
+                    project_file="/tmp/.sase/projects/sase/sase.sase",
+                    family_shell=FamilyShellWire(
+                        kind="gate",
+                        id="g123",
+                        state="answered",
+                        gate=FamilyShellGateWire(kind="approval"),
+                    ),
+                    status_label="TALE APPROVED",
+                ),
+                has_done_marker=True,
+            )
+        ],
+    )
+
+    (agent,) = load_done_agents_from_snapshot(snapshot, {}, {})
+
+    assert agent.is_gate is True
+    assert agent.status == "TALE APPROVED"
+    assert agent.gate_state == "answered"
+    assert agent.status_bucket == "Running"
+    assert agent_status_bucket(agent) == "Running"
+
+
+def test_filesystem_done_gate_row_tale_approved_buckets_running(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / "20260812090000"
+    artifact_dir.mkdir()
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "alpha--gate",
+                "gate_id": "g123",
+                "gate_state": "settling",
+                "gate_start_status": "TALE",
+                "gate_stop_status": "TALE APPROVED",
+                "agent_family": "alpha",
+                "agent_family_role": "gate",
+                "role_suffix": "--gate",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifact_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "cl_name": "gate-row",
+                "outcome": "gated",
+                "project_file": "/tmp/gate.sase",
+                "gate_id": "g123",
+                "gate_state": "answered",
+                "status_label": "TALE APPROVED",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
+
+    assert agent is not None
+    assert agent.is_gate is True
+    assert agent.status == "TALE APPROVED"
+    assert agent.gate_state == "answered"
+    assert agent.status_bucket == "Running"
+    assert agent_status_bucket(agent) == "Running"

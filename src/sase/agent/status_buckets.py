@@ -52,6 +52,15 @@ PENDING_PLAN_REVIEW_STATUS_SET: frozenset[str] = frozenset(PENDING_PLAN_REVIEW_S
 APPROVED_PLAN_STATUSES: frozenset[str] = frozenset(
     {PLAN_APPROVED_STATUS, TALE_APPROVED_STATUS}
 )
+ANSWERED_STATUS = "ANSWERED"
+#: Settled shell statuses that mean the shell handed its work to a successor
+#: agent rather than finishing it.  A shell row carrying one of these must keep
+#: the bucket its status implies (``Running``) instead of the terminal bucket
+#: its shell state implies, so approving a plan never files the family under
+#: ``Done`` while the follow-up agent is still coming up.
+HANDOFF_SETTLED_STATUSES: frozenset[str] = APPROVED_PLAN_STATUSES | frozenset(
+    {EPIC_APPROVED_STATUS, ANSWERED_STATUS}
+)
 WORKING_PLAN_STATUSES: frozenset[str] = frozenset(
     {WORKING_PLAN_STATUS, WORKING_TALE_STATUS}
 )
@@ -205,7 +214,7 @@ def status_bucket_for_values(
     # ``ANSWERED`` is the transient post-answer state: the user replied and the
     # agent is expected to resume, so it buckets with the actively-running rows
     # rather than the input-needed ``Stopped`` group.
-    if status_text in ACTIVE_PLAN_HANDOFF_STATUSES or status_text == "ANSWERED":
+    if status_text in ACTIVE_PLAN_HANDOFF_STATUSES or status_text == ANSWERED_STATUS:
         return "Running"
     if status_text == QUEUED_STATUS:
         return QUEUED_STATUS_BUCKET

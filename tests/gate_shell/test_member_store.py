@@ -14,6 +14,7 @@ from sase.core.agent_scan_wire import (
     FamilyShellWire,
 )
 from sase.gate_shell.member import create_gate_shell_member
+from sase.gate_shell.models import GateShellRecord
 import sase.gate_shell.store as gate_store
 from sase.gate_shell.store import read_gate_shell_marker
 from sase.notification_gates.model_shell import GateShellSpec
@@ -94,6 +95,32 @@ def test_create_gate_shell_member_projects_gate_metadata() -> None:
     assert record.next_action == "continue"
     assert record.next_fork == "shell"
     assert record.next_output == "results,tail"
+
+
+def test_answered_handoff_gate_record_buckets_running() -> None:
+    record = GateShellRecord(
+        gate_id="gate-1",
+        member_agent_name="lane--gate",
+        lane="lane",
+        project_name="proj",
+        artifacts_dir="/tmp/artifacts",
+        timestamp="20260828120000",
+        kind="approval",
+        gate_state="answered",
+        start_status="TALE",
+        stop_status="TALE APPROVED",
+        accent="#FF87AF",
+        label="Review tale",
+        reason="wait",
+        creator_agent="lane--0",
+        bundle_path="/tmp/bundle",
+        notification_id="notif-1",
+        timeout_seconds=86400.0,
+        request_fingerprint=None,
+        workspace_policy="inherit",
+    )
+
+    assert record.status_bucket == "Running"
 
 
 def test_list_gate_shells_orders_tied_timestamps_deterministically(

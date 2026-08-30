@@ -6,11 +6,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from sase.gate_shell.state import (
-    gate_state_bucket,
+    gate_member_status_bucket,
     gate_state_is_terminal,
     is_real_gate_member,
 )
-from sase.gate_shell.status import gate_status_pair
+from sase.gate_shell.status import effective_gate_status, gate_status_pair
 
 if TYPE_CHECKING:
     from sase.core.agent_scan_wire import AgentArtifactRecordWire
@@ -78,7 +78,11 @@ class GateShellRecord:
     @property
     def status_bucket(self) -> str:
         """Return this gate shell's display status bucket."""
-        return gate_state_bucket(self.gate_state)
+        pair = gate_status_pair(self.start_status, self.stop_status)
+        status = effective_gate_status(
+            pair, gate_state=self.gate_state, settled=self.is_terminal
+        )
+        return gate_member_status_bucket(self.gate_state, status)
 
     @property
     def is_terminal(self) -> bool:
