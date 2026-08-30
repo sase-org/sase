@@ -97,6 +97,39 @@ def test_runner_protocol_is_derived_from_selected_options(
     assert response == expected
 
 
+def test_wait_spec_is_emitted_for_coder_and_epic_and_dropped_for_commit() -> None:
+    spec = PromptWaitDirective(agents=("sase-s7.2",), beads=("sase-64.3",))
+    approve, _ = plan_response_json_for_selection(
+        ("approve",), tier="tale", wait_spec=spec
+    )
+    assert approve["wait_agents"] == ["sase-s7.2"]
+    assert approve["wait_beads"] == ["sase-64.3"]
+
+    both, _ = plan_response_json_for_selection(
+        ("approve", "commit"), tier="tale", wait_spec=spec
+    )
+    assert both["wait_agents"] == ["sase-s7.2"]
+    assert both["wait_beads"] == ["sase-64.3"]
+
+    commit, _ = plan_response_json_for_selection(
+        ("commit",), tier="tale", wait_spec=spec
+    )
+    assert "wait_agents" not in commit
+    assert "wait_beads" not in commit
+
+    epic, _ = plan_response_json_for_selection(
+        ("approve",), tier="epic", wait_spec=spec
+    )
+    assert epic["wait_agents"] == ["sase-s7.2"]
+    assert epic["wait_beads"] == ["sase-64.3"]
+
+    empty, _ = plan_response_json_for_selection(
+        ("approve",), tier="tale", wait_spec=PromptWaitDirective()
+    )
+    assert "wait_agents" not in empty
+    assert "wait_beads" not in empty
+
+
 def test_neutral_plan_approval_settles_shell_backed_gate(
     gate_home: Path,
     monkeypatch: pytest.MonkeyPatch,

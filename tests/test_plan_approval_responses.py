@@ -227,6 +227,25 @@ def _approve_with_translated(
         return _approve(str(plan), "wait-fields-session", "approve")
 
 
+def test_handle_plan_approval_parses_wait_input_into_result_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+
+    result = _approve(
+        str(plan),
+        "wait-input-session",
+        "approve",
+        input_data={"wait": "sase-s7.2,bead=sase-64.3"},
+    )
+
+    assert result is not None
+    assert result.wait_agents == ("sase-s7.2",)
+    assert result.wait_beads == ("sase-64.3",)
+
+
 def test_handle_plan_approval_reads_wait_agents_and_beads(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

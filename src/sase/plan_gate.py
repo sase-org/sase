@@ -255,12 +255,14 @@ def _plan_input_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
             {
                 "coder_prompt": {"type": "string"},
                 "coder_model": {"type": "string"},
+                "wait": {"type": "string"},
             }
         )
     if tier == "epic" and option_id == PLAN_APPROVE_OPTION_ID:
         # Mirror EpicLaunchMode exactly; a schema narrower than the domain type
         # rejects submissions the responder and prepare_epic_launch both accept.
         properties["epic_launch_mode"] = {"enum": list(get_args(EpicLaunchMode))}
+        properties["wait"] = {"type": "string"}
     return {
         "type": "object",
         "properties": properties,
@@ -294,6 +296,8 @@ def _plan_result_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]
             "coder_prompt": {"type": "string"},
             "coder_model": {"type": "string"},
             "epic_launch_owner": {"const": "host"},
+            "wait_agents": {"type": "array", "items": {"type": "string"}},
+            "wait_beads": {"type": "array", "items": {"type": "string"}},
         },
         "additionalProperties": False,
     }

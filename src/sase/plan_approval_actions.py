@@ -62,6 +62,7 @@ from sase.plan_approval_choices import (
 
 if TYPE_CHECKING:
     from sase.bead.epic_launch import EpicLaunchOrigin, EpicLaunchSubmission
+    from sase.xprompt.directive_edit import PromptWaitDirective
 
 _logger = logging.getLogger(__name__)
 HOST_PLAN_ARCHIVE_PROTOCOL = "host_v2"
@@ -76,11 +77,13 @@ def execute_plan_approval_response(
     run_coder: bool | None = None,
     coder_prompt: str | None = None,
     coder_model: str | None = None,
+    wait: str | None = None,
     epic_launch_mode: EpicLaunchMode = "launch",
     epic_launch_origin: EpicLaunchOrigin = "api",
     option_inputs: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> PlanApprovalActionResult:
     """Resolve a neutral plan gate, with legacy in-flight fallback."""
+    wait_spec = _parse_plan_approval_wait(wait)
     request_kind = notification.host_action_data.get("request_kind")
     action = "EpicApproval" if request_kind == "epic_plan" else "PlanApproval"
     from sase.notification_gates.paths import resolve_action_bundle
@@ -96,6 +99,8 @@ def execute_plan_approval_response(
             run_coder=run_coder,
             coder_prompt=coder_prompt,
             coder_model=coder_model,
+            wait=wait,
+            wait_spec=wait_spec,
             epic_launch_mode=epic_launch_mode,
             epic_launch_origin=epic_launch_origin,
             option_inputs=option_inputs,
@@ -108,6 +113,7 @@ def execute_plan_approval_response(
         run_coder=run_coder,
         coder_prompt=coder_prompt,
         coder_model=coder_model,
+        wait_spec=wait_spec,
         epic_launch_mode=epic_launch_mode,
         epic_launch_origin=epic_launch_origin,
     )
@@ -122,6 +128,7 @@ def _execute_legacy_plan_approval_response(
     run_coder: bool | None,
     coder_prompt: str | None,
     coder_model: str | None,
+    wait_spec: PromptWaitDirective | None,
     epic_launch_mode: EpicLaunchMode,
     epic_launch_origin: EpicLaunchOrigin,
 ) -> PlanApprovalActionResult:
@@ -156,11 +163,12 @@ def _execute_legacy_plan_approval_response(
         run_coder=run_coder,
         coder_prompt=coder_prompt,
         coder_model=coder_model,
+        wait_spec=wait_spec,
     )
     response_path = response_dir / "plan_response.json"
     epic_launch_project: str | None = None
     if choice == "epic":
-        can_claim_epic_launch(notification, mode=epic_launch_mode)
+        can_claim_epic_launch(notification, mode=epic_launch_mode, wait_spec=wait_spec)
         if epic_launch_mode != "skip":
             epic_launch_project = _epic_launch_project(notification)
         # Transitional compatibility: pre-upgrade agents launch the epic
@@ -183,6 +191,7 @@ def _execute_legacy_plan_approval_response(
             response_dir=response_dir,
             resolved_project=epic_launch_project,
             origin=epic_launch_origin,
+            wait_spec=wait_spec,
         )
         epic_launch_monitor_id, epic_launch_task_id = _epic_launch_submission_ids(
             launch
@@ -208,6 +217,8 @@ def _execute_neutral_plan_approval_response(
     run_coder: bool | None,
     coder_prompt: str | None,
     coder_model: str | None,
+    wait: str | None,
+    wait_spec: PromptWaitDirective | None,
     epic_launch_mode: EpicLaunchMode,
     epic_launch_origin: EpicLaunchOrigin,
     option_inputs: Mapping[str, Mapping[str, Any]] | None = None,
@@ -270,6 +281,12 @@ def _execute_neutral_plan_approval_response(
             input_data["coder_prompt"] = coder_prompt
         if coder_model is not None:
             input_data["coder_model"] = coder_model
+    if (
+        wait_spec is not None
+        and wait is not None
+        and any(option_id in selected_option_ids for option_id in ("approve", "commit"))
+    ):
+        input_data["wait"] = wait
     if tier == "epic" and selected_option_ids == ("approve",):
         input_data["epic_launch_mode"] = epic_launch_mode
 
@@ -341,6 +358,19 @@ def _execute_neutral_plan_approval_response(
             else None
         ),
     )
+
+
+def _parse_plan_approval_wait(wait: str | None) -> PromptWaitDirective | None:
+    """Parse a reviewer wait spec before any notification or file mutation."""
+    text = wait.strip() if isinstance(wait, str) else None
+    if not text:
+        return None
+    from sase.wait_spec import WaitSpecError, parse_wait_spec
+
+    try:
+        return parse_wait_spec(text)
+    except WaitSpecError as exc:
+        raise PlanApprovalActionError("invalid_request", "wait", str(exc)) from exc
 
 
 def _epic_launch_submission_ids(

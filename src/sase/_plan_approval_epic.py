@@ -93,6 +93,7 @@ def can_claim_epic_launch(
     notification: PlanApprovalActionContext,
     *,
     mode: EpicLaunchMode,
+    wait_spec: PromptWaitDirective | None = None,
 ) -> bool:
     """Require that the host can durably claim an epic launch."""
     if mode not in {"launch", "detached", "skip"}:
@@ -106,7 +107,7 @@ def can_claim_epic_launch(
     project = epic_launch_project(notification)
     if project is None or _epic_launch_primary_checkout_or_none(project) is None:
         plan_file = notification.host_files[0] if notification.host_files else "plan"
-        _raise_unclaimable_epic_launch(plan_file)
+        _raise_unclaimable_epic_launch(plan_file, wait_spec=wait_spec)
     return True
 
 

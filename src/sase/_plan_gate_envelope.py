@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.notification_gates.models import GateError
 
@@ -14,6 +14,9 @@ from ._plan_gate_shared import (
     PLAN_RESOURCE_PATH,
     plan_gate_optional_text,
 )
+
+if TYPE_CHECKING:
+    from sase.xprompt.directive_edit import PromptWaitDirective
 
 
 def plan_context_from_envelope(bundle_path: Path, envelope: Mapping[str, Any]) -> Any:
@@ -125,6 +128,7 @@ def translate_plan_gate_response(
             epic_launch_owner=plan_gate_optional_text(
                 primary_result.get("epic_launch_owner")
             ),
+            wait_spec=_wait_spec_from_approve_result(approve_result),
         )
     except PlanApprovalActionError as exc:
         raise GateError(exc.code, exc.target, str(exc)) from exc
@@ -143,7 +147,25 @@ def translate_plan_gate_response(
     plan_archive_ref = primary_result.get("plan_archive_ref")
     if isinstance(plan_archive_ref, str) and plan_archive_ref:
         translated["plan_archive_ref"] = plan_archive_ref
+    wait_agents = approve_result.get("wait_agents")
+    if isinstance(wait_agents, list):
+        translated["wait_agents"] = wait_agents
+    wait_beads = approve_result.get("wait_beads")
+    if isinstance(wait_beads, list):
+        translated["wait_beads"] = wait_beads
     return translated
+
+
+def _wait_spec_from_approve_result(
+    result: Mapping[str, Any],
+) -> PromptWaitDirective | None:
+    """Rebuild the parsed wait spec from the approve option's command result."""
+    from sase.wait_spec import wait_spec_from_name_lists
+
+    return wait_spec_from_name_lists(
+        result.get("wait_agents"),
+        result.get("wait_beads"),
+    )
 
 
 def _original_plan_file_from_envelope(

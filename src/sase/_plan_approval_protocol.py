@@ -7,7 +7,7 @@ import shlex
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.plan_approval_choices import (
     PLAN_APPROVAL_CLI_KINDS,
@@ -26,6 +26,9 @@ from sase.sdd.plan_validate import (
 PLAN_APPROVAL_KINDS = PLAN_APPROVAL_CLI_KINDS
 PLAN_APPROVAL_ACTIONS = frozenset({"PlanApproval", "EpicApproval"})
 EpicLaunchMode = Literal["launch", "detached", "skip"]
+
+if TYPE_CHECKING:
+    from sase.xprompt.directive_edit import PromptWaitDirective
 
 
 @dataclass(frozen=True)
@@ -173,6 +176,7 @@ def plan_response_json(
     run_coder: bool | None,
     coder_prompt: str | None,
     coder_model: str | None,
+    wait_spec: PromptWaitDirective | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Map a product-level plan choice to the existing runner protocol."""
     try:
@@ -198,6 +202,8 @@ def plan_response_json(
             _add_optional_coder_fields(
                 response, coder_prompt=coder_prompt, coder_model=coder_model
             )
+        if record.allow_wait_option:
+            _add_optional_wait_fields(response, wait_spec)
         return response, record.response_message
 
     if choice == "reject":
@@ -226,6 +232,7 @@ def plan_response_json_for_selection(
     coder_prompt: str | None = None,
     coder_model: str | None = None,
     epic_launch_owner: str | None = None,
+    wait_spec: PromptWaitDirective | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Derive the runner protocol solely from a v2 selected option set."""
     selected = tuple(selected_option_ids)
@@ -265,6 +272,9 @@ def plan_response_json_for_selection(
             coder_prompt=coder_prompt,
             coder_model=coder_model,
         )
+        _add_optional_wait_fields(response, wait_spec)
+    elif protocol.action == "epic":
+        _add_optional_wait_fields(response, wait_spec)
     if protocol.action == "epic" and epic_launch_owner == "host":
         response["epic_launch_owner"] = "host"
     return response, message
@@ -280,6 +290,18 @@ def _add_optional_coder_fields(
         response["coder_prompt"] = coder_prompt
     if coder_model is not None:
         response["coder_model"] = coder_model
+
+
+def _add_optional_wait_fields(
+    response: dict[str, Any],
+    wait_spec: PromptWaitDirective | None,
+) -> None:
+    if not wait_spec:
+        return
+    if wait_spec.agents:
+        response["wait_agents"] = list(wait_spec.agents)
+    if wait_spec.beads:
+        response["wait_beads"] = list(wait_spec.beads)
 
 
 def persisted_plan_action(response_json: dict[str, Any]) -> str | None:

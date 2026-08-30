@@ -210,6 +210,8 @@ class GateAdapter:
                 )
 
                 try:
+                    from sase.wait_spec import wait_spec_from_name_lists
+
                     launch = prepare_epic_launch(
                         context,
                         launch_plan,
@@ -221,6 +223,10 @@ class GateAdapter:
                             else epic_launch_origin_from_gate_source(
                                 str(response.get("source") or "")
                             )
+                        ),
+                        wait_spec=wait_spec_from_name_lists(
+                            result.get("wait_agents"),
+                            result.get("wait_beads"),
                         ),
                     )
                 except PlanApprovalActionError as exc:

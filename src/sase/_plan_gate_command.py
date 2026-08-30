@@ -56,12 +56,15 @@ def execute_plan_gate_command(option_id: str) -> int:
 
         feedback = plan_gate_optional_text(raw_input.get("feedback"))
         from sase.plan_approval_actions import plan_response_json
+        from sase.wait_spec import parse_wait_spec
 
         protocol_choice = (
             "epic"
             if tier == "epic" and option_id == PLAN_APPROVE_OPTION_ID
             else option_id
         )
+        wait_text = plan_gate_optional_text(raw_input.get("wait"))
+        wait_spec = parse_wait_spec(wait_text) if wait_text is not None else None
         result, _message = plan_response_json(
             protocol_choice,
             feedback=feedback,
@@ -69,6 +72,7 @@ def execute_plan_gate_command(option_id: str) -> int:
             run_coder=None,
             coder_prompt=plan_gate_optional_text(raw_input.get("coder_prompt")),
             coder_model=plan_gate_optional_text(raw_input.get("coder_model")),
+            wait_spec=wait_spec,
         )
         if protocol_choice == "epic":
             mode = raw_input.get("epic_launch_mode", "launch")

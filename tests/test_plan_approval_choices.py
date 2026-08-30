@@ -35,6 +35,15 @@ def test_registry_exposes_existing_local_surface_vocabularies() -> None:
     assert custom_modal_choice_for_key("e") == "epic"
 
 
+def test_wait_option_is_allowed_on_coder_and_epic_choices() -> None:
+    assert require_plan_approval_choice("approve").allow_wait_option is True
+    assert require_plan_approval_choice("tale").allow_wait_option is True
+    assert require_plan_approval_choice("epic").allow_wait_option is True
+    assert require_plan_approval_choice("run").allow_wait_option is True
+    assert require_plan_approval_choice("commit").allow_wait_option is False
+    assert require_plan_approval_choice("reject").allow_wait_option is False
+
+
 def test_run_choice_is_first_class_no_commit_approval() -> None:
     record = require_plan_approval_choice("run")
 

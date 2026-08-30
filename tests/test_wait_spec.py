@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from sase.wait_spec import WaitSpecError, format_wait_spec, parse_wait_spec
+from sase.wait_spec import (
+    WaitSpecError,
+    format_wait_spec,
+    parse_wait_spec,
+    wait_spec_from_name_lists,
+)
 from sase.xprompt.directive_edit import PromptWaitDirective
 
 
@@ -71,3 +76,17 @@ def test_format_round_trips_agents_then_beads() -> None:
 def test_parse_rejects_invalid_specs(text: str, match: str) -> None:
     with pytest.raises(WaitSpecError, match=match):
         parse_wait_spec(text)
+
+
+def test_wait_spec_from_name_lists_rebuilds_and_rejects_malformed() -> None:
+    assert wait_spec_from_name_lists(
+        ["sase-s7.2"], ["sase-64.3"]
+    ) == PromptWaitDirective(agents=("sase-s7.2",), beads=("sase-64.3",))
+    assert wait_spec_from_name_lists([], []) is None
+    assert wait_spec_from_name_lists("sase-s7.2", "sase-64.3") is None
+    assert wait_spec_from_name_lists(["sase-s7.2"], [""]) == PromptWaitDirective(
+        agents=("sase-s7.2",)
+    )
+    assert wait_spec_from_name_lists(["sase-s7.2"], None) == PromptWaitDirective(
+        agents=("sase-s7.2",)
+    )

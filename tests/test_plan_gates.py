@@ -74,6 +74,20 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     assert tale_approve["id"] == "approve"
     assert tale_approve["label"] == "Launch coder agent"
     assert tale_approve["icon"] == "🚀"
+    wait_names = {"type": "array", "items": {"type": "string"}}
+    tale_coder_input = {
+        "coder_prompt": {"type": "string"},
+        "coder_model": {"type": "string"},
+        "wait": {"type": "string"},
+    }
+    assert tale_approve["input_schema"] == {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": tale_coder_input,
+        "additionalProperties": False,
+    }
+    assert tale_approve["result_schema"]["properties"]["wait_agents"] == wait_names
+    assert tale_approve["result_schema"]["properties"]["wait_beads"] == wait_names
     epic_approve = epic_request["options"][0]
     assert epic_approve["id"] == "approve"
     assert epic_approve["label"] == "Epic"
@@ -82,7 +96,10 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     assert epic_approve["input_schema"] == {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
-        "properties": {"epic_launch_mode": {"enum": ["launch", "detached", "skip"]}},
+        "properties": {
+            "epic_launch_mode": {"enum": ["launch", "detached", "skip"]},
+            "wait": {"type": "string"},
+        },
         "additionalProperties": False,
     }
     assert epic_approve["result_schema"] == {
@@ -96,6 +113,8 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
             "coder_prompt": {"type": "string"},
             "coder_model": {"type": "string"},
             "epic_launch_owner": {"const": "host"},
+            "wait_agents": wait_names,
+            "wait_beads": wait_names,
         },
         "additionalProperties": False,
     }
@@ -104,6 +123,12 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
         "Commit plan file to the plans sidecar"
     )
     assert tale_request["options"][1]["icon"] == "💾"
+    assert tale_request["options"][1]["input_schema"] == {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": tale_coder_input,
+        "additionalProperties": False,
+    }
     assert [option["label"] for option in tale_request["options"][2:]] == [
         "Reject",
         "Send Feedback",

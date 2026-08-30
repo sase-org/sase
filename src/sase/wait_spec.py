@@ -66,6 +66,22 @@ def parse_wait_spec(text: str) -> PromptWaitDirective:
     return PromptWaitDirective(agents=tuple(agents), beads=tuple(beads))
 
 
+def wait_spec_from_name_lists(
+    agents: object = (),
+    beads: object = (),
+) -> PromptWaitDirective | None:
+    """Rebuild a wait spec from already-parsed ``wait_agents`` / ``wait_beads``.
+
+    Only lists of non-empty strings are accepted. Empty or malformed values
+    yield ``None``, matching ``plan_approval_result_from_gate_response``.
+    """
+    parsed_agents = _nonempty_string_tuple(agents)
+    parsed_beads = _nonempty_string_tuple(beads)
+    if not parsed_agents and not parsed_beads:
+        return None
+    return PromptWaitDirective(agents=parsed_agents, beads=parsed_beads)
+
+
 def format_wait_spec(spec: PromptWaitDirective) -> str:
     """Return the canonical round-trip form of *spec*.
 
@@ -77,9 +93,25 @@ def format_wait_spec(spec: PromptWaitDirective) -> str:
     return ",".join(parts)
 
 
+def _nonempty_string_tuple(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return ()
+    names: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not item:
+            return ()
+        names.append(item)
+    return tuple(names)
+
+
 def _require_identifier(value: str, *, empty_message: str) -> None:
     if not value or _IDENTIFIER_RE.fullmatch(value) is None:
         raise WaitSpecError(empty_message)
 
 
-__all__ = ["WaitSpecError", "format_wait_spec", "parse_wait_spec"]
+__all__ = [
+    "WaitSpecError",
+    "format_wait_spec",
+    "parse_wait_spec",
+    "wait_spec_from_name_lists",
+]

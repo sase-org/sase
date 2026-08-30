@@ -48,6 +48,7 @@ class _PlanApprovalChoiceRecord:
     requires_feedback: bool = False
     allow_protocol_overrides: bool = False
     allow_coder_options: bool = False
+    allow_wait_option: bool = False
 
 
 PLAN_APPROVAL_CHOICE_RECORDS: tuple[_PlanApprovalChoiceRecord, ...] = (
@@ -69,6 +70,7 @@ PLAN_APPROVAL_CHOICE_RECORDS: tuple[_PlanApprovalChoiceRecord, ...] = (
         persist_action="approve",
         allow_protocol_overrides=True,
         allow_coder_options=True,
+        allow_wait_option=True,
     ),
     _PlanApprovalChoiceRecord(
         id="commit",
