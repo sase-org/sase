@@ -15,6 +15,7 @@ from sase.plan_approval_choices import (
 if TYPE_CHECKING:
     from ...models import Agent
     from ...modals import PlanApprovalResult
+    from sase.xprompt.directive_edit import PromptWaitDirective
 
 
 def build_plan_approval_response(
@@ -24,6 +25,7 @@ def build_plan_approval_response(
 ) -> dict[str, object]:
     """Build the JSON response for a plan approval modal result."""
     action, commit_plan, run_coder = plan_approval_protocol_fields(result)
+    wait_spec = plan_approval_wait_directive(result)
     response_data: dict[str, object] = {
         "action": action,
     }
@@ -37,7 +39,42 @@ def build_plan_approval_response(
         response_data["coder_model"] = result.coder_model
     if action == "epic" and epic_launch_owner is not None:
         response_data["epic_launch_owner"] = epic_launch_owner
+    _add_optional_wait_fields(
+        response_data,
+        wait_spec,
+        action=action,
+        run_coder=run_coder,
+    )
     return response_data
+
+
+def plan_approval_wait_directive(
+    result: PlanApprovalResult,
+) -> PromptWaitDirective | None:
+    """Parse a TUI result's wait text into the shared directive payload."""
+    text = result.wait_spec.strip() if isinstance(result.wait_spec, str) else ""
+    if not text:
+        return None
+    from sase.wait_spec import parse_wait_spec
+
+    return parse_wait_spec(text)
+
+
+def _add_optional_wait_fields(
+    response_data: dict[str, object],
+    wait_spec: PromptWaitDirective | None,
+    *,
+    action: str,
+    run_coder: bool,
+) -> None:
+    if wait_spec is None:
+        return
+    if action != "epic" and not (action == "approve" and run_coder):
+        return
+    if wait_spec.agents:
+        response_data["wait_agents"] = list(wait_spec.agents)
+    if wait_spec.beads:
+        response_data["wait_beads"] = list(wait_spec.beads)
 
 
 def plan_approval_protocol_fields(

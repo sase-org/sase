@@ -34,4 +34,5 @@ class ApprovePromptContext:
     run_coder: bool
     current_prompt: str
     coder_model: str | None = None
+    wait_spec: str | None = None
     choice: PlanApprovalChoice | None = None

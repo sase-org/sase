@@ -212,6 +212,7 @@ class PromptBarSubmitMixin:
                 run_coder=ctx.run_coder,
                 coder_prompt=prompt,
                 coder_model=ctx.coder_model,
+                wait_spec=ctx.wait_spec,
                 choice=ctx.choice,
             ),
         )
@@ -240,6 +241,7 @@ class PromptBarSubmitMixin:
                 run_coder=ctx.run_coder,
                 coder_prompt=ctx.current_prompt,
                 coder_model=ctx.coder_model,
+                wait_spec=ctx.wait_spec,
                 choice=ctx.choice,
             ),
         )

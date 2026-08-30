@@ -13,11 +13,13 @@ from sase.plan_approval_choices import (
     custom_modal_choice_for_key,
     require_plan_approval_choice,
 )
+from sase.wait_spec import WaitSpecError, format_wait_spec, parse_wait_spec
 
 from .plan_approval_results import (
     PlanApprovalChoice,
     approval_protocol_for_choice,
 )
+from ..widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
 def _tale_followup_lane(plan_file: str | None) -> tuple[str | None, str]:
@@ -71,6 +73,22 @@ def _model_display_label(
     return format_provider_model_label(provider, model)
 
 
+def _canonical_wait_spec(wait_spec: str | None) -> str | None:
+    """Return the canonical display/submission form for a wait spec."""
+    text = wait_spec.strip() if isinstance(wait_spec, str) else ""
+    if not text:
+        return None
+    return format_wait_spec(parse_wait_spec(text))
+
+
+def _short_display(value: str | None) -> str:
+    """Render an optional one-line value for the compact modal."""
+    display = value or "none"
+    if len(display) > 60:
+        return display[:57] + "..."
+    return display
+
+
 @dataclass
 class ApproveOptionsResult:
     """Result from the custom approval modal.
@@ -81,6 +99,7 @@ class ApproveOptionsResult:
     choice: PlanApprovalChoice
     coder_prompt: str | None
     coder_model: str | None = None
+    wait_spec: str | None = None
 
     @property
     def commit_plan(self) -> bool:
@@ -98,6 +117,7 @@ class ApproveOptionsEditPrompt:
     choice: PlanApprovalChoice
     coder_prompt: str
     coder_model: str | None = None
+    wait_spec: str | None = None
 
     @property
     def commit_plan(self) -> bool:
@@ -106,6 +126,74 @@ class ApproveOptionsEditPrompt:
     @property
     def run_coder(self) -> bool:
         return approval_protocol_for_choice(self.choice).run_coder
+
+
+@dataclass(frozen=True)
+class _WaitSpecInputResult:
+    """Result from the wait-spec editor."""
+
+    wait_spec: str | None
+
+
+class _WaitSpecInput(SingleLineVimTextArea):
+    """Single-line vim editor for approval wait specs."""
+
+
+class _WaitSpecInputModal(ModalScreen[_WaitSpecInputResult | None]):
+    """Modal for entering an optional approval wait spec."""
+
+    BINDINGS = [
+        ("escape", "cancel", "Cancel"),
+    ]
+
+    def __init__(self, initial: str | None = None) -> None:
+        super().__init__()
+        self.add_class("approval-wait-input-modal")
+        self._initial = _canonical_wait_spec(initial) or ""
+
+    def compose(self) -> ComposeResult:
+        with Container(id="approve-wait-container"):
+            yield Static("[bold cyan]Wait For[/bold cyan]", id="approve-wait-title")
+            yield Static(
+                "Comma-separated agent names and bead=<id> entries.",
+                id="approve-wait-hint",
+            )
+            yield _WaitSpecInput(
+                self._initial,
+                placeholder="agent.name, bead=sase-64.3",
+                id="approve-wait-input",
+            )
+            yield Static("", id="approve-wait-error")
+            yield Static(
+                "[green]enter[/green]=Confirm  "
+                "[dim]blank clears[/dim]  "
+                "[dim]esc esc[/dim]=Cancel",
+                id="approve-wait-footer",
+            )
+
+    def on_mount(self) -> None:
+        input_widget = self.query_one("#approve-wait-input", _WaitSpecInput)
+        input_widget.focus()
+        if self._initial:
+            input_widget.cursor_location = input_widget.document.end
+        input_widget._update_vim_mode_display()
+
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
+        event.stop()
+        text = event.value.strip()
+        if not text:
+            self.dismiss(_WaitSpecInputResult(None))
+            return
+        try:
+            self.dismiss(_WaitSpecInputResult(_canonical_wait_spec(text)))
+        except WaitSpecError as exc:
+            self.query_one("#approve-wait-error", Static).update(str(exc))
+            self.notify(str(exc), severity="error")
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
 
 
 class ApproveOptionsModal(
@@ -121,6 +209,7 @@ class ApproveOptionsModal(
         ("e", "choose_epic", "Epic"),
         ("p", "edit_prompt", "Edit prompt"),
         ("m", "select_model", "Model"),
+        ("w", "edit_wait", "Wait"),
         ("q", "cancel", "Quit"),
     ]
 
@@ -130,6 +219,7 @@ class ApproveOptionsModal(
         run_coder: bool = True,
         coder_prompt: str = "",
         coder_model: str | None = None,
+        wait_spec: str | None = None,
         choice: PlanApprovalChoice | None = None,
         *,
         plan_file: str | None = None,
@@ -139,6 +229,7 @@ class ApproveOptionsModal(
         self._choice = choice or _choice_from_legacy_flags(commit_plan, run_coder)
         self._coder_prompt = coder_prompt
         self._coder_model = coder_model
+        self._wait_spec = _canonical_wait_spec(wait_spec)
         self._plan_file = plan_file
         self._planner_llm_provider = planner_llm_provider
 
@@ -162,19 +253,22 @@ class ApproveOptionsModal(
                 id="coder-model-display",
             )
 
+            yield Static("Wait for:", classes="approve-options-wait-label")
+            yield Static(
+                self._wait_display_label(),
+                id="approval-wait-display",
+            )
+
             yield Static("Additional prompt:", classes="approve-options-prompt-label")
-            display = self._coder_prompt or "none"
-            if len(display) > 60:
-                display = display[:57] + "..."
-            yield Static(display, id="coder-prompt-display")
+            yield Static(_short_display(self._coder_prompt), id="coder-prompt-display")
 
             yield Static(
                 "[green]enter[/green]=Choose  "
                 "[green]a/t/e[/green]=Action  "
                 "[magenta]m[/magenta]=Model  "
-                "[magenta]p[/magenta]=Edit prompt  "
-                "[dim]ctrl+n[/dim]=Next  "
-                "[dim]ctrl+p[/dim]=Prev  "
+                "[magenta]p[/magenta]=Prompt  "
+                "[magenta]w[/magenta]=Wait\n"
+                "[dim]ctrl+n/p[/dim]=Next/Prev  "
                 "[dim]q/esc[/dim]=Back",
                 id="approve-options-footer",
             )
@@ -238,6 +332,10 @@ class ApproveOptionsModal(
             event.prevent_default()
             event.stop()
             self.action_select_model()
+        elif event.key == "w":
+            event.prevent_default()
+            event.stop()
+            self.action_edit_wait()
         elif event.key == "q":
             event.prevent_default()
             event.stop()
@@ -320,6 +418,27 @@ class ApproveOptionsModal(
         model_display = self.query_one("#coder-model-display", Static)
         model_display.update(self._model_display_label())
 
+    def _wait_display_label(self) -> str:
+        return _short_display(self._wait_spec)
+
+    def _update_wait_display(self) -> None:
+        wait_display = self.query_one("#approval-wait-display", Static)
+        wait_display.update(self._wait_display_label())
+
+    def action_edit_wait(self) -> None:
+        """Open the approval wait-spec editor."""
+
+        def on_wait_dismiss(result: _WaitSpecInputResult | None) -> None:
+            if result is None:
+                return
+            self._wait_spec = result.wait_spec
+            self._update_wait_display()
+
+        self.app.push_screen(
+            _WaitSpecInputModal(self._wait_spec),
+            on_wait_dismiss,
+        )
+
     def action_edit_prompt(self) -> None:
         """Dismiss with edit-prompt sentinel so the caller can delegate to PromptInputBar."""
         self.dismiss(
@@ -327,6 +446,7 @@ class ApproveOptionsModal(
                 choice=self._choice,
                 coder_prompt=self._coder_prompt,
                 coder_model=self._coder_model,
+                wait_spec=self._wait_spec,
             )
         )
 
@@ -337,6 +457,7 @@ class ApproveOptionsModal(
                 choice=self._choice,
                 coder_prompt=coder_prompt,
                 coder_model=self._coder_model,
+                wait_spec=self._wait_spec,
             )
         )
 

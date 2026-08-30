@@ -310,6 +310,38 @@ def test_neutral_tale_submission_merges_shared_and_per_option_inputs(
     assert response["input"] == {}
 
 
+def test_neutral_plan_submission_forwards_modal_wait_spec(
+    gate_home: Path,
+    stub_host_plan_archive: Path,
+) -> None:
+    plan = gate_home / "tale-wait.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    gate = create_gate(build_plan_approval_gate_spec(plan, "tui-tale-wait"))
+    [notification] = load_notifications()
+    result = PlanApprovalResult(
+        action="approve",
+        commit_plan=True,
+        run_coder=True,
+        choice="tale",
+        selected_option_ids=("approve", "commit"),
+        wait_spec="sase-s7.2,bead=sase-64.3",
+    )
+    app = _TrackedPlanApp()
+
+    submitted = submit_neutral_plan_response(app, notification, None, result)
+
+    assert submitted is True
+    assert getattr(app.completion, "success", False) is True
+    response = json.loads(gate.response_path.read_text(encoding="utf-8"))
+    assert response["option_inputs"]["approve"]["wait"] == ("sase-s7.2,bead=sase-64.3")
+    assert response["option_inputs"]["commit"]["wait"] == ("sase-s7.2,bead=sase-64.3")
+    approve_result = next(
+        item for item in response["option_results"] if item["id"] == "approve"
+    )
+    assert approve_result["result"]["wait_agents"] == ["sase-s7.2"]
+    assert approve_result["result"]["wait_beads"] == ["sase-64.3"]
+
+
 def test_copy_actions_never_expose_collected_input_values(
     gate_home: Path,
     monkeypatch: pytest.MonkeyPatch,

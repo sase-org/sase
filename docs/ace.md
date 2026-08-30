@@ -4628,6 +4628,7 @@ in-tree, a legacy `.sase/sdd/` clone, or the split `--plans` sidecar;
 | `e`          | Highlight Epic                |
 | `m`          | Select coder model            |
 | `p`          | Edit additional coder prompt  |
+| `w`          | Edit wait dependencies        |
 | `Ctrl+N`/`P` | Next / previous action        |
 | `q` / `Esc`  | Cancel                        |
 
@@ -4637,6 +4638,10 @@ launches bead work directly, so those controls are hidden for Epic:
 
 - **Additional prompt** — Optional extra instructions for the coder follow-up. It is
   used by Approve and Tale.
+- **Wait for** — Optional comma-separated agent names and `bead=<id>` entries. Press `w`
+  to edit it. The dialog validates the same grammar as `sase plan approve --wait` before
+  returning to the approval screen. Approve and Tale hold the coder follow-up; Epic
+  holds the launched bead work.
 - **Coder model** — Select an LLM model for the next follow-up agent instead of using
   the role default. For Approve and Tale that agent is the coder. Shows all registered
   models grouped by provider (Claude, Codex, Antigravity, Qwen, OpenCode, Muse Code,

@@ -93,6 +93,7 @@ def submit_neutral_plan_response(
                 run_coder=result.run_coder,
                 coder_prompt=result.coder_prompt,
                 coder_model=result.coder_model,
+                wait=result.wait_spec,
                 epic_launch_mode="launch",
                 epic_launch_origin="ace",
                 option_inputs=result.option_inputs or None,

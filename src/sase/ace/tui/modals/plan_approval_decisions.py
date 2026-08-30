@@ -58,6 +58,7 @@ class PlanApprovalDecisionsMixin:
         feedback: str | None = None,
         coder_prompt: str | None = None,
         coder_model: str | None = None,
+        wait_spec: str | None = None,
         option_inputs: Mapping[str, dict[str, Any]] | None = None,
     ) -> PlanApprovalResult:
         return plan_approval_result_for_selection(
@@ -66,6 +67,7 @@ class PlanApprovalDecisionsMixin:
             feedback=feedback,
             coder_prompt=coder_prompt,
             coder_model=coder_model,
+            wait_spec=wait_spec,
             option_inputs=option_inputs,
         )
 
@@ -149,6 +151,7 @@ class PlanApprovalDecisionsMixin:
         run_coder: bool = True,
         coder_prompt: str = "",
         coder_model: str | None = None,
+        wait_spec: str | None = None,
         choice: PlanApprovalChoice | None = None,
     ) -> None:
         """Push the custom approval modal with the given initial state."""
@@ -171,6 +174,7 @@ class PlanApprovalDecisionsMixin:
                         run_coder=result.run_coder,
                         coder_prompt=result.coder_prompt,
                         coder_model=result.coder_model,
+                        wait_spec=result.wait_spec,
                         choice=result.choice,
                         selected_option_ids=approval_selection_option_ids(
                             result.commit_plan,
@@ -190,6 +194,7 @@ class PlanApprovalDecisionsMixin:
                 ),
                 coder_prompt=result.coder_prompt,
                 coder_model=result.coder_model,
+                wait_spec=result.wait_spec,
             )
             self.dismiss(approval_result)  # type: ignore[attr-defined]
 
@@ -199,6 +204,7 @@ class PlanApprovalDecisionsMixin:
                 run_coder=run_coder,
                 coder_prompt=coder_prompt,
                 coder_model=coder_model,
+                wait_spec=wait_spec,
                 choice=choice,
                 plan_file=self._plan_file,
                 planner_llm_provider=self._llm_provider,

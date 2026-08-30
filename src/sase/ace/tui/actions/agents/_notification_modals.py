@@ -35,12 +35,14 @@ from ._notification_plan_response import (
     plan_approval_choice_for_status as _plan_approval_choice_for_status,
     plan_approval_persist_action as _plan_approval_persist_action,
     plan_approval_protocol_fields as _plan_approval_protocol_fields,
+    plan_approval_wait_directive as _plan_approval_wait_directive,
     request_agents_after_plan_response as _request_agents_after_plan_response,
 )
 from ._notification_question_modal import (
     handle_user_question as handle_user_question,
     open_user_question_modal_from_marker as open_user_question_modal_from_marker,
 )
+from sase.wait_spec import WaitSpecError
 from sase.plan_approval_choices import (
     PlanApprovalModalChoice,
     approval_choice_archives_plan,
@@ -54,6 +56,7 @@ if TYPE_CHECKING:
     from ...modals import GateBranchData, PlanApprovalResult
     from ...modals.gate_action_controls import GateActionsData
     from ...modals.gate_action_runner import GateActionRunner
+    from sase.xprompt.directive_edit import PromptWaitDirective
 
 
 log = logging.getLogger(__name__)
@@ -220,6 +223,7 @@ def handle_plan_approval(
                 run_coder=result.run_coder,
                 current_prompt=result.coder_prompt or "",
                 coder_model=result.coder_model,
+                wait_spec=result.wait_spec,
                 choice=result.choice,
             )
             app.mount(  # type: ignore[attr-defined]
@@ -283,11 +287,20 @@ def handle_plan_approval(
                 )
                 return
 
-        response_data = _build_plan_approval_response(
-            result,
-            # Transitional compatibility for pre-upgrade agents.
-            epic_launch_owner="host" if choice == "epic" else None,
-        )
+        try:
+            response_data = _build_plan_approval_response(
+                result,
+                # Transitional compatibility for pre-upgrade agents.
+                epic_launch_owner="host" if choice == "epic" else None,
+            )
+        except WaitSpecError as exc:
+            app.notify(  # type: ignore[attr-defined]
+                str(exc),
+                title="Invalid wait spec",
+                severity="error",
+                timeout=15,
+            )
+            return
         prepared_saved_plan_path = response_data.get("saved_plan_path")
         try:
             from sase.plan_approval_actions import (
@@ -336,6 +349,7 @@ def handle_plan_approval(
                 notification,
                 plan_file=plan_file,
                 response_dir=response_path,
+                wait_spec=_plan_approval_wait_directive(result),
             )
 
         if agent is not None:
@@ -417,6 +431,7 @@ def _submit_legacy_epic_launch_task(
     *,
     plan_file: str,
     response_dir: Path,
+    wait_spec: PromptWaitDirective | None = None,
 ) -> bool:
     """Run legacy epic launch preflight/submission as tracked TUI work."""
     from ...actions.proc_actions import TrackedProcResult
@@ -434,6 +449,7 @@ def _submit_legacy_epic_launch_task(
                 mode="launch",
                 response_dir=response_dir,
                 origin="ace",
+                wait_spec=wait_spec,
             )
         except PlanApprovalActionError as exc:
             return TrackedProcResult(
