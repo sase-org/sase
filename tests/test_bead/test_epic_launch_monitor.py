@@ -12,6 +12,7 @@ from sase.dev_update.code_swap_lock import (
     guarded_exec_argv,
     logical_argv_from_guarded_exec,
 )
+from sase.xprompt.directive_edit import PromptWaitDirective
 
 from .epic_launch_test_helpers import fake_lease, start_epic_launch_monitor_request
 
@@ -72,6 +73,48 @@ def test_start_epic_launch_monitor_starts_literal_monitor_command(
     assert request.timeout_seconds == 4 * 60 * 60
     assert request.inherit_lane_workspace_claim is False
     assert request.transfer_claim_from_pid == lease.claim_pid
+
+
+def test_start_epic_launch_monitor_forwards_wait_spec_into_argv(
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "auth rewrite.md"
+    monitor = SimpleNamespace(monitor_id="m7k2xyz")
+    lease = fake_lease(tmp_path)
+    wait_spec = PromptWaitDirective(agents=("sase-s7.2",), beads=("sase-64.3",))
+    with (
+        patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
+        patch("sase.procs.read_procs", return_value=[]),
+        patch(
+            "sase.workspace_provider.lease.acquire_operational_lease",
+            return_value=lease,
+        ),
+        patch("sase.workspace_provider.lease.release_operational_lease"),
+        patch(
+            "sase.monitor.start.start_monitor",
+            return_value=monitor,
+        ) as start_monitor,
+    ):
+        start_epic_launch_monitor(
+            plan,
+            project="sase",
+            host_action_data={"agent_name": "planner"},
+            artifacts_dir=tmp_path / "artifacts",
+            cl_name="demo",
+            wait_spec=wait_spec,
+        )
+
+    request = start_monitor.call_args.args[0]
+    logical = build_epic_launch_argv(
+        plan,
+        artifacts_dir=tmp_path / "artifacts",
+        cl_name="demo",
+        wait_spec=wait_spec,
+    )
+    assert logical[-2:] == ["--wait", "sase-s7.2,bead=sase-64.3"]
+    assert request.command == shlex.join(logical)
+    assert list(request.execution_argv) == guarded_exec_argv(logical)
+    assert logical_argv_from_guarded_exec(list(request.execution_argv)) == logical
 
 
 def test_start_epic_launch_monitor_uses_clan_member_name_as_lane(
@@ -203,6 +246,35 @@ def test_start_epic_launch_monitor_fallback_deduplicates_active_resolved_plan(
         {"pending", "running", "settling"}
     )
     assert read_tasks.call_args.kwargs["kind"] == {"command", "detached"}
+    acquire.assert_not_called()
+
+
+def test_start_epic_launch_monitor_fallback_deduplicates_wait_carrying_argv(
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "plans" / "epic.md"
+    existing = SimpleNamespace(
+        task_id="existing",
+        command=[
+            "sase",
+            "bead",
+            "work",
+            "plans/epic.md",
+            "--yes-to-all",
+            "--wait",
+            "sase-s7.2",
+        ],
+        cwd=str(tmp_path),
+        tags=["epic", "launch"],
+    )
+    with (
+        patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
+        patch("sase.procs.read_procs", return_value=[existing]),
+        patch("sase.workspace_provider.lease.acquire_operational_lease") as acquire,
+    ):
+        submitted = start_epic_launch_monitor(plan, project="sase")
+
+    assert submitted is existing
     acquire.assert_not_called()
 
 

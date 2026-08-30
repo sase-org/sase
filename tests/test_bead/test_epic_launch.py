@@ -12,6 +12,7 @@ from sase.bead.epic_launch import (
     epic_launch_origin_from_gate_source,
     resolve_epic_launch_project,
 )
+from sase.xprompt.directive_edit import PromptWaitDirective
 
 
 def test_build_epic_launch_argv_carries_approval_linking_options() -> None:
@@ -46,6 +47,30 @@ def test_build_epic_launch_argv_omits_expect_prompt_snapshot_when_disabled() -> 
     )
 
     assert "--expect-prompt-snapshot" not in argv
+
+
+def test_build_epic_launch_argv_omits_wait_by_default() -> None:
+    argv = build_epic_launch_argv("/tmp/epic plan.md")
+
+    assert "--wait" not in argv
+
+
+def test_build_epic_launch_argv_omits_wait_for_an_empty_spec() -> None:
+    argv = build_epic_launch_argv(
+        "/tmp/epic plan.md",
+        wait_spec=PromptWaitDirective(),
+    )
+
+    assert "--wait" not in argv
+
+
+def test_build_epic_launch_argv_appends_formatted_wait_spec() -> None:
+    argv = build_epic_launch_argv(
+        "/tmp/epic plan.md",
+        wait_spec=PromptWaitDirective(agents=("sase-s7.2",), beads=("sase-64.3",)),
+    )
+
+    assert argv[-2:] == ["--wait", "sase-s7.2,bead=sase-64.3"]
 
 
 @pytest.mark.parametrize(

@@ -13,7 +13,7 @@ from unittest.mock import patch
 import pytest
 
 from sase._plan_archive_approval import _ApprovedPlanArchive
-from sase._plan_approval_epic import epic_launch_project
+from sase._plan_approval_epic import epic_launch_project, prepare_epic_launch
 from sase.plan_approval_actions import (
     PlanApprovalActionContext,
     PlanApprovalActionError,
@@ -28,6 +28,7 @@ from sase.notification_gates.service import create_gate
 from sase.plan_gate import build_plan_approval_gate_spec
 from sase.plan_shell.create import plan_gate_shell_block
 from sase.sdd._repository_transaction import SddRepositoryHealthError
+from sase.xprompt.directive_edit import PromptWaitDirective
 from tests._plan_gate_fixtures import (
     plan_gate_home,  # noqa: F401 (registers fixture)
     write_plan,
@@ -540,6 +541,122 @@ def test_epic_launch_project_returns_none_without_project_identity() -> None:
     )
 
     assert epic_launch_project(context) is None
+
+
+def test_prepare_epic_launch_forwards_wait_spec_to_the_monitor(
+    tmp_path: Path,
+) -> None:
+    context, _response_dir, workspace = _epic_context(tmp_path)
+    plan = context.host_files[0]
+    wait_spec = PromptWaitDirective(agents=("sase-s7.2",), beads=("sase-64.3",))
+    with (
+        patch(
+            "sase.bead.epic_launch.resolve_epic_launch_project",
+            return_value="canonical",
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
+        ),
+        patch("sase.bead.epic_launch.start_epic_launch_monitor") as start_launch,
+    ):
+        prepare_epic_launch(
+            context,
+            plan,
+            mode="launch",
+            response_dir=tmp_path,
+            wait_spec=wait_spec,
+        )
+
+    assert start_launch.call_args.kwargs["wait_spec"] is wait_spec
+
+
+def test_prepare_epic_launch_keeps_the_wait_in_the_monitor_failure_resume_hint(
+    tmp_path: Path,
+) -> None:
+    context, _response_dir, workspace = _epic_context(tmp_path)
+    plan = context.host_files[0]
+    wait_spec = PromptWaitDirective(agents=("sase-s7.2",))
+    with (
+        patch(
+            "sase.bead.epic_launch.resolve_epic_launch_project",
+            return_value="canonical",
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
+        ),
+        patch(
+            "sase.bead.epic_launch.start_epic_launch_monitor",
+            side_effect=OSError("no process"),
+        ),
+        pytest.raises(PlanApprovalActionError) as exc_info,
+    ):
+        prepare_epic_launch(
+            context,
+            plan,
+            mode="launch",
+            response_dir=tmp_path,
+            wait_spec=wait_spec,
+        )
+
+    assert "--wait sase-s7.2" in str(exc_info.value)
+
+
+def test_prepare_epic_launch_keeps_the_wait_in_the_unusable_store_resume_hint(
+    tmp_path: Path,
+) -> None:
+    context, _response_dir, workspace = _epic_context(tmp_path)
+    plan = context.host_files[0]
+    wait_spec = PromptWaitDirective(agents=("sase-s7.2",))
+    with (
+        patch(
+            "sase.bead.epic_launch.resolve_epic_launch_project",
+            return_value="canonical",
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
+        ),
+        patch(
+            "sase.bead.cli_work_from_plan.require_epic_launch_store_health",
+            side_effect=SddRepositoryHealthError("plans store is mid-rebase"),
+        ),
+        pytest.raises(PlanApprovalActionError) as exc_info,
+    ):
+        prepare_epic_launch(
+            context,
+            plan,
+            mode="launch",
+            response_dir=tmp_path,
+            wait_spec=wait_spec,
+        )
+
+    assert "--wait sase-s7.2" in str(exc_info.value)
+
+
+def test_prepare_epic_launch_keeps_the_wait_in_the_unclaimable_resume_hint(
+    tmp_path: Path,
+) -> None:
+    context, _response_dir, _workspace = _epic_context(tmp_path)
+    plan = context.host_files[0]
+    wait_spec = PromptWaitDirective(agents=("sase-s7.2",))
+    with (
+        patch(
+            "sase.bead.epic_launch.resolve_epic_launch_project",
+            return_value=None,
+        ),
+        pytest.raises(PlanApprovalActionError) as exc_info,
+    ):
+        prepare_epic_launch(
+            context,
+            plan,
+            mode="launch",
+            response_dir=tmp_path,
+            wait_spec=wait_spec,
+        )
+
+    assert "--wait sase-s7.2" in str(exc_info.value)
 
 
 def test_headless_epic_submit_failure_keeps_durable_host_claim(

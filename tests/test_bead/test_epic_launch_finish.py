@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from sase.bead.epic_launch import _update_epic_launch_metadata, finish_epic_launch
+from sase.xprompt.directive_edit import PromptWaitDirective
 
 
 def test_update_epic_launch_metadata_backfills_all_host_fields(
@@ -89,6 +90,22 @@ def test_work_command_failure_notification_has_complete_resume_hint(
     assert "--yes-to-all" not in notes[1]
     assert "--artifacts-dir" in notes[1]
     assert "--cl-name demo" in notes[1]
+
+
+def test_work_command_failure_notification_keeps_the_wait_in_the_resume_hint(
+    tmp_path: Path,
+) -> None:
+    with patch("sase.notifications.senders.notify_workflow_complete") as notify:
+        finish_epic_launch(
+            str(tmp_path / "epic plan.md"),
+            artifacts_dir=tmp_path / "artifacts",
+            cl_name="demo",
+            error=RuntimeError("launch failed"),
+            wait_spec=PromptWaitDirective(agents=("sase-s7.2",), beads=("sase-64.3",)),
+        )
+
+    notes = notify.call_args.args[3]
+    assert "--wait sase-s7.2,bead=sase-64.3" in notes[1]
 
 
 def test_work_command_declined_launch_notifies_failure(tmp_path: Path) -> None:

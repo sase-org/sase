@@ -16,6 +16,7 @@ from sase._plan_approval_protocol import (
 if TYPE_CHECKING:
     from sase.bead.epic_launch import EpicLaunchOrigin
     from sase.bead.epic_launch import EpicLaunchSubmission
+    from sase.xprompt.directive_edit import PromptWaitDirective
 
 
 def prepare_epic_launch(
@@ -26,6 +27,7 @@ def prepare_epic_launch(
     response_dir: Path,
     resolved_project: str | None = None,
     origin: EpicLaunchOrigin = "api",
+    wait_spec: PromptWaitDirective | None = None,
 ) -> EpicLaunchSubmission | None:
     """Start the host-owned epic launch, or intentionally skip it."""
     # Host launches now log through a monitor or proc supervisor, so no
@@ -43,7 +45,7 @@ def prepare_epic_launch(
     project = resolved_project or epic_launch_project(notification)
     primary_dir = _epic_launch_primary_checkout_or_none(project)
     if project is None or primary_dir is None:
-        _raise_unclaimable_epic_launch(plan_file)
+        _raise_unclaimable_epic_launch(plan_file, wait_spec=wait_spec)
 
     plan_path = str(plan_file)
     try:
@@ -58,7 +60,7 @@ def prepare_epic_launch(
             raise
         from sase.bead.epic_launch import build_epic_launch_argv
 
-        resume = shlex.join(build_epic_launch_argv(plan_path))
+        resume = shlex.join(build_epic_launch_argv(plan_path, wait_spec=wait_spec))
         raise PlanApprovalActionError(
             "epic_launch_failed",
             plan_path,
@@ -76,9 +78,10 @@ def prepare_epic_launch(
             ),
             cl_name=notification.host_action_data.get("agent_cl_name"),
             origin=origin,
+            wait_spec=wait_spec,
         )
     except Exception as exc:
-        resume = shlex.join(build_epic_launch_argv(plan_path))
+        resume = shlex.join(build_epic_launch_argv(plan_path, wait_spec=wait_spec))
         raise PlanApprovalActionError(
             "epic_launch_failed",
             plan_path,
@@ -107,11 +110,15 @@ def can_claim_epic_launch(
     return True
 
 
-def _raise_unclaimable_epic_launch(plan_file: str | Path) -> NoReturn:
+def _raise_unclaimable_epic_launch(
+    plan_file: str | Path,
+    *,
+    wait_spec: PromptWaitDirective | None = None,
+) -> NoReturn:
     from sase.bead.epic_launch import build_epic_launch_argv
 
     plan_path = str(plan_file)
-    resume = shlex.join(build_epic_launch_argv(plan_path))
+    resume = shlex.join(build_epic_launch_argv(plan_path, wait_spec=wait_spec))
     raise PlanApprovalActionError(
         "epic_launch_failed",
         plan_path,

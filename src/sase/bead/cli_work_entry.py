@@ -133,6 +133,7 @@ def _handle_bead_work_locked(
                 artifacts_dir=artifacts_dir,
                 cl_name=cl_name,
                 error=exc,
+                wait_spec=extra_waits,
             )
             if json_output:
                 payload: dict[str, object] = {
@@ -168,6 +169,7 @@ def _handle_bead_work_locked(
                 artifacts_dir=artifacts_dir,
                 cl_name=cl_name,
                 error=exc,
+                wait_spec=extra_waits,
             )
             raise
         finish_epic_launch(
@@ -175,6 +177,7 @@ def _handle_bead_work_locked(
             artifacts_dir=artifacts_dir,
             cl_name=cl_name,
             result=result,
+            wait_spec=extra_waits,
         )
         if json_output:
             print(json.dumps(result.to_json(), sort_keys=True))

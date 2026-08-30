@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from sase.procs.models import Proc
     from sase.monitor.models import MonitorRecord
     from sase.workspace_provider.lease import OperationalLease
+    from sase.xprompt.directive_edit import PromptWaitDirective
 
 
 _EPIC_LAUNCH_TAGS = ("epic", "launch")
@@ -50,6 +51,7 @@ def build_epic_launch_argv(
     cl_name: str | None = None,
     yes_to_all: bool = True,
     expect_prompt_snapshot: bool = True,
+    wait_spec: PromptWaitDirective | None = None,
 ) -> list[str]:
     """Build the canonical approved-epic launch command."""
     confirmation_flag = "--yes-to-all" if yes_to_all else "--yes"
@@ -60,6 +62,10 @@ def build_epic_launch_argv(
         argv.extend(["--cl-name", cl_name])
     if expect_prompt_snapshot:
         argv.append("--expect-prompt-snapshot")
+    if wait_spec:
+        from sase.wait_spec import format_wait_spec
+
+        argv.extend(["--wait", format_wait_spec(wait_spec)])
     return argv
 
 
@@ -116,6 +122,7 @@ def start_epic_launch_monitor(
     artifacts_dir: str | Path | None = None,
     cl_name: str | None = None,
     origin: EpicLaunchOrigin = "api",
+    wait_spec: PromptWaitDirective | None = None,
 ) -> EpicLaunchSubmission:
     """Start one monitor member for an approved epic plan.
 
@@ -146,6 +153,7 @@ def start_epic_launch_monitor(
         plan_file,
         artifacts_dir=artifacts_dir,
         cl_name=cl_name,
+        wait_spec=wait_spec,
     )
     command = shlex.join(logical_argv)
     label = f"Epic launch · {Path(plan_file).stem}"
@@ -210,6 +218,7 @@ def start_epic_launch_monitor(
                 project=project,
                 label=label,
                 resolved_plan=resolved_plan,
+                wait_spec=wait_spec,
             )
             transferred = True
             return result
@@ -275,6 +284,7 @@ def _submit_epic_launch_task(
     project: str,
     label: str,
     resolved_plan: Path,
+    wait_spec: PromptWaitDirective | None = None,
 ) -> Proc:
     """Submit the leased-workspace proc fallback for an approved epic plan."""
     from sase.procs.request import ProcSubmitRequest
@@ -286,6 +296,7 @@ def _submit_epic_launch_task(
         plan_file,
         artifacts_dir=artifacts_dir,
         cl_name=cl_name,
+        wait_spec=wait_spec,
     )
     return submit_via_lease(
         ProcSubmitRequest(
@@ -331,6 +342,7 @@ def _epic_launch_command_pair(
     *,
     artifacts_dir: str | Path | None,
     cl_name: str | None,
+    wait_spec: PromptWaitDirective | None = None,
 ) -> tuple[list[str], list[str]]:
     from sase.dev_update.code_swap_lock import guarded_exec_argv
 
@@ -338,6 +350,7 @@ def _epic_launch_command_pair(
         plan_file,
         artifacts_dir=artifacts_dir,
         cl_name=cl_name,
+        wait_spec=wait_spec,
     )
     return logical_argv, guarded_exec_argv(logical_argv)
 
@@ -399,6 +412,7 @@ def finish_epic_launch(
     cl_name: str | None,
     result: Any | None = None,
     error: Exception | None = None,
+    wait_spec: PromptWaitDirective | None = None,
 ) -> None:
     """Best-effort approval metadata and notification handling."""
     if artifacts_dir is None and not cl_name:
@@ -435,6 +449,7 @@ def finish_epic_launch(
             artifacts_dir=artifacts_dir,
             cl_name=cl_name,
             yes_to_all=False,
+            wait_spec=wait_spec,
         )
         if success:
             detail = ""
