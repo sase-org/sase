@@ -45,6 +45,33 @@ def test_selector_stat_participates_in_config_freshness_token(tmp_path: Path) ->
     )
 
 
+def test_missing_selector_detail_names_the_declared_machines(
+    tmp_path: Path,
+) -> None:
+    """A lost selector must not read as "no identity configured".
+
+    The overlay can be complete and still unusable, so the diagnostic names
+    both the selector to write and the machine the overlay already declares.
+    """
+    global_dir = tmp_path / "global"
+    global_dir.mkdir()
+    (global_dir / "sase_kellys_mbp.yml").write_text(
+        "id:\n  username: alice\n  machine_name: kellys_mbp\n",
+        encoding="utf-8",
+    )
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", global_dir),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+    ):
+        config_core.clear_config_cache()
+        snapshot = get_agent_owner_config_snapshot()
+
+    assert snapshot.status == "missing_selector"
+    assert str(machine_name_path()) in snapshot.detail
+    assert "declared machines: kellys_mbp" in snapshot.detail
+
+
 def test_selector_change_eventually_invalidates_merged_config(tmp_path: Path) -> None:
     global_dir = tmp_path / "global"
     global_dir.mkdir()

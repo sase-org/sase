@@ -117,6 +117,63 @@ def test_run_config_init_reprompts_machine_and_username(
     assert "Invalid SASE username" in errors
 
 
+def test_run_config_init_readopts_lone_overlay_when_selector_is_lost(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A lost selector re-adopts this machine's overlay, not the hostname."""
+    config_dir = tmp_path / "config"
+    _prepare(monkeypatch, config_dir)
+    overlay = config_dir / "sase_kellys_mbp.yml"
+    original = "id:\n  username: alice\n  machine_name: kellys_mbp\n"
+    overlay.write_text(original, encoding="utf-8")
+    monkeypatch.setattr(
+        config_init_handler.socket,
+        "gethostname",
+        lambda: "Kellys-MacBook-Pro.local",
+    )
+
+    # An empty answer accepts the offered default.
+    assert config_init_handler.run_config_init(_args("")) == 0
+
+    assert machine_name_path().read_text() == "kellys_mbp\n"
+    assert overlay.read_text() == original
+    assert not (config_dir / "sase_kellys_macbook_pro_local.yml").exists()
+
+
+def test_run_config_init_does_not_offer_back_a_mismatched_selector(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Repairing a mismatch must not default to the value that mismatched."""
+    config_dir = tmp_path / "config"
+    _prepare(monkeypatch, config_dir)
+    (config_dir / "sase_kellys_mbp.yml").write_text(
+        "id:\n  username: alice\n  machine_name: kellys_mbp\n", encoding="utf-8"
+    )
+    machine_name_path().write_text("kellys_macbook_pro_local\n", encoding="utf-8")
+    config_core.clear_config_cache()
+
+    assert config_init_handler.run_config_init(_args("")) == 0
+
+    assert machine_name_path().read_text() == "kellys_mbp\n"
+
+
+def test_machine_name_suggestion_falls_back_to_hostname_when_ambiguous(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Several declared machines cannot identify this one; use the hostname."""
+    monkeypatch.setattr(
+        config_init_handler.socket,
+        "gethostname",
+        lambda: "Host-1",
+    )
+
+    assert config_init_handler._machine_name_suggestion(()) == "host__"
+    assert config_init_handler._machine_name_suggestion(("athena", "zeus")) == "host__"
+    assert config_init_handler._machine_name_suggestion(("athena",)) == "athena"
+
+
 def test_run_config_init_refuses_non_tty(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -239,7 +296,7 @@ def test_plan_config_init_distinguishes_legacy_and_current_identity(
     assert missing.command == "config"
     assert missing.label == "Config"
     assert len(missing.actions) == 1
-    assert "selector is missing" in missing.summary
+    assert missing.summary == (f"the machine selector {machine_name_path()} is missing")
 
     overlay = config_dir / "sase_athena.yml"
     overlay.write_text("machine_name: athena\n", encoding="utf-8")

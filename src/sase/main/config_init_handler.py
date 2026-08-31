@@ -143,6 +143,21 @@ def _hostname_suggestion() -> str:
     return re.sub(r"[^a-z_]", "_", socket.gethostname().lower())
 
 
+def _machine_name_suggestion(names: tuple[str, ...]) -> str:
+    """Return the machine name offered as the default when re-selecting.
+
+    A machine overlay is materialized only on the machine it belongs to, so a
+    lone declared name is this machine's own identity. Offering it re-adopts
+    that overlay after a lost selector or a renamed host, instead of minting a
+    second identity for one machine from a hostname that no longer matches how
+    the overlay was named. The rejected selector is never offered back, because
+    accepting it would rebuild the same mismatch it is being repaired from.
+    """
+    if len(names) == 1:
+        return names[0]
+    return _hostname_suggestion()
+
+
 def _prompt_machine_name(
     args: argparse.Namespace,
     names: tuple[str, ...],
@@ -472,10 +487,11 @@ def run_config_init(args: argparse.Namespace) -> int:
 
     machine_name = snapshot.selector
     if machine_name is None or snapshot.status == "selector_mismatch":
+        names = _existing_machine_names()
         machine_name = _prompt_machine_name(
             args,
-            _existing_machine_names(),
-            suggestion=snapshot.selector,
+            names,
+            suggestion=_machine_name_suggestion(names),
         )
     if machine_name is None:
         return 1

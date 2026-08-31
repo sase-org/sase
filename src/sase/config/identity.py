@@ -164,6 +164,22 @@ def _raw_overlay_identity(
     )
 
 
+def _declared_machine_names(
+    overlays: tuple[RawOverlayIdentity, ...],
+) -> tuple[str, ...]:
+    """Return the valid machine names declared by the local overlays."""
+    return tuple(
+        sorted(
+            {
+                value
+                for overlay in overlays
+                if (value := overlay.discriminator) is not None
+                and is_valid_machine_name(value)
+            }
+        )
+    )
+
+
 def _valid_existing_usernames(
     overlays: tuple[RawOverlayIdentity, ...],
 ) -> tuple[str, ...]:
@@ -246,17 +262,20 @@ def build_agent_owner_config_snapshot(
             existing_usernames=existing_usernames,
         )
 
+    declared = _declared_machine_names(overlays)
+    declared_hint = f"; declared machines: {', '.join(declared)}" if declared else ""
+
     if selector_text is None:
         return snapshot(
             status="missing_selector",
-            detail="the machine selector is missing",
+            detail=f"the machine selector {selector_path} is missing{declared_hint}",
         )
     if selector is None:
         return snapshot(
             status="invalid_selector",
             detail=(
                 f"the selector at {selector_path} must contain one machine "
-                f"name matching {MACHINE_NAME_PATTERN}"
+                f"name matching {MACHINE_NAME_PATTERN}{declared_hint}"
             ),
         )
 
@@ -289,22 +308,12 @@ def build_agent_owner_config_snapshot(
     )
     selected = matching[0] if matching else conventional
     if selected is None:
-        discovered = tuple(
-            sorted(
-                {
-                    value
-                    for overlay in overlays
-                    if (value := overlay.discriminator) is not None
-                    and is_valid_machine_name(value)
-                }
-            )
-        )
-        if discovered:
+        if declared:
             return snapshot(
                 status="selector_mismatch",
                 detail=(
                     f"selector '{selector}' matches no machine overlay; declared "
-                    f"machines: {', '.join(discovered)}"
+                    f"machines: {', '.join(declared)}"
                 ),
             )
         return snapshot(
