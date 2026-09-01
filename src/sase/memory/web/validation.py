@@ -28,6 +28,7 @@ from .models import (
 )
 from .roster import roster_region_error
 from .scope import merge_memory_web_scopes
+from .supersession import coerce_superseded_by_targets, supersession_status
 
 if TYPE_CHECKING:
     from sase.memory.link_resolve import UnresolvedMemoryLinkTarget
@@ -215,6 +216,9 @@ def _unresolved_web_link_warnings(discovery: MemoryWebDiscovery) -> tuple[str, .
                     source_strand=strand,
                 )
             )
+            warnings.extend(
+                _supersession_warnings(strand, notes=notes, scoped_webs=scoped_webs)
+            )
     return tuple(dict.fromkeys(warnings))
 
 
@@ -255,6 +259,102 @@ def _unresolved_body_link_warnings(
         seen.add(target.raw)
         warnings.append(_format_unresolved_link_warning(path, target))
     return tuple(warnings)
+
+
+def _supersession_warnings(
+    strand: MemoryStrand,
+    *,
+    notes: tuple[MemoryNote, ...],
+    scoped_webs: tuple[ScopedMemoryWeb, ...],
+) -> tuple[str, ...]:
+    metadata = strand.metadata
+    status = supersession_status(metadata.get("status"))
+    has_superseded_by = "superseded_by" in metadata
+    warnings: list[str] = []
+    targets: tuple[str, ...] | None = None
+    malformed = False
+    if has_superseded_by:
+        targets = coerce_superseded_by_targets(metadata.get("superseded_by"))
+        if targets is None:
+            malformed = True
+            warnings.append(
+                f"{strand.path}: superseded_by must be a string or a list of "
+                "non-empty strings"
+            )
+        if status is None:
+            warnings.append(
+                f"{strand.path}: superseded_by is set but metadata.status is not "
+                "superseded or superseded-in-part"
+            )
+
+    if status is not None and (not has_superseded_by or not targets):
+        if not malformed:
+            warnings.append(
+                f"{strand.path}: metadata.status {status!r} requires a non-empty "
+                "superseded_by"
+            )
+        return tuple(warnings)
+
+    if status is None or not targets:
+        return tuple(warnings)
+
+    from sase.memory.link_resolve import (
+        UnresolvedMemoryLinkTarget,
+        resolve_memory_link_target,
+    )
+    from sase.memory.links import scan_memory_links
+
+    body_identities: set[tuple[object, ...]] | None = None
+    if strand.link_reference != "none":
+        body_identities = set()
+        for link in scan_memory_links(strand.body):
+            resolved = resolve_memory_link_target(
+                link.target,
+                notes=notes,
+                scoped_webs=scoped_webs,
+                source_strand=strand,
+            )
+            identity = _resolved_link_identity(resolved)
+            if identity is not None:
+                body_identities.add(identity)
+
+    for raw in targets:
+        resolved = resolve_memory_link_target(
+            raw,
+            notes=notes,
+            scoped_webs=scoped_webs,
+            source_strand=strand,
+        )
+        if resolved is None or isinstance(resolved, UnresolvedMemoryLinkTarget):
+            warnings.append(
+                f"{strand.path}: superseded_by target {raw!r} does not resolve"
+            )
+            continue
+        if body_identities is None:
+            continue
+        identity = _resolved_link_identity(resolved)
+        if identity is not None and identity not in body_identities:
+            warnings.append(
+                f"{strand.path}: strand body has no [[...]] link resolving to "
+                f"superseded_by target {raw!r}"
+            )
+    return tuple(warnings)
+
+
+def _resolved_link_identity(target: object) -> tuple[object, ...] | None:
+    from sase.memory.link_resolve import (
+        MemoryNoteLinkTarget,
+        MemoryStrandLinkTarget,
+        MemoryWebDescriptorLinkTarget,
+    )
+
+    if isinstance(target, MemoryStrandLinkTarget):
+        return ("strand", target.web.slug, target.strand.slug)
+    if isinstance(target, MemoryNoteLinkTarget):
+        return ("note", target.note.relative_path)
+    if isinstance(target, MemoryWebDescriptorLinkTarget):
+        return ("web", target.web.slug)
+    return None
 
 
 def _invalid_note_strategy_warnings(note: MemoryNote, *, path: Path) -> tuple[str, ...]:

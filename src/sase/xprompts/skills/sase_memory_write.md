@@ -61,3 +61,13 @@ inline in the body), in one of: `web:keyword`, `web/slug`, `note.md`, or a bare 
 resolved against the source's own web, then a note stem, then a web slug. Links inside
 fenced or inline code are never scanned. When a note or strand already names other
 memory in prose, link it instead of leaving the reference as unlinked text.
+
+## Supersession
+
+To retire an older memory-web strand, mark that older record — never the newer one —
+with `metadata.status` (`superseded` or `superseded-in-part`) plus `superseded_by` (one
+target or a list, in any form `[[...]]` accepts). In the older body, add a `[[...]]`
+back-link that states what was retired; do not delete, reword, or soften an accepted
+body beyond that mark. The mark shows on the descriptor roster and on
+`sase memory read`/`show`, and it changes always-loaded agent instructions, so keep the
+roster phrase short. Checks for this convention are warnings, not blockers.

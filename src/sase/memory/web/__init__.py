@@ -60,6 +60,12 @@ from .roster import (
     strip_managed_roster_markers,
 )
 from .scope import cross_scope_keyword_warnings, merge_memory_web_scopes
+from .supersession import (
+    StrandSupersession,
+    format_inline_roster_supersession_suffix,
+    format_roster_supersession_marker,
+    parse_strand_supersession,
+)
 from .validation import (
     memory_note_link_warnings,
     reserved_memory_web_names,
@@ -91,6 +97,7 @@ __all__ = [
     "MemoryWebValidationReport",
     "ScopedMemoryWeb",
     "StrandLinkSpan",
+    "StrandSupersession",
     "WebRosterStyle",
     "WebScope",
     "WebSource",
@@ -100,6 +107,8 @@ __all__ = [
     "delete_memory_strand",
     "discover_memory_webs",
     "discover_scoped_memory_webs",
+    "format_inline_roster_supersession_suffix",
+    "format_roster_supersession_marker",
     "handle_memory_web_list_command",
     "handle_memory_web_show_command",
     "memory_note_link_warnings",
@@ -107,6 +116,7 @@ __all__ = [
     "merge_memory_web_scopes",
     "normalize_memory_web_reference",
     "parse_memory_strand",
+    "parse_strand_supersession",
     "parse_web_descriptor",
     "render_managed_roster_region",
     "render_strand_frontmatter",

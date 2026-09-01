@@ -5,8 +5,11 @@ summary:
   A keyed memory collection is a flat descriptor note plus a sibling strand directory,
   addressed web:keyword.
 metadata:
-  status: accepted
+  status: superseded-in-part
   decided: 2026-08-24
+  superseded_by:
+    - decisions/webs-render-in-their-own-section
+    - decisions/memory-links-are-authored
 ---
 
 **Claim.** A keyed memory collection is one flat descriptor note
@@ -14,6 +17,9 @@ metadata:
 (`sase/memory/<web>/<slug>.md`), read on demand as `sase memory read <web>:<keyword>`.
 The descriptor's own body, not any strand body, participates in core or reference
 rendering. [[glossary/memory-web]] and [[glossary/memory-strand]] name this same shape.
+
+> _Partially superseded:_ the sentence above on core/reference rendering is retired by
+> [[decisions/webs-render-in-their-own-section]].
 
 **Why.** This shape had been hand-built three times before it had a name: the glossary,
 task types, and artifact relations each grew their own keyed-collection code, and the
@@ -35,3 +41,6 @@ fail-closed validator that must run in both `sase memory init` and `sase doctor`
 **Reopens when.** A web's strand count or supersession rate outgrows prose
 cross-references, at which point the existing `supersedes` / `superseded-by` artifact
 relations are the adopted mechanism — not a new, parallel link syntax.
+
+> _Partially superseded:_ the "not a new, parallel link syntax" clause above is retired
+> by [[decisions/memory-links-are-authored]].

@@ -502,3 +502,72 @@ def test_rich_note_and_web_render_linked_references_block(tmp_path: Path) -> Non
     web_text = _rich_text(_resolve(tmp_path, ["decisions:alpha"]))
     assert "Linked References" in web_text
     assert "decisions:single-turn-agents" in web_text
+
+
+def _seed_superseded_decision(root: Path) -> None:
+    _seed_decisions_web(root)
+    _write(
+        root / "sase" / "memory" / "decisions" / "memory-webs.md",
+        "---\n"
+        "keyword: Memory Webs\n"
+        "summary: Flat descriptor plus strands.\n"
+        "metadata:\n"
+        "  status: superseded-in-part\n"
+        "  superseded_by:\n"
+        "    - decisions/gates-never-block\n"
+        "    - decisions/single-turn-agents\n"
+        "---\n"
+        "Claim body. See [[decisions/gates-never-block]] and "
+        "[[decisions/single-turn-agents]].\n",
+    )
+
+
+def test_web_markdown_emits_supersession_line_after_provenance(
+    tmp_path: Path,
+) -> None:
+    _seed_superseded_decision(tmp_path)
+
+    markdown = memory_selector_batch_markdown(
+        _resolve(tmp_path, ["decisions:memory-webs"], depth=0)
+    )
+
+    assert "*Requested · project*" in markdown
+    assert (
+        "> **Partly superseded** by `decisions/gates-never-block`, "
+        "`decisions/single-turn-agents`."
+    ) in markdown
+    provenance_at = markdown.index("*Requested · project*")
+    marker_at = markdown.index("> **Partly superseded**")
+    body_at = markdown.index("Claim body.")
+    assert provenance_at < marker_at < body_at
+
+
+def test_web_json_includes_supersession_payload_or_null(tmp_path: Path) -> None:
+    _seed_superseded_decision(tmp_path)
+
+    payload = _json_payload(_resolve(tmp_path, ["decisions"], depth=0))
+    (web,) = payload["webs"]
+    by_slug = {node["slug"]: node for node in web["nodes"]}
+
+    assert by_slug["memory-webs"]["supersession"] == {
+        "status": "superseded-in-part",
+        "partial": True,
+        "superseded_by": [
+            "decisions/gates-never-block",
+            "decisions/single-turn-agents",
+        ],
+    }
+    assert by_slug["gates-never-block"]["supersession"] is None
+    assert by_slug["single-turn-agents"]["supersession"] is None
+
+
+def test_web_rich_emits_supersession_sentence(tmp_path: Path) -> None:
+    _seed_superseded_decision(tmp_path)
+
+    text = _rich_text(_resolve(tmp_path, ["decisions:memory-webs"], depth=0))
+
+    assert (
+        "Partly superseded by `decisions/gates-never-block`, "
+        "`decisions/single-turn-agents`."
+    ) in text
+    assert "Superseded by" not in text.replace("Partly superseded by", "")

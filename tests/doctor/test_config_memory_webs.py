@@ -100,6 +100,46 @@ def test_doctor_memory_webs_warns_on_unresolved_strand_link(tmp_path: Path) -> N
     assert all(detail.startswith("project:") for detail in check.details)
 
 
+def test_doctor_memory_webs_warns_on_supersession_mismatch(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    home = tmp_path / "home"
+    _write(
+        project / "sase" / "memory" / "terms.md",
+        "---\nweb: true\nroster: inline\n---\n\nTerms.\n",
+    )
+    _write(
+        project / "sase" / "memory" / "terms" / "alpha.md",
+        "---\n"
+        "keyword: Alpha Term\n"
+        "metadata:\n"
+        "  status: superseded\n"
+        "  superseded_by: terms/beta\n"
+        "---\n"
+        "Old body with no back-link.\n",
+    )
+    _write(
+        project / "sase" / "memory" / "terms" / "beta.md",
+        "---\nkeyword: Beta Term\n---\n\nNew body.\n",
+    )
+    home.mkdir()
+    context = DoctorContext(
+        cwd=project,
+        project=None,
+        sase_home=tmp_path / "state",
+        env={"HOME": str(home)},
+    )
+
+    check = check_config_memory_webs(context)
+
+    assert check.status == "WARN"
+    assert any(
+        "strand body has no [[...]] link resolving to superseded_by target "
+        "'terms/beta'" in detail
+        for detail in check.details
+    )
+    assert all(detail.startswith("project:") for detail in check.details)
+
+
 def test_doctor_memory_webs_warns_on_flat_note_link_issues(tmp_path: Path) -> None:
     project = tmp_path / "project"
     home = tmp_path / "home"

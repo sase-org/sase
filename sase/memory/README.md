@@ -49,6 +49,10 @@ when relevant.
 - `link_rendering`: `reference` (default) or `inline` — whether a detected link lists in
   a `## Linked References` section or expands inline. A strand's value overrides its web
   descriptor's, which overrides the default.
+- `metadata`: optional free-form mapping on descriptors and strands. A strand declares
+  supersession with `status: superseded` or `status: superseded-in-part` plus
+  `superseded_by` (a memory-link target or a list of them); any other `status` is
+  ignored.
 
 A memory web descriptor must not declare `type:` or `parent:`; both are stripped on init
 if present. A web's kind decides its placement — its descriptor is always inlined into
@@ -111,8 +115,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Kind: memory web descriptor
 - Description: Architectural decision records — accepted choices, their rejected
   alternatives, and what would reopen them.
-- Lines: 47
-- Approx. tokens: 586
+- Lines: 49
+- Approx. tokens: 626
 
 ### `sase/memory/glossary.md`
 
@@ -232,8 +236,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 10
 - Web descriptor notes: 3
-- Total lines: 1064
-- Total approx. tokens: 13460
+- Total lines: 1066
+- Total approx. tokens: 13500
 
 ## Commands
 

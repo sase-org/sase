@@ -12,11 +12,11 @@ strand_noun: decision
 
 A decision record is not a design doc or a subsystem overview — those go stale as the
 code changes underneath them. A record is immutable once accepted: if the project
-changes course, a new record is written and the old one is marked superseded in prose,
-never edited in place. Read one on demand with
-`sase memory read decisions:<keyword> -r "<why>"`; each record states the claim, why it
-was chosen over the credible alternatives, what it costs, and the condition that would
-reopen it.
+changes course, a new record is written and the old one is marked superseded with a
+`metadata.status` plus `superseded_by` mark and a `[[...]]` back-link, never edited in
+place. Read one on demand with `sase memory read decisions:<keyword> -r "<why>"`; each
+record states the claim, why it was chosen over the credible alternatives, what it
+costs, and the condition that would reopen it.
 
 <!-- sase:strands -->
 
@@ -30,8 +30,10 @@ reopen it.
 - **Memory Links Are Authored** (`memory-links-are-authored`) - A memory file declares
   how its links are detected and rendered, and authors links inline as `[[target]]` /
   `![[target]]`.
-- **Memory Webs** (`memory-webs`) - A keyed memory collection is a flat descriptor note
-  plus a sibling strand directory, addressed web:keyword.
+- **Memory Webs** (`memory-webs`) - _[partly superseded by
+  `webs-render-in-their-own-section`, `memory-links-are-authored`]_ A keyed memory
+  collection is a flat descriptor note plus a sibling strand directory, addressed
+  web:keyword.
 - **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`) - A
   memory web's placement in generated agent instructions follows from its kind, not from
   a `type:` declaration on its descriptor.

@@ -36,6 +36,7 @@ from sase.memory.selector import (
     MemoryWebReadSection,
     ResolvedMemorySelectorBatch,
 )
+from sase.memory.web.supersession import StrandSupersession, parse_strand_supersession
 
 _ACCENT = SECTION_COLOR
 
@@ -122,6 +123,19 @@ def _node_json(node: MemoryWebReadNode) -> dict[str, object]:
         "referrer": None if node.referrer is None else list(node.referrer),
         "also_referenced_by": list(node.also_referenced_by),
         "links": memory_links_json([(link.target, link.kind) for link in node.links]),
+        "supersession": _supersession_json(parse_strand_supersession(node.strand)),
+    }
+
+
+def _supersession_json(
+    supersession: StrandSupersession | None,
+) -> dict[str, object] | None:
+    if supersession is None:
+        return None
+    return {
+        "status": supersession.status,
+        "partial": supersession.partial,
+        "superseded_by": list(supersession.superseded_by),
     }
 
 
@@ -168,6 +182,9 @@ def _web_section_markdown(section: MemoryWebReadSection) -> str:
         level = min(node.depth + 1, 6)
         pieces.append(f"{'#' * level} {node.strand.keyword}\n")
         pieces.append(f"*{_provenance_label(node)}*\n")
+        supersession = parse_strand_supersession(node.strand)
+        if supersession is not None:
+            pieces.append(f"{_supersession_markdown(supersession)}\n")
         if node.strand.aliases:
             pieces.append("aka " + ", ".join(node.strand.aliases) + "\n")
         pieces.append(node.strand.body.strip() + "\n")
@@ -284,12 +301,33 @@ def _node_blocks(node: MemoryWebReadNode) -> list[RenderableType]:
     if node.strand.aliases:
         lines.append(Text("aka " + " · ".join(node.strand.aliases), style="dim"))
     lines.append(Text(f"scope: {node.scope}", style="dim"))
+    supersession = parse_strand_supersession(node.strand)
+    if supersession is not None:
+        lines.append(Text(_supersession_sentence(supersession), style="bold yellow"))
     lines.append(Text(node.strand.body.strip()))
 
     return [
         Padding(header_row, (0, 0, 0, indent)),
         *(Padding(line, (0, 0, 0, indent), expand=False) for line in lines),
     ]
+
+
+def _supersession_label_and_addresses(
+    supersession: StrandSupersession,
+) -> tuple[str, str]:
+    label = "Partly superseded" if supersession.partial else "Superseded"
+    addresses = ", ".join(f"`{addr}`" for addr in supersession.superseded_by)
+    return label, addresses
+
+
+def _supersession_sentence(supersession: StrandSupersession) -> str:
+    label, addresses = _supersession_label_and_addresses(supersession)
+    return f"{label} by {addresses}."
+
+
+def _supersession_markdown(supersession: StrandSupersession) -> str:
+    label, addresses = _supersession_label_and_addresses(supersession)
+    return f"> **{label}** by {addresses}."
 
 
 __all__ = ["memory_selector_batch_markdown", "render_memory_selector_batch"]

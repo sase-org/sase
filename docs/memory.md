@@ -268,6 +268,32 @@ the descriptor roster. To change an existing strand body or web descriptor, pres
 the panel and edit its source in `$EDITOR`. Publish either route through the panel's
 normal `sase memory init` flow described in [Memory panel](ace.md#memory-panel).
 
+### Strand supersession
+
+A strand may declare that it was superseded inside its free-form `metadata` mapping —
+there is no separate top-level frontmatter key:
+
+```yaml
+metadata:
+  status: superseded-in-part
+  superseded_by:
+    - decisions/webs-render-in-their-own-section
+    - decisions/memory-links-are-authored
+```
+
+`status` recognizes only `superseded` (the whole record) and `superseded-in-part` (some
+of it). Every other value, including `accepted`, is left alone. `superseded_by` is one
+non-empty target or a list of them, in any form `[[...]]` accepts. The scope of a
+partial supersession lives in the strand body next to the retired passage, carried by an
+authored `[[...]]` back-link on the older record; do not reword or delete the accepted
+body beyond adding that mark.
+
+The roster shows the mark (`_[superseded by ...]_` or `_[partly superseded by ...]_` on
+a list roster; a bare `[superseded]` / `[partly superseded]` suffix on an inline roster)
+and `sase memory read`/`show` print a status line after the strand's provenance.
+Annotation never hides a strand. `sase doctor` and `sase memory init` report
+disagreements between the declaration and the body as warnings, not blockers.
+
 ## Memory Links
 
 A flat note, a memory-web descriptor, and a strand can each declare how the links in

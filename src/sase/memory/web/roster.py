@@ -9,6 +9,12 @@ from sase.markdown_wrap import wrap_markdown
 from .frontmatter import replace_web_body_with_canonical_frontmatter
 from .lookup import ordered_web_strands, strand_glossary_catalog
 from .models import MemoryWeb
+from .supersession import (
+    StrandSupersession,
+    format_inline_roster_supersession_suffix,
+    format_roster_supersession_marker,
+    parse_strand_supersession,
+)
 
 START_MARKER = "<!-- sase:strands -->"
 END_MARKER = "<!-- /sase:strands -->"
@@ -55,12 +61,20 @@ def strip_managed_roster_markers(body: str) -> str:
     return stripped
 
 
-def _inline_entry(keyword: str, display_aliases: tuple[str, ...]) -> str:
+def _inline_entry(
+    keyword: str,
+    display_aliases: tuple[str, ...],
+    supersession: StrandSupersession | None = None,
+) -> str:
     escaped_keyword = md_escape(keyword)
     if not display_aliases:
-        return escaped_keyword
-    escaped_aliases = ", ".join(md_escape(alias) for alias in display_aliases)
-    return f"{escaped_keyword} ({escaped_aliases})"
+        entry = escaped_keyword
+    else:
+        escaped_aliases = ", ".join(md_escape(alias) for alias in display_aliases)
+        entry = f"{escaped_keyword} ({escaped_aliases})"
+    if supersession is None:
+        return entry
+    return f"{entry} {format_inline_roster_supersession_suffix(supersession)}"
 
 
 def render_strand_roster(web: MemoryWeb) -> str:
@@ -70,7 +84,11 @@ def render_strand_roster(web: MemoryWeb) -> str:
     if web.roster == "inline":
         catalog = strand_glossary_catalog(strands)
         entries = "; ".join(
-            _inline_entry(strand.keyword, catalog_entry.display_aliases)
+            _inline_entry(
+                strand.keyword,
+                catalog_entry.display_aliases,
+                parse_strand_supersession(strand),
+            )
             for strand, catalog_entry in zip(strands, catalog.entries, strict=True)
         )
         line = f"**{web.roster_label}:** {entries}".rstrip()
@@ -80,7 +98,14 @@ def render_strand_roster(web: MemoryWeb) -> str:
     lines: list[str] = []
     for strand in strands:
         summary = strand.summary or ""
-        bullet = f"- **{strand.keyword}** (`{strand.slug}`) - {summary}".rstrip()
+        supersession = parse_strand_supersession(strand)
+        if supersession is None:
+            bullet = f"- **{strand.keyword}** (`{strand.slug}`) - {summary}".rstrip()
+        else:
+            marker = format_roster_supersession_marker(supersession, web_slug=web.slug)
+            bullet = (
+                f"- **{strand.keyword}** (`{strand.slug}`) - {marker} {summary}"
+            ).rstrip()
         lines.append(wrap_markdown(bullet, width=width))
     return "\n".join(lines)
 
