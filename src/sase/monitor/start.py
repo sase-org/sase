@@ -451,7 +451,7 @@ def _resolve_monitor_workspace_num(
     lane_workspace_num: int | None,
 ) -> int:
     """Return the workspace number that owns the monitor command's cwd."""
-    if cwd_matches_lane and lane_workspace_num not in (None, 0):
+    if cwd_matches_lane and lane_workspace_num is not None and lane_workspace_num != 0:
         return lane_workspace_num
 
     cwd_workspace_num = _lookup_workspace_num_for_dir(project_file, cwd)

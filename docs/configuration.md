@@ -180,12 +180,13 @@ project, log, statistics, proc, update, and xprompt work on open. Direct command
 as **Open logs panel**, **Open procs panel**, **Open statistics**, and update actions
 still open their requested pane immediately and make that successfully mounted section
 the next resume target. Closing and reopening with one `#` still returns to home; only a
-second press while home is visible resumes. The top-level resume target, alternate, and
-entry bookmarks for Config, Logs, Projects, Procs, and Updates last only for the current
-ACE process. They restore by stable identity, along with minimal scope or sub-tab
-context when needed, but reset when ACE restarts. Filters, marks, scroll positions,
-loaded data, pane instances, Statistics controls, and other pane-local state are never
-carried between modal lifetimes.
+second press while home is visible resumes. The top-level resume target and alternate
+are persisted machine-locally and survive ACE process restarts. Entry bookmarks for
+Config, Logs, Projects, Procs, and Updates last only for the current ACE process. They
+restore by stable identity, along with minimal scope or sub-tab context when needed, but
+reset when ACE restarts. Filters, marks, scroll positions, loaded data, pane instances,
+Statistics controls, and other pane-local state are never carried between modal
+lifetimes.
 
 ### Config tab
 

@@ -35,16 +35,17 @@ def move_gate_shell_claim(
     workspace_policy: str,
 ) -> GateClaimMove:
     """Move or release the creator claim for a pending gate shell."""
-    if workspace_num in (None, 0) or creator_pid is None:
+    if workspace_num is None or workspace_num == 0 or creator_pid is None:
         return GateClaimMove(
             result=ClaimResult(True),
             creator_claim=None,
             gate_pid=None,
             workspace_policy=workspace_policy,
         )
+    workspace_id = workspace_num
     creator_claim = _find_claim(
         project_file,
-        workspace_num=int(workspace_num),
+        workspace_num=workspace_id,
         pid=creator_pid,
     )
     if creator_claim is None:
@@ -57,7 +58,7 @@ def move_gate_shell_claim(
     if workspace_policy == "release":
         result = release_workspace(
             project_file,
-            int(workspace_num),
+            workspace_id,
             creator_claim.workflow,
             creator_claim.cl_name,
             caller_tag="gate-shell-create",
@@ -71,7 +72,7 @@ def move_gate_shell_claim(
 
     result = transfer_workspace_claim(
         project_file,
-        int(workspace_num),
+        workspace_id,
         from_pid=creator_pid,
         to_pid=creator_pid,
         new_workflow=GATE_WORKSPACE_CLAIM_WORKFLOW,

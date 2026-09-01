@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from sase.ace.tui.actions._durable_ops import (
     durable_fingerprint,
@@ -147,7 +147,8 @@ def _ask_retry_choice(
             app.notify(_incomplete_attempt_message(partial), severity="warning")  # type: ignore[attr-defined]
             _refresh_notifications(app)
             return
-        submit_gate_execution_task(app, notification, replace(submission, retry=choice))
+        retry = cast(Literal["resume", "restart"], choice)
+        submit_gate_execution_task(app, notification, replace(submission, retry=retry))
 
     app.push_screen(  # type: ignore[attr-defined]
         GateRetryModal(

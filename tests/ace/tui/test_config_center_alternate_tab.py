@@ -7,6 +7,7 @@ from textual.widgets import Input
 
 from sase.ace.testing import AcePage
 from sase.ace.tui import AceApp
+from sase.ace.tui.modals import config_center_state
 from sase.ace.tui.modals.config_center_footer import AdminCenterFooter
 from sase.ace.tui.modals.config_center_history import AdminCenterTabHistory
 from sase.ace.tui.modals.config_center_modal import CenterTab, ConfigCenterModal
@@ -241,3 +242,28 @@ async def test_footer_click_navigates_to_the_alternate_section(
 
         await page.click("#config-center-footer")
         await page.wait_for(lambda _state: modal._active_tab == "config")
+
+
+async def test_persisted_file_contains_both_lines_in_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_stub_panes(monkeypatch)
+    async with AcePage() as page:
+        await page.press("number_sign")
+        await page.expect_modal("ConfigCenterModal")
+        modal = page.app.screen
+        assert isinstance(modal, ConfigCenterModal)
+
+        await page.press("1")
+        await page.wait_for(lambda _state: modal._active_tab == "config")
+        await page.press("2")
+        await page.wait_for(lambda _state: modal._active_tab == "logs")
+        await page.wait_for(
+            lambda _state: (
+                page.app._admin_center_tab_completed_generation
+                == page.app._admin_center_tab_save_generation
+            )
+        )
+
+        path = config_center_state._admin_center_last_tab_path()
+        assert path.read_bytes() == b"logs\nconfig\n"

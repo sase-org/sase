@@ -47,20 +47,26 @@ def init_runtime_state(
     # overwrite it here so first paint reflects the requested tab.
     self._reactive_current_tab = initial_tab
     # The Admin Center always opens home-first, but a repeated opener may
-    # resume the last section that was successfully active in this ACE
-    # process; a second, non-priority opener meaning inside a working tab
-    # jumps to the alternate slot of the same pair. Nothing here is
-    # persisted to disk: the history dies with the process, and panes and
-    # their state remain scoped to one modal lifetime.
-    from ..modals.config_center_history import AdminCenterTabHistory
+    # resume the last section that was successfully active in this or a
+    # previous ACE process; a second, non-priority opener meaning inside a
+    # working tab jumps to the alternate slot of the same pair. This is
+    # one bounded read before the event loop starts; panes and their
+    # state remain scoped to one modal lifetime.
     from ..modals.config_center_session import AdminCenterSessionState
+    from ..modals.config_center_state import load_admin_center_tab_history
     from ..modals.notification_section_modes import NotificationSectionModes
 
     self._admin_center_session_state = AdminCenterSessionState()
-    self._admin_center_history = AdminCenterTabHistory()
+    self._admin_center_history = load_admin_center_tab_history()
+    self._last_admin_center_tab = self._admin_center_history.current
+    self._admin_center_tab_durable = self._admin_center_history
+    self._admin_center_tab_queued = None
+    self._admin_center_tab_save_generation = 0
+    self._admin_center_tab_completed_generation = 0
+    self._admin_center_tab_save_pending = None
+    self._admin_center_tab_save_task = None
     # Notification list section mode choices are per ACE process by design.
     self._notification_section_modes = NotificationSectionModes()
-    self._last_admin_center_tab = None
     self._init_proc_observer()
     self.theme = ACE_THEME_NAME
     self._auto_start_axe = auto_start_axe

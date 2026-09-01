@@ -69,7 +69,9 @@ class AxeConfigActionsMixin:
             return
         guard = self._selected_axe_config_key()
         contextual_parent: str | None = None
-        if guard is not None and guard[0] in {"lumberjack", "chop"}:
+        if guard is not None and guard[0] == "lumberjack":
+            contextual_parent = guard[1]
+        elif guard is not None and guard[0] == "chop":
             contextual_parent = guard[1]
 
         def chosen(kind: str | None) -> None:

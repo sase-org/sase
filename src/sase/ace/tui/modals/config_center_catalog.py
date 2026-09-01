@@ -192,8 +192,8 @@ def validated_center_tab(value: object) -> CenterTab | None:
     """Return a catalog-backed Admin Center tab identity, if valid.
 
     A legacy top-level ``xprompts`` identity from the pre-cutover Admin
-    Center maps to ``config`` as a cheap guard for stray callers still
-    passing the old id.
+    Center maps to ``config`` so old durable resume state keeps opening
+    the Config hub. It resumes on the hub's first sub-tab.
     """
     if not isinstance(value, str):
         return None
