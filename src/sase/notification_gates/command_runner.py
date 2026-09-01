@@ -3,8 +3,10 @@
 Every gate command — the terminal ones an option runs and the repeatable ones
 an action runs — goes through :func:`run_owned_command`, so both share one
 trust model: the command's hash is re-verified against the reviewed envelope,
-it is started with ``shell=False`` against ``/proc/self/fd/N``, and reviewer
-input reaches it as canonical JSON on stdin and never through ``argv``.
+it is started with ``shell=False`` against the descriptor it was hashed from,
+and reviewer input reaches it as canonical JSON on stdin and never through
+``argv``. See :func:`_exec_target` for how that descriptor becomes an argv[0]
+on platforms without ``/proc``.
 """
 
 from __future__ import annotations
@@ -27,6 +29,8 @@ from sase.notification_gates.durability import atomic_write_json, canonical_json
 from sase.notification_gates.models import GATE_RESPONSE_SCHEMA_VERSION, GateError
 from sase.notification_gates.paths import open_regular_nofollow, owned_resource_path
 
+_PROC_FD_DIR = Path("/proc/self/fd")
+
 
 def run_owned_command(
     bundle_path: Path,
@@ -48,14 +52,14 @@ def run_owned_command(
                 "command changed before execution",
             )
         os.lseek(command_fd, 0, os.SEEK_SET)
-        argv = (f"/proc/self/fd/{command_fd}", *command_argv[1:])
+        argv, pass_fds = _exec_target(command_fd, command_path, command_argv)
         try:
             if on_output_line is not None:
                 return _run_command_streaming(
                     argv,
                     input_data=canonical_json_bytes(input_data) + b"\n",
                     cwd=bundle_path,
-                    pass_fds=(command_fd,),
+                    pass_fds=pass_fds,
                     on_output_line=on_output_line,
                     on_process_state=on_process_state,
                 )
@@ -64,7 +68,7 @@ def run_owned_command(
                 input=canonical_json_bytes(input_data) + b"\n",
                 capture_output=True,
                 cwd=bundle_path,
-                pass_fds=(command_fd,),
+                pass_fds=pass_fds,
                 shell=False,
                 check=False,
             )
@@ -76,6 +80,39 @@ def run_owned_command(
             ) from exc
     finally:
         os.close(command_fd)
+
+
+def _exec_target(
+    command_fd: int, command_path: Path, command_argv: tuple[str, ...]
+) -> tuple[tuple[str, ...], tuple[int, ...]]:
+    """Resolve the argv and inherited descriptors one verified command runs with.
+
+    Where ``/proc`` exists the command is exec'd as ``/proc/self/fd/N``, so the
+    bytes that run are exactly the bytes that were just hashed and no path is
+    resolved a second time. macOS has neither ``/proc`` nor ``fexecve``, so
+    there the command runs from its own path, re-checked against the verified
+    descriptor's device and inode: a file swapped in after hashing no longer
+    names the same inode and is refused rather than executed.
+    """
+    if _PROC_FD_DIR.is_dir():
+        return (f"/proc/self/fd/{command_fd}", *command_argv[1:]), (command_fd,)
+    _reject_swapped_command(command_fd, command_path, command_argv[0])
+    return (str(command_path), *command_argv[1:]), ()
+
+
+def _reject_swapped_command(fd: int, path: Path, target: str) -> None:
+    """Refuse a path that no longer names the descriptor whose bytes were hashed."""
+    verified = os.fstat(fd)
+    try:
+        current = os.lstat(path)
+    except OSError as exc:
+        raise GateError(
+            "unsafe_file",
+            target,
+            f"cannot re-check command before execution: {exc}",
+        ) from exc
+    if (current.st_dev, current.st_ino) != (verified.st_dev, verified.st_ino):
+        raise GateError("hash_mismatch", target, "command changed before execution")
 
 
 def _ignorable_stdin_error(exc: OSError) -> bool:

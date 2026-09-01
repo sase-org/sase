@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import stat
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -179,8 +180,18 @@ def _reject_symlink_components(path: Path, *, stop: Path) -> None:
 
 
 def open_regular_nofollow(path: Path) -> int:
-    """Open a regular file without following a final symlink."""
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    """Open a regular file without following a final symlink.
+
+    The regular-file check is an ``fstat`` on the open descriptor rather than a
+    stat of ``/proc/self/fd/N``. ``/proc`` does not exist off Linux, so the path
+    form failed every open on macOS, and even where it does exist it re-resolves
+    the descriptor through a magic symlink instead of inspecting what was opened.
+
+    ``O_NONBLOCK`` keeps a FIFO from parking the open forever, so a non-regular
+    resource is rejected instead of hanging the caller; it has no effect on the
+    regular files this is for.
+    """
+    flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0)
     try:
         fd = os.open(path, flags)
     except OSError as exc:
@@ -188,7 +199,7 @@ def open_regular_nofollow(path: Path) -> int:
             "unsafe_file", str(path), f"cannot safely open {path}: {exc}"
         ) from exc
     try:
-        if not os.path.isfile(f"/proc/self/fd/{fd}"):
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
             raise GateError(
                 "unsafe_file", str(path), "owned resource is not a regular file"
             )
