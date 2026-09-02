@@ -432,7 +432,14 @@ def prepare_launch_workspace_repos(
 
     clear_workspace_repos(workspace_dir, workspace_num)
 
-    from sase.sdd.store import ensure_workspace_sdd_clone
+    from sase.sdd._paths import get_primary_workspace_dir
+    from sase.sdd._store_records import is_materialized_record, read_sdd_store_record
+    from sase.sdd.store import auto_connect_sdd_store, ensure_workspace_sdd_clone
+
+    primary = Path(get_primary_workspace_dir(workspace_dir, workspace_num))
+    already_connected = is_materialized_record(read_sdd_store_record(primary))
+    if auto_connect_sdd_store(workspace_dir, workspace_num) and not already_connected:
+        print("Connected existing SDD sidecars for first use on this machine")
 
     ensure_workspace_sdd_clone(
         workspace_dir,

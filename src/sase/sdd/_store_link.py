@@ -23,6 +23,7 @@ from sase.sdd._store_git import (
     set_sdd_origin as _set_sdd_origin,
 )
 from sase.sdd._store_integration import pull_sdd_clone
+from sase.sdd._store_records import is_materialized_record, read_sdd_store_record
 from sase.sdd._store_types import (
     SDD_STORAGE_SEPARATE_REPO,
     SddMaterializationError,
@@ -208,9 +209,11 @@ def ensure_workspace_sdd_clone(
                 strict=strict,
             )
         elif strict:
-            raise SddMaterializationError(
-                f"could not create workspace SDD sidecar clone at {workspace_sdd}"
-            )
+            if is_materialized_record(read_sdd_store_record(primary)):
+                raise SddMaterializationError(
+                    f"could not create workspace SDD sidecar clone at {workspace_sdd}"
+                )
+            raise SddMaterializationError(_no_materialized_record_message(primary))
     except Exception as exc:
         if strict:
             if isinstance(exc, SddMaterializationError):
@@ -225,6 +228,29 @@ def ensure_workspace_sdd_clone(
         from sase.workspace_provider.git_exclude import ensure_sase_git_info_excludes
 
         ensure_sase_git_info_excludes(str(workspace / ".sase" / "sdd"))
+
+
+def _no_materialized_record_message(primary: Path) -> str:
+    """Describe the ``sase repo init`` remedy for an unconnected SDD store."""
+
+    from sase.content_layout import (
+        resolve_project_config_read_path,
+        resolve_project_config_write_path,
+    )
+    from sase.project_management import project_management_status
+
+    config_path = resolve_project_config_read_path(primary)
+    if config_path is None:
+        config_path = resolve_project_config_write_path(primary)
+    management = project_management_status(config_path)
+
+    message = (
+        f"{primary}: this project's SDD store has never been initialized on "
+        "this machine; run `sase repo init` in that checkout to connect it"
+    )
+    if management.error is not None or not management.is_sase_managed:
+        message += f" (set is_sase_managed: true in {primary}'s sase/sase.yml first)"
+    return message
 
 
 def _replace_workspace_sdd_clone(

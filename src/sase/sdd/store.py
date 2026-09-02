@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from sase.workspace_provider import SddSidecarPreflight
 
+from sase.sdd._auto_init import auto_connect_sdd_store
 from sase.sdd._paths import get_primary_workspace_dir
 from sase.sdd._store_materialization import (
     SddInitOutcome,
@@ -64,6 +65,7 @@ __all__ = [
     "SddStorage",
     "SddStore",
     "SddStoreRecord",
+    "auto_connect_sdd_store",
     "create_and_materialize_sdd_store",
     "delete_sdd_store_record",
     "document_sidecar_roles",

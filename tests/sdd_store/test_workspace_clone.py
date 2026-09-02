@@ -8,6 +8,7 @@ import subprocess
 import pytest
 
 from sase.sdd.store import (
+    SddMaterializationError,
     ensure_sdd_kind_clone,
     ensure_workspace_sdd_clone,
     write_sdd_store_record,
@@ -241,3 +242,51 @@ def test_nested_repo_inherits_owner_sdd_record_without_nested_sidecar(
 
     assert (workspace / "sase" / "repos" / "plans" / "README.md").is_file()
     assert not (nested / "sase").exists()
+
+
+def test_strict_clone_failure_with_no_record_names_repo_init_remedy(
+    tmp_path: Path,
+    provider_patch,
+) -> None:
+    primary = tmp_path / "repo"
+    primary.mkdir()
+    (primary / ".git").mkdir()
+    workspace = tmp_path / "repo_2"
+    workspace.mkdir()
+    provider_patch("github")
+
+    with pytest.raises(SddMaterializationError) as excinfo:
+        ensure_workspace_sdd_clone(workspace, 2, strict=True)
+
+    message = str(excinfo.value)
+    assert str(primary) in message
+    assert "sase repo init" in message
+    assert "is_sase_managed" in message
+
+
+def test_strict_clone_failure_with_materialized_record_keeps_original_message(
+    tmp_path: Path,
+    provider_patch,
+) -> None:
+    primary = tmp_path / "repo"
+    workspace = tmp_path / "repo_2"
+    workspace.mkdir()
+    write_sdd_store_record(
+        primary,
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "remote_url": str(tmp_path / "missing.git"),
+            "discovery": "found",
+        },
+    )
+    provider_patch(None)
+
+    with pytest.raises(SddMaterializationError) as excinfo:
+        ensure_workspace_sdd_clone(workspace, 2, strict=True)
+
+    workspace_sdd = workspace / ".sase" / "sdd"
+    assert (
+        str(excinfo.value)
+        == f"could not create workspace SDD sidecar clone at {workspace_sdd}"
+    )
