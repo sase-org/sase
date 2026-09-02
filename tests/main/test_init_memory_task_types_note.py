@@ -133,7 +133,7 @@ def test_project_root_writes_task_type_web_descriptor_and_strands(
     assert "web: true" in descriptor_text
     assert "roster: list" in descriptor_text
     assert "strand_noun: task type" in descriptor_text
-    assert "- **Bug** (`bug`)" in descriptor_text
+    assert "1. **Bug** (`bug`)" in descriptor_text
 
     strand_text = strand.read_text(encoding="utf-8")
     assert "keyword: Bug" in strand_text

@@ -73,8 +73,7 @@ def managed_agents(
         long_block = [long_entry, "", "Skill pipeline notes."]
     else:
         long_block = [
-            "**`sase/memory/generated_skills.md`**  ",
-            "Skill pipeline notes.",
+            "1. **`sase/memory/generated_skills.md`** - Skill pipeline notes.",
         ]
     return "\n".join(
         [

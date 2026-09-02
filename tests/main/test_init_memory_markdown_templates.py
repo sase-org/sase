@@ -219,7 +219,7 @@ def test_generated_child_long_note_metadata_renders_single_pass(
 
     assert plan.blockers == ()
     assert plan.agents_content is not None
-    assert "### 2.1 `sase/memory/parent.md`" in plan.agents_content
+    assert "1. **`sase/memory/parent.md`** - Parent." in plan.agents_content
     assert "sase/memory/generated_child.md" not in plan.agents_content
     assert render_children_section((parent, generated_child), parent) == (
         "## Children\n\n"
@@ -233,7 +233,7 @@ def test_generated_child_long_note_metadata_renders_single_pass(
     )
 
 
-def test_tier2_renders_intro_then_h3_note_entries(tmp_path: Path) -> None:
+def test_tier2_renders_intro_then_list_note_entries(tmp_path: Path) -> None:
     write(tmp_path / "sase.yml", 'memory:\n  h1_title: "Managed Instructions"\n')
     write(
         tmp_path / "sase" / "memory" / "parent.md",
@@ -251,7 +251,7 @@ def test_tier2_renders_intro_then_h3_note_entries(tmp_path: Path) -> None:
     content = plan.agents_content
     tier2_index = content.index("## 2. Reference Memory")
     intro_index = content.index("The below files contain detailed reference material")
-    note_index = content.index("### 2.1 `sase/memory/parent.md`")
+    note_index = content.index("1. **`sase/memory/parent.md`** - Parent.")
     assert tier2_index < intro_index < note_index
     between_h2_and_intro = content[
         tier2_index + len("## 2. Reference Memory") : intro_index

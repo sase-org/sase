@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
+import re
 
 from ._agents_doc import (
     collect_long_memory_entries,
@@ -28,7 +29,7 @@ from sase.memory.notes import (
     apply_memory_frontmatter,
     discover_memory_notes,
     normalize_memory_note_type,
-    render_long_memory_sections,
+    render_long_memory_entries,
 )
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
 
@@ -45,6 +46,9 @@ _WEB_MEMORY_INTRO = (
     '-r "<why>"`.'
 )
 _WEB_MEMORY_INTRO_FIRST_SENTENCE = _WEB_MEMORY_INTRO.split(".", 1)[0] + "."
+_LONG_MEMORY_BLOCK_DESCRIPTION_RE = re.compile(
+    r"^\s*(?:[-*+](?:\s|$)|\d+[.)](?:\s|$)|>|```|~~~)"
+)
 
 
 def _existing_agents_long_descriptions(root: Path) -> dict[str, str]:
@@ -345,7 +349,21 @@ def _long_memory_description_blockers(
                 f"{relative_path}: reference memory note description must not contain "
                 "Markdown headings"
             )
+        if _is_multi_block_long_memory_description(description):
+            blockers.append(
+                f"{relative_path}: reference memory note description must be a "
+                "single paragraph"
+            )
     return tuple(blockers)
+
+
+def _is_multi_block_long_memory_description(description: str) -> bool:
+    for line in description.splitlines():
+        if not line.strip():
+            return True
+        if _LONG_MEMORY_BLOCK_DESCRIPTION_RE.match(line):
+            return True
+    return False
 
 
 def _render_managed_agents(
@@ -413,7 +431,7 @@ def _render_managed_agents(
             existing_agents_descriptions=existing_descriptions,
         )
         rendered_long_notes.append(replace(note, description=description))
-    long_entries = render_long_memory_sections(rendered_long_notes)
+    long_entries = render_long_memory_entries(rendered_long_notes)
     reference_entries = (
         "" if not long_entries else f"{_LONG_MEMORY_INTRO}\n\n{long_entries}"
     )

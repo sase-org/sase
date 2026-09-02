@@ -73,9 +73,10 @@ def test_init_memory_managed_agents_wraps_long_memory_descriptions(
     assert plan.actions == ()
 
 
-def test_init_memory_managed_agents_renders_block_long_memory_descriptions(
+def test_init_memory_rejects_block_long_memory_descriptions(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     project_root = tmp_path / "project"
     home_root = tmp_path / "home"
@@ -108,23 +109,10 @@ def test_init_memory_managed_agents_renders_block_long_memory_descriptions(
         "# Block\n",
     )
 
-    assert run_handler() == 0
-
-    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert (
-        "### 2.1 `sase/memory/block.md`\n\n"
-        "Lead paragraph.\n\n- One\n- Two\n\nTrailer.\n"
-    ) in agents
-    parsed = parse_amd_agents_document(agents)
-    expected_paths = (
-        "sase/memory/block.md",
-        "sase/memory/sase_artifacts.md",
-        "sase/memory/sase_beads.md",
-    )
-    assert tuple(entry.path for entry in parsed.long_memory_entries) == expected_paths
-    block_entry = parsed.long_memory_entries[0]
-    assert block_entry.description == "Lead paragraph.\n\n- One\n- Two\n\nTrailer."
-    assert plan_memory().actions == ()
+    assert run_handler() == 1
+    err = capsys.readouterr().err
+    assert "sase/memory/block.md" in err
+    assert "must be a single paragraph" in err
 
 
 def test_existing_agents_long_descriptions_preserves_legacy_block_descriptions(
@@ -180,6 +168,49 @@ def test_existing_agents_long_descriptions_reads_section_shape_without_anchor(
     }
 
 
+def test_existing_agents_long_descriptions_reads_ordered_list_shape(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    write(
+        root / "AGENTS.md",
+        "# Managed\n\n"
+        "## Reference Memory\n\n"
+        "The below files contain detailed reference material.\n\n"
+        "1. **`sase/memory/alpha.md`** - Alpha description wraps across\n"
+        "   multiple physical lines.\n"
+        "2. **`sase/memory/bare.md`**\n"
+        "10. **`memory/tenth.md`** - Tenth description starts here\n"
+        "    and continues after the wider marker.\n"
+        "\n"
+        "## Other\n"
+        "Should not be part of the description.\n",
+    )
+
+    parsed = parse_amd_agents_document((root / "AGENTS.md").read_text(encoding="utf-8"))
+    assert tuple(entry.path for entry in parsed.long_memory_entries) == (
+        "sase/memory/alpha.md",
+        "sase/memory/bare.md",
+        "sase/memory/tenth.md",
+    )
+    assert parsed.long_memory_entries[0].description == (
+        "Alpha description wraps across multiple physical lines."
+    )
+    assert parsed.long_memory_entries[1].description == ""
+    assert parsed.long_memory_entries[2].description == (
+        "Tenth description starts here and continues after the wider marker."
+    )
+    assert _existing_agents_long_descriptions(root) == {
+        "sase/memory/alpha.md": (
+            "Alpha description wraps across multiple physical lines."
+        ),
+        "sase/memory/tenth.md": (
+            "Tenth description starts here and continues after the wider marker."
+        ),
+    }
+
+
 def test_init_memory_rejects_long_memory_description_with_heading(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -221,9 +252,10 @@ def test_init_memory_rejects_long_memory_description_with_heading(
     assert "must not contain Markdown headings" in err
 
 
-def test_init_memory_allows_fenced_hash_in_long_memory_description(
+def test_init_memory_rejects_fenced_long_memory_description(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     project_root = tmp_path / "project"
     home_root = tmp_path / "home"
@@ -257,8 +289,7 @@ def test_init_memory_allows_fenced_hash_in_long_memory_description(
         "# Foo\n",
     )
 
-    assert run_handler() == 0
-    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "### 2.1 `sase/memory/foo.md`" in agents
-    assert "# comment" in agents
-    assert plan_memory().blockers == ()
+    assert run_handler() == 1
+    err = capsys.readouterr().err
+    assert "sase/memory/foo.md" in err
+    assert "must be a single paragraph" in err

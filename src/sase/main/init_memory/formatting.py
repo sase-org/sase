@@ -9,6 +9,7 @@ from sase.markdown_width import markdown_print_width
 
 _FENCE_MARKERS = ("```", "~~~")
 _STANDALONE_STRONG_LABEL_RE = re.compile(r"^\*\*[^*].*?\*\*[ \t]*$")
+_LIST_ITEM_RE = re.compile(r"^(?P<marker>(?:[-*+]|\d+[.)])\s+)")
 _INLINE_CODE_SPAN_RE = re.compile(r"`[^`\n]+`")
 _CODE_SPAN_SPACE_SENTINEL = "\x00"
 _DASH_SEPARATOR_RE = re.compile(r"(?<=\S) - (?=\S)")
@@ -38,7 +39,13 @@ def _is_heading(line: str) -> bool:
 
 
 def _is_list_item(line: str) -> bool:
-    return line.startswith("- ")
+    return _LIST_ITEM_RE.match(line) is not None
+
+
+def _list_item_marker(line: str) -> str:
+    match = _LIST_ITEM_RE.match(line)
+    assert match is not None
+    return match.group("marker")
 
 
 def _is_standalone_strong_label(line: str) -> bool:
@@ -143,7 +150,8 @@ def format_generated_memory_markdown(content: str) -> str:
             continue
 
         if _is_list_item(line):
-            paragraph_parts = [line[2:].strip()]
+            marker = _list_item_marker(line)
+            paragraph_parts = [line[len(marker) :].strip()]
             index += 1
             while index < len(source_lines):
                 next_line = source_lines[index].rstrip()
@@ -155,8 +163,8 @@ def format_generated_memory_markdown(content: str) -> str:
                 _wrap_text(
                     " ".join(paragraph_parts),
                     width=width,
-                    initial_indent="- ",
-                    subsequent_indent="  ",
+                    initial_indent=marker,
+                    subsequent_indent=" " * len(marker),
                 )
             )
             continue

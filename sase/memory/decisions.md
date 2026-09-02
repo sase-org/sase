@@ -20,30 +20,30 @@ costs, and the condition that would reopen it.
 
 <!-- sase:strands -->
 
-- **A Gate Never Blocks An Agent** (`gates-never-block`) - Creating a gate from inside
-  an agent ends that agent's turn; continuation is a gate shell's follow-up, never a
-  wait.
-- **Agents Are Single-Turn** (`single-turn-agents`) - A SASE agent run is one provider
-  turn; continuation is always mechanical, never a promise to resume.
-- **Completion Is Host-Owned** (`host-owned-completion`) - An agent never creates
-  commits, branches, or PRs; it submits a declaration and host-owned finalizers act.
-- **Memory Links Are Authored** (`memory-links-are-authored`) - A memory file declares
-  how its links are detected and rendered, and authors links inline as `[[target]]` /
-  `![[target]]`.
-- **Memory Webs** (`memory-webs`) - _[partly superseded by
-  `webs-render-in-their-own-section`, `memory-links-are-authored`]_ A keyed memory
-  collection is a flat descriptor note plus a sibling strand directory, addressed
-  web:keyword.
-- **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`) - A
-  memory web's placement in generated agent instructions follows from its kind, not from
-  a `type:` declaration on its descriptor.
-- **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`) - SASE does
-  not build memory retrieval or linking machinery ahead of a corpus that demonstrably
-  needs it.
-- **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
-  in sase-core with no Python fallback and no env-var backend switch.
-- **Verification Is Two-Speed** (`two-speed-verification`) - just check is the agent
-  default and just check-full gates landing, because host capacity is the constraint,
-  not test speed.
+1. **A Gate Never Blocks An Agent** (`gates-never-block`) - Creating a gate from inside
+   an agent ends that agent's turn; continuation is a gate shell's follow-up, never a
+   wait.
+2. **Agents Are Single-Turn** (`single-turn-agents`) - A SASE agent run is one provider
+   turn; continuation is always mechanical, never a promise to resume.
+3. **Completion Is Host-Owned** (`host-owned-completion`) - An agent never creates
+   commits, branches, or PRs; it submits a declaration and host-owned finalizers act.
+4. **Memory Links Are Authored** (`memory-links-are-authored`) - A memory file declares
+   how its links are detected and rendered, and authors links inline as `[[target]]` /
+   `![[target]]`.
+5. **Memory Webs** (`memory-webs`) - _[partly superseded by
+   `webs-render-in-their-own-section`, `memory-links-are-authored`]_ A keyed memory
+   collection is a flat descriptor note plus a sibling strand directory, addressed
+   web:keyword.
+6. **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`) - A
+   memory web's placement in generated agent instructions follows from its kind, not
+   from a `type:` declaration on its descriptor.
+7. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`) - SASE does
+   not build memory retrieval or linking machinery ahead of a corpus that demonstrably
+   needs it.
+8. **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
+   in sase-core with no Python fallback and no env-var backend switch.
+9. **Verification Is Two-Speed** (`two-speed-verification`) - just check is the agent
+   default and just check-full gates landing, because host capacity is the constraint,
+   not test speed.
 
 <!-- /sase:strands -->

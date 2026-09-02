@@ -96,15 +96,17 @@ def render_strand_roster(web: MemoryWeb) -> str:
 
     width = markdown_print_width()
     lines: list[str] = []
-    for strand in strands:
+    for number, strand in enumerate(strands, start=1):
         summary = strand.summary or ""
         supersession = parse_strand_supersession(strand)
         if supersession is None:
-            bullet = f"- **{strand.keyword}** (`{strand.slug}`) - {summary}".rstrip()
+            bullet = (
+                f"{number}. **{strand.keyword}** (`{strand.slug}`) - {summary}"
+            ).rstrip()
         else:
             marker = format_roster_supersession_marker(supersession, web_slug=web.slug)
             bullet = (
-                f"- **{strand.keyword}** (`{strand.slug}`) - {marker} {summary}"
+                f"{number}. **{strand.keyword}** (`{strand.slug}`) - {marker} {summary}"
             ).rstrip()
         lines.append(wrap_markdown(bullet, width=width))
     return "\n".join(lines)

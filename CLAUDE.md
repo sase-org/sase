@@ -105,56 +105,34 @@ The below files contain detailed reference material. When working in their domai
 MUST use your `/sase_memory_read` skill to review their contents. Do not read canonical
 memory files directly.
 
-### 2.1 `sase/memory/cli_rules.md`
-
-Read anytime new CLI subcommands or options are added.
-
-### 2.2 `sase/memory/generated_skills.md`
-
-Read when working with sase agent skills (aka xprompt skills), which are generated from
-source templates in the `src/sase/xprompts/skills/` and deployed to managed locations
-(my chezmoi repo, for example).
-
-### 2.3 `sase/memory/lint_and_test.md`
-
-IMPORTANT: if you changed ANY file in the sase repo, you MUST read this note before you
-finish your turn. Verification is not optional here and the lanes are not
-interchangeable: this note covers the `just` command surface, the two-speed rule that
-makes `just check` the agent default and `just check-full` a monitor-only landing gate,
-the `just install` prerequisite for ephemeral workspace clones, and the PNG snapshot
-suite.
-
-### 2.4 `sase/memory/sase_artifacts.md`
-
-Read before creating, consuming, resolving, linking, or managing retention for SASE
-artifact references and indexed files.
-
-### 2.5 `sase/memory/sase_beads.md`
-
-Read before creating, updating, closing, or querying sase beads — bead types and tiers,
-the status lifecycle agents must never hand-edit, task-bead triage, phase-bead
-description prefixes, and non-cascading close, resolution, and note semantics.
-
-### 2.6 `sase/memory/sase_flags.md`
-
-Read before adding, deferring, or removing a SASE feature flag or flag bead, and before
-deprecating user-reaching behavior or landing code whose old branch must stay reachable
-for backward compatibility.
-
-### 2.7 `sase/memory/symvision.md`
-
-Read before fixing Symvision lint failures, including unused symbols, private misuse,
-pragmas, and epic whitelists.
-
-### 2.8 `sase/memory/tui_perf.md`
-
-Read before changing anything that affects TUI performance or responsiveness
-(navigation, refresh, rendering, startup), and before diagnosing TUI freezes or stalls.
-
-### 2.9 `sase/memory/xprompts.md`
-
-Read before xprompts, prompt directives, or launching agents with git/gh VCS workflow
-blocks.
+1. **`sase/memory/cli_rules.md`** - Read anytime new CLI subcommands or options are
+   added.
+2. **`sase/memory/generated_skills.md`** - Read when working with sase agent skills (aka
+   xprompt skills), which are generated from source templates in the
+   `src/sase/xprompts/skills/` and deployed to managed locations (my chezmoi repo, for
+   example).
+3. **`sase/memory/lint_and_test.md`** - IMPORTANT: if you changed ANY file in the sase
+   repo, you MUST read this note before you finish your turn. Verification is not
+   optional here and the lanes are not interchangeable: this note covers the `just`
+   command surface, the two-speed rule that makes `just check` the agent default and
+   `just check-full` a monitor-only landing gate, the `just install` prerequisite for
+   ephemeral workspace clones, and the PNG snapshot suite.
+4. **`sase/memory/sase_artifacts.md`** - Read before creating, consuming, resolving,
+   linking, or managing retention for SASE artifact references and indexed files.
+5. **`sase/memory/sase_beads.md`** - Read before creating, updating, closing, or
+   querying sase beads — bead types and tiers, the status lifecycle agents must never
+   hand-edit, task-bead triage, phase-bead description prefixes, and non-cascading
+   close, resolution, and note semantics.
+6. **`sase/memory/sase_flags.md`** - Read before adding, deferring, or removing a SASE
+   feature flag or flag bead, and before deprecating user-reaching behavior or landing
+   code whose old branch must stay reachable for backward compatibility.
+7. **`sase/memory/symvision.md`** - Read before fixing Symvision lint failures,
+   including unused symbols, private misuse, pragmas, and epic whitelists.
+8. **`sase/memory/tui_perf.md`** - Read before changing anything that affects TUI
+   performance or responsiveness (navigation, refresh, rendering, startup), and before
+   diagnosing TUI freezes or stalls.
+9. **`sase/memory/xprompts.md`** - Read before xprompts, prompt directives, or launching
+   agents with git/gh VCS workflow blocks.
 
 ## 3. Memory Webs
 
@@ -172,31 +150,31 @@ place. Read one on demand with `sase memory read decisions:<keyword> -r "<why>"`
 record states the claim, why it was chosen over the credible alternatives, what it
 costs, and the condition that would reopen it.
 
-- **A Gate Never Blocks An Agent** (`gates-never-block`) - Creating a gate from inside
-  an agent ends that agent's turn; continuation is a gate shell's follow-up, never a
-  wait.
-- **Agents Are Single-Turn** (`single-turn-agents`) - A SASE agent run is one provider
-  turn; continuation is always mechanical, never a promise to resume.
-- **Completion Is Host-Owned** (`host-owned-completion`) - An agent never creates
-  commits, branches, or PRs; it submits a declaration and host-owned finalizers act.
-- **Memory Links Are Authored** (`memory-links-are-authored`) - A memory file declares
-  how its links are detected and rendered, and authors links inline as `[[target]]` /
-  `![[target]]`.
-- **Memory Webs** (`memory-webs`) - _[partly superseded by
-  `webs-render-in-their-own-section`, `memory-links-are-authored`]_ A keyed memory
-  collection is a flat descriptor note plus a sibling strand directory, addressed
-  web:keyword.
-- **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`) - A
-  memory web's placement in generated agent instructions follows from its kind, not from
-  a `type:` declaration on its descriptor.
-- **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`) - SASE does
-  not build memory retrieval or linking machinery ahead of a corpus that demonstrably
-  needs it.
-- **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
-  in sase-core with no Python fallback and no env-var backend switch.
-- **Verification Is Two-Speed** (`two-speed-verification`) - just check is the agent
-  default and just check-full gates landing, because host capacity is the constraint,
-  not test speed.
+1. **A Gate Never Blocks An Agent** (`gates-never-block`) - Creating a gate from inside
+   an agent ends that agent's turn; continuation is a gate shell's follow-up, never a
+   wait.
+2. **Agents Are Single-Turn** (`single-turn-agents`) - A SASE agent run is one provider
+   turn; continuation is always mechanical, never a promise to resume.
+3. **Completion Is Host-Owned** (`host-owned-completion`) - An agent never creates
+   commits, branches, or PRs; it submits a declaration and host-owned finalizers act.
+4. **Memory Links Are Authored** (`memory-links-are-authored`) - A memory file declares
+   how its links are detected and rendered, and authors links inline as `[[target]]` /
+   `![[target]]`.
+5. **Memory Webs** (`memory-webs`) - _[partly superseded by
+   `webs-render-in-their-own-section`, `memory-links-are-authored`]_ A keyed memory
+   collection is a flat descriptor note plus a sibling strand directory, addressed
+   web:keyword.
+6. **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`) - A
+   memory web's placement in generated agent instructions follows from its kind, not
+   from a `type:` declaration on its descriptor.
+7. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`) - SASE does
+   not build memory retrieval or linking machinery ahead of a corpus that demonstrably
+   needs it.
+8. **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
+   in sase-core with no Python fallback and no env-var backend switch.
+9. **Verification Is Two-Speed** (`two-speed-verification`) - just check is the agent
+   default and just check-full gates landing, because host capacity is the constraint,
+   not test speed.
 
 ### 3.2 Glossary Terms (glossary)
 
@@ -224,14 +202,14 @@ Every task bead can carry a `task_type` drawn from this project's catalog.
 `sase memory read task_types:<slug> -r "<why>"` for one generated type in full. This
 note is the generated, always-current snapshot of the agent-creatable types below.
 
-- **Bug** (`bug`) - A defect an agent found while doing unrelated work, not an external
-  tracker bug.
-- **CI failure** (`ci`) - A confirmed true test or lint failure you did not cause, not a
-  flake.
-- **Feature** (`feature`) - An out-of-scope product or tooling idea that should not
-  become a wish list.
-- **Flaky test** (`flake`) - A test that fails and then passes on an unchanged tree.
-- **Memory** (`memory`) - A sase memory note or skill that is out of date.
+1. **Bug** (`bug`) - A defect an agent found while doing unrelated work, not an external
+   tracker bug.
+2. **CI failure** (`ci`) - A confirmed true test or lint failure you did not cause, not
+   a flake.
+3. **Feature** (`feature`) - An out-of-scope product or tooling idea that should not
+   become a wish list.
+4. **Flaky test** (`flake`) - A test that fails and then passes on an unchanged tree.
+5. **Memory** (`memory`) - A sase memory note or skill that is out of date.
 
 #### 3.3.1 File Discovered Work As Task Beads
 

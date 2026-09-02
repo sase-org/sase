@@ -176,7 +176,7 @@ def test_amd_parser_does_not_absorb_tier2_intro_into_description() -> None:
     )
 
 
-def test_long_memory_entry_path_accepts_section_and_legacy_shapes() -> None:
+def test_long_memory_entry_path_accepts_section_list_and_legacy_shapes() -> None:
     assert (
         _long_memory_entry_path("### `sase/memory/cli_rules.md`")
         == "sase/memory/cli_rules.md"
@@ -187,6 +187,12 @@ def test_long_memory_entry_path_accepts_section_and_legacy_shapes() -> None:
     )
     assert (
         _long_memory_entry_path("#### 2.1.1 `sase/memory/cli_rules.md`")
+        == "sase/memory/cli_rules.md"
+    )
+    assert (
+        _long_memory_entry_path(
+            "10. **`sase/memory/cli_rules.md`** - CLI rules reference."
+        )
         == "sase/memory/cli_rules.md"
     )
     assert (

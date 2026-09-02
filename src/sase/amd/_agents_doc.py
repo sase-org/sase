@@ -36,6 +36,10 @@ _SHORT_MEMORY_HEADER_RE = re.compile(r"^### (?:.* )?\((?P<name>[A-Za-z0-9_.-]+)\
 _LONG_MEMORY_ENTRY_RE = re.compile(
     r"^\*\*`(?P<path>(?:sase/)?memory/[A-Za-z0-9_.-]+\.md)`\*\*(?P<description>.*?)$"
 )
+_LONG_MEMORY_LIST_ENTRY_RE = re.compile(
+    r"^\d+[.)]\s+\*\*`(?P<path>(?:sase/)?memory/[A-Za-z0-9_.-]+\.md)`\*\*"
+    r"(?:\s*-\s*(?P<description>.*))?$"
+)
 _LONG_MEMORY_SECTION_RE = re.compile(
     r"^#{3,4}\s+(?:\d+(?:\.\d+)*\.?\s+)?`(?P<path>(?:sase/)?memory/[A-Za-z0-9_.-]+\.md)`$"
 )
@@ -166,10 +170,30 @@ def _long_memory_entry_path(line: str) -> str | None:
     section_match = _LONG_MEMORY_SECTION_RE.match(stripped)
     if section_match is not None:
         return canonical_memory_reference(section_match.group("path")).as_posix()
+    list_match = _long_memory_list_match(line)
+    if list_match is not None:
+        return canonical_memory_reference(list_match.group("path")).as_posix()
     legacy_match = _LONG_MEMORY_ENTRY_RE.match(stripped)
     if legacy_match is not None:
         return canonical_memory_reference(legacy_match.group("path")).as_posix()
     return None
+
+
+def _long_memory_list_match(line: str) -> re.Match[str] | None:
+    return _LONG_MEMORY_LIST_ENTRY_RE.match(line.rstrip())
+
+
+def _long_memory_list_description(match: re.Match[str], lines: Iterable[str]) -> str:
+    description_lines: list[str] = []
+    inline_description = match.group("description")
+    if inline_description:
+        description_lines.append(inline_description)
+    description_lines.extend(lines)
+    return _normalized_line(" ".join(description_lines))
+
+
+def _is_indented_nonblank(line: str) -> bool:
+    return bool(line.strip()) and line[: len(line) - len(line.lstrip())] != ""
 
 
 def _legacy_long_memory_inline_description(line: str) -> str:
@@ -202,6 +226,32 @@ def collect_long_memory_entries(
         path = _long_memory_entry_path(raw_line)
         if path is None:
             index += 1
+            continue
+
+        list_match = _long_memory_list_match(raw_line)
+        if list_match is not None:
+            list_description_lines: list[str] = []
+            index += 1
+            while index < end:
+                candidate = lines[index]
+                if _is_legacy_amd_comment(candidate):
+                    index += 1
+                    continue
+                if heading_level(candidate) is not None:
+                    break
+                if not _is_indented_nonblank(candidate):
+                    break
+                list_description_lines.append(candidate.strip())
+                index += 1
+            entries.append(
+                _AmdLongMemoryEntry(
+                    path=path,
+                    description=_long_memory_list_description(
+                        list_match,
+                        list_description_lines,
+                    ),
+                )
+            )
             continue
 
         description_lines: list[str] = []

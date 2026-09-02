@@ -17,9 +17,10 @@ Each non-README flat note declares its type in YAML frontmatter:
 - **Reference memory** uses `type: reference`. It is reference context, requires
   `description` frontmatter, and can set `parent: sase/memory/<note>.md` to appear under
   another reference note's `## Children` section. A reference note description may be a
-  Markdown block authored as a YAML literal block scalar; that block renders verbatim as
-  the body of the note's numbered `## Reference Memory` section, while single-line
-  surfaces collapse it.
+  Markdown block authored as a YAML literal block scalar. The managed
+  `## Reference Memory` list collapses descriptions to one paragraph and rejects
+  multi-block descriptions, while a parent note's `## Children` section on an audited
+  read still renders child descriptions verbatim.
 - **Audited memory operations** live under the project state directory and record agent
   reads.
 

@@ -12,6 +12,7 @@ from typing import Any, Literal, cast
 import yaml  # type: ignore[import-untyped]
 
 from sase.markdown_width import markdown_print_width
+from sase.markdown_wrap import wrap_markdown
 from sase.memory.paths import (
     CANONICAL_MEMORY_RELATIVE_ROOT,
     canonical_memory_reference,
@@ -610,20 +611,21 @@ def _render_memory_note_references(notes: Iterable[MemoryNote]) -> str:
     return "\n".join(lines)
 
 
-def render_long_memory_sections(notes: Iterable[MemoryNote]) -> str:
-    """Render reference notes as AGENTS.md Reference Memory H3 subsections."""
+def render_long_memory_entries(notes: Iterable[MemoryNote]) -> str:
+    """Render reference notes as AGENTS.md Reference Memory list entries."""
     lines: list[str] = []
     reference_notes = sorted(
         (note for note in notes if note.type == "reference"),
         key=lambda note: note.relative_path,
     )
-    for index, note in enumerate(reference_notes):
-        if index:
-            lines.append("")
-        lines.append(f"### `{note.relative_path}`")
-        if note.description:
-            lines.append("")
-            lines.append(note.description)
+    width = markdown_print_width()
+    for number, note in enumerate(reference_notes, start=1):
+        description = collapse_description(note.description)
+        if description:
+            entry = f"{number}. **`{note.relative_path}`** - {description}"
+        else:
+            entry = f"{number}. **`{note.relative_path}`**"
+        lines.append(wrap_markdown(entry, width=width))
     return "\n".join(lines)
 
 
@@ -672,5 +674,5 @@ __all__ = [
     "parse_memory_note_text",
     "render_children_section",
     "render_frontmatter_block",
-    "render_long_memory_sections",
+    "render_long_memory_entries",
 ]

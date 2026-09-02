@@ -211,15 +211,15 @@ workflow.
 For a SASE-managed project, `sase memory init` inlines each core note into
 `## Core Memory` and numbers every heading in the generated document, renders each
 memory web as its own numbered H3 subsection of `## Memory Webs` (omitted entirely when
-the root has no webs), and renders reference memory as one numbered H3 subsection per
-reference note (headed by the note path, with the description as the body), adds missing
-canonical frontmatter, and validates reachability. The instruction paragraph pointing
-agents at `/sase_memory_read` is direct body content of the `## Reference Memory`
-heading, immediately followed by those per-note H3 subsections; both the paragraph and
-the subsections are omitted when a root has no top-level reference notes. Missing,
-false, merged-global, or `memory.h1_title`-only configuration does not authorize any
-project memory or root `AGENTS.md` creation, refresh, or validation. The retired
-`memory.enabled` key is not an alias. Existing projects must replace it once with:
+the root has no webs), and renders reference memory as one ordered-list entry per
+top-level reference note, adds missing canonical frontmatter, and validates
+reachability. The instruction paragraph pointing agents at `/sase_memory_read` is direct
+body content of the `## Reference Memory` heading, immediately followed by those
+per-note list entries; both the paragraph and the entries are omitted when a root has no
+top-level reference notes. Missing, false, merged-global, or `memory.h1_title`-only
+configuration does not authorize any project memory or root `AGENTS.md` creation,
+refresh, or validation. The retired `memory.enabled` key is not an alias. Existing
+projects must replace it once with:
 
 ```yaml
 is_sase_managed: true

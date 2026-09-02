@@ -531,9 +531,9 @@ memory:
 heading, as one numbered H3 subsection per memory web; it is the empty string when a
 root has no webs, which is what makes the whole section disappear cleanly for a webless
 root. `{{ reference_entries }}` renders the entire Reference Memory body: the
-reference-memory instruction paragraph plus one H3 subsection per top-level reference
-note. When a root has no top-level reference notes, `{{ reference_entries }}` is empty.
-A custom `agents_template` must not repeat either section's prose.
+reference-memory instruction paragraph plus one ordered-list entry per top-level
+reference note. When a root has no top-level reference notes, `{{ reference_entries }}`
+is empty. A custom `agents_template` must not repeat either section's prose.
 
 The packaged managed template places `{{ web_sections }}` after the Reference Memory
 block, so `## Memory Webs` renders as the final generated H2 when a root has webs. A

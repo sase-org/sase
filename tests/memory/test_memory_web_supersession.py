@@ -193,8 +193,8 @@ def test_roster_list_inserts_marker_and_still_lists_the_strand(
     (web,) = discover_memory_webs(tmp_path).webs
     roster = render_strand_roster(web)
 
-    assert "- **Alpha Term** (`alpha`)" in roster
-    assert "- **Beta Term** (`beta`)" in roster
+    assert "1. **Alpha Term** (`alpha`)" in roster
+    assert "2. **Beta Term** (`beta`)" in roster
     assert "_[partly superseded by `beta`, `other/gamma`]_ First term." in roster
     assert all(len(line) <= markdown_print_width() for line in roster.splitlines())
 
@@ -236,10 +236,10 @@ def test_roster_inline_partial_suffix(tmp_path: Path) -> None:
     assert "Alpha Term (alpha) [partly superseded]" in render_strand_roster(web)
 
 
-def test_roster_list_accepted_and_missing_metadata_match_legacy_bullet(
+def test_roster_list_accepted_and_missing_metadata_match_plain_entry(
     tmp_path: Path,
 ) -> None:
-    expected = "- **Alpha Term** (`alpha`) - First term."
+    expected = "1. **Alpha Term** (`alpha`) - First term."
     _seed_terms(tmp_path)
     (plain_web,) = discover_memory_webs(tmp_path).webs
     assert render_strand_roster(plain_web) == expected

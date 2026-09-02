@@ -16,7 +16,7 @@ from sase.memory.notes import (
     parse_memory_note_text,
     _render_memory_note_references,
     render_children_section,
-    render_long_memory_sections,
+    render_long_memory_entries,
 )
 from sase.memory.text_filter import filter_memory_notes
 
@@ -454,7 +454,7 @@ def test_children_and_reference_rendering_match_agents_shape() -> None:
     )
 
 
-def test_render_long_memory_sections_orders_and_filters_notes() -> None:
+def test_render_long_memory_entries_orders_and_filters_notes() -> None:
     short_note = _note(
         "sase/memory/aaa.md",
         note_type="core",
@@ -463,18 +463,13 @@ def test_render_long_memory_sections_orders_and_filters_notes() -> None:
     later = _note("sase/memory/later.md", description="Later.")
     earlier = _note("sase/memory/earlier.md", description="Earlier.")
 
-    assert render_long_memory_sections((later, short_note, earlier)) == (
-        "### `sase/memory/earlier.md`\n"
-        "\n"
-        "Earlier.\n"
-        "\n"
-        "### `sase/memory/later.md`\n"
-        "\n"
-        "Later."
+    assert render_long_memory_entries((later, short_note, earlier)) == (
+        "1. **`sase/memory/earlier.md`** - Earlier.\n"
+        "2. **`sase/memory/later.md`** - Later."
     )
 
 
-def test_render_long_memory_sections_preserves_block_descriptions() -> None:
+def test_render_long_memory_entries_collapses_block_descriptions() -> None:
     note = MemoryNote(
         path=Path("sase/memory/block.md"),
         type="reference",
@@ -486,12 +481,12 @@ def test_render_long_memory_sections_preserves_block_descriptions() -> None:
         parent_source="frontmatter",
     )
 
-    assert render_long_memory_sections((note,)) == (
-        "### `sase/memory/block.md`\n\nLead paragraph.\n\n- One\n- Two\n\nTrailer."
+    assert render_long_memory_entries((note,)) == (
+        "1. **`sase/memory/block.md`** - Lead paragraph. - One - Two Trailer."
     )
 
 
-def test_render_long_memory_sections_omits_empty_description_body() -> None:
+def test_render_long_memory_entries_renders_bare_entries_without_empty_suffix() -> None:
     empty = MemoryNote(
         path=Path("sase/memory/empty.md"),
         type="reference",
@@ -513,8 +508,8 @@ def test_render_long_memory_sections_omits_empty_description_body() -> None:
         parent_source="frontmatter",
     )
 
-    assert render_long_memory_sections((empty, missing)) == (
-        "### `sase/memory/empty.md`\n\n### `sase/memory/missing.md`"
+    assert render_long_memory_entries((empty, missing)) == (
+        "1. **`sase/memory/empty.md`**\n2. **`sase/memory/missing.md`**"
     )
 
 

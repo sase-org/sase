@@ -423,7 +423,7 @@ def test_roster_inline_wraps_at_the_configured_prose_width(tmp_path: Path) -> No
     assert "\n" in content.split(START_MARKER, 1)[1].split(END_MARKER, 1)[0].strip()
 
 
-def test_roster_wraps_long_list_bullets_to_the_configured_prose_width(
+def test_roster_wraps_long_list_entries_to_the_configured_prose_width(
     tmp_path: Path,
 ) -> None:
     long_summary = (
@@ -447,8 +447,8 @@ def test_roster_wraps_long_list_bullets_to_the_configured_prose_width(
     assert content is not None
     width = markdown_print_width()
     assert all(len(line) <= width for line in content.splitlines())
-    assert "- **Alpha Term** (`alpha`) - This decision summary" in content
-    assert "\n  round-tripping as one unwrapped line." in content
+    assert "1. **Alpha Term** (`alpha`) - This decision summary" in content
+    assert "\n   round-tripping as one unwrapped line." in content
 
 
 def test_roster_marker_validation_blocks_unbalanced_or_duplicate_regions(

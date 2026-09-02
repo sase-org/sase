@@ -41,8 +41,9 @@ when relevant.
   ties broken by path. The generated `sase/memory/sase.md` note uses `priority: 10`.
 - `description`: required for reference notes and used in generated agent instructions
   and this README. Reference-note descriptions may be Markdown blocks authored as YAML
-  literal block scalars; reference sections render those blocks verbatim, while
-  single-line surfaces collapse them.
+  literal block scalars. Generated agent instructions collapse top-level reference
+  descriptions to one paragraph and reject multi-block descriptions; audited
+  child-reference reads still render block descriptions verbatim.
 - `link_reference`: `explicit` (default), `implicit`, or `none` — which `[[...]]` links
   in the body are detected. The legacy `closure: mentions` / `closure: none`
   web-descriptor keys are still accepted as aliases.
@@ -116,7 +117,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Description: Architectural decision records — accepted choices, their rejected
   alternatives, and what would reopen them.
 - Lines: 49
-- Approx. tokens: 626
+- Approx. tokens: 632
 
 ### `sase/memory/glossary.md`
 
@@ -130,7 +131,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Kind: memory web descriptor
 - Description: No description set.
 - Lines: 32
-- Approx. tokens: 307
+- Approx. tokens: 309
 
 ### `sase/memory/cli_rules.md`
 
@@ -237,7 +238,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Reference notes: 10
 - Web descriptor notes: 3
 - Total lines: 1066
-- Total approx. tokens: 13500
+- Total approx. tokens: 13508
 
 ## Commands
 
