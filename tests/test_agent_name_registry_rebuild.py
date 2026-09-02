@@ -418,6 +418,33 @@ def test_stale_index_rebuilds_when_owner_disappears(tmp_path: Path) -> None:
         assert "bar" in data["entries"]
 
 
+def test_registry_missing_scan_version_is_stale_and_rebuilds_once(
+    tmp_path: Path,
+) -> None:
+    """A registry written before ``scan_version`` existed rebuilds on upgrade.
+
+    The staleness check only fingerprints artifact paths/mtimes, so a code
+    upgrade alone never triggers a rebuild without this. A registry that
+    predates ``scan_version`` (or carries a stale value) must rebuild exactly
+    once so any bare imported entries from the old scan logic are dropped.
+    """
+    _make_agent(tmp_path, "proj", "run1", "foo")
+    with patch.object(Path, "home", return_value=tmp_path):
+        data = rebuild_name_registry()
+        assert data["scan_version"] == _registry_store.SCAN_VERSION
+
+        path = _registry_store.registry_path()
+        stale = json.loads(path.read_text(encoding="utf-8"))
+        del stale["scan_version"]
+        path.write_text(json.dumps(stale), encoding="utf-8")
+        reset_name_registry_caches_for_tests()
+
+        assert _registry_store.registry_file_is_stale(stale)
+        loaded = load_name_registry()
+        assert loaded["scan_version"] == _registry_store.SCAN_VERSION
+        assert "foo" in loaded["entries"]
+
+
 def test_lowest_name_suggestion(tmp_path: Path) -> None:
     _make_agent(tmp_path, "proj", "run1", "foo")
     _make_agent(tmp_path, "proj", "run2", "foo1")

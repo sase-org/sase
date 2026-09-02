@@ -13,7 +13,12 @@ from sase.agent.names._registry_entries import (
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     AgentOwnerIdentity,
+    AgentOwnershipClassification,
+    AgentSourceOwnerIdentity,
+    classify_imported_agent_owner,
+    globalize_agent_name,
     globalize_owned_agent_name,
+    localize_imported_agent_name,
     present_agent_name,
 )
 
@@ -74,7 +79,7 @@ def add_owner_clan(
     if not isinstance(existing, dict):
         entries[name] = entry
         return
-    if _promote_container_over_auto_prefix(entries, name, entry):
+    if promote_container_over_auto_prefix(entries, name, entry):
         return
     if existing.get("container_kind") == "clan":
         if existing.get("reservation_kind") == "planned_clan" and (
@@ -112,7 +117,7 @@ def add_owner_family(
     if not isinstance(existing, dict):
         entries[name] = entry
         return
-    if _promote_container_over_auto_prefix(entries, name, entry):
+    if promote_container_over_auto_prefix(entries, name, entry):
         return
     if existing.get("container_kind") == "family":
         return
@@ -151,7 +156,7 @@ def _add_owner_name(
     _append_collision_owner(existing, entry)
 
 
-def _promote_container_over_auto_prefix(
+def promote_container_over_auto_prefix(
     entries: dict[str, dict[str, Any]],
     name: str,
     entry: dict[str, Any],
@@ -221,6 +226,72 @@ def _entry_provenance(
             digest if isinstance(digest, str) else "",
         )
     return local_entry_provenance(name, identity)
+
+
+def localize_payload_name(
+    name: str,
+    payload: dict[str, Any],
+    identity: AgentIdentitySnapshot,
+) -> str | None:
+    """Return *name*'s locally-correct spelling for its payload's provenance.
+
+    Sync preserves an imported artifact's ``name`` field as an already
+    localized spelling, but other name fields on the same payload
+    (``workflow_name``, family, clan) keep the source machine's bare
+    spelling. Registering a bare spelling as a local claim would squat every
+    locally-allocated name beneath it, so every payload-derived name must be
+    localized through the same import provenance before it reaches the
+    registry. Returns ``None`` when the name cannot be localized, so the
+    caller drops it instead of registering a squatting spelling.
+    """
+    source_owner = source_owner_from_payload(payload)
+    if source_owner is not None:
+        return _localize_v2_payload_name(name, source_owner, identity)
+    source_machine = payload.get("imported_from_machine")
+    if isinstance(source_machine, str) and source_machine:
+        return _localize_v1_payload_name(name, source_machine)
+    return name
+
+
+def _localize_v2_payload_name(
+    name: str,
+    source_owner: AgentOwnerIdentity,
+    identity: AgentIdentitySnapshot,
+) -> str | None:
+    source = AgentSourceOwnerIdentity.v2(source_owner)
+    classification = classify_imported_agent_owner(source, identity)
+    if classification is AgentOwnershipClassification.EXACT_OWNER:
+        return name
+    root = (
+        f"{source_owner.machine_name}."
+        if classification is AgentOwnershipClassification.SAME_USER_OTHER_MACHINE
+        else f"{source_owner.username}."
+    )
+    if name.startswith(root):
+        return name
+    global_name = globalize_agent_name(name, source_owner)
+    try:
+        return localize_imported_agent_name(global_name, source, identity)
+    except ValueError:
+        return None
+
+
+def _localize_v1_payload_name(name: str, source_machine: str) -> str | None:
+    from sase.agents_sync.io import (
+        AgentsSyncFormatError,
+        validate_machine,
+        validate_qualified_name,
+    )
+
+    try:
+        machine = validate_machine(source_machine)
+    except AgentsSyncFormatError:
+        return None
+    qualified = name if name.startswith(f"{machine}.") else f"{machine}.{name}"
+    try:
+        return validate_qualified_name(qualified, machine)
+    except AgentsSyncFormatError:
+        return None
 
 
 def source_owner_from_payload(

@@ -125,6 +125,13 @@ def get_reserved_family_names() -> set[str]:
     )
 
 
+def get_blocked_local_namespace_roots() -> dict[str, dict[str, Any]]:
+    """Return ``{root_name: entry}`` for registry entries blocking local allocation."""
+    return _registry_queries.get_blocked_local_namespace_roots(
+        load_registry=_load_registry_for_reservations
+    )
+
+
 def get_reserved_family_names_for_display() -> set[str]:
     """Return family-container names for a render, never forcing a rebuild.
 

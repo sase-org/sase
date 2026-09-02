@@ -137,6 +137,7 @@ def prepare_clan_launches(
     name_allocator: PlannedNameAllocator,
 ) -> _ClanPrepass:
     """Resolve rootless clan identity and validate every member before spawn."""
+    from sase.agent.names import AgentNameBaseReservedError
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
     from sase.xprompt._exceptions import DirectiveError
     from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
@@ -227,11 +228,14 @@ def prepare_clan_launches(
                 timestamp=slot.timestamp,
             )
             artifacts_dirs_by_slot[key] = artifacts_dir
-            planned_name, env_name = name_allocator.planned_name_for_prompt(
-                slot.prompt,
-                artifacts_dir=artifacts_dir,
-                template_group=template_group,
-            )
+            try:
+                planned_name, env_name = name_allocator.planned_name_for_prompt(
+                    slot.prompt,
+                    artifacts_dir=artifacts_dir,
+                    template_group=template_group,
+                )
+            except AgentNameBaseReservedError as exc:
+                raise DirectiveError(str(exc)) from None
             if planned_name is None:
                 raise DirectiveError(
                     f"Clan member segment {index + 1} has no plannable agent name"
@@ -261,6 +265,7 @@ def prepare_clan_launches(
 
     from sase.agent.names import (
         AgentNameTemplateError,
+        NameCollisionError,
         get_reserved_clan_names,
         is_agent_name_template,
         reserve_registered_clan_name,
@@ -403,10 +408,8 @@ def prepare_clan_launches(
                     artifacts_dir,
                     create_only=create_only,
                 )
-            except Exception as exc:
-                if create_only and "already exists" in str(exc):
-                    raise DirectiveError(str(exc)) from None
-                raise
+            except NameCollisionError as exc:
+                raise DirectiveError(str(exc)) from None
             reservations.append((clan_name, generation, artifacts_dir))
             membership = ClanMembershipPlan(
                 clan_name=clan_name,

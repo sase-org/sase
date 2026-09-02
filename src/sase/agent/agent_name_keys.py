@@ -8,6 +8,7 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 
 from sase.agent.names import (
+    AgentNameBaseReservedError,
     AgentNameNamespaceReservationIndex,
     iter_agent_name_key_markers,
 )
@@ -58,6 +59,12 @@ def get_reserved_agent_names() -> set[str]:
 
 def get_reserved_clan_names() -> set[str]:
     from sase.agent.names import get_reserved_clan_names as impl
+
+    return impl()
+
+
+def get_blocked_local_namespace_roots() -> dict[str, dict[str, object]]:
+    from sase.agent.names import get_blocked_local_namespace_roots as impl
 
     return impl()
 
@@ -126,7 +133,12 @@ def resolve_agent_name_key_markers(segments: Sequence[str]) -> list[str]:
     if not shapes_by_key:
         return list(segments)
 
-    tokens = _allocate_key_tokens(shapes_by_key)
+    from sase.xprompt._exceptions import DirectiveError
+
+    try:
+        tokens = _allocate_key_tokens(shapes_by_key)
+    except AgentNameBaseReservedError as exc:
+        raise DirectiveError(str(exc)) from None
     resolved: list[str] = []
     for protected_segment in protected_segments:
         text = protected_segment.text
@@ -179,8 +191,16 @@ def _allocate_key_tokens(
         index = AgentNameNamespaceReservationIndex.from_registry_names(
             get_reserved_agent_names(),
             namespace_containers=get_reserved_clan_names(),
+            blocked_roots=get_blocked_local_namespace_roots(),
         )
         for key, shapes in shapes_by_key.items():
+            for shape in shapes:
+                blocked = index.blocking_root_for_template(shape)
+                if blocked is not None:
+                    base, blocking_root = blocked
+                    raise AgentNameBaseReservedError(
+                        base, blocking_root, index.blocked_roots.get(blocking_root)
+                    )
             for token in iter_agent_name_template_tokens():
                 candidates = {
                     (

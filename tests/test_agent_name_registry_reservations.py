@@ -29,6 +29,9 @@ from sase.agent.names import (
 )
 from sase.agent.names import _registry
 from sase.agent.names.registry_freshness import agent_name_registry_freshness_token
+from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+
+from tests._agent_names_fixtures import make_agent as _make_agent
 
 
 def test_registry_write_uses_unique_temp_file_for_nested_writer(tmp_path: Path) -> None:
@@ -337,3 +340,51 @@ def test_concurrent_explicit_claims_without_metadata_reject_collision(
     assert statuses.count("error") == 1
     assert any("dupe1" in detail for status, detail in results if status == "error")
     assert all(not (claim_dir / "agent_meta.json").exists() for claim_dir in claim_dirs)
+
+
+def test_rebuild_from_imported_only_source_frees_the_local_base(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rebuild seeded only by an imported artifact must not squat local names.
+
+    Before localization, a bare imported ``workflow_name`` such as
+    ``research.b.cld.f0`` derived a bare ``research`` auto-prefix entry that
+    permanently blocked every local ``research.*`` allocation. After the
+    fix, the base is free locally, while the sibling machine's own root
+    (``athena``) remains correctly reserved.
+    """
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "zeus"),
+        ("zeus", "athena"),
+    )
+    monkeypatch.setattr(
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda _cls: identity),
+    )
+    _make_agent(
+        tmp_path,
+        "proj",
+        "run1",
+        "athena.research.b.cld.f0",
+        workflow_name="research.b.cld.f0",
+        extra_meta={
+            "imported_source_owner": {"username": "alice", "machine_name": "athena"},
+            "canonical_global_name": "alice.athena.research.b.cld.f0",
+            "imported_snapshot_digest": "a" * 64,
+        },
+    )
+    local_dir = (
+        tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / "run2"
+    )
+    local_dir.mkdir(parents=True)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+
+        claim_registered_name("research.0", local_dir)
+        assert lookup_registered_name("research.0") is not None
+
+        with pytest.raises(NameCollisionError, match="owner namespace 'athena'"):
+            claim_registered_name("athena.anything", local_dir)

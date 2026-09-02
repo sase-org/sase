@@ -141,6 +141,8 @@ class PlannedNameAllocator:
                 (template, agent_name_template_namespace_template(template))
                 for template in templates
             ]
+            for template in templates:
+                self._raise_if_template_base_reserved(index, template)
 
             existing_token = self._template_group_tokens.get(group.key)
             if existing_token is not None:
@@ -349,6 +351,7 @@ class PlannedNameAllocator:
                 self._template_index = None
             index = self._template_reservation_index()
             namespace_template = agent_name_template_namespace_template(template)
+            self._raise_if_template_base_reserved(index, template)
 
             existing_token = self._template_group_tokens.get(group.key)
             if existing_token is not None:
@@ -403,15 +406,34 @@ class PlannedNameAllocator:
             self._template_reserved = get_reserved_agent_names()
             self._template_index = None
         if self._template_index is None:
-            from sase.agent.names import get_reserved_clan_names
+            from sase.agent.names import (
+                get_blocked_local_namespace_roots,
+                get_reserved_clan_names,
+            )
 
             self._template_index = (
                 AgentNameNamespaceReservationIndex.from_registry_names(
                     self._template_reserved,
                     namespace_containers=get_reserved_clan_names(),
+                    blocked_roots=get_blocked_local_namespace_roots(),
                 )
             )
         return self._template_index
+
+    @staticmethod
+    def _raise_if_template_base_reserved(
+        index: AgentNameNamespaceReservationIndex,
+        template: str,
+    ) -> None:
+        blocked = index.blocking_root_for_template(template)
+        if blocked is None:
+            return
+        from sase.agent.names import AgentNameBaseReservedError
+
+        base, blocking_root = blocked
+        raise AgentNameBaseReservedError(
+            base, blocking_root, index.blocked_roots.get(blocking_root)
+        )
 
     def _template_candidate_available(
         self,

@@ -20,6 +20,12 @@ SCHEMA_VERSION = 2
 _LEGACY_SCHEMA_VERSION = 1
 INDEX_FILENAME = "agent_name_registry.json"
 
+# Bumped whenever a scan-logic change would derive different entries from the
+# same on-disk artifacts, so every existing registry rebuilds exactly once
+# after upgrade. This is independent of SCHEMA_VERSION, which tracks the
+# on-disk envelope's own compatibility, not the scanner's behavior.
+SCAN_VERSION = 1
+
 _SOURCE_SIGNATURE_SESSION: ContextVar[list[dict[str, int | str]] | None] = ContextVar(
     "agent_name_registry_source_signature_session", default=None
 )
@@ -90,6 +96,7 @@ def registry_data(entries: dict[str, Any]) -> dict[str, Any]:
     """Build the persisted registry envelope for *entries*."""
     return {
         "schema_version": SCHEMA_VERSION,
+        "scan_version": SCAN_VERSION,
         "source_signature": _source_signature(),
         "entries": dict(sorted(entries.items())),
     }
@@ -98,6 +105,8 @@ def registry_data(entries: dict[str, Any]) -> dict[str, Any]:
 def registry_file_is_stale(data: dict[str, Any]) -> bool:
     """Return whether registry data no longer matches its artifact sources."""
     if data.get("_needs_rebuild") is True:
+        return True
+    if data.get("scan_version") != SCAN_VERSION:
         return True
     if data.get("source_signature") != _source_signature():
         return True

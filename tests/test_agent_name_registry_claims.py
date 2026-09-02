@@ -320,6 +320,88 @@ def test_registry_rebuild_keeps_v1_username_unknown(
     assert entry["canonical_global_name"] is None
 
 
+def test_registry_rebuild_localizes_bare_workflow_name_from_v2_import(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A synced artifact's bare ``workflow_name`` must not squat the local tree.
+
+    Sync preserves ``name`` as an already-localized spelling but leaves other
+    name fields (here ``workflow_name``) in the source machine's bare
+    spelling. A rebuild must localize that bare spelling too, or it would
+    register a bare ``research`` auto-prefix that permanently blocks every
+    local ``research.*`` name (the reported ``NameCollisionError`` bug).
+    """
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "zeus"),
+        ("zeus", "athena"),
+    )
+    monkeypatch.setattr(
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda _cls: identity),
+    )
+    _make_agent(
+        tmp_path,
+        "proj",
+        "run1",
+        "athena.research.b.cld.f0",
+        workflow_name="research.b.cld.f0",
+        extra_meta={
+            "imported_source_owner": {"username": "alice", "machine_name": "athena"},
+            "canonical_global_name": "alice.athena.research.b.cld.f0",
+            "imported_snapshot_digest": "a" * 64,
+        },
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        data = rebuild_name_registry()
+
+    entries = data["entries"]
+    assert "athena.research.b.cld.f0" in entries
+    assert entries["athena.research.b.cld.f0"]["reservation_kind"] == "claimed"
+    assert entries["athena.research.b.cld.f0"]["origin"] == "import_v2"
+    assert entries["athena"]["container_kind"] == "owner_namespace"
+    assert "research" not in entries
+    assert "research.b.cld.f0" not in entries
+
+
+def test_registry_rebuild_localizes_bare_workflow_name_from_v1_import(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "zeus"),
+        ("zeus",),
+    )
+    monkeypatch.setattr(
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda _cls: identity),
+    )
+    _make_agent(
+        tmp_path,
+        "proj",
+        "run1",
+        "athena.legacy.worker",
+        workflow_name="legacy.worker",
+        extra_meta={
+            "imported_from_machine": "athena",
+            "imported_digest": "a" * 64,
+        },
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        data = rebuild_name_registry()
+
+    entries = data["entries"]
+    assert "athena.legacy.worker" in entries
+    assert entries["athena.legacy.worker"]["origin"] == "import_v1"
+    assert entries["athena"]["container_kind"] == "owner_namespace"
+    assert "legacy" not in entries
+    assert "legacy.worker" not in entries
+
+
 def test_delete_registered_name_releases_slot(tmp_path: Path) -> None:
     _make_agent(tmp_path, "proj", "run1", "foo")
     with patch.object(Path, "home", return_value=tmp_path):

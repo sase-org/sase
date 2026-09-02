@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Collection, Iterator
+from collections.abc import Collection, Iterator, Mapping
 from dataclasses import dataclass, field
 from functools import cache
 from typing import Any
@@ -49,6 +49,45 @@ class AgentNameTemplateNotFoundError(AgentNameTemplateError):
         super().__init__(f"No existing agent name found for template '{template}'")
 
 
+class AgentNameBaseReservedError(AgentNameTemplateError):
+    """Raised when a template's static namespace base is permanently blocked.
+
+    Every token would collide the same way (the block covers the whole base,
+    not one candidate), so callers must raise this before entering a token
+    loop rather than exhaust an infinite token iterator retrying.
+    """
+
+    def __init__(
+        self,
+        base: str,
+        blocking_root: str,
+        blocking_entry: Mapping[str, Any] | None = None,
+    ) -> None:
+        self.base = base
+        self.blocking_root = blocking_root
+        self.blocking_entry = blocking_entry
+        super().__init__(
+            f"agent name base '{base}' is inside reserved owner namespace "
+            f"'{blocking_root}'{_blocking_owner_suffix(blocking_entry)}; "
+            "choose a different base name"
+        )
+
+
+def _blocking_owner_suffix(blocking_entry: Mapping[str, Any] | None) -> str:
+    if not isinstance(blocking_entry, Mapping):
+        return ""
+    source_owner = blocking_entry.get("source_owner")
+    if isinstance(source_owner, Mapping):
+        username = source_owner.get("username")
+        machine_name = source_owner.get("machine_name")
+        if isinstance(username, str) and isinstance(machine_name, str):
+            return f" (owned by '{username}.{machine_name}')"
+    legacy_machine = blocking_entry.get("legacy_source_machine")
+    if isinstance(legacy_machine, str) and legacy_machine:
+        return f" (owned by machine '{legacy_machine}')"
+    return ""
+
+
 @dataclass(frozen=True)
 class AgentNameTemplateKey:
     """Resolution key carried by a braced ``{@<id>}`` marker."""
@@ -92,6 +131,7 @@ class AgentNameNamespaceReservationIndex:
         default_factory=AgentIdentitySnapshot.current,
         repr=False,
     )
+    blocked_roots: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @classmethod
     def from_names(cls, names: Collection[str]) -> AgentNameNamespaceReservationIndex:
@@ -114,6 +154,7 @@ class AgentNameNamespaceReservationIndex:
         names: Collection[str],
         *,
         namespace_containers: Collection[str] = (),
+        blocked_roots: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> AgentNameNamespaceReservationIndex:
         """Build an index while allowing descendants of container names."""
         identity = AgentIdentitySnapshot.current()
@@ -121,12 +162,17 @@ class AgentNameNamespaceReservationIndex:
             current_owner_agent_name_key(name, identity)
             for name in namespace_containers
         }
+        keyed_blocked_roots = {
+            current_owner_agent_name_key(name, identity): dict(entry)
+            for name, entry in (blocked_roots or {}).items()
+        }
         index = cls(
             exact_names={
                 current_owner_agent_name_key(name, identity) for name in names
             },
             occupied_namespaces=set(),
             identity=identity,
+            blocked_roots=keyed_blocked_roots,
         )
         for name in names:
             key = current_owner_agent_name_key(name, identity)
@@ -158,10 +204,56 @@ class AgentNameNamespaceReservationIndex:
         }
         if name_key in self.exact_names:
             return False
+        if self._blocking_root(name_key) is not None:
+            return False
+        if self._blocking_root(namespace_key) is not None:
+            return False
         return (
             namespace_key not in self.occupied_namespaces
             or namespace_key in owned_namespace_keys
         )
+
+    def blocking_root_for_template(self, template: str) -> tuple[str, str] | None:
+        """Return ``(static_base, blocking_root)`` for *template*, if blocked.
+
+        Every token of *template* renders beneath the same static leading
+        namespace, so when that base sits at or under a blocked root, every
+        token collides identically. Callers use this to fail fast before a
+        token loop that would otherwise retry forever.
+        """
+        base = _static_template_base(template)
+        if base is None:
+            return None
+        base_key = current_owner_agent_name_key(base, self.identity)
+        blocking_root = self._blocking_root(base_key)
+        if blocking_root is None:
+            return None
+        return base, blocking_root
+
+    def _blocking_root(self, key: str) -> str | None:
+        if not self.blocked_roots:
+            return None
+        parts = key.split(".")
+        for index in range(1, len(parts) + 1):
+            prefix = ".".join(parts[:index])
+            if prefix in self.blocked_roots:
+                return prefix
+        return None
+
+
+def _static_template_base(template: str) -> str | None:
+    """Return the static dotted namespace before *template*'s marker, if any.
+
+    Only a prefix ending in ``.`` denotes a genuine dotted namespace (e.g.
+    ``research`` for ``research.{@1}.cdx``); a marker glued directly onto a
+    non-dotted prefix (``foo-@``) has no token-invariant namespace to check.
+    """
+    parsed = parse_agent_name_template(template)
+    prefix = parsed.prefix
+    if not prefix.endswith("."):
+        return None
+    base = prefix[:-1]
+    return base or None
 
 
 def is_agent_name_template(value: str) -> bool:
@@ -319,14 +411,24 @@ def allocate_agent_name_template(
         pool = reserved
     if index is None:
         if registry_backed:
-            from sase.agent.names._registry import get_reserved_clan_names
+            from sase.agent.names._registry import (
+                get_blocked_local_namespace_roots,
+                get_reserved_clan_names,
+            )
 
             index = AgentNameNamespaceReservationIndex.from_registry_names(
                 pool,
                 namespace_containers=get_reserved_clan_names(),
+                blocked_roots=get_blocked_local_namespace_roots(),
             )
         else:
             index = AgentNameNamespaceReservationIndex.from_names(pool)
+    blocked = index.blocking_root_for_template(template)
+    if blocked is not None:
+        base, blocking_root = blocked
+        raise AgentNameBaseReservedError(
+            base, blocking_root, index.blocked_roots.get(blocking_root)
+        )
     # The namespace template depends only on *template*, so derive it once and
     # render the per-token namespace from it inside the loop.
     namespace_template = agent_name_template_namespace_template(template)

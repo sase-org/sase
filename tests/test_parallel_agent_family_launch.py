@@ -398,6 +398,43 @@ def test_declaration_rejects_existing_clan_but_joiner_succeeds(
     assert len(calls) == 1
 
 
+def test_clan_declaration_inside_owner_namespace_surfaces_directive_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A clan landing inside a reserved owner namespace fails fast and clearly.
+
+    ``reserve_registered_clan_name`` raises a raw ``NameCollisionError`` from
+    ``ensure_local_namespace_available`` for this case; the clan prepass must
+    convert it into a ``DirectiveError`` instead of letting it escape as an
+    uncaught traceback.
+    """
+    from sase.agent.names import rebuild_name_registry
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    sase_home = tmp_path / ".sase"
+    artifact_dir = sase_home / "projects/sase/artifacts/ace-run/imported1"
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "bob.zeus.worker",
+                "imported_source_owner": {"username": "bob", "machine_name": "zeus"},
+                "canonical_global_name": "bob.zeus.worker",
+                "imported_snapshot_digest": "a" * 64,
+            }
+        ),
+        encoding="utf-8",
+    )
+    rebuild_name_registry()
+
+    with pytest.raises(
+        DirectiveError,
+        match=r"reserved owner namespace 'bob'",
+    ):
+        _launch_with_captured_spawns(["%id(one, clan=bob.thing)\nOne"])
+
+
 def test_deprecated_name_fails_launch_but_remains_display_safe(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

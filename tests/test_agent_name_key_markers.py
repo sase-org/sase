@@ -28,6 +28,7 @@ def _configure_allocation(
     *,
     reserved: set[str] | None = None,
     clans: set[str] | None = None,
+    blocked_roots: dict[str, dict[str, object]] | None = None,
 ) -> None:
     monkeypatch.setattr(
         "sase.agent.agent_name_keys.agent_name_allocation_lock",
@@ -40,6 +41,10 @@ def _configure_allocation(
     monkeypatch.setattr(
         "sase.agent.agent_name_keys.get_reserved_clan_names",
         lambda: set(clans or ()),
+    )
+    monkeypatch.setattr(
+        "sase.agent.agent_name_keys.get_blocked_local_namespace_roots",
+        lambda: dict(blocked_roots or {}),
     )
     token_values = tuple(tokens)
     monkeypatch.setattr(
@@ -80,6 +85,45 @@ def test_namespace_occupancy_skips_an_apparently_free_hood(
     assert resolve_agent_name_key_markers(
         ["%id:research.{@1!}.image\n%clan:research.{@1!}"]
     ) == ["%id:research.1.image\n%clan:research.1"]
+
+
+def test_blocked_root_raises_directive_error_instead_of_hanging(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A permanently blocked base must fail fast, not retry every token forever.
+
+    Before the oracle knew about blocked namespace roots, every token for a
+    blocked base looked identically available, so the per-token loop never
+    terminated. This must surface as one clear ``DirectiveError`` instead.
+    """
+    from sase.xprompt._exceptions import DirectiveError
+
+    _configure_allocation(
+        monkeypatch,
+        ["0", "1", "2"],
+        blocked_roots={
+            "research": {
+                "source_owner": {"username": "alice", "machine_name": "athena"}
+            }
+        },
+    )
+
+    with pytest.raises(DirectiveError, match="reserved owner namespace 'research'"):
+        resolve_agent_name_key_markers(["%id:research.{@1!}.cdx\n%clan:research.{@1!}"])
+
+
+def test_blocked_root_does_not_prevent_allocation_under_a_different_base(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_allocation(
+        monkeypatch,
+        ["0", "1"],
+        blocked_roots={"research": {}},
+    )
+
+    assert resolve_agent_name_key_markers(
+        ["%id:other.{@1!}.cdx\n%clan:other.{@1!}"]
+    ) == ["%id:other.0.cdx\n%clan:other.0"]
 
 
 def test_separator_rule_for_letter_token(monkeypatch: pytest.MonkeyPatch) -> None:

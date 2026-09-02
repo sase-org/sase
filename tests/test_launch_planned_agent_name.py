@@ -171,6 +171,10 @@ def test_single_prompt_resolves_keyed_name_before_spawn(
             "sase.agent.agent_name_keys.get_reserved_clan_names",
             return_value=set(),
         ),
+        patch(
+            "sase.agent.agent_name_keys.get_blocked_local_namespace_roots",
+            return_value={},
+        ),
         patch("sase.agent.names.get_reserved_agent_names", return_value=set()),
         patch("sase.agent.launcher.spawn_agent_subprocess", spawn),
         patch("sase.running_field.get_first_available_axe_workspace"),

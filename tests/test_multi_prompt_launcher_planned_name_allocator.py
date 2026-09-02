@@ -10,7 +10,7 @@ import pytest
 
 from tests._agent_names_fixtures import make_agent
 from tests._multi_prompt_launcher_launch_helpers import spawn_result_with_planned_name
-from sase.agent.names import lookup_registered_name
+from sase.agent.names import AgentNameBaseReservedError, lookup_registered_name
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 from sase.agent.multi_prompt_references import PlannedNameAllocator
 from sase.core.agent_identity_facade import (
@@ -61,6 +61,41 @@ def test_configured_allocator_publishes_bare_names_in_token_order(
     assert second == ("1", "1")
     assert templated == ("build-0", "build-0")
     assert explicit == ("writer", None)
+
+
+def test_allocator_fails_fast_on_a_reserved_owner_namespace_base(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A blocked base must raise immediately instead of retrying forever.
+
+    Before the reservation index knew about blocked owner-namespace roots,
+    every token for a base beneath one looked identically available, so the
+    per-token retry loop in ``_allocate_template_name`` never terminated.
+    """
+    from sase.agent.names import claim_imported_registered_name_v2
+
+    _configure_machine(monkeypatch)
+    artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        claim_imported_registered_name_v2(
+            AgentOwnerIdentity("alice", "zeus"),
+            "alice.zeus.worker",
+            "zeus.worker",
+            artifacts_root / "run0",
+            digest="a" * 64,
+        )
+        assert lookup_registered_name("zeus")["container_kind"] == "owner_namespace"
+
+        allocator = PlannedNameAllocator()
+        with pytest.raises(
+            AgentNameBaseReservedError, match="reserved owner namespace"
+        ):
+            allocator.planned_name_for_prompt(
+                "%id:zeus.@.cdx\nWork",
+                artifacts_dir=artifacts_root / "run1",
+            )
 
 
 def test_multi_parent_fork_plans_neutral_auto_name(tmp_path: Path) -> None:

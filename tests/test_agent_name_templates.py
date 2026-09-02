@@ -7,6 +7,7 @@ from itertools import islice
 import pytest
 
 from sase.agent.names import (
+    AgentNameBaseReservedError,
     AgentNameTemplateKey,
     AgentNameTemplateNotFoundError,
     InvalidAgentNameTemplateError,
@@ -175,6 +176,71 @@ def test_namespace_index_uses_dotted_prefixes_not_raw_string_prefixes() -> None:
 
     assert index.candidate_available("research.1.final", "research.1") is True
     assert index.candidate_available("research.10.final", "research.10") is False
+
+
+def test_blocked_root_makes_every_candidate_beneath_it_unavailable() -> None:
+    index = AgentNameNamespaceReservationIndex(
+        exact_names=set(),
+        occupied_namespaces=set(),
+        blocked_roots={
+            "research": {
+                "source_owner": {"username": "alice", "machine_name": "athena"}
+            }
+        },
+    )
+
+    assert index.candidate_available("research.0.cdx", "research.0") is False
+    assert index.candidate_available("research.0", "research") is False
+    assert index.candidate_available("other.0.cdx", "other.0") is True
+
+
+def test_blocking_root_for_template_reports_the_static_base() -> None:
+    index = AgentNameNamespaceReservationIndex(
+        exact_names=set(),
+        occupied_namespaces=set(),
+        blocked_roots={"research": {}},
+    )
+
+    assert index.blocking_root_for_template("research.{@1}.cdx") == (
+        "research",
+        "research",
+    )
+    assert index.blocking_root_for_template("other.{@1}.cdx") is None
+    # A marker glued directly onto a non-dotted prefix has no token-invariant
+    # namespace to check, so it is never reported as blocked.
+    assert index.blocking_root_for_template("research-@") is None
+
+
+def test_allocate_agent_name_template_fails_fast_on_reserved_base() -> None:
+    """A blocked base must raise immediately, not exhaust the infinite token loop.
+
+    Before the oracle knew about blocked namespace roots, every token for a
+    permanently blocked base looked identically available, so a caller
+    retrying past a raw ``NameCollisionError`` per token would loop forever.
+    """
+    index = AgentNameNamespaceReservationIndex(
+        exact_names=set(),
+        occupied_namespaces=set(),
+        blocked_roots={
+            "research": {
+                "source_owner": {"username": "alice", "machine_name": "athena"}
+            }
+        },
+    )
+
+    with pytest.raises(
+        AgentNameBaseReservedError, match="reserved owner namespace"
+    ) as exc:
+        allocate_agent_name_template("research.@.cdx", reserved=set(), index=index)
+
+    assert exc.value.base == "research"
+    assert exc.value.blocking_root == "research"
+
+    # An unrelated base is unaffected by the same index's blocked root.
+    assert (
+        allocate_agent_name_template("other.@.cdx", reserved=set(), index=index)
+        == "other.0.cdx"
+    )
 
 
 def test_latest_uses_auto_sequence_order() -> None:

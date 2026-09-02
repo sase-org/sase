@@ -43,6 +43,27 @@ def get_reserved_agent_names(*, load_registry: RegistryLoader) -> set[str]:
     return set(load_registry()["entries"])
 
 
+def get_blocked_local_namespace_roots(
+    *, load_registry: RegistryLoader
+) -> dict[str, dict[str, Any]]:
+    """Return ``{root_name: entry}`` for entries that block local allocation.
+
+    Mirrors the guard in ``ensure_local_namespace_available``: an entry whose
+    ``container_kind`` is ``owner_namespace`` or whose ``origin`` is an
+    import origin blocks every local name at or beneath its dotted prefix.
+    """
+    blocked: dict[str, dict[str, Any]] = {}
+    for name, entry in load_registry()["entries"].items():
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("container_kind") == "owner_namespace" or entry.get("origin") in {
+            "import_v1",
+            "import_v2",
+        }:
+            blocked[name] = entry
+    return blocked
+
+
 def get_reserved_clan_names(*, load_registry: RegistryLoader) -> set[str]:
     """Return every name owned by a clan container."""
     return {

@@ -83,6 +83,7 @@ from sase.agent.names._registry import (
     claim_registered_name,
     convert_registered_agent_to_family,
     delete_registered_name,
+    get_blocked_local_namespace_roots,
     get_reserved_agent_name_map,
     get_reserved_agent_names,
     get_reserved_clan_names,
@@ -123,6 +124,7 @@ from sase.agent.names._resume import (
 )
 from sase.agent.names._templates import (
     AGENT_NAME_TEMPLATE_MARKER,
+    AgentNameBaseReservedError,
     AgentNameKeyMarker,
     AgentNameTemplate,
     AgentNameTemplateError,
@@ -249,6 +251,7 @@ __all__ = [
     "AgentClan",
     "AgentClanMember",
     "AgentRefError",
+    "AgentNameBaseReservedError",
     "AgentNameWipePreview",
     "AgentNameWipeResult",
     "ForcedReuseCleanupError",
@@ -304,6 +307,7 @@ __all__ = [
     "get_active_agent_name_map",
     "get_active_agent_names",
     "get_active_child_names",
+    "get_blocked_local_namespace_roots",
     "get_live_agent_name_map",
     "get_live_agent_name_subset",
     "get_most_recent_agent_name",

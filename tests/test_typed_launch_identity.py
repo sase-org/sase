@@ -39,6 +39,10 @@ def _configure_allocation(
         "sase.agent.agent_name_keys.get_reserved_clan_names",
         lambda: set(clans or ()),
     )
+    monkeypatch.setattr(
+        "sase.agent.agent_name_keys.get_blocked_local_namespace_roots",
+        lambda: {},
+    )
     token_values = tuple(tokens)
     monkeypatch.setattr(
         "sase.agent.agent_name_keys.iter_agent_name_template_tokens",
