@@ -16,6 +16,9 @@ from sase.uv_tool.detect import NotUvToolInstall
 
 from .plugins_browser_constants import _SUBTAB_NAV_HINT
 
+if TYPE_CHECKING:
+    from .plugins_browser_rows import UpdateRow
+
 _CURRENT_ACCENT = "#00D700"
 
 
@@ -44,6 +47,8 @@ class PluginsBrowserStatusMixin:
         def _current_entry(self) -> PluginCatalogEntry | None: ...
 
         def _can_install_entry(self, entry: PluginCatalogEntry | None) -> bool: ...
+
+        def _highlighted_plugin_row(self) -> UpdateRow | None: ...
 
         @property
         def jump_mode_active(self) -> bool: ...
@@ -275,22 +280,20 @@ class PluginsBrowserStatusMixin:
 
     def _can_install_highlighted(self) -> bool:
         """Whether the highlighted plugin can be installed right now."""
-        return self._can_install_entry(self._current_entry())
+        row = self._highlighted_plugin_row()
+        return row is not None and "install" in row.capabilities
 
     def _can_mark_highlighted(self) -> bool:
         """Whether the highlighted plugin can be marked for install."""
         if self._loading:
             return False
-        return self._can_install_entry(self._current_entry())
+        row = self._highlighted_plugin_row()
+        return row is not None and "install" in row.capabilities
 
     def _can_update_highlighted(self) -> bool:
         """Whether the highlighted plugin can be updated right now."""
-        if isinstance(self._uv_tool, NotUvToolInstall):
-            return False
-        entry = self._current_entry()
-        return (
-            entry is not None and entry.installed.installed and entry.update_available
-        )
+        row = self._highlighted_plugin_row()
+        return row is not None and "update" in row.capabilities
 
     def _can_update_sase(self) -> bool:
         """Whether the top-level ``sase update`` action can be offered."""
@@ -305,10 +308,8 @@ class PluginsBrowserStatusMixin:
 
     def _can_uninstall_highlighted(self) -> bool:
         """Whether the highlighted plugin can be uninstalled right now."""
-        if isinstance(self._uv_tool, NotUvToolInstall):
-            return False
-        entry = self._current_entry()
-        return entry is not None and entry.installed.installed
+        row = self._highlighted_plugin_row()
+        return row is not None and "uninstall" in row.capabilities
 
     @staticmethod
     def _plural(count: int, singular: str) -> str:

@@ -9,9 +9,14 @@ from textual.worker import WorkerState
 
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.latest import LatestInfo, latest_cache_key
+from sase.uv_tool.detect import NotUvToolInstall
+
+from .plugins_browser_rows import build_plugin_row
 
 if TYPE_CHECKING:
     from textual.worker import Worker
+
+    from .plugins_browser_rows import UpdateRow
 
 
 class PluginsBrowserLatestMixin:
@@ -24,6 +29,9 @@ class PluginsBrowserLatestMixin:
         _plugin_entry_by_name: dict[str, PluginCatalogEntry]
         _plugin_latest_loading: set[str]
         _plugin_latest_workers: dict[int, str]
+        _rows: tuple[UpdateRow, ...]
+        _rows_by_key: dict[str, UpdateRow]
+        _uv_tool: object | None
 
         def _current_entry(self) -> PluginCatalogEntry | None: ...
 
@@ -119,6 +127,12 @@ class PluginsBrowserLatestMixin:
             for group, style, group_entries in self._grouped
         ]
         self._refresh_install_mark_row(name)
+        blocked = isinstance(self._uv_tool, NotUvToolInstall)
+        new_row = build_plugin_row(updated, blocked=blocked)
+        self._rows = tuple(
+            new_row if row.key == new_row.key else row for row in self._rows
+        )
+        self._rows_by_key[new_row.key] = new_row
 
     def _entry_name_for_latest_key(self, key: str) -> str | None:
         catalog = self._catalog

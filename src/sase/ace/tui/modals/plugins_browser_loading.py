@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.agent_clis.history import AgentCliUpdateRun
 from sase.agent_clis.models import AgentCliStatus
@@ -45,6 +46,9 @@ from sase.updates.incoming_commits import (
 )
 from sase.version._git import git_probe_cache_key
 
+if TYPE_CHECKING:
+    from .plugins_browser_rows import UpdateRow
+
 
 _FRESH_EDITABLE_STATES = frozenset({"current", "update_available", "dirty", "diverged"})
 
@@ -75,6 +79,7 @@ class PluginsLoadResult:
     agent_cli_colors: dict[str, str] = field(default_factory=dict)
     agent_cli_history: tuple[AgentCliUpdateRun, ...] = ()
     agent_cli_history_error: str | None = None
+    rows: tuple[UpdateRow, ...] = ()
 
 
 def probe_uv_tool() -> UvToolInstall | NotUvToolInstall | None:

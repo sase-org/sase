@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING, Any, Literal
 
 from rich.console import RenderableType
@@ -9,10 +10,14 @@ from rich.panel import Panel
 from rich.text import Text
 from textual.worker import Worker, WorkerState
 
+from .plugins_browser_constants import _HEADER_PREFIX
 from .plugins_browser_loading import PluginsLoadResult
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
+    from textual.widgets import OptionList
+
+    from .plugins_browser_rows import UpdateRow
 else:
     _MixinBase = object
 
@@ -25,6 +30,8 @@ class PluginsBrowserWorkersMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _active_subtab: str
+        _rows: tuple[UpdateRow, ...]
+        _rows_by_key: dict[str, UpdateRow]
         _agent_cli_colors: dict[str, str]
         _agent_cli_error: str | None
         _agent_cli_history: tuple[Any, ...]
@@ -69,6 +76,10 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         def _hints(self) -> str: ...
 
         def _highlighted_name(self) -> str | None: ...
+
+        def _option_list(self) -> OptionList | None: ...
+
+        def _agent_cli_option_list(self) -> OptionList | None: ...
 
         def _notify(
             self,
@@ -116,6 +127,7 @@ class PluginsBrowserWorkersMixin(_MixinBase):
     def _start_load(self, *, force: bool) -> None:
         from . import plugins_browser_pane as pane_module
 
+        prior_uv_tool = self._uv_tool
         self._loading = True
         self._error = None
         # A reload invalidates the prior handoff immediately. Only this load's
@@ -142,12 +154,24 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         agent_cli_history_enabled = self._agent_cli_history_config.enabled
 
         def task() -> PluginsLoadResult:
-            return pane_module._load_plugins_catalog(
+            result = pane_module._load_plugins_catalog(
                 refresh=refresh,
                 offline=offline,
                 incoming_commits_enabled=incoming_commits_enabled,
                 incoming_commits_limit=incoming_commits_limit,
                 agent_cli_history_enabled=agent_cli_history_enabled,
+            )
+            # Building rows here (off the event loop) rather than on receipt
+            # keeps construction off the UI thread; every existing loader stub
+            # keeps working unchanged because rows are derived from whatever
+            # it returned.
+            return dataclasses.replace(
+                result,
+                rows=pane_module._build_update_rows(
+                    result,
+                    uv_tool=result.uv_tool or prior_uv_tool,
+                    offline=offline,
+                ),
             )
 
         self._worker = self.run_worker(
@@ -273,6 +297,8 @@ class PluginsBrowserWorkersMixin(_MixinBase):
             self._agent_cli_history_error = getattr(
                 result, "agent_cli_history_error", None
             )
+            self._rows = tuple(getattr(result, "rows", ()))
+            self._rows_by_key = {row.key: row for row in self._rows}
             self._render_all()
             update_status = getattr(result, "update_status", None)
             refresh_indicator = getattr(
@@ -309,3 +335,32 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         if 0.0 <= age <= ttl_seconds:
             return roots
         return frozenset()
+
+    def _highlighted_row(self) -> UpdateRow | None:
+        """Resolve the *active* sub-tab's highlighted option to its row.
+
+        Core hosts no list, so it returns ``None`` there — exactly matching
+        today's gating on that sub-tab. Used by ``check_action``, which
+        already conditions on the active sub-tab before consulting this.
+        """
+        if self._active_subtab == "plugins":
+            option_list = self._option_list()
+            prefix = "plugin__"
+            key_prefix = "plugin:"
+        elif self._active_subtab == "agent-clis":
+            option_list = self._agent_cli_option_list()
+            prefix = "agent-cli__"
+            key_prefix = "cli:"
+        else:
+            return None
+        if option_list is None or option_list.highlighted is None:
+            return None
+        try:
+            option = option_list.get_option_at_index(option_list.highlighted)
+        except Exception:
+            return None
+        option_id = option.id
+        if not option_id or option_id.startswith(_HEADER_PREFIX):
+            return None
+        name = option_id.removeprefix(prefix)
+        return self._rows_by_key.get(f"{key_prefix}{name}")

@@ -100,14 +100,13 @@ async def test_plugins_pane_uninstall_disabled_when_not_uv_tool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
-    _patch_catalog(monkeypatch, catalog=_catalog())
+    _patch_catalog(monkeypatch, catalog=_catalog(), uv_tool=_not_uv_tool())
     planned: list[int] = []
     monkeypatch.setattr(
         pbp, "_plan_uninstall_preview", lambda *a, **k: planned.append(1)
     )
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        pane._uv_tool = _not_uv_tool()
         messages = _spy_notify(monkeypatch, pane)
         _highlight(pane, "github")  # installed
         pane.action_uninstall()

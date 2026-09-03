@@ -33,6 +33,7 @@ from .plugins_browser_agent_clis_config import (
 from .pane_entry_jump import apply_jump_hint_prefix
 from .plugins_browser_constants import _SUBTAB_NAV_HINT
 from .plugins_browser_agent_clis_history import build_agent_cli_history_panel
+from .plugins_browser_rows import agent_cli_version_label
 
 _ITEM_PREFIX = "agent-cli__"
 _DETAIL_PLACEHOLDER = "Select an agent CLI to view its update details."
@@ -177,7 +178,7 @@ class AgentCliBrowserMixin(AgentCliBrowserActionsMixin):
             status.display_name,
             style=f"bold {self._agent_cli_color(status)}",
         )
-        version = self._agent_cli_version_label(status)
+        version = agent_cli_version_label(status)
         if version:
             text.append("  ")
             text.append(version, style="dim")
@@ -186,18 +187,6 @@ class AgentCliBrowserMixin(AgentCliBrowserActionsMixin):
         if status.update_available:
             text.append("  ↑", style="bold cyan")
         return text
-
-    @staticmethod
-    def _agent_cli_version_label(status: AgentCliStatus) -> str:
-        installed = status.installed_version
-        latest = status.latest_version
-        if installed and latest and status.update_available:
-            return f"v{installed} → v{latest}"
-        if installed:
-            return f"v{installed}"
-        if status.installed:
-            return "version unknown"
-        return "not installed"
 
     @staticmethod
     def _install_method_label(status: AgentCliStatus) -> str:

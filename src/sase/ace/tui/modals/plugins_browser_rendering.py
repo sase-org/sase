@@ -37,6 +37,10 @@ from .plugins_browser_constants import (
     _HEADER_PREFIX,
     _ITEM_PREFIX,
 )
+from .plugins_browser_rows import dev_state_label, plugin_version_label
+
+if TYPE_CHECKING:
+    from .plugins_browser_rows import UpdateRow
 
 
 class PluginsBrowserRenderingMixin:
@@ -67,6 +71,7 @@ class PluginsBrowserRenderingMixin:
         _plugin_option_index: dict[str, int]
         _plugin_logical_row: dict[str, int]
         _plugin_entry_by_name: dict[str, PluginCatalogEntry]
+        _rows_by_key: dict[str, UpdateRow]
 
         def _detail_widget(self) -> Static | None: ...
 
@@ -293,7 +298,7 @@ class PluginsBrowserRenderingMixin:
             text.append(_AVAILABLE_GLYPH, style="dim")
         text.append(" ")
         text.append(self._plugin_display_label(entry), style="bold")
-        version = self._version_label(entry)
+        version = plugin_version_label(entry)
         if version:
             text.append("  ")
             text.append(version, style="dim")
@@ -319,35 +324,6 @@ class PluginsBrowserRenderingMixin:
         if entry.owner and entry.name:
             return f"{entry.owner}/{entry.name}"
         return entry.name or entry.repo or entry.owner or "unknown plugin"
-
-    @staticmethod
-    def _version_label(entry: PluginCatalogEntry) -> str:
-        info = entry.installed
-        if info.installed:
-            if entry.latest.source == "editable":
-                return PluginsBrowserRenderingMixin._dev_version_label(entry)
-            if entry.latest.source == "git":
-                return "git"
-            if entry.update_available and info.version and entry.latest.version:
-                return f"v{info.version} → v{entry.latest.version}"
-            if info.version:
-                return f"v{info.version}"
-            return "installed"
-        if entry.latest.version:
-            return f"latest v{entry.latest.version}"
-        return ""
-
-    @staticmethod
-    def _dev_version_label(entry: PluginCatalogEntry) -> str:
-        latest = entry.latest
-        current = latest.current_version or entry.installed.version
-        current_label = f"v{current}" if current else "editable"
-        if entry.update_available and latest.version:
-            return f"{current_label} → v{latest.version}  dev"
-        state = PluginsBrowserRenderingMixin._dev_state_label(latest.state)
-        if state:
-            return f"{current_label}  dev · {state}"
-        return f"{current_label}  dev"
 
     def _skip_to_first_item(self, option_list: OptionList) -> None:
         """Highlight the first non-header option, if any."""
@@ -569,28 +545,13 @@ class PluginsBrowserRenderingMixin:
         if package.update_available:
             return Text("update available", style="cyan")
         if package.install_type == "editable":
-            label = PluginsBrowserRenderingMixin._dev_state_label(package.latest_state)
+            label = dev_state_label(package.latest_state)
             if label:
                 return Text(label, style="dim")
             return Text("up to date", style="dim")
         if package.latest_version:
             return Text("up to date", style="dim")
         return Text("latest unknown", style="dim")
-
-    @staticmethod
-    def _dev_state_label(state: str | None) -> str:
-        labels = {
-            "current": "",
-            "update_available": "update available",
-            "dirty": "local changes",
-            "diverged": "diverged",
-            "detached": "detached HEAD",
-            "no_upstream": "no upstream",
-            "offline": "offline",
-            "fetch_failed": "fetch failed",
-            "unavailable": "unavailable",
-        }
-        return labels.get(state or "", state or "")
 
     def _current_entry(self) -> PluginCatalogEntry | None:
         option_list = self._option_list()
@@ -610,6 +571,19 @@ class PluginsBrowserRenderingMixin:
     def _highlighted_name(self) -> str | None:
         entry = self._current_entry()
         return entry.name if entry is not None else None
+
+    def _highlighted_plugin_row(self) -> UpdateRow | None:
+        """The row for ``#plugins-list``'s highlight, independent of sub-tab.
+
+        A reload's hint repaint runs regardless of the active sub-tab (the
+        plugin list keeps its own highlight even while hidden behind the
+        Core/Agent CLIs ``ContentSwitcher``), so this must not gate on
+        ``_active_subtab`` the way ``_highlighted_row`` does.
+        """
+        entry = self._current_entry()
+        if entry is None:
+            return None
+        return self._rows_by_key.get(f"plugin:{entry.name}")
 
     def _can_install_entry(self, entry: PluginCatalogEntry | None) -> bool:
         """Whether *entry* can be installed or marked for install now."""

@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from sase.ace.tui.util.debounce import DetailPanelDebouncer
 
     from .config_center_session import UpdatesSessionState
+    from .plugins_browser_rows import UpdateRow
 else:
     _MixinBase = object
 
@@ -69,6 +70,8 @@ class PluginsBrowserLayoutMixin(_MixinBase):
         def _hints(self) -> str: ...
 
         def _start_load(self, *, force: bool) -> None: ...
+
+        def _highlighted_row(self) -> UpdateRow | None: ...
 
         def reset_jump_state(self, *, repaint: bool = False) -> None: ...
 
@@ -168,14 +171,24 @@ class PluginsBrowserLayoutMixin(_MixinBase):
             return not self._loading and self._agent_cli_plan_worker is None
         if action == "sync_agents":
             return callable(getattr(self.app, "action_sync_agents", None))
+        plugin_row_capability = {
+            "install": "install",
+            "toggle_install_mark": "install",
+            "uninstall": "uninstall",
+            "update": "update",
+        }
+        if action in plugin_row_capability:
+            if self._active_subtab != "plugins":
+                return False
+            row = self._highlighted_row()
+            return row is not None and plugin_row_capability[action] in row.capabilities
         if action == "toggle_history_scope":
-            return self._active_subtab == "agent-clis"
+            if self._active_subtab != "agent-clis":
+                return False
+            row = self._highlighted_row()
+            return row is not None and "history" in row.capabilities
         plugin_only = {
-            "install",
-            "toggle_install_mark",
-            "uninstall",
             "switch_mode",
-            "update",
             "toggle_verbose",
             "focus_filter",
         }

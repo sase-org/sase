@@ -36,6 +36,8 @@ if TYPE_CHECKING:
     from textual.widgets import OptionList
     from textual.worker import Worker
 
+    from .plugins_browser_rows import UpdateRow
+
 _ITEM_PREFIX = "agent-cli__"
 
 
@@ -52,6 +54,7 @@ class AgentCliBrowserActionsMixin:
         _marked_agent_clis: set[str]
         _marked_install: set[str]
         _offline: bool
+        _rows_by_key: dict[str, UpdateRow]
         app: App[Any]
         is_mounted: bool
 
@@ -108,7 +111,10 @@ class AgentCliBrowserActionsMixin:
         self._update_static("#agent-clis-hints", self._agent_cli_hints())
 
     def _can_mark_agent_cli(self, status: AgentCliStatus | None) -> bool:
-        return status is not None and self._agent_cli_update_entry(status).ready
+        if status is None:
+            return False
+        row = self._rows_by_key.get(f"cli:{status.name}")
+        return row is not None and "mark_update" in row.capabilities
 
     def _refresh_agent_cli_mark_row(self, name: str) -> None:
         option_list = self._agent_cli_option_list()

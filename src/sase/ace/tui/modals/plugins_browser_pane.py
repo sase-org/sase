@@ -95,6 +95,7 @@ from .plugins_browser_operations import (
     callable_accepts_keyword,
 )
 from .plugins_browser_rendering import PluginsBrowserRenderingMixin
+from .plugins_browser_rows import UpdateRow, build_update_rows
 from .plugins_browser_sase_update import (
     SaseUpdateActionsMixin,
     installed_version,
@@ -176,6 +177,7 @@ _execute_agent_cli_updates = execute_agent_cli_updates
 _read_agent_cli_update_runs = read_agent_cli_update_runs
 _AgentCliHistoryConfig = AgentCliHistoryConfig
 _load_agent_cli_history_config = load_agent_cli_history_config
+_build_update_rows = build_update_rows
 
 _monotonic = time.monotonic
 
@@ -270,6 +272,9 @@ class PluginsBrowserPane(
         self._agent_cli_selection_guard = ProgrammaticSelectionGuard()
         self._updates_loaded_once = False
         self._grouped: list[tuple[str, str, list[PluginCatalogEntry]]] = []
+        #: The merged row model, rebuilt once per load on the worker thread.
+        self._rows: tuple[UpdateRow, ...] = ()
+        self._rows_by_key: dict[str, UpdateRow] = {}
         #: entry.name -> casefolded filter haystack, rebuilt once per catalog
         #: load instead of rejoined per entry on every filter keystroke.
         self._plugin_haystacks: dict[str, str] = {}
