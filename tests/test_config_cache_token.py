@@ -287,6 +287,93 @@ def test_refresh_worker_only_deregisters_itself() -> None:
             release_live.set()
 
 
+def test_current_config_token_recomputes_after_chdir(tmp_path, monkeypatch) -> None:
+    """A ``chdir`` invalidates the cached token even inside the refresh window."""
+    dir_a = tmp_path / "a"
+    dir_b = tmp_path / "b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+
+    now = [10.0]
+    calls = 0
+
+    def compute() -> tuple[str, int]:
+        nonlocal calls
+        calls += 1
+        return ("token", calls)
+
+    monkeypatch.chdir(dir_a)
+    with (
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
+        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+    ):
+        _reset_config_token_cache()
+        first = current_config_token()
+
+        monkeypatch.chdir(dir_b)
+        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS / 2
+        second = current_config_token()
+
+    assert second != first
+    assert calls == 2
+
+
+def test_config_token_refresh_worker_declines_to_publish_after_chdir(
+    tmp_path, monkeypatch
+) -> None:
+    """A background refresh that raced a ``chdir`` must not publish its token."""
+    dir_a = tmp_path / "a"
+    dir_b = tmp_path / "b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+
+    now = [10.0]
+    refresh_started = threading.Event()
+    release_refresh = threading.Event()
+    calls = 0
+    calls_lock = threading.Lock()
+
+    def compute() -> tuple[str, int]:
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+            call_number = calls
+        if call_number == 2:
+            refresh_started.set()
+            assert release_refresh.wait(timeout=2.0)
+        return ("token", call_number)
+
+    monkeypatch.chdir(dir_a)
+    with (
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
+        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+    ):
+        _reset_config_token_cache()
+        try:
+            first = current_config_token()
+            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            assert current_config_token() is first
+            assert refresh_started.wait(timeout=1.0)
+            worker = config_core._current_config_token_refresh_thread
+            assert worker is not None
+
+            # chdir while the worker is blocked mid-compute for dir_a.
+            monkeypatch.chdir(dir_b)
+            release_refresh.set()
+            worker.join(timeout=2.0)
+            assert not worker.is_alive()
+
+            # The worker computed a token for dir_a; it must not publish
+            # over a cache now keyed to dir_b.
+            assert config_core._current_config_token_cache_value == first
+
+            third = current_config_token()
+            assert third != first
+            assert calls == 3
+        finally:
+            release_refresh.set()
+
+
 def test_explicit_invalidation_wins_race_with_background_refresh() -> None:
     """A stale worker cannot overwrite an inline post-clear token swap."""
     now = [10.0]

@@ -131,6 +131,7 @@ _current_config_token_cache_value: tuple[Any, ...] | None = None
 _current_config_token_cache_deadline = 0.0
 _current_config_token_cache_epoch = 0
 _current_config_token_cache_dir: Path | None = None
+_current_config_token_cache_cwd: str | None = None
 _current_config_token_cache_lock = threading.RLock()
 _current_config_token_refresh_thread: threading.Thread | None = None
 
@@ -139,9 +140,11 @@ def _reset_current_config_token_cache_locked() -> None:
     """Reset the config-token cache while its lock is held."""
     global _current_config_token_cache_value, _current_config_token_cache_deadline
     global _current_config_token_cache_epoch, _current_config_token_cache_dir
+    global _current_config_token_cache_cwd
     _current_config_token_cache_value = None
     _current_config_token_cache_deadline = 0.0
     _current_config_token_cache_dir = None
+    _current_config_token_cache_cwd = None
     _current_config_token_cache_epoch += 1
 
 
@@ -173,6 +176,16 @@ def stat_token(path: Path) -> tuple[str, int, int] | None:
     return (str(path), stat.st_mtime_ns, stat.st_size)
 
 
+def _current_config_token_cache_cwd_key() -> str | None:
+    """Return the cwd half of the token cache key, or None when unused."""
+    if not _include_local_config:
+        return None
+    try:
+        return str(Path.cwd())
+    except OSError:
+        return None
+
+
 def _compute_current_config_token() -> tuple[Any, ...]:
     """Inspect config sources and return their current cache key."""
     parts: list[Any] = [_config_cache_generation, _include_local_config]
@@ -197,7 +210,7 @@ def _compute_current_config_token() -> tuple[Any, ...]:
     return tuple(parts)
 
 
-def _refresh_current_config_token(cache_epoch: int) -> None:
+def _refresh_current_config_token(cache_epoch: int, cache_cwd: str | None) -> None:
     """Recompute and publish a config token from the daemon worker."""
     global _current_config_token_cache_value, _current_config_token_cache_deadline
     global _current_config_token_refresh_thread
@@ -208,7 +221,14 @@ def _refresh_current_config_token(cache_epoch: int) -> None:
         token = None
 
     with _current_config_token_cache_lock:
-        if cache_epoch == _current_config_token_cache_epoch:
+        # A worker that raced a `chdir` computed its token against a
+        # directory the cache is no longer keyed to. Declining to publish is
+        # safe: the next synchronous read sees the CWD mismatch and
+        # recomputes.
+        if cache_epoch == _current_config_token_cache_epoch and (
+            _current_config_token_cache_cwd == cache_cwd
+            and _current_config_token_cache_cwd_key() == cache_cwd
+        ):
             if token is not None:
                 _current_config_token_cache_value = token
             _current_config_token_cache_deadline = (
@@ -229,23 +249,31 @@ def current_config_token() -> tuple[Any, ...]:
     daemon worker revalidates it off-thread.
 
     The cached token is bound to the ``CONFIG_DIR`` object it was computed
-    against. Rebinding that source root (tests patch it; production never
-    does) is a cache-generation change, the same class of event as
+    against and to the process's current working directory. Rebinding
+    ``CONFIG_DIR`` (tests patch it; production never does) or a ``chdir`` is a
+    cache-generation change, the same class of event as
     :func:`set_include_local_config`. Stale-while-revalidate timing is
-    unchanged when ``CONFIG_DIR`` keeps its identity.
+    unchanged when neither ``CONFIG_DIR`` nor the working directory changes.
     """
     global _current_config_token_cache_value, _current_config_token_cache_deadline
     global _current_config_token_refresh_thread, _current_config_token_cache_dir
+    global _current_config_token_cache_cwd
 
     refresh_thread_to_start: threading.Thread | None = None
     with _current_config_token_cache_lock:
+        cwd_key = _current_config_token_cache_cwd_key()
         cached = _current_config_token_cache_value
-        if cached is None or _current_config_token_cache_dir is not CONFIG_DIR:
+        if (
+            cached is None
+            or _current_config_token_cache_dir is not CONFIG_DIR
+            or _current_config_token_cache_cwd != cwd_key
+        ):
             if cached is not None:
                 _reset_current_config_token_cache_locked()
             token = _compute_current_config_token()
             _current_config_token_cache_value = token
             _current_config_token_cache_dir = CONFIG_DIR
+            _current_config_token_cache_cwd = cwd_key
             _current_config_token_cache_deadline = (
                 time.monotonic() + _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
             )
@@ -257,7 +285,7 @@ def current_config_token() -> tuple[Any, ...]:
         ):
             refresh_thread = threading.Thread(
                 target=_refresh_current_config_token,
-                args=(_current_config_token_cache_epoch,),
+                args=(_current_config_token_cache_epoch, cwd_key),
                 name=CONFIG_TOKEN_REFRESH_THREAD_NAME,
                 daemon=True,
             )

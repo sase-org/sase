@@ -98,6 +98,83 @@ def test_batch_check_isolates_failures_and_restores_cwd(
     assert "Traceback" not in out
 
 
+def test_batch_task_type_registry_reflects_each_project_cwd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A batch run must not leak one project's task-type registry into the next.
+
+    Regression test for the stale process-wide config-token cache: before the
+    fix, ``get_task_type_registry()`` inside ``plan`` served the *first*
+    project's registry for every project after it, because a bare ``chdir``
+    never invalidated ``current_config_token()``.
+    """
+    from sase.main import init_onboarding
+    from sase.task_types.registry import (
+        get_task_type_registry,
+        reset_task_type_registry_cache,
+    )
+
+    def _target_with_task_type(name: str) -> InitProjectTarget:
+        target = _target(tmp_path, name)
+        sase_dir = target.workspace_dir / "sase"
+        sase_dir.mkdir()
+        (sase_dir / "sase.yml").write_text(
+            f"""
+bead:
+  task_types:
+    - schema_version: 1
+      task_type: {name}_only
+      label: {name.title()} Only
+      summary: A project-local task type declared only in {name}'s workspace.
+      when_to_use: File one when exercising {name}'s registry.
+      triage:
+        min_plus_ones: 1
+""",
+            encoding="utf-8",
+        )
+        return target
+
+    original = tmp_path / "original"
+    original.mkdir()
+    monkeypatch.chdir(original)
+    alpha = _target_with_task_type("alpha")
+    beta = _target_with_task_type("beta")
+    gamma = _target_with_task_type("gamma")
+    monkeypatch.setattr(
+        init_onboarding,
+        "resolve_init_project_inventory",
+        lambda: InitProjectInventory((alpha, beta, gamma)),
+    )
+
+    reset_task_type_registry_cache()
+    seen_slugs: dict[str, set[str]] = {}
+
+    def plan(args: argparse.Namespace) -> InitPlan:
+        del args
+        name = Path.cwd().name
+        seen_slugs[name] = set(get_task_type_registry().by_slug)
+        return InitPlan(command="memory", label="Memory", summary="")
+
+    spec = InitCommandSpec(name="memory", label="Memory", plan=plan, run=lambda a: 0)
+
+    exit_code = run_init_onboarding_all(
+        _args(check=True, all_projects=True),
+        specs=(spec,),
+        stdin=StringIO(),
+        input_func=_reject_prompt,
+    )
+
+    assert exit_code == 0
+    assert set(seen_slugs) == {"alpha", "beta", "gamma"}
+    for name in ("alpha", "beta", "gamma"):
+        others = {
+            f"{other}_only" for other in ("alpha", "beta", "gamma") if other != name
+        }
+        assert f"{name}_only" in seen_slugs[name]
+        assert not others & seen_slugs[name]
+
+
 def test_batch_yes_continues_after_failure_and_deploys_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
