@@ -247,7 +247,7 @@ class PluginsBrowserPane(
         self._fresh_editable_roots_evidence: tuple[frozenset[str], float] | None = None
         self._now = time.time()
         self._filter_text = ""
-        self._marked_install: set[str] = set()
+        self._marked: set[str] = set()
         self._offline = False
         self._verbose = False
         self._agent_cli_statuses = ()
@@ -258,7 +258,6 @@ class PluginsBrowserPane(
         self._agent_cli_history_config: AgentCliHistoryConfig = (
             _load_agent_cli_history_config()
         )
-        self._marked_agent_clis: set[str] = set()
         self._agent_cli_results: dict[str, AgentCliUpdateResult] = {}
         self._agent_cli_history_key: tuple[str | None, bool] | None = None
         self._selection_guard = ProgrammaticSelectionGuard()

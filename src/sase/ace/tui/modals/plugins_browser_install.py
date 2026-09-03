@@ -180,7 +180,6 @@ class PluginInstallActionsMixin:
 
     if TYPE_CHECKING:
         _loading: bool
-        _marked_install: set[str]
         _offline: bool
         _plan_worker: Worker[Any] | None
         _uv_tool: object | None
@@ -205,10 +204,6 @@ class PluginInstallActionsMixin:
             self, names: tuple[str, ...], *, offline: bool
         ) -> InstallManyPreview: ...
 
-        def _hints(self) -> str: ...
-
-        def _update_static(self, selector: str, content: Any) -> None: ...
-
         def _notify(
             self,
             message: str,
@@ -216,15 +211,13 @@ class PluginInstallActionsMixin:
             severity: Literal["information", "warning", "error"] = "information",
         ) -> None: ...
 
-        def _start_load(self, *, force: bool) -> None: ...
+        def action_toggle_mark(self) -> None: ...
 
-        def _refresh_install_mark_row(self, name: str) -> bool: ...
+        def _clear_marks(self, keys: object = None) -> None: ...
 
-        def _advance_install_mark_selection(self) -> None: ...
+        def _marked_keys_with(self, capability: str) -> tuple[str, ...]: ...
 
-        def _clear_install_marks(self) -> None: ...
-
-        def _can_install_entry(self, entry: PluginCatalogEntry | None) -> bool: ...
+        def _marked_plugin_names(self) -> tuple[str, ...]: ...
 
         def _handle_code_update_completion(
             self,
@@ -242,13 +235,14 @@ class PluginInstallActionsMixin:
         """
         if self._loading or self._plan_worker is not None:
             return
-        if self._marked_install:
+        marked_names = self._marked_plugin_names()
+        if marked_names:
             if isinstance(self._uv_tool, NotUvToolInstall):
                 self._notify(
                     str(NotAUvToolInstallError(self._uv_tool)), severity="warning"
                 )
                 return
-            self._begin_install_many_plan(tuple(sorted(self._marked_install)))
+            self._begin_install_many_plan(marked_names)
             return
         entry = self._current_entry()
         if entry is None:
@@ -262,32 +256,8 @@ class PluginInstallActionsMixin:
         self._begin_install_plan(entry.name)
 
     def action_toggle_install_mark(self) -> None:
-        """Toggle the install mark on the highlighted installable plugin."""
-        if self._loading or self._plan_worker is not None:
-            return
-        entry = self._current_entry()
-        if not self._can_install_entry(entry):
-            self._notify("Select an installable plugin to mark.", severity="warning")
-            return
-        assert entry is not None
-        if entry.name in self._marked_install:
-            self._marked_install.remove(entry.name)
-        else:
-            self._marked_install.add(entry.name)
-        self._refresh_install_mark_row(entry.name)
-        self._advance_install_mark_selection()
-        self._update_static("#updates-hints", self._hints())
-
-    def action_clear_install_marks_or_close(self) -> None:
-        """Clear install marks on first escape; otherwise close the parent modal."""
-        if self._marked_install:
-            count = len(self._marked_install)
-            self._clear_install_marks()
-            self._notify(f"Cleared {count} install mark(s).")
-            return
-        close = getattr(getattr(self, "screen", None), "action_close", None)
-        if callable(close):
-            close()
+        """Toggle the mark on the highlighted installable plugin or updatable CLI."""
+        self.action_toggle_mark()
 
     def _begin_install_plan(self, name: str) -> None:
         offline = self._offline
@@ -496,7 +466,7 @@ class PluginInstallActionsMixin:
             cl_name=", ".join(names),
             on_complete=self._on_install_many_complete,
         )
-        self._clear_install_marks()
+        self._clear_marks(self._marked_keys_with("install"))
 
     def _on_install_complete(
         self, completion: TrackedProcCompletion[InstallOutcome]

@@ -29,12 +29,9 @@ from .plugin_action_confirm_modal import (
     PluginActionConfirmResult,
     PluginActionVariant,
 )
-from .plugins_browser_constants import _ROW_PREFIX
 
 if TYPE_CHECKING:
-    from rich.text import Text
     from textual.app import App
-    from textual.widgets import OptionList
     from textual.worker import Worker
 
     from .plugins_browser_rows import UpdateRow
@@ -49,25 +46,23 @@ class AgentCliBrowserActionsMixin:
         _agent_cli_results: dict[str, AgentCliUpdateResult]
         _agent_cli_statuses: tuple[AgentCliStatus, ...]
         _loading: bool
-        _marked_agent_clis: set[str]
-        _marked_install: set[str]
+        _marked: set[str]
         _offline: bool
-        _row_option_index: dict[str, int]
-        _rows_by_key: dict[str, UpdateRow]
+        _plan_worker: Worker[Any] | None
         app: App[Any]
         is_mounted: bool
 
-        def action_toggle_install_mark(self) -> None: ...
+        def _advance_mark_selection(self, capability: str) -> None: ...
 
-        def _clear_install_marks(self) -> None: ...
-
-        def _current_agent_cli(self) -> AgentCliStatus | None: ...
+        def _clear_marks(self, keys: object = None) -> None: ...
 
         def _highlighted_row(self) -> UpdateRow | None: ...
 
         def _hints(self) -> str: ...
 
-        def _is_item(self, option_list: OptionList, index: int) -> bool: ...
+        def _marked_cli_names(self) -> tuple[str, ...]: ...
+
+        def _marked_keys_with(self, capability: str) -> tuple[str, ...]: ...
 
         def _notify(
             self,
@@ -76,11 +71,9 @@ class AgentCliBrowserActionsMixin:
             severity: Literal["information", "warning", "error"] = "information",
         ) -> None: ...
 
-        def _option_list(self) -> OptionList | None: ...
+        def _refresh_row(self, key: str) -> bool: ...
 
         def _render_detail_now(self, *, force: bool = False) -> None: ...
-
-        def _row_text(self, row: UpdateRow) -> Text: ...
 
         def _start_load(self, *, force: bool) -> None: ...
 
@@ -89,93 +82,41 @@ class AgentCliBrowserActionsMixin:
     # -- mark handling -------------------------------------------------------
 
     def action_toggle_mark(self) -> None:
-        """Toggle the install or agent-CLI mark for the highlighted row."""
+        """Toggle the mark for the highlighted row; the verb follows the row."""
+        if (
+            self._loading
+            or self._plan_worker is not None
+            or self._agent_cli_plan_worker is not None
+        ):
+            return
         row = self._highlighted_row()
-        if row is None or row.kind == "core":
+        if row is None:
             self._notify(
                 "Select an installable plugin or an updatable agent CLI to mark.",
                 severity="warning",
             )
             return
-        if row.kind == "plugin":
-            self.action_toggle_install_mark()
-            return
-        if row.kind == "agent-cli":
-            self._toggle_agent_cli_mark()
-
-    def _toggle_agent_cli_mark(self) -> None:
-        if self._loading or self._agent_cli_plan_worker is not None:
-            return
-        status = self._current_agent_cli()
-        if not self._can_mark_agent_cli(status):
-            self._notify("Select an updatable agent CLI to mark.", severity="warning")
-            return
-        assert status is not None
-        if status.name in self._marked_agent_clis:
-            self._marked_agent_clis.remove(status.name)
+        if "install" in row.capabilities:
+            capability = "install"
+        elif "mark_update" in row.capabilities:
+            capability = "mark_update"
         else:
-            self._marked_agent_clis.add(status.name)
-        self._refresh_agent_cli_mark_row(status.name)
-        self._advance_agent_cli_mark_selection()
-        self._update_static("#updates-hints", self._hints())
-
-    def _can_mark_agent_cli(self, status: AgentCliStatus | None) -> bool:
-        if status is None:
-            return False
-        row = self._rows_by_key.get(f"cli:{status.name}")
-        return row is not None and "mark_update" in row.capabilities
-
-    def _refresh_agent_cli_mark_row(self, name: str) -> None:
-        option_list = self._option_list()
-        key = f"cli:{name}"
-        row = self._rows_by_key.get(key)
-        index = self._row_option_index.get(key)
-        if option_list is None or row is None or index is None:
+            self._notify(_unmarkable_message(row), severity="warning")
             return
-        option_list.replace_option_prompt_at_index(index, self._row_text(row))
-
-    def _advance_agent_cli_mark_selection(self) -> None:
-        option_list = self._option_list()
-        if option_list is None or option_list.highlighted is None:
-            return
-        start = option_list.highlighted
-        for offset in range(1, option_list.option_count + 1):
-            index = (start + offset) % option_list.option_count
-            if not self._is_item(option_list, index):
-                continue
-            option = option_list.get_option_at_index(index)
-            key = str(option.id).removeprefix(_ROW_PREFIX)
-            row = self._rows_by_key.get(key)
-            if row is not None and "mark_update" in row.capabilities:
-                option_list.highlighted = index
-                return
-
-    def _clear_agent_cli_marks(self) -> None:
-        names = tuple(self._marked_agent_clis)
-        self._marked_agent_clis.clear()
-        for name in names:
-            self._refresh_agent_cli_mark_row(name)
+        if row.key in self._marked:
+            self._marked.remove(row.key)
+        else:
+            self._marked.add(row.key)
+        self._refresh_row(row.key)
+        self._advance_mark_selection(capability)
         self._update_static("#updates-hints", self._hints())
-
-    def _prune_agent_cli_marks(self) -> None:
-        live = {
-            status.name
-            for status in self._agent_cli_statuses
-            if self._can_mark_agent_cli(status)
-        }
-        self._marked_agent_clis &= live
 
     def action_clear_marks_or_close(self) -> None:
-        """Clear agent-CLI marks, then install marks, then close."""
-        if self._marked_agent_clis:
-            count = len(self._marked_agent_clis)
-            self._clear_agent_cli_marks()
-            self._notify(f"Cleared {count} agent CLI update mark(s).")
-            return
-        if self._marked_install:
-            count = len(self._marked_install)
-            self._clear_install_marks()
-            self._notify(f"Cleared {count} install mark(s).")
+        """Clear every mark, including filter-hidden ones; close when none are set."""
+        if self._marked:
+            count = len(self._marked)
+            self._clear_marks()
+            self._notify(f"Cleared {count} mark(s).")
             return
         close = getattr(getattr(self, "screen", None), "action_close", None)
         if callable(close):
@@ -210,9 +151,8 @@ class AgentCliBrowserActionsMixin:
         """Plan updates for marked Agent CLIs, or every updatable installed CLI."""
         if self._loading or self._agent_cli_plan_worker is not None:
             return
-        names = (
-            tuple(sorted(self._marked_agent_clis)) if self._marked_agent_clis else None
-        )
+        marked_names = self._marked_cli_names()
+        names = marked_names or None
         all_clis = names is None
 
         def task() -> AgentCliUpdatePlan:
@@ -326,7 +266,7 @@ class AgentCliBrowserActionsMixin:
         results = completion.payload or ()
         for result in results:
             self._agent_cli_results[result.name] = result
-        self._clear_agent_cli_marks()
+        self._clear_marks(self._marked_keys_with("mark_update"))
         self._render_detail_now(force=True)
         self._notify(
             completion.message,
@@ -334,6 +274,15 @@ class AgentCliBrowserActionsMixin:
         )
         if self.is_mounted:
             self._start_load(force=False)
+
+
+def _unmarkable_message(row: UpdateRow) -> str:
+    """Kind-specific toast when Space/I is pressed on a row that cannot be marked."""
+    if row.kind == "plugin":
+        return "Select an installable plugin to mark."
+    if row.kind == "agent-cli":
+        return "Select an updatable agent CLI to mark."
+    return "Select an installable plugin or an updatable agent CLI to mark."
 
 
 def agent_cli_result_line(result: AgentCliUpdateResult) -> str:

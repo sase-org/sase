@@ -102,7 +102,7 @@ async def test_config_center_plugins_marked_install_png_snapshot(
         _highlight(pane, "nvim")
         await page.wait_for(lambda _s: pane._highlighted_name() == "nvim")
         pane.action_toggle_install_mark()
-        await page.wait_for(lambda _s: pane._marked_install == {"nvim"})
+        await page.wait_for(lambda _s: pane._marked == {"plugin:nvim"})
         # Toggling a mark advances the highlight to the next installable row.
         await page.wait_for(lambda _s: pane._detail_key == "plugin:acme")
         await _wait_for_plugins_detail(page, pane)

@@ -58,11 +58,15 @@ class PluginsBrowserLayoutMixin(_MixinBase):
         _session_state: UpdatesSessionState
         app: Any
 
+        def _can_mark_highlighted(self) -> bool: ...
+
         def _can_switch_mode(self) -> bool: ...
 
         def _can_update_sase(self) -> bool: ...
 
-        def _create_options(self) -> list[Option]: ...
+        def _create_options(
+            self, reuse: dict[str, Option] | None = None
+        ) -> list[Option]: ...
 
         def _header_renderable(self) -> RenderableType: ...
 
@@ -138,9 +142,10 @@ class PluginsBrowserLayoutMixin(_MixinBase):
             return callable(getattr(self.app, "action_sync_agents", None))
         if action == "switch_mode":
             return self._can_switch_mode()
+        if action == "toggle_install_mark":
+            return self._can_mark_highlighted()
         row_capability = {
             "install": "install",
-            "toggle_install_mark": "install",
             "uninstall": "uninstall",
             "update": "update",
             "toggle_history_scope": "history",

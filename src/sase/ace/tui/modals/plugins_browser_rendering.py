@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
 from rich.console import Group, RenderableType
@@ -52,8 +53,7 @@ class PluginsBrowserRenderingMixin:
         _incoming_commits_enabled: bool
         _install_mode: str | None
         _loading: bool
-        _marked_agent_clis: set[str]
-        _marked_install: set[str]
+        _marked: set[str]
         _now: float
         _offline: bool
         _restore_key: str | None
@@ -88,8 +88,6 @@ class PluginsBrowserRenderingMixin:
 
         def _hints(self) -> str: ...
 
-        def _prune_agent_cli_marks(self) -> None: ...
-
         def _refresh_scope_strip(self) -> None: ...
 
         def _render_agent_cli_history(self, *, force: bool = False) -> None: ...
@@ -109,8 +107,7 @@ class PluginsBrowserRenderingMixin:
         # back stack's indices are dropped before the rows are rebuilt below.
         self.reset_jump_state()
         self._rebuild_groups()
-        self._prune_stale_marked_install()
-        self._prune_agent_cli_marks()
+        self._prune_marks()
         self._refresh_scope_strip()
         self._sync_header()
         self._update_static("#updates-hints", self._hints())
@@ -209,8 +206,16 @@ class PluginsBrowserRenderingMixin:
             for row in rows:
                 option_id = f"{_ROW_PREFIX}{row.key}"
                 existing = by_id.get(option_id)
-                if existing is None:
-                    existing = Option(self._row_label(row_index, row), id=option_id)
+                prompt = self._row_label(row_index, row)
+                prompt_plain = prompt.plain if hasattr(prompt, "plain") else str(prompt)
+                current_plain = ""
+                if existing is not None:
+                    current = existing.prompt
+                    current_plain = (
+                        current.plain if hasattr(current, "plain") else str(current)
+                    )
+                if existing is None or current_plain != prompt_plain:
+                    existing = Option(prompt, id=option_id)
                 options.append(existing)
                 row_index += 1
         return options
@@ -230,12 +235,7 @@ class PluginsBrowserRenderingMixin:
     def _row_text(self, row: UpdateRow) -> Text:
         """A single list row: mark + status glyph + name + version + extras."""
         text = Text()
-        marked = False
-        if row.kind == "plugin":
-            marked = row.key.removeprefix("plugin:") in self._marked_install
-        elif row.kind == "agent-cli":
-            marked = row.key.removeprefix("cli:") in self._marked_agent_clis
-        if marked:
+        if row.key in self._marked:
             text.append("[✓] ", style="bold #00D700")
         else:
             text.append("    ")
@@ -500,16 +500,30 @@ class PluginsBrowserRenderingMixin:
             return None
         return self._rows_by_key.get(str(option_id).removeprefix(_ROW_PREFIX))
 
-    def _can_install_entry(self, entry: PluginCatalogEntry | None) -> bool:
-        """Whether *entry* can be installed or marked for install now."""
-        if isinstance(self._uv_tool, NotUvToolInstall):
-            return False
-        return entry is not None and not entry.installed.installed
+    def _marked_keys_with(self, capability: str) -> tuple[str, ...]:
+        """Marked row keys whose live row still carries *capability*."""
+        return tuple(
+            key
+            for key in sorted(self._marked)
+            if (row := self._rows_by_key.get(key)) is not None
+            and capability in row.capabilities
+        )
 
-    def _refresh_install_mark_row(self, name: str) -> bool:
-        """Patch one plugin row after its mark bit changes."""
+    def _marked_plugin_names(self) -> tuple[str, ...]:
+        """Plugin names currently marked for install."""
+        return tuple(
+            key.removeprefix("plugin:") for key in self._marked_keys_with("install")
+        )
+
+    def _marked_cli_names(self) -> tuple[str, ...]:
+        """Agent-CLI provider names currently marked for update."""
+        return tuple(
+            key.removeprefix("cli:") for key in self._marked_keys_with("mark_update")
+        )
+
+    def _refresh_row(self, key: str) -> bool:
+        """Patch one visible inventory row in place after its mark bit changes."""
         option_list = self._option_list()
-        key = f"plugin:{name}"
         row = self._rows_by_key.get(key)
         index = self._row_option_index.get(key)
         if option_list is None or row is None or index is None:
@@ -517,8 +531,8 @@ class PluginsBrowserRenderingMixin:
         option_list.replace_option_prompt_at_index(index, self._row_text(row))
         return True
 
-    def _advance_install_mark_selection(self) -> None:
-        """Move the cursor to the next installable row after a mark toggle."""
+    def _advance_mark_selection(self, capability: str) -> None:
+        """Move the cursor to the next row carrying *capability* after a toggle."""
         option_list = self._option_list()
         if option_list is None or option_list.highlighted is None:
             return
@@ -530,27 +544,27 @@ class PluginsBrowserRenderingMixin:
             option = option_list.get_option_at_index(index)
             key = str(option.id).removeprefix(_ROW_PREFIX)
             row = self._rows_by_key.get(key)
-            if row is not None and "install" in row.capabilities:
+            if row is not None and capability in row.capabilities:
                 option_list.highlighted = index
                 return
 
-    def _clear_install_marks(self) -> None:
-        """Clear all install marks and patch visible rows in place."""
-        if not self._marked_install:
+    def _clear_marks(self, keys: Iterable[str] | None = None) -> None:
+        """Clear *keys* (or every mark) and patch still-visible rows in place."""
+        to_clear = set(self._marked if keys is None else keys) & self._marked
+        if not to_clear:
             return
-        names = tuple(self._marked_install)
-        self._marked_install.clear()
-        for name in names:
-            self._refresh_install_mark_row(name)
+        self._marked -= to_clear
+        for key in to_clear:
+            self._refresh_row(key)
         self._update_static("#updates-hints", self._hints())
 
-    def _prune_stale_marked_install(self) -> None:
-        """Drop marks for missing, installed, or currently un-installable rows."""
-        if not self._marked_install:
+    def _prune_marks(self) -> None:
+        """Drop marks whose row is gone or no longer carries a markable capability."""
+        if not self._marked:
             return
         live = {
-            row.key.removeprefix("plugin:")
+            row.key
             for row in self._rows
-            if "install" in row.capabilities
+            if "install" in row.capabilities or "mark_update" in row.capabilities
         }
-        self._marked_install &= live
+        self._marked &= live

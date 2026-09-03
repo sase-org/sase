@@ -260,11 +260,11 @@ async def test_install_mark_survives_scope_switch_away_from_available_rows(
         pane = await _open_plugins_pane(page)
         _highlight_row(pane, "plugin:nvim")
         pane.action_toggle_install_mark()
-        assert "nvim" in pane._marked_install
+        assert "plugin:nvim" in pane._marked
         pane._set_scope("installed")
-        assert "nvim" in pane._marked_install
+        assert "plugin:nvim" in pane._marked
         pane._set_scope("all")
-        assert "nvim" in pane._marked_install
+        assert "plugin:nvim" in pane._marked
         option_list = pane.query_one("#updates-list", OptionList)
         nvim_index = pane._row_option_index["plugin:nvim"]
         prompt = option_list.get_option_at_index(nvim_index).prompt

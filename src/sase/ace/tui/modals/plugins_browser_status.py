@@ -35,15 +35,17 @@ class PluginsBrowserStatusMixin:
         _filter_text: str
         _grouped: list[tuple[str, str, list[UpdateRow]]]
         _loading: bool
-        _marked_agent_clis: set[str]
-        _marked_install: set[str]
+        _marked: set[str]
         _now: float
+        _rows_by_key: dict[str, UpdateRow]
         _offline: bool
         _install_mode: str | None
         _rows: tuple[UpdateRow, ...]
         _scope: UpdateScope
         _uv_tool: object | None
         _verbose: bool
+
+        def _flat_rows(self) -> list[UpdateRow]: ...
 
         def _has_item_rows(self) -> bool: ...
 
@@ -245,8 +247,12 @@ class PluginsBrowserStatusMixin:
         offline = " (on)" if self._offline else " off"
         verbose = " (on)" if self._verbose else " verb"
         parts: list[str] = []
-        install_marks = len(self._marked_install)
-        total_marks = install_marks + len(self._marked_agent_clis)
+        install_marks = sum(
+            1
+            for key in self._marked
+            if (row := self._rows_by_key.get(key)) is not None
+            and "install" in row.capabilities
+        )
         if install_marks:
             parts.append(f"i install ({install_marks})")
         elif self._can_install_highlighted():
@@ -254,8 +260,6 @@ class PluginsBrowserStatusMixin:
         if self._can_mark_highlighted():
             parts.append("I/space mark")
         row = self._highlighted_row()
-        if row is not None and "mark_update" in row.capabilities:
-            parts.append("space mark")
         if self._can_update_sase():
             parts.append("u update core + plugins")
         parts.append("A update CLIs")
@@ -280,12 +284,45 @@ class PluginsBrowserStatusMixin:
                 "Tab/Shift+Tab tab",
             ]
         )
-        if total_marks:
-            parts.append(f"{total_marks} marked")
+        if self._marked:
             parts.append("esc clear")
         else:
             parts.append("esc")
-        return " · ".join(parts)
+        body = " · ".join(parts)
+        aggregate = self._marked_work_line()
+        if aggregate is None:
+            return body
+        return f"{aggregate}\n{body}"
+
+    def _marked_work_line(self) -> str | None:
+        """The always-visible marked-work aggregate; None when nothing is marked."""
+        if not self._marked:
+            return None
+        install_count = 0
+        cli_count = 0
+        for key in self._marked:
+            row = self._rows_by_key.get(key)
+            if row is None:
+                continue
+            if "install" in row.capabilities:
+                install_count += 1
+            elif "mark_update" in row.capabilities:
+                cli_count += 1
+        chunks: list[str] = []
+        if install_count:
+            chunks.append(
+                f"{install_count} {self._plural(install_count, 'plugin install')}"
+            )
+        if cli_count:
+            chunks.append(f"{cli_count} {self._plural(cli_count, 'CLI update')}")
+        if not chunks:
+            chunks.append(f"{len(self._marked)} marked")
+        visible = {row.key for row in self._flat_rows()}
+        hidden = len(self._marked) - sum(1 for key in self._marked if key in visible)
+        line = "Marked: " + " · ".join(chunks)
+        if hidden:
+            line += f" ({hidden} hidden by filter)"
+        return line
 
     def _can_install_highlighted(self) -> bool:
         """Whether the highlighted row can be installed right now."""
@@ -293,9 +330,11 @@ class PluginsBrowserStatusMixin:
         return row is not None and "install" in row.capabilities
 
     def _can_mark_highlighted(self) -> bool:
-        """Whether the highlighted row can be marked for install."""
+        """Whether the highlighted row can be marked for install or CLI update."""
         row = self._highlighted_row()
-        return row is not None and "install" in row.capabilities
+        return row is not None and (
+            "install" in row.capabilities or "mark_update" in row.capabilities
+        )
 
     def _can_update_highlighted(self) -> bool:
         """Whether the highlighted row can be updated right now."""

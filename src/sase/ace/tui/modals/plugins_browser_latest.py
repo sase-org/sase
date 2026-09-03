@@ -34,7 +34,7 @@ class PluginsBrowserLatestMixin:
 
         def _current_entry(self) -> PluginCatalogEntry | None: ...
 
-        def _refresh_install_mark_row(self, name: str) -> bool: ...
+        def _refresh_row(self, key: str) -> bool: ...
 
         def _render_detail_now(self, *, force: bool = False) -> None: ...
 
@@ -130,7 +130,7 @@ class PluginsBrowserLatestMixin:
             )
             for group, style, group_rows in self._grouped
         ]
-        self._refresh_install_mark_row(name)
+        self._refresh_row(f"plugin:{name}")
 
     def _entry_name_for_latest_key(self, key: str) -> str | None:
         catalog = self._catalog

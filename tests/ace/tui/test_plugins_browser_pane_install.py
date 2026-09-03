@@ -83,9 +83,9 @@ async def test_plugins_pane_toggle_install_mark_updates_row_and_hints(
         pane.action_toggle_install_mark()
         await page.wait_for(lambda _s: pane._highlighted_name() == "acme")
 
-        assert pane._marked_install == {"nvim"}
+        assert pane._marked == {"plugin:nvim"}
         assert "i install (1)" in pane._hints()
-        assert "1 marked" in pane._hints()
+        assert "Marked: 1 plugin install" in pane._hints()
         assert "esc clear" in pane._hints()
         option_list = pane.query_one("#updates-list")
         nvim_index = next(
@@ -97,7 +97,7 @@ async def test_plugins_pane_toggle_install_mark_updates_row_and_hints(
 
         _highlight(pane, "nvim")
         pane.action_toggle_install_mark()
-        await page.wait_for(lambda _s: not pane._marked_install)
+        await page.wait_for(lambda _s: not pane._marked)
         assert "[✓]" not in option_list.get_option_at_index(nvim_index).prompt.plain
 
 
@@ -112,7 +112,7 @@ async def test_plugins_pane_toggle_install_mark_noops_for_installed(
         _highlight(pane, "github")
         pane.action_toggle_install_mark()
         await page.pause()
-        assert pane._marked_install == set()
+        assert pane._marked == set()
         assert messages and messages[0][1] == "warning"
         assert "installable" in messages[0][0]
 
@@ -126,10 +126,10 @@ async def test_plugins_pane_escape_clears_install_marks_first(
         pane = await _open_plugins_pane(page)
         _highlight(pane, "nvim")
         pane.action_toggle_install_mark()
-        await page.wait_for(lambda _s: pane._marked_install == {"nvim"})
+        await page.wait_for(lambda _s: pane._marked == {"plugin:nvim"})
 
-        pane.action_clear_install_marks_or_close()
-        await page.wait_for(lambda _s: not pane._marked_install)
+        pane.action_clear_marks_or_close()
+        await page.wait_for(lambda _s: not pane._marked)
 
         assert "esc clear" not in pane._hints()
         assert "esc" in pane._hints()
@@ -142,11 +142,11 @@ async def test_plugins_pane_prunes_stale_install_marks_on_reload(
     _patch_catalog(monkeypatch, catalog=_catalog())
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        pane._marked_install.update({"nvim", "github", "missing"})
+        pane._marked.update({"plugin:nvim", "plugin:github", "plugin:missing"})
 
         pane._render_all()
 
-        assert pane._marked_install == {"nvim"}
+        assert pane._marked == {"plugin:nvim"}
 
 
 async def test_plugins_pane_install_already_installed_toasts(
@@ -220,7 +220,7 @@ async def test_plugins_pane_install_marked_set_takes_batch_path(
             "_restart_tui",
             lambda *, restart_axe: restart_calls.append(restart_axe),
         )
-        pane._marked_install.update({"nvim", "acme"})
+        pane._marked.update({"plugin:nvim", "plugin:acme"})
         _highlight(pane, "github")  # marks take precedence over the cursor
         acme_row = pane._row_text(pane._rows_by_key["plugin:acme"]).plain
         assert "[✓]" in acme_row
@@ -240,7 +240,7 @@ async def test_plugins_pane_install_marked_set_takes_batch_path(
         modal.action_confirm()
         await page.wait_for(lambda _s: bool(executed) and bool(restart_calls))
         assert executed[0].argv == batch_plan.argv
-        assert pane._marked_install == set()
+        assert pane._marked == set()
         assert restart_calls == [True]
         assert len(calls) == initial
         assert any("restarting ACE" in message for message, _severity in messages)

@@ -153,8 +153,8 @@ def _measure_install_mark(pane: PluginsBrowserPane) -> dict[str, float]:
         _invoke_highlight_handler(pane)
         if iteration >= _MARK_WARMUP:
             samples.append(elapsed)
-    if pane._marked_install:
-        pane._clear_install_marks()
+    if pane._marked:
+        pane._clear_marks()
     return summarize_ms(samples)
 
 

@@ -263,7 +263,7 @@ async def test_agent_cli_marks_patch_rows_and_escape_clears_first(
         option_list = pane.query_one("#updates-list", OptionList)
 
         pane.action_toggle_mark()
-        assert pane._marked_agent_clis == {"claude"}
+        assert pane._marked == {"cli:claude"}
         claude_index = next(
             index
             for index in range(option_list.option_count)
@@ -274,7 +274,7 @@ async def test_agent_cli_marks_patch_rows_and_escape_clears_first(
         assert "[✓]" in row_text
 
         pane.action_clear_marks_or_close()
-        assert pane._marked_agent_clis == set()
+        assert pane._marked == set()
         assert page.app.screen.__class__.__name__ == "ConfigCenterModal"
 
 

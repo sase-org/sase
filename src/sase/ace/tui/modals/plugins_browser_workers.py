@@ -146,10 +146,7 @@ class PluginsBrowserWorkersMixin(_MixinBase):
                 uv_tool=getattr(result, "uv_tool", None) or prior_uv_tool,
                 offline=offline,
             )
-            if dataclasses.is_dataclass(result) and not isinstance(result, type):
-                return dataclasses.replace(result, rows=rows)
-            result.rows = rows
-            return result
+            return dataclasses.replace(result, rows=rows)
 
         self._worker = self.run_worker(
             task, thread=True, exclusive=True, exit_on_error=False

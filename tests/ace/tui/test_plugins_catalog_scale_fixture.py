@@ -51,7 +51,7 @@ async def test_scale_catalog_fixture_filters_and_marks_at_n10(
         assert option_list is not None
         option_list.highlighted = pane._row_option_index[installable.key]
         pane.action_toggle_install_mark()
-        assert len(pane._marked_install) == 1
+        assert len(pane._marked) == 1
 
         pane.action_jump_to_entry()
         assert pane.jump_mode_active is True
