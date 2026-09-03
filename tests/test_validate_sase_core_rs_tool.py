@@ -40,6 +40,11 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
     validator = load_validate_sase_core_rs()
     bindings = {
         "artifact_link_row_schema_version",
+        "artifact_row_resolution_wire_schema_version",
+        "artifact_link_ref_parts",
+        "artifact_row_index_keys",
+        "artifact_row_ref_lookup_keys",
+        "artifact_row_resolve",
         "artifact_link_canonicalize",
         "artifact_link_validate_row",
         "artifact_link_upsert_row",
@@ -62,10 +67,22 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
             module_with_required_bindings(validator, missing={binding})
         )
     assert validator._validate_artifact_link_schema(
-        SimpleNamespace(artifact_link_row_schema_version=lambda: 2)
+        SimpleNamespace(
+            artifact_link_row_schema_version=lambda: 2,
+            artifact_row_resolution_wire_schema_version=lambda: 1,
+        )
     )
     assert not validator._validate_artifact_link_schema(
-        SimpleNamespace(artifact_link_row_schema_version=lambda: 1)
+        SimpleNamespace(
+            artifact_link_row_schema_version=lambda: 1,
+            artifact_row_resolution_wire_schema_version=lambda: 1,
+        )
+    )
+    assert not validator._validate_artifact_link_schema(
+        SimpleNamespace(
+            artifact_link_row_schema_version=lambda: 2,
+            artifact_row_resolution_wire_schema_version=lambda: 2,
+        )
     )
 
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from functools import lru_cache
 import json
 from pathlib import Path
 from threading import RLock
@@ -16,8 +17,17 @@ from typing import Any
 
 from sase.ace.tui._artifact_link_contract import ARTIFACT_LINK_SOURCE
 from sase.ace.tui._artifact_tab_model import ArtifactsPaneContract, PaneRelationDecl
-from sase.core.agent_identity_facade import current_owner_agent_name_lookup_candidates
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    current_owner_agent_name_lookup_candidates,
+)
 from sase.core.artifact_relations import RelationEdge
+from sase.core.artifact_row_resolution_facade import (
+    artifact_row_index_keys,
+    artifact_row_ref_lookup_keys,
+    parse_artifact_link_ref,
+    resolve_artifact_row_target,
+)
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.paths import sase_projects_dir
 from sase.project_display_names import load_project_ref_display_snapshot
@@ -41,39 +51,29 @@ class _KnownTargetIndex:
     """Index the target fields artifact-link ref resolution matches."""
 
     targets: frozenset[ArtifactEntryTarget]
-    by_file_first_part: Mapping[str, ArtifactEntryTarget]
-    by_pane_last_part: Mapping[tuple[str, str], ArtifactEntryTarget]
-    by_stitch_repo_sha_prefix: Mapping[tuple[str, str], ArtifactEntryTarget]
-    agent_targets: tuple[ArtifactEntryTarget, ...]
+    by_key: Mapping[tuple[str, ...], ArtifactEntryTarget]
+    agent_identity: AgentIdentitySnapshot | None
 
     @classmethod
     def build(cls, known_targets: Iterable[ArtifactEntryTarget]) -> _KnownTargetIndex:
         targets = frozenset(known_targets)
-        by_file_first_part: dict[str, ArtifactEntryTarget] = {}
-        by_pane_last_part: dict[tuple[str, str], ArtifactEntryTarget] = {}
-        by_stitch_repo_sha_prefix: dict[tuple[str, str], ArtifactEntryTarget] = {}
-        agent_targets: list[ArtifactEntryTarget] = []
-
-        for target in targets:
-            parts = target.parts
-            if not parts:
-                continue
-            if target.pane_id == "files":
-                by_file_first_part.setdefault(parts[0], target)
-            elif target.pane_id == "stitches" and len(parts) >= 2:
-                repo, sha = parts[0], parts[1]
-                for end in range(0, len(sha) + 1):
-                    by_stitch_repo_sha_prefix.setdefault((repo, sha[:end]), target)
-            elif target.pane_id == "agents":
-                agent_targets.append(target)
-            by_pane_last_part.setdefault((target.pane_id, parts[-1]), target)
+        ordered = tuple(
+            sorted(targets, key=lambda target: (target.pane_id, target.parts))
+        )
+        by_key: dict[tuple[str, ...], ArtifactEntryTarget] = {}
+        for target, keys in zip(ordered, artifact_row_index_keys(ordered), strict=True):
+            for key in keys:
+                by_key.setdefault(key, target)
+        agent_identity = (
+            AgentIdentitySnapshot.current()
+            if any(target.pane_id == "agents" for target in ordered)
+            else None
+        )
 
         return cls(
             targets=targets,
-            by_file_first_part=by_file_first_part,
-            by_pane_last_part=by_pane_last_part,
-            by_stitch_repo_sha_prefix=by_stitch_repo_sha_prefix,
-            agent_targets=tuple(agent_targets),
+            by_key=by_key,
+            agent_identity=agent_identity,
         )
 
 
@@ -209,19 +209,15 @@ def _edge_key(
     return (relation, source, target)
 
 
+@lru_cache(maxsize=8192)
 def parse_link_ref(value: str) -> tuple[str, str] | None:
     """Split a link-graph ref string into its kind and payload.
 
     Shared by every direction of ref/target conversion so they agree on the
-    same ``@``/``#``-stripping and ``commit`` -> ``stitch`` aliasing.
+    same ``@``/``#``-stripping and kind aliasing.
     """
 
-    ref = value.removeprefix("@").split("#", 1)[0].strip()
-    kind, sep, payload = ref.partition(":")
-    if not sep or not payload:
-        return None
-    kind = "stitch" if kind == "commit" else kind
-    return kind, payload
+    return parse_artifact_link_ref(value)
 
 
 def target_for_ref_kind(
@@ -267,7 +263,12 @@ def _target_for_ref(
     if parsed is None:
         return None
     kind, payload = parsed
-    exact = _known_target_for_ref(kind, payload, known_targets)
+    exact = _known_target_for_ref(
+        kind,
+        payload,
+        known_targets,
+        project_hint=project_hint,
+    )
     if exact is not None:
         return exact
     return target_for_ref_kind(kind, payload, project_hint=project_hint)
@@ -277,36 +278,52 @@ def _known_target_for_ref(
     kind: str,
     payload: str,
     known_targets: frozenset[ArtifactEntryTarget] | _KnownTargetIndex,
+    *,
+    project_hint: str | None = None,
 ) -> ArtifactEntryTarget | None:
-    index = (
-        known_targets
-        if isinstance(known_targets, _KnownTargetIndex)
-        else _KnownTargetIndex.build(known_targets)
-    )
-    if kind == "file":
-        exact_file = ArtifactEntryTarget("files", (payload,))
-        if exact_file in index.targets:
-            return exact_file
-        return index.by_file_first_part.get(payload)
-    if kind == "agent":
-        exact_agent = ArtifactEntryTarget("agents", (payload,))
-        if exact_agent in index.targets:
-            return exact_agent
-        candidates = set(current_owner_agent_name_lookup_candidates(payload))
-        for target in index.agent_targets:
-            if target.parts and target.parts[-1] in candidates:
+    if isinstance(known_targets, _KnownTargetIndex):
+        agent_identity = known_targets.agent_identity if kind == "agent" else None
+        for key in _lookup_keys_for_ref(kind, payload, project_hint, agent_identity):
+            target = known_targets.by_key.get(key)
+            if target is not None:
                 return target
         return None
-    if kind == "stitch":
-        repo, at, sha = payload.partition("@")
-        if at:
-            return index.by_stitch_repo_sha_prefix.get((repo, sha))
-        return None
-    if kind == "patch":
-        return index.by_pane_last_part.get(("patches", payload))
-    if kind == "bead":
-        return index.by_pane_last_part.get(("beads", payload))
-    return index.by_pane_last_part.get((f"ref:{kind}", payload))
+
+    agent_name_candidates = (
+        current_owner_agent_name_lookup_candidates(
+            payload,
+            AgentIdentitySnapshot.current(),
+        )
+        if kind == "agent"
+        else ()
+    )
+    return resolve_artifact_row_target(
+        kind,
+        payload,
+        tuple(known_targets),
+        project_hint=project_hint,
+        agent_name_candidates=agent_name_candidates,
+    )
+
+
+@lru_cache(maxsize=8192)
+def _lookup_keys_for_ref(
+    kind: str,
+    payload: str,
+    project_hint: str | None,
+    agent_identity: AgentIdentitySnapshot | None,
+) -> tuple[tuple[str, ...], ...]:
+    agent_name_candidates = (
+        current_owner_agent_name_lookup_candidates(payload, agent_identity)
+        if kind == "agent" and agent_identity is not None
+        else ()
+    )
+    return artifact_row_ref_lookup_keys(
+        kind,
+        payload,
+        project_hint=project_hint,
+        agent_name_candidates=agent_name_candidates,
+    )
 
 
 def _project_keys(project: str | None) -> tuple[str, ...]:

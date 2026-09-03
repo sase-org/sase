@@ -129,6 +129,11 @@ REQUIRED_BINDINGS = (
     "referenced_by_block_strip",
     "referenced_by_wire_schema_version",
     "artifact_link_row_schema_version",
+    "artifact_row_resolution_wire_schema_version",
+    "artifact_link_ref_parts",
+    "artifact_row_index_keys",
+    "artifact_row_ref_lookup_keys",
+    "artifact_row_resolve",
     "artifact_link_canonicalize",
     "artifact_link_validate_row",
     "artifact_link_upsert_row",
@@ -247,18 +252,25 @@ def _validate_artifact_ref_schemas(module: ModuleType) -> bool:
 
 
 def _validate_artifact_link_schema(module: ModuleType) -> bool:
-    try:
-        actual_version = int(module.artifact_link_row_schema_version())
-    except Exception as exc:
-        _error(f"artifact_link_row_schema_version() probe failed: {exc}")
-        return False
-    if actual_version != 2:
-        _error(
-            "artifact_link_row_schema_version() returned stale schema: "
-            f"got {actual_version}, expected 2"
-        )
-        return False
-    return True
+    expected = {
+        "artifact_link_row_schema_version": 2,
+        "artifact_row_resolution_wire_schema_version": 1,
+    }
+    valid = True
+    for binding_name, expected_version in expected.items():
+        try:
+            actual_version = int(getattr(module, binding_name)())
+        except Exception as exc:
+            _error(f"{binding_name}() probe failed: {exc}")
+            valid = False
+            continue
+        if actual_version != expected_version:
+            _error(
+                f"{binding_name}() returned stale schema: "
+                f"got {actual_version}, expected {expected_version}"
+            )
+            valid = False
+    return valid
 
 
 def _validate_vcs_log_wire_schema(module: ModuleType) -> bool:

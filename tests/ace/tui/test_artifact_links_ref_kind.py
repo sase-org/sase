@@ -20,6 +20,10 @@ def test_parse_link_ref_aliases_commit_to_stitch() -> None:
     assert parse_link_ref("commit:sase@abc123") == ("stitch", "sase@abc123")
 
 
+def test_parse_link_ref_aliases_plans_to_plan() -> None:
+    assert parse_link_ref("plans:202609/a.md") == ("plan", "202609/a.md")
+
+
 def test_parse_link_ref_strips_leading_at_and_trailing_fragment() -> None:
     assert parse_link_ref("@plan:202608/a.md#why") == ("plan", "202608/a.md")
 

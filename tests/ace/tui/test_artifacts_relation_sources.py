@@ -327,20 +327,20 @@ def test_known_target_for_ref_uses_index_lookup_without_target_scan() -> None:
     target = ArtifactEntryTarget("patches", ("alpha", "needle"))
     index = artifact_links._KnownTargetIndex(
         targets=_NonIterableTargets(),
-        by_file_first_part={},
-        by_pane_last_part={("patches", "needle"): target},
-        by_stitch_repo_sha_prefix={},
-        agent_targets=(),
+        by_key={("patches.name", "needle"): target},
+        agent_identity=None,
     )
 
     assert artifact_links._known_target_for_ref("patch", "needle", index) == target
 
 
-def test_known_target_index_preserves_legacy_match_precedence() -> None:
+def test_known_target_index_uses_project_hint_then_deterministic_fallback() -> None:
     known = frozenset(
         {
             ArtifactEntryTarget("files", ("doc",)),
             ArtifactEntryTarget("files", ("doc", "v1")),
+            ArtifactEntryTarget("beads", ("alpha", "epic", "same-bead")),
+            ArtifactEntryTarget("beads", ("beta", "phase", "same-bead")),
             ArtifactEntryTarget("patches", ("alpha", "same")),
             ArtifactEntryTarget("patches", ("beta", "same")),
             ArtifactEntryTarget("stitches", ("sase", "abc1234")),
@@ -351,18 +351,70 @@ def test_known_target_index_preserves_legacy_match_precedence() -> None:
     )
     index = artifact_links._KnownTargetIndex.build(known)
 
-    assert artifact_links._known_target_for_ref("file", "doc", index) == (
-        _legacy_known_target_for_ref("file", "doc", known)
+    assert artifact_links._known_target_for_ref(
+        "bead", "same-bead", index, project_hint="beta"
+    ) == ArtifactEntryTarget("beads", ("beta", "phase", "same-bead"))
+    assert artifact_links._known_target_for_ref("bead", "same-bead", index) == (
+        ArtifactEntryTarget("beads", ("alpha", "epic", "same-bead"))
     )
+    assert artifact_links._known_target_for_ref(
+        "patch", "same", index, project_hint="beta"
+    ) == ArtifactEntryTarget("patches", ("beta", "same"))
     assert artifact_links._known_target_for_ref("patch", "same", index) == (
-        _legacy_known_target_for_ref("patch", "same", known)
+        ArtifactEntryTarget("patches", ("alpha", "same"))
     )
     assert artifact_links._known_target_for_ref("stitch", "sase@abc", index) == (
-        _legacy_known_target_for_ref("stitch", "sase@abc", known)
+        ArtifactEntryTarget("stitches", ("sase", "abc1234"))
     )
+    assert artifact_links._known_target_for_ref(
+        "plan", "design.md", index, project_hint="beta"
+    ) == ArtifactEntryTarget("ref:plan", ("beta", "archive", "design.md"))
     assert artifact_links._known_target_for_ref("plan", "design.md", index) == (
-        _legacy_known_target_for_ref("plan", "design.md", known)
+        ArtifactEntryTarget("ref:plan", ("alpha", "active", "design.md"))
     )
+
+
+def test_known_target_index_matches_legacy_for_unambiguous_targets() -> None:
+    known = frozenset(
+        {
+            ArtifactEntryTarget("files", ("doc",)),
+            ArtifactEntryTarget("files", ("doc", "v1")),
+            ArtifactEntryTarget("patches", ("alpha", "only")),
+            ArtifactEntryTarget("stitches", ("sase", "def4567")),
+            ArtifactEntryTarget("ref:plan", ("alpha", "active", "solo.md")),
+        }
+    )
+    index = artifact_links._KnownTargetIndex.build(known)
+
+    for kind, payload in (
+        ("file", "doc"),
+        ("patch", "only"),
+        ("stitch", "sase@def"),
+        ("plan", "solo.md"),
+    ):
+        assert artifact_links._known_target_for_ref(kind, payload, index) == (
+            _legacy_known_target_for_ref(kind, payload, known)
+        )
+
+
+def test_known_target_for_ref_prefers_project_hinted_bead_and_patch() -> None:
+    index = artifact_links._KnownTargetIndex.build(
+        frozenset(
+            {
+                ArtifactEntryTarget("beads", ("alpha", "task", "same")),
+                ArtifactEntryTarget("beads", ("beta", "flag", "same")),
+                ArtifactEntryTarget("patches", ("alpha", "same")),
+                ArtifactEntryTarget("patches", ("beta", "same")),
+            }
+        )
+    )
+
+    assert artifact_links._known_target_for_ref(
+        "bead", "same", index, project_hint="beta"
+    ) == ArtifactEntryTarget("beads", ("beta", "flag", "same"))
+    assert artifact_links._known_target_for_ref(
+        "patch", "same", index, project_hint="beta"
+    ) == ArtifactEntryTarget("patches", ("beta", "same"))
 
 
 def _legacy_known_target_for_ref(
