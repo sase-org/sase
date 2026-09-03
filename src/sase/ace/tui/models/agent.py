@@ -542,8 +542,12 @@ class Agent(AgentState):
         return to_bundle_dict(self)
 
     @staticmethod
-    def from_bundle_dict(data: dict[str, Any]) -> "Agent":
+    def from_bundle_dict(
+        data: dict[str, Any],
+        *,
+        synthesize_missing_name: bool = True,
+    ) -> "Agent":
         """Reconstruct an Agent from a bundle dict."""
         from sase.ace.tui.models.agent_bundle import from_bundle_dict
 
-        return from_bundle_dict(data)
+        return from_bundle_dict(data, synthesize_missing_name=synthesize_missing_name)

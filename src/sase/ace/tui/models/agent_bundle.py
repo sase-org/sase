@@ -9,30 +9,20 @@ from typing import Any
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 
-_PROJECTED_RECORD_BUNDLE_FIELDS = {
-    "record_shape",
-    "index_record_dir",
-    "prompt_step_file_name",
-}
+_PROJECTED_RECORD_BUNDLE_FIELDS = frozenset(
+    {
+        "record_shape",
+        "index_record_dir",
+        "prompt_step_file_name",
+    }
+)
 
-
-def to_bundle_dict(agent: Agent) -> dict[str, Any]:
-    """Serialize an Agent to a dict for bundle persistence.
-
-    Converts AgentType to string and datetime to ISO format string.
-    """
-    if agent.record_shape == "list":
-        from ._projected_record import hydrate_projected_agent
-
-        if not hydrate_projected_agent(agent):
-            raise ValueError(
-                f"cannot persist projected agent bundle without full record: "
-                f"{agent.index_record_dir or agent.identity}"
-            )
-
-    result: dict[str, Any] = {}
-    for f in dataclasses.fields(agent):
-        if not f.init or f.name in (
+# Presentation, graph, and index-projection fields that the bundle writer
+# must not persist. The cleanup archive DTO uses the same skip set so a new
+# Agent field cannot silently vanish on TUI dismissal.
+_RUNTIME_ONLY_BUNDLE_FIELDS = (
+    frozenset(
+        {
             "followup_agents",
             "runtime_children",
             "wait_display_source",
@@ -52,10 +42,24 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
             "project_display_name",
             "_loaded_from_dismissed_bundle",
             "_dismissed_bundle_path",
-            *_PROJECTED_RECORD_BUNDLE_FIELDS,
-        ):
+        }
+    )
+    | _PROJECTED_RECORD_BUNDLE_FIELDS
+)
+
+
+def agent_state_to_bundle_dict(agent: Agent) -> dict[str, Any]:
+    """Serialize currently-loaded Agent state without hydrating projections.
+
+    Converts AgentType to string and datetime to ISO format string. Callers
+    that must persist a list-shaped index projection should hydrate first
+    (see :func:`to_bundle_dict`).
+    """
+    result: dict[str, Any] = {}
+    for item in dataclasses.fields(agent):
+        if not item.init or item.name in _RUNTIME_ONLY_BUNDLE_FIELDS:
             continue
-        value = getattr(agent, f.name)
+        value = getattr(agent, item.name)
         if isinstance(value, AgentType):
             value = value.value
         elif isinstance(value, datetime):
@@ -65,21 +69,42 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
             and value
             and isinstance(value[0], LinkedRepoMetadata)
         ):
-            value = [dataclasses.asdict(v) for v in value]
-        elif f.name == "linked_repos" and value == ():
+            value = [dataclasses.asdict(entry) for entry in value]
+        elif item.name == "linked_repos" and value == ():
             value = []
         elif isinstance(value, list) and value and isinstance(value[0], datetime):
-            value = [v.isoformat() for v in value]
+            value = [entry.isoformat() for entry in value]
         elif isinstance(value, dict) and value:
             value = {
-                k.isoformat() if isinstance(k, datetime) else k: v
-                for k, v in value.items()
+                key.isoformat() if isinstance(key, datetime) else key: entry
+                for key, entry in value.items()
             }
-        result[f.name] = value
+        result[item.name] = value
     return result
 
 
-def from_bundle_dict(data: dict[str, Any]) -> Agent:
+def to_bundle_dict(agent: Agent) -> dict[str, Any]:
+    """Serialize an Agent to a dict for bundle persistence.
+
+    Converts AgentType to string and datetime to ISO format string.
+    """
+    if agent.record_shape == "list":
+        from ._projected_record import hydrate_projected_agent
+
+        if not hydrate_projected_agent(agent):
+            raise ValueError(
+                f"cannot persist projected agent bundle without full record: "
+                f"{agent.index_record_dir or agent.identity}"
+            )
+
+    return agent_state_to_bundle_dict(agent)
+
+
+def from_bundle_dict(
+    data: dict[str, Any],
+    *,
+    synthesize_missing_name: bool = True,
+) -> Agent:
     """Reconstruct an Agent from a bundle dict.
 
     Uses .get() with defaults for forward-compatibility with new fields.
@@ -173,7 +198,8 @@ def from_bundle_dict(data: dict[str, Any]) -> Agent:
         kwargs[f.name] = value
 
     agent = Agent(**kwargs)
-    _synthesize_dismissed_name(agent)
+    if synthesize_missing_name:
+        _synthesize_dismissed_name(agent)
     return agent
 
 
