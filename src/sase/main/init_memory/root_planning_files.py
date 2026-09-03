@@ -6,7 +6,14 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import cast
 
-from sase.amd._shared import ProviderShimPlan, provider_shim_plan, read_text
+from sase.amd._chezmoi_template import unescape_chezmoi_literals
+from sase.amd._shared import (
+    ProviderShimPlan,
+    is_root_agents_filename,
+    provider_shim_plan,
+    read_text,
+)
+from sase.amd.constants import AGENTS_FILENAME, AGENTS_TEMPLATE_FILENAME
 from sase.amd.inventory import discover_project_agent_docs
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
 
@@ -124,10 +131,13 @@ def agent_doc_shim_plans(
     root: Path, *, include_root: bool
 ) -> tuple[ProviderShimPlan, ...]:
     root_resolved = _resolved(root)
-    root_agents = _resolved(root_resolved / "AGENTS.md")
+    root_agents = {
+        _resolved(root_resolved / AGENTS_FILENAME),
+        _resolved(root_resolved / AGENTS_TEMPLATE_FILENAME),
+    }
     plans: list[ProviderShimPlan] = []
     for agents_path in discover_project_agent_docs(root_resolved):
-        if not include_root and _resolved(agents_path) == root_agents:
+        if not include_root and _resolved(agents_path) in root_agents:
             continue
         agents_content, read_error = read_text(agents_path)
         if read_error is not None or agents_content is None:
@@ -182,7 +192,8 @@ def validation_overlay_for_expected_files(
     expected_files: Iterable[MemoryExpectedFile],
 ) -> dict[Path, str]:
     overlay: dict[Path, str] = {}
-    agents_path = (root / "AGENTS.md").resolve(strict=False)
+    agents_path = (root / AGENTS_FILENAME).resolve(strict=False)
+    root_resolved = root.resolve(strict=False)
     for expected in expected_files:
         if isinstance(expected.content, bytes):
             continue
@@ -190,7 +201,11 @@ def validation_overlay_for_expected_files(
         if _is_memory_markdown_path(root, expected.path):
             overlay[resolved] = expected.content
             continue
-        if resolved == agents_path and (
+        is_root_agents = (
+            is_root_agents_filename(expected.path.name)
+            and expected.path.parent.resolve(strict=False) == root_resolved
+        )
+        if is_root_agents and (
             expected.write_policy == "overwrite"
             or (
                 expected.write_policy == "create_if_missing"
@@ -198,6 +213,7 @@ def validation_overlay_for_expected_files(
             )
         ):
             overlay[resolved] = expected.content
+            overlay[agents_path] = unescape_chezmoi_literals(expected.content)
     return overlay
 
 
@@ -208,13 +224,15 @@ def final_agents_content(
 
     Provider files are byte-for-byte copies of ``AGENTS.md``. The final content
     is the managed render (or rendered minimal template) whenever ``AGENTS.md``
-    is (re)written, and the existing on-disk content when the minimal template is
-    ``create_if_missing`` and the file already exists (so we never copy a stale
-    render over an untouched user file).
+    or ``AGENTS.md.tmpl`` is (re)written, and the existing on-disk content when
+    the minimal template is ``create_if_missing`` and the file already exists
+    (so we never copy a stale render over an untouched user file).
     """
-    agents_path = root / "AGENTS.md"
+    root_resolved = root.resolve(strict=False)
     for expected in expected_files:
-        if expected.path != agents_path:
+        if not is_root_agents_filename(expected.path.name):
+            continue
+        if expected.path.parent.resolve(strict=False) != root_resolved:
             continue
         if isinstance(expected.content, bytes):
             continue

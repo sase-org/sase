@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 import re
 from typing import Any
 
 import sase.config.core as config_core
+from sase.config.identity import is_valid_machine_name, overlay_identity
+from sase.config.loading import get_overlay_paths
 from sase.content_layout import resolve_project_config_read_path
+from sase.main._init_chezmoi_ignore import (
+    chezmoi_target_entry,
+    parse_hostname_ignore_entries,
+)
 from sase.memory.config_keys import MEMORY_CONFIG_KEY
 
-from ._shared import load_yaml_mapping
+from ._shared import is_chezmoi_home_root, load_yaml_mapping, read_text
 
 _WORKSPACE_SUFFIX_RE = re.compile(r"_\d+$")
 _PROJECT_TITLE_SUFFIX = "Agent Instructions"
@@ -274,6 +280,116 @@ def _project_name(root: Path) -> str:
 
 def _project_fallback_title(root: Path) -> str:
     return f"{_project_name(root)} - {_PROJECT_TITLE_SUFFIX}"
+
+
+@dataclass(frozen=True)
+class _ChezmoiMachineH1Titles:
+    """Machine-overlay H1 titles keyed by chezmoi hostname."""
+
+    titles: tuple[tuple[str, str], ...] = ()
+    fallback_title: str | None = None
+    blockers: tuple[str, ...] = ()
+
+
+def _missing_hostname_guard_blocker(overlay_path: Path, entry: str) -> str:
+    return (
+        f"{overlay_path}: memory.h1_title is set but .chezmoiignore has no "
+        f"hostname guard for {entry}; add "
+        f'`{{{{ if ne .chezmoi.hostname "<hostname>" }}}}` / {entry} / '
+        "`{{ end }}` or run `sase config init` on that machine"
+    )
+
+
+def resolve_chezmoi_machine_h1_titles(
+    root: Path,
+    *,
+    chezmoi_home_roots: Iterable[Path] = (),
+) -> _ChezmoiMachineH1Titles:
+    """Resolve per-machine ``memory.h1_title`` values for a chezmoi home root.
+
+    Returns hostname/title pairs only when at least one machine overlay
+    (``sase_*.yml`` with a valid nested ``id.machine_name``, falling back to
+    deprecated top-level ``machine_name``) declares a title. Missing
+    ``.chezmoiignore`` hostname guards and duplicate hostnames are blockers.
+    """
+    if not is_chezmoi_home_root(root, chezmoi_home_roots=chezmoi_home_roots):
+        return _ChezmoiMachineH1Titles()
+
+    config_dir = root / "dot_config" / "sase"
+    fallback_title, fallback_error = _load_user_amd_h1_title(config_dir)
+    if fallback_error is not None:
+        return _ChezmoiMachineH1Titles(blockers=(fallback_error,))
+
+    ignore_path = root / ".chezmoiignore"
+    ignore_text = ""
+    if ignore_path.exists():
+        loaded_text, ignore_error = read_text(ignore_path)
+        if ignore_error is not None or loaded_text is None:
+            return _ChezmoiMachineH1Titles(
+                fallback_title=fallback_title,
+                blockers=(ignore_error or f"{ignore_path}: failed to read file",),
+            )
+        ignore_text = loaded_text
+    guards = parse_hostname_ignore_entries(ignore_text)
+
+    titles_by_host: dict[str, tuple[str, Path]] = {}
+    blockers: list[str] = []
+    for overlay_path in get_overlay_paths(config_dir):
+        data, load_error = load_yaml_mapping(overlay_path)
+        if load_error is not None:
+            blockers.append(load_error)
+            continue
+        identity = overlay_identity(overlay_path, data)
+        discriminator = identity.discriminator
+        if discriminator is None or not is_valid_machine_name(discriminator):
+            continue
+        if data is None:
+            continue
+        resolved = _resolve_amd_h1_title_config(data)
+        if resolved.error is not None:
+            blockers.append(f"{overlay_path}: {resolved.error}")
+            continue
+        if not resolved.declared:
+            continue
+        title, title_error = _validate_amd_h1_title(
+            resolved.value,
+            path=overlay_path,
+            display_path=resolved.display_path,
+        )
+        if title_error is not None:
+            blockers.append(title_error)
+            continue
+        if title is None:
+            continue
+        entry = chezmoi_target_entry(overlay_path, chezmoi_home=root)
+        if entry is None:
+            blockers.append(
+                f"{overlay_path}: memory.h1_title is set but the overlay is "
+                "not under the chezmoi home source root"
+            )
+            continue
+        hostname = guards.get(entry)
+        if hostname is None:
+            blockers.append(_missing_hostname_guard_blocker(overlay_path, entry))
+            continue
+        existing = titles_by_host.get(hostname)
+        if existing is not None:
+            existing_path = existing[1]
+            blockers.append(
+                f"{overlay_path}: memory.h1_title maps to chezmoi hostname "
+                f"{hostname!r} which is already used by {existing_path}"
+            )
+            continue
+        titles_by_host[hostname] = (title, overlay_path)
+
+    titles = tuple(
+        sorted((hostname, title) for hostname, (title, _path) in titles_by_host.items())
+    )
+    return _ChezmoiMachineH1Titles(
+        titles=titles,
+        fallback_title=fallback_title,
+        blockers=tuple(blockers),
+    )
 
 
 def resolve_amd_h1_title(

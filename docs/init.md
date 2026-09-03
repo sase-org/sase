@@ -183,9 +183,12 @@ lifecycle state and is independent of `sase project enable`.
   title.
 - Provider instruction files `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md`;
   each is a byte-for-byte copy of that root's final `AGENTS.md`. Chezmoi home source
-  roots use static `.md` files (not `*.md.tmpl` imports), since the inlined `AGENTS.md`
-  carries no template variables. Legacy `@AGENTS.md` / `@/path/to/home/AGENTS.md` import
-  shims and `*.md.tmpl` sources are still recognized and migrated to full copies.
+  roots stay on static `.md` files unless a machine overlay under `dot_config/sase/`
+  declares `memory.h1_title`. In that case initialization writes `AGENTS.md.tmpl` and
+  preferred `*.md.tmpl` shims whose H1 switches on `.chezmoi.hostname`, and each
+  title-declaring overlay must have a `.chezmoiignore` hostname guard (the stanza
+  `sase config init` writes). Legacy `@AGENTS.md` / `@/path/to/home/AGENTS.md` import
+  shims and leftover static or `*.md.tmpl` sources are still recognized and migrated.
 
 Managed projects can override the packaged Jinja templates for `AGENTS.md`, minimal
 agent instructions, `sase/memory/sase.md`, and `sase/memory/README.md` with
@@ -227,7 +230,8 @@ is_sase_managed: true
 
 Home and chezmoi-home initialization is unchanged: those roots remain managed and take
 an optional title from user config (`~/.config/sase/sase.yml`, overlays, or source-side
-`dot_config/sase/`).
+`dot_config/sase/`). Chezmoi machine-overlay titles additionally emit `AGENTS.md.tmpl`
+as described under provider instruction files above.
 
 Provider copying is the exception to project ownership. In both managed and unmanaged
 projects, every readable `AGENTS.md` found with the normal project-tree pruning rules is

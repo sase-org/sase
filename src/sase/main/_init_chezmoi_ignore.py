@@ -11,6 +11,10 @@ import subprocess
 _VALID_HOSTNAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
+_HOSTNAME_GUARD_RE = re.compile(r'^\{\{ if ne \.chezmoi\.hostname "([^"]+)" \}\}$')
+_HOSTNAME_GUARD_END_RE = re.compile(r"^\{\{ end \}\}$")
+
+
 def chezmoi_target_entry(
     source_path: Path,
     *,
@@ -21,10 +25,54 @@ def chezmoi_target_entry(
         relative_path = source_path.relative_to(chezmoi_home)
     except ValueError:
         return None
+    parts = list(relative_path.parts)
+    if parts:
+        last = parts[-1]
+        if last.endswith(".tmpl") and last != ".tmpl":
+            parts[-1] = last[: -len(".tmpl")]
     return "/".join(
-        f".{part[4:]}" if part.startswith("dot_") else part
-        for part in relative_path.parts
+        f".{part[4:]}" if part.startswith("dot_") else part for part in parts
     )
+
+
+def parse_hostname_ignore_entries(text: str) -> dict[str, str]:
+    """Return ``{target_entry: hostname}`` for generated hostname-guard stanzas.
+
+    Only the ``ensure_machine_ignore_entry`` shape is recognized::
+
+        {{ if ne .chezmoi.hostname "<hostname>" }}
+        <entry>
+        {{ end }}
+
+    Unrelated lines and stanzas (plain entries, ``.chezmoi.fqdnHostname``
+    guards, malformed or unclosed blocks) are ignored. Duplicate entries keep
+    the last matching hostname.
+    """
+    mapping: dict[str, str] = {}
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines):
+        match = _HOSTNAME_GUARD_RE.fullmatch(lines[index].strip())
+        if match is None:
+            index += 1
+            continue
+        hostname = match.group(1)
+        index += 1
+        entries: list[str] = []
+        while index < len(lines):
+            stripped = lines[index].strip()
+            if _HOSTNAME_GUARD_END_RE.fullmatch(stripped) is not None:
+                break
+            if stripped and not stripped.startswith("{{"):
+                entries.append(stripped)
+            index += 1
+        if index >= len(lines):
+            break
+        if _VALID_HOSTNAME_RE.fullmatch(hostname) is not None:
+            for entry in entries:
+                mapping[entry] = hostname
+        index += 1
+    return mapping
 
 
 def _run_chezmoi_data() -> subprocess.CompletedProcess[str]:
@@ -88,4 +136,5 @@ __all__ = [
     "chezmoi_hostname",
     "chezmoi_target_entry",
     "ensure_machine_ignore_entry",
+    "parse_hostname_ignore_entries",
 ]

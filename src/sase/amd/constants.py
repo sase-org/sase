@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 AGENTS_FILENAME = "AGENTS.md"
+AGENTS_TEMPLATE_FILENAME = "AGENTS.md.tmpl"
+AGENTS_SOURCE_FILENAMES = frozenset({AGENTS_FILENAME, AGENTS_TEMPLATE_FILENAME})
 # Provider instruction files. ``sase memory init`` writes each as a byte-for-byte
 # copy of the root's ``AGENTS.md`` (some providers do not read ``AGENTS.md``
 # directly, and some do not support ``@``-import composition). ``GEMINI.md`` is
@@ -18,6 +20,8 @@ CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT = "@{{ .chezmoi.homeDir }}/AGENTS.md\n"
 
 __all__ = [
     "AGENTS_FILENAME",
+    "AGENTS_SOURCE_FILENAMES",
+    "AGENTS_TEMPLATE_FILENAME",
     "CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT",
     "HOME_PROVIDER_SHIM_CONTENT",
     "PROVIDER_SHIM_CONTENT",

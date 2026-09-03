@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import sase.config.core as config_core
 from sase.amd.constants import (
     HOME_PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_FILES,
@@ -16,6 +17,7 @@ from sase.main import init_memory_handler
 from sase.main._init_chezmoi_deploy import defer_chezmoi_deploy
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
+    plan_memory,
     run_handler,
     short_note,
     write,
@@ -220,3 +222,194 @@ def test_init_memory_chezmoi_retired_source_deletes_live_target(
     assert not source_path.exists()
     assert source_path in deployed
     assert live_path in deleted
+
+
+def _machine_ignore_text() -> str:
+    return (
+        "tags\n"
+        '{{ if ne .chezmoi.fqdnHostname "bbugyi.c.googlers.com" }}\n'
+        ".config/sase/sase_work.yml\n"
+        "{{ end }}\n"
+        '{{ if ne .chezmoi.hostname "athena" }}\n'
+        ".config/sase/sase_athena.yml\n"
+        "{{ end }}\n"
+        '{{ if ne .chezmoi.hostname "Kellys-MBP" }}\n'
+        ".config/sase/sase_kellys_mbp.yml\n"
+        "{{ end }}\n"
+        '{{ if ne .chezmoi.hostname "apollo" }}\n'
+        ".config/sase/sase_apollo.yml\n"
+        "{{ end }}\n"
+    )
+
+
+def _write_machine_layout(
+    chezmoi_home: Path,
+    *,
+    titles: dict[str, str],
+    ignore: str | None = None,
+) -> None:
+    config_dir = chezmoi_home / "dot_config" / "sase"
+    write(config_dir / "sase.yml", "use_chezmoi: true\n")
+    for machine_name in ("apollo", "athena", "kellys_mbp"):
+        body = f"id:\n  username: bbugyi200\n  machine_name: {machine_name}\n"
+        title = titles.get(machine_name)
+        if title is not None:
+            body += f'\nmemory:\n  h1_title: "{title}"\n'
+        write(config_dir / f"sase_{machine_name}.yml", body)
+    write(chezmoi_home / ".chezmoiignore", ignore or _machine_ignore_text())
+
+
+def _patch_chezmoi_home(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    project_root: Path,
+    home_root: Path,
+    config_dir: Path,
+    chezmoi_home: Path,
+) -> None:
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+        use_chezmoi=True,
+    )
+    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(config_core, "CHEZMOI_HOME", chezmoi_home)
+
+
+def test_init_memory_chezmoi_templates_machine_h1_titles(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    _patch_chezmoi_home(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+        chezmoi_home=chezmoi_home,
+    )
+    _write_machine_layout(
+        chezmoi_home,
+        titles={
+            "apollo": "apollo - Bryan Bugyi's Rendezvous Server",
+            "athena": "athena - Bryan Bugyi's Home Server",
+        },
+    )
+    write(
+        chezmoi_home / "AGENTS.md",
+        "# athena - Bryan Bugyi's Home Server\n\n## Core Memory\n\nOld copy.\n",
+    )
+    write(
+        chezmoi_home / "CLAUDE.md",
+        "# athena - Bryan Bugyi's Home Server\n\n## Core Memory\n\nOld copy.\n",
+    )
+
+    deployed: list[Path] = []
+    deleted: list[Path] = []
+
+    def fake_deploy(
+        paths: Iterable[Path],
+        delete_targets: Sequence[Path] = (),
+    ) -> int:
+        deployed.extend(paths)
+        deleted.extend(delete_targets)
+        return 0
+
+    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", fake_deploy)
+
+    assert run_handler() == 0
+
+    template_path = chezmoi_home / "AGENTS.md.tmpl"
+    assert template_path.is_file()
+    assert not (chezmoi_home / "AGENTS.md").exists()
+    first_line = template_path.read_text(encoding="utf-8").splitlines()[0]
+    assert first_line == (
+        '{{ if eq .chezmoi.hostname "apollo" }}'
+        "# apollo - Bryan Bugyi's Rendezvous Server"
+        '{{ else if eq .chezmoi.hostname "athena" }}'
+        "# athena - Bryan Bugyi's Home Server"
+        "{{ else }}# athena - Bryan Bugyi's Home Server{{ end }}"
+    )
+    templated = template_path.read_text(encoding="utf-8")
+    for filename in PROVIDER_SHIM_FILES:
+        shim = chezmoi_home / f"{filename}.tmpl"
+        assert shim.read_text(encoding="utf-8") == templated
+        assert not (chezmoi_home / filename).exists()
+    assert chezmoi_home / "AGENTS.md.tmpl" in deployed
+    assert chezmoi_home / "CLAUDE.md.tmpl" in deployed
+    assert chezmoi_home / "AGENTS.md" in deployed
+    assert home_root / "AGENTS.md" in deleted
+    assert home_root / "CLAUDE.md" in deleted
+
+    assert run_handler() == 0
+    assert plan_memory().actions == ()
+    assert plan_memory().blockers == ()
+
+
+def test_init_memory_chezmoi_without_machine_titles_stays_static(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    _patch_chezmoi_home(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+        chezmoi_home=chezmoi_home,
+    )
+    _write_machine_layout(chezmoi_home, titles={})
+    write(
+        chezmoi_home / "dot_config" / "sase" / "sase.yml",
+        'memory:\n  h1_title: "Home Instructions"\n',
+    )
+
+    monkeypatch.setattr(
+        init_memory_handler, "_deploy_to_chezmoi", lambda *_args, **_kwargs: 0
+    )
+
+    assert run_handler() == 0
+
+    agents = (chezmoi_home / "AGENTS.md").read_text(encoding="utf-8")
+    assert agents.startswith("# Home Instructions\n")
+    assert not (chezmoi_home / "AGENTS.md.tmpl").exists()
+    for filename in PROVIDER_SHIM_FILES:
+        assert (chezmoi_home / filename).read_text(encoding="utf-8") == agents
+        assert not (chezmoi_home / f"{filename}.tmpl").exists()
+
+
+def test_init_memory_chezmoi_title_without_hostname_guard_blocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    _patch_chezmoi_home(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+        chezmoi_home=chezmoi_home,
+    )
+    _write_machine_layout(
+        chezmoi_home,
+        titles={"apollo": "apollo title"},
+        ignore="tags\n",
+    )
+
+    plan = plan_memory()
+    assert any("hostname guard" in blocker for blocker in plan.blockers)
+    assert run_handler() == 1
+    assert not (chezmoi_home / "AGENTS.md.tmpl").exists()

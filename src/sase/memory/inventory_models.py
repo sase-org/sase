@@ -18,8 +18,9 @@ INSTRUCTION_ROOT_FILENAMES = (
     "QWEN.md",
     "OPENCODE.md",
     "AGENTS.md",
+    "AGENTS.md.tmpl",
 )
-LOADED_INSTRUCTION_ROOT_FILENAMES = ("AGENTS.md",)
+LOADED_INSTRUCTION_ROOT_FILENAMES = ("AGENTS.md", "AGENTS.md.tmpl")
 
 
 @dataclass(frozen=True)

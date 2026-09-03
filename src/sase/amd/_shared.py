@@ -14,7 +14,11 @@ from sase._yaml_safe import yaml_safe_load
 from sase.config import core as config_core
 from sase.main.init_plan import InitAction
 
+from ._agents_doc import is_managed_agents_document
 from .constants import (
+    AGENTS_FILENAME,
+    AGENTS_SOURCE_FILENAMES,
+    AGENTS_TEMPLATE_FILENAME,
     CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT,
     HOME_PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_CONTENT,
@@ -120,7 +124,7 @@ def _resolved(path: Path) -> Path:
     return path.expanduser().resolve(strict=False)
 
 
-def _is_chezmoi_home_root(
+def is_chezmoi_home_root(
     root: Path,
     *,
     chezmoi_home_roots: Iterable[Path] = (),
@@ -132,23 +136,52 @@ def _is_chezmoi_home_root(
     return False
 
 
+def existing_agents_path(root: Path) -> Path | None:
+    """Return the on-disk agents source, preferring a chezmoi ``.tmpl`` file."""
+    template_path = root / AGENTS_TEMPLATE_FILENAME
+    if template_path.exists():
+        return template_path
+    agents_path = root / AGENTS_FILENAME
+    if agents_path.exists():
+        return agents_path
+    return None
+
+
+def is_root_agents_filename(name: str) -> bool:
+    """Return whether *name* is a root ``AGENTS.md`` or ``AGENTS.md.tmpl`` file."""
+    return name in AGENTS_SOURCE_FILENAMES
+
+
 def provider_shim_specs(
     root: Path,
     *,
     agents_content: str,
     chezmoi_home_roots: Iterable[Path] = (),
+    prefer_templates: bool = False,
 ) -> tuple[_ProviderShimSpec, ...]:
     """Return provider instruction specs that copy the root's ``AGENTS.md``.
 
     Each provider file (``CLAUDE.md`` etc.) is a byte-for-byte copy of
-    *agents_content*, the root's final ``AGENTS.md`` content. Because the
-    inlined ``AGENTS.md`` carries no template variables, chezmoi home roots use
-    a **static** preferred file (``CLAUDE.md``, not ``CLAUDE.md.tmpl``) and list
-    the old ``.tmpl`` source as a legacy path to migrate away from. Legacy
-    ``@AGENTS.md``-style shims are still recognized (see
+    *agents_content*, the root's final ``AGENTS.md`` content. Chezmoi home
+    roots without machine-specific titles use a **static** preferred file
+    (``CLAUDE.md``, not ``CLAUDE.md.tmpl``) and list the old ``.tmpl`` source
+    as a legacy path to migrate away from. When *prefer_templates* is true,
+    that preference flips so chezmoi evaluates the H1 hostname switch.
+    Legacy ``@AGENTS.md``-style shims are still recognized (see
     ``_is_provider_shim_text``) so existing files migrate cleanly.
     """
-    if _is_chezmoi_home_root(root, chezmoi_home_roots=chezmoi_home_roots):
+    if prefer_templates:
+        return tuple(
+            _ProviderShimSpec(
+                filename=filename,
+                path=root / f"{filename}.tmpl",
+                content=agents_content,
+                legacy_paths=(root / filename,),
+            )
+            for filename in PROVIDER_SHIM_FILES
+        )
+
+    if is_chezmoi_home_root(root, chezmoi_home_roots=chezmoi_home_roots):
         return tuple(
             _ProviderShimSpec(
                 filename=filename,
@@ -319,16 +352,21 @@ def provider_shim_plan(
     agents_content: str,
     chezmoi_home_roots: Iterable[Path] = (),
     migrated_paths: Iterable[Path] = (),
+    prefer_templates: bool = False,
 ) -> ProviderShimPlan:
     writes: list[_PlannedWrite] = []
     deletes: list[_PlannedDelete] = []
     blockers: list[str] = []
     migrated_resolved = {_resolved(path) for path in migrated_paths}
+    source_path = (
+        root / AGENTS_TEMPLATE_FILENAME if prefer_templates else root / AGENTS_FILENAME
+    )
 
     for spec in provider_shim_specs(
         root,
         agents_content=agents_content,
         chezmoi_home_roots=chezmoi_home_roots,
+        prefer_templates=prefer_templates,
     ):
         conflict = _shim_plan_conflict(spec, migrated_paths=migrated_resolved)
         if conflict is not None:
@@ -364,10 +402,13 @@ def provider_shim_plan(
                     deletes.append(delete)
                 continue
 
-            if _is_provider_shim_text(legacy_text):
+            managed = is_managed_agents_document(legacy_text)
+            if _is_provider_shim_text(legacy_text) or managed:
                 delete = _planned_delete(
                     legacy_path,
                     detail="legacy provider instruction shim",
+                    expected_content=legacy_text if managed else None,
+                    allow_custom=managed,
                 )
                 if delete is not None:
                     deletes.append(delete)
@@ -382,10 +423,10 @@ def provider_shim_plan(
             writes=(),
             deletes=(),
             blockers=tuple(blockers),
-            source_path=root / "AGENTS.md",
+            source_path=source_path,
         )
     return ProviderShimPlan(
         writes=tuple(writes),
         deletes=tuple(deletes),
-        source_path=root / "AGENTS.md",
+        source_path=source_path,
     )

@@ -21,6 +21,7 @@ from ._agents_doc import parse_amd_agents_document
 from ._shared import provider_shim_specs, provider_status_for_spec
 from .constants import (
     AGENTS_FILENAME,
+    AGENTS_TEMPLATE_FILENAME,
     PROVIDER_SHIM_FILES,
 )
 
@@ -205,12 +206,14 @@ def _provider_shims(
     *,
     agents_content: str,
     chezmoi_home_roots: tuple[Path, ...] = (),
+    prefer_templates: bool = False,
 ) -> tuple[_ProviderShimStatus, ...]:
     statuses: list[_ProviderShimStatus] = []
     for spec in provider_shim_specs(
         directory,
         agents_content=agents_content,
         chezmoi_home_roots=chezmoi_home_roots,
+        prefer_templates=prefer_templates,
     ):
         state, _error = provider_status_for_spec(spec)
         statuses.append(
@@ -265,6 +268,7 @@ def _entry_for_agents(
             path.parent,
             agents_content=text or "",
             chezmoi_home_roots=chezmoi_home_roots,
+            prefer_templates=path.name == AGENTS_TEMPLATE_FILENAME,
         ),
     )
 
@@ -331,7 +335,10 @@ def _build_amd_inventory(
                 )
             )
 
-    source_agents = source_root / AGENTS_FILENAME
+    source_template = source_root / AGENTS_TEMPLATE_FILENAME
+    source_agents = (
+        source_template if source_template.is_file() else source_root / AGENTS_FILENAME
+    )
     if include_source and source_agents.is_file():
         resolved_path = _resolved(source_agents)
         if resolved_path not in seen:

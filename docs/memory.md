@@ -12,8 +12,11 @@ Each non-README flat note declares its type in YAML frontmatter:
   `is_sase_managed: true`. A core note may set `priority:` to a non-negative integer;
   the default is `20`, lower values render earlier, and ties break by path. The
   generated `sase/memory/sase.md` note uses `priority: 10`. `memory.h1_title` optionally
-  customizes the generated title. The retired `memory.enabled` key no longer authorizes
-  management.
+  customizes the generated title. On a chezmoi home source root, machine overlays that
+  declare `memory.h1_title` make `sase memory init` emit `AGENTS.md.tmpl` whose H1
+  switches on `.chezmoi.hostname` (see
+  [memory.h1_title](configuration.md#memoryh1_title)). The retired `memory.enabled` key
+  no longer authorizes management.
 - **Reference memory** uses `type: reference`. It is reference context, requires
   `description` frontmatter, and can set `parent: sase/memory/<note>.md` to appear under
   another reference note's `## Children` section. A reference note description may be a

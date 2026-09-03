@@ -123,6 +123,14 @@ def read_machine_name_selector(path: Path) -> str | None:
     return lines[0]
 
 
+def overlay_identity(
+    path: Path,
+    data: dict[str, Any] | None,
+) -> RawOverlayIdentity:
+    """Project identity-shaped fields from one unmerged overlay mapping."""
+    return _raw_overlay_identity(path, data)
+
+
 def _raw_overlay_identity(
     path: Path,
     data: dict[str, Any] | None,
@@ -420,6 +428,7 @@ __all__ = [
     "RawOverlayIdentity",
     "build_agent_owner_config_snapshot",
     "is_valid_machine_name",
+    "overlay_identity",
     "read_machine_name_selector",
     "read_machine_name_selector_text",
 ]

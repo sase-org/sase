@@ -571,9 +571,12 @@ def run_init_memory(args: argparse.Namespace) -> int:
         live_delete_targets: list[Path] = []
         for path in home_result.deleted_paths:
             try:
-                live_delete_targets.append(Path.home() / path.relative_to(CHEZMOI_HOME))
+                relative = path.relative_to(CHEZMOI_HOME)
             except ValueError:
                 continue
+            if relative.name.endswith(".tmpl") and relative.name != ".tmpl":
+                relative = relative.with_name(relative.name[: -len(".tmpl")])
+            live_delete_targets.append(Path.home() / relative)
         if defer_chezmoi_paths(
             home_changed_paths,
             chezmoi_home=CHEZMOI_HOME,

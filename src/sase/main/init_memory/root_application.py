@@ -5,7 +5,9 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
-from sase.amd._shared import ProviderShimPlan, apply_planned_delete
+from sase.amd._agents_doc import is_managed_agents_document
+from sase.amd._shared import ProviderShimPlan, apply_planned_delete, read_text
+from sase.amd.constants import AGENTS_SOURCE_FILENAMES
 
 from .inventory import unreferenced_memory_files
 from .models import LinkedRepoMemoryEntry, MemoryExpectedFile, MemoryRootResult
@@ -73,6 +75,24 @@ def _delete_provider_shim_plan_paths(
     return tuple(path for plan in plans for path in _delete_provider_shim_paths(plan))
 
 
+def _delete_stale_static_agents(paths: Iterable[Path]) -> tuple[Path, ...]:
+    deleted: list[Path] = []
+    for path in paths:
+        if not path.exists():
+            continue
+        text, error = read_text(path)
+        if error is not None or text is None:
+            raise OSError(error or f"{path}: failed to read file before delete")
+        if not is_managed_agents_document(text):
+            raise OSError(f"{path}: refusing to delete custom AGENTS.md content")
+        try:
+            path.unlink()
+        except OSError as exc:
+            raise OSError(f"{path}: failed to delete file: {exc}") from exc
+        deleted.append(path)
+    return tuple(deleted)
+
+
 def _delete_retired_note_paths(paths: Iterable[Path]) -> tuple[Path, ...]:
     deleted: list[Path] = []
     for path in paths:
@@ -130,7 +150,8 @@ def _fold_source_paths(
     generated_sources = {
         expected.path.resolve(strict=False)
         for expected in expected_files
-        if expected.path.name == "AGENTS.md" and expected.write_policy == "overwrite"
+        if expected.path.name in AGENTS_SOURCE_FILENAMES
+        and expected.write_policy == "overwrite"
     }
     sources: list[Path] = []
     seen: set[Path] = set()
@@ -177,6 +198,10 @@ def initialize_memory_root(
         root=root,
     )
     deleted = (*deleted, *_delete_retired_note_paths(context.retired_note_paths))
+    deleted = (
+        *deleted,
+        *_delete_stale_static_agents(context.stale_agents_delete_paths),
+    )
     deleted = (*deleted, *_delete_provider_shim_paths(context.shim_plan))
     deleted = (
         *deleted,

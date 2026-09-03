@@ -332,7 +332,13 @@ def parse_amd_agents_document(text: str | None) -> _AmdAgentsDocument:
     )
 
 
+def is_managed_agents_document(text: str) -> bool:
+    """Return whether *text* has AMD structural section anchors."""
+    return parse_amd_agents_document(text).has_memory_structure
+
+
 __all__ = [
     "collect_long_memory_entries",
+    "is_managed_agents_document",
     "parse_amd_agents_document",
 ]

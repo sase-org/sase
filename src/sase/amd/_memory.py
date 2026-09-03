@@ -11,15 +11,16 @@ from ._agents_doc import (
     collect_long_memory_entries,
     parse_amd_agents_document,
 )
+from ._chezmoi_template import unescape_chezmoi_literals
 from ._config import resolve_amd_h1_title
 from ._headings import iter_headings
 from ._shared import (
     AmdMemoryFrontmatterUpdate,
     AmdMemorySyncPlan,
+    existing_agents_path,
     read_text,
 )
 from ._template import render_agents_template
-from .constants import AGENTS_FILENAME
 from .inline_memory import inline_memory_section, validate_short_memory_structure
 from sase.memory.notes import (
     AGENTS_PARENT,
@@ -52,12 +53,13 @@ _LONG_MEMORY_BLOCK_DESCRIPTION_RE = re.compile(
 
 
 def _existing_agents_long_descriptions(root: Path) -> dict[str, str]:
-    agents_path = root / AGENTS_FILENAME
-    if not agents_path.exists():
+    agents_path = existing_agents_path(root)
+    if agents_path is None:
         return {}
     text, error = read_text(agents_path)
     if error is not None or text is None:
         return {}
+    text = unescape_chezmoi_literals(text)
     parsed = parse_amd_agents_document(text)
     if parsed.has_long_section:
         entries = parsed.long_memory_entries

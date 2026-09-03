@@ -59,6 +59,8 @@ def test_duplicate_instruction_roots_count_loaded_memory_once(
     tmp_path: Path,
 ) -> None:
     for filename in INSTRUCTION_ROOT_FILENAMES:
+        if filename.endswith(".tmpl"):
+            continue
         if filename == "AGENTS.md":
             _write(tmp_path / filename, "@sase/memory/base.md\n")
         else:

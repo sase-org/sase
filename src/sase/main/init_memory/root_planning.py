@@ -6,7 +6,11 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from sase.amd._shared import ProviderShimPlan, provider_shim_plan
+from sase.amd._agents_doc import is_managed_agents_document
+from sase.amd._chezmoi_template import render_chezmoi_h1_template
+from sase.amd._config import resolve_chezmoi_machine_h1_titles
+from sase.amd._shared import ProviderShimPlan, provider_shim_plan, read_text
+from sase.amd.constants import AGENTS_FILENAME, AGENTS_TEMPLATE_FILENAME
 from sase.amd.init import (
     AmdMemorySyncPlan,
     plan_amd_memory_sync,
@@ -69,6 +73,7 @@ class _MemoryRootContext:
     additional_shim_plans: tuple[ProviderShimPlan, ...]
     memory_delete_paths: tuple[Path, ...] = ()
     retired_note_paths: tuple[Path, ...] = ()
+    stale_agents_delete_paths: tuple[Path, ...] = ()
     source_memory_root: Path | None = None
     blockers: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
@@ -282,6 +287,84 @@ def _memory_web_root_plan(
     )
 
 
+def _static_agents_can_be_deleted(text: str, *, generated_content: str) -> bool:
+    return text == generated_content or is_managed_agents_document(text)
+
+
+def _apply_chezmoi_machine_h1_template(
+    root: Path,
+    expected_files: tuple[MemoryExpectedFile, ...],
+    *,
+    chezmoi_home_roots: Iterable[Path],
+) -> tuple[
+    tuple[MemoryExpectedFile, ...],
+    tuple[Path, ...],
+    bool,
+    tuple[str, ...],
+]:
+    resolution = resolve_chezmoi_machine_h1_titles(
+        root, chezmoi_home_roots=chezmoi_home_roots
+    )
+    if resolution.blockers:
+        return expected_files, (), False, resolution.blockers
+    if not resolution.titles:
+        return expected_files, (), False, ()
+
+    fallback_title = resolution.fallback_title or resolution.titles[-1][1]
+    agents_path = root / AGENTS_FILENAME
+    template_path = root / AGENTS_TEMPLATE_FILENAME
+    updated: list[MemoryExpectedFile] = []
+    generated_content: str | None = None
+    for expected in expected_files:
+        if expected.path != agents_path or isinstance(expected.content, bytes):
+            updated.append(expected)
+            continue
+        if expected.write_policy != "overwrite":
+            updated.append(expected)
+            continue
+        templated, template_error = render_chezmoi_h1_template(
+            expected.content,
+            titles=resolution.titles,
+            fallback_title=fallback_title,
+        )
+        if template_error is not None or templated is None:
+            return (
+                expected_files,
+                (),
+                False,
+                (template_error or "failed to render chezmoi AGENTS.md template",),
+            )
+        generated_content = expected.content
+        updated.append(
+            replace(
+                expected,
+                path=template_path,
+                content=templated,
+                detail="managed AGENTS.md template",
+            )
+        )
+
+    if generated_content is None:
+        return expected_files, (), False, ()
+
+    deletes: list[Path] = []
+    blockers: list[str] = []
+    if agents_path.exists():
+        text, read_error = read_text(agents_path)
+        if read_error is not None or text is None:
+            blockers.append(read_error or f"{agents_path}: failed to read file")
+        elif _static_agents_can_be_deleted(text, generated_content=generated_content):
+            deletes.append(agents_path)
+        else:
+            blockers.append(
+                f"{agents_path}: refusing to delete custom AGENTS.md; it does "
+                "not look like a sase-managed agent document"
+            )
+    if blockers:
+        return expected_files, (), False, tuple(blockers)
+    return tuple(updated), tuple(deletes), True, ()
+
+
 def memory_root_context(
     root: Path,
     linked_entries: Iterable[LinkedRepoMemoryEntry],
@@ -414,10 +497,18 @@ def memory_root_context(
         expected_files,
         memory_web_plan.expected_files,
     )
+    expected_files, stale_agents_delete_paths, prefer_templates, template_blockers = (
+        _apply_chezmoi_machine_h1_template(
+            root,
+            expected_files,
+            chezmoi_home_roots=chezmoi_home_roots,
+        )
+    )
     shim_plan = provider_shim_plan(
         root,
         agents_content=final_agents_content(root, expected_files),
         chezmoi_home_roots=chezmoi_home_roots,
+        prefer_templates=prefer_templates,
     )
     additional_shim_plans = (
         agent_doc_shim_plans(root, include_root=False)
@@ -431,7 +522,9 @@ def memory_root_context(
         additional_shim_plans=additional_shim_plans,
         memory_delete_paths=migration.delete_paths,
         retired_note_paths=retired_note_paths,
+        stale_agents_delete_paths=stale_agents_delete_paths,
         source_memory_root=migration.source_memory_root,
+        blockers=template_blockers,
         warnings=memory_web_plan.warnings,
     )
 
@@ -491,6 +584,14 @@ def plan_memory_root(
                     detail="remove retired generated memory note",
                 )
                 for path in context.retired_note_paths
+            )
+            + tuple(
+                MemoryFileChange(
+                    path=path,
+                    operation="delete",
+                    detail="stale static AGENTS.md source",
+                )
+                for path in context.stale_agents_delete_paths
             )
         ),
         unreferenced=(

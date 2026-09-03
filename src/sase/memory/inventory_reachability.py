@@ -257,7 +257,9 @@ def _reachable_memory_files_for_init(
     overlay_files = normalize_overlay(overlay)
     agents_path = (root_resolved / "AGENTS.md").resolve(strict=False)
     if not path_exists(agents_path, overlay_files):
-        return ()
+        agents_path = (root_resolved / "AGENTS.md.tmpl").resolve(strict=False)
+        if not path_exists(agents_path, overlay_files):
+            return ()
 
     memory_files = set(
         iter_memory_files(

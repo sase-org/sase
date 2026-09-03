@@ -12,6 +12,7 @@ from sase.main._init_chezmoi_ignore import (
     chezmoi_hostname,
     chezmoi_target_entry,
     ensure_machine_ignore_entry,
+    parse_hostname_ignore_entries,
 )
 
 
@@ -45,6 +46,66 @@ def test_chezmoi_target_entry_decodes_dot_parts(tmp_path: Path) -> None:
         )
         is None
     )
+
+
+def test_chezmoi_target_entry_strips_tmpl_suffix(tmp_path: Path) -> None:
+    chezmoi_home = tmp_path / "home"
+
+    assert (
+        chezmoi_target_entry(
+            chezmoi_home / "AGENTS.md.tmpl",
+            chezmoi_home=chezmoi_home,
+        )
+        == "AGENTS.md"
+    )
+    assert (
+        chezmoi_target_entry(
+            chezmoi_home / "CLAUDE.md.tmpl",
+            chezmoi_home=chezmoi_home,
+        )
+        == "CLAUDE.md"
+    )
+
+
+def test_parse_hostname_ignore_entries_matches_generated_stanzas() -> None:
+    text = (
+        "tags\n"
+        '{{ if ne .chezmoi.fqdnHostname "bbugyi.c.googlers.com" }}\n'
+        ".config/sase/sase_work.yml\n"
+        "{{ end }}\n"
+        '{{ if ne .chezmoi.hostname "athena" }}\n'
+        ".config/sase/sase_athena.yml\n"
+        "{{ end }}\n"
+        '{{ if ne .chezmoi.hostname "Kellys-MBP" }}\n'
+        ".config/sase/sase_kellys_mbp.yml\n"
+        "{{ end }}\n"
+        '{{ if ne .chezmoi.hostname "apollo" }}\n'
+        ".config/sase/sase_apollo.yml\n"
+        "{{ end }}\n"
+    )
+
+    assert parse_hostname_ignore_entries(text) == {
+        ".config/sase/sase_athena.yml": "athena",
+        ".config/sase/sase_kellys_mbp.yml": "Kellys-MBP",
+        ".config/sase/sase_apollo.yml": "apollo",
+    }
+
+
+def test_parse_hostname_ignore_entries_ignores_unrelated_and_unclosed() -> None:
+    text = (
+        "README.md\n"
+        '{{ if ne .chezmoi.hostname "apollo" }}\n'
+        ".config/sase/sase_apollo.yml\n"
+        ".config/sase/extra.yml\n"
+        "{{ end }}\n"
+        '{{ if ne .chezmoi.hostname "broken" }}\n'
+        ".config/sase/sase_broken.yml\n"
+    )
+
+    assert parse_hostname_ignore_entries(text) == {
+        ".config/sase/sase_apollo.yml": "apollo",
+        ".config/sase/extra.yml": "apollo",
+    }
 
 
 def test_chezmoi_hostname_prefers_chezmoi_data(

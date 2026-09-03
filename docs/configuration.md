@@ -136,7 +136,9 @@ same commit as the new overlay:
 
 The guard uses chezmoi's hostname, which may differ from the SASE machine name, so the
 overlay is applied only on the machine where it was initialized. If `.chezmoiignore`
-already contains an entry for that overlay, the existing guard is left unchanged.
+already contains an entry for that overlay, the existing guard is left unchanged. The
+same hostname guards are required when a machine overlay declares `memory.h1_title` so
+`sase memory init` can emit a per-hostname H1 in the chezmoi `AGENTS.md.tmpl` source.
 
 Prompting requires a TTY. `sase config init --check`, bare `sase init --check`, and
 `sase doctor` report missing usernames, legacy migration, invalid values, selector
@@ -503,6 +505,15 @@ Home roots are the exception. For the live home root, user config from
 `AGENTS.md` title. For the chezmoi home source root, source-side config under
 `dot_config/sase/` is used instead. With `use_chezmoi: true`, `sase memory init`
 initializes the chezmoi home source root rather than writing a live-home `AGENTS.md`.
+
+When at least one machine overlay (`sase_*.yml` with a valid `id.machine_name`) under
+that chezmoi source config dir declares `memory.h1_title`, initialization writes
+`AGENTS.md.tmpl` and matching `*.md.tmpl` provider shims whose H1 is a chezmoi hostname
+switch. Each title-declaring overlay must already have the hostname guard that
+`sase config init` writes to `.chezmoiignore`; missing or duplicate guards block
+initialization. Machines without their own guarded title keep the last-declared-wins
+fallback from `sase.yml` plus overlays. Without any machine-overlay title, chezmoi
+generation stays static `AGENTS.md` as before.
 
 Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`
 
@@ -3056,11 +3067,13 @@ writes home memory there, and may run the configured chezmoi deploy path;
 apply steps.
 
 Home-level provider instruction files (`CLAUDE.md`, `GEMINI.md`, `QWEN.md`,
-`OPENCODE.md`) in the chezmoi source are written as static `.md` files that are
-byte-for-byte copies of the root's generated `AGENTS.md`. Because the inlined
-`AGENTS.md` carries no template variables, the chezmoi source uses a static preferred
-file rather than a `*.md.tmpl` import; legacy `*.md.tmpl` shims that imported
-`@{{ .chezmoi.homeDir }}/AGENTS.md` are still recognized and migrated to full copies.
+`OPENCODE.md`) in the chezmoi source are byte-for-byte copies of the root's generated
+`AGENTS.md`. When no machine overlay declares `memory.h1_title`, those copies stay
+static `.md` files. When a machine overlay does declare a title, `sase memory init`
+writes `AGENTS.md.tmpl` and preferred `*.md.tmpl` shims whose H1 switches on
+`.chezmoi.hostname`, and migrates leftover static copies away. Legacy `*.md.tmpl` shims
+that imported `@{{ .chezmoi.homeDir }}/AGENTS.md` are still recognized and migrated to
+full copies.
 
 ```yaml
 use_chezmoi: true # default: false
