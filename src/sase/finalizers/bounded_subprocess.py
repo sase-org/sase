@@ -14,9 +14,10 @@ import time
 
 STDOUT_CAP_BYTES = 1_048_576
 STDERR_CAP_BYTES = 1_048_576
-HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS = 600.0
+HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS = 1800.0
 _READ_CHUNK_BYTES = 65_536
 _REAP_GRACE_SECONDS = 1.0
+_TERM_GRACE_SECONDS = 5.0
 
 
 @dataclass(frozen=True)
@@ -138,12 +139,12 @@ def run_bounded_subprocess(
     try:
         while True:
             if cap_exceeded.is_set():
-                _kill_process_group(process)
+                _escalate_stop(process)
                 break
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 timed_out = True
-                _kill_process_group(process)
+                _escalate_stop(process)
                 break
             try:
                 process.wait(timeout=min(remaining, 0.05))
@@ -172,16 +173,40 @@ def run_bounded_subprocess(
     )
 
 
-def _kill_process_group(process: subprocess.Popen[bytes]) -> None:
+def _escalate_stop(process: subprocess.Popen[bytes]) -> None:
+    """Send SIGTERM, wait a short grace period, then SIGKILL leftovers."""
+
+    _signal_process_group(process, signal.SIGTERM)
+    grace_deadline = time.monotonic() + _TERM_GRACE_SECONDS
+    while True:
+        remaining = grace_deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            process.wait(timeout=min(remaining, 0.05))
+            return
+        except subprocess.TimeoutExpired:
+            continue
+    _kill_process_group(process)
+
+
+def _signal_process_group(process: subprocess.Popen[bytes], sig: int) -> None:
     try:
-        os.killpg(process.pid, signal.SIGKILL)
+        os.killpg(process.pid, sig)
     except ProcessLookupError:
         return
     except OSError:
         try:
-            process.kill()
+            if sig == signal.SIGKILL:
+                process.kill()
+            else:
+                process.terminate()
         except ProcessLookupError:
             return
+
+
+def _kill_process_group(process: subprocess.Popen[bytes]) -> None:
+    _signal_process_group(process, signal.SIGKILL)
 
 
 def _reap_process(process: subprocess.Popen[bytes]) -> None:

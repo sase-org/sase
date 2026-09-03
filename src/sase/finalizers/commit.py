@@ -278,6 +278,7 @@ def execute_commit_finalizer(
     attempt_id = dispatched.attempt_id
     attempts = dispatched.attempts
     evidence = dispatched.evidence
+    diagnostics = dispatched.diagnostics
 
     _reject_discarded_dirty_work(
         dirty_before_decisions,
@@ -339,6 +340,7 @@ def execute_commit_finalizer(
                 deferral=_merge_deferrals(dispatched.deferred),
                 attempts=attempts,
                 evidence=evidence,
+                diagnostics=diagnostics,
             ),
         )
     if attempt_id is None:
@@ -348,6 +350,7 @@ def execute_commit_finalizer(
                 instance.instance_id,
                 attempts=(),
                 evidence=evidence,
+                diagnostics=diagnostics,
             ),
         )
     attempts[0] = FinalizerAttemptWire(attempt=attempt_id, status="success")
@@ -357,6 +360,7 @@ def execute_commit_finalizer(
             instance.instance_id,
             attempts=attempts,
             evidence=evidence,
+            diagnostics=diagnostics,
         ),
     )
 

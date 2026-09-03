@@ -76,12 +76,14 @@ def success_result(
     *,
     attempts: Sequence[FinalizerAttemptWire],
     evidence: Sequence[FinalizerOutcomeEvidenceWire],
+    diagnostics: Sequence[FinalizerDiagnosticWire] = (),
 ) -> FinalizerInstanceResultWire:
     return FinalizerInstanceResultWire(
         instance_id=instance_id,
         status="success",
         attempts=list(attempts),
         evidence=list(evidence),
+        diagnostics=list(diagnostics),
     )
 
 
@@ -91,10 +93,11 @@ def deferred_result(
     deferral: FinalizerDeferralWire,
     attempts: Sequence[FinalizerAttemptWire],
     evidence: Sequence[FinalizerOutcomeEvidenceWire],
+    diagnostics: Sequence[FinalizerDiagnosticWire] = (),
 ) -> FinalizerInstanceResultWire:
     """Build a non-failing result for a host-upheld commit deferral."""
 
-    diagnostics = [
+    merged = [
         FinalizerDiagnosticWire(
             code="commit_deferred",
             severity="warning",
@@ -104,7 +107,8 @@ def deferred_result(
             ),
             instance_id=instance_id,
             attempt=attempts[-1].attempt if attempts else None,
-        )
+        ),
+        *diagnostics,
     ]
     return FinalizerInstanceResultWire(
         instance_id=instance_id,
@@ -112,7 +116,7 @@ def deferred_result(
         attempts=list(attempts),
         deferral=deferral,
         evidence=list(evidence),
-        diagnostics=diagnostics,
+        diagnostics=merged,
     )
 
 

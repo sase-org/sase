@@ -10,6 +10,7 @@ from typing import Any
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
     FinalizerDeferralWire,
+    FinalizerDiagnosticWire,
     FinalizerOutcomeEvidenceWire,
 )
 from sase.finalizers.commit_declaration import (
@@ -72,6 +73,7 @@ class _CommitDispatchResult:
     attempts: list[FinalizerAttemptWire]
     evidence: list[FinalizerOutcomeEvidenceWire]
     deferred: tuple[_DeferredRepoOutcome, ...] = ()
+    diagnostics: tuple[FinalizerDiagnosticWire, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -128,6 +130,7 @@ def dispatch_commit_decisions(
     attempt_id: int | None = None
     attempts: list[FinalizerAttemptWire] = []
     evidence: list[FinalizerOutcomeEvidenceWire] = []
+    diagnostics: list[FinalizerDiagnosticWire] = []
     deferred: list[_DeferredRepoOutcome] = []
     current_result = invoke_result
 
@@ -292,68 +295,61 @@ def dispatch_commit_decisions(
             label=repo.name,
             inputs={**attempt_fields, "fingerprint": attempt_fingerprint},
         )
-        if stitch.timed_out or stitch.stdout_truncated or stitch.stderr_truncated:
-            code = "stitch_timeout" if stitch.timed_out else "stitch_output_cap"
-            message_text = f"sase stitch create {code} for {repo.name}"
-            attempts[0] = FinalizerAttemptWire(
-                attempt=consumed_attempt,
-                status="failed",
-                diagnostic_code=code,
-            )
-            result = failed_result(
-                instance_id,
-                code,
-                message_text,
-                attempts=attempts,
-                evidence=evidence,
-            )
-            raise BuiltinCommitFinalizerError(
-                message_text,
-                result=result,
-                invoke_result=current_result,
-            )
+        rescued_bounds_failure = _rescue_landed_commit_after_bounds_failure(
+            stitch,
+            repo=repo,
+            before_markers=before_markers,
+            artifacts=artifacts,
+            instance_id=instance_id,
+            attempt_id=consumed_attempt,
+            attempts=attempts,
+            evidence=evidence,
+            diagnostics=diagnostics,
+            current_result=current_result,
+        )
         repaired_conflict = False
-        if stitch.returncode == EXIT_CODE_CONFLICT:
-            attempts[0] = FinalizerAttemptWire(
-                attempt=consumed_attempt,
-                status="failed",
-                diagnostic_code="commit_conflict",
-            )
-            current_result = resolve_commit_conflict(
-                repo,
-                context,
-                provider=provider,
-                invoke_result=current_result,
-                model_tier=model_tier,
-                suppress_output=suppress_output,
-                model_override=model_override,
-                options=options,
-                resume_runner=resume_runner,
-                attempts=attempts,
-                evidence=evidence,
-                before_markers=before_markers,
-                attempt_id=consumed_attempt,
-            )
-            repaired_conflict = True
-        elif stitch.returncode != 0:
-            message_text = stitch_failure_message(repo, stitch)
-            attempts[0] = FinalizerAttemptWire(
-                attempt=consumed_attempt,
-                status="failed",
-                diagnostic_code="stitch_failed",
-            )
-            result = failed_result(
-                instance_id,
-                "stitch_failed",
-                message_text,
-                attempts=attempts,
-                evidence=evidence,
-            )
-            raise BuiltinCommitFinalizerError(
-                message_text,
-                result=result,
-                invoke_result=current_result,
-            )
+        if not rescued_bounds_failure:
+            if stitch.returncode == EXIT_CODE_CONFLICT:
+                attempts[0] = FinalizerAttemptWire(
+                    attempt=consumed_attempt,
+                    status="failed",
+                    diagnostic_code="commit_conflict",
+                )
+                current_result = resolve_commit_conflict(
+                    repo,
+                    context,
+                    provider=provider,
+                    invoke_result=current_result,
+                    model_tier=model_tier,
+                    suppress_output=suppress_output,
+                    model_override=model_override,
+                    options=options,
+                    resume_runner=resume_runner,
+                    attempts=attempts,
+                    evidence=evidence,
+                    before_markers=before_markers,
+                    attempt_id=consumed_attempt,
+                )
+                repaired_conflict = True
+            elif stitch.returncode != 0:
+                message_text = stitch_failure_message(repo, stitch)
+                attempts[0] = FinalizerAttemptWire(
+                    attempt=consumed_attempt,
+                    status="failed",
+                    diagnostic_code="stitch_failed",
+                )
+                result = failed_result(
+                    instance_id,
+                    "stitch_failed",
+                    message_text,
+                    attempts=attempts,
+                    evidence=evidence,
+                )
+                raise BuiltinCommitFinalizerError(
+                    message_text,
+                    result=result,
+                    invoke_result=current_result,
+                )
 
         markers = new_commit_markers(before_markers, load_commit_results(artifacts))
         repo_markers = [
@@ -393,6 +389,7 @@ def dispatch_commit_decisions(
                 consumed_attempt,
                 attempts=attempts,
                 evidence=evidence,
+                diagnostics=diagnostics,
                 stitch_runner=stitch_runner,
                 unexpected_path_resolver=unexpected_path_resolver,
                 project_dir=project_dir,
@@ -447,6 +444,7 @@ def dispatch_commit_decisions(
         attempts=attempts,
         evidence=evidence,
         deferred=tuple(deferred),
+        diagnostics=tuple(diagnostics),
     )
 
 
@@ -459,6 +457,7 @@ def _attempt_post_repair_follow_up(
     *,
     attempts: list[FinalizerAttemptWire],
     evidence: list[FinalizerOutcomeEvidenceWire],
+    diagnostics: list[FinalizerDiagnosticWire],
     stitch_runner: StitchRunner,
     unexpected_path_resolver: UnexpectedPathResolver,
     project_dir: str,
@@ -476,9 +475,10 @@ def _attempt_post_repair_follow_up(
         )
     assert message is not None
 
-    before_markers = load_commit_results(
+    artifacts = (
         Path(context.artifacts_dir) if context.artifacts_dir is not None else None
     )
+    before_markers = load_commit_results(artifacts)
     attempt_fields = stitch_attempt_input_fields(repo, message, protected)
     attempt_fingerprint = stitch_attempt_fingerprint(attempt_fields)
     stitch = stitch_runner(repo, message, protected, context)
@@ -491,67 +491,58 @@ def _attempt_post_repair_follow_up(
         label=follow_up_label,
         inputs={**attempt_fields, "fingerprint": attempt_fingerprint},
     )
-    if stitch.timed_out or stitch.stdout_truncated or stitch.stderr_truncated:
-        code = "stitch_timeout" if stitch.timed_out else "stitch_output_cap"
-        message_text = f"sase stitch create {code} for {repo.name}"
-        attempts[0] = FinalizerAttemptWire(
-            attempt=attempt_id,
-            status="failed",
-            diagnostic_code=code,
-        )
-        result = failed_result(
-            instance_id,
-            code,
-            message_text,
-            attempts=attempts,
-            evidence=evidence,
-        )
-        raise BuiltinCommitFinalizerError(
-            message_text,
-            result=result,
-            invoke_result=current_result,
-        )
-    if stitch.returncode == EXIT_CODE_CONFLICT:
-        message_text = (
-            f"commit finalizer hit a second unresolved conflict in {repo.name}"
-        )
-        result = failed_result(
-            instance_id,
-            "second_unresolved_conflict",
-            message_text,
-            attempts=attempts,
-            evidence=evidence,
-        )
-        raise BuiltinCommitFinalizerError(
-            message_text,
-            result=result,
-            invoke_result=current_result,
-        )
-    if stitch.returncode != 0:
-        message_text = stitch_failure_message(repo, stitch)
-        attempts[0] = FinalizerAttemptWire(
-            attempt=attempt_id,
-            status="failed",
-            diagnostic_code="stitch_failed",
-        )
-        result = failed_result(
-            instance_id,
-            "stitch_failed",
-            message_text,
-            attempts=attempts,
-            evidence=evidence,
-        )
-        raise BuiltinCommitFinalizerError(
-            message_text,
-            result=result,
-            invoke_result=current_result,
-        )
+    rescued_bounds_failure = _rescue_landed_commit_after_bounds_failure(
+        stitch,
+        repo=repo,
+        before_markers=before_markers,
+        artifacts=artifacts,
+        instance_id=instance_id,
+        attempt_id=attempt_id,
+        attempts=attempts,
+        evidence=evidence,
+        diagnostics=diagnostics,
+        current_result=current_result,
+    )
+    if not rescued_bounds_failure:
+        if stitch.returncode == EXIT_CODE_CONFLICT:
+            message_text = (
+                f"commit finalizer hit a second unresolved conflict in {repo.name}"
+            )
+            result = failed_result(
+                instance_id,
+                "second_unresolved_conflict",
+                message_text,
+                attempts=attempts,
+                evidence=evidence,
+            )
+            raise BuiltinCommitFinalizerError(
+                message_text,
+                result=result,
+                invoke_result=current_result,
+            )
+        if stitch.returncode != 0:
+            message_text = stitch_failure_message(repo, stitch)
+            attempts[0] = FinalizerAttemptWire(
+                attempt=attempt_id,
+                status="failed",
+                diagnostic_code="stitch_failed",
+            )
+            result = failed_result(
+                instance_id,
+                "stitch_failed",
+                message_text,
+                attempts=attempts,
+                evidence=evidence,
+            )
+            raise BuiltinCommitFinalizerError(
+                message_text,
+                result=result,
+                invoke_result=current_result,
+            )
 
     markers = new_commit_markers(
         before_markers,
-        load_commit_results(
-            Path(context.artifacts_dir) if context.artifacts_dir is not None else None
-        ),
+        load_commit_results(artifacts),
     )
     repo_markers = [marker for marker in markers if marker_matches_repo(marker, repo)]
     if not repo_markers:
@@ -634,6 +625,72 @@ def _conflict_repair_dirty_after_stitch_message(
         )
     )
     return f"{base}. {landed} Follow-up commit status: {failure_reason}."
+
+
+def _stitch_bounds_failure_code(stitch: StitchCommandResult) -> str | None:
+    if stitch.timed_out:
+        return "stitch_timeout"
+    if stitch.stdout_truncated or stitch.stderr_truncated:
+        return "stitch_output_cap"
+    return None
+
+
+def _rescue_landed_commit_after_bounds_failure(
+    stitch: StitchCommandResult,
+    *,
+    repo: DirtyRepo,
+    before_markers: Sequence[Mapping[str, Any]],
+    artifacts: Path | None,
+    instance_id: str,
+    attempt_id: int,
+    attempts: list[FinalizerAttemptWire],
+    evidence: list[FinalizerOutcomeEvidenceWire],
+    diagnostics: list[FinalizerDiagnosticWire],
+    current_result: InvokeResult,
+) -> bool:
+    """Raise on a bounds failure with no marker; rescue when the commit landed.
+
+    Returns True when a matching ``commit_results.json`` marker proves the
+    commit already landed, so the caller should skip returncode failure
+    handling and continue with the normal marker-verification path.
+    """
+
+    code = _stitch_bounds_failure_code(stitch)
+    if code is None:
+        return False
+    markers = new_commit_markers(before_markers, load_commit_results(artifacts))
+    repo_markers = [marker for marker in markers if marker_matches_repo(marker, repo)]
+    if not repo_markers:
+        message_text = f"sase stitch create {code} for {repo.name}"
+        attempts[0] = FinalizerAttemptWire(
+            attempt=attempt_id,
+            status="failed",
+            diagnostic_code=code,
+        )
+        raise BuiltinCommitFinalizerError(
+            message_text,
+            result=failed_result(
+                instance_id,
+                code,
+                message_text,
+                attempts=attempts,
+                evidence=evidence,
+            ),
+            invoke_result=current_result,
+        )
+    diagnostics.append(
+        FinalizerDiagnosticWire(
+            code=f"{code}_after_commit",
+            severity="warning",
+            message=(
+                f"sase stitch create {code} for {repo.name}, but the commit "
+                "already landed before the process was killed"
+            ),
+            instance_id=instance_id,
+            attempt=attempt_id,
+        )
+    )
+    return True
 
 
 def merge_deferrals(

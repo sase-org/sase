@@ -6,6 +6,7 @@ from collections.abc import Mapping
 import json
 import os
 from pathlib import Path
+import signal
 import sys
 import time
 from typing import Any
@@ -18,6 +19,7 @@ from sase.core.finalizer_wire import (
     FinalizerInstanceResultWire,
     FinalizerOutcomeEvidenceWire,
 )
+from sase.finalizers import bounded_subprocess as bounded_subprocess_mod
 from sase.finalizers.bounded_subprocess import (
     STDOUT_CAP_BYTES,
     run_bounded_subprocess,
@@ -391,6 +393,53 @@ def test_timeout_kills_descendant_processes(tmp_path: Path) -> None:
         if child_pid:
             with pytest.raises(ProcessLookupError):
                 os.kill(child_pid, 0)
+
+
+def test_timeout_reaps_child_that_exits_on_sigterm() -> None:
+    script = "\n".join(
+        [
+            "import signal, sys, time",
+            "signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))",
+            "time.sleep(60)",
+        ]
+    )
+    started = time.monotonic()
+    completed = run_bounded_subprocess(
+        [sys.executable, "-c", script],
+        cwd=".",
+        env=dict(os.environ),
+        input_bytes=None,
+        timeout=0.4,
+    )
+    elapsed = time.monotonic() - started
+    assert completed.timed_out
+    assert elapsed < bounded_subprocess_mod._TERM_GRACE_SECONDS
+
+
+def test_timeout_sigkills_child_that_ignores_sigterm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bounded_subprocess_mod, "_TERM_GRACE_SECONDS", 0.3)
+    script = "\n".join(
+        [
+            "import signal, time",
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN)",
+            "time.sleep(60)",
+        ]
+    )
+    started = time.monotonic()
+    completed = run_bounded_subprocess(
+        [sys.executable, "-c", script],
+        cwd=".",
+        env=dict(os.environ),
+        input_bytes=None,
+        timeout=0.4,
+    )
+    elapsed = time.monotonic() - started
+    assert completed.timed_out
+    assert completed.returncode == -signal.SIGKILL
+    assert elapsed >= 0.3
+    assert elapsed < 3
 
 
 def test_command_output_cap_is_terminal(
