@@ -75,6 +75,11 @@ def integrate_v2_hoods(
                 refreshed += 1
             else:
                 imported += 1
+            if plan.adopted_runs:
+                diagnostics.append(
+                    f"{label}: adopted {len(plan.adopted_runs)} legacy v1 run(s) "
+                    "in place"
+                )
             families += sum(
                 container.record.kind == "family" for container in plan.containers
             )

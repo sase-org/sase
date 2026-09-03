@@ -16,13 +16,18 @@ from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.v2_import_history import (
     ExactLocalObservationIndex,
     build_exact_local_observation_index,
-    existing_project_imports,
     find_exact_local_observation,
     preferred_timestamp,
     reserve_timestamp,
+    scan_local_import_state,
 )
 from sase.agents_sync.v2_import_package import ValidatedV2HoodPackage
 from sase.agents_sync.v2_import_types import HoodPlan, PlannedContainer, PlannedRun
+from sase.agents_sync.v2_import_v1_adoption import (
+    LegacyV1AdoptionIndex,
+    find_v1_adoption,
+    legacy_v1_adoption_index,
+)
 from sase.core.agent_artifact_paths import (
     ACE_RUN_WORKFLOW_DIR,
     canonical_agent_artifact_path,
@@ -45,6 +50,7 @@ class ImportPreflightContext:
     existing: dict[tuple[str, str, str, str], tuple[Path, str | None]]
     reserved: set[str]
     observations: ExactLocalObservationIndex
+    legacy_v1: LegacyV1AdoptionIndex
     recovery_complete: bool = False
 
 
@@ -57,8 +63,9 @@ def build_import_preflight_context(
 ) -> ImportPreflightContext:
     """Scan local import and observation state once for all incoming hoods."""
 
+    local_state = scan_local_import_state(target, identity)
     return ImportPreflightContext(
-        existing_project_imports(target, identity),
+        local_state.imports,
         {
             path.name
             for path in iter_agent_artifact_dirs(
@@ -73,6 +80,7 @@ def build_import_preflight_context(
             packages,
             git_runner=git_runner,
         ),
+        legacy_v1_adoption_index(target.project_key, local_state.legacy_v1_rows),
     )
 
 
@@ -96,6 +104,7 @@ def preflight_hood(
     for payload in package.runs:
         run = payload.record
         localized = localize_imported_agent_name(run.global_name, source, identity)
+        superseded_v1_name: str | None = None
         match = existing.get(
             (
                 package.owner.username,
@@ -136,11 +145,24 @@ def preflight_hood(
                 reserved.add(destination)
                 destination_ids[run.source_run_id] = destination
                 continue
+            adoption = (
+                find_v1_adoption(resolved_context.legacy_v1, package.owner, payload)
+                if observed is None
+                and classification is not AgentOwnershipClassification.EXACT_OWNER
+                else None
+            )
             if observed is not None:
                 artifact = observed
                 destination = artifact.name
                 disposition = "observed"
                 previous_digest = package.entry.digest
+            elif adoption is not None:
+                artifact = adoption.path
+                destination = artifact.name
+                disposition = "adopted"
+                previous_digest = None
+                reserved.add(destination)
+                superseded_v1_name = adoption.v1_name
             else:
                 destination = reserve_timestamp(
                     target,
@@ -164,6 +186,7 @@ def preflight_hood(
                 artifact,
                 disposition,
                 previous_digest,
+                superseded_v1_name,
             )
         )
 
@@ -193,7 +216,11 @@ def preflight_hood(
         rewritten.relationships,
     )
     claims = _registry_claims(preliminary)
-    preflight_imported_registered_names_v2(claims, identity=identity)
+    preflight_imported_registered_names_v2(
+        claims,
+        identity=identity,
+        adopted_v1_artifact_dirs=preliminary.adopted_v1_artifact_dirs,
+    )
     return HoodPlan(
         package,
         identity,

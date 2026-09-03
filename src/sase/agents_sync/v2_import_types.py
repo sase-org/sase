@@ -24,6 +24,7 @@ class PlannedRun:
     artifact_dir: Path
     disposition: str
     previous_digest: str | None = None
+    superseded_v1_name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,7 +53,15 @@ class HoodPlan:
 
     @property
     def is_refresh(self) -> bool:
-        return any(run.disposition == "refresh" for run in self.runs)
+        return any(run.disposition in {"refresh", "adopted"} for run in self.runs)
+
+    @property
+    def adopted_runs(self) -> tuple[PlannedRun, ...]:
+        return tuple(run for run in self.runs if run.disposition == "adopted")
+
+    @property
+    def adopted_v1_artifact_dirs(self) -> frozenset[Path]:
+        return frozenset(run.artifact_dir for run in self.adopted_runs)
 
 
 __all__ = ["HoodPlan", "PlannedContainer", "PlannedRun"]

@@ -225,6 +225,7 @@ def preflight_imported_registered_names_v2(
     claims: Sequence[ImportedV2RegistryClaim],
     *,
     identity: AgentIdentitySnapshot | None = None,
+    adopted_v1_artifact_dirs: frozenset[Path] = frozenset(),
 ) -> None:
     """Validate an entire imported v2 claim batch without registry writes."""
 
@@ -232,6 +233,7 @@ def preflight_imported_registered_names_v2(
         _mutation_operations(),
         claims,
         identity=identity,
+        adopted_v1_artifact_dirs=adopted_v1_artifact_dirs,
     )
 
 
@@ -239,6 +241,7 @@ def claim_imported_registered_names_v2(
     claims: Sequence[ImportedV2RegistryClaim],
     *,
     identity: AgentIdentitySnapshot | None = None,
+    adopted_v1_artifact_dirs: frozenset[Path] = frozenset(),
 ) -> None:
     """Persist an entire imported v2 run/container claim batch atomically."""
 
@@ -246,6 +249,7 @@ def claim_imported_registered_names_v2(
         _mutation_operations(),
         claims,
         identity=identity,
+        adopted_v1_artifact_dirs=adopted_v1_artifact_dirs,
     )
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -164,6 +164,7 @@ def preflight_imported_registered_names_v2(
     claims: Sequence[ImportedV2RegistryClaim],
     *,
     identity: AgentIdentitySnapshot | None = None,
+    adopted_v1_artifact_dirs: frozenset[Path] = frozenset(),
 ) -> None:
     """Validate a complete v2 claim batch without saving registry state."""
 
@@ -178,6 +179,7 @@ def preflight_imported_registered_names_v2(
                 entries,
                 claim,
                 snapshot,
+                adopted_v1_artifact_dirs,
             )
 
 
@@ -186,6 +188,7 @@ def claim_imported_registered_names_v2(
     claims: Sequence[ImportedV2RegistryClaim],
     *,
     identity: AgentIdentitySnapshot | None = None,
+    adopted_v1_artifact_dirs: frozenset[Path] = frozenset(),
 ) -> None:
     """Validate and persist every v2 run/container claim in one registry write."""
 
@@ -200,8 +203,16 @@ def claim_imported_registered_names_v2(
                 entries,
                 claim,
                 snapshot,
+                adopted_v1_artifact_dirs,
             )
         operations.save_entries(entries)
+
+
+def _entry_artifact_dir(entry: Mapping[str, Any]) -> Path | None:
+    value = entry.get("artifacts_dir")
+    if not isinstance(value, str) or not value:
+        return None
+    return Path(value).expanduser().resolve(strict=False)
 
 
 def _apply_imported_v2_registry_claim(
@@ -209,6 +220,7 @@ def _apply_imported_v2_registry_claim(
     entries: dict[str, Any],
     claim: ImportedV2RegistryClaim,
     identity: AgentIdentitySnapshot,
+    adopted_v1_artifact_dirs: frozenset[Path] = frozenset(),
 ) -> None:
     source = AgentSourceOwnerIdentity.v2(claim.source_owner)
     expected_name = localize_imported_agent_name(
@@ -239,6 +251,13 @@ def _apply_imported_v2_registry_claim(
     else:
         source_root = claim.source_owner.username
         candidates = (claim.localized_name,)
+
+    if adopted_v1_artifact_dirs:
+        username_prefix = f"{claim.source_owner.username}."
+        if claim.canonical_global_name.startswith(username_prefix):
+            legacy_candidate = claim.canonical_global_name[len(username_prefix) :]
+            if legacy_candidate not in candidates:
+                candidates = (*candidates, legacy_candidate)
 
     existing_name: str | None = None
     existing: dict[str, Any] | None = None
@@ -286,9 +305,14 @@ def _apply_imported_v2_registry_claim(
             and entry_source_owner(existing) == claim.source_owner
             and operations.entry_belongs_to_artifact(existing, artifact_dir)
         )
+        adopts_v1_import = (
+            existing.get("origin") == "import_v1"
+            and existing.get("legacy_source_machine") == claim.source_owner.machine_name
+            and _entry_artifact_dir(existing) in adopted_v1_artifact_dirs
+        )
         if exact_local_refresh or exact_local_container or same_family_root:
             return
-        if not same_claim:
+        if not (same_claim or adopts_v1_import):
             from sase.agent.names._common import ImportedNameCollisionError
 
             raise ImportedNameCollisionError(

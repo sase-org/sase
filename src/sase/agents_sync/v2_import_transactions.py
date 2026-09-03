@@ -122,6 +122,11 @@ def prepare_transaction(target: ProjectTarget, plan: HoodPlan) -> None:
                 chat_path.relative_to(sase_home()).as_posix(),
                 chat_payload,
             )
+            effective_chat_path: Path | None = chat_path
+        elif run.disposition == "adopted":
+            effective_chat_path = _existing_chat_path(run.artifact_dir)
+        else:
+            effective_chat_path = None
 
         marker_files = artifact_payload(
             target,
@@ -130,11 +135,9 @@ def prepare_transaction(target: ProjectTarget, plan: HoodPlan) -> None:
             family_by_member.get(record.source_run_id),
             clan_by_member.get(record.source_run_id),
             relationships.get(record.source_run_id, ()),
-            chat_path if chat_payload is not None else None,
+            effective_chat_path,
         )
-        chat_paths[record.source_run_id] = (
-            chat_path if chat_payload is not None else None
-        )
+        chat_paths[record.source_run_id] = effective_chat_path
         for name, payload in marker_files.items():
             stage_file(
                 stage,
@@ -147,6 +150,7 @@ def prepare_transaction(target: ProjectTarget, plan: HoodPlan) -> None:
     # Saved families must include every source member in snapshot order,
     # including exact-current-owner observations that did not need a new
     # historical artifact.
+    stale_bundle_relatives: list[str] = []
     for run in plan.runs:
         record = run.payload.record
         bundle_chat_path: Path | None = chat_paths.get(record.source_run_id)
@@ -173,6 +177,10 @@ def prepare_transaction(target: ProjectTarget, plan: HoodPlan) -> None:
             bundle_relative,
             json_bytes(bundle),
         )
+        if run.disposition == "adopted":
+            legacy_root_relative = f"{run.destination_id}.json"
+            if (dismissed_bundles_dir() / legacy_root_relative).is_file():
+                stale_bundle_relatives.append(legacy_root_relative)
 
     for container in plan.containers:
         if container.record.kind != "family":
@@ -249,6 +257,11 @@ def prepare_transaction(target: ProjectTarget, plan: HoodPlan) -> None:
                 and row["relative"].endswith("/done.json")
             }
         ),
+        "adopted_v1_artifact_relatives": sorted(
+            _artifact_relative(project_root, run.artifact_dir)
+            for run in plan.adopted_runs
+        ),
+        "stale_bundle_relatives": stale_bundle_relatives,
     }
     write_journal(transaction_journal, journal)
 
@@ -269,7 +282,14 @@ def apply_and_finalize_transaction(
     if state == "applying":
         _apply_staged_files(target, journal, journal["files"])
         claims = _claims_from_journal(target, journal)
-        claim_imported_registered_names_v2(claims, identity=identity)
+        adopted_v1_artifact_dirs = _adopted_v1_artifact_dirs_from_journal(
+            target, journal
+        )
+        claim_imported_registered_names_v2(
+            claims,
+            identity=identity,
+            adopted_v1_artifact_dirs=adopted_v1_artifact_dirs,
+        )
         journal["state"] = "applied"
         write_journal(transaction_journal, journal)
         state = "applied"
@@ -290,6 +310,28 @@ def _finalize_transaction(target: ProjectTarget, journal: dict[str, Any]) -> Non
     _apply_staged_files(target, journal, journal["groups"])
     _update_dismissed_bundle_index(target, journal)
     _record_imported_dismissed_agents(journal)
+    _remove_stale_bundle_relatives(journal)
+
+
+def _adopted_v1_artifact_dirs_from_journal(
+    target: ProjectTarget,
+    journal: dict[str, Any],
+) -> frozenset[Path]:
+    project_root = sase_projects_dir() / target.project_key
+    return frozenset(
+        (project_root / validate_relative_path(relative)).resolve(strict=False)
+        for relative in journal.get("adopted_v1_artifact_relatives", [])
+    )
+
+
+def _remove_stale_bundle_relatives(journal: dict[str, Any]) -> None:
+    root = dismissed_bundles_dir()
+    resolved_root = root.resolve(strict=False)
+    for relative in journal.get("stale_bundle_relatives", []):
+        path = (root / validate_relative_path(relative)).resolve(strict=False)
+        if not path.is_relative_to(resolved_root):
+            continue
+        path.unlink(missing_ok=True)
 
 
 def _record_imported_dismissed_agents(journal: dict[str, Any]) -> None:

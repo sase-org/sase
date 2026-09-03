@@ -46,11 +46,22 @@ class ExactLocalObservationIndex:
     primary_commits: frozenset[tuple[str, str]]
 
 
-def existing_project_imports(
+@dataclass(frozen=True, slots=True)
+class _LocalImportState:
+    """One-pass local artifact scan reused by v1-adoption and v2 refresh."""
+
+    imports: dict[tuple[str, str, str, str], tuple[Path, str | None]]
+    legacy_v1_rows: tuple[tuple[Path, dict[str, Any], dict[str, Any]], ...]
+
+
+def scan_local_import_state(
     target: ProjectTarget,
     identity: AgentIdentitySnapshot,
-) -> dict[tuple[str, str, str, str], tuple[Path, str | None]]:
-    results: dict[tuple[str, str, str, str], tuple[Path, str | None]] = {}
+) -> _LocalImportState:
+    """Scan local artifacts once for existing v2 imports and v1 adoption candidates."""
+
+    imports: dict[tuple[str, str, str, str], tuple[Path, str | None]] = {}
+    legacy_rows: list[tuple[Path, dict[str, Any], dict[str, Any]]] = []
     for artifact in iter_agent_artifact_dirs(
         target.project_key,
         ACE_RUN_WORKFLOW_DIR,
@@ -63,28 +74,28 @@ def existing_project_imports(
         source_id = meta.get("imported_source_run_id")
         global_name = meta.get("canonical_global_name")
         if (
-            not isinstance(owner, dict)
-            or not isinstance(source_id, str)
-            or not isinstance(global_name, str)
+            isinstance(owner, dict)
+            and isinstance(source_id, str)
+            and isinstance(global_name, str)
         ):
-            continue
-        username = owner.get("username")
-        machine = owner.get("machine_name")
-        if not isinstance(username, str) or not isinstance(machine, str):
-            continue
-        localized = localize_imported_agent_name(
-            global_name,
-            AgentSourceOwnerIdentity(machine, username),
-            identity,
-        )
-        if meta.get("name") != localized:
-            continue
-        digest = meta.get("imported_snapshot_digest")
-        results[(username, machine, source_id, global_name)] = (
-            artifact,
-            digest if isinstance(digest, str) else None,
-        )
-    return results
+            username = owner.get("username")
+            machine = owner.get("machine_name")
+            if isinstance(username, str) and isinstance(machine, str):
+                localized = localize_imported_agent_name(
+                    global_name,
+                    AgentSourceOwnerIdentity(machine, username),
+                    identity,
+                )
+                if meta.get("name") == localized:
+                    digest = meta.get("imported_snapshot_digest")
+                    imports[(username, machine, source_id, global_name)] = (
+                        artifact,
+                        digest if isinstance(digest, str) else None,
+                    )
+        if meta.get("imported_owner_kind") == "username_unknown_v1":
+            done = read_json_object(artifact / "done.json") or {}
+            legacy_rows.append((artifact, meta, done))
+    return _LocalImportState(imports, tuple(legacy_rows))
 
 
 def build_exact_local_observation_index(
@@ -369,10 +380,10 @@ def _source_run_id(project: str, workflow: str, durable: str) -> str:
 __all__ = [
     "ExactLocalObservationIndex",
     "build_exact_local_observation_index",
-    "existing_project_imports",
     "find_exact_local_observation",
     "preferred_timestamp",
     "read_json",
     "read_json_object",
     "reserve_timestamp",
+    "scan_local_import_state",
 ]

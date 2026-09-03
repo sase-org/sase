@@ -128,12 +128,24 @@ def ensure_import_namespace_available(
                 "sibling_machine",
             }:
                 continue
+            if (
+                source_owner is not None
+                and existing_owner is None
+                and raw_entry.get("namespace_kind") == "legacy_source_machine"
+                and source_owner.machine_name == source_root
+            ):
+                continue
         elif source_owner is not None:
             existing_owner = entry_source_owner(raw_entry)
             if existing_owner == source_owner or (
                 foreign_username is not None
                 and existing_owner is not None
                 and existing_owner.username == foreign_username
+            ):
+                continue
+            if (
+                raw_entry.get("origin") == "import_v1"
+                and raw_entry.get("legacy_source_machine") == source_owner.machine_name
             ):
                 continue
         elif source_owner is None and (

@@ -21,8 +21,8 @@ from sase.core.dismissed_agents_facade import (
 )
 from sase.core.paths import sase_home, sase_projects_dir
 
-JOURNAL_SCHEMA_VERSION = 2
-_SUPPORTED_JOURNAL_SCHEMA_VERSIONS = {1, JOURNAL_SCHEMA_VERSION}
+JOURNAL_SCHEMA_VERSION = 3
+_SUPPORTED_JOURNAL_SCHEMA_VERSIONS = {1, 2, JOURNAL_SCHEMA_VERSION}
 _IMPORT_DIR_NAME = "agents_sync_imports"
 _TRANSACTION_RE = re.compile(r"^[a-z0-9-]{16,96}$")
 
@@ -71,9 +71,11 @@ def read_journal(path: Path) -> dict[str, Any]:
         "complete",
     }:
         raise AgentsSyncFormatError("invalid import journal state")
-    if schema_version == 1:
+    if schema_version in (1, 2):
         value = dict(value)
         value.setdefault("dismissed_identities", [])
+        value.setdefault("adopted_v1_artifact_relatives", [])
+        value.setdefault("stale_bundle_relatives", [])
         value["schema_version"] = JOURNAL_SCHEMA_VERSION
     for list_key in (
         "files",
@@ -81,6 +83,8 @@ def read_journal(path: Path) -> dict[str, Any]:
         "claims",
         "artifact_relatives",
         "dismissed_identities",
+        "adopted_v1_artifact_relatives",
+        "stale_bundle_relatives",
     ):
         if not isinstance(value.get(list_key), list):
             raise AgentsSyncFormatError(f"import journal {list_key} must be a list")

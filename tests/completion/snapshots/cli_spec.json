@@ -1462,6 +1462,82 @@
               {
                 "aliases": [],
                 "default_child": null,
+                "description_digest": "e7c17a5483b19325",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "forget-import",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "apply",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-a",
+                      "--apply"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": [
+                      "v1"
+                    ],
+                    "dest": "transport",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-t",
+                      "--transport"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "agent",
+                  "names",
+                  "forget-import"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "machine",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "machine",
+                    "nargs": null
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
                 "description_digest": "6d4c366134b30d68",
                 "hidden": false,
                 "mutex_groups": [],

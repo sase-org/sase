@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 import json
 import time
 
@@ -75,6 +76,42 @@ def write_import_receipt(receipt: AgentHoodImportReceipt) -> None:
                 item.to_json_dict()
                 for item in sorted(
                     receipts.values(),
+                    key=lambda row: (
+                        row.source_owner_kind,
+                        row.source_username or "",
+                        row.source_machine,
+                        row.top_hood,
+                    ),
+                )
+            ],
+        },
+    )
+
+
+def remove_project_receipts(
+    project_key: str,
+    keys: Collection[tuple[str, str | None, str, str]],
+) -> None:
+    """Atomically drop the given source-hood receipts for one project."""
+
+    existing = read_project_receipts(project_key)
+    if not existing:
+        return
+    selected = set(keys)
+    remaining = [item for item in existing if item.source_hood_key not in selected]
+    if len(remaining) == len(existing):
+        return
+    project = existing[0].project
+    atomic_write_json(
+        receipts_path(project_key),
+        {
+            "schema_version": _RECEIPTS_DOCUMENT_VERSION,
+            "project_key": project_key,
+            "project": project,
+            "receipts": [
+                item.to_json_dict()
+                for item in sorted(
+                    remaining,
                     key=lambda row: (
                         row.source_owner_kind,
                         row.source_username or "",

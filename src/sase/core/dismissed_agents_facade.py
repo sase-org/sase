@@ -59,6 +59,14 @@ def load_dismissed_bundle_summaries(
     )
 
 
+def iter_dismissed_bundle_paths(
+    bundles_dir: Path, pattern: str = "*.json"
+) -> list[Path]:
+    from sase.ace.dismissed_agents_paths import iter_bundle_paths
+
+    return iter_bundle_paths(bundles_dir, pattern)
+
+
 def archive_index_exists(root: Path) -> bool:
     from sase.ace.dismissed_bundle_index import archive_index_exists as impl
 
@@ -81,6 +89,7 @@ __all__ = [
     "archive_index_exists",
     "dismissed_agent_groups_dir",
     "dismissed_bundles_dir",
+    "iter_dismissed_bundle_paths",
     "load_dismissed_agents",
     "load_dismissed_bundle_summaries",
     "persist_dismissed_agents",
