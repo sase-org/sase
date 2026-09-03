@@ -73,6 +73,27 @@ def _raise_if_shutdown(shutdown_requested: Callable[[], bool]) -> None:
 
 
 @dataclass(frozen=True, slots=True)
+class IncomingCaptureProgress:
+    """One monotonic progress observation during fetched-commit capture."""
+
+    stage: str
+    completed: int
+    total: int
+    current: str | None = None
+
+
+def _emit_progress(
+    progress_callback: Callable[[IncomingCaptureProgress], None] | None,
+    stage: str,
+    completed: int,
+    total: int,
+    current: str | None = None,
+) -> None:
+    if progress_callback is not None:
+        progress_callback(IncomingCaptureProgress(stage, completed, total, current))
+
+
+@dataclass(frozen=True, slots=True)
 class _IncomingCaptureReport:
     """Result of inspecting one exact fetched commit."""
 
@@ -93,6 +114,7 @@ def capture_fetched_agent_updates(
     previous_items: Sequence[CapturedIncomingHood] = (),
     now: float | None = None,
     shutdown_requested: Callable[[], bool] = _shutdown_not_requested,
+    progress_callback: Callable[[IncomingCaptureProgress], None] | None = None,
 ) -> _IncomingCaptureReport | None:
     """Capture every independently valid foreign hood at one fetched commit."""
     try:
@@ -103,6 +125,7 @@ def capture_fetched_agent_updates(
             previous_items=previous_items,
             now=now,
             shutdown_requested=shutdown_requested,
+            progress_callback=progress_callback,
         )
     except _CaptureShutdown:
         return None
@@ -116,6 +139,7 @@ def _capture_fetched_agent_updates(
     previous_items: Sequence[CapturedIncomingHood],
     now: float | None,
     shutdown_requested: Callable[[], bool],
+    progress_callback: Callable[[IncomingCaptureProgress], None] | None,
 ) -> _IncomingCaptureReport:
     """Implement capture while checking for shutdown between object reads."""
 
@@ -143,7 +167,8 @@ def _capture_fetched_agent_updates(
     legacy: AgentsManifest | None = None
     parsed_v2: list[tuple[str, V2OwnerManifest, AgentOwnershipClassification]] = []
     owner_v2_hoods: set[str] = set()
-    for relative in paths:
+    _emit_progress(progress_callback, "owner_manifests", 0, len(paths))
+    for manifest_index, relative in enumerate(paths, start=1):
         _raise_if_shutdown(shutdown_requested)
         if relative == "manifest.json":
             try:
@@ -156,6 +181,13 @@ def _capture_fetched_agent_updates(
                 )
             except (AgentsSyncFormatError, OSError, RuntimeError) as exc:
                 diagnostics.append(f"{relative}: quarantined legacy manifest: {exc}")
+            _emit_progress(
+                progress_callback,
+                "owner_manifests",
+                manifest_index,
+                len(paths),
+                relative,
+            )
             continue
         try:
             manifest_bytes = reader.read_bytes(
@@ -177,18 +209,37 @@ def _capture_fetched_agent_updates(
             )
         except (AgentsSyncFormatError, ValueError, RuntimeError, OSError) as exc:
             diagnostics.append(f"{relative}: quarantined v2 owner manifest: {exc}")
+            _emit_progress(
+                progress_callback,
+                "owner_manifests",
+                manifest_index,
+                len(paths),
+                relative,
+            )
             continue
         parsed_v2.append((relative, manifest, classification))
         if classification is AgentOwnershipClassification.EXACT_OWNER:
             owner_v2_hoods.update(hood for hood, _entry in manifest.hoods)
+        _emit_progress(
+            progress_callback,
+            "owner_manifests",
+            manifest_index,
+            len(paths),
+            relative,
+        )
 
     discarded_hood_keys: list[tuple[str, str | None, str, str]] = []
+    legacy_groups = legacy_manifest_groups(legacy) if legacy is not None else ()
+    hood_total = len(legacy_groups) + sum(
+        len(manifest.hoods) for _relative, manifest, _classification in parsed_v2
+    )
+    hood_progress = 0
+    _emit_progress(progress_callback, "hoods", hood_progress, hood_total)
     if legacy is not None:
-        groups = legacy_manifest_groups(legacy)
         _raise_if_shutdown(shutdown_requested)
         artifact_rows = bundles.v1_artifact_rows(target)
         rows_by_timestamp = _artifact_rows_by_timestamp(artifact_rows)
-        for group in groups:
+        for group in legacy_groups:
             _raise_if_shutdown(shutdown_requested)
             key = _legacy_group_key(group)
             machine, hood = legacy_group_machine_hood(group)
@@ -213,10 +264,27 @@ def _capture_fetched_agent_updates(
                         total_entry_count=len(group.entries),
                     ),
                 )
+                item = legacy_captured_item(
+                    target,
+                    fetched,
+                    group,
+                    captured_at,
+                )
                 if ownership is LegacyV1GroupOwnershipClassification.OWNER_OBSERVED:
                     exact_owner += 1
                     pending.pop(key, None)
                     discarded_hood_keys.append(key)
+                    continue
+                validated_foreign += 1
+                if receipt_matches(receipts.get(key), item):
+                    pending.pop(key, None)
+                    continue
+                previous = pending.get(key)
+                if (
+                    previous is not None
+                    and previous.hood_digest == item.hood_digest
+                    and cached_item_is_available(previous)
+                ):
                     continue
                 payload = _capture_legacy_payload(
                     reader,
@@ -224,19 +292,18 @@ def _capture_fetched_agent_updates(
                     group,
                     shutdown_requested,
                 )
-                item = legacy_captured_item(
-                    target,
-                    fetched,
-                    group,
-                    captured_at,
-                )
-                validated_foreign += 1
-                if receipt_matches(receipts.get(key), item):
-                    pending.pop(key, None)
-                    continue
                 pending[key] = publish_cache_object(item, payload)
             except (AgentsSyncFormatError, OSError, RuntimeError, ValueError) as exc:
                 diagnostics.append(f"{key[2]}.{key[3]}: quarantined legacy hood: {exc}")
+            finally:
+                hood_progress += 1
+                _emit_progress(
+                    progress_callback,
+                    "hoods",
+                    hood_progress,
+                    hood_total,
+                    f"{machine}.{hood}",
+                )
 
     for _relative, manifest, classification in parsed_v2:
         _raise_if_shutdown(shutdown_requested)
@@ -270,18 +337,23 @@ def _capture_fetched_agent_updates(
                         f"{manifest.owner.username}.{manifest.owner.machine_name}."
                         f"{hood}: quarantined exact-owner v2 hood: {exc}"
                     )
+                finally:
+                    hood_progress += 1
+                    _emit_progress(
+                        progress_callback,
+                        "hoods",
+                        hood_progress,
+                        hood_total,
+                        (
+                            f"{manifest.owner.username}."
+                            f"{manifest.owner.machine_name}.{hood}"
+                        ),
+                    )
             continue
-        for hood, _entry in manifest.hoods:
+        for hood, entry in manifest.hoods:
             _raise_if_shutdown(shutdown_requested)
             key = ("exact", manifest.owner.username, manifest.owner.machine_name, hood)
             try:
-                payload = _capture_v2_payload(
-                    reader,
-                    fetched.sha,
-                    manifest,
-                    hood,
-                    shutdown_requested,
-                )
                 item = v2_captured_item(
                     target,
                     fetched,
@@ -293,11 +365,34 @@ def _capture_fetched_agent_updates(
                 if receipt_matches(receipts.get(key), item):
                     pending.pop(key, None)
                     continue
+                previous = pending.get(key)
+                if (
+                    previous is not None
+                    and previous.hood_digest == entry.digest
+                    and cached_item_is_available(previous)
+                ):
+                    continue
+                payload = _capture_v2_payload(
+                    reader,
+                    fetched.sha,
+                    manifest,
+                    hood,
+                    shutdown_requested,
+                )
                 pending[key] = publish_cache_object(item, payload)
             except (AgentsSyncFormatError, ValueError, RuntimeError, OSError) as exc:
                 diagnostics.append(
                     f"{manifest.owner.username}.{manifest.owner.machine_name}.{hood}: "
                     f"quarantined v2 hood: {exc}"
+                )
+            finally:
+                hood_progress += 1
+                _emit_progress(
+                    progress_callback,
+                    "hoods",
+                    hood_progress,
+                    hood_total,
+                    f"{manifest.owner.username}.{manifest.owner.machine_name}.{hood}",
                 )
 
     reconciled: list[CapturedIncomingHood] = []
@@ -580,6 +675,7 @@ def _marker_commit_sha(marker: dict[str, Any]) -> str | None:
 
 
 __all__ = [
+    "IncomingCaptureProgress",
     "capture_fetched_agent_updates",
     "legacy_captured_item",
     "v2_captured_item",

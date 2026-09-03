@@ -10,6 +10,11 @@ import subprocess
 import pytest
 
 from sase.agents_sync import incoming_cache, status
+from sase.agents_sync.git_objects import LocalGitObjectReader
+from sase.agents_sync.incoming_detection import (
+    IncomingCaptureProgress,
+    capture_fetched_agent_updates,
+)
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 
 from tests.agents_sync.incoming_cache_fixtures import (
@@ -81,6 +86,57 @@ def test_refresh_captures_only_foreign_hoods_without_checkout_mutation(
     assert short.projects[0].pending_updates == current.pending_updates
 
 
+def test_refresh_uses_one_cat_file_session_for_fetched_payloads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, _seed = setup_v2_remote(tmp_path)
+    patch_target(monkeypatch, target)
+    popen = subprocess.Popen
+    cat_file_invocations: list[tuple[str, ...]] = []
+
+    def counting_popen(
+        args: object,
+        *popen_args: object,
+        **popen_kwargs: object,
+    ) -> subprocess.Popen[str]:
+        argv = tuple(str(arg) for arg in args) if isinstance(args, list) else ()
+        if "cat-file" in argv:
+            cat_file_invocations.append(argv)
+        return popen(args, *popen_args, **popen_kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(subprocess, "Popen", counting_popen)
+
+    current = refresh(target, network_calls=[], now=100.0).projects[0]
+
+    assert current.validated_foreign_count == 2
+    assert len(cat_file_invocations) == 1
+    assert cat_file_invocations[0][-3:] == ("cat-file", "--batch", "-Z")
+
+
+def test_capture_reports_manifest_and_hood_progress(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, _seed = setup_v2_remote(tmp_path)
+    events: list[IncomingCaptureProgress] = []
+
+    report = capture_fetched_agent_updates(
+        target,
+        LOCAL_OWNER,
+        reader=LocalGitObjectReader(target.sidecar_path),
+        now=100.0,
+        progress_callback=events.append,
+    )
+
+    assert report is not None
+    assert events[0] == IncomingCaptureProgress("owner_manifests", 0, 3)
+    assert IncomingCaptureProgress("hoods", 0, 3) in events
+    assert events[-1] == IncomingCaptureProgress("hoods", 3, 3, "bob.athena.crew")
+
+
 def test_corrupt_foreign_hood_does_not_suppress_other_owners(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -109,6 +165,31 @@ def test_corrupt_foreign_hood_does_not_suppress_other_owners(
         (item.source_username, item.source_machine) for item in current.pending_updates
     ] == [("alice", "zeus")]
     assert any("bob.athena.crew" in row for row in current.quarantine_diagnostics)
+
+
+def test_refresh_clears_stale_quarantine_after_sidecar_bytes_match_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, seed = setup_v2_remote(tmp_path)
+    patch_target(monkeypatch, target)
+    chat_path = seed / "agents" / "bob.athena.crew--code" / "chat.md"
+    relative = chat_path.relative_to(seed).as_posix()
+    git(seed, "rm", relative)
+    commit_and_push(seed, "drop referenced payload")
+
+    first = refresh(target, network_calls=[], now=100.0).projects[0]
+
+    assert any("bob.athena.crew" in row for row in first.quarantine_diagnostics)
+    git(seed, "checkout", "HEAD~1", "--", relative)
+    commit_and_push(seed, "restore referenced payload")
+    second = refresh(target, network_calls=[], now=200.0).projects[0]
+
+    assert not any("bob.athena.crew" in row for row in second.quarantine_diagnostics)
+    assert {
+        (item.source_username, item.source_machine) for item in second.pending_updates
+    } == {("alice", "zeus"), ("bob", "athena")}
 
 
 def test_cached_reconcile_drops_owner_covered_v1_without_git_and_prunes_object(

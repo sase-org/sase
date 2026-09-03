@@ -9,7 +9,7 @@ import subprocess
 import pytest
 
 from sase.agents_sync import git_sync
-from sase.agents_sync.git import _noninteractive_git_env, run_git
+from sase.agents_sync.git import noninteractive_git_env, run_git
 from sase.agents_sync.git_objects import LocalGitObjectReader
 from sase.agents_sync.incoming_detection import capture_fetched_agent_updates
 from sase.agents_sync.models import (
@@ -386,7 +386,7 @@ def test_pull_rebase_conflict_is_aborted_cleanly(
 def test_network_git_environment_is_noninteractive() -> None:
     original = {"PATH": "/bin", "GIT_TERMINAL_PROMPT": "1"}
 
-    env = _noninteractive_git_env(original)
+    env = noninteractive_git_env(original)
 
     assert env["GIT_TERMINAL_PROMPT"] == "0"
     assert "BatchMode=yes" in env["GIT_SSH_COMMAND"]

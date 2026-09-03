@@ -16,6 +16,7 @@ from sase.agents_sync.incoming_cache import (
     reconcile_pending_items,
 )
 from sase.agents_sync.incoming_detection import capture_fetched_agent_updates
+from sase.agents_sync.incoming_detection import IncomingCaptureProgress
 from sase.agents_sync.io import AgentsSyncFormatError, atomic_write_json
 from sase.agents_sync.models import (
     STATUS_SCHEMA_VERSION,
@@ -57,6 +58,7 @@ def get_agents_sync_status(
     path: Path | None = None,
     lock_timeout_seconds: float | None = None,
     shutdown_requested: Callable[[], bool] = _shutdown_not_requested,
+    progress_callback: Callable[[IncomingCaptureProgress], None] | None = None,
 ) -> SyncStatusSnapshot:
     """Return status from cache, fetching only when explicitly requested.
 
@@ -107,6 +109,7 @@ def get_agents_sync_status(
                         git_runner=git_runner,
                         lock_timeout_seconds=lock_timeout_seconds,
                         shutdown_requested=shutdown_requested,
+                        progress_callback=progress_callback,
                     )
                 )
             else:
@@ -129,6 +132,7 @@ def _refresh_project_status(
     git_runner: GitRunner,
     lock_timeout_seconds: float | None,
     shutdown_requested: Callable[[], bool],
+    progress_callback: Callable[[IncomingCaptureProgress], None] | None = None,
 ) -> ProjectSyncStatus:
     repo = target.sidecar_path
     if not (repo / ".git").exists():
@@ -170,14 +174,16 @@ def _refresh_project_status(
                 f"git fetch failed: {detail}",
             )
         try:
-            report = capture_fetched_agent_updates(
-                target,
-                owner,
-                reader=LocalGitObjectReader(repo, git_runner=git_runner),
-                previous_items=prior.pending_updates if prior is not None else (),
-                now=checked_at,
-                shutdown_requested=shutdown_requested,
-            )
+            with LocalGitObjectReader(repo, git_runner=git_runner) as reader:
+                report = capture_fetched_agent_updates(
+                    target,
+                    owner,
+                    reader=reader,
+                    previous_items=prior.pending_updates if prior is not None else (),
+                    now=checked_at,
+                    shutdown_requested=shutdown_requested,
+                    progress_callback=progress_callback,
+                )
             if report is None:
                 return _reconcile_project_status(target, owner, prior)
         except (AgentsSyncFormatError, OSError, RuntimeError, ValueError) as exc:

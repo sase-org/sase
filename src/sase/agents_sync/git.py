@@ -24,7 +24,7 @@ class GitRunner(Protocol):
     ) -> subprocess.CompletedProcess[str]: ...
 
 
-def _noninteractive_git_env(
+def noninteractive_git_env(
     base: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
     """Return a git environment that cannot prompt for credentials."""
@@ -55,7 +55,7 @@ def run_git(
         check=False,
         capture_output=True,
         text=True,
-        env=_noninteractive_git_env(),
+        env=noninteractive_git_env(),
     )
     return subprocess.CompletedProcess(
         result.args,
@@ -65,4 +65,4 @@ def run_git(
     )
 
 
-__all__ = ["GitRunner", "run_git"]
+__all__ = ["GitRunner", "noninteractive_git_env", "run_git"]

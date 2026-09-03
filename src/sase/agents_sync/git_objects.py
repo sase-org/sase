@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path, PurePosixPath
 import re
+import signal
+import subprocess
 
-from sase.agents_sync.git import GitRunner, run_git
+from sase.agents_sync.git import GitRunner, noninteractive_git_env, run_git
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.v2_io import validate_relative_path
+from sase.sdd._git import sdd_git_command
 
 _SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 
@@ -37,6 +41,24 @@ class LocalGitObjectReader:
     ) -> None:
         self.repo = repo
         self.git_runner = git_runner
+        self._batch: _CatFileBatch | None = None
+
+    def close(self) -> None:
+        if self._batch is not None:
+            self._batch.close()
+            self._batch = None
+
+    def __enter__(self) -> LocalGitObjectReader:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def resolve_fetched_commit(self) -> FetchedAgentsCommit:
         upstream = self.git_runner(
@@ -102,21 +124,11 @@ class LocalGitObjectReader:
     def read_bytes(self, sha: str, relative: str, *, maximum: int) -> bytes:
         _validate_sha(sha)
         validate_relative_path(relative)
-        result = self.git_runner(
-            self.repo,
-            ["show", f"{sha}:{relative}"],
-            op="agents_sync.object_read",
+        payload = self._cat_file_batch().read_blob(
+            f"{sha}:{relative}",
+            relative=relative,
+            maximum=maximum,
         )
-        if result.returncode != 0:
-            raise AgentsSyncFormatError(
-                _git_error(f"could not read fetched object {relative!r}", result)
-            )
-        try:
-            payload = result.stdout.encode("utf-8")
-        except UnicodeEncodeError as exc:
-            raise AgentsSyncFormatError(
-                f"fetched object {relative!r} is not valid UTF-8"
-            ) from exc
         if len(payload) > maximum:
             raise AgentsSyncFormatError(
                 f"fetched object {relative!r} exceeds the byte limit"
@@ -153,6 +165,135 @@ class LocalGitObjectReader:
         rule = ignored.stdout.strip().splitlines()[0]
         return f"{message}; local ignore rule: {rule}"
 
+    def _cat_file_batch(self) -> _CatFileBatch:
+        if self._batch is None:
+            self._batch = _CatFileBatch(self.repo)
+        return self._batch
+
+
+class _CatFileBatch:
+    """One NUL-framed ``git cat-file --batch`` session for fetched blobs."""
+
+    def __init__(self, repo: Path) -> None:
+        self.repo = repo
+        self._process = subprocess.Popen(
+            sdd_git_command(["cat-file", "--batch", "-Z"]),
+            cwd=repo,
+            env=noninteractive_git_env(),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=False,
+            start_new_session=True,
+        )
+
+    def read_blob(self, spec: str, *, relative: str, maximum: int) -> bytes:
+        process = self._process
+        if process.stdin is None or process.stdout is None:
+            raise AgentsSyncFormatError("git cat-file batch stream is unavailable")
+        if process.poll() is not None:
+            raise AgentsSyncFormatError(self._closed_stream_error(relative))
+        try:
+            process.stdin.write(spec.encode("utf-8") + b"\0")
+            process.stdin.flush()
+        except (BrokenPipeError, OSError) as exc:
+            raise AgentsSyncFormatError(self._closed_stream_error(relative)) from exc
+
+        header = self._read_until_nul()
+        missing_suffix = b" missing"
+        if header.endswith(missing_suffix):
+            raise AgentsSyncFormatError(f"could not read fetched object {relative!r}")
+        parts = header.rsplit(b" ", 2)
+        if len(parts) != 3:
+            raise AgentsSyncFormatError(
+                f"could not parse fetched object header for {relative!r}"
+            )
+        try:
+            size = int(parts[2])
+        except ValueError as exc:
+            raise AgentsSyncFormatError(
+                f"could not parse fetched object size for {relative!r}"
+            ) from exc
+        if size < 0:
+            raise AgentsSyncFormatError(
+                f"could not parse fetched object size for {relative!r}"
+            )
+        object_type = _decode_header(parts[1], relative)
+        if object_type != "blob":
+            self._drain_object(size, relative)
+            raise AgentsSyncFormatError(
+                f"fetched object {relative!r} is a {object_type}, not a blob"
+            )
+        if size > maximum:
+            self._drain_object(size, relative)
+            raise AgentsSyncFormatError(
+                f"fetched object {relative!r} exceeds the byte limit"
+            )
+        payload = process.stdout.read(size)
+        if len(payload) != size:
+            raise AgentsSyncFormatError(self._closed_stream_error(relative))
+        self._read_object_separator(relative)
+        return payload
+
+    def close(self) -> None:
+        process = self._process
+        if process.poll() is None:
+            try:
+                if process.stdin is not None:
+                    process.stdin.close()
+            except OSError:
+                pass
+            try:
+                process.wait(timeout=1.0)
+            except subprocess.TimeoutExpired:
+                _terminate_process(process)
+
+    def _read_until_nul(self) -> bytes:
+        stdout = self._process.stdout
+        if stdout is None:
+            raise AgentsSyncFormatError("git cat-file batch stream is unavailable")
+        chunks: list[bytes] = []
+        while True:
+            chunk = stdout.read(1)
+            if chunk == b"":
+                raise AgentsSyncFormatError("git cat-file batch stream closed")
+            if chunk == b"\0":
+                return b"".join(chunks)
+            chunks.append(chunk)
+
+    def _drain_object(self, size: int, relative: str) -> None:
+        stdout = self._process.stdout
+        if stdout is None:
+            raise AgentsSyncFormatError("git cat-file batch stream is unavailable")
+        remaining = size
+        while remaining:
+            chunk = stdout.read(min(remaining, 1024 * 1024))
+            if not chunk:
+                raise AgentsSyncFormatError(self._closed_stream_error(relative))
+            remaining -= len(chunk)
+        self._read_object_separator(relative)
+
+    def _read_object_separator(self, relative: str) -> None:
+        stdout = self._process.stdout
+        if stdout is None:
+            raise AgentsSyncFormatError("git cat-file batch stream is unavailable")
+        separator = stdout.read(1)
+        if separator != b"\0":
+            raise AgentsSyncFormatError(
+                f"could not parse fetched object boundary for {relative!r}"
+            )
+
+    def _closed_stream_error(self, relative: str) -> str:
+        stderr = ""
+        pipe = self._process.stderr
+        if pipe is not None and self._process.poll() is not None:
+            try:
+                stderr = pipe.read().decode("utf-8", errors="replace").strip()
+            except OSError:
+                stderr = ""
+        detail = f": {stderr}" if stderr else ""
+        return f"could not read fetched object {relative!r}{detail}"
+
 
 def _validate_sha(value: str) -> None:
     if _SHA_RE.fullmatch(value) is None:
@@ -174,6 +315,40 @@ def _git_error(prefix: str, result: object) -> str:
     stdout = getattr(result, "stdout", "")
     detail = (stderr or stdout or "unknown git error").strip()
     return f"{prefix}: {detail}"
+
+
+def _decode_header(value: bytes, relative: str) -> str:
+    try:
+        return value.decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise AgentsSyncFormatError(
+            f"could not parse fetched object header for {relative!r}"
+        ) from exc
+
+
+def _terminate_process(process: subprocess.Popen[bytes]) -> None:
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    except OSError:
+        try:
+            process.terminate()
+        except ProcessLookupError:
+            return
+    try:
+        process.wait(timeout=1.0)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            return
+        except OSError:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                return
+        process.wait()
 
 
 __all__ = ["FetchedAgentsCommit", "LocalGitObjectReader"]
