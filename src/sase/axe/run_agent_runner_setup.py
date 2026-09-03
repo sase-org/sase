@@ -33,6 +33,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.process_identity import process_identity_token
+from sase.core.revival_inputs import capture_revival_inputs
 from sase.telemetry import flush_metrics
 from sase.telemetry.metrics import (
     AGENT_ACTIVE,
@@ -347,6 +348,14 @@ def preprocess_prompt_xprompts(
         )
     except Exception as e:
         print(f"Warning: Failed to write xprompt metadata: {e}", file=sys.stderr)
+
+    # Archive launch-boundary prompt files outside the live artifacts dir so
+    # later chop/cleanup cannot orphan publication. Best-effort: capture must
+    # never take down a detached agent launch.
+    try:
+        capture_revival_inputs(artifacts_dir)
+    except Exception as e:
+        print(f"Warning: Failed to archive revival inputs: {e}", file=sys.stderr)
 
     prompt = process_xprompt_references(
         prompt,

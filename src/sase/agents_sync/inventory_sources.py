@@ -50,6 +50,10 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.dismissed_agents_facade import load_dismissed_bundle_summaries
 from sase.core.paths import sase_projects_dir
+from sase.core.revival_inputs import (
+    revival_input_file,
+    revival_input_file_for_dismissed,
+)
 
 
 def indexed_records(
@@ -145,7 +149,7 @@ def run_from_artifact(
         commit = commit_record(root, sha, git_runner)
         if commit is not None:
             commits[commit.sha] = commit
-    prompt = _read_text_bytes(artifact / "raw_xprompt.md")
+    prompt = _prompt_bytes_from_artifact(artifact, record)
     chat = _read_referenced_text(
         meta.get("chat_path"),
         (done or {}).get("response_path"),
@@ -233,7 +237,7 @@ def run_from_dismissed(
         raw_suffix = hashlib.sha256(source_label.encode()).hexdigest()[:24]
     source_run_id = _source_run_id(project_key, "ace-run", raw_suffix)
     metadata = _portable_metadata(raw)
-    prompt = _inline_text(raw, ("raw_xprompt", "raw_prompt", "prompt"))
+    prompt = _prompt_bytes_from_dismissed(raw, project_key)
     chat = _read_referenced_text(raw.get("response_path"), raw.get("chat_path"))
     family = _canonical_optional_name(raw.get("agent_family"), identity)
     clan = _canonical_optional_name(raw.get("agent_clan"), identity)
@@ -326,6 +330,32 @@ def dismissed_relationships(
     waiting = raw.get("waiting_for") or ()
     rows.extend(_wait_relationships(waiting, identity))
     return _dedupe_relationships(rows)
+
+
+def _prompt_bytes_from_artifact(
+    artifact: Path, record: AgentArtifactRecordWire
+) -> bytes | None:
+    """Prefer the launch-time archive, then the live ``raw_xprompt.md``."""
+
+    archived = revival_input_file(
+        artifact,
+        "raw_xprompt.md",
+        project_name=record.project_name,
+        workflow_dir_name=record.workflow_dir_name,
+        timestamp=record.timestamp,
+    )
+    if archived is not None:
+        return _read_text_bytes(archived)
+    return _read_text_bytes(artifact / "raw_xprompt.md")
+
+
+def _prompt_bytes_from_dismissed(raw: dict[str, Any], project_key: str) -> bytes | None:
+    """Prefer the launch-time archive, then inline bundle prompt fields."""
+
+    archived = revival_input_file_for_dismissed(raw, project_key, "raw_xprompt.md")
+    if archived is not None:
+        return _read_text_bytes(archived)
+    return _inline_text(raw, ("raw_xprompt", "raw_prompt", "prompt"))
 
 
 def _artifact_state(

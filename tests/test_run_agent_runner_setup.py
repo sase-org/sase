@@ -12,6 +12,7 @@ from sase.axe.run_agent_runner_setup import (
     setup_artifacts_directory,
     write_submitted_xprompt_artifact,
 )
+from sase.core.revival_inputs import revival_input_file
 
 
 def test_enter_agent_workspace_installs_runtime_ignore_entries(
@@ -63,6 +64,35 @@ def test_submitted_xprompt_artifact_does_not_change_raw_xprompt_behavior(
 
     assert (tmp_path / "submitted_xprompt.md").read_text(encoding="utf-8") == submitted
     assert (tmp_path / "raw_xprompt.md").read_text(encoding="utf-8") == resolved
+
+
+def test_preprocess_prompt_xprompts_archives_revival_inputs(
+    tmp_path: Path,
+) -> None:
+    submitted = "#alias original"
+    resolved = "#real original"
+    write_submitted_xprompt_artifact(str(tmp_path), submitted)
+    with (
+        patch("sase.xprompt.resolve_xprompt_aliases", return_value=resolved),
+        patch("sase.xprompt._parsing.extract_vcs_workflow_tag", return_value=None),
+        patch(
+            "sase.xprompt.processor.process_xprompt_references",
+            return_value="expanded",
+        ),
+    ):
+        preprocess_prompt_xprompts(submitted, str(tmp_path))
+
+    archived_raw = revival_input_file(tmp_path, "raw_xprompt.md")
+    archived_submitted = revival_input_file(tmp_path, "submitted_xprompt.md")
+    assert archived_raw is not None
+    assert archived_submitted is not None
+    assert archived_raw.read_text(encoding="utf-8") == resolved
+    assert archived_submitted.read_text(encoding="utf-8") == submitted
+    live_xprompts = tmp_path / "xprompts.json"
+    if live_xprompts.is_file():
+        archived_xprompts = revival_input_file(tmp_path, "xprompts.json")
+        assert archived_xprompts is not None
+        assert archived_xprompts.read_bytes() == live_xprompts.read_bytes()
 
 
 def test_preprocess_prompt_xprompts_captures_launch_boundary_usage(
