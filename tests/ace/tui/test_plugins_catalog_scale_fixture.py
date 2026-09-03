@@ -35,18 +35,21 @@ async def test_scale_catalog_fixture_filters_and_marks_at_n10(
         assert pane._catalog is not None
         assert len(pane._catalog.entries) == 10
 
-        filter_input = pane.query_one("#plugins-filter-input", Input)
+        filter_input = pane.query_one("#updates-filter-input", Input)
         pane.on_input_changed(Input.Changed(filter_input, FILTER_KEYSTROKE))
-        # The rebuild is debounced, so wait for it to settle before counting.
-        await page.wait_for(
-            lambda _s: (
-                sum(len(entries) for _, _, entries in pane._grouped)
-                == scale_filter_match_count(10)
-            )
-        )
+        debouncer = pane._detail_debouncer
+        if debouncer is not None:
+            debouncer.cancel()
+        pane._apply_filter()
         matched = sum(len(entries) for _, _, entries in pane._grouped)
         assert matched == scale_filter_match_count(10) == 10
 
+        installable = next(
+            row for row in pane._flat_rows() if "install" in row.capabilities
+        )
+        option_list = pane._option_list()
+        assert option_list is not None
+        option_list.highlighted = pane._row_option_index[installable.key]
         pane.action_toggle_install_mark()
         assert len(pane._marked_install) == 1
 

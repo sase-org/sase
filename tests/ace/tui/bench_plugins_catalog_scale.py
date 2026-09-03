@@ -165,7 +165,7 @@ def _apply_filter(pane: PluginsBrowserPane, value: str) -> None:
     timer is cancelled and its callback invoked directly to measure the
     settled cost instead of waiting out the real debounce delay.
     """
-    filter_input = pane.query_one("#plugins-filter-input", Input)
+    filter_input = pane.query_one("#updates-filter-input", Input)
     pane.on_input_changed(Input.Changed(filter_input, value))
     debouncer = pane._detail_debouncer
     if debouncer is not None:
@@ -192,10 +192,18 @@ async def _measure_size(
 ) -> dict[str, Any]:
     _patch_catalog(monkeypatch, catalog=make_scale_catalog(n), uv_tool=_uv_tool())
     pane, pane_open = await _measure_pane_open(page)
+    assert pane._scope == "all"
     assert pane._catalog is not None
     assert len(pane._catalog.entries) == n
     j_press = _measure_j_presses(pane)
     jump_hint = _measure_jump_hint(pane)
+    installable = next(
+        row for row in pane._flat_rows() if "install" in row.capabilities
+    )
+    option_list = pane._option_list()
+    assert option_list is not None
+    option_list.highlighted = pane._row_option_index[installable.key]
+    _invoke_highlight_handler(pane)
     install_mark = _measure_install_mark(pane)
     filter_keystroke = _measure_filter_keystroke(pane)
     match_count = _matched_row_count(pane)

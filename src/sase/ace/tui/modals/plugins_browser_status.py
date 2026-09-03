@@ -4,20 +4,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-from rich.console import Group
+from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from textual.widgets import OptionList, Static
 
-from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
+from sase.plugins.catalog import PluginCatalog
 from sase.plugins.render_common import humanize_age
 from sase.uv_tool.detect import NotUvToolInstall
 
-from .plugins_browser_constants import _SUBTAB_NAV_HINT
-
-if TYPE_CHECKING:
-    from .plugins_browser_rows import UpdateRow
+from .plugins_browser_constants import _SCOPE_NAV_HINT
+from .plugins_browser_rows import UpdateRow, UpdateScope
 
 _CURRENT_ACCENT = "#00D700"
 
@@ -26,29 +24,30 @@ class PluginsBrowserStatusMixin:
     """Summary, empty-state, and action-affordance text."""
 
     if TYPE_CHECKING:
-        _catalog: PluginCatalog | None
         from sase.agent_clis.models import AgentCliStatus
         from sase.uv_tool.versions import CoreVersions
 
         _agent_cli_error: str | None
         _agent_cli_statuses: tuple[AgentCliStatus, ...]
+        _catalog: PluginCatalog | None
         _core_versions: CoreVersions
         _error: str | None
         _filter_text: str
-        _grouped: list[tuple[str, str, list[PluginCatalogEntry]]]
+        _grouped: list[tuple[str, str, list[UpdateRow]]]
         _loading: bool
+        _marked_agent_clis: set[str]
+        _marked_install: set[str]
         _now: float
         _offline: bool
         _install_mode: str | None
-        _marked_install: set[str]
+        _rows: tuple[UpdateRow, ...]
+        _scope: UpdateScope
         _uv_tool: object | None
         _verbose: bool
 
-        def _current_entry(self) -> PluginCatalogEntry | None: ...
+        def _has_item_rows(self) -> bool: ...
 
-        def _can_install_entry(self, entry: PluginCatalogEntry | None) -> bool: ...
-
-        def _highlighted_plugin_row(self) -> UpdateRow | None: ...
+        def _highlighted_row(self) -> UpdateRow | None: ...
 
         @property
         def jump_mode_active(self) -> bool: ...
@@ -132,45 +131,46 @@ class PluginsBrowserStatusMixin:
             padding=(1, 2),
         )
 
-    def _sync_current_banner(self) -> None:
-        """Refresh and show/hide the all-current banner."""
+    def _header_renderable(self) -> RenderableType:
+        if self._all_up_to_date():
+            return self._all_current_banner()
+        return self._summary_text()
+
+    def _sync_header(self) -> None:
+        """Refresh the always-visible header (banner or summary)."""
         try:
-            banner = cast(
+            header = cast(
                 Static,
-                self.query_one("#updates-current-banner", Static),  # type: ignore[attr-defined]
+                self.query_one("#updates-header", Static),  # type: ignore[attr-defined]
             )
         except Exception:
             return
-        show_banner = self._all_up_to_date()
-        if show_banner:
-            banner.update(self._all_current_banner())
-        banner.display = show_banner
+        header.update(self._header_renderable())
 
     def _sync_state_visibility(self) -> None:
-        """Show the list when populated, else the status placeholder.
+        """Show the list when populated; keep a failed-source status above it.
 
         A *reload* (refresh / offline toggle) keeps the already-painted rows
-        visible -- the header reports "loading..." instead -- so the list never
+        visible -- the header reports loading instead -- so the list never
         flashes away and the focused highlight is preserved. The status
         placeholder is reserved for the initial load, the error state, and the
         genuinely empty / no-match cases.
         """
-        has_rows = any(entries for _, _, entries in self._grouped)
         try:
             status = cast(
                 Static,
-                self.query_one("#plugins-status", Static),  # type: ignore[attr-defined]
+                self.query_one("#updates-status", Static),  # type: ignore[attr-defined]
             )
             option_list = cast(
                 OptionList,
-                self.query_one("#plugins-list", OptionList),  # type: ignore[attr-defined]
+                self.query_one("#updates-list", OptionList),  # type: ignore[attr-defined]
             )
         except Exception:
             return
-        status.update(self._status_message())
-        show_status = self._error is not None or not has_rows
-        status.display = show_status
-        option_list.display = not show_status
+        message = self._status_message()
+        status.update(message)
+        status.display = bool(message)
+        option_list.display = self._has_item_rows()
 
     def _summary_text(self) -> Text:
         """Header summary: counts line + offline badge + warning/stale hint."""
@@ -221,15 +221,21 @@ class PluginsBrowserStatusMixin:
 
     def _status_message(self) -> str:
         if self._loading:
-            return "Loading plugins…"
+            return "Loading updates…"
         if self._error is not None:
             return f"Could not load plugins:\n{self._error}"
-        if self._catalog is None:
-            return "Plugin catalog unavailable."
-        if not self._catalog.entries:
-            return "No SASE plugins found."
-        if not any(entries for _, _, entries in self._grouped):
-            return "No plugins match the current filter."
+        if self._agent_cli_error is not None and not self._rows:
+            return f"Could not load agent CLIs:\n{self._agent_cli_error}"
+        if not self._rows:
+            return "No updates found."
+        if not self._has_item_rows():
+            if self._filter_text.strip():
+                return "Nothing matches the current filter."
+            if self._scope == "outdated":
+                return "Nothing needs an update."
+            if self._scope == "installed":
+                return "Nothing is installed."
+            return "No updates found."
         return ""
 
     def _hints(self) -> str:
@@ -239,19 +245,20 @@ class PluginsBrowserStatusMixin:
         offline = " (on)" if self._offline else " off"
         verbose = " (on)" if self._verbose else " verb"
         parts: list[str] = []
-        mark_count = len(self._marked_install)
-        if mark_count:
-            parts.append(f"i install ({mark_count})")
+        install_marks = len(self._marked_install)
+        total_marks = install_marks + len(self._marked_agent_clis)
+        if install_marks:
+            parts.append(f"i install ({install_marks})")
         elif self._can_install_highlighted():
             parts.append("i install")
         if self._can_mark_highlighted():
             parts.append("I/space mark")
+        row = self._highlighted_row()
+        if row is not None and "mark_update" in row.capabilities:
+            parts.append("space mark")
         if self._can_update_sase():
             parts.append("u update core + plugins")
-        # Wording is squeezed here: the browse-only variant of this line is
-        # exactly as wide as the pane, so ``' jump`` only fits alongside
-        # ``[ / ] sub-tab`` once the agent-CLI segment loses its verb.
-        parts.append("A upd CLIs")
+        parts.append("A update CLIs")
         parts.append("a sync agents")
         if self._can_switch_mode():
             parts.append("m switch")
@@ -259,6 +266,8 @@ class PluginsBrowserStatusMixin:
             parts.append("U upd ↑")
         if self._can_uninstall_highlighted():
             parts.append("x rm")
+        if row is not None and row.kind == "agent-cli":
+            parts.append("H history")
         parts.extend(
             [
                 "r reload",
@@ -267,32 +276,30 @@ class PluginsBrowserStatusMixin:
                 f"v{verbose}",
                 "/ filter",
                 "' jump",
-                _SUBTAB_NAV_HINT,
+                _SCOPE_NAV_HINT,
                 "Tab/Shift+Tab tab",
             ]
         )
-        if mark_count:
-            parts.append(f"{mark_count} marked")
+        if total_marks:
+            parts.append(f"{total_marks} marked")
             parts.append("esc clear")
         else:
             parts.append("esc")
         return " · ".join(parts)
 
     def _can_install_highlighted(self) -> bool:
-        """Whether the highlighted plugin can be installed right now."""
-        row = self._highlighted_plugin_row()
+        """Whether the highlighted row can be installed right now."""
+        row = self._highlighted_row()
         return row is not None and "install" in row.capabilities
 
     def _can_mark_highlighted(self) -> bool:
-        """Whether the highlighted plugin can be marked for install."""
-        if self._loading:
-            return False
-        row = self._highlighted_plugin_row()
+        """Whether the highlighted row can be marked for install."""
+        row = self._highlighted_row()
         return row is not None and "install" in row.capabilities
 
     def _can_update_highlighted(self) -> bool:
-        """Whether the highlighted plugin can be updated right now."""
-        row = self._highlighted_plugin_row()
+        """Whether the highlighted row can be updated right now."""
+        row = self._highlighted_row()
         return row is not None and "update" in row.capabilities
 
     def _can_update_sase(self) -> bool:
@@ -307,8 +314,8 @@ class PluginsBrowserStatusMixin:
         return not isinstance(self._uv_tool, NotUvToolInstall)
 
     def _can_uninstall_highlighted(self) -> bool:
-        """Whether the highlighted plugin can be uninstalled right now."""
-        row = self._highlighted_plugin_row()
+        """Whether the highlighted row can be uninstalled right now."""
+        row = self._highlighted_row()
         return row is not None and "uninstall" in row.capabilities
 
     @staticmethod

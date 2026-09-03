@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from .config_hub_session import ConfigHubSessionState
 
+if TYPE_CHECKING:
+    from .plugins_browser_rows import UpdateScope
+
 ProjectsSubTab = Literal["projects", "repos", "workspaces"]
-UpdatesSubTab = Literal["core", "plugins", "agent-clis"]
 
 
 @dataclass
@@ -77,11 +79,10 @@ class ProcsSessionState:
 
 @dataclass
 class UpdatesSessionState:
-    """Session-only cursor state for the Updates pane and sub-tabs."""
+    """Session-only cursor state for the Updates pane."""
 
-    active_subtab: UpdatesSubTab = "core"
-    plugins: SelectionBookmark = field(default_factory=SelectionBookmark)
-    agent_clis: SelectionBookmark = field(default_factory=SelectionBookmark)
+    scope: UpdateScope = "installed"
+    rows: SelectionBookmark = field(default_factory=SelectionBookmark)
     agent_cli_history_all: bool = False
 
 
@@ -106,5 +107,4 @@ __all__ = [
     "ProjectsSubTab",
     "SelectionBookmark",
     "UpdatesSessionState",
-    "UpdatesSubTab",
 ]

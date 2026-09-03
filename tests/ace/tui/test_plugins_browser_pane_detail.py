@@ -17,11 +17,13 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
     _NOW,
     _catalog,
     _entry,
+    _highlight_row,
     _open_plugins_pane,
     _option_labels,
     _patch_catalog,
     _patch_catalog_recording,
     _patch_other_panes,
+    _plugin_entry,
     _render,
 )
 
@@ -83,8 +85,8 @@ async def test_plugins_pane_detail_follows_highlight(
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
         # The first non-header row (github, built-in) is shown on load.
-        assert pane._detail_name == "github"
-        entry = pane._entry_by_name("github")
+        assert pane._detail_key == "plugin:github"
+        entry = pane._current_entry()
         assert entry is not None
         text = _render(pane._detail_renderable(entry))
         assert "github" in text
@@ -100,8 +102,8 @@ async def test_plugins_pane_short_detail_does_not_require_scroll(
     _patch_catalog(monkeypatch, catalog=_catalog())
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        await page.wait_for(lambda _s: pane._detail_name == "github")
-        scroll = pane.query_one("#plugins-detail-scroll", VerticalScroll)
+        await page.wait_for(lambda _s: pane._detail_key == "plugin:github")
+        scroll = pane.query_one("#updates-detail-scroll", VerticalScroll)
 
         await page.pause()
 
@@ -130,10 +132,12 @@ async def test_plugins_pane_scroll_keys_move_detail_not_selection(
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        await page.wait_for(lambda _s: pane._detail_name == "github")
-        option_list = pane.query_one("#plugins-list", OptionList)
+        _highlight_row(pane, "plugin:github")
+        pane._render_detail_now(force=True)
+        await page.wait_for(lambda _s: pane._detail_key == "plugin:github")
+        option_list = pane.query_one("#updates-list", OptionList)
         highlighted_before = option_list.highlighted
-        scroll = pane.query_one("#plugins-detail-scroll", VerticalScroll)
+        scroll = pane.query_one("#updates-detail-scroll", VerticalScroll)
         await page.wait_for(lambda _s: scroll.max_scroll_y > 0)
 
         await page.press("ctrl+d")
@@ -175,7 +179,7 @@ async def test_plugins_pane_detail_shows_lazy_incoming_commits(
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
         await page.wait_for(lambda _s: bool(pane._incoming_commit_cache))
-        entry = pane._entry_by_name("github")
+        entry = _plugin_entry(pane, "github")
         assert entry is not None
         text = _render(pane._detail_renderable(entry))
 
@@ -219,13 +223,15 @@ async def test_plugins_pane_lazy_fetches_highlighted_latest(
     monkeypatch.setattr(pbp, "_enrich_entry_latest", _fake_enrich)
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
+        _highlight_row(pane, "plugin:nvim")
+        pane._render_detail_now(force=True)
         await page.wait_for(
             lambda _s: (
-                (entry := pane._entry_by_name("nvim")) is not None
+                (entry := _plugin_entry(pane, "nvim")) is not None
                 and entry.latest.version == "2.0.0"
             )
         )
-        entry = pane._entry_by_name("nvim")
+        entry = _plugin_entry(pane, "nvim")
         assert calls == ["nvim"]
         assert entry is not None
         assert entry.latest.version == "2.0.0"
@@ -261,8 +267,10 @@ async def test_plugins_pane_skips_lazy_latest_when_already_checked(
     )
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        await page.wait_for(lambda _s: pane._detail_name == "nvim")
-        entry = pane._entry_by_name("nvim")
+        _highlight_row(pane, "plugin:nvim")
+        pane._render_detail_now(force=True)
+        await page.wait_for(lambda _s: pane._detail_key == "plugin:nvim")
+        entry = _plugin_entry(pane, "nvim")
         assert entry is not None
         assert entry.latest.checked is True
         assert entry.latest.version == "1.2.3"
@@ -276,12 +284,10 @@ async def test_plugins_pane_detail_shows_community_warning(
     _patch_catalog(monkeypatch, catalog=_catalog())
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        # Navigate down to the lone community plugin (acme).
-        pane.action_next_option()
-        pane.action_next_option()
-        pane.action_next_option()
-        await page.wait_for(lambda _s: pane._detail_name == "acme")
-        entry = pane._entry_by_name("acme")
+        _highlight_row(pane, "plugin:acme")
+        pane._render_detail_now(force=True)
+        await page.wait_for(lambda _s: pane._detail_key == "plugin:acme")
+        entry = _plugin_entry(pane, "acme")
         assert entry is not None
         assert entry.is_community
         text = _render(pane._detail_renderable(entry))

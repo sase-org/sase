@@ -7,11 +7,14 @@ from pathlib import Path
 from sase.ace.tui.modals.plugins_browser_loading import PluginsLoadResult
 from sase.ace.tui.modals.plugins_browser_rows import (
     _core_version_label,
-    agent_cli_version_label,
+    _agent_cli_version_label,
+    _plugin_version_label,
     build_plugin_row,
     build_update_rows,
     dev_state_label,
-    plugin_version_label,
+    _row_in_scope,
+    scope_counts,
+    select_rows,
 )
 from sase.agent_clis.models import (
     AgentCliStatus,
@@ -390,7 +393,7 @@ def test_plugin_version_label_installed_with_update() -> None:
         installed=InstalledInfo(installed=True, version="1.0.0"),
         latest=LatestInfo(checked=True, version="1.1.0", source="index"),
     )
-    assert plugin_version_label(entry) == "v1.0.0 → v1.1.0"
+    assert _plugin_version_label(entry) == "v1.0.0 → v1.1.0"
 
 
 def test_plugin_version_label_installed_no_update() -> None:
@@ -399,18 +402,18 @@ def test_plugin_version_label_installed_no_update() -> None:
         installed=InstalledInfo(installed=True, version="0.5.0"),
         latest=LatestInfo(checked=True, version="0.5.0", source="index"),
     )
-    assert plugin_version_label(entry) == "v0.5.0"
+    assert _plugin_version_label(entry) == "v0.5.0"
 
 
 def test_plugin_version_label_not_installed_with_latest() -> None:
     entry = _entry(
         "nvim", latest=LatestInfo(checked=True, version="2.0.0", source="index")
     )
-    assert plugin_version_label(entry) == "latest v2.0.0"
+    assert _plugin_version_label(entry) == "latest v2.0.0"
 
 
 def test_plugin_version_label_not_installed_unknown() -> None:
-    assert plugin_version_label(_entry("nvim")) == ""
+    assert _plugin_version_label(_entry("nvim")) == ""
 
 
 def test_plugin_version_label_git_source() -> None:
@@ -419,7 +422,7 @@ def test_plugin_version_label_git_source() -> None:
         installed=InstalledInfo(installed=True, version="1.0.0"),
         latest=LatestInfo(checked=True, source="git"),
     )
-    assert plugin_version_label(entry) == "git"
+    assert _plugin_version_label(entry) == "git"
 
 
 def test_plugin_version_label_editable_with_update() -> None:
@@ -434,7 +437,7 @@ def test_plugin_version_label_editable_with_update() -> None:
             update_available=True,
         ),
     )
-    assert plugin_version_label(entry) == "v1.0.0 → v1.1.0  dev"
+    assert _plugin_version_label(entry) == "v1.0.0 → v1.1.0  dev"
 
 
 def test_plugin_version_label_editable_current_state() -> None:
@@ -448,7 +451,7 @@ def test_plugin_version_label_editable_current_state() -> None:
             state="dirty",
         ),
     )
-    assert plugin_version_label(entry) == "v1.0.0  dev · local changes"
+    assert _plugin_version_label(entry) == "v1.0.0  dev · local changes"
 
 
 def test_dev_state_label_known_and_unknown_states() -> None:
@@ -459,11 +462,11 @@ def test_dev_state_label_known_and_unknown_states() -> None:
 
 
 def test_agent_cli_version_label_variants() -> None:
-    assert agent_cli_version_label(_ready_cli_status()) == "v1.0.0 → v1.1.0"
+    assert _agent_cli_version_label(_ready_cli_status()) == "v1.0.0 → v1.1.0"
     assert (
-        agent_cli_version_label(_ready_cli_status(update_available=False)) == "v1.0.0"
+        _agent_cli_version_label(_ready_cli_status(update_available=False)) == "v1.0.0"
     )
-    assert agent_cli_version_label(_not_installed_cli_status()) == "not installed"
+    assert _agent_cli_version_label(_not_installed_cli_status()) == "not installed"
 
 
 def test_core_version_label_variants() -> None:
@@ -493,3 +496,152 @@ def test_core_version_label_variants() -> None:
         )
         == "v1.0.0   dev"
     )
+
+
+def test_select_rows_emits_sections_in_fixed_order_once() -> None:
+    catalog = PluginCatalog(
+        fetched_at=_NOW,
+        entries=(
+            _entry(
+                "github",
+                installed=InstalledInfo(installed=True, version="1.0.0"),
+                latest=LatestInfo(checked=True, version="1.1.0", source="index"),
+            ),
+            _entry("acme", owner="acme-corp"),
+        ),
+        from_cache=True,
+        stale=False,
+    )
+    result = _load_result(
+        core_versions=CoreVersions(packages=(_core_package(),)),
+        catalog=catalog,
+        agent_cli_statuses=(_ready_cli_status(),),
+    )
+    rows = build_update_rows(
+        result, uv_tool=None, offline=False, plan_fn=plan_agent_cli_updates
+    )
+    grouped = select_rows(rows, scope="all", needle="")
+    assert [header for header, _style, _rows in grouped] == [
+        "── SASE ──",
+        "── Plugins · Built-in ──",
+        "── Plugins · Community ──",
+        "── Agent CLIs ──",
+    ]
+    keys = [row.key for _header, _style, section in grouped for row in section]
+    assert keys == ["core:sase", "plugin:github", "plugin:acme", "cli:claude"]
+
+
+def test_row_in_scope_outdated_installed_and_all() -> None:
+    manual = build_update_rows(
+        _load_result(agent_cli_statuses=(_manual_only_cli_status(),)),
+        uv_tool=None,
+        offline=False,
+        plan_fn=plan_agent_cli_updates,
+    )[0]
+    assert _row_in_scope(manual, "outdated") is True
+    assert _row_in_scope(manual, "installed") is True
+
+    error_row = build_update_rows(
+        _load_result(
+            core_versions=CoreVersions(
+                packages=(_core_package(latest_error="pypi unreachable"),)
+            )
+        ),
+        uv_tool=None,
+        offline=False,
+    )[0]
+    assert error_row.update_available is False
+    assert error_row.error == "pypi unreachable"
+    assert _row_in_scope(error_row, "outdated") is True
+
+    nvim = build_plugin_row(_entry("nvim"), blocked=False)
+    assert nvim.installed is False
+    assert _row_in_scope(nvim, "installed") is False
+    assert _row_in_scope(nvim, "all") is True
+
+
+def test_select_rows_sorts_outdated_first_then_label() -> None:
+    catalog = PluginCatalog(
+        fetched_at=_NOW,
+        entries=(
+            _entry(
+                "zeta",
+                installed=InstalledInfo(installed=True, version="1.0.0"),
+                latest=LatestInfo(checked=True, version="1.0.0", source="index"),
+            ),
+            _entry(
+                "alpha",
+                installed=InstalledInfo(installed=True, version="1.0.0"),
+                latest=LatestInfo(checked=True, version="1.1.0", source="index"),
+            ),
+            _entry(
+                "beta",
+                installed=InstalledInfo(installed=True, version="1.0.0"),
+                latest=LatestInfo(checked=True, version="1.1.0", source="index"),
+            ),
+        ),
+        from_cache=True,
+        stale=False,
+    )
+    rows = build_update_rows(_load_result(catalog=catalog), uv_tool=None, offline=False)
+    grouped = select_rows(rows, scope="all", needle="")
+    builtin = next(
+        section for header, _style, section in grouped if "Built-in" in header
+    )
+    assert [row.label for row in builtin] == ["alpha", "beta", "zeta"]
+
+
+def test_select_rows_one_needle_matches_all_domains() -> None:
+    core = CorePackageVersion(
+        name="sase",
+        distribution_name="needle-dist",
+        installed_version="1.0.0",
+        latest_version="1.0.0",
+        latest_checked=True,
+        update_available=False,
+    )
+    plugin = _entry("github", topics=("needle-dist",))
+    status = AgentCliStatus(
+        name="claude",
+        display_name="Claude Code",
+        binary="needle-dist",
+        executable="/bin/claude",
+        installed_version="1.0.0",
+        latest_version="1.0.0",
+        install_method=InstallMethod.SELF_MANAGED,
+        update_available=False,
+        docs_url=None,
+        install_hint="install",
+        self_update_argv=("update",),
+    )
+    rows = build_update_rows(
+        _load_result(
+            core_versions=CoreVersions(packages=(core,)),
+            catalog=PluginCatalog(
+                fetched_at=_NOW, entries=(plugin,), from_cache=True, stale=False
+            ),
+            agent_cli_statuses=(status,),
+        ),
+        uv_tool=None,
+        offline=False,
+        plan_fn=plan_agent_cli_updates,
+    )
+    grouped = select_rows(rows, scope="all", needle="needle-dist")
+    keys = [row.key for _header, _style, section in grouped for row in section]
+    assert keys == ["core:sase", "plugin:github", "cli:claude"]
+
+
+def test_scope_counts_ignore_filter_and_count_each_row_once() -> None:
+    nvim = build_plugin_row(_entry("nvim"), blocked=False)
+    github = build_plugin_row(
+        _entry(
+            "github",
+            installed=InstalledInfo(installed=True, version="1.0.0"),
+            latest=LatestInfo(checked=True, version="1.1.0", source="index"),
+        ),
+        blocked=False,
+    )
+    counts = scope_counts((nvim, github))
+    assert counts["all"] == 2
+    assert counts["installed"] == 1
+    assert counts["outdated"] == 1

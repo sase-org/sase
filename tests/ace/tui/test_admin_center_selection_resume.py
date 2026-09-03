@@ -75,12 +75,7 @@ _CASES = (
         ("right_square_bracket", "right_square_bracket"),
     ),
     _ResumeCase("procs", "3"),
-    _ResumeCase("plugins", "6", ("right_square_bracket",)),
-    _ResumeCase(
-        "agent-clis",
-        "6",
-        ("right_square_bracket", "right_square_bracket"),
-    ),
+    _ResumeCase("updates", "6"),
     _ResumeCase("xprompts", "1", move_key="ctrl+n"),
 )
 
@@ -186,12 +181,9 @@ def _surface_selection(modal: ConfigCenterModal, surface: str) -> str | None:
     elif surface == "procs":
         pane = modal.query_one(ProcsPane)
         option_list = pane.query_one("#procs-list", OptionList)
-    elif surface == "plugins":
+    elif surface == "updates":
         pane = modal.query_one(PluginsBrowserPane)
-        option_list = pane.query_one("#plugins-list", OptionList)
-    elif surface == "agent-clis":
-        pane = modal.query_one(PluginsBrowserPane)
-        option_list = pane.query_one("#agent-clis-list", OptionList)
+        option_list = pane.query_one("#updates-list", OptionList)
     else:
         pane = modal.query_one(XPromptBrowserPane)
         option_list = pane.query_one("#browser-list", OptionList)
@@ -216,10 +208,8 @@ def _detail_selection(modal: ConfigCenterModal, surface: str) -> str | None:
         return modal.query_one(WorkspaceInventoryPane)._selected_record_id()
     if surface == "procs":
         return modal.query_one(ProcsPane)._selected_task_identity()
-    if surface == "plugins":
-        return modal.query_one(PluginsBrowserPane)._detail_name
-    if surface == "agent-clis":
-        return modal.query_one(PluginsBrowserPane)._agent_cli_detail_name
+    if surface == "updates":
+        return modal.query_one(PluginsBrowserPane)._detail_key
     item = modal.query_one(XPromptBrowserPane)._get_highlighted_item()
     return item.name if item is not None else None
 
@@ -228,8 +218,7 @@ def _normalized_selection(surface: str, selection: str | None) -> str | None:
     prefixes = {
         "logs": "log__",
         "procs": "task__",
-        "plugins": "plugin__",
-        "agent-clis": "agent-cli__",
+        "updates": "updates-row__",
         "xprompts": "item__",
     }
     prefix = prefixes.get(surface)
@@ -272,7 +261,7 @@ async def _wait_for_surface_ready(
         await page.wait_for(
             lambda _s: modal.query_one("#procs-list", OptionList).option_count >= 2
         )
-    elif surface in {"plugins", "agent-clis"}:
+    elif surface == "updates":
         await page.wait_for(lambda _s: not modal.query_one(PluginsBrowserPane)._loading)
     elif surface == "logs":
         await page.wait_for(lambda _s: not modal.query_one(LogsPane)._loading)

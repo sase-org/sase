@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-#: Right-panel placeholder shown until a plugin row is highlighted.
-_DETAIL_PLACEHOLDER = "Select a plugin to view its details."
+#: Right-panel placeholder shown until a row is highlighted.
+_DETAIL_PLACEHOLDER = "Select an entry to view its details."
 
-#: Shared footer wording for cycling the Updates pane's local sub-tabs.
-_SUBTAB_NAV_HINT = "[ / ] sub-tab"
-
-_BUILTIN_GROUP = "Built-in"
-_COMMUNITY_GROUP = "Community"
+#: Shared footer wording for cycling the Updates pane's local scopes.
+_SCOPE_NAV_HINT = "[ ] scope"
 
 _HEADER_PREFIX = "__header__"
-_ITEM_PREFIX = "plugin__"
+_ROW_PREFIX = "updates-row__"

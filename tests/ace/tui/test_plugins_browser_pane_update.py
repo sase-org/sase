@@ -261,7 +261,7 @@ async def test_plugins_pane_editable_update_uses_dev_preview_and_restart(
         _highlight(pane, "github")
         await page.wait_for(lambda _s: pane._highlighted_name() == "github")
         assert "v0.1.0+1.gabc123def → v0.1.0+2.gdef456abc  dev" in (
-            pane._row_text(pane._current_entry()).plain  # type: ignore[arg-type]
+            pane._row_text(pane._highlighted_row()).plain  # type: ignore[union-attr]
         )
         pane.action_update()
         await page.expect_modal("PluginActionConfirmModal")

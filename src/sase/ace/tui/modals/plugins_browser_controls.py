@@ -23,7 +23,6 @@ class PluginsBrowserControlsMixin:
 
     if TYPE_CHECKING:
         _filter_text: str
-        _active_subtab: str
         _detail_debouncer: DetailPanelDebouncer | None
         _loading: bool
         _offline: bool
@@ -34,7 +33,7 @@ class PluginsBrowserControlsMixin:
 
         def _rebuild_groups(self) -> None: ...
 
-        def _rebuild_options(self) -> None: ...
+        def _rebuild_options(self, *, reuse_options: bool = False) -> None: ...
 
         def _render_detail_now(self, *, force: bool = False) -> None: ...
 
@@ -45,8 +44,8 @@ class PluginsBrowserControlsMixin:
         def reset_jump_state(self, *, repaint: bool = False) -> None: ...
 
     def focus_default(self) -> None:
-        """Focus the active browser list, or the pane itself for Core."""
-        option_list = self._active_option_list()
+        """Focus the updates list, or the pane itself if it is not mounted."""
+        option_list = self._option_list()
         if option_list is not None:
             option_list.focus()
         else:
@@ -54,7 +53,7 @@ class PluginsBrowserControlsMixin:
 
     def action_next_option(self) -> None:
         """Move to the next non-header option."""
-        option_list = self._active_option_list()
+        option_list = self._option_list()
         if option_list is None:
             return
         current = option_list.highlighted
@@ -66,7 +65,7 @@ class PluginsBrowserControlsMixin:
 
     def action_prev_option(self) -> None:
         """Move to the previous non-header option."""
-        option_list = self._active_option_list()
+        option_list = self._option_list()
         if option_list is None or option_list.highlighted is None:
             return
         for index in range(option_list.highlighted - 1, -1, -1):
@@ -76,7 +75,7 @@ class PluginsBrowserControlsMixin:
 
     def action_focus_filter(self) -> None:
         try:
-            self.query_one("#plugins-filter-input", PluginsFilterInput).focus()  # type: ignore[attr-defined]
+            self.query_one("#updates-filter-input", PluginsFilterInput).focus()  # type: ignore[attr-defined]
         except Exception:
             pass
 
@@ -97,11 +96,11 @@ class PluginsBrowserControlsMixin:
         """Toggle the list rows' verbose columns (stars / updated)."""
         self._verbose = not self._verbose
         self._rebuild_options()
-        self._update_static("#plugins-hints", self._hints())
+        self._update_static("#updates-hints", self._hints())
         self._render_detail_now(force=True)
 
     def action_scroll_detail_down(self) -> None:
-        """Scroll the plugin detail pane down by half a page."""
+        """Scroll the detail pane down by half a page."""
         scroll = self._detail_scroll()
         if scroll is None:
             return
@@ -109,7 +108,7 @@ class PluginsBrowserControlsMixin:
         self._force_scroll_detail_to(scroll.scroll_y + height // 2, scroll=scroll)
 
     def action_scroll_detail_up(self) -> None:
-        """Scroll the plugin detail pane up by half a page."""
+        """Scroll the detail pane up by half a page."""
         scroll = self._detail_scroll()
         if scroll is None:
             return
@@ -117,25 +116,20 @@ class PluginsBrowserControlsMixin:
         self._force_scroll_detail_to(scroll.scroll_y - height // 2, scroll=scroll)
 
     def action_scroll_to_top(self) -> None:
-        """Scroll the plugin detail pane to the top (highlight unchanged)."""
+        """Scroll the detail pane to the top (highlight unchanged)."""
         scroll = self._detail_scroll()
         if scroll is not None:
             self._force_scroll_detail_to(0, scroll=scroll)
 
     def action_scroll_to_bottom(self) -> None:
-        """Scroll the plugin detail pane to the bottom (highlight unchanged)."""
+        """Scroll the detail pane to the bottom (highlight unchanged)."""
         scroll = self._detail_scroll()
         if scroll is not None:
             self._force_scroll_detail_to(scroll.max_scroll_y, scroll=scroll)
 
     def _detail_scroll(self) -> VerticalScroll | None:
         try:
-            selector = (
-                "#agent-clis-detail-scroll"
-                if self._active_subtab == "agent-clis"
-                else "#plugins-detail-scroll"
-            )
-            return self.query_one(selector, VerticalScroll)  # type: ignore[attr-defined]
+            return self.query_one("#updates-detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
         except Exception:
             return None
 
@@ -161,7 +155,7 @@ class PluginsBrowserControlsMixin:
             pass
 
     def on_input_changed(self, event: Input.Changed) -> None:
-        if event.input.id != "plugins-filter-input":
+        if event.input.id != "updates-filter-input":
             return
         self._filter_text = event.value
         # Filtering rewrites the row list, so drop hints and the back stack
@@ -179,12 +173,12 @@ class PluginsBrowserControlsMixin:
 
     def _apply_filter(self) -> None:
         self._rebuild_groups()
-        self._rebuild_options()
+        self._rebuild_options(reuse_options=True)
         self._sync_state_visibility()
         self._render_detail_now(force=True)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        if event.input.id == "plugins-filter-input":
+        if event.input.id == "updates-filter-input":
             # Keep the filter applied; hand control back to the list.
             self.focus_default()
 
@@ -201,23 +195,13 @@ class PluginsBrowserControlsMixin:
 
     def _option_list(self) -> OptionList | None:
         try:
-            return self.query_one("#plugins-list", OptionList)  # type: ignore[attr-defined]
+            return self.query_one("#updates-list", OptionList)  # type: ignore[attr-defined]
         except Exception:
             return None
 
-    def _active_option_list(self) -> OptionList | None:
-        if self._active_subtab == "agent-clis":
-            try:
-                return self.query_one("#agent-clis-list", OptionList)  # type: ignore[attr-defined]
-            except Exception:
-                return None
-        if self._active_subtab == "plugins":
-            return self._option_list()
-        return None
-
     def _detail_widget(self) -> Static | None:
         try:
-            return self.query_one("#plugins-detail", Static)  # type: ignore[attr-defined]
+            return self.query_one("#updates-detail", Static)  # type: ignore[attr-defined]
         except Exception:
             return None
 
@@ -231,7 +215,7 @@ class PluginsBrowserControlsMixin:
 
     def _set_filter_value(self, value: str) -> None:
         try:
-            self.query_one("#plugins-filter-input", PluginsFilterInput).value = value  # type: ignore[attr-defined]
+            self.query_one("#updates-filter-input", PluginsFilterInput).value = value  # type: ignore[attr-defined]
         except Exception:
             pass
 

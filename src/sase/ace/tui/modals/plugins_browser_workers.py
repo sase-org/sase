@@ -5,17 +5,14 @@ from __future__ import annotations
 import dataclasses
 from typing import TYPE_CHECKING, Any, Literal
 
-from rich.console import RenderableType
-from rich.panel import Panel
-from rich.text import Text
 from textual.worker import Worker, WorkerState
 
-from .plugins_browser_constants import _HEADER_PREFIX
 from .plugins_browser_loading import PluginsLoadResult
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
-    from textual.widgets import OptionList
+
+    from rich.console import RenderableType
 
     from .plugins_browser_rows import UpdateRow
 else:
@@ -29,7 +26,6 @@ class PluginsBrowserWorkersMixin(_MixinBase):
     """Load shared inventory and dispatch results from every pane worker."""
 
     if TYPE_CHECKING:
-        _active_subtab: str
         _rows: tuple[UpdateRow, ...]
         _rows_by_key: dict[str, UpdateRow]
         _agent_cli_colors: dict[str, str]
@@ -55,7 +51,7 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         _now: float
         _offline: bool
         _plan_worker: Worker[Any] | None
-        _restore_name: str | None
+        _restore_key: str | None
         _sase_update_plan_worker: Worker[Any] | None
         _session_state: Any
         _uninstall_plan_worker: Worker[Any] | None
@@ -65,21 +61,9 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         _worker: Worker[Any] | None
         app: Any
 
-        def _agent_cli_hints(self) -> str: ...
-
-        def _agent_cli_summary(self) -> Text: ...
-
-        def _core_hints(self) -> str: ...
-
-        def _core_versions_panel(self) -> Panel: ...
+        def _highlighted_row(self) -> UpdateRow | None: ...
 
         def _hints(self) -> str: ...
-
-        def _highlighted_name(self) -> str | None: ...
-
-        def _option_list(self) -> OptionList | None: ...
-
-        def _agent_cli_option_list(self) -> OptionList | None: ...
 
         def _notify(
             self,
@@ -108,15 +92,9 @@ class PluginsBrowserWorkersMixin(_MixinBase):
 
         def _on_update_preview(self, result: Any) -> None: ...
 
-        def _refresh_plugin_haystacks(self) -> None: ...
-
         def _render_all(self) -> None: ...
 
-        def _status_message(self) -> str: ...
-
-        def _summary_text(self) -> Text: ...
-
-        def _sync_current_banner(self) -> None: ...
+        def _sync_header(self) -> None: ...
 
         def _sync_state_visibility(self) -> None: ...
 
@@ -135,18 +113,16 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         self._fresh_editable_roots_evidence = None
         # Re-highlight whatever is selected now once the reload lands so a
         # refresh / offline toggle doesn't snap the user back to the top.
-        self._restore_name = (
-            self._highlighted_name() or self._session_state.plugins.identity
+        highlighted = self._highlighted_row()
+        self._restore_key = (
+            highlighted.key
+            if highlighted is not None
+            else self._session_state.rows.identity
         )
         self._core_incoming_commits = {}
         self._sync_state_visibility()
-        self._sync_current_banner()
-        self._update_static("#plugins-summary", self._summary_text())
-        self._update_static("#plugins-hints", self._hints())
-        self._update_static("#updates-core-hints", self._core_hints())
-        self._update_static("#agent-clis-summary", self._agent_cli_summary())
-        self._update_static("#agent-clis-hints", self._agent_cli_hints())
-        self._update_static("#sase-core-versions", self._core_versions_panel())
+        self._sync_header()
+        self._update_static("#updates-hints", self._hints())
         refresh = force
         offline = self._offline
         incoming_commits_enabled = self._incoming_commits_enabled
@@ -165,14 +141,15 @@ class PluginsBrowserWorkersMixin(_MixinBase):
             # keeps construction off the UI thread; every existing loader stub
             # keeps working unchanged because rows are derived from whatever
             # it returned.
-            return dataclasses.replace(
+            rows = pane_module._build_update_rows(
                 result,
-                rows=pane_module._build_update_rows(
-                    result,
-                    uv_tool=result.uv_tool or prior_uv_tool,
-                    offline=offline,
-                ),
+                uv_tool=getattr(result, "uv_tool", None) or prior_uv_tool,
+                offline=offline,
             )
+            if dataclasses.is_dataclass(result) and not isinstance(result, type):
+                return dataclasses.replace(result, rows=rows)
+            result.rows = rows
+            return result
 
         self._worker = self.run_worker(
             task, thread=True, exclusive=True, exit_on_error=False
@@ -257,7 +234,6 @@ class PluginsBrowserWorkersMixin(_MixinBase):
             self._loading = False
             self._updates_loaded_once = True
             self._catalog = getattr(result, "catalog", None)
-            self._refresh_plugin_haystacks()
             self._error = getattr(result, "error", None)
             self._now = getattr(result, "now", self._now)
             fresh_roots = frozenset(getattr(result, "fresh_editable_roots", ()))
@@ -335,32 +311,3 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         if 0.0 <= age <= ttl_seconds:
             return roots
         return frozenset()
-
-    def _highlighted_row(self) -> UpdateRow | None:
-        """Resolve the *active* sub-tab's highlighted option to its row.
-
-        Core hosts no list, so it returns ``None`` there — exactly matching
-        today's gating on that sub-tab. Used by ``check_action``, which
-        already conditions on the active sub-tab before consulting this.
-        """
-        if self._active_subtab == "plugins":
-            option_list = self._option_list()
-            prefix = "plugin__"
-            key_prefix = "plugin:"
-        elif self._active_subtab == "agent-clis":
-            option_list = self._agent_cli_option_list()
-            prefix = "agent-cli__"
-            key_prefix = "cli:"
-        else:
-            return None
-        if option_list is None or option_list.highlighted is None:
-            return None
-        try:
-            option = option_list.get_option_at_index(option_list.highlighted)
-        except Exception:
-            return None
-        option_id = option.id
-        if not option_id or option_id.startswith(_HEADER_PREFIX):
-            return None
-        name = option_id.removeprefix(prefix)
-        return self._rows_by_key.get(f"{key_prefix}{name}")

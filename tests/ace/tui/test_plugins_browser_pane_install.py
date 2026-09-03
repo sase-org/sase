@@ -87,11 +87,11 @@ async def test_plugins_pane_toggle_install_mark_updates_row_and_hints(
         assert "i install (1)" in pane._hints()
         assert "1 marked" in pane._hints()
         assert "esc clear" in pane._hints()
-        option_list = pane.query_one("#plugins-list")
+        option_list = pane.query_one("#updates-list")
         nvim_index = next(
             index
             for index in range(option_list.option_count)
-            if option_list.get_option_at_index(index).id == "plugin__nvim"
+            if option_list.get_option_at_index(index).id == "updates-row__plugin:nvim"
         )
         assert "[✓]" in option_list.get_option_at_index(nvim_index).prompt.plain
 
@@ -222,9 +222,7 @@ async def test_plugins_pane_install_marked_set_takes_batch_path(
         )
         pane._marked_install.update({"nvim", "acme"})
         _highlight(pane, "github")  # marks take precedence over the cursor
-        acme_entry = pane._entry_by_name("acme")
-        assert acme_entry is not None
-        acme_row = pane._row_text(acme_entry).plain
+        acme_row = pane._row_text(pane._rows_by_key["plugin:acme"]).plain
         assert "[✓]" in acme_row
         assert "acme-corp/sase-acme" in acme_row
 

@@ -24,9 +24,8 @@ class PluginsBrowserLatestMixin:
 
     if TYPE_CHECKING:
         _catalog: PluginCatalog | None
-        _grouped: list[tuple[str, str, list[PluginCatalogEntry]]]
+        _grouped: list[tuple[str, str, list[UpdateRow]]]
         _offline: bool
-        _plugin_entry_by_name: dict[str, PluginCatalogEntry]
         _plugin_latest_loading: set[str]
         _plugin_latest_workers: dict[int, str]
         _rows: tuple[UpdateRow, ...]
@@ -117,22 +116,21 @@ class PluginsBrowserLatestMixin:
         if updated is None:
             return
         self._catalog = dataclasses.replace(catalog, entries=tuple(entries))
-        self._plugin_entry_by_name[name] = updated
-        self._grouped = [
-            (
-                group,
-                style,
-                [updated if entry.name == name else entry for entry in group_entries],
-            )
-            for group, style, group_entries in self._grouped
-        ]
-        self._refresh_install_mark_row(name)
         blocked = isinstance(self._uv_tool, NotUvToolInstall)
         new_row = build_plugin_row(updated, blocked=blocked)
         self._rows = tuple(
             new_row if row.key == new_row.key else row for row in self._rows
         )
         self._rows_by_key[new_row.key] = new_row
+        self._grouped = [
+            (
+                group,
+                style,
+                [new_row if row.key == new_row.key else row for row in group_rows],
+            )
+            for group, style, group_rows in self._grouped
+        ]
+        self._refresh_install_mark_row(name)
 
     def _entry_name_for_latest_key(self, key: str) -> str | None:
         catalog = self._catalog

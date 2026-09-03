@@ -30,6 +30,7 @@ from sase.ace.tui.modals import statistics_pane as sp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
+from sase.ace.tui.modals.plugins_browser_rows import UpdateScope
 from sase.ace.tui.modals.statistics_pane_data import StatisticsViewData
 from sase.stats.views import build_statistics_views
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
@@ -309,6 +310,7 @@ async def _open_plugins_pane(
     page: AcePage,
     *,
     session_state: AdminCenterSessionState | None = None,
+    scope: UpdateScope = "all",
 ) -> PluginsBrowserPane:
     modal = ConfigCenterModal(initial_tab="updates", session_state=session_state)
     page.app.push_screen(modal)
@@ -316,12 +318,12 @@ async def _open_plugins_pane(
     await page.wait_for(lambda _s: bool(modal.query("#updates")))
     pane = modal.query_one("#updates", PluginsBrowserPane)
     await page.wait_for(lambda _s: not pane._loading)
-    pane._switch_to_subtab("plugins")
+    pane._set_scope(scope)
     return pane
 
 
 def _option_labels(pane: PluginsBrowserPane) -> list[str]:
-    option_list = pane.query_one("#plugins-list", OptionList)
+    option_list = pane.query_one("#updates-list", OptionList)
     labels: list[str] = []
     for index in range(option_list.option_count):
         opt = option_list.get_option_at_index(index)
@@ -459,14 +461,27 @@ def _agent_cli_update_run(
     )
 
 
-def _highlight(pane: PluginsBrowserPane, name: str) -> None:
-    """Move the list highlight onto the row for *name*."""
-    option_list = pane.query_one("#plugins-list", OptionList)
+def _highlight_row(pane: PluginsBrowserPane, key: str) -> None:
+    """Move the list highlight onto the row for *key* (``plugin:github``)."""
+    option_list = pane.query_one("#updates-list", OptionList)
+    target = f"updates-row__{key}"
     for index in range(option_list.option_count):
-        if option_list.get_option_at_index(index).id == f"plugin__{name}":
+        if option_list.get_option_at_index(index).id == target:
             option_list.highlighted = index
             return
-    raise AssertionError(f"plugin row not found: {name}")
+    raise AssertionError(f"row not found: {key}")
+
+
+def _highlight(pane: PluginsBrowserPane, name: str) -> None:
+    """Move the list highlight onto the plugin row for *name*."""
+    _highlight_row(pane, f"plugin:{name}")
+
+
+def _plugin_entry(pane: PluginsBrowserPane, name: str) -> PluginCatalogEntry | None:
+    """Return the catalog entry for *name* from the merged row tuple."""
+    row = pane._rows_by_key.get(f"plugin:{name}")
+    payload = None if row is None else row.payload
+    return payload if isinstance(payload, PluginCatalogEntry) else None
 
 
 def _spy_notify(

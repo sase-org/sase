@@ -19,15 +19,6 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
 )
 
 
-def _agent_cli_labels(pane: PluginsBrowserPane) -> list[str]:
-    option_list = pane.query_one("#agent-clis-list", OptionList)
-    labels: list[str] = []
-    for index in range(option_list.option_count):
-        prompt = option_list.get_option_at_index(index).prompt
-        labels.append(prompt.plain if hasattr(prompt, "plain") else str(prompt))
-    return labels
-
-
 def _hint_text(pane: PluginsBrowserPane, selector: str) -> str:
     return pane.query_one(selector, Static).render().plain
 
@@ -41,11 +32,15 @@ def _item_indices(pane: PluginsBrowserPane, selector: str) -> list[int]:
     ]
 
 
-async def test_updates_plugins_apostrophe_paints_hints_skipping_headers(
+async def test_updates_apostrophe_paints_hints_across_all_kinds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
-    _patch_catalog(monkeypatch, catalog=_catalog())
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+    )
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
@@ -56,16 +51,16 @@ async def test_updates_plugins_apostrophe_paints_hints_skipping_headers(
         assert pane.jump_mode_active is True
         labels = _option_labels(pane)
         hinted = [label for label in labels if label.startswith("[")]
-        assert len(hinted) == pane._jump_target_count() == 4
-        assert [label[:3] for label in hinted] == ["[0]", "[1]", "[2]", "[3]"]
-        assert any("acme-corp/sase-acme" in label for label in hinted)
-        # Disabled group headers never receive a hint.
+        assert len(hinted) == pane._jump_target_count()
+        assert pane._jump_target_count() == 2 + 4 + 3
+        kinds = {row.kind for row in pane._flat_rows()}
+        assert kinds == {"core", "plugin", "agent-cli"}
         headers = [label for label in labels if "──" in label]
         assert headers and all(not header.startswith("[") for header in headers)
-        assert "JUMP ' first" in _hint_text(pane, "#plugins-hints")
+        assert "JUMP ' first" in _hint_text(pane, "#updates-hints")
 
 
-async def test_updates_plugins_hint_selects_row_and_renders_detail(
+async def test_updates_hint_selects_row_and_renders_detail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -73,23 +68,26 @@ async def test_updates_plugins_hint_selects_row_and_renders_detail(
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        option_list = pane.query_one("#plugins-list", OptionList)
-        item_indices = _item_indices(pane, "#plugins-list")
+        option_list = pane.query_one("#updates-list", OptionList)
+        item_indices = _item_indices(pane, "#updates-list")
+        origin = pane._jump_current_index()
+        assert origin is not None
+        target = 0 if origin != 0 else 1
 
         await page.press("apostrophe")
-        await page.press("2")
+        await page.press(str(target))
         await page.pause()
 
         assert pane.jump_mode_active is False
-        assert pane.jump_back_stack == [0]
-        assert option_list.highlighted == item_indices[2]
-        jumped_name = pane._flat_plugin_entries()[2].name
-        await page.wait_for(lambda _s: pane._detail_name == jumped_name)
+        assert pane.jump_back_stack == [origin]
+        assert option_list.highlighted == item_indices[target]
+        jumped = pane._flat_rows()[target]
+        await page.wait_for(lambda _s: pane._detail_key == jumped.key)
         assert not any(label.startswith("[") for label in _option_labels(pane))
-        assert "' jump" in _hint_text(pane, "#plugins-hints")
+        assert "' jump" in _hint_text(pane, "#updates-hints")
 
 
-async def test_updates_plugins_second_apostrophe_returns_to_previous_row(
+async def test_updates_second_apostrophe_returns_to_previous_row(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -97,13 +95,16 @@ async def test_updates_plugins_second_apostrophe_returns_to_previous_row(
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        option_list = pane.query_one("#plugins-list", OptionList)
-        item_indices = _item_indices(pane, "#plugins-list")
+        option_list = pane.query_one("#updates-list", OptionList)
+        item_indices = _item_indices(pane, "#updates-list")
+        origin = pane._jump_current_index()
+        assert origin is not None
+        target = 0 if origin != 0 else 1
 
         await page.press("apostrophe")
-        await page.press("3")
+        await page.press(str(target))
         await page.pause()
-        assert option_list.highlighted == item_indices[3]
+        assert option_list.highlighted == item_indices[target]
 
         await page.press("apostrophe")
         await page.press("apostrophe")
@@ -111,10 +112,10 @@ async def test_updates_plugins_second_apostrophe_returns_to_previous_row(
 
         assert pane.jump_mode_active is False
         assert pane.jump_back_stack == []
-        assert option_list.highlighted == item_indices[0]
+        assert option_list.highlighted == item_indices[origin]
 
 
-async def test_updates_plugins_escape_cancels_jump_without_moving(
+async def test_updates_escape_cancels_jump_without_moving(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -122,7 +123,7 @@ async def test_updates_plugins_escape_cancels_jump_without_moving(
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        option_list = pane.query_one("#plugins-list", OptionList)
+        option_list = pane.query_one("#updates-list", OptionList)
         before = option_list.highlighted
 
         await page.press("apostrophe")
@@ -135,7 +136,7 @@ async def test_updates_plugins_escape_cancels_jump_without_moving(
         assert page.state["modal"] == "ConfigCenterModal"
 
 
-async def test_updates_plugins_jump_mode_takes_g_and_shift_g_from_the_scroller(
+async def test_updates_jump_mode_takes_g_and_shift_g_from_the_scroller(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -143,7 +144,7 @@ async def test_updates_plugins_jump_mode_takes_g_and_shift_g_from_the_scroller(
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        scroll = pane.query_one("#plugins-detail-scroll", VerticalScroll)
+        scroll = pane.query_one("#updates-detail-scroll", VerticalScroll)
 
         for hint_key in ("G", "g"):
             await page.press("apostrophe")
@@ -160,63 +161,7 @@ async def test_updates_plugins_jump_mode_takes_g_and_shift_g_from_the_scroller(
             assert scroll.scroll_y == 0
 
 
-async def test_updates_agent_clis_hint_selects_row_and_renders_detail(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_other_panes(monkeypatch)
-    _patch_catalog(
-        monkeypatch,
-        catalog=_catalog(),
-        agent_cli_statuses=_agent_cli_statuses(),
-    )
-
-    async with AcePage() as page:
-        pane = await _open_plugins_pane(page)
-        pane._switch_to_subtab("agent-clis")
-        await page.pause()
-        option_list = pane.query_one("#agent-clis-list", OptionList)
-
-        await page.press("apostrophe")
-        await page.pause()
-        assert pane.jump_mode_active is True
-        assert [label[:3] for label in _agent_cli_labels(pane)] == [
-            "[0]",
-            "[1]",
-            "[2]",
-        ]
-        assert "JUMP ' first" in _hint_text(pane, "#agent-clis-hints")
-
-        await page.press("2")
-        await page.pause()
-
-        assert pane.jump_mode_active is False
-        assert option_list.highlighted == 2
-        await page.wait_for(lambda _s: pane._agent_cli_detail_name == "qwen")
-        assert not any(label.startswith("[") for label in _agent_cli_labels(pane))
-
-
-async def test_updates_core_subtab_apostrophe_is_an_inert_no_op(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_other_panes(monkeypatch)
-    _patch_catalog(monkeypatch, catalog=_catalog())
-
-    async with AcePage() as page:
-        pane = await _open_plugins_pane(page)
-        pane._switch_to_subtab("core")
-        await page.pause()
-
-        assert pane.check_action("jump_to_entry", ()) is False
-
-        await page.press("apostrophe")
-        await page.pause()
-
-        assert pane.jump_mode_active is False
-        assert pane._jump_target_count() == 0
-        assert pane._active_subtab == "core"
-
-
-async def test_updates_subtab_switch_clears_jump_hints(
+async def test_updates_scope_switch_clears_jump_hints(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -229,12 +174,15 @@ async def test_updates_subtab_switch_clears_jump_hints(
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
 
+        origin = pane._jump_current_index()
+        assert origin is not None
+        target = 0 if origin != 0 else 1
         await page.press("apostrophe")
-        await page.press("1")
+        await page.press(str(target))
         await page.pause()
-        assert pane.jump_back_stack == [0]
+        assert pane.jump_back_stack == [origin]
 
-        pane._switch_to_subtab("agent-clis")
+        pane._set_scope("installed")
         await page.pause()
 
         assert pane.jump_mode_active is False
@@ -242,7 +190,7 @@ async def test_updates_subtab_switch_clears_jump_hints(
         assert not any(label.startswith("[") for label in _option_labels(pane))
 
 
-async def test_updates_plugins_filter_change_clears_jump_hints(
+async def test_updates_filter_change_clears_jump_hints(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -255,7 +203,7 @@ async def test_updates_plugins_filter_change_clears_jump_hints(
         await page.pause()
         assert pane.jump_mode_active is True
 
-        pane.query_one("#plugins-filter-input").value = "github"
+        pane.query_one("#updates-filter-input").value = "github"
         await page.pause()
 
         assert pane.jump_mode_active is False

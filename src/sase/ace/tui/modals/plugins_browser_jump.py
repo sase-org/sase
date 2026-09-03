@@ -1,43 +1,34 @@
 """Adaptive ``'`` entry jump for the Admin Center Updates pane.
 
-The Updates pane hosts three sub-tabs behind one widget, so its jump adapter
-dispatches on the active sub-tab: the logical row list is the active list's
-*item* rows (disabled group headers are never jump targets).  Core hosts no
-list at all, so it reports zero targets and ``'`` is a silent no-op there.
+The Updates pane hosts one list over every domain, so the logical row list
+is that list's *item* rows (disabled section headers are never jump
+targets).  ``'`` allocates hints across core packages, plugins, and agent
+CLIs in one space.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from rich.console import RenderableType
 from textual import events
-from textual.widgets import OptionList
 
 from ..actions.navigation.jump_hints import normalize_jump_key
 from .pane_entry_jump import PaneEntryJumpMixin
 
 if TYPE_CHECKING:
-    from .config_center_session import UpdatesSubTab
+    from textual.widgets import OptionList
 
 
 class PluginsBrowserJumpMixin(PaneEntryJumpMixin):
-    """Wire the Updates pane's active sub-tab list onto the shared jump mixin."""
+    """Wire the Updates pane's merged list onto the shared jump mixin."""
 
     if TYPE_CHECKING:
-        _active_subtab: UpdatesSubTab
-
-        def _active_option_list(self) -> OptionList | None: ...
-
-        def _agent_cli_hints(self) -> str: ...
 
         def _is_item(self, option_list: OptionList, index: int) -> bool: ...
 
-        def _rebuild_options(self) -> None: ...
+        def _option_list(self) -> OptionList | None: ...
 
-        def _repaint_agent_cli_options(self) -> None: ...
-
-        def _update_static(self, selector: str, content: RenderableType) -> None: ...
+        def _rebuild_options(self, *, reuse_options: bool = False) -> None: ...
 
     def on_key(self, event: events.Key) -> None:
         """Give jump mode, then a bare ``'``, first refusal at *event*."""
@@ -65,8 +56,8 @@ class PluginsBrowserJumpMixin(PaneEntryJumpMixin):
     # -- host hooks ----------------------------------------------------------
 
     def _jump_item_option_indices(self) -> list[int]:
-        """Option indices of the active list's item rows, headers excluded."""
-        option_list = self._active_option_list()
+        """Option indices of the list's item rows, headers excluded."""
+        option_list = self._option_list()
         if option_list is None:
             return []
         return [
@@ -79,7 +70,7 @@ class PluginsBrowserJumpMixin(PaneEntryJumpMixin):
         return len(self._jump_item_option_indices())
 
     def _jump_current_index(self) -> int | None:
-        option_list = self._active_option_list()
+        option_list = self._option_list()
         if option_list is None or option_list.highlighted is None:
             return None
         item_indices = self._jump_item_option_indices()
@@ -91,22 +82,17 @@ class PluginsBrowserJumpMixin(PaneEntryJumpMixin):
         # Repaint first so the hint prefixes are gone before the highlight
         # moves, then select by assigning ``highlighted`` exactly the way
         # ``action_next_option`` does, so the detail debouncer, the
-        # ``_detail_name`` dedup guard, and both selection guards behave
+        # ``_detail_key`` dedup guard, and the selection guard behave
         # normally.
         self._jump_repaint()
-        option_list = self._active_option_list()
+        option_list = self._option_list()
         item_indices = self._jump_item_option_indices()
         if option_list is None or not 0 <= index < len(item_indices):
             return
         option_list.highlighted = item_indices[index]
 
     def _jump_repaint(self) -> None:
-        if self._active_subtab == "plugins":
-            # ``_rebuild_options`` refreshes the plugins hint line itself.
-            self._rebuild_options()
-        elif self._active_subtab == "agent-clis":
-            self._repaint_agent_cli_options()
-            self._update_static("#agent-clis-hints", self._agent_cli_hints())
+        self._rebuild_options()
 
 
 __all__ = ["PluginsBrowserJumpMixin"]

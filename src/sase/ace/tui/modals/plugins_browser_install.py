@@ -276,7 +276,7 @@ class PluginInstallActionsMixin:
             self._marked_install.add(entry.name)
         self._refresh_install_mark_row(entry.name)
         self._advance_install_mark_selection()
-        self._update_static("#plugins-hints", self._hints())
+        self._update_static("#updates-hints", self._hints())
 
     def action_clear_install_marks_or_close(self) -> None:
         """Clear install marks on first escape; otherwise close the parent modal."""

@@ -9,7 +9,7 @@ carries the original domain object.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
@@ -21,6 +21,7 @@ from sase.agent_clis.models import (
     AgentCliUpdatesReady,
 )
 from sase.plugins.catalog import PluginCatalogEntry
+from sase.plugins.render_common import _COMMUNITY_STYLE
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
 from sase.uv_tool.versions import CorePackageVersion
 
@@ -29,9 +30,24 @@ if TYPE_CHECKING:
 
 UpdateRowKind = Literal["core", "plugin", "agent-cli"]
 UpdateRowSection = Literal["sase", "plugins-builtin", "plugins-community", "agent-clis"]
+UpdateScope = Literal["outdated", "installed", "all"]
 UpdateCapability = Literal[
     "install", "uninstall", "update", "mark_update", "manual", "history"
 ]
+
+SCOPE_ORDER: tuple[UpdateScope, ...] = ("outdated", "installed", "all")
+SCOPE_LABELS: dict[UpdateScope, str] = {
+    "outdated": "Outdated",
+    "installed": "Installed",
+    "all": "All",
+}
+
+_SECTIONS: tuple[tuple[UpdateRowSection, str, str], ...] = (
+    ("sase", "── SASE ──", "bold dim"),
+    ("plugins-builtin", "── Plugins · Built-in ──", "bold dim"),
+    ("plugins-community", "── Plugins · Community ──", f"bold {_COMMUNITY_STYLE}"),
+    ("agent-clis", "── Agent CLIs ──", "bold dim"),
+)
 
 PlanAgentCliUpdatesFn = Callable[..., AgentCliUpdatePlan]
 
@@ -61,7 +77,60 @@ class UpdateRow:
     payload: CorePackageVersion | PluginCatalogEntry | AgentCliStatus
 
 
-def plugin_version_label(entry: PluginCatalogEntry) -> str:
+def _row_in_scope(row: UpdateRow, scope: UpdateScope) -> bool:
+    """Return whether *row* belongs in *scope*."""
+    if scope == "outdated":
+        return row.update_available or row.error is not None
+    if scope == "installed":
+        return row.installed
+    return True
+
+
+def scope_counts(rows: Sequence[UpdateRow]) -> dict[UpdateScope, int]:
+    """Count rows in each scope in one pass, ignoring any filter."""
+    counts: dict[UpdateScope, int] = dict.fromkeys(SCOPE_ORDER, 0)
+    for row in rows:
+        counts["all"] += 1
+        if row.installed:
+            counts["installed"] += 1
+        if row.update_available or row.error is not None:
+            counts["outdated"] += 1
+    return counts
+
+
+def select_rows(
+    rows: Sequence[UpdateRow],
+    *,
+    scope: UpdateScope,
+    needle: str,
+) -> list[tuple[str, str, list[UpdateRow]]]:
+    """Project *rows* into the pane's ``_grouped`` shape.
+
+    Empty sections are omitted. *needle* is already ``.strip().casefold()``-ed
+    by the caller and matched with ``needle in row.haystack``.
+    """
+    grouped: dict[UpdateRowSection, list[UpdateRow]] = {
+        section: [] for section, _header, _style in _SECTIONS
+    }
+    for row in rows:
+        if not _row_in_scope(row, scope):
+            continue
+        if needle and needle not in row.haystack:
+            continue
+        grouped[row.section].append(row)
+    result: list[tuple[str, str, list[UpdateRow]]] = []
+    for section, header, style in _SECTIONS:
+        section_rows = grouped[section]
+        if not section_rows:
+            continue
+        section_rows.sort(
+            key=lambda item: (not item.update_available, item.label.casefold())
+        )
+        result.append((header, style, section_rows))
+    return result
+
+
+def _plugin_version_label(entry: PluginCatalogEntry) -> str:
     """The installed/latest cell text for one plugin row."""
     info = entry.installed
     if info.installed:
@@ -107,7 +176,7 @@ def dev_state_label(state: str | None) -> str:
     return labels.get(state or "", state or "")
 
 
-def agent_cli_version_label(status: AgentCliStatus) -> str:
+def _agent_cli_version_label(status: AgentCliStatus) -> str:
     """The installed/latest cell text for one agent-CLI row."""
     installed = status.installed_version
     latest = status.latest_version
@@ -231,7 +300,7 @@ def build_plugin_row(entry: PluginCatalogEntry, *, blocked: bool) -> UpdateRow:
         installed=installed,
         installed_version=entry.installed.version,
         latest_version=entry.latest.version,
-        version_label=plugin_version_label(entry),
+        version_label=_plugin_version_label(entry),
         update_available=update_available,
         source=entry.latest.source,
         capabilities=frozenset(capabilities),
@@ -284,7 +353,7 @@ def _build_agent_cli_row(
         installed=status.installed,
         installed_version=status.installed_version,
         latest_version=status.latest_version,
-        version_label=agent_cli_version_label(status),
+        version_label=_agent_cli_version_label(status),
         update_available=status.update_available,
         source=status.install_method.value,
         capabilities=frozenset(capabilities),
@@ -317,18 +386,18 @@ def build_update_rows(
 
     rows: list[UpdateRow] = []
 
-    core_versions = result.core_versions
+    core_versions = getattr(result, "core_versions", None)
     if core_versions is not None:
         rows.extend(_build_core_row(package) for package in core_versions.packages)
 
-    catalog = result.catalog
+    catalog = getattr(result, "catalog", None)
     if catalog is not None:
         rows.extend(
             build_plugin_row(entry, blocked=blocked) for entry in catalog.entries
         )
 
-    agent_cli_colors = result.agent_cli_colors
-    for status in result.agent_cli_statuses:
+    agent_cli_colors = getattr(result, "agent_cli_colors", None) or {}
+    for status in getattr(result, "agent_cli_statuses", ()) or ():
         try:
             update_entry = _agent_cli_update_entry(
                 status, offline=offline, plan_fn=resolved_plan_fn

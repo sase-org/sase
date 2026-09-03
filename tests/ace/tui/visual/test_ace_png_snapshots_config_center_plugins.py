@@ -9,6 +9,7 @@ from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
 from sase.plugins.catalog import PluginCatalog
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import LatestInfo
+from tests.ace.tui._plugins_browser_pane_helpers import _highlight_row
 from tests.ace.tui.test_plugins_browser_pane import _all_current_catalog
 from tests.ace.tui.test_plugins_browser_pane import _entry
 from tests.ace.tui.test_plugins_browser_pane import _core_versions
@@ -52,7 +53,7 @@ async def test_config_center_plugins_tab_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
-        await page.wait_for(lambda _s: pane._detail_name == "github")
+        await page.wait_for(lambda _s: pane._detail_key == "plugin:github")
         await _wait_for_plugins_detail(page, pane)
 
         ace_png_visual.assert_page_png(
@@ -80,7 +81,8 @@ async def test_config_center_updates_core_update_available_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
-        pane._switch_to_subtab("core")
+        _highlight_row(pane, "core:sase")
+        pane._render_detail_now(force=True)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -110,7 +112,8 @@ async def test_config_center_updates_all_current_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
-        pane._switch_to_subtab("core")
+        _highlight_row(pane, "core:sase")
+        pane._render_detail_now(force=True)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -135,8 +138,9 @@ async def test_config_center_agent_clis_marked_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
-        pane._switch_to_subtab("agent-clis")
-        await page.wait_for(lambda _s: pane._agent_cli_detail_name == "claude")
+        _highlight_row(pane, "cli:claude")
+        pane._render_detail_now(force=True)
+        await page.wait_for(lambda _s: pane._detail_key == "cli:claude")
         pane.action_toggle_mark()
         await _wait_for_plugins_detail(page, pane)
 
@@ -166,8 +170,9 @@ async def test_config_center_agent_clis_history_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
-        pane._switch_to_subtab("agent-clis")
-        await page.wait_for(lambda _s: pane._agent_cli_detail_name == "claude")
+        _highlight_row(pane, "cli:claude")
+        pane._render_detail_now(force=True)
+        await page.wait_for(lambda _s: pane._detail_key == "cli:claude")
         await _wait_for_plugins_detail(page, pane)
 
         ace_png_visual.assert_page_png(
@@ -196,8 +201,9 @@ async def test_config_center_agent_clis_history_all_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
-        pane._switch_to_subtab("agent-clis")
-        await page.wait_for(lambda _s: pane._agent_cli_detail_name == "claude")
+        _highlight_row(pane, "cli:claude")
+        pane._render_detail_now(force=True)
+        await page.wait_for(lambda _s: pane._detail_key == "cli:claude")
         pane.action_toggle_history_scope()
         await wait_for_visual_idle(page)
 
@@ -227,8 +233,9 @@ async def test_config_center_agent_clis_history_empty_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
-        pane._switch_to_subtab("agent-clis")
-        await page.wait_for(lambda _s: pane._agent_cli_detail_name == "claude")
+        _highlight_row(pane, "cli:claude")
+        pane._render_detail_now(force=True)
+        await page.wait_for(lambda _s: pane._detail_key == "cli:claude")
         await _wait_for_plugins_detail(page, pane)
 
         ace_png_visual.assert_page_png(
@@ -253,7 +260,7 @@ async def test_config_center_agent_clis_update_preview_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
-        pane._switch_to_subtab("agent-clis")
+        _highlight_row(pane, "cli:claude")
         pane.action_update_agent_clis()
         await page.expect_modal("PluginActionConfirmModal")
         await wait_for_visual_idle(page)
@@ -304,7 +311,7 @@ async def test_config_center_plugins_dev_update_available_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
-        await page.wait_for(lambda _s: pane._detail_name == "github")
+        await page.wait_for(lambda _s: pane._detail_key == "plugin:github")
         await _wait_for_plugins_detail(page, pane)
 
         ace_png_visual.assert_page_png(
@@ -329,11 +336,9 @@ async def test_config_center_plugins_community_detail_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
-        # Walk down to the lone community plugin (acme).
-        pane.action_next_option()
-        pane.action_next_option()
-        pane.action_next_option()
-        await page.wait_for(lambda _s: pane._detail_name == "acme")
+        _highlight_row(pane, "plugin:acme")
+        pane._render_detail_now(force=True)
+        await page.wait_for(lambda _s: pane._detail_key == "plugin:acme")
         await _wait_for_plugins_detail(page, pane)
 
         ace_png_visual.assert_page_png(
@@ -380,7 +385,9 @@ async def test_config_center_plugins_long_description_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
-        await page.wait_for(lambda _s: pane._detail_name == "megasync")
+        _highlight_row(pane, "plugin:megasync")
+        pane._render_detail_now(force=True)
+        await page.wait_for(lambda _s: pane._detail_key == "plugin:megasync")
         await _wait_for_plugins_detail(page, pane)
 
         ace_png_visual.assert_page_png(
@@ -407,7 +414,7 @@ async def test_config_center_plugins_offline_png_snapshot(
         _, pane = await _open_plugins_modal(page)
         pane.action_toggle_offline()
         await page.wait_for(lambda _s: pane._offline and not pane._loading)
-        await page.wait_for(lambda _s: pane._detail_name == "github")
+        await page.wait_for(lambda _s: pane._detail_key == "plugin:github")
         await _wait_for_plugins_detail(page, pane)
 
         ace_png_visual.assert_page_png(
@@ -435,9 +442,9 @@ async def test_config_center_plugins_verbose_png_snapshot(
         pane.action_toggle_verbose()
         await page.wait_for(
             lambda _s: any(
-                "★" in pane._row_text(entry).plain
-                for _, _, entries in pane._grouped
-                for entry in entries
+                "★" in pane._row_text(row).plain
+                for _, _, rows in pane._grouped
+                for row in rows
             )
         )
         await _wait_for_plugins_detail(page, pane)

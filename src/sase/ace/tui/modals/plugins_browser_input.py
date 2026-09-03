@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 class PluginsFilterInput(Input):
     """Filter input with pane-local escape handling.
 
-    Brackets cycle the pane-local sub-tabs even while the filter owns focus;
+    Brackets cycle the pane-local scopes even while the filter owns focus;
     ``escape`` returns focus to the list without leaving a stale filter applied.
     The Admin Center's priority ``Tab`` / ``Shift+Tab`` bindings handle main-tab
     navigation.
@@ -32,9 +32,9 @@ class PluginsFilterInput(Input):
             event.stop()
             event.prevent_default()
             if event.key == "left_square_bracket":
-                pane.action_cycle_subtab_reverse()
+                pane.action_cycle_scope_reverse()
             else:
-                pane.action_cycle_subtab()
+                pane.action_cycle_scope()
 
     def _pane(self) -> PluginsBrowserPane | None:
         from .plugins_browser_pane import PluginsBrowserPane

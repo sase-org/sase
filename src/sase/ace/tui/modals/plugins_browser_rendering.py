@@ -16,11 +16,11 @@ from sase.ace.tui.util.selection import (
     ProgrammaticSelectionGuard,
     restore_selection_by_identity,
 )
+from sase.agent_clis.models import AgentCliStatus
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.render import build_community_warning_panel, build_detail_panel
 from sase.plugins.render_common import (
     _AVAILABLE_GLYPH,
-    _COMMUNITY_STYLE,
     _INSTALLED_GLYPH,
     _UPDATE_GLYPH,
     build_incoming_commits_renderable,
@@ -31,16 +31,11 @@ from sase.uv_tool.versions import CorePackageVersion, CoreVersions
 
 from .pane_entry_jump import apply_jump_hint_prefix
 from .plugins_browser_constants import (
-    _BUILTIN_GROUP,
-    _COMMUNITY_GROUP,
     _DETAIL_PLACEHOLDER,
     _HEADER_PREFIX,
-    _ITEM_PREFIX,
+    _ROW_PREFIX,
 )
-from .plugins_browser_rows import dev_state_label, plugin_version_label
-
-if TYPE_CHECKING:
-    from .plugins_browser_rows import UpdateRow
+from .plugins_browser_rows import UpdateRow, UpdateScope, dev_state_label, select_rows
 
 
 class PluginsBrowserRenderingMixin:
@@ -51,27 +46,29 @@ class PluginsBrowserRenderingMixin:
         _core_incoming_commits: dict[str, IncomingCommits]
         _core_versions: CoreVersions
         _detail_debouncer: DetailPanelDebouncer | None
-        _detail_name: str | None
-        _error: str | None
+        _detail_key: str | None
         _filter_text: str
-        _grouped: list[tuple[str, str, list[PluginCatalogEntry]]]
+        _grouped: list[tuple[str, str, list[UpdateRow]]]
         _incoming_commits_enabled: bool
         _install_mode: str | None
         _loading: bool
+        _marked_agent_clis: set[str]
         _marked_install: set[str]
         _now: float
         _offline: bool
-        _restore_name: str | None
+        _restore_key: str | None
+        _row_logical_row: dict[str, int]
+        _row_option_index: dict[str, int]
+        _rows: tuple[UpdateRow, ...]
+        _rows_by_key: dict[str, UpdateRow]
+        _scope: UpdateScope
         _session_state: Any
-        _plugin_selection_guard: ProgrammaticSelectionGuard
+        _selection_guard: ProgrammaticSelectionGuard
         _uv_tool: object | None
         _verbose: bool
         _dev_root: str | None
-        _plugin_haystacks: dict[str, str]
-        _plugin_option_index: dict[str, int]
-        _plugin_logical_row: dict[str, int]
-        _plugin_entry_by_name: dict[str, PluginCatalogEntry]
-        _rows_by_key: dict[str, UpdateRow]
+
+        def _agent_cli_detail_panel(self, status: AgentCliStatus) -> Panel: ...
 
         def _detail_widget(self) -> Static | None: ...
 
@@ -91,19 +88,15 @@ class PluginsBrowserRenderingMixin:
 
         def _hints(self) -> str: ...
 
-        def _status_message(self) -> str: ...
+        def _prune_agent_cli_marks(self) -> None: ...
 
-        def _summary_text(self) -> Text: ...
+        def _refresh_scope_strip(self) -> None: ...
 
-        def _can_update_sase(self) -> bool: ...
+        def _render_agent_cli_history(self, *, force: bool = False) -> None: ...
 
-        def _can_switch_mode(self) -> bool: ...
-
-        def _sync_current_banner(self) -> None: ...
+        def _sync_header(self) -> None: ...
 
         def _sync_state_visibility(self) -> None: ...
-
-        def _render_agent_clis(self) -> None: ...
 
         def _update_static(self, selector: str, content: RenderableType) -> None: ...
 
@@ -117,228 +110,159 @@ class PluginsBrowserRenderingMixin:
         self.reset_jump_state()
         self._rebuild_groups()
         self._prune_stale_marked_install()
-        self._update_static("#sase-core-versions", self._core_versions_panel())
-        self._update_static("#plugins-summary", self._summary_text())
-        self._update_static("#plugins-hints", self._hints())
-        self._sync_current_banner()
+        self._prune_agent_cli_marks()
+        self._refresh_scope_strip()
+        self._sync_header()
+        self._update_static("#updates-hints", self._hints())
         self._rebuild_options()
         self._sync_state_visibility()
-        self._render_agent_clis()
-        # A fresh load may have changed the highlighted plugin's data (e.g. a
-        # new latest version), so force the detail to repaint immediately.
         self._render_detail_now(force=True)
 
     def _rebuild_groups(self) -> None:
-        self._grouped = []
-        catalog = self._catalog
-        if catalog is None:
-            return
-        needle = self._filter_text.strip().casefold()
-        builtin = [e for e in catalog.builtin_entries if self._matches(e, needle)]
-        community = [e for e in catalog.community_entries if self._matches(e, needle)]
-        if builtin:
-            self._grouped.append((_BUILTIN_GROUP, "bold dim", builtin))
-        if community:
-            self._grouped.append(
-                (_COMMUNITY_GROUP, f"bold {_COMMUNITY_STYLE}", community)
-            )
-
-    def _matches(self, entry: PluginCatalogEntry, needle: str) -> bool:
-        if not needle:
-            return True
-        haystack = self._plugin_haystacks.get(entry.name)
-        if haystack is None:
-            haystack = self._plugin_haystack(entry)
-        return needle in haystack
-
-    def _refresh_plugin_haystacks(self) -> None:
-        """Rebuild the name-keyed filter-haystack cache for the live catalog.
-
-        Called once per catalog load rather than per filter keystroke, so
-        `_matches` never rejoins an entry's fields while the user types.
-        """
-        catalog = self._catalog
-        self._plugin_haystacks = (
-            {entry.name: self._plugin_haystack(entry) for entry in catalog.entries}
-            if catalog is not None
-            else {}
+        self._grouped = select_rows(
+            self._rows,
+            scope=self._scope,
+            needle=self._filter_text.strip().casefold(),
         )
 
-    @staticmethod
-    def _plugin_haystack(entry: PluginCatalogEntry) -> str:
-        return "\n".join(
-            part
-            for part in (
-                entry.name,
-                entry.repo,
-                entry.owner,
-                entry.full_name,
-                PluginsBrowserRenderingMixin._plugin_display_label(entry),
-                entry.description,
-                *entry.topics,
-            )
-            if part
-        ).casefold()
-
-    def _rebuild_options(self) -> None:
+    def _rebuild_options(self, *, reuse_options: bool = False) -> None:
         option_list = self._option_list()
         if option_list is None:
             return
-        preferred = self._restore_name or self._session_state.plugins.identity
-        self._restore_name = None
-        entries = self._flat_plugin_entries()
-        selected_name: str | None = None
-        self._plugin_selection_guard.clear()
-        option_list.clear_options()
-        options = self._create_options()
-        option_list.add_options(options)
-        self._rebuild_plugin_identity_maps(options, entries)
-        if entries:
-            row = restore_selection_by_identity(
-                entries,
-                prior_identity=preferred,
-                prior_visual_row=self._session_state.plugins.row,
-                identity_fn=lambda entry: entry.name,
-            )
-            selected_name = entries[row].name
-            option_index = self._option_index_for_plugin(selected_name)
-            if option_index is not None:
-                self._plugin_selection_guard.prepare(selected_name, row)
-                option_list.highlighted = option_index
+        preferred = self._restore_key or self._session_state.rows.identity
+        self._restore_key = None
+        rows = self._flat_rows()
+        self._selection_guard.clear()
+        reuse: dict[str, Option] = {}
+        if reuse_options:
+            reuse = {
+                str(opt.id): opt for opt in option_list.options if opt.id is not None
+            }
+        options = self._create_options(reuse)
+        option_list.set_options(options)
+        self._rebuild_row_identity_maps(options, rows)
+        selected_key: str | None = None
+        if rows:
+            if preferred is None and self._session_state.rows.row is None:
+                row_index = next(
+                    (i for i, row in enumerate(rows) if row.update_available), 0
+                )
             else:
-                selected_name = entries[0].name
-                option_index = self._option_index_for_plugin(selected_name)
-                if option_index is not None:
-                    self._plugin_selection_guard.prepare(selected_name, 0)
-                    option_list.highlighted = option_index
+                row_index = restore_selection_by_identity(
+                    rows,
+                    prior_identity=preferred,
+                    prior_visual_row=self._session_state.rows.row,
+                    identity_fn=lambda row: row.key,
+                )
+            selected_key = rows[row_index].key
+            option_index = self._row_option_index.get(selected_key)
+            if option_index is not None:
+                self._selection_guard.prepare(selected_key, row_index)
+                option_list.highlighted = option_index
         else:
             option_list.highlighted = None
-        self._record_plugin_bookmark(selected_name)
-        # Hints gate actions on the selected plugin, so refresh them from the
-        # resolved highlight instead of relying on OptionHighlighted's queued
-        # programmatic echo to do it later.
-        self._update_static("#plugins-hints", self._hints())
+        self._record_bookmark(selected_key)
+        self._update_static("#updates-hints", self._hints())
 
-    def _flat_plugin_entries(self) -> list[PluginCatalogEntry]:
-        return [entry for _, _, entries in self._grouped for entry in entries]
+    def _flat_rows(self) -> list[UpdateRow]:
+        return [row for _, _, rows in self._grouped for row in rows]
 
-    def _rebuild_plugin_identity_maps(
-        self, options: list[Option], entries: list[PluginCatalogEntry]
+    def _rebuild_row_identity_maps(
+        self, options: list[Option], rows: list[UpdateRow]
     ) -> None:
-        """(Re)build the name-keyed lookup maps for the just-rebuilt rows.
-
-        Built once here, right after the options they describe, instead of
-        scanned per lookup — highlight moves, mark toggles, and detail
-        lookups stay O(1) as the catalog grows. Any row-set change goes
-        through `_rebuild_options`, so rebuilding here keeps the maps valid
-        everywhere else without a separate invalidation step.
-        """
-        self._plugin_option_index = {
-            str(opt.id).removeprefix(_ITEM_PREFIX): index
+        """(Re)build the key-keyed lookup maps for the just-rebuilt rows."""
+        self._row_option_index = {
+            str(opt.id).removeprefix(_ROW_PREFIX): index
             for index, opt in enumerate(options)
             if opt.id and not str(opt.id).startswith(_HEADER_PREFIX)
         }
-        self._plugin_logical_row = {
-            entry.name: row for row, entry in enumerate(entries)
-        }
-        self._plugin_entry_by_name = {entry.name: entry for entry in entries}
+        self._row_logical_row = {row.key: index for index, row in enumerate(rows)}
 
-    def _option_index_for_plugin(self, name: str) -> int | None:
-        return self._plugin_option_index.get(name)
-
-    def _logical_row_for_plugin(self, name: str) -> int | None:
-        return self._plugin_logical_row.get(name)
-
-    def _record_plugin_bookmark(self, name: str | None) -> None:
-        if name is None:
-            if self._catalog is not None and not self._filter_text.strip():
-                self._session_state.plugins.record(None, None)
+    def _record_bookmark(self, key: str | None) -> None:
+        if key is None:
+            if self._rows and not self._filter_text.strip():
+                self._session_state.rows.record(None, None)
             return
-        self._session_state.plugins.record(name, self._logical_row_for_plugin(name))
+        self._session_state.rows.record(key, self._row_logical_row.get(key))
 
-    def _create_options(self) -> list[Option]:
-        """Build OptionList items: disabled section headers + plugin rows."""
+    def _create_options(self, reuse: dict[str, Option] | None = None) -> list[Option]:
+        """Build OptionList items: disabled section headers + inventory rows.
+
+        *reuse* maps option ids from the live list. Filter and scope changes
+        keep those Option objects (and their cached visuals) so typing does
+        not re-visualize every surviving row.
+        """
+        by_id = reuse or {}
         options: list[Option] = []
-        row = 0
-        for group, style, entries in self._grouped:
-            header = Text(f"── {group} ──", style=style)
-            options.append(Option(header, id=f"{_HEADER_PREFIX}{group}", disabled=True))
-            for entry in entries:
-                options.append(
-                    Option(
-                        self._plugin_row_label(row, entry),
-                        id=f"{_ITEM_PREFIX}{entry.name}",
-                    )
+        row_index = 0
+        for header_text, style, rows in self._grouped:
+            section_key = rows[0].section
+            header_id = f"{_HEADER_PREFIX}{section_key}"
+            header = by_id.get(header_id)
+            if header is None:
+                header = Option(
+                    Text(header_text, style=style),
+                    id=header_id,
+                    disabled=True,
                 )
-                row += 1
+            options.append(header)
+            for row in rows:
+                option_id = f"{_ROW_PREFIX}{row.key}"
+                existing = by_id.get(option_id)
+                if existing is None:
+                    existing = Option(self._row_label(row_index, row), id=option_id)
+                options.append(existing)
+                row_index += 1
         return options
 
-    def _plugin_row_label(self, row: int, entry: PluginCatalogEntry) -> Text:
-        """The row text for *entry*, jump-hint decorated while hints are up.
+    def _row_label(self, row_index: int, row: UpdateRow) -> Text:
+        """The row text for *row*, jump-hint decorated while hints are up.
 
-        *row* is the entry's position in the flat item list, which is the
-        logical index space the shared jump mixin allocates hints over.
+        *row_index* is the entry's position in the flat item list, which is
+        the logical index space the shared jump mixin allocates hints over.
         """
-        label = self._row_text(entry)
-        hint = self.jump_hint_for(row)
+        label = self._row_text(row)
+        hint = self.jump_hint_for(row_index)
         if hint is None:
             return label
         return apply_jump_hint_prefix(label, hint)
 
-    def _row_text(self, entry: PluginCatalogEntry) -> Text:
-        """A single list row: mark + status glyph + name + version + update."""
+    def _row_text(self, row: UpdateRow) -> Text:
+        """A single list row: mark + status glyph + name + version + extras."""
         text = Text()
-        if entry.name in self._marked_install:
+        marked = False
+        if row.kind == "plugin":
+            marked = row.key.removeprefix("plugin:") in self._marked_install
+        elif row.kind == "agent-cli":
+            marked = row.key.removeprefix("cli:") in self._marked_agent_clis
+        if marked:
             text.append("[✓] ", style="bold #00D700")
         else:
             text.append("    ")
-        if entry.installed.installed:
+        if row.installed:
             text.append(_INSTALLED_GLYPH, style="green")
         else:
             text.append(_AVAILABLE_GLYPH, style="dim")
         text.append(" ")
-        text.append(self._plugin_display_label(entry), style="bold")
-        version = plugin_version_label(entry)
-        if version:
+        text.append(row.label, style=f"bold {row.accent}")
+        if row.version_label:
             text.append("  ")
-            text.append(version, style="dim")
-        if entry.update_available:
+            text.append(row.version_label, style="dim")
+        if row.kind == "agent-cli":
+            text.append("  ")
+            text.append(f"[{row.source.replace('_', ' ')}]", style="bold dim")
+        if row.update_available:
             text.append("  ")
             text.append(_UPDATE_GLYPH, style="bold cyan")
-        if self._verbose:
-            text.append("  ")
-            text.append(f"★{entry.stars}", style="dim")
-            if entry.updated_at:
+        if self._verbose and row.kind == "plugin":
+            entry = row.payload
+            if isinstance(entry, PluginCatalogEntry):
                 text.append("  ")
-                text.append(entry.updated_at, style="dim")
+                text.append(f"★{entry.stars}", style="dim")
+                if entry.updated_at:
+                    text.append("  ")
+                    text.append(entry.updated_at, style="dim")
         return text
-
-    @staticmethod
-    def _plugin_display_label(entry: PluginCatalogEntry) -> str:
-        if entry.is_builtin:
-            return entry.name
-        if entry.full_name:
-            return entry.full_name
-        if entry.owner and entry.repo:
-            return f"{entry.owner}/{entry.repo}"
-        if entry.owner and entry.name:
-            return f"{entry.owner}/{entry.name}"
-        return entry.name or entry.repo or entry.owner or "unknown plugin"
-
-    def _skip_to_first_item(self, option_list: OptionList) -> None:
-        """Highlight the first non-header option, if any."""
-        for index in range(option_list.option_count):
-            if self._is_item(option_list, index):
-                option_list.highlighted = index
-                return
-
-    def _highlight_named(self, option_list: OptionList, name: str) -> bool:
-        """Highlight the row for *name* if it is present; return success."""
-        index = self._plugin_option_index.get(name)
-        if index is None:
-            return False
-        option_list.highlighted = index
-        return True
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
@@ -348,37 +272,37 @@ class PluginsBrowserRenderingMixin:
         The cursor highlight is already instant (the ``OptionList`` paints it
         itself); only the comparatively expensive detail rebuild is funneled
         through the debouncer so a held j/k collapses to one final paint. The
-        hints line (which gates ``i install`` on the highlighted row) is cheap,
+        hints line (which gates row actions on the highlighted row) is cheap,
         so it refreshes immediately.
         """
-        if event.option_list.id == "agent-clis-list":
-            self._on_agent_cli_highlighted(event)  # type: ignore[attr-defined]
+        if event.option_list.id != "updates-list":
             return
-        if event.option_list.id == "plugins-list":
-            if event.option is None or event.option.id is None:
-                return
-            identity = str(event.option.id).removeprefix(_ITEM_PREFIX)
-            current_identity = self._highlighted_name()
-            current_row = (
-                self._logical_row_for_plugin(current_identity)
-                if current_identity is not None
-                else None
+        if event.option is None or event.option.id is None:
+            return
+        option_id = str(event.option.id)
+        if option_id.startswith(_HEADER_PREFIX):
+            return
+        key = option_id.removeprefix(_ROW_PREFIX)
+        current = self._highlighted_row()
+        current_key = current.key if current is not None else None
+        current_row = (
+            self._row_logical_row.get(current_key) if current_key is not None else None
+        )
+        if (
+            current_key is None
+            or current_row is None
+            or key != current_key
+            or self._selection_guard.should_ignore(
+                key,
+                current_row,
+                current_identity=current_key,
+                current_row=current_row,
             )
-            if (
-                current_identity is None
-                or current_row is None
-                or identity != current_identity
-                or self._plugin_selection_guard.should_ignore(
-                    identity,
-                    current_row,
-                    current_identity=current_identity,
-                    current_row=current_row,
-                )
-            ):
-                return
-            self._record_plugin_bookmark(current_identity)
-            self._update_static("#plugins-hints", self._hints())
-            self._schedule_detail()
+        ):
+            return
+        self._record_bookmark(current_key)
+        self._update_static("#updates-hints", self._hints())
+        self._schedule_detail()
 
     def _schedule_detail(self) -> None:
         debouncer = self._detail_debouncer
@@ -388,30 +312,49 @@ class PluginsBrowserRenderingMixin:
         debouncer.schedule(self._render_detail_now)
 
     def _render_detail_now(self, *, force: bool = False) -> None:
-        """Paint the detail panel for the currently highlighted plugin.
+        """Paint the detail panel for the currently highlighted row.
 
         Re-reads the live highlight (so the latest selection wins after a
-        debounced burst) and skips redundant work when the same plugin is
+        debounced burst) and skips redundant work when the same row is
         already shown, unless *force* is set (used after a reload whose data
         may have changed under an unchanged selection).
         """
-        entry = self._current_entry()
-        name = entry.name if entry is not None else None
-        if not force and name == self._detail_name:
+        row = self._highlighted_row()
+        key = row.key if row is not None else None
+        if not force and key == self._detail_key:
             return
-        self._detail_name = name
-        self._update_detail(entry)
-
-    def _update_detail(self, entry: PluginCatalogEntry | None) -> None:
+        self._detail_key = key
         detail = self._detail_widget()
         if detail is None:
             return
-        if entry is None:
+        try:
+            history = self.query_one("#updates-history", Static)  # type: ignore[attr-defined]
+        except Exception:
+            history = None
+        if row is None:
             detail.update(_DETAIL_PLACEHOLDER)
+            if history is not None:
+                history.display = False
             return
-        self._ensure_plugin_incoming_commits(entry)
-        self._ensure_plugin_latest(entry)
-        detail.update(self._detail_renderable(entry))
+        if row.kind == "core" and isinstance(row.payload, CorePackageVersion):
+            detail.update(self._core_detail_panel(row.payload))
+            if history is not None:
+                history.display = False
+            return
+        if row.kind == "plugin" and isinstance(row.payload, PluginCatalogEntry):
+            entry = row.payload
+            self._ensure_plugin_incoming_commits(entry)
+            self._ensure_plugin_latest(entry)
+            detail.update(self._detail_renderable(entry))
+            if history is not None:
+                history.display = False
+            return
+        if row.kind == "agent-cli":
+            if isinstance(row.payload, AgentCliStatus):
+                detail.update(self._agent_cli_detail_panel(row.payload))
+            if history is not None:
+                history.display = True
+                self._render_agent_cli_history(force=force)
 
     def _detail_renderable(self, entry: PluginCatalogEntry) -> RenderableType:
         """The ``show``-equivalent detail: community warning (if any) + panel."""
@@ -428,18 +371,28 @@ class PluginsBrowserRenderingMixin:
         )
         return Group(*parts)
 
-    def _core_versions_panel(self) -> Panel:
-        """Compact installed/latest display for SASE's own packages."""
-        body: list[RenderableType] = [self._core_versions_table()]
+    def _core_detail_panel(self, package: CorePackageVersion) -> Panel:
+        """Per-package installed/latest display for one SASE core package."""
+        table = Table.grid(padding=(0, 2))
+        table.add_column(no_wrap=True)
+        table.add_column(style="bold", no_wrap=True)
+        table.add_column(no_wrap=True)
+        table.add_column()
+        table.add_row(
+            self._core_glyph(package),
+            Text(package.name),
+            self._core_version_cell(package),
+            self._core_note_cell(package),
+        )
+        body: list[RenderableType] = [table]
         mode_line = self._mode_line()
         if mode_line is not None:
             body.append(Text(""))
             body.append(mode_line)
-        incoming_sections = self._core_incoming_sections()
-        if incoming_sections:
+        incoming = self._core_incoming_section(package)
+        if incoming is not None:
             body.append(Text(""))
-            body.extend(incoming_sections)
-        body.append(Text(""))
+            body.append(incoming)
         if isinstance(self._uv_tool, NotUvToolInstall):
             warning = Text()
             warning.append("! ", style="yellow")
@@ -448,15 +401,7 @@ class PluginsBrowserRenderingMixin:
                 style="yellow",
             )
             body.append(warning)
-        else:
-            cta = Text()
-            if self._can_update_sase():
-                cta.append("u", style="bold #AF87FF")
-                cta.append("  run `sase update`", style="cyan")
-                cta.append("  ·  upgrades sase core + all plugins", style="dim")
-            if cta.plain:
-                body.append(cta)
-        return Panel(Group(*body), title="SASE Core", border_style="#AF87FF")
+        return Panel(Group(*body), title=package.name, border_style="#AF87FF")
 
     def _mode_line(self) -> Text | None:
         if isinstance(self._uv_tool, NotUvToolInstall):
@@ -476,40 +421,18 @@ class PluginsBrowserRenderingMixin:
             line.append(f" · {self._dev_root}", style="dim")
         return line
 
-    def _core_incoming_sections(self) -> list[RenderableType]:
+    def _core_incoming_section(
+        self, package: CorePackageVersion
+    ) -> RenderableType | None:
         if not self._incoming_commits_enabled:
-            return []
-        sections: list[RenderableType] = []
-        for package in self._core_versions.packages:
-            if not package.update_available:
-                continue
-            incoming = self._core_incoming_commits.get(package.name)
-            loading = self._loading and incoming is None
-            if incoming is None and not loading:
-                continue
-            label = Text(package.name, style="bold")
-            sections.append(
-                Group(
-                    label,
-                    build_incoming_commits_renderable(incoming, loading=loading),
-                )
-            )
-        return sections
-
-    def _core_versions_table(self) -> Table:
-        table = Table(show_header=False, box=None, pad_edge=False, padding=(0, 2))
-        table.add_column(no_wrap=True)  # glyph
-        table.add_column(style="bold", no_wrap=True)  # name
-        table.add_column(no_wrap=True)  # installed/latest
-        table.add_column()  # note
-        for package in self._core_versions.packages:
-            table.add_row(
-                self._core_glyph(package),
-                Text(package.name),
-                self._core_version_cell(package),
-                self._core_note_cell(package),
-            )
-        return table
+            return None
+        if not package.update_available:
+            return None
+        incoming = self._core_incoming_commits.get(package.name)
+        loading = self._loading and incoming is None
+        if incoming is None and not loading:
+            return None
+        return build_incoming_commits_renderable(incoming, loading=loading)
 
     @staticmethod
     def _core_glyph(package: CorePackageVersion) -> Text:
@@ -554,6 +477,17 @@ class PluginsBrowserRenderingMixin:
         return Text("latest unknown", style="dim")
 
     def _current_entry(self) -> PluginCatalogEntry | None:
+        row = self._highlighted_row()
+        if row is None or row.kind != "plugin":
+            return None
+        payload = row.payload
+        return payload if isinstance(payload, PluginCatalogEntry) else None
+
+    def _highlighted_name(self) -> str | None:
+        entry = self._current_entry()
+        return entry.name if entry is not None else None
+
+    def _highlighted_row(self) -> UpdateRow | None:
         option_list = self._option_list()
         if option_list is None or option_list.highlighted is None:
             return None
@@ -561,29 +495,10 @@ class PluginsBrowserRenderingMixin:
             opt = option_list.get_option_at_index(option_list.highlighted)
         except Exception:
             return None
-        if not opt.id or str(opt.id).startswith(_HEADER_PREFIX):
+        option_id = opt.id
+        if not option_id or str(option_id).startswith(_HEADER_PREFIX):
             return None
-        return self._entry_by_name(str(opt.id).removeprefix(_ITEM_PREFIX))
-
-    def _entry_by_name(self, name: str) -> PluginCatalogEntry | None:
-        return self._plugin_entry_by_name.get(name)
-
-    def _highlighted_name(self) -> str | None:
-        entry = self._current_entry()
-        return entry.name if entry is not None else None
-
-    def _highlighted_plugin_row(self) -> UpdateRow | None:
-        """The row for ``#plugins-list``'s highlight, independent of sub-tab.
-
-        A reload's hint repaint runs regardless of the active sub-tab (the
-        plugin list keeps its own highlight even while hidden behind the
-        Core/Agent CLIs ``ContentSwitcher``), so this must not gate on
-        ``_active_subtab`` the way ``_highlighted_row`` does.
-        """
-        entry = self._current_entry()
-        if entry is None:
-            return None
-        return self._rows_by_key.get(f"plugin:{entry.name}")
+        return self._rows_by_key.get(str(option_id).removeprefix(_ROW_PREFIX))
 
     def _can_install_entry(self, entry: PluginCatalogEntry | None) -> bool:
         """Whether *entry* can be installed or marked for install now."""
@@ -594,11 +509,12 @@ class PluginsBrowserRenderingMixin:
     def _refresh_install_mark_row(self, name: str) -> bool:
         """Patch one plugin row after its mark bit changes."""
         option_list = self._option_list()
-        entry = self._entry_by_name(name)
-        index = self._plugin_option_index.get(name)
-        if option_list is None or entry is None or index is None:
+        key = f"plugin:{name}"
+        row = self._rows_by_key.get(key)
+        index = self._row_option_index.get(key)
+        if option_list is None or row is None or index is None:
             return False
-        option_list.replace_option_prompt_at_index(index, self._row_text(entry))
+        option_list.replace_option_prompt_at_index(index, self._row_text(row))
         return True
 
     def _advance_install_mark_selection(self) -> None:
@@ -612,8 +528,9 @@ class PluginsBrowserRenderingMixin:
             if not self._is_item(option_list, index):
                 continue
             option = option_list.get_option_at_index(index)
-            entry = self._entry_by_name(str(option.id).removeprefix(_ITEM_PREFIX))
-            if self._can_install_entry(entry):
+            key = str(option.id).removeprefix(_ROW_PREFIX)
+            row = self._rows_by_key.get(key)
+            if row is not None and "install" in row.capabilities:
                 option_list.highlighted = index
                 return
 
@@ -625,16 +542,15 @@ class PluginsBrowserRenderingMixin:
         self._marked_install.clear()
         for name in names:
             self._refresh_install_mark_row(name)
-        self._update_static("#plugins-hints", self._hints())
+        self._update_static("#updates-hints", self._hints())
 
     def _prune_stale_marked_install(self) -> None:
         """Drop marks for missing, installed, or currently un-installable rows."""
         if not self._marked_install:
             return
         live = {
-            entry.name
-            for _, _, entries in self._grouped
-            for entry in entries
-            if self._can_install_entry(entry)
+            row.key.removeprefix("plugin:")
+            for row in self._rows
+            if "install" in row.capabilities
         }
         self._marked_install &= live

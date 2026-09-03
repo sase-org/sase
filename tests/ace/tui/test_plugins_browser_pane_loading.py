@@ -47,10 +47,10 @@ async def test_plugins_pane_loads_and_groups(
         github_row = next(label for label in labels if "github" in label)
         assert "sase-org/sase-github" not in github_row
         # The status placeholder is hidden and the list is visible.
-        assert pane.query_one("#plugins-list").display is True
-        assert pane.query_one("#plugins-status").display is False
+        assert pane.query_one("#updates-list").display is True
+        assert pane.query_one("#updates-status").display is False
         # A non-header row is auto-highlighted.
-        option_list = pane.query_one("#plugins-list", OptionList)
+        option_list = pane.query_one("#updates-list", OptionList)
         assert option_list.highlighted is not None
         highlighted = option_list.get_option_at_index(option_list.highlighted)
         assert highlighted.id is not None
@@ -63,18 +63,18 @@ async def test_plugins_session_restores_plugin_by_identity(
     _patch_other_panes(monkeypatch)
     _patch_catalog(monkeypatch, catalog=_catalog())
     state = AdminCenterSessionState()
-    state.updates.active_subtab = "plugins"
-    state.updates.plugins.record("telegram", 0)
+    state.updates.scope = "all"
+    state.updates.rows.record("plugin:telegram", 0)
 
     async with AcePage() as page:
-        pane = await _open_plugins_pane(page, session_state=state)
-        option_list = pane.query_one("#plugins-list", OptionList)
+        pane = await _open_plugins_pane(page, session_state=state, scope="all")
+        option_list = pane.query_one("#updates-list", OptionList)
         assert option_list.highlighted is not None
         highlighted = option_list.get_option_at_index(option_list.highlighted)
 
-        assert highlighted.id == "plugin__telegram"
-        assert state.updates.plugins.identity == "telegram"
-        assert state.updates.active_subtab == "plugins"
+        assert highlighted.id == "updates-row__plugin:telegram"
+        assert state.updates.rows.identity == "plugin:telegram"
+        assert state.updates.scope == "all"
 
 
 async def test_plugins_pane_summary_counts(
@@ -140,16 +140,16 @@ async def test_updates_pane_core_panel_shows_versions_and_update_status(
     _patch_catalog(monkeypatch, catalog=_catalog())
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        pane._core_versions = _core_versions(sase_latest="0.6.0")
-        rendered = pane._core_versions_panel()
+        versions = _core_versions(sase_latest="0.6.0")
+        pane._core_versions = versions
+        rendered = pane._core_detail_panel(versions.packages[0])
 
         text = str(_render(rendered))
-        assert "SASE Core" in text
         assert "sase" in text
         assert "v0.5.0" in text
         assert "v0.6.0" in text
         assert "update available" in text
-        assert "u  run `sase update`" in text
+        assert "run `sase update`" not in text
 
 
 async def test_updates_pane_core_panel_shows_incoming_commits(
@@ -174,7 +174,8 @@ async def test_updates_pane_core_panel_shows_incoming_commits(
     )
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        text = str(_render(pane._core_versions_panel()))
+        package = next(p for p in pane._core_versions.packages if p.name == "sase")
+        text = str(_render(pane._core_detail_panel(package)))
 
         assert "sase" in text
         assert "↑ 2 incoming commits" in text
@@ -189,7 +190,7 @@ async def test_updates_pane_core_panel_drops_cta_when_not_uv_tool(
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
         pane._uv_tool = _not_uv_tool()
-        text = str(_render(pane._core_versions_panel()))
+        text = str(_render(pane._core_detail_panel(pane._core_versions.packages[0])))
 
         assert "`sase update` unavailable" in text
         assert "run `sase update`" not in text
@@ -224,7 +225,8 @@ async def test_plugins_pane_filter_narrows_list(
         await page.press("g", "i", "t", "h", "u", "b")
         await page.wait_for(
             lambda _s: (
-                [e.name for _, _, e_list in pane._grouped for e in e_list] == ["github"]
+                [row.key for _, _, rows in pane._grouped for row in rows]
+                == ["plugin:github"]
             )
         )
         labels = _option_labels(pane)
@@ -234,7 +236,9 @@ async def test_plugins_pane_filter_narrows_list(
         pane.cancel_input()
         await page.wait_for(
             lambda _s: any(
-                e.name == "telegram" for _, _, lst in pane._grouped for e in lst
+                row.key == "plugin:telegram"
+                for _, _, rows in pane._grouped
+                for row in rows
             )
         )
 
@@ -251,7 +255,8 @@ async def test_plugins_pane_filter_matches_visible_community_owner(
         await page.press("c", "o", "r", "p")
         await page.wait_for(
             lambda _s: (
-                [e.name for _, _, e_list in pane._grouped for e in e_list] == ["acme"]
+                [row.key for _, _, rows in pane._grouped for row in rows]
+                == ["plugin:acme"]
             )
         )
         labels = _option_labels(pane)
@@ -276,11 +281,12 @@ async def test_plugins_pane_community_label_fallback_keeps_short_identity(
         labels = _option_labels(pane)
         assert any("acme-corp/sase-acme" in label for label in labels)
 
-        option_list = pane.query_one("#plugins-list", OptionList)
-        assert option_list.highlighted is not None
-        highlighted = option_list.get_option_at_index(option_list.highlighted)
-        assert highlighted.id == "plugin__acme"
-        assert pane._highlighted_name() == "acme"
+        option_list = pane.query_one("#updates-list", OptionList)
+        acme_id = "updates-row__plugin:acme"
+        assert any(
+            option_list.get_option_at_index(index).id == acme_id
+            for index in range(option_list.option_count)
+        )
 
 
 async def test_updates_filter_forwards_brackets_and_tab_switches_main_tab(
@@ -293,15 +299,14 @@ async def test_updates_filter_forwards_brackets_and_tab_switches_main_tab(
         modal = page.app.screen
         assert isinstance(modal, ConfigCenterModal)
         pane.action_focus_filter()
-        filter_input = pane.query_one("#plugins-filter-input", Input)
+        filter_input = pane.query_one("#updates-filter-input", Input)
         await page.wait_for(lambda _s: filter_input.has_focus)
 
         await page.press("left_square_bracket")
-        await page.wait_for(lambda _s: pane._active_subtab == "core")
+        await page.wait_for(lambda _s: pane._scope == "installed")
         assert filter_input.value == ""
         assert modal._active_tab == "updates"
 
-        pane._switch_to_subtab("plugins")
         await page.press("tab")
         await page.wait_for(lambda _s: modal._active_tab == "config")
         assert filter_input.value == ""
@@ -319,8 +324,8 @@ async def test_plugins_pane_filter_no_matches(
         await page.pause()
         await page.press("z", "z", "z", "z")
         await page.wait_for(lambda _s: not pane._grouped)
-        assert pane.query_one("#plugins-status").display is True
-        assert "No plugins match" in pane._status_message()
+        assert pane.query_one("#updates-status").display is True
+        assert "Nothing matches the current filter." in pane._status_message()
 
 
 async def test_plugins_pane_empty_catalog(
@@ -331,9 +336,16 @@ async def test_plugins_pane_empty_catalog(
     _patch_catalog(monkeypatch, catalog=empty)
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        assert pane.query_one("#plugins-status").display is True
-        assert pane.query_one("#plugins-list").display is False
-        assert "No SASE plugins found." in pane._status_message()
+        option_list = pane.query_one("#updates-list", OptionList)
+        assert option_list.display is True
+        ids = [
+            option_list.get_option_at_index(index).id
+            for index in range(option_list.option_count)
+        ]
+        assert any(str(option_id).startswith("updates-row__core:") for option_id in ids)
+        assert not any(
+            str(option_id).startswith("updates-row__plugin:") for option_id in ids
+        )
 
 
 async def test_plugins_pane_error_state(
@@ -344,7 +356,8 @@ async def test_plugins_pane_error_state(
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
         assert pane._error == "gh not found"
-        assert pane.query_one("#plugins-status").display is True
+        assert pane.query_one("#updates-status").display is True
+        assert pane.query_one("#updates-list").display is True
         assert "gh not found" in pane._status_message()
 
 

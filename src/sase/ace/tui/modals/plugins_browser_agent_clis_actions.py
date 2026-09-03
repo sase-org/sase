@@ -29,6 +29,7 @@ from .plugin_action_confirm_modal import (
     PluginActionConfirmResult,
     PluginActionVariant,
 )
+from .plugins_browser_constants import _ROW_PREFIX
 
 if TYPE_CHECKING:
     from rich.text import Text
@@ -38,14 +39,11 @@ if TYPE_CHECKING:
 
     from .plugins_browser_rows import UpdateRow
 
-_ITEM_PREFIX = "agent-cli__"
-
 
 class AgentCliBrowserActionsMixin:
     """Mark, plan, confirm, and execute agent-CLI updates."""
 
     if TYPE_CHECKING:
-        _active_subtab: str
         _agent_cli_error: str | None
         _agent_cli_plan_worker: Worker[Any] | None
         _agent_cli_results: dict[str, AgentCliUpdateResult]
@@ -54,23 +52,22 @@ class AgentCliBrowserActionsMixin:
         _marked_agent_clis: set[str]
         _marked_install: set[str]
         _offline: bool
+        _row_option_index: dict[str, int]
         _rows_by_key: dict[str, UpdateRow]
         app: App[Any]
         is_mounted: bool
 
         def action_toggle_install_mark(self) -> None: ...
 
-        def _agent_cli_by_name(self, name: str) -> AgentCliStatus | None: ...
-
-        def _agent_cli_hints(self) -> str: ...
-
-        def _agent_cli_option_list(self) -> OptionList | None: ...
-
-        def _agent_cli_row(self, status: AgentCliStatus) -> Text: ...
-
         def _clear_install_marks(self) -> None: ...
 
         def _current_agent_cli(self) -> AgentCliStatus | None: ...
+
+        def _highlighted_row(self) -> UpdateRow | None: ...
+
+        def _hints(self) -> str: ...
+
+        def _is_item(self, option_list: OptionList, index: int) -> bool: ...
 
         def _notify(
             self,
@@ -79,7 +76,11 @@ class AgentCliBrowserActionsMixin:
             severity: Literal["information", "warning", "error"] = "information",
         ) -> None: ...
 
-        def _render_agent_cli_detail(self, *, force: bool = False) -> None: ...
+        def _option_list(self) -> OptionList | None: ...
+
+        def _render_detail_now(self, *, force: bool = False) -> None: ...
+
+        def _row_text(self, row: UpdateRow) -> Text: ...
 
         def _start_load(self, *, force: bool) -> None: ...
 
@@ -88,10 +89,18 @@ class AgentCliBrowserActionsMixin:
     # -- mark handling -------------------------------------------------------
 
     def action_toggle_mark(self) -> None:
-        """Toggle the active Plugins or Agent CLIs mark."""
-        if self._active_subtab == "plugins":
+        """Toggle the install or agent-CLI mark for the highlighted row."""
+        row = self._highlighted_row()
+        if row is None or row.kind == "core":
+            self._notify(
+                "Select an installable plugin or an updatable agent CLI to mark.",
+                severity="warning",
+            )
+            return
+        if row.kind == "plugin":
             self.action_toggle_install_mark()
-        elif self._active_subtab == "agent-clis":
+            return
+        if row.kind == "agent-cli":
             self._toggle_agent_cli_mark()
 
     def _toggle_agent_cli_mark(self) -> None:
@@ -108,7 +117,7 @@ class AgentCliBrowserActionsMixin:
             self._marked_agent_clis.add(status.name)
         self._refresh_agent_cli_mark_row(status.name)
         self._advance_agent_cli_mark_selection()
-        self._update_static("#agent-clis-hints", self._agent_cli_hints())
+        self._update_static("#updates-hints", self._hints())
 
     def _can_mark_agent_cli(self, status: AgentCliStatus | None) -> bool:
         if status is None:
@@ -117,28 +126,27 @@ class AgentCliBrowserActionsMixin:
         return row is not None and "mark_update" in row.capabilities
 
     def _refresh_agent_cli_mark_row(self, name: str) -> None:
-        option_list = self._agent_cli_option_list()
-        status = self._agent_cli_by_name(name)
-        if option_list is None or status is None:
+        option_list = self._option_list()
+        key = f"cli:{name}"
+        row = self._rows_by_key.get(key)
+        index = self._row_option_index.get(key)
+        if option_list is None or row is None or index is None:
             return
-        target = f"{_ITEM_PREFIX}{name}"
-        for index in range(option_list.option_count):
-            if option_list.get_option_at_index(index).id == target:
-                option_list.replace_option_prompt_at_index(
-                    index, self._agent_cli_row(status)
-                )
-                return
+        option_list.replace_option_prompt_at_index(index, self._row_text(row))
 
     def _advance_agent_cli_mark_selection(self) -> None:
-        option_list = self._agent_cli_option_list()
+        option_list = self._option_list()
         if option_list is None or option_list.highlighted is None:
             return
         start = option_list.highlighted
         for offset in range(1, option_list.option_count + 1):
             index = (start + offset) % option_list.option_count
+            if not self._is_item(option_list, index):
+                continue
             option = option_list.get_option_at_index(index)
-            status = self._agent_cli_by_name(str(option.id).removeprefix(_ITEM_PREFIX))
-            if self._can_mark_agent_cli(status):
+            key = str(option.id).removeprefix(_ROW_PREFIX)
+            row = self._rows_by_key.get(key)
+            if row is not None and "mark_update" in row.capabilities:
                 option_list.highlighted = index
                 return
 
@@ -147,7 +155,7 @@ class AgentCliBrowserActionsMixin:
         self._marked_agent_clis.clear()
         for name in names:
             self._refresh_agent_cli_mark_row(name)
-        self._update_static("#agent-clis-hints", self._agent_cli_hints())
+        self._update_static("#updates-hints", self._hints())
 
     def _prune_agent_cli_marks(self) -> None:
         live = {
@@ -158,13 +166,13 @@ class AgentCliBrowserActionsMixin:
         self._marked_agent_clis &= live
 
     def action_clear_marks_or_close(self) -> None:
-        """Clear marks in the active sub-tab before closing the Admin Center."""
-        if self._active_subtab == "agent-clis" and self._marked_agent_clis:
+        """Clear agent-CLI marks, then install marks, then close."""
+        if self._marked_agent_clis:
             count = len(self._marked_agent_clis)
             self._clear_agent_cli_marks()
             self._notify(f"Cleared {count} agent CLI update mark(s).")
             return
-        if self._active_subtab == "plugins" and self._marked_install:
+        if self._marked_install:
             count = len(self._marked_install)
             self._clear_install_marks()
             self._notify(f"Cleared {count} install mark(s).")
@@ -203,9 +211,7 @@ class AgentCliBrowserActionsMixin:
         if self._loading or self._agent_cli_plan_worker is not None:
             return
         names = (
-            tuple(sorted(self._marked_agent_clis))
-            if self._active_subtab == "agent-clis" and self._marked_agent_clis
-            else None
+            tuple(sorted(self._marked_agent_clis)) if self._marked_agent_clis else None
         )
         all_clis = names is None
 
@@ -321,7 +327,7 @@ class AgentCliBrowserActionsMixin:
         for result in results:
             self._agent_cli_results[result.name] = result
         self._clear_agent_cli_marks()
-        self._render_agent_cli_detail(force=True)
+        self._render_detail_now(force=True)
         self._notify(
             completion.message,
             severity="information" if completion.success else "error",

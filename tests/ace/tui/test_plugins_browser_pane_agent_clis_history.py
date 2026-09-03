@@ -21,6 +21,7 @@ from sase.agent_clis.models import UpdateResultStatus, UpdateTrigger
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _agent_cli_statuses,
     _catalog,
+    _highlight_row,
     _open_plugins_pane,
     _patch_catalog,
     _patch_other_panes,
@@ -332,16 +333,18 @@ async def test_history_scope_toggle_repaints_only_history_and_is_gated(
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page, session_state=state)
+        _highlight_row(pane, "plugin:github")
         assert pane.check_action("toggle_history_scope", ()) is False
-        pane._switch_to_subtab("agent-clis")
+        _highlight_row(pane, "cli:claude")
+        pane._render_detail_now(force=True)
         assert pane.check_action("toggle_history_scope", ()) is True
-        detail_name = pane._agent_cli_detail_name
-        history = pane.query_one("#agent-clis-history", Static)
+        detail_key = pane._detail_key
+        history = pane.query_one("#updates-history", Static)
 
         pane.action_toggle_history_scope()
 
         assert state.updates.agent_cli_history_all is True
-        assert pane._agent_cli_detail_name == detail_name
+        assert pane._detail_key == detail_key
         assert "Update history · all agent CLIs" in _render(history.content)
-        pane._switch_to_subtab("core")
+        _highlight_row(pane, "core:sase")
         assert pane.check_action("toggle_history_scope", ()) is False

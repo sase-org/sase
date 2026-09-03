@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import pytest
-from textual.widgets import Static
 
 from sase.agent_clis.models import AgentCliStatus, InstallMethod
 from sase.ace.testing import AcePage
+from sase.ace.tui.modals.plugins_browser_rows import SCOPE_ORDER
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _all_current_catalog,
     _catalog,
@@ -44,17 +44,16 @@ async def test_updates_pane_all_current_banner_shown(
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        banner = pane.query_one("#updates-current-banner", Static)
-
-        assert banner.display is True
+        for scope in SCOPE_ORDER:
+            pane._set_scope(scope)
+            text = _render(pane._header_renderable())
+            assert "You're all up to date" in text
         text = _render(pane._all_current_banner())
-        assert "You're all up to date" in text
         assert "sase v0.5.0 · sase-core v1.4.2 · 2 plugins current" in text
         assert "0 agent CLIs current" in text
         assert "Last checked just now · press r to re-check" in text
         assert pane.check_action("update_sase", ()) is False
         assert "u update" not in pane._hints()
-        assert "run `sase update`" not in _render(pane._core_versions_panel())
 
 
 async def test_updates_pane_all_current_banner_includes_checked_agent_clis(
@@ -71,7 +70,7 @@ async def test_updates_pane_all_current_banner_includes_checked_agent_clis(
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
 
-        assert pane.query_one("#updates-current-banner", Static).display is True
+        assert "You're all up to date" in _render(pane._header_renderable())
         assert "1 agent CLI current" in _render(pane._all_current_banner())
 
 
@@ -90,7 +89,7 @@ async def test_updates_pane_all_current_banner_hides_unknown_agent_cli_source(
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
 
-        assert pane.query_one("#updates-current-banner", Static).display is False
+        assert "You're all up to date" not in _render(pane._header_renderable())
 
 
 async def test_updates_pane_update_action_available_when_updates_exist(
@@ -102,7 +101,7 @@ async def test_updates_pane_update_action_available_when_updates_exist(
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
 
-        assert pane.query_one("#updates-current-banner", Static).display is False
+        assert "You're all up to date" not in _render(pane._header_renderable())
         assert pane.check_action("update_sase", ()) is True
         assert "u update" in pane._hints()
 
@@ -116,9 +115,9 @@ async def test_updates_pane_all_current_banner_hidden_while_loading(
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
         pane._loading = True
-        pane._sync_current_banner()
+        pane._sync_header()
 
-        assert pane.query_one("#updates-current-banner", Static).display is False
+        assert "You're all up to date" not in _render(pane._header_renderable())
 
 
 async def test_updates_pane_all_current_banner_hidden_on_error(
@@ -136,7 +135,7 @@ async def test_updates_pane_all_current_banner_hidden_on_error(
         pane = await _open_plugins_pane(page)
 
         assert pane._error == "boom"
-        assert pane.query_one("#updates-current-banner", Static).display is False
+        assert "You're all up to date" not in _render(pane._header_renderable())
 
 
 async def test_updates_pane_all_current_banner_hidden_offline(
@@ -150,7 +149,7 @@ async def test_updates_pane_all_current_banner_hidden_offline(
         pane.action_toggle_offline()
         await page.wait_for(lambda _s: pane._offline and not pane._loading)
 
-        assert pane.query_one("#updates-current-banner", Static).display is False
+        assert "You're all up to date" not in _render(pane._header_renderable())
 
 
 async def test_updates_pane_all_current_banner_hidden_when_not_uv_tool(
@@ -166,7 +165,7 @@ async def test_updates_pane_all_current_banner_hidden_when_not_uv_tool(
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
 
-        assert pane.query_one("#updates-current-banner", Static).display is False
+        assert "You're all up to date" not in _render(pane._header_renderable())
         assert pane.check_action("update_sase", ()) is False
         assert "u update" not in pane._hints()
 
@@ -185,6 +184,6 @@ async def test_updates_pane_all_current_banner_hidden_when_core_latest_unknown(
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
 
-        assert pane.query_one("#updates-current-banner", Static).display is False
+        assert "You're all up to date" not in _render(pane._header_renderable())
         assert pane.check_action("update_sase", ()) is True
         assert "u update" in pane._hints()

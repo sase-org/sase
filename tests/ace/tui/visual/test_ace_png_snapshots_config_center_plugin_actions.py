@@ -72,7 +72,7 @@ async def test_config_center_plugins_install_preview_png_snapshot(
         await page.wait_for(lambda _s: pane._highlighted_name() == "nvim")
         # Wait for the debounced detail repaint to actually land on nvim so the
         # panel behind the modal is deterministic (not the default github row).
-        await page.wait_for(lambda _s: pane._detail_name == "nvim")
+        await page.wait_for(lambda _s: pane._detail_key == "plugin:nvim")
         pane.action_install()
         await page.expect_modal("PluginActionConfirmModal")
         await wait_for_visual_idle(page)
@@ -104,7 +104,7 @@ async def test_config_center_plugins_marked_install_png_snapshot(
         pane.action_toggle_install_mark()
         await page.wait_for(lambda _s: pane._marked_install == {"nvim"})
         # Toggling a mark advances the highlight to the next installable row.
-        await page.wait_for(lambda _s: pane._detail_name == "acme")
+        await page.wait_for(lambda _s: pane._detail_key == "plugin:acme")
         await _wait_for_plugins_detail(page, pane)
 
         ace_png_visual.assert_page_png(
@@ -129,7 +129,7 @@ async def test_config_center_plugins_not_uv_tool_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
-        await page.wait_for(lambda _s: pane._detail_name == "github")
+        await page.wait_for(lambda _s: pane._detail_key == "plugin:github")
         await _wait_for_plugins_detail(page, pane)
         await page.wait_for(
             lambda _s: (

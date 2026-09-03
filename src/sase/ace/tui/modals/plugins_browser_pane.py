@@ -1,8 +1,8 @@
 """Updates pane for the Config Center modal.
 
-This widget hosts the **Updates** tab of :class:`ConfigCenterModal`: pane-local
-Core / Plugins / Agent CLIs sub-tabs sharing one threaded inventory load and
-the same update services used by the CLI.
+This widget hosts the **Updates** tab of :class:`ConfigCenterModal`: one
+merged inventory of SASE core packages, plugins, and agent CLIs sharing one
+threaded load and the same update services used by the CLI.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from sase.agent_clis.operations import (
 )
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.selection import ProgrammaticSelectionGuard
-from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
+from sase.plugins.catalog import PluginCatalog
 from sase.plugins.latest import enrich_entry_latest
 from sase.plugins.operations import (
     execute_install as execute_install,
@@ -39,7 +39,7 @@ from sase.updates.incoming_commits import (
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
 from sase.uv_tool.versions import CoreVersions, collect_installed_core_versions
 
-from .config_center_session import UpdatesSessionState, UpdatesSubTab
+from .config_center_session import UpdatesSessionState
 from .plugins_browser_agent_clis import (
     AgentCliBrowserMixin,
     AgentCliHistoryConfig,
@@ -74,12 +74,7 @@ from .plugins_browser_install import (
     plan_install_preview,
 )
 from .plugins_browser_list import PluginsBrowserList
-from .plugins_browser_layout import (
-    PluginsBrowserLayoutMixin,
-    _SUBTAB_ORDER,
-    _SUBTABS,
-    _SUBTAB_WIDGET_IDS,
-)
+from .plugins_browser_layout import PluginsBrowserLayoutMixin
 from .plugins_browser_loading import (
     PluginsLoadResult,
     load_plugins_catalog_for_pane,
@@ -95,7 +90,7 @@ from .plugins_browser_operations import (
     callable_accepts_keyword,
 )
 from .plugins_browser_rendering import PluginsBrowserRenderingMixin
-from .plugins_browser_rows import UpdateRow, build_update_rows
+from .plugins_browser_rows import UpdateRow, UpdateScope, build_update_rows
 from .plugins_browser_sase_update import (
     SaseUpdateActionsMixin,
     installed_version,
@@ -105,7 +100,6 @@ from .plugins_browser_sase_update import (
     sase_update_success_message,
 )
 from .plugins_browser_status import PluginsBrowserStatusMixin
-from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
 from .plugins_browser_uninstall import (
     PluginUninstallActionsMixin,
     UninstallPreview,
@@ -207,8 +201,8 @@ class PluginsBrowserPane(
     BINDINGS = [
         ("j", "next_option", "Next"),
         ("k", "prev_option", "Previous"),
-        ("right_square_bracket", "cycle_subtab", "Next Sub-tab"),
-        ("left_square_bracket", "cycle_subtab_reverse", "Previous Sub-tab"),
+        ("right_square_bracket", "cycle_scope", "Next Scope"),
+        ("left_square_bracket", "cycle_scope_reverse", "Previous Scope"),
         ("i", "install", "Install"),
         ("I", "toggle_install_mark", "Mark"),
         ("space", "toggle_mark", "Mark"),
@@ -242,7 +236,7 @@ class PluginsBrowserPane(
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._session_state = session_state or UpdatesSessionState()
         self._auto_load = auto_load
-        self._active_subtab: UpdatesSubTab = self._session_state.active_subtab
+        self._scope: UpdateScope = self._session_state.scope
         self._catalog: PluginCatalog | None = None
         self._core_versions: CoreVersions = _collect_installed_core_versions()
         self._error: str | None = None
@@ -266,24 +260,18 @@ class PluginsBrowserPane(
         )
         self._marked_agent_clis: set[str] = set()
         self._agent_cli_results: dict[str, AgentCliUpdateResult] = {}
-        self._agent_cli_detail_name: str | None = None
         self._agent_cli_history_key: tuple[str | None, bool] | None = None
-        self._plugin_selection_guard = ProgrammaticSelectionGuard()
-        self._agent_cli_selection_guard = ProgrammaticSelectionGuard()
+        self._selection_guard = ProgrammaticSelectionGuard()
         self._updates_loaded_once = False
-        self._grouped: list[tuple[str, str, list[PluginCatalogEntry]]] = []
+        self._grouped: list[tuple[str, str, list[UpdateRow]]] = []
         #: The merged row model, rebuilt once per load on the worker thread.
         self._rows: tuple[UpdateRow, ...] = ()
         self._rows_by_key: dict[str, UpdateRow] = {}
-        #: entry.name -> casefolded filter haystack, rebuilt once per catalog
-        #: load instead of rejoined per entry on every filter keystroke.
-        self._plugin_haystacks: dict[str, str] = {}
-        #: Name-keyed lookup maps rebuilt once per `_rebuild_options()` call so
+        #: Key-keyed lookup maps rebuilt once per `_rebuild_options()` call so
         #: highlight/mark/detail lookups stay O(1) instead of scanning the
         #: option list or `_grouped` per call.
-        self._plugin_option_index: dict[str, int] = {}
-        self._plugin_logical_row: dict[str, int] = {}
-        self._plugin_entry_by_name: dict[str, PluginCatalogEntry] = {}
+        self._row_option_index: dict[str, int] = {}
+        self._row_logical_row: dict[str, int] = {}
         self._worker: Worker[Any] | None = None
         #: Worker computing an install plan/preview before the confirm modal.
         self._plan_worker: Worker[Any] | None = None
@@ -303,10 +291,10 @@ class PluginsBrowserPane(
         #: Debounces the (cheap-but-not-free) detail rebuild so a held j/k
         #: paints exactly one final detail; created on mount once an app exists.
         self._detail_debouncer: DetailPanelDebouncer | None = None
-        #: Name of the plugin currently shown in the detail panel (dedup guard).
-        self._detail_name: str | None = None
-        #: Plugin to re-highlight after the next reload (selection preservation).
-        self._restore_name: str | None = self._session_state.plugins.identity
+        #: Key of the row currently shown in the detail panel (dedup guard).
+        self._detail_key: str | None = None
+        #: Row to re-highlight after the next reload (selection preservation).
+        self._restore_key: str | None = self._session_state.rows.identity
         incoming_config = _load_incoming_commits_config()
         self._incoming_commits_enabled = incoming_config.enabled
         self._incoming_commits_limit = incoming_config.max_per_repo

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from textual.widgets import ContentSwitcher, OptionList
+from textual.widgets import OptionList
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_loading as loading
@@ -25,15 +25,16 @@ from sase.agent_clis.models import (
     UpdateResultStatus,
 )
 
+from sase.ace.tui.modals.plugins_browser_rows import SCOPE_ORDER
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _agent_cli_statuses,
     _agent_cli_update_run,
     _catalog,
     _core_versions,
+    _highlight_row,
     _open_plugins_pane,
     _patch_catalog,
     _patch_other_panes,
-    _render,
 )
 from tests.ace.tui._proc_submit_signature_helpers import (
     assert_session_worker_submit_signature,
@@ -41,7 +42,7 @@ from tests.ace.tui._proc_submit_signature_helpers import (
 from tests.ace.tui._session_reporter import session_reporter
 
 
-async def test_updates_subtabs_cycle_and_gate_plugin_actions(
+async def test_updates_scopes_cycle_and_gate_row_actions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -54,22 +55,21 @@ async def test_updates_subtabs_cycle_and_gate_plugin_actions(
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        switcher = pane.query_one("#updates-subtab-switcher", ContentSwitcher)
-        assert pane._active_subtab == "plugins"
-
-        pane.action_cycle_subtab()
-        assert pane._active_subtab == "agent-clis"
-        assert switcher.current == "updates-subtab-agent-clis"
-        assert pane.check_action("install", ()) is False
+        assert pane._scope == "all"
         assert pane.check_action("update_agent_clis", ()) is True
 
-        pane.action_cycle_subtab()
-        assert pane._active_subtab == "core"
-        assert switcher.current == "updates-subtab-core"
-        assert pane.check_action("next_option", ()) is False
+        seen: list[str] = [pane._scope]
+        pane.action_cycle_scope()
+        seen.append(pane._scope)
+        pane.action_cycle_scope()
+        seen.append(pane._scope)
+        pane.action_cycle_scope()
+        seen.append(pane._scope)
+        assert seen == ["all", "outdated", "installed", "all"]
 
-        pane.action_cycle_subtab_reverse()
-        assert pane._active_subtab == "agent-clis"
+        pane.action_cycle_scope_reverse()
+        assert pane._scope == "installed"
+        assert tuple(SCOPE_ORDER) == ("outdated", "installed", "all")
 
 
 async def test_agent_cli_session_restores_subtab_and_row_by_identity(
@@ -82,8 +82,8 @@ async def test_agent_cli_session_restores_subtab_and_row_by_identity(
         agent_cli_statuses=_agent_cli_statuses(),
     )
     state = AdminCenterSessionState()
-    state.updates.active_subtab = "agent-clis"
-    state.updates.agent_clis.record("codex", 0)
+    state.updates.scope = "all"
+    state.updates.rows.record("cli:codex", 0)
 
     async with AcePage() as page:
         modal = ConfigCenterModal(initial_tab="updates", session_state=state)
@@ -93,10 +93,12 @@ async def test_agent_cli_session_restores_subtab_and_row_by_identity(
         pane = modal.query_one("#updates", PluginsBrowserPane)
         await page.wait_for(lambda _s: not pane._loading)
 
-        option_list = pane.query_one("#agent-clis-list", OptionList)
-        assert pane._active_subtab == "agent-clis"
-        assert option_list.highlighted == 1
-        assert state.updates.agent_clis.identity == "codex"
+        option_list = pane.query_one("#updates-list", OptionList)
+        assert pane._scope == "all"
+        assert option_list.highlighted is not None
+        highlighted = option_list.get_option_at_index(option_list.highlighted)
+        assert highlighted.id == "updates-row__cli:codex"
+        assert state.updates.rows.identity == "cli:codex"
 
 
 async def test_agent_cli_pane_uses_shared_filtered_inventory(
@@ -168,20 +170,19 @@ async def test_agent_cli_pane_uses_shared_filtered_inventory(
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        pane._switch_to_subtab("agent-clis")
-        option_list = pane.query_one("#agent-clis-list", OptionList)
+        option_list = pane.query_one("#updates-list", OptionList)
 
         ids = [
             option_list.get_option_at_index(index).id
             for index in range(option_list.option_count)
         ]
-        assert ids == ["agent-cli__claude"]
-        assert "agent-cli__fakey" not in ids
+        assert "updates-row__cli:claude" in ids
+        assert "updates-row__cli:fakey" not in ids
         assert pane._agent_cli_by_name("fakey") is None
+        _highlight_row(pane, "cli:claude")
         current = pane._current_agent_cli()
         assert current is not None
         assert current.name == "claude"
-        assert "1 agent CLIs · 1 installed" in _render(pane._agent_cli_summary())
 
 
 async def test_updates_subtabs_handle_brackets_from_core_and_lists(
@@ -201,35 +202,34 @@ async def test_updates_subtabs_handle_brackets_from_core_and_lists(
         await page.wait_for(lambda _s: bool(modal.query("#updates")))
         pane = modal.query_one("#updates", PluginsBrowserPane)
         await page.wait_for(lambda _s: not pane._loading)
-        plugins_list = pane.query_one("#plugins-list", OptionList)
-        agent_clis_list = pane.query_one("#agent-clis-list", OptionList)
+        updates_list = pane.query_one("#updates-list", OptionList)
 
-        assert pane._active_subtab == "core"
-        assert page.app.focused is pane
-
-        await page.press("right_square_bracket")
-        await page.wait_for(lambda _s: pane._active_subtab == "plugins")
-        assert page.app.focused is plugins_list
+        assert pane._scope == "installed"
+        assert page.app.focused is updates_list
 
         await page.press("right_square_bracket")
-        await page.wait_for(lambda _s: pane._active_subtab == "agent-clis")
-        assert page.app.focused is agent_clis_list
+        await page.wait_for(lambda _s: pane._scope == "all")
+        assert page.app.focused is updates_list
 
         await page.press("right_square_bracket")
-        await page.wait_for(lambda _s: pane._active_subtab == "core")
-        assert page.app.focused is pane
+        await page.wait_for(lambda _s: pane._scope == "outdated")
+        assert page.app.focused is updates_list
+
+        await page.press("right_square_bracket")
+        await page.wait_for(lambda _s: pane._scope == "installed")
+        assert page.app.focused is updates_list
 
         await page.press("left_square_bracket")
-        await page.wait_for(lambda _s: pane._active_subtab == "agent-clis")
-        assert page.app.focused is agent_clis_list
+        await page.wait_for(lambda _s: pane._scope == "outdated")
+        assert page.app.focused is updates_list
 
         await page.press("left_square_bracket")
-        await page.wait_for(lambda _s: pane._active_subtab == "plugins")
-        assert page.app.focused is plugins_list
+        await page.wait_for(lambda _s: pane._scope == "all")
+        assert page.app.focused is updates_list
 
         await page.press("left_square_bracket")
-        await page.wait_for(lambda _s: pane._active_subtab == "core")
-        assert page.app.focused is pane
+        await page.wait_for(lambda _s: pane._scope == "installed")
+        assert page.app.focused is updates_list
 
 
 async def test_updates_subtab_hints_share_projects_wording(
@@ -240,11 +240,11 @@ async def test_updates_subtab_hints_share_projects_wording(
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        hints = (pane._core_hints(), pane._hints(), pane._agent_cli_hints())
+        hints = pane._hints()
 
-        assert all("[ / ] sub-tab" in hint for hint in hints)
-        assert all("]/[ sub-tab" not in hint for hint in hints)
-        assert all("a sync agents" in hint for hint in hints)
+        assert "[ ] scope" in hints
+        assert "[ / ] sub-tab" not in hints
+        assert "a sync agents" in hints
 
 
 async def test_agent_cli_marks_patch_rows_and_escape_clears_first(
@@ -259,13 +259,17 @@ async def test_agent_cli_marks_patch_rows_and_escape_clears_first(
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        pane._switch_to_subtab("agent-clis")
-        option_list = pane.query_one("#agent-clis-list", OptionList)
-        assert option_list.highlighted == 0
+        _highlight_row(pane, "cli:claude")
+        option_list = pane.query_one("#updates-list", OptionList)
 
         pane.action_toggle_mark()
         assert pane._marked_agent_clis == {"claude"}
-        claude_row = option_list.get_option_at_index(0).prompt
+        claude_index = next(
+            index
+            for index in range(option_list.option_count)
+            if option_list.get_option_at_index(index).id == "updates-row__cli:claude"
+        )
+        claude_row = option_list.get_option_at_index(claude_index).prompt
         row_text = claude_row.plain if hasattr(claude_row, "plain") else str(claude_row)
         assert "[✓]" in row_text
 
@@ -288,7 +292,7 @@ async def test_agent_cli_update_plan_confirm_and_tracked_execution(
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        pane._switch_to_subtab("agent-clis")
+        _highlight_row(pane, "cli:claude")
 
         def submit(*args: Any, **kwargs: Any) -> object:
             assert_session_worker_submit_signature(args, kwargs)
@@ -373,12 +377,12 @@ async def test_update_sase_action_remains_pane_wide(
         monkeypatch.setattr(
             pane,
             "_start_sase_update_preview",
-            lambda **_kwargs: calls.append(pane._active_subtab),
+            lambda **_kwargs: calls.append(pane._scope),
         )
-        for subtab in ("core", "plugins", "agent-clis"):
-            pane._switch_to_subtab(subtab)
+        for scope in SCOPE_ORDER:
+            pane._set_scope(scope)
             pane.action_update_sase()
-        assert calls == ["core", "plugins", "agent-clis"]
+        assert calls == list(SCOPE_ORDER)
 
 
 class _Reporter:
