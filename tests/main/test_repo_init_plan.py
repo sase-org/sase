@@ -118,6 +118,7 @@ def test_plan_github_reports_every_configured_sidecar_without_writing(
     assert agents_connection.path == (
         state_root / "projects" / "gh_acme__widget" / "repos" / "agents"
     )
+    assert plan.requires_tty is True
     assert any("plans sidecar README.md" in detail for detail in details)
     assert any("research sidecar README.md" in detail for detail in details)
     assert any("artifacts sidecar README.md" in detail for detail in details)

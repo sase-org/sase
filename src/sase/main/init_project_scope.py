@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,6 +25,7 @@ class InitProjectTarget:
     workspace_dir: Path | None
     warnings: tuple[str, ...] = ()
     unavailable_reason: str | None = None
+    aliases: tuple[str, ...] = ()
 
     @property
     def reference(self) -> str:
@@ -91,6 +93,7 @@ def _target_for_record(record: ProjectRecordWire) -> InitProjectTarget:
         workspace_dir=workspace_dir,
         warnings=warnings,
         unavailable_reason=unavailable_reason,
+        aliases=tuple(record.aliases),
     )
 
 
@@ -120,9 +123,85 @@ def resolve_init_project_inventory() -> InitProjectInventory:
     return InitProjectInventory(targets=targets)
 
 
+def _match_init_project_target(
+    name: str, targets: Sequence[InitProjectTarget]
+) -> InitProjectTarget | None:
+    key = name.casefold()
+    for target in targets:
+        if target.project_name.casefold() == key:
+            return target
+    for target in targets:
+        if any(alias.casefold() == key for alias in target.aliases):
+            return target
+    for target in targets:
+        if target.display_name.casefold() == key:
+            return target
+    return None
+
+
+def select_init_project_targets(
+    names: Sequence[str],
+    inventory: InitProjectInventory | None = None,
+) -> InitProjectInventory:
+    """Filter the enabled inventory to the named projects.
+
+    Each name may be a project name, display name, or alias. Unknown or
+    non-enabled names fail fast with ``error`` set and no targets.
+    """
+    resolved = inventory if inventory is not None else resolve_init_project_inventory()
+    if resolved.error is not None:
+        return resolved
+    if not names:
+        return InitProjectInventory(
+            targets=(),
+            error="no project names were given",
+        )
+
+    seen: set[str] = set()
+    for name in names:
+        target = _match_init_project_target(name, resolved.targets)
+        if target is None:
+            valid = ", ".join(item.reference for item in resolved.targets) or "none"
+            return InitProjectInventory(
+                targets=(),
+                error=(
+                    f"unknown or non-enabled project {name!r}; "
+                    f"enabled projects: {valid}"
+                ),
+            )
+        seen.add(target.project_name)
+    ordered = tuple(
+        target for target in resolved.targets if target.project_name in seen
+    )
+    return InitProjectInventory(targets=ordered)
+
+
+def cwd_init_project_target() -> InitProjectTarget:
+    """Return the inventory target for the current directory, if any."""
+    cwd = Path.cwd().resolve()
+    inventory = resolve_init_project_inventory()
+    if inventory.error is None:
+        for target in inventory.targets:
+            if target.workspace_dir is None:
+                continue
+            try:
+                if target.workspace_dir.resolve() == cwd:
+                    return target
+            except OSError:
+                continue
+    return InitProjectTarget(
+        project_name=cwd.name,
+        display_name=cwd.name,
+        project_file=cwd,
+        workspace_dir=cwd,
+    )
+
+
 __all__ = [
     "InitProjectInventory",
     "InitProjectTarget",
+    "cwd_init_project_target",
     "is_project_directory",
     "resolve_init_project_inventory",
+    "select_init_project_targets",
 ]

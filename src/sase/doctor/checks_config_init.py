@@ -7,7 +7,7 @@ from typing import Any, TYPE_CHECKING
 
 from sase.diagnostics import CheckStatus, DiagnosticCheck
 from sase.doctor.checks_config_common import MAX_DETAIL_ROWS
-from sase.main.init_plan import InitPlan
+from sase.main.init_plan import InitPlan, serialize_init_plan
 from sase.main.init_registry import iter_init_command_specs
 
 if TYPE_CHECKING:
@@ -58,7 +58,7 @@ def check_config_init(context: DoctorContext) -> DiagnosticCheck:
             )
             continue
 
-        row = _plan_row(plan)
+        row = serialize_init_plan(plan, max_actions=MAX_DETAIL_ROWS)
         rows.append(row)
         action_count += len(row["actions"])
         warnings.extend(str(item) for item in plan.warnings)
@@ -106,25 +106,6 @@ def check_config_init(context: DoctorContext) -> DiagnosticCheck:
             "prettier_missing_skill_drift_note": prettier_missing_skill_drift,
         },
     )
-
-
-def _plan_row(plan: InitPlan) -> dict[str, Any]:
-    return {
-        "name": plan.command,
-        "label": plan.label,
-        "summary": plan.summary,
-        "actions": [
-            {
-                "path": str(action.path),
-                "operation": action.operation,
-                "detail": action.detail,
-            }
-            for action in plan.actions[:MAX_DETAIL_ROWS]
-        ],
-        "action_count": len(plan.actions),
-        "warnings": list(plan.warnings),
-        "blockers": list(plan.blockers),
-    }
 
 
 def _plan_has_prettier_missing_skill_drift(plan: InitPlan) -> bool:

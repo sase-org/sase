@@ -91,3 +91,39 @@ def test_config_init_doctor_reports_missing_then_current_owner_identity(
     current = check_config_init(_context())
     assert current.status == "OK"
     assert current.data["action_count"] == 0
+
+
+def test_config_init_doctor_marks_truncated_actions(monkeypatch) -> None:
+    from sase.doctor.checks_config_common import MAX_DETAIL_ROWS
+
+    actions = tuple(
+        InitAction(path=Path(f"/tmp/file-{index}.md"), operation="update")
+        for index in range(MAX_DETAIL_ROWS + 2)
+    )
+
+    def plan(_args: argparse.Namespace) -> InitPlan:
+        return InitPlan(
+            command="memory",
+            label="Memory",
+            summary="many updates",
+            actions=actions,
+        )
+
+    monkeypatch.setattr(
+        "sase.doctor.checks_config_init.iter_init_command_specs",
+        lambda: (
+            InitCommandSpec(
+                name="memory",
+                label="Memory",
+                plan=plan,
+                run=lambda _args: 0,
+            ),
+        ),
+    )
+
+    check = check_config_init(_context())
+    row = check.data["planners"][0]
+    assert len(row["actions"]) == MAX_DETAIL_ROWS
+    assert row["action_count"] == MAX_DETAIL_ROWS + 2
+    assert row["truncated"] is True
+    assert "new_content" not in row["actions"][0]

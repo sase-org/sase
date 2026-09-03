@@ -264,9 +264,16 @@ def main() -> NoReturn:
 
     # --- init ---
     if args.command == "init":
+        if getattr(args, "json", False) and not getattr(args, "check", False):
+            parser.error("sase init --json requires --check")
         if getattr(args, "all", False) and args.init_subcommand is not None:
             parser.error(
                 "sase init --all cannot be combined with an explicit init subcommand"
+            )
+        if getattr(args, "project", None) and args.init_subcommand is not None:
+            parser.error(
+                "sase init -p/--project cannot be combined with an explicit init "
+                "subcommand"
             )
         if args.init_subcommand is None:
             from .init_onboarding import (
@@ -274,7 +281,7 @@ def main() -> NoReturn:
                 run_init_onboarding_all,
             )
 
-            if getattr(args, "all", False):
+            if getattr(args, "all", False) or getattr(args, "project", None):
                 sys.exit(run_init_onboarding_all(args))
             sys.exit(run_init_onboarding(args))
 
