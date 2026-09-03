@@ -3899,6 +3899,12 @@
           "type": "boolean",
           "description": "Beta gate for typed launch units, %if, and %proc.",
           "default": false
+        },
+        "v1_import_retired": {
+          "type": "boolean",
+          "description": "The legacy v1 agents-sync import leg is sunset: v1 payloads stay readable as evidence but are never imported.",
+          "default": true,
+          "deprecated": true
         }
       }
     }

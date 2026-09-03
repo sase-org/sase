@@ -18,6 +18,7 @@ from sase.agents_sync.models import (
     AgentBundle,
     AgentsManifest,
     CommitRecord,
+    IntegrationCounts,
     ManifestEntry,
     PortableAgentMetadata,
     ProjectTarget,
@@ -241,6 +242,57 @@ def test_unproven_or_other_machine_v1_stays_foreign(
     assert (legacy[0].source_machine, legacy[0].top_hood) == (machine, hood)
     assert legacy[0].source_username is None
     assert current.validated_foreign_count == 3
+
+
+def test_v1_import_retired_flag_skips_foreign_hood_via_full_pipeline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The default-on sunset flag blocks a genuinely foreign v1 hood end to end.
+
+    Evidence capture (``refresh``) is untouched by the flag: the hood is still
+    detected and cached. Only materialization is gated, at both the cached
+    and full-sync entry points, and neither writes an import receipt for it,
+    so it stays visible as pending rather than silently vanishing.
+    """
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, seed = setup_v2_remote(tmp_path)
+    write_legacy_group(seed, machine="zeus", hood="legacy")
+    commit_and_push(seed, "add foreign legacy hood")
+    # The full-sync entry point reads the sidecar's checked-out working tree
+    # (unlike capture, which reads fetched git objects directly), so pull the
+    # pushed commit down before exercising it.
+    git(target.sidecar_path, "pull")
+    patch_target(monkeypatch, target)
+    monkeypatch.setattr(
+        incoming_integration,
+        "integrate_v2_hoods",
+        lambda *_args, **_kwargs: IntegrationCounts(hoods_imported=1),
+    )
+
+    current = refresh(target, network_calls=[], now=100.0).projects[0]
+    legacy_item = next(
+        item for item in current.pending_updates if item.format_version == 1
+    )
+
+    cached = incoming_integration.integrate_cached_agent_updates((legacy_item,))
+    assert cached[0].disposition == "sunset_skipped"
+    assert cached[0].ok
+    assert incoming_cache.read_project_receipts(PROJECT.key) == ()
+
+    full = incoming_integration.integrate_agent_imports_with_receipts(
+        target,
+        target.sidecar_path,
+        LOCAL_OWNER,
+    )
+    assert full.integrated == 0
+    assert full.refreshed == 0
+    assert full.v1_import_skipped == 1
+    receipts = incoming_cache.read_project_receipts(PROJECT.key)
+    assert not any(
+        receipt.source_machine == "zeus" and receipt.top_hood == "legacy"
+        for receipt in receipts
+    )
 
 
 def test_local_evidence_without_done_json_survives_dismissal_and_prunes_cache(

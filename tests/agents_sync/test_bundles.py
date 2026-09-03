@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import UTC, datetime
 import json
 from pathlib import Path
@@ -17,10 +18,22 @@ from sase.agents_sync.models import (
     ProjectTarget,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.feature_flags import override_flags
 
 from tests.agents_sync.bundle_fixtures import write_bundle
 
 LOCAL_OWNER = AgentOwnerIdentity("alice", "athena")
+
+
+@pytest.fixture(autouse=True)
+def _v1_import_not_retired() -> Iterator[None]:
+    """This module exercises the v1 materialization path the sunset flag guards.
+
+    ``v1_import_retired`` defaults on; these tests specifically cover the
+    disabled-branch behavior, which stays reachable until the flag is removed.
+    """
+    with override_flags(v1_import_retired=False):
+        yield
 
 
 def _target(tmp_path: Path) -> ProjectTarget:
@@ -121,6 +134,83 @@ def test_foreign_bundle_round_trip_idempotence_and_refresh(
     refreshed_meta = json.loads((artifact / "agent_meta.json").read_text())
     assert refreshed_meta["model"] == "second"
     assert Path(refreshed_meta["chat_path"]).read_bytes() == b"new chat\n"
+
+
+def test_v1_import_retired_flag_blocks_create_and_refresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    first = _bundle()
+    manifest = AgentsManifest((_entry(first),))
+    write_bundle(repo, first)
+    artifact_root = tmp_path / "artifacts"
+
+    monkeypatch.setattr(bundles, "sase_home", lambda: tmp_path / "state")
+    monkeypatch.setattr(
+        bundles,
+        "canonical_agent_artifact_path",
+        lambda _project, _workflow, timestamp: artifact_root / timestamp,
+    )
+    monkeypatch.setattr(
+        bundles,
+        "iter_agent_artifact_dirs",
+        lambda *_args, **_kwargs: iter(sorted(artifact_root.glob("*"))),
+    )
+    claims: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        bundles,
+        "claim_imported_registered_name",
+        lambda name, machine, *_args, **_kwargs: claims.append((name, machine)),
+    )
+    monkeypatch.setattr(
+        bundles,
+        "update_agent_artifact_index_for_marker_mutation",
+        lambda _path: None,
+    )
+
+    # First import happens while the flag is off; it establishes an existing
+    # imported artifact so the refresh branch (not just create) can be probed.
+    baseline = bundles.integrate_foreign_bundles(target, repo, manifest, LOCAL_OWNER)
+    assert baseline.integrated == 1
+    assert len(claims) == 1
+    artifact = artifact_root / "20260722123456"
+    original_meta = json.loads((artifact / "agent_meta.json").read_text())
+
+    with override_flags(v1_import_retired=True):
+        never_imported_meta = PortableAgentMetadata(
+            "zeus.other",
+            "zeus",
+            "20260722999999",
+            2,
+            (("model", "brand-new"), ("workflow_name", "ace-run")),
+        )
+        never_imported = AgentBundle(
+            never_imported_meta,
+            first.commits,
+            b"chat\n",
+            _compute_bundle_digest(never_imported_meta, first.commits, b"chat\n"),
+        )
+        write_bundle(repo, never_imported)
+        create_manifest = AgentsManifest((_entry(never_imported),))
+        create_counts = bundles.integrate_foreign_bundles(
+            target, repo, create_manifest, LOCAL_OWNER
+        )
+        assert create_counts.integrated == 0
+        assert create_counts.v1_import_skipped == 1
+        assert create_counts.diagnostics
+        assert not (artifact_root / "20260722999999").exists()
+        assert len(claims) == 1
+
+        refreshed_bundle = _bundle(model="second", chat=b"new chat\n")
+        refresh_manifest = AgentsManifest((_entry(refreshed_bundle),))
+        write_bundle(repo, refreshed_bundle)
+        refresh_counts = bundles.integrate_foreign_bundles(
+            target, repo, refresh_manifest, LOCAL_OWNER
+        )
+        assert refresh_counts.refreshed == 0
+        assert refresh_counts.v1_import_skipped == 1
+        assert json.loads((artifact / "agent_meta.json").read_text()) == original_meta
 
 
 def test_import_probes_forward_on_artifact_timestamp_collision(

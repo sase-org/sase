@@ -263,7 +263,7 @@ def integrate_agent_imports_with_receipts(
                 owner_v2_hoods=owner_v2_hoods,
             )
             total = _merge_counts(total, counts)
-            if counts.owner_observed_groups:
+            if counts.owner_observed_groups or counts.v1_import_skipped:
                 continue
             evidence = _direct_legacy_evidence(
                 target,
@@ -359,6 +359,16 @@ def _integrate_one_cached(
                 item,
                 "owner_observed",
                 unchanged=counts.unchanged,
+            ),
+            None,
+        )
+    if counts.v1_import_skipped:
+        return (
+            CachedIntegrationResult(
+                item,
+                "sunset_skipped",
+                unchanged=counts.unchanged,
+                diagnostics=counts.diagnostics,
             ),
             None,
         )
@@ -480,6 +490,7 @@ def _merge_counts(
         families_imported=left.families_imported + right.families_imported,
         runs_imported=left.runs_imported + right.runs_imported,
         diagnostics=tuple(dict.fromkeys((*left.diagnostics, *right.diagnostics))),
+        v1_import_skipped=left.v1_import_skipped + right.v1_import_skipped,
     )
 
 

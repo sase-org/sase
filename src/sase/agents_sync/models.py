@@ -34,6 +34,7 @@ CachedIntegrationDisposition = Literal[
     "owner_namespace_conflict",
     "quarantined",
     "failed",
+    "sunset_skipped",
 ]
 
 
@@ -289,6 +290,7 @@ class IntegrationCounts:
     runs_imported: int = 0
     diagnostics: tuple[str, ...] = ()
     owner_observed_groups: int = 0
+    v1_import_skipped: int = 0
 
     @property
     def changed(self) -> int:

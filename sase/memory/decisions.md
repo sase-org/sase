@@ -27,23 +27,27 @@ costs, and the condition that would reopen it.
    turn; continuation is always mechanical, never a promise to resume.
 3. **Completion Is Host-Owned** (`host-owned-completion`) - An agent never creates
    commits, branches, or PRs; it submits a declaration and host-owned finalizers act.
-4. **Memory Links Are Authored** (`memory-links-are-authored`) - A memory file declares
+4. **Legacy V1 Agent Transport Is Read-Only History, Not An Import Source**
+   (`v1-import-retired`) - The legacy v1 agents-sync import leg is sunset behind
+   v1_import_retired; v1 payloads stay readable as v2-adoption matcher evidence but are
+   never materialized as new imported artifacts.
+5. **Memory Links Are Authored** (`memory-links-are-authored`) - A memory file declares
    how its links are detected and rendered, and authors links inline as `[[target]]` /
    `![[target]]`.
-5. **Memory Webs** (`memory-webs`) - _[partly superseded by
+6. **Memory Webs** (`memory-webs`) - _[partly superseded by
    `webs-render-in-their-own-section`, `memory-links-are-authored`]_ A keyed memory
    collection is a flat descriptor note plus a sibling strand directory, addressed
    web:keyword.
-6. **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`) - A
+7. **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`) - A
    memory web's placement in generated agent instructions follows from its kind, not
    from a `type:` declaration on its descriptor.
-7. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`) - SASE does
+8. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`) - SASE does
    not build memory retrieval or linking machinery ahead of a corpus that demonstrably
    needs it.
-8. **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
+9. **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
    in sase-core with no Python fallback and no env-var backend switch.
-9. **Verification Is Two-Speed** (`two-speed-verification`) - just check is the agent
-   default and just check-full gates landing, because host capacity is the constraint,
-   not test speed.
+10. **Verification Is Two-Speed** (`two-speed-verification`) - just check is the agent
+    default and just check-full gates landing, because host capacity is the constraint,
+    not test speed.
 
 <!-- /sase:strands -->

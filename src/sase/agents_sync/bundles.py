@@ -47,6 +47,19 @@ from sase.core.agent_identity_facade import (
 from sase.core.commit_sha_facade import commit_shas_equivalent
 from sase.core.machine_hood_facade import machine_qualify_v1_transport_agent_name
 from sase.core.paths import sase_home
+from sase.feature_flags.registry import FeatureFlag
+from sase.feature_flags.snapshot import current_flags
+
+
+def _v1_import_is_retired() -> bool:
+    """Whether the sunset flag forbids materializing new v1-imported artifacts.
+
+    Owner-observed and already-imported-unchanged classification stay evidence
+    reads and are never gated: only creating or refreshing an imported artifact
+    from a foreign v1 bundle is.
+    """
+
+    return current_flags().enabled(FeatureFlag.v1_import_retired)
 
 
 def integrate_foreign_bundles(
@@ -123,7 +136,9 @@ def integrate_foreign_bundles(
     integrated = 0
     refreshed = 0
     unchanged = 0
+    skipped = 0
     diagnostics: list[str] = []
+    v1_retired = _v1_import_is_retired()
     self_owned = group_machine == owner.machine_name
     for entry, bundle in validated:
         if self_owned:
@@ -145,6 +160,10 @@ def integrate_foreign_bundles(
             if existing_meta.get("imported_digest") == entry.digest:
                 unchanged += 1
                 continue
+            if v1_retired:
+                skipped += 1
+                diagnostics.append(_v1_retired_entry_diagnostic(group_hood, entry.name))
+                continue
             _refresh_imported_artifact(
                 existing,
                 bundle,
@@ -158,6 +177,10 @@ def integrate_foreign_bundles(
             )
             refreshed += 1
             continue
+        if v1_retired:
+            skipped += 1
+            diagnostics.append(_v1_retired_entry_diagnostic(group_hood, entry.name))
+            continue
         _create_imported_artifact(
             target,
             bundle,
@@ -167,7 +190,19 @@ def integrate_foreign_bundles(
         )
         integrated += 1
     return IntegrationCounts(
-        integrated, refreshed, unchanged, diagnostics=tuple(diagnostics)
+        integrated,
+        refreshed,
+        unchanged,
+        diagnostics=tuple(diagnostics),
+        v1_import_skipped=skipped,
+    )
+
+
+def _v1_retired_entry_diagnostic(hood: str, entry_name: str) -> str:
+    return (
+        f"{hood}: {entry_name} not imported; the legacy v1 import leg is "
+        "retired (v1_import_retired flag), v1 evidence stays readable for v2 "
+        "adoption but is never materialized"
     )
 
 
