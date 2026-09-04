@@ -262,9 +262,16 @@ def _run_project(
 
     reconcile_started = time.monotonic()
     try:
-        reconcile_report = reconcile_and_repair_artifact_links(store)
+        reconcile_report = reconcile_and_repair_artifact_links(
+            store, deadline=chop_deadline
+        )
         totals.reconciled += 1
         totals.repaired_renames += reconcile_report.repaired_renames
+        if reconcile_report.deferred_refs > 0:
+            totals.warnings.append(
+                f"{project_key}: deferred {reconcile_report.deferred_refs} "
+                "dangling-ref repairs past chop budget"
+            )
     except Exception as exc:  # noqa: BLE001 - continue with the other projects.
         totals.warnings.append(f"{project_key}: reconcile/repair failed: {exc}")
     elapsed["reconcile_repair"] = time.monotonic() - reconcile_started

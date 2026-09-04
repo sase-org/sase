@@ -38,9 +38,11 @@ def test_reconciles_and_repairs_with_the_doctor_candidate_refs(
     )
     repair_calls: list[object] = []
 
-    def _fake_repair(_store: object, refs: object) -> SimpleNamespace:
+    def _fake_repair(
+        _store: object, refs: object, **_kwargs: object
+    ) -> SimpleNamespace:
         repair_calls.append(refs)
-        return SimpleNamespace(renames=(), changed_paths=())
+        return SimpleNamespace(renames=(), changed_paths=(), deferred_refs=0)
 
     monkeypatch.setattr(
         "sase.sdd._artifact_link_renames.repair_historical_artifact_renames",
@@ -66,7 +68,9 @@ def test_commits_changed_paths_from_a_repair(
     changed = (tmp_path / "plans" / "links" / "202608" / "renamed.md.json",)
     monkeypatch.setattr(
         "sase.sdd._artifact_link_renames.repair_historical_artifact_renames",
-        lambda _store, _refs: SimpleNamespace(renames=("one",), changed_paths=changed),
+        lambda _store, _refs, **_kwargs: SimpleNamespace(
+            renames=("one",), changed_paths=changed, deferred_refs=0
+        ),
     )
     commit_calls: list[object] = []
     monkeypatch.setattr(
@@ -94,7 +98,9 @@ def test_no_changed_paths_does_not_commit(
     )
     monkeypatch.setattr(
         "sase.sdd._artifact_link_renames.repair_historical_artifact_renames",
-        lambda _store, _refs: SimpleNamespace(renames=(), changed_paths=()),
+        lambda _store, _refs, **_kwargs: SimpleNamespace(
+            renames=(), changed_paths=(), deferred_refs=0
+        ),
     )
     commit_calls: list[object] = []
     monkeypatch.setattr(
@@ -105,3 +111,32 @@ def test_no_changed_paths_does_not_commit(
     reconcile_and_repair_artifact_links(store)
 
     assert commit_calls == []
+
+
+def test_forwards_deadline_and_deferred_refs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    monkeypatch.setattr(ArtifactLinkStore, "reconcile_aggregate", lambda _store: None)
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
+        lambda _store: ("plan:202608/dangling.md",),
+    )
+    seen: list[object] = []
+
+    def _fake_repair(
+        _store: object, _refs: object, *, deadline: object = None
+    ) -> SimpleNamespace:
+        seen.append(deadline)
+        return SimpleNamespace(renames=(), changed_paths=(), deferred_refs=7)
+
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_renames.repair_historical_artifact_renames",
+        _fake_repair,
+    )
+
+    report = reconcile_and_repair_artifact_links(store, deadline=123.0)
+
+    assert seen == [123.0]
+    assert report.deferred_refs == 7
+    assert report.repaired_renames == 0

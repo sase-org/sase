@@ -167,7 +167,7 @@ def test_runs_every_job_and_aggregates_totals(
     monkeypatch.setattr(
         backfill_chop,
         "reconcile_and_repair_artifact_links",
-        lambda store: _ArtifactLinkReconcileReport(repaired_renames=2),
+        lambda store, **_kwargs: _ArtifactLinkReconcileReport(repaired_renames=2),
     )
 
     result = backfill_chop._run(_runtime(tmp_path))
@@ -215,7 +215,7 @@ def test_a_broken_project_is_recorded_and_does_not_stop_the_sweep(
     monkeypatch.setattr(
         backfill_chop,
         "reconcile_and_repair_artifact_links",
-        lambda store: _ArtifactLinkReconcileReport(),
+        lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
     )
 
     result = backfill_chop._run(_runtime(tmp_path))
@@ -255,7 +255,7 @@ def test_checkpoint_survives_across_ticks(
     monkeypatch.setattr(
         backfill_chop,
         "reconcile_and_repair_artifact_links",
-        lambda store: _ArtifactLinkReconcileReport(),
+        lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
     )
 
     backfill_chop._run(_runtime(tmp_path))
@@ -298,7 +298,7 @@ def test_later_jobs_defer_after_sweep_budget(
     monkeypatch.setattr(
         backfill_chop,
         "reconcile_and_repair_artifact_links",
-        lambda store: pytest.fail("reconcile should defer"),
+        lambda store, **_kwargs: pytest.fail("reconcile should defer"),
     )
 
     result = backfill_chop._run(_runtime(tmp_path))
@@ -335,7 +335,7 @@ def test_chop_stops_starting_projects_past_the_chop_budget(
     now = [0.0]
     monkeypatch.setattr(backfill_chop.time, "monotonic", lambda: now[0])
 
-    def _reconcile(store: object) -> _ArtifactLinkReconcileReport:
+    def _reconcile(store: object, **_kwargs: object) -> _ArtifactLinkReconcileReport:
         # p1's own reconcile job is what blows through the whole-chop budget.
         now[0] = backfill_chop._CHOP_WORK_BUDGET_SECONDS + 1.0
         return _ArtifactLinkReconcileReport()
@@ -379,7 +379,7 @@ def test_per_project_progress_is_logged(
     monkeypatch.setattr(
         backfill_chop,
         "reconcile_and_repair_artifact_links",
-        lambda store: _ArtifactLinkReconcileReport(),
+        lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
     )
 
     runtime, stdout, _stderr = _runtime_with_logs(tmp_path)
@@ -388,3 +388,45 @@ def test_per_project_progress_is_logged(
     log_output = stdout.getvalue()
     assert "proj: starting" in log_output
     assert "proj: done" in log_output
+
+
+def test_chop_passes_budget_through_and_warns_on_deferred_refs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        backfill_chop,
+        "_enabled_project_records",
+        lambda: [_project(tmp_path, name="proj")],
+    )
+    monkeypatch.setattr(
+        backfill_chop, "resolve_artifact_link_store", lambda cwd=None: object()
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "run_artifact_link_backfill_batch",
+        lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "drain_artifact_link_outbox",
+        lambda store=None: SimpleNamespace(drained=0, dropped=0),
+    )
+    now = [0.0]
+    monkeypatch.setattr(backfill_chop.time, "monotonic", lambda: now[0])
+    captured: list[dict[str, object]] = []
+
+    def _reconcile(store: object, **kwargs: object) -> _ArtifactLinkReconcileReport:
+        captured.append(kwargs)
+        return _ArtifactLinkReconcileReport(deferred_refs=4)
+
+    monkeypatch.setattr(
+        backfill_chop, "reconcile_and_repair_artifact_links", _reconcile
+    )
+
+    runtime, _stdout, stderr = _runtime_with_logs(tmp_path)
+    backfill_chop._run(runtime)
+
+    assert captured == [{"deadline": backfill_chop._CHOP_WORK_BUDGET_SECONDS}]
+    warning = stderr.getvalue()
+    assert "proj" in warning
+    assert "deferred 4" in warning

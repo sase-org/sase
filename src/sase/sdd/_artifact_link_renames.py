@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,7 @@ class _ArtifactLinkRenameReport:
     removed_indexes: tuple[Path, ...] = ()
     rewritten_rows: int = 0
     aggregate_changed: bool = False
+    deferred_refs: int = 0
 
     @property
     def changed_paths(self) -> tuple[Path, ...]:
@@ -70,11 +72,19 @@ def consume_recent_artifact_renames(
 def repair_historical_artifact_renames(
     store: Any,
     refs: Iterable[str],
+    *,
+    deadline: float | None = None,
 ) -> _ArtifactLinkRenameReport:
-    """Repair stale refs when a sidecar git rename explains the drift."""
+    """Repair stale refs when a sidecar git rename explains the drift.
+
+    ``deadline`` is a ``time.monotonic()`` timestamp. Once it expires, remaining
+    eligible refs are counted in ``deferred_refs`` and skipped, but any
+    renames already resolved in this call are still applied.
+    """
 
     by_kind: dict[str, dict[str, str]] = {}
     resolved: list[_ArtifactLinkRename] = []
+    deferred_refs = 0
     for raw_ref in refs:
         try:
             old_ref = canonicalize_artifact_link_ref(raw_ref)
@@ -86,15 +96,20 @@ def repair_historical_artifact_renames(
         root = store.sidecar_roots.get(kind)
         if root is None or not root.is_dir():
             continue
-        history = by_kind.setdefault(
-            kind,
-            _historical_rename_map(root, kind=kind),
-        )
+        if deadline is not None and time.monotonic() >= deadline:
+            deferred_refs += 1
+            continue
+        if kind not in by_kind:
+            by_kind[kind] = _historical_rename_map(root, kind=kind)
+        history = by_kind[kind]
         new_ref = _follow_rename_chain(old_ref, history, root)
         if new_ref is None:
             continue
         resolved.append(_ArtifactLinkRename(old_ref=old_ref, new_ref=new_ref))
-    return _apply_artifact_renames(store, tuple(dict.fromkeys(resolved)))
+    return replace(
+        _apply_artifact_renames(store, tuple(dict.fromkeys(resolved))),
+        deferred_refs=deferred_refs,
+    )
 
 
 def _apply_artifact_renames(

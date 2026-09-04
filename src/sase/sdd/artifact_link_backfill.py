@@ -214,10 +214,13 @@ class _ArtifactLinkReconcileReport:
     """Outcome of one cross-workspace reconcile-and-repair pass."""
 
     repaired_renames: int = 0
+    deferred_refs: int = 0
 
 
 def reconcile_and_repair_artifact_links(
     store: ArtifactLinkStore,
+    *,
+    deadline: float | None = None,
 ) -> _ArtifactLinkReconcileReport:
     """Run the cross-workspace aggregate reconcile and dangling-ref repair.
 
@@ -227,6 +230,10 @@ def reconcile_and_repair_artifact_links(
     project's plans/research git repos, so its changed paths are committed
     directly here: unlike interactive ``sase artifact doctor --fix``, no
     finalizer runs after this chop to pick up files a fix pass left dirty.
+
+    ``deadline`` is a ``time.monotonic()`` timestamp forwarded to the rename
+    repair. Interactive callers leave it unset so the doctor finishes its
+    work instead of deferring.
     """
 
     from sase.artifact_cli.link_health import dangling_and_orphaned_artifact_link_refs
@@ -235,7 +242,7 @@ def reconcile_and_repair_artifact_links(
 
     store.reconcile_aggregate()
     refs = dangling_and_orphaned_artifact_link_refs(store)
-    repair = repair_historical_artifact_renames(store, refs)
+    repair = repair_historical_artifact_renames(store, refs, deadline=deadline)
     if repair.changed_paths:
         commit_artifact_link_indexes(
             repair.changed_paths,
@@ -244,7 +251,10 @@ def reconcile_and_repair_artifact_links(
             push_after_commit="async",
             mutation_origin="machine" if store.sdd_store is not None else "user",
         )
-    return _ArtifactLinkReconcileReport(repaired_renames=len(repair.renames))
+    return _ArtifactLinkReconcileReport(
+        repaired_renames=len(repair.renames),
+        deferred_refs=repair.deferred_refs,
+    )
 
 
 __all__ = [
