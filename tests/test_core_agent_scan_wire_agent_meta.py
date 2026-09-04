@@ -226,6 +226,39 @@ def test_explicit_agent_clan_preserves_sequential_family_fields() -> None:
     assert meta.agent_family_role == "code"
 
 
+def test_agent_meta_imported_source_owner_round_trips() -> None:
+    snapshot = agent_scan_wire_from_dict(
+        {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": "/tmp/projects",
+            "records": [
+                {
+                    "project_name": "proj",
+                    "project_dir": "/tmp/projects/proj",
+                    "project_file": "/tmp/projects/proj/proj.sase",
+                    "workflow_dir_name": "ace-run",
+                    "artifact_dir": "/tmp/projects/proj/artifacts/ace-run/1",
+                    "timestamp": "1",
+                    "agent_meta": {
+                        "name": "bob.zeus.crew--code",
+                        "imported_source_owner": {
+                            "username": "bob",
+                            "machine_name": "zeus",
+                        },
+                    },
+                }
+            ],
+        }
+    )
+
+    meta = snapshot.records[0].agent_meta
+    assert meta is not None
+    assert meta.imported_source_owner == {
+        "username": "bob",
+        "machine_name": "zeus",
+    }
+
+
 def test_agent_meta_plan_committed_preserves_true_false_and_absent() -> None:
     values = [True, False, None, "false"]
     records = []

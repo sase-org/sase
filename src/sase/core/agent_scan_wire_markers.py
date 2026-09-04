@@ -103,6 +103,7 @@ class DoneMarkerWire:
     repeat_stopped: bool = False
     stopped_by: str | None = None
     imported_transaction_key: str | None = None
+    imported_source_owner: dict[str, Any] | None = None
     status_label: str | None = None
     family_shell: FamilyShellWire | None = None
 
@@ -149,6 +150,7 @@ class AgentMetaWire:
     agent_family: str | None = None
     agent_family_role: str | None = None
     agent_family_parallel: bool = False
+    imported_source_owner: dict[str, Any] | None = None
     plan_chain_root: bool = False
     tribe: str | None = None
     output_variables: dict[str, Any] = field(default_factory=dict)

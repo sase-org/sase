@@ -10,6 +10,7 @@ from rich.text import Text
 from sase.agent.status_buckets import agent_status_bucket
 
 from ...models.agent_hoods import AgentIdentity
+from ...models.agent_owner_badge import agent_owner_badge_label
 from ...models.sase_agent_neighbors import (
     SaseAgentNeighborProjection,
     LaneNeighborRow,
@@ -82,6 +83,7 @@ def _neighbor_roster_entries(
                 is_marked=agent.identity in marked_identities,
                 is_unread=agent.identity in unread_agent_ids,
                 target_role="dismissed" if row.is_dismissed else None,
+                owner_badge=agent_owner_badge_label(agent),
             )
         )
     return tuple(entries)

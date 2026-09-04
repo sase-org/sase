@@ -9,6 +9,8 @@ from sase.project_display_names import humanize_vcs_refs_in_text
 
 from ..models._agent_tree import agent_tree_title
 from ..models.agent import Agent, AgentType
+from ..models.agent_owner_badge import agent_owner_badge_label
+from ..widgets._agent_list_styling import _OWNER_BADGE_STYLE
 from ..models.agent_status import STOPPED_COLOR, STOPPED_GLYPH, STOPPED_STATUS
 
 _TYPE_COLORS: dict[AgentType, str] = {
@@ -88,6 +90,11 @@ def format_agent_label(
         or agent.display_name
     )
     text.append(primary, style="bold")
+    owner_badge = agent_owner_badge_label(agent)
+    if owner_badge:
+        text.append(" [")
+        text.append(owner_badge, style=_OWNER_BADGE_STYLE)
+        text.append("]")
 
     if agent.presented_agent_name and agent.presented_agent_name != primary:
         text.append("  ")
@@ -192,6 +199,11 @@ def build_metadata_preview(agent: Agent, children: list[Agent]) -> Text:
     if agent.presented_agent_name:
         meta.append(f"  {'Agent':<{label_width}}", style="bold")
         meta.append(f"@{agent.presented_agent_name}\n", style="#87D7FF")
+
+    owner_badge = agent_owner_badge_label(agent)
+    if owner_badge:
+        meta.append(f"  {'Owner':<{label_width}}", style="bold")
+        meta.append(f"{owner_badge}\n", style=_OWNER_BADGE_STYLE)
 
     if agent.workflow and not agent.appears_as_agent:
         meta.append(f"  {'Workflow':<{label_width}}", style="bold")

@@ -35,6 +35,7 @@ from ._agent_list_render_cache import (
     agent_render_key,
 )
 from ._agent_list_render_layout import build_runtime_suffix
+from ._owner_badge import append_owner_badge
 from ._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
     _BEAD_LINKED_AGENT_GLYPH,
@@ -200,6 +201,7 @@ def format_agent_option(
     if presented_name:
         text.append(" ")
         text.append(presented_name, style=identity_name_style)
+        append_owner_badge(text, agent)
 
     if agent.is_clan_container:
         rendered_tribes = tuple(

@@ -230,6 +230,7 @@ _CLAN_IDENTITY_COLOR = "#D75FFF"
 _CLAN_NAME_STYLE = _CLAN_IDENTITY_COLOR
 _FAMILY_IDENTITY_COLOR = "#00AFFF"
 _FAMILY_NAME_STYLE = _FAMILY_IDENTITY_COLOR
+_OWNER_BADGE_STYLE = "bold #AF87D7"
 
 # Type glyphs for the small set of non-``RUNNING`` top-level rows.  The
 # ``RUNNING`` (a.k.a. ``agent``) type is omitted entirely — its color

@@ -425,6 +425,26 @@ def test_owner_roots_parse_topology_without_becoming_local_owner() -> None:
         facade.globalize_owned_agent_name("athena.7n--code", identity)
     with pytest.raises(ValueError, match="foreign owner root"):
         facade.validate_new_agent_name("athena.7n--code", identity)
+    assert parsed.local_name == "7n--code"
+    assert facade.present_imported_agent_name("athena.7n--code", identity) == (
+        "7n--code"
+    )
+
+
+def test_imported_owner_badge_label_distinguishes_machine_and_user() -> None:
+    dest = facade.AgentOwnerIdentity("alice", "athena")
+    same_user = facade.AgentOwnerIdentity("alice", "zeus")
+    other_user = facade.AgentOwnerIdentity("bob", "zeus")
+
+    assert facade.imported_owner_badge_label(same_user, dest) == "zeus"
+    assert facade.imported_owner_badge_label(other_user, dest) == "bob@zeus"
+    assert (
+        facade.imported_source_owner_from_mapping(
+            {"username": "bob", "machine_name": "zeus"}
+        )
+        == other_user
+    )
+    assert facade.imported_source_owner_from_mapping("bob.zeus") is None
 
 
 def test_known_owner_roots_include_raw_registry_namespaces(

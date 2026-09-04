@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import pending_plan_status_for_tier
+from sase.core.agent_identity_facade import imported_source_owner_from_mapping
 from sase.core.time import to_local
 from sase.core.artifact_file_helpers import select_canonical_plan_path
 from sase.gate_shell.state import gate_member_status_bucket, gate_state_is_terminal
@@ -33,6 +34,13 @@ if TYPE_CHECKING:
 
 
 ACTIVE_ENRICHMENT_STATUSES = {"STARTING", "RUNNING"}
+
+
+def apply_imported_source_owner(agent: Agent, raw: object) -> None:
+    """Copy an ``imported_source_owner`` mapping onto *agent* when present."""
+    owner = imported_source_owner_from_mapping(raw)
+    if owner is not None:
+        agent.imported_source_owner = owner
 
 
 def apply_monitor_meta(

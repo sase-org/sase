@@ -5,7 +5,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from sase.core.agent_identity_facade import AgentIdentitySnapshot, present_agent_name
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    present_agent_name,
+    present_imported_agent_name,
+)
 from sase.core.paths import shorten_path
 from sase.core.time import local_now
 from sase.gate_shell.state import is_real_gate_member
@@ -159,13 +163,18 @@ class Agent(AgentState):
         """Refresh the final local presentation from one identity snapshot."""
         snapshot = identity or AgentIdentitySnapshot.current()
         self.refresh_raw_presented_agent_name()
+        present = (
+            present_imported_agent_name
+            if self.imported_source_owner is not None
+            else present_agent_name
+        )
         if self.presented_agent_name:
-            self.presented_agent_name = present_agent_name(
+            self.presented_agent_name = present(
                 self.presented_agent_name,
                 snapshot,
             )
         if self.presented_identity_name:
-            self.presented_identity_name = present_agent_name(
+            self.presented_identity_name = present(
                 self.presented_identity_name,
                 snapshot,
             )
@@ -402,6 +411,12 @@ class Agent(AgentState):
                 AgentType.RUNNING,
                 f"clan:{self.agent_clan}",
                 self.agent_clan_generation,
+            )
+        if self.is_imported_family_container and self.agent_family:
+            return (
+                AgentType.RUNNING,
+                f"imported-family:{self.agent_family}",
+                self.raw_suffix,
             )
         return (self.agent_type, self.cl_name, self.raw_suffix)
 

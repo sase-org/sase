@@ -12,6 +12,7 @@ from .agent_attempt import AttemptRecord
 from .agent_types import AgentType, LinkedRepoMetadata
 
 if TYPE_CHECKING:
+    from sase.core.agent_identity_facade import AgentOwnerIdentity
     from sase.core.agent_scan_wire import AgentClanContextWire
 
     from .agent import Agent
@@ -392,6 +393,7 @@ class AgentState:
     # Agent-family metadata for plan/question/feedback/coder handoff flows.
     agent_family: str | None = None
     agent_family_role: str | None = None
+    imported_source_owner: AgentOwnerIdentity | None = None
     # Rootless parallel clan membership. Clan names are containers and never
     # identify a real agent row.
     agent_clan: str | None = None
@@ -409,6 +411,7 @@ class AgentState:
     # ``tree_parent_key`` and ``tree_depth`` place their loaded members below
     # them without overloading artifact ``parent_timestamp`` relationships.
     is_clan_container: bool = field(default=False, compare=False)
+    is_imported_family_container: bool = field(default=False, compare=False)
     tree_parent_key: str | None = field(default=None, compare=False)
     tree_depth: int = field(default=0, compare=False)
     clan_tribes: tuple[str, ...] = field(default_factory=tuple, compare=False)
@@ -445,6 +448,9 @@ class AgentState:
     # this pointer closes a cycle with ``followup_agents``/``runtime_children``
     # and dataclass eq/repr (and the repr-based hint digest) would recurse.
     family_container: Agent | None = field(default=None, compare=False, repr=False)
+    imported_family_parent_synthetic: bool = field(
+        default=False, compare=False, repr=False
+    )
 
     # Set when a family root's members reveal a plan chain that started after
     # the root was promoted. Derived during status normalization; not

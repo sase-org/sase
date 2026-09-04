@@ -26,7 +26,7 @@ from ...models.fold_scale import (
 )
 from ...models.fold_state import FoldLevel
 from ...agent_count_chip import format_agent_count_chip
-from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
+from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE, _OWNER_BADGE_STYLE
 from ._fold_language import append_fold_glyph, fold_count_style
 from ._helpers import append_fold_anchor, append_section_heading
 
@@ -131,6 +131,7 @@ class MemberRosterEntry:
     is_dismissed: bool = False
     target_role: MemberJumpRole | None = None
     is_entry_target: bool = False
+    owner_badge: str | None = None
 
 
 @dataclass(slots=True)
@@ -374,6 +375,7 @@ def _append_numbered_entry(
         is_marked=entry.is_marked,
         is_unread=entry.is_unread,
         is_dismissed=entry.is_dismissed,
+        owner_badge=entry.owner_badge,
     )
     append_fold_anchor(text, line, section_id=anchor_id)
 
@@ -422,6 +424,7 @@ def _append_member_fields(
     is_marked: bool,
     is_unread: bool,
     is_dismissed: bool,
+    owner_badge: str | None = None,
 ) -> None:
     bucket = effective_bucket or status_bucket_for_values(status)
     glyph = AGENT_STATUS_BUCKET_GLYPHS[bucket]
@@ -432,6 +435,10 @@ def _append_member_fields(
     if is_dismissed:
         text.append("⊘ ", style="dim #FFAF00")
     text.append(label, style=_AGENT_NAME_ANNOTATION_STYLE)
+    if owner_badge:
+        text.append(" [")
+        text.append(owner_badge, style=_OWNER_BADGE_STYLE)
+        text.append("]")
     text.append(" · ", style="dim")
     text.append(kind, style=_MEMBER_KIND_STYLE)
     text.append(" · ", style="dim")

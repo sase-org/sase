@@ -13,6 +13,7 @@ from sase.monitor_state import MONITOR_GLYPH
 
 from ...models._agent_clan_sections import first_meaningful_line
 from ...models.agent import Agent
+from ...models.agent_owner_badge import agent_owner_badge_label
 from ...models.agent_family_members import (
     concrete_family_shell_rows as family_shell_rows,
     family_member_status_buckets,
@@ -183,6 +184,7 @@ def family_roster_entries(
                 model=model,
                 duration=agent_roster_duration(member, now=now),
                 digest=agent_roster_digest(member),
+                owner_badge=agent_owner_badge_label(member),
             )
         )
     return tuple(entries)

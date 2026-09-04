@@ -7,6 +7,10 @@ from datetime import datetime
 from typing import Any
 
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
+from sase.core.agent_identity_facade import (
+    AgentOwnerIdentity,
+    imported_source_owner_from_mapping,
+)
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 
 _PROJECTED_RECORD_BUNDLE_FIELDS = frozenset(
@@ -35,6 +39,8 @@ _RUNTIME_ONLY_BUNDLE_FIELDS = (
             "linked_file_change_hint",
             "runner_is_live",
             "is_clan_container",
+            "is_imported_family_container",
+            "imported_family_parent_synthetic",
             "tree_parent_key",
             "tree_depth",
             "clan_tribes",
@@ -60,8 +66,15 @@ def agent_state_to_bundle_dict(agent: Agent) -> dict[str, Any]:
         if not item.init or item.name in _RUNTIME_ONLY_BUNDLE_FIELDS:
             continue
         value = getattr(agent, item.name)
+        if item.name == "parent_timestamp" and agent.imported_family_parent_synthetic:
+            continue
         if isinstance(value, AgentType):
             value = value.value
+        elif isinstance(value, AgentOwnerIdentity):
+            value = {
+                "username": value.username,
+                "machine_name": value.machine_name,
+            }
         elif isinstance(value, datetime):
             value = value.isoformat()
         elif (
@@ -175,6 +188,8 @@ def from_bundle_dict(
             value = [
                 datetime.fromisoformat(v) if isinstance(v, str) else v for v in value
             ]
+        elif f.name == "imported_source_owner":
+            value = imported_source_owner_from_mapping(value)
         elif f.name == "linked_repos":
             from sase.ace.tui.models._loaders._meta_enrichment_common import (
                 parse_linked_repos,

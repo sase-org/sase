@@ -501,6 +501,7 @@ class AgentNeighborMixin:
     ) -> tuple[list[AgentNeighborChoice], list[_AgentNeighborPayload]]:
         """Build modal choices and action payloads for related rows."""
         from ...modals.agent_neighbor_modal import AgentNeighborChoice
+        from ...models.agent_owner_badge import agent_owner_badge_label
 
         choices: list[AgentNeighborChoice] = []
         payloads: list[_AgentNeighborPayload] = []
@@ -523,6 +524,7 @@ class AgentNeighborMixin:
                     hood=row.hood,
                     dismissed=row.is_dismissed,
                     global_idx=target.global_idx if target is not None else None,
+                    owner_badge=agent_owner_badge_label(agent) or "",
                 )
             )
             payloads.append(

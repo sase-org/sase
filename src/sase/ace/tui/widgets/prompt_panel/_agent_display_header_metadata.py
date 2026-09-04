@@ -19,9 +19,11 @@ from sase.plan_tier_presentation import PLAN_TIER_PRESENTATIONS
 from sase.project_display_names import humanize_cl_name
 
 from ...models.agent import Agent
+from ...models.agent_owner_badge import agent_owner_badge_label
 from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
     _FAMILY_NAME_STYLE,
+    _OWNER_BADGE_STYLE,
     _PROC_SHELL_ID_STYLE,
 )
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
@@ -112,6 +114,10 @@ def _append_identity_fields(
             else _AGENT_NAME_ANNOTATION_STYLE
         )
         text.append(f"{presented_name}\n", style=name_style)
+        owner_badge = agent_owner_badge_label(agent)
+        if owner_badge:
+            text.append("Owner: ", style="bold #87D7FF")
+            text.append(f"{owner_badge}\n", style=_OWNER_BADGE_STYLE)
         # Structured bead identity belongs exclusively to the deferred BEAD lane.
         is_known_phase = bool(agent.phase_bead_id or agent.agent_family_role == "phase")
         if summary is not None and summary.bead_summary is not None:

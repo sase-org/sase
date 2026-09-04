@@ -107,7 +107,8 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         child_raw_suffixes: set[str] = set()
         revived_suffixes: set[str] = set()
         if agent.raw_suffix:
-            revived_suffixes.add(agent.raw_suffix)
+            if not agent.is_imported_family_container:
+                revived_suffixes.add(agent.raw_suffix)
             if not agent.is_workflow_child:
                 child_agents = [
                     dismissed_agent
@@ -123,13 +124,16 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         dismissed_index_synced = False
         try:
             # Restore minimal artifact files so load_all_agents() rediscovers
-            # the agent.
-            self._restore_agent_artifacts(agent)
-            agent_artifact_dir = revived_artifact_dir(agent)
-            revived_artifact_dirs = [agent_artifact_dir]
-            revived_records = [
-                revive_record_for_agent(agent, artifact_dir=agent_artifact_dir)
-            ]
+            # the agent. Synthetic imported family containers have no artifacts.
+            revived_artifact_dirs: list[str | None] = []
+            revived_records = []
+            if not agent.is_imported_family_container:
+                self._restore_agent_artifacts(agent)
+                agent_artifact_dir = revived_artifact_dir(agent)
+                revived_artifact_dirs.append(agent_artifact_dir)
+                revived_records.append(
+                    revive_record_for_agent(agent, artifact_dir=agent_artifact_dir)
+                )
 
             # Also restore child step / follow-up artifacts for workflow parents
             parent_artifacts_dir = (

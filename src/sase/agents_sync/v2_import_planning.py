@@ -41,6 +41,7 @@ from sase.core.agent_identity_facade import (
     AgentOwnershipClassification,
     AgentSourceOwnerIdentity,
     classify_imported_agent_owner,
+    parse_agent_family_name,
     project_agent_relationship_graph,
 )
 
@@ -251,7 +252,7 @@ def preflight_hood(
         identity=identity,
         adopted_v1_artifact_dirs=preliminary.adopted_v1_artifact_dirs,
     )
-    return HoodPlan(
+    planned = HoodPlan(
         package,
         identity,
         transaction_key,
@@ -261,6 +262,33 @@ def preflight_hood(
         projection.relationships,
         projection.registry_namespace_root,
     )
+    _assert_family_members_have_containers(planned)
+    return planned
+
+
+def _assert_family_members_have_containers(plan: HoodPlan) -> None:
+    """Quarantine a hood whose family members have no family container."""
+    covered = {
+        source_id
+        for container in plan.containers
+        if container.record.kind == "family"
+        for source_id in container.record.member_source_run_ids
+    }
+    missing: list[str] = []
+    for run in plan.runs:
+        parsed = parse_agent_family_name(run.localized_name, plan.identity)
+        metadata = dict(run.payload.record.metadata)
+        raw_role = metadata.get("agent_family_role")
+        is_member = parsed.member_role is not None or (
+            isinstance(raw_role, str) and raw_role not in {"", "root"}
+        )
+        if is_member and run.payload.record.source_run_id not in covered:
+            missing.append(run.localized_name)
+    if missing:
+        raise AgentsSyncFormatError(
+            "family member(s) do not resolve to a present family container: "
+            + ", ".join(missing)
+        )
 
 
 def _registry_claims(plan: HoodPlan) -> tuple[ImportedV2RegistryClaim, ...]:

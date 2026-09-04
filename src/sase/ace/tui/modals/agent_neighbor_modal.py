@@ -14,6 +14,7 @@ from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.agent.status_buckets import PENDING_EPIC_STATUS, agent_is_asking
+from sase.ace.tui.widgets._agent_list_styling import _OWNER_BADGE_STYLE
 from sase.ace.tui.models.tribe_display import (
     TRIBE_IDENTITY_FALLBACK_COLOR,
     compose_tribe_identity_style,
@@ -44,6 +45,7 @@ class AgentNeighborChoice:
     hood: str = ""
     dismissed: bool = False
     global_idx: int | None = None
+    owner_badge: str = ""
 
 
 def _agent_neighbor_selector_keys(count: int) -> list[str]:
@@ -95,6 +97,15 @@ def _agent_neighbor_option_text(
         _short_text(choice.agent_name, max_len=_MAX_AGENT_NAME_LEN),
         style=f"{dim_prefix}bold #00D7AF",
     )
+    if choice.owner_badge:
+        text.append(" [")
+        text.append(
+            choice.owner_badge,
+            style=f"{dim_prefix}{_OWNER_BADGE_STYLE.removeprefix('bold ')}"
+            if dim_prefix
+            else _OWNER_BADGE_STYLE,
+        )
+        text.append("]")
     text.append("  ")
     text.append(choice.status, style=f"{dim_prefix}{_status_style(choice.status)}")
     text.append("  ")

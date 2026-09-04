@@ -16,6 +16,7 @@ from ._json_cache import load_json_cached
 from ._meta_enrichment_common import (
     ACTIVE_ENRICHMENT_STATUSES,
     apply_gate_meta,
+    apply_imported_source_owner,
     apply_monitor_meta,
     append_timestamp_field,
     apply_workflow_child_identity_from_meta,
@@ -150,6 +151,8 @@ def enrich_agent_from_meta(
         agent.agent_family = data["agent_family"]
     if not workflow_child and data.get("agent_family_role"):
         agent.agent_family_role = data["agent_family_role"]
+    if not workflow_child:
+        apply_imported_source_owner(agent, data.get("imported_source_owner"))
     if not workflow_child:
         agent.agent_family_parallel = bool(data.get("agent_family_parallel", False))
         raw_clan = data.get("agent_clan")

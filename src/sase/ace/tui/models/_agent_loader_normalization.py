@@ -6,6 +6,7 @@ from sase.agent.status_buckets import agent_status_bucket
 from sase.core.agent_clan_context import clan_context_by_key, clan_context_for
 from sase.core.agent_scan_wire import AgentArtifactScanWire
 
+from ._agent_imported_family import materialize_imported_family_containers
 from ._agent_ordering import sort_and_reorder
 from ._agent_status_apply import apply_status_overrides
 from ._dedup import (
@@ -88,6 +89,7 @@ def normalize_loaded_agents(
 
     agents = _filter_dead_pids(agents, is_process_running=is_process_running)
     agents = _deduplicate(agents)
+    agents = materialize_imported_family_containers(agents)
     # Persisted diff-badge classification reads every referenced diff file and
     # dominates startup (~0.4 s over 213 rows). It is display enrichment that
     # nothing downstream depends on, so it is deferred to a background pass

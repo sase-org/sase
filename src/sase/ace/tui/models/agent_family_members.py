@@ -487,6 +487,8 @@ def _concrete_planner_child(agent: Agent) -> Agent | None:
 
 
 def _root_represents_member(agent: Agent) -> bool:
+    if agent.is_imported_family_container:
+        return False
     if agent.is_plan_family_root_entry:
         return True
     family_name = agent.agent_family or agent.family_reference_name()

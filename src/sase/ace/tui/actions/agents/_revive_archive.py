@@ -108,6 +108,11 @@ class AgentReviveArchiveMixin:
         self, agents: list[Agent]
     ) -> tuple[list[Agent], list[Agent]]:
         """Return sorted visible parents and all rows for the loaded pages."""
+        from ...models._agent_imported_family import (
+            materialize_imported_family_containers,
+        )
+
+        agents = materialize_imported_family_containers(agents)
         all_dismissed = list(agents)
         visible = [agent for agent in agents if not agent.is_workflow_child]
         visible.sort(key=_dismissed_agent_recency_key)

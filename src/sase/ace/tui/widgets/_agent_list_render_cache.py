@@ -251,12 +251,19 @@ def agent_render_key(
         agent.agent_clan,
         agent.agent_clan_generation,
         agent.is_clan_container,
+        agent.is_imported_family_container,
         agent.is_family_container_row,
         agent.tree_parent_key,
         agent.tree_depth,
         agent.clan_tribes,
         agent.agent_name,
         agent.presented_agent_name,
+        None
+        if agent.imported_source_owner is None
+        else (
+            agent.imported_source_owner.username,
+            agent.imported_source_owner.machine_name,
+        ),
         agent.monitor_id,
         agent.monitor_state,
         agent.monitor_label,

@@ -493,6 +493,46 @@ def present_agent_name(
     return normalize_owned_agent_name(name, snapshot)
 
 
+def present_imported_agent_name(
+    name: str,
+    identity: AgentIdentitySnapshot | None = None,
+) -> str:
+    """Return the owner-stripped local spelling for imported display names."""
+    snapshot = identity or AgentIdentitySnapshot.current()
+    prefix, core_name = _split_dismissed_prefix(name)
+    return prefix + _parse_owned_agent_name(core_name, snapshot).local_name
+
+
+def imported_source_owner_from_mapping(value: object) -> AgentOwnerIdentity | None:
+    """Parse a stored ``imported_source_owner`` object, or return ``None``."""
+    if not isinstance(value, Mapping):
+        return None
+    username = value.get("username")
+    machine_name = value.get("machine_name")
+    if not isinstance(username, str) or not username:
+        return None
+    if not isinstance(machine_name, str) or not machine_name:
+        return None
+    return AgentOwnerIdentity(username, machine_name)
+
+
+def imported_owner_badge_label(
+    source: AgentOwnerIdentity,
+    destination: AgentOwnerIdentity | None = None,
+) -> str:
+    """Return the compact owner badge for an imported source owner.
+
+    Same-user foreign machines render as the machine name. Other users render
+    as ``username@machine``.
+    """
+    dest = destination
+    if dest is None:
+        dest = AgentIdentitySnapshot.current().owner
+    if dest is not None and source.username == dest.username:
+        return source.machine_name
+    return f"{source.username}@{source.machine_name}"
+
+
 def current_owner_agent_name_lookup_candidates(
     name: str,
     identity: AgentIdentitySnapshot | None = None,
@@ -783,11 +823,14 @@ __all__ = [
     "foreign_agent_owner_root",
     "globalize_agent_name",
     "globalize_owned_agent_name",
+    "imported_owner_badge_label",
+    "imported_source_owner_from_mapping",
     "localize_imported_agent_name",
     "normalize_owned_agent_name",
     "normalize_agent_archive_name",
     "parse_agent_family_name",
     "present_agent_name",
+    "present_imported_agent_name",
     "project_agent_relationship_graph",
     "rewrite_agent_relationship_batch",
     "validate_agent_owner",
