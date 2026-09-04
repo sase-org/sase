@@ -150,14 +150,12 @@ def test_plan_file_mode_archives_prompt_link_per_expect_prompt_snapshot(
 ) -> None:
     from sase.sdd.artifact_links import parse_sdd_artifact_link
 
-    prompt_url = (
-        "https://github.com/sase-org/sase--agents/blob/main/prompts/202608/rollout.md"
-    )
+    prompt_refs: list[str] = []
 
     class Resolver:
         def prompt_url(self, prompt_ref: str) -> str | None:
-            assert prompt_ref == "prompts/202608/rollout.md"
-            return prompt_url
+            prompt_refs.append(prompt_ref)
+            return f"https://github.com/sase-org/sase--agents/blob/main/{prompt_ref}"
 
         def bead_url(self, _bead_id: str) -> None:
             return None
@@ -198,7 +196,11 @@ def test_plan_file_mode_archives_prompt_link_per_expect_prompt_snapshot(
     month = result.archived_plan_path.parent.name
     if expect_prompt_snapshot:
         assert link.reference == f"prompts/{month}/rollout.md"
-        assert link.target == prompt_url
+        assert set(prompt_refs) == {f"prompts/{month}/rollout.md"}
+        assert (
+            link.target
+            == f"https://github.com/sase-org/sase--agents/blob/main/prompts/{month}/rollout.md"
+        )
     else:
         assert link.reference is None
 

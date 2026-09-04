@@ -211,7 +211,12 @@ class _SaseArgumentParser(argparse.ArgumentParser):
         raw_args = list(sys.argv[1:] if args is None else args)
         if _uses_obsolete_detached_proc_option(raw_args):
             self.exit(2, f"{_OBSOLETE_DETACHED_PROC_MESSAGE}\n")
-        parsed = super().parse_args(raw_args, namespace)
+        parsed, unknown = super().parse_known_args(raw_args, namespace)
+        if unknown:
+            if _is_bead_note_args(parsed):
+                parsed.text.extend(unknown)
+            else:
+                self.error(f"unrecognized arguments: {' '.join(unknown)}")
         if (
             getattr(parsed, "command", None) == "agent"
             and getattr(parsed, "agent_subcommand", None) == "sync"
@@ -231,6 +236,14 @@ class _SaseArgumentParser(argparse.ArgumentParser):
                 if getattr(parsed, attribute, False):
                     self.error(f"sase agent sync {flag} cannot be used with --check")
         return parsed
+
+
+def _is_bead_note_args(parsed: argparse.Namespace) -> bool:
+    return (
+        getattr(parsed, "command", None) == "bead"
+        and getattr(parsed, "bead_subcommand", None) == "note"
+        and isinstance(getattr(parsed, "text", None), list)
+    )
 
 
 def _uses_obsolete_detached_proc_option(argv: Sequence[str]) -> bool:

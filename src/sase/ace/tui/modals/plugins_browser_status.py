@@ -10,6 +10,7 @@ from rich.table import Table
 from rich.text import Text
 from textual.widgets import OptionList, Static
 
+from sase.ace.tui.update_panel_state import build_update_panel_state
 from sase.plugins.catalog import PluginCatalog
 from sase.plugins.render_common import humanize_age
 from sase.uv_tool.detect import NotUvToolInstall
@@ -30,6 +31,7 @@ class PluginsBrowserStatusMixin:
         _agent_cli_error: str | None
         _agent_cli_statuses: tuple[AgentCliStatus, ...]
         _catalog: PluginCatalog | None
+        _core_error: str | None
         _core_versions: CoreVersions
         _error: str | None
         _filter_text: str
@@ -59,10 +61,57 @@ class PluginsBrowserStatusMixin:
 
     def _all_up_to_date(self) -> bool:
         """Whether every update source has been checked and is current."""
-        if not self._sase_up_to_date() or self._agent_cli_error is not None:
+        if self._loading or self._offline:
+            return False
+        if self._uv_tool is None or isinstance(self._uv_tool, NotUvToolInstall):
+            return False
+        return (
+            self._core_source_current()
+            and self._plugin_source_current()
+            and self._agent_cli_source_current()
+        )
+
+    def _core_source_current(self) -> bool:
+        """Whether every SASE core package has known-current latest evidence."""
+        if self._core_error is not None:
+            return False
+        packages = self._core_versions.packages
+        if not packages:
+            return False
+        return all(
+            package.installed_version is not None
+            and package.latest_checked
+            and package.latest_error is None
+            and package.latest_version is not None
+            and not package.update_available
+            for package in packages
+        )
+
+    def _plugin_source_current(self) -> bool:
+        """Whether every installed plugin has known-current latest evidence."""
+        if self._error is not None:
+            return False
+        catalog = self._catalog
+        if catalog is None:
+            return False
+        return all(
+            not entry.installed.installed
+            or (
+                entry.latest.checked
+                and entry.latest.source != "unknown"
+                and entry.latest.error is None
+                and not entry.update_available
+            )
+            for entry in catalog.entries
+        )
+
+    def _agent_cli_source_current(self) -> bool:
+        """Whether every installed agent CLI has known-current latest evidence."""
+        if self._agent_cli_error is not None:
             return False
         return all(
             status.latest_version is not None
+            and status.version_error is None
             and status.latest_error is None
             and not status.update_available
             for status in self._agent_cli_statuses
@@ -71,25 +120,13 @@ class PluginsBrowserStatusMixin:
 
     def _sase_up_to_date(self) -> bool:
         """Whether the SASE/core/plugin update sources are checked and current."""
-        if self._loading or self._error is not None:
+        if self._loading or self._offline:
             return False
-        catalog = self._catalog
-        if catalog is None:
+        if not self._core_source_current() or not self._plugin_source_current():
             return False
         if self._uv_tool is None or isinstance(self._uv_tool, NotUvToolInstall):
             return False
-        if self._offline:
-            return False
-        if catalog.updates_available != 0:
-            return False
-        components_current = all(
-            package.installed_version is not None
-            and package.latest_checked
-            and package.latest_error is None
-            and not package.update_available
-            for package in self._core_versions.packages
-        )
-        return components_current
+        return True
 
     def _all_current_banner(self) -> Panel:
         """Confirm that SASE, plugins, and installed agent CLIs are current."""
@@ -175,11 +212,21 @@ class PluginsBrowserStatusMixin:
         option_list.display = self._has_item_rows()
 
     def _summary_text(self) -> Text:
-        """Header summary: counts line + offline badge + warning/stale hint."""
+        """Header digest: row counts, cache age, mode, and source warnings."""
         text = Text(self._summary_line())
-        if self._offline:
-            text.append("   ")
-            text.append("⚠ OFFLINE", style="bold yellow")
+        if self._loading:
+            return text
+        text.append("\n")
+        text.append(self._freshness_line())
+        hint = self._summary_hint()
+        if hint is not None:
+            text.append("\n")
+            text.append("⚠ ", style="yellow")
+            text.append(hint, style="yellow")
+        for source, message in self._failed_source_lines():
+            text.append("\n")
+            text.append("⚠ ", style="yellow")
+            text.append(f"{source}: {message}", style="yellow")
         if isinstance(self._uv_tool, NotUvToolInstall):
             text.append("\n")
             text.append("⚠ ", style="yellow")
@@ -187,27 +234,141 @@ class PluginsBrowserStatusMixin:
                 "Plugin changes unavailable — sase is not a `uv tool` install.",
                 style="yellow",
             )
-        hint = self._summary_hint()
-        if hint is not None:
-            text.append("\n")
-            text.append("⚠ ", style="yellow")
-            text.append(hint, style="yellow")
         return text
 
     def _summary_line(self) -> str:
         if self._loading:
-            return "Plugins · loading…"
+            return "Updates · loading..."
+        core_updates = [
+            row for row in self._rows if row.kind == "core" and row.update_available
+        ]
+        plugin_updates = sum(
+            row.kind == "plugin" and row.update_available for row in self._rows
+        )
+        agent_cli_updates = sum(
+            row.kind == "agent-cli" and row.update_available for row in self._rows
+        )
+        total = len(core_updates) + plugin_updates + agent_cli_updates
+        parts = [f"↑ {total} {self._plural(total, 'update')}"]
+        if len(core_updates) == 1:
+            row = core_updates[0]
+            installed = row.installed_version or "?"
+            latest = row.latest_version or "?"
+            parts.append(f"{row.label} {installed} → {latest}")
+        else:
+            parts.append(f"{len(core_updates)} SASE")
+        parts.append(f"{plugin_updates} {self._plural(plugin_updates, 'plugin')}")
+        parts.append(
+            f"{agent_cli_updates} agent {self._plural(agent_cli_updates, 'CLI')}"
+        )
+        return " · ".join(parts)
+
+    def _freshness_line(self) -> str:
+        parts: list[str] = []
+        agents_chip = self._agents_sync_chip()
+        if agents_chip:
+            parts.append(agents_chip)
+        parts.append(f"checked {self._cache_age_label()}")
+        parts.append(self._install_mode_label())
+        if self._offline:
+            parts.append("⚠ OFFLINE")
+        return " · ".join(parts)
+
+    def _cache_age_label(self) -> str:
         catalog = self._catalog
         if catalog is None:
-            return "Plugins · unavailable"
-        total = len(catalog.entries)
-        installed = catalog.installed_count
-        updates = catalog.updates_available
-        age = humanize_age(catalog.age_seconds(self._now))
-        return (
-            f"{total} plugins · {installed} installed · "
-            f"{updates} updates available · cached {age}"
+            return "unknown"
+        return humanize_age(catalog.age_seconds(self._now))
+
+    def _install_mode_label(self) -> str:
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            return "not uv tool"
+        mode = self._install_mode
+        labels = {
+            "managed": "PyPI (managed)",
+            "dev": "Dev (editable)",
+            "mixed": "Mixed",
+        }
+        return labels.get(mode or "", mode or "install mode unknown")
+
+    def _agents_sync_chip(self) -> str | None:
+        try:
+            app = self.app  # type: ignore[attr-defined]
+        except Exception:
+            return None
+        snapshot = getattr(app, "_agents_sync_last_status", None)
+        state = build_update_panel_state(None, snapshot, now=self._now)
+        row = next(
+            (
+                candidate
+                for candidate in state.rows
+                if candidate.scope == "agents" or candidate.key == "agents"
+            ),
+            None,
         )
+        if row is None or row.chip.count <= 0:
+            return None
+        label = f"⇅ {row.chip.count} {self._plural(row.chip.count, 'hood')}"
+        if row.detail:
+            label = f"{label} · {row.detail}"
+        return label
+
+    def _failed_source_lines(self) -> tuple[tuple[str, str], ...]:
+        lines: list[tuple[str, str]] = []
+        if self._core_error is not None:
+            lines.append(("SASE", self._core_error))
+        else:
+            core_message = self._row_source_failure_message("core")
+            if core_message is not None:
+                lines.append(("SASE", core_message))
+        if self._error is not None:
+            lines.append(("Plugins", self._error))
+        else:
+            plugin_message = self._row_source_failure_message("plugin")
+            if plugin_message is not None:
+                lines.append(("Plugins", plugin_message))
+        if self._agent_cli_error is not None:
+            lines.append(("Agent CLIs", self._agent_cli_error))
+        else:
+            agent_cli_message = self._row_source_failure_message("agent-cli")
+            if agent_cli_message is not None:
+                lines.append(("Agent CLIs", agent_cli_message))
+        return tuple(lines)
+
+    def _row_source_failure_message(self, kind: str) -> str | None:
+        rows = [row for row in self._rows if row.kind == kind and row.installed]
+        failures = [(row.label, row.error) for row in rows if row.error is not None]
+        if failures:
+            return self._failure_message("latest probe failed", failures)
+
+        unknown_labels: list[str] = []
+        for row in rows:
+            if kind == "core":
+                latest_checked = bool(getattr(row.payload, "latest_checked", False))
+                if not latest_checked or row.latest_version is None:
+                    unknown_labels.append(row.label)
+            elif kind == "plugin":
+                if row.source == "unknown" or row.latest_version is None:
+                    unknown_labels.append(row.label)
+            elif row.latest_version is None:
+                unknown_labels.append(row.label)
+        if unknown_labels:
+            return self._labels_message("latest version unknown", unknown_labels)
+        return None
+
+    def _failure_message(self, prefix: str, failures: list[tuple[str, str]]) -> str:
+        label, message = failures[0]
+        if len(failures) == 1:
+            return f"{prefix} for {label}: {message}"
+        return f"{prefix} for {len(failures)} rows ({label}: {message})"
+
+    def _labels_message(self, prefix: str, labels: list[str]) -> str:
+        if len(labels) == 1:
+            return f"{prefix} for {labels[0]}"
+        preview = ", ".join(labels[:3])
+        if len(labels) > 3:
+            preview = f"{preview}, ..."
+        return f"{prefix} for {len(labels)} rows ({preview})"
 
     def _summary_hint(self) -> str | None:
         """A warning / stale-cache line to surface under the counts, if any."""

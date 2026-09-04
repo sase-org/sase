@@ -92,6 +92,67 @@ async def test_config_center_updates_core_update_available_png_snapshot(
         )
 
 
+async def test_config_center_updates_digest_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The Updates header summarizes all source counts and freshness."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(
+        monkeypatch,
+        core_versions=_core_versions(sase_latest="0.6.0"),
+        uv_tool=_uv_tool(),
+        install_mode="dev",
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_plugins_modal(page)
+        _highlight_row(pane, "core:sase")
+        pane._render_detail_now(force=True)
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_updates_digest_120x40",
+            title="ACE SASE Admin Center — Updates tab (digest header)",
+        )
+
+
+async def test_config_center_updates_failed_source_header_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The Updates header shows failed source errors instead of all-current."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(
+        monkeypatch,
+        catalog=_all_current_catalog(),
+        core_error="PyPI probe failed",
+        uv_tool=_uv_tool(),
+        agent_cli_statuses=(),
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_plugins_modal(page)
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_updates_failed_source_header_120x40",
+            title="ACE SASE Admin Center — Updates tab (failed source header)",
+        )
+
+
 async def test_config_center_updates_all_current_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

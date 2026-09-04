@@ -29,7 +29,10 @@ def _patch_plugins_catalog(
     error: str | None = None,
     uv_tool: Any | None = None,
     core_versions: Any | None = None,
+    core_error: str | None = None,
     core_incoming_commits: dict[str, IncomingCommits] | None = None,
+    install_mode: str | None = None,
+    dev_root: str | None = None,
     agent_cli_statuses: Any | None = None,
     agent_cli_history: tuple[AgentCliUpdateRun, ...] = (),
     agent_cli_history_error: str | None = None,
@@ -44,9 +47,12 @@ def _patch_plugins_catalog(
         now=_PLUGINS_NOW,
         uv_tool=uv_tool,
         core_versions=resolved_core_versions,
+        core_error=core_error,
         core_incoming_commits=core_incoming_commits
         if core_incoming_commits is not None
         else _default_core_incoming_commits(resolved_core_versions),
+        install_mode=install_mode,
+        dev_root=dev_root,
         agent_cli_statuses=(
             _agent_cli_statuses()
             if agent_cli_statuses is None

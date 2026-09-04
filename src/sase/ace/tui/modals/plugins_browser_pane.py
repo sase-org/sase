@@ -239,6 +239,7 @@ class PluginsBrowserPane(
         self._scope: UpdateScope = self._session_state.scope
         self._catalog: PluginCatalog | None = None
         self._core_versions: CoreVersions = _collect_installed_core_versions()
+        self._core_error: str | None = None
         self._error: str | None = None
         self._loading = auto_load
         # Pane-local handoff from a completed online load to a near-immediate

@@ -69,6 +69,7 @@ class PluginsLoadResult:
     now: float
     uv_tool: UvToolInstall | NotUvToolInstall | None = None
     core_versions: CoreVersions | None = None
+    core_error: str | None = None
     core_incoming_commits: dict[str, IncomingCommits] = field(default_factory=dict)
     install_mode: str | None = None
     dev_root: str | None = None
@@ -179,6 +180,7 @@ def load_plugins_catalog_for_pane(
         now=load_now,
         uv_tool=uv_tool,
         core_versions=core_versions,
+        core_error=core_error,
         core_incoming_commits=core_incoming_commits,
         install_mode=install_mode,
         dev_root=dev_root,

@@ -22,6 +22,7 @@ from sase.main.parser import create_parser
 from sase.notification_gates.models import GateError
 
 _PROJECT = "sase"
+_FUTURE_SNOOZE_UNTIL = "2099-09-01T00:00:00Z"
 
 
 @pytest.fixture(autouse=True)
@@ -70,7 +71,7 @@ def test_close_snoozed_task_cancels_its_bead_snooze_gate(
         task = _ready_task(project, "Snoozed task")
         project.snooze(
             task.id,
-            until="2026-09-01T00:00:00Z",
+            until=_FUTURE_SNOOZE_UNTIL,
             actor="tester",
             reason="waiting on upstream",
         )
@@ -80,7 +81,7 @@ def test_close_snoozed_task_cancels_its_bead_snooze_gate(
         project=_PROJECT,
         title=task.title,
         snooze=SnoozeRecord(
-            until="2026-09-01T00:00:00Z",
+            until=_FUTURE_SNOOZE_UNTIL,
             snoozed_at="2026-08-01T00:00:00Z",
             snoozed_by="tester",
             reason="waiting on upstream",

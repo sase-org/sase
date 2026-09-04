@@ -154,7 +154,7 @@ bead:
         del args
         name = Path.cwd().name
         seen_slugs[name] = set(get_task_type_registry().by_slug)
-        return InitPlan(command="memory", label="Memory", summary="")
+        return InitPlan(command="memory", label="Memory", summary="", actions=())
 
     spec = InitCommandSpec(name="memory", label="Memory", plan=plan, run=lambda a: 0)
 
@@ -303,7 +303,7 @@ def test_batch_keyboard_interrupt_aborts_and_restores_cwd(
         planned.append(name)
         if name == "beta":
             raise KeyboardInterrupt
-        return InitPlan(command="memory", label="Memory", summary="")
+        return InitPlan(command="memory", label="Memory", summary="", actions=())
 
     def deploy(deferred):  # type: ignore[no-untyped-def]
         del deferred

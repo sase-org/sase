@@ -84,11 +84,10 @@ async def test_plugins_pane_summary_counts(
     _patch_catalog(monkeypatch, catalog=_catalog())
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        summary = pane._summary_text()
-        assert "4 plugins" in summary
-        assert "2 installed" in summary
-        assert "1 updates available" in summary
-        assert "just now" in summary
+        summary = _render(pane._summary_text())
+        assert "↑ 1 update" in summary
+        assert "1 plugin" in summary
+        assert "checked just now" in summary
 
 
 async def test_panel_fresh_compute_grows_badge_and_signals_core_rebuild(

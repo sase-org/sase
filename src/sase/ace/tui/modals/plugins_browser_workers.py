@@ -36,6 +36,7 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         _agent_cli_plan_worker: Worker[Any] | None
         _agent_cli_statuses: tuple[Any, ...]
         _catalog: Any
+        _core_error: str | None
         _core_incoming_commits: dict[str, Any]
         _core_versions: Any
         _dev_root: str | None
@@ -146,7 +147,11 @@ class PluginsBrowserWorkersMixin(_MixinBase):
                 uv_tool=getattr(result, "uv_tool", None) or prior_uv_tool,
                 offline=offline,
             )
-            return dataclasses.replace(result, rows=rows)
+            if dataclasses.is_dataclass(result) and not isinstance(result, type):
+                return dataclasses.replace(result, rows=rows)
+            dynamic_result: Any = result
+            dynamic_result.rows = rows
+            return dynamic_result
 
         self._worker = self.run_worker(
             task, thread=True, exclusive=True, exit_on_error=False
@@ -250,6 +255,7 @@ class PluginsBrowserWorkersMixin(_MixinBase):
             core_versions = getattr(result, "core_versions", None)
             if core_versions is not None:
                 self._core_versions = core_versions
+            self._core_error = getattr(result, "core_error", None)
             install_mode = getattr(result, "install_mode", None)
             if install_mode is not None:
                 self._install_mode = install_mode
@@ -284,6 +290,7 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         elif event.state == WorkerState.ERROR:
             self._loading = False
             self._fresh_editable_roots_evidence = None
+            self._core_error = None
             self._error = (
                 str(event.worker.error) if event.worker.error else "load failed"
             )
