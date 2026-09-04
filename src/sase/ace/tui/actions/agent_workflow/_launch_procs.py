@@ -15,6 +15,7 @@ from ..proc_actions import TrackedProcCompletion
 
 if TYPE_CHECKING:
     from sase.agent.launch_types import AgentLaunchResult
+    from ...proc_observer import ObservedProc
 
 
 _LaunchSeverity = Literal["warning", "error"]
@@ -62,8 +63,8 @@ class LaunchProcMixin:
         dedup_key: str | None = None,
         submitted_prompt: str | None = None,
         extra_payload: dict[str, object] | None = None,
-    ) -> bool:
-        """Submit a durable ``sase run`` launch and return whether it was accepted.
+    ) -> ObservedProc | None:
+        """Submit a durable ``sase run`` launch and return its placeholder row.
 
         ``submitted_prompt`` is launch-specific recovery metadata: if the worker
         dies before returning a :class:`_LaunchProcOutcome` (a payloadless
@@ -89,7 +90,7 @@ class LaunchProcMixin:
                 prompts = {}
                 self._launch_submitted_prompts = prompts
             prompts[proc_info.proc_id] = submitted_prompt
-        return proc_info is not None
+        return proc_info
 
     def _on_launch_proc_complete(
         self,
@@ -103,7 +104,11 @@ class LaunchProcMixin:
         _warm_common_placeholders_if_available(self)
         submitted_prompt = self._pop_launch_submitted_prompt(completion)
         outcome = _launch_outcome_from_completion(completion)
+        proc_id = completion.proc_info.proc_id
         if outcome is None:
+            from ._launch_records import stamp_launch_record_failure
+
+            stamp_launch_record_failure(self, proc_id)
             if not completion.success:
                 error_id = new_error_id()
                 _schedule_payloadless_launch_failure_log(
@@ -122,6 +127,15 @@ class LaunchProcMixin:
             elif completion.message:
                 self.notify(completion.message)  # type: ignore[attr-defined]
             return
+
+        from ._launch_records import (
+            stamp_launch_record_failure,
+            stamp_launch_record_results,
+        )
+
+        stamp_launch_record_results(self, proc_id, outcome.results)
+        if not outcome.success:
+            stamp_launch_record_failure(self, proc_id)
 
         if outcome.results:
             self._handle_launch_results_delta(outcome.results)  # type: ignore[attr-defined]

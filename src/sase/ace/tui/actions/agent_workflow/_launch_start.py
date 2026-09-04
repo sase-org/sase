@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ._launch_records import LaunchRecordContext, push_launch_record
 from ._launch_provider_guard import LaunchProviderGuardMixin
 from ._types import PromptContext
 
 if TYPE_CHECKING:
     from sase.ace.patch import Patch
     from sase.agent.prompt_placeholder_inputs import PromptInputPlan
+    from ...proc_observer import ObservedProc
 
 log = logging.getLogger(__name__)
 
@@ -86,6 +90,13 @@ def _record_submit_time_vcs_replay(prompt: str) -> None:
         record_vcs_xprompt_usage(prefix)
     except Exception:
         log.debug("Failed to refresh Ctrl+Space replay target", exc_info=True)
+
+
+@dataclass(frozen=True)
+class _AcceptedBulkLaunch:
+    proc: ObservedProc
+    prompt: str
+    context: LaunchRecordContext
 
 
 class AgentLaunchStartMixin(LaunchProviderGuardMixin):
@@ -298,7 +309,7 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
         if extra_payload:
             payload.update(extra_payload)
 
-        submitted = self._submit_launch_proc(  # type: ignore[attr-defined]
+        proc_info = self._submit_launch_proc(  # type: ignore[attr-defined]
             display_name=f"launch {ctx.display_name}",
             cl_name=ctx.display_name,
             project_file=ctx.project_file,
@@ -307,7 +318,14 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
             extra_payload=payload,
             submitted_prompt=prompt,
         )
-        if submitted:
+        if proc_info is not None:
+            push_launch_record(
+                self,
+                proc_ids=(proc_info.proc_id,),
+                prompt=prompt,
+                context=_launch_record_context_from_prompt_context(ctx),
+                submitted_prompts={proc_info.proc_id: prompt},
+            )
             _record_submit_time_vcs_replay(prompt)
 
     def _submit_bulk_resolved_launch(
@@ -349,6 +367,7 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
 
         launched = 0
         failed = 0
+        accepted: list[_AcceptedBulkLaunch] = []
         shared_extra = {
             key: value
             for key, value in dict(extra_payload or {}).items()
@@ -362,6 +381,7 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
                 extra_payload=shared_extra,
                 slot_index=index,
                 slot_count=n,
+                accepted=accepted,
             )
             if slot:
                 launched += 1
@@ -373,6 +393,22 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
                 f"Started {launched} agent(s), {failed} failed",
                 severity="warning",
             )
+        if accepted:
+            context = accepted[0].context
+            if len(accepted) > 1:
+                context = LaunchRecordContext(
+                    display_name=f"bulk {len(accepted)} Patches",
+                    project_file=context.project_file,
+                    cl_name=context.cl_name,
+                    is_project_agent=context.is_project_agent,
+                )
+            push_launch_record(
+                self,
+                proc_ids=tuple(slot.proc.proc_id for slot in accepted),
+                prompt=prompt,
+                context=context,
+                submitted_prompts={slot.proc.proc_id: slot.prompt for slot in accepted},
+            )
 
     def _submit_one_bulk_patch(
         self,
@@ -383,6 +419,7 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
         extra_payload: dict[str, object],
         slot_index: int,
         slot_count: int,
+        accepted: list[_AcceptedBulkLaunch] | None = None,
     ) -> bool:
         """Submit one marked-Patch launch. Return whether it was accepted."""
         import os
@@ -444,20 +481,30 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
                 "workflow_name": workflow_name,
             }
         )
-        submitted = bool(
-            self._submit_launch_proc(  # type: ignore[attr-defined]
-                display_name=f"launch {display_name}",
-                cl_name=cl_name,
-                project_file=project_file,
-                prompt=cl_prompt,
-                dedup_key=f"launch:{workflow_name}",
-                extra_payload=payload,
-                submitted_prompt=cl_prompt,
-            )
+        proc_info = self._submit_launch_proc(  # type: ignore[attr-defined]
+            display_name=f"launch {display_name}",
+            cl_name=cl_name,
+            project_file=project_file,
+            prompt=cl_prompt,
+            dedup_key=f"launch:{workflow_name}",
+            extra_payload=payload,
+            submitted_prompt=cl_prompt,
         )
-        if submitted:
+        if proc_info is not None:
+            if accepted is not None:
+                accepted.append(
+                    _AcceptedBulkLaunch(
+                        proc=proc_info,
+                        prompt=cl_prompt,
+                        context=_launch_record_context(
+                            display_name=display_name,
+                            project_file=project_file,
+                            cl_name=cl_name,
+                        ),
+                    )
+                )
             _record_submit_time_vcs_replay(cl_prompt)
-        return submitted
+        return proc_info is not None
 
     def _clear_bulk_patch_marks(self) -> None:
         """Drop Patch marks after a bulk submit so the UI matches reality."""
@@ -489,6 +536,42 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
             if query(PromptInputBar):
                 return
         self._prompt_context = None
+
+
+def _launch_record_context_from_prompt_context(
+    ctx: PromptContext,
+) -> LaunchRecordContext:
+    project_name = Path(ctx.project_file).expanduser().parent.name
+    cl_name = ctx.cl_name or (project_name if not ctx.is_home_mode else "")
+    if not cl_name:
+        cl_name = ctx.history_sort_key or ctx.display_name
+    return _launch_record_context(
+        display_name=ctx.display_name,
+        project_file=ctx.project_file,
+        cl_name=cl_name,
+        is_project_agent=not ctx.is_home_mode and cl_name == project_name,
+    )
+
+
+def _launch_record_context(
+    *,
+    display_name: str,
+    project_file: str,
+    cl_name: str,
+    is_project_agent: bool | None = None,
+) -> LaunchRecordContext:
+    project_name = Path(project_file).expanduser().parent.name
+    resolved_cl_name = cl_name or project_name or display_name
+    return LaunchRecordContext(
+        display_name=display_name,
+        project_file=project_file,
+        cl_name=resolved_cl_name,
+        is_project_agent=(
+            resolved_cl_name == project_name
+            if is_project_agent is None
+            else is_project_agent
+        ),
+    )
 
 
 def _log_bulk_item_failure(

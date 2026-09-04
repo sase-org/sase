@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from sase.ace.tui.proc_observer import ObservedProc
 from sase.ace.patch import Patch
 from tests.ace.tui._agent_launch_helpers import _FakeApp
 
@@ -34,9 +35,9 @@ class _BulkApp(_FakeApp):
     def _refresh_display(self) -> None:
         self.refresh_calls += 1
 
-    def _submit_launch_proc(self, **kwargs: Any) -> bool:
+    def _submit_launch_proc(self, **kwargs: Any) -> ObservedProc | None:
         if self._reject_cl and kwargs.get("cl_name") == self._reject_cl:
-            return False
+            return None
         return super()._submit_launch_proc(**kwargs)
 
 

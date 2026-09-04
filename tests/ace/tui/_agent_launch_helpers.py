@@ -7,10 +7,12 @@ not a discarded in-process launch body.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from sase.ace.tui.actions.agent_workflow._agent_launch import AgentLaunchMixin
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
+from sase.ace.tui.proc_observer import ObservedProc
 
 
 class _FakeApp(AgentLaunchMixin):
@@ -67,9 +69,11 @@ class _FakeApp(AgentLaunchMixin):
         dedup_key: str | None = None,
         submitted_prompt: str | None = None,
         extra_payload: Any = None,
-    ) -> bool:
+    ) -> ObservedProc | None:
+        proc_id = f"proc-{len(self.launch_tasks) + 1}"
         self.launch_tasks.append(
             {
+                "proc_id": proc_id,
                 "display_name": display_name,
                 "cl_name": cl_name,
                 "project_file": project_file,
@@ -79,7 +83,17 @@ class _FakeApp(AgentLaunchMixin):
                 "extra_payload": extra_payload,
             }
         )
-        return True
+        return ObservedProc(
+            proc_id=proc_id,
+            proc_type="launch",
+            cl_name=cl_name,
+            project_file=project_file,
+            status="pending",
+            message=f"{display_name} submitted",
+            started_at=datetime.now(),
+            display_name=display_name,
+            dedup_key=dedup_key,
+        )
 
 
 def _fake_context() -> PromptContext:
