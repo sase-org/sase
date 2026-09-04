@@ -114,6 +114,50 @@ def is_link_reveal_active(
     return not reveal.origin.is_stale(pane_id)
 
 
+def pane_canonical_query(pane: Any) -> str:
+    """Return *pane*'s current canonical query string.
+
+    Mirrors the resolution :func:`~sase.ace.tui.actions._link_follow_ladder.capture_query_origin`
+    uses: a pane's own ``query_history_record().canonical`` when available,
+    falling back to its raw ``host_limit_query()`` text. Patches has neither
+    method on the pane object the Artifacts contract expects, so its info
+    panel passes ``AceApp.canonical_query_string`` to
+    :func:`active_pane_link_reveal` directly instead of calling this.
+    """
+    current = ""
+    query_fn = getattr(pane, "host_limit_query", None)
+    if callable(query_fn):
+        current = str(query_fn())
+    record_fn = getattr(pane, "query_history_record", None)
+    if callable(record_fn):
+        record = record_fn()
+        canonical = getattr(record, "canonical", None)
+        if isinstance(canonical, str):
+            return canonical
+    return current
+
+
+def active_pane_link_reveal(
+    app: Any, pane_id: str, *, current_canonical: str
+) -> LinkReveal | None:
+    """Return *pane_id*'s live :class:`LinkReveal`, or ``None`` if none is live.
+
+    Shared by every pane's info/scope renderer so the lens chip (built with
+    :func:`sase.ace.tui.widgets.artifacts.shell.build_reveal_chip`) reflects
+    the same liveness rule the reveal ladder itself uses. Callers compute
+    *current_canonical* with :func:`pane_canonical_query` (or, for Patches,
+    ``AceApp.canonical_query_string``).
+    """
+    reveal = getattr(app, "_link_reveals", {}).get(pane_id)
+    if not isinstance(reveal, LinkReveal):
+        return None
+    if not is_link_reveal_active(
+        reveal, pane_id=pane_id, current_canonical=current_canonical
+    ):
+        return None
+    return reveal
+
+
 def build_host_query_probe(
     row: Any | None,
     profile: Any | None,
@@ -186,8 +230,10 @@ def minimal_widening_query(query: str, probe: HostQueryProbe) -> str | None:
 __all__ = [
     "HostQueryProbe",
     "LinkReveal",
+    "active_pane_link_reveal",
     "build_host_query_probe",
     "is_link_reveal_active",
     "make_link_reveal",
     "minimal_widening_query",
+    "pane_canonical_query",
 ]

@@ -7,12 +7,13 @@ from typing import TYPE_CHECKING, Any
 from textual.widgets import Static
 
 from sase.ace.query.limit_token import apply_limit
-from sase.ace.tui.keymaps import KeymapRegistry
+from sase.ace.tui.keymaps import KeymapRegistry, key_display_name
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.bead.filter_query import BeadFilterQueryError, BeadFilterValues
 from sase.bead.filter_query import to_query_string
 from sase.core.query_profile_corpus_facade import ArtifactQueryIndex
 
+from ....link_reveal import active_pane_link_reveal, pane_canonical_query
 from ...models.group_fold import GroupFoldRegistry
 from .bead_filter_bar import BeadFilterBar
 from .beads_data import BeadsSnapshot
@@ -26,7 +27,7 @@ from .beads_rendering import (
 )
 from .entry_navigation import ArtifactEntryTarget, LinkRequestState
 from .query_session import ArtifactQuerySession
-from .shell import ArtifactsPaneState
+from .shell import ArtifactsPaneState, build_reveal_chip
 from .types import ARTIFACTS_ACCENTS, ArtifactsPaneContract
 
 if TYPE_CHECKING:
@@ -274,12 +275,25 @@ class BeadsOptionsMixin(_MixinBase):
             )
 
     def _scope_text(self) -> Any:
-        return build_beads_scope(
+        text = build_beads_scope(
             self._registry,
             project_scope=self.project_scope,
             project_display_name=self._project_display_name,
             accent=self._accent(),
         )
+        reveal = active_pane_link_reveal(
+            self._registry.app, "beads", current_canonical=pane_canonical_query(self)
+        )
+        if reveal is not None:
+            text.append("\n")
+            text.append_text(
+                build_reveal_chip(
+                    label=f"Revealed {reveal.ref}",
+                    accent=self._accent(),
+                    return_hint=key_display_name(self._registry.app.prev_query),
+                )
+            )
+        return text
 
     def _status_text(self) -> Any:
         return build_beads_status(

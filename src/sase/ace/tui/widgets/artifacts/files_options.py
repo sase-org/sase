@@ -399,6 +399,7 @@ class FilesOptionsMixin(_MixinBase):
             filters=self._display_filter_values(),
             filtered_count=self._filtered_count,
             accent=self._accent(),
+            pane=self,
         )
 
     def _status_text(self) -> RenderableType:

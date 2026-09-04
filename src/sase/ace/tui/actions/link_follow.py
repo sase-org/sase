@@ -228,6 +228,7 @@ class LinkFollowMixin:
         )
 
         subject_ref = subject.ref
+        reveal_flags = _link_panel_reveal_flags(self, panel_chips)
 
         def _on_result(result: ArtifactLinksPanelResult | None) -> None:
             if result is None:
@@ -255,6 +256,7 @@ class LinkFollowMixin:
             scoped_label=_scope_label(scope_item) if scope_item is not None else None,
             add_enabled=_artifact_link_add_enabled(self),
             staleness_notice=initial_notice,
+            reveal_flags=reveal_flags,
         )
         push_screen = getattr(self, "push_screen", None)
         if not callable(push_screen):
@@ -705,6 +707,35 @@ class LinkFollowMixin:
             f"{_pane_label(target)} has no {ref} in its inventory",
             severity="warning",
         )
+
+
+def _link_panel_reveal_flags(app: Any, chips: tuple[LinkChip, ...]) -> frozenset[int]:
+    """Indices of *chips* whose target exists but is not selectable in place.
+
+    Reuses the same pane ref resolution the follow path itself uses
+    (:meth:`_resolve_link_follow_target`), so the Links panel warns before a
+    follow triggers the reveal ladder instead of only after. A chip already
+    flagged dangling by ``_is_missing`` (no pane resolves it at all) is left
+    alone -- that is a distinct, stronger warning -- and a still-loading
+    destination pane is skipped, since "not yet in ``entry_targets()``"
+    there is a loading artifact, not a real reveal need.
+    """
+    resolve = getattr(app, "_resolve_link_follow_target", None)
+    navigator = getattr(app, "_artifacts_entry_navigator", None)
+    if not callable(resolve) or not callable(navigator):
+        return frozenset()
+    flags: set[int] = set()
+    for index, chip in enumerate(chips):
+        if chip.neighbor_target is None:
+            continue
+        resolved = resolve(chip.neighbor_ref, chip.neighbor_target)
+        pane = navigator(resolved.pane_id)
+        if pane is None or _pane_is_loading(pane):
+            continue
+        entry_targets = getattr(pane, "entry_targets", None)
+        if not callable(entry_targets) or resolved not in entry_targets():
+            flags.add(index)
+    return frozenset(flags)
 
 
 def _target_project_scope(target: ArtifactEntryTarget) -> str | None:

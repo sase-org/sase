@@ -513,4 +513,17 @@ class PatchDisplayMixin(PatchOnboardingMixin):
             pane_id="patches",
             current_canonical=self.canonical_query_string,  # type: ignore[attr-defined]
         )
-        info_panel.update_reveal(reveal.label if active and reveal else None)
+        if active and reveal:
+            info_panel.update_reveal(reveal.label)
+            return
+
+        from ....link_reveal import active_pane_link_reveal
+
+        link_reveal = active_pane_link_reveal(
+            self,
+            "patches",
+            current_canonical=self.canonical_query_string,  # type: ignore[attr-defined]
+        )
+        info_panel.update_reveal(
+            f"Revealed {link_reveal.ref}" if link_reveal is not None else None
+        )

@@ -13,13 +13,14 @@ from textual.widgets import Static
 from textual.worker import Worker
 
 from sase.ace.query_profile import compiled_profile_for_builtin_pane
-from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
+from sase.ace.tui.keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.project_display_names import ProjectRefDisplaySnapshot
 from sase.vcs_provider._types import MergeVisibility
 from sase.vcs_log.models import VcsLogResult
 from sase.vcs_log.filter_query import CommitLogFilterValues, to_query_string
 
+from ....link_reveal import active_pane_link_reveal, pane_canonical_query
 from ...models.artifact_groups import ArtifactGroupBuildResult, build_grouped_rows
 from ...models.group_fold import GroupFoldRegistry
 from .commit_filter_bar import CommitFilterBar
@@ -51,6 +52,7 @@ from .group_fold_navigation import ArtifactGroupFoldMixin
 from .panes import ArtifactsPaneLifecycle
 from .query_session import ArtifactQuerySession
 from .relation_panel import RelationPanel, RelationPanelHostMixin
+from .shell import build_reveal_chip
 from .types import ARTIFACTS_ACCENTS
 
 STITCHES_DETAIL_DEBOUNCE_S = 0.25
@@ -256,11 +258,26 @@ class CommitsPane(
 
     def _build_info_header(self) -> Text:
         worker = self._collection_worker
-        return build_commits_info_header(
+        text = build_commits_info_header(
             refreshing=worker is not None and worker.is_running,
             has_content=self.result is not None,
             active_limit=self._active_limit(),
         )
+        reveal = active_pane_link_reveal(
+            self._registry.app,
+            STITCHES_PANE_ID,
+            current_canonical=pane_canonical_query(self),
+        )
+        if reveal is not None:
+            text.append("\n")
+            text.append_text(
+                build_reveal_chip(
+                    label=f"Revealed {reveal.ref}",
+                    accent=self._accent(),
+                    return_hint=key_display_name(self._registry.app.prev_query),
+                )
+            )
+        return text
 
     def _build_position_badge(self) -> Text:
         return build_commit_position_badge(

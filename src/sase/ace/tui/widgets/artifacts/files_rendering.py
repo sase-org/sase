@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import cast
+from typing import Any, cast
 
 from rich.text import Text
 
@@ -13,9 +13,15 @@ from sase.core.agent_identity_facade import present_agent_name
 from sase.core.time import parse_local
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
+from ....link_reveal import active_pane_link_reveal, pane_canonical_query
 from .files_data import FileOrigin, FileVersion, FilesSnapshot, LogicalFile
 from .files_filtering import FilesFilterValues
-from .shell import ArtifactsPaneState, build_footer_hints, build_state_badge
+from .shell import (
+    ArtifactsPaneState,
+    build_footer_hints,
+    build_reveal_chip,
+    build_state_badge,
+)
 from .types import ARTIFACTS_ACCENTS
 
 
@@ -52,6 +58,7 @@ def build_files_info(
     filters: FilesFilterValues | None = None,
     filtered_count: int | None = None,
     accent: str = ARTIFACTS_ACCENTS["files"],
+    pane: Any = None,
 ) -> Text:
     """Build project scope, kind-summary chips, and active-filter status."""
 
@@ -67,6 +74,7 @@ def build_files_info(
         style="dim",
     )
     if snapshot is None:
+        _append_files_reveal_chip(text, registry, pane, accent)
         return text
 
     documents = snapshot.view_mode_counts.get("pdf", 0) + snapshot.view_mode_counts.get(
@@ -120,7 +128,26 @@ def build_files_info(
             f"filtered {visible:,}/{len(snapshot.rows):,}",
             style=f"bold {accent}",
         )
+    _append_files_reveal_chip(text, registry, pane, accent)
     return text
+
+
+def _append_files_reveal_chip(
+    text: Text, registry: KeymapRegistry, pane: Any, accent: str
+) -> None:
+    reveal = active_pane_link_reveal(
+        registry.app, "files", current_canonical=pane_canonical_query(pane)
+    )
+    if reveal is None:
+        return
+    text.append("\n")
+    text.append_text(
+        build_reveal_chip(
+            label=f"Revealed {reveal.ref}",
+            accent=accent,
+            return_hint=key_display_name(registry.app.prev_query),
+        )
+    )
 
 
 def build_files_status(

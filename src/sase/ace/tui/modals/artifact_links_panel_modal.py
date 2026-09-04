@@ -26,6 +26,7 @@ _MAX_TARGET_LABEL_LEN = 34
 _MAX_META_LEN = 96
 _KEY_STYLE = "bold #D7AF5F"
 _MISSING_STYLE = "dim #808080"
+_REVEAL_STYLE = "bold #FFD700"
 _WHY_STYLE = "dim #A8A8A8"
 
 
@@ -115,7 +116,9 @@ def _metadata_lines(chip: LinkChip) -> tuple[str, ...]:
     return tuple(lines)
 
 
-def _artifact_link_option_text(selector: str | None, chip: LinkChip) -> Text:
+def _artifact_link_option_text(
+    selector: str | None, chip: LinkChip, *, needs_reveal: bool = False
+) -> Text:
     """Render one link-panel row with full why/provenance text."""
 
     text = Text()
@@ -128,6 +131,8 @@ def _artifact_link_option_text(selector: str | None, chip: LinkChip) -> Text:
     text.append("  ")
     if _is_missing(chip):
         text.append("⊘ ", style=_MISSING_STYLE)
+    elif needs_reveal:
+        text.append("↻ ", style=_REVEAL_STYLE)
     text.append(chip.icon or "•", style=f"bold {chip.accent}")
     text.append(" ")
     target_style = _MISSING_STYLE if _is_missing(chip) else f"bold {chip.accent}"
@@ -137,6 +142,8 @@ def _artifact_link_option_text(selector: str | None, chip: LinkChip) -> Text:
     )
     if _is_missing(chip):
         text.append(" (missing)", style=_MISSING_STYLE)
+    elif needs_reveal:
+        text.append(" (needs reveal)", style=_REVEAL_STYLE)
     for metadata_line in _metadata_lines(chip):
         text.append("\n   ")
         text.append(metadata_line, style="dim")
@@ -179,6 +186,7 @@ class ArtifactLinksPanelModal(
         scoped_label: str | None = None,
         add_enabled: bool = False,
         staleness_notice: str = "",
+        reveal_flags: frozenset[int] = frozenset(),
     ) -> None:
         super().__init__()
         self._subject_ref = subject_ref
@@ -186,6 +194,7 @@ class ArtifactLinksPanelModal(
         self._scoped_label = scoped_label
         self._add_enabled = add_enabled
         self._staleness_notice = staleness_notice
+        self._reveal_flags = reveal_flags
         selectors = _artifact_links_panel_selector_keys(len(self._chips))
         self._selector_by_index = selectors
         self._index_by_selector = {key: index for index, key in enumerate(selectors)}
@@ -222,7 +231,9 @@ class ArtifactLinksPanelModal(
             )
             options.append(
                 Option(
-                    _artifact_link_option_text(selector, chip),
+                    _artifact_link_option_text(
+                        selector, chip, needs_reveal=index in self._reveal_flags
+                    ),
                     id=f"choice-{index}",
                 )
             )

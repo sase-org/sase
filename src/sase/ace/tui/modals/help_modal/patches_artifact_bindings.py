@@ -44,6 +44,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
     artifact_list_navigation.append(
         (f"{key}{key} / {key}1-9 / {key}0", "Follow link / open links panel")
     )
+    artifact_list_navigation.append(("⊘ / ↻", "Panel: dangling / needs reveal"))
 
     return [
         (

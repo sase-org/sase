@@ -8,12 +8,13 @@ from rich.text import Text
 from textual.widgets import Static
 
 from sase.ace.query.limit_token import apply_limit
-from sase.ace.tui.keymaps import KeymapRegistry
+from sase.ace.tui.keymaps import KeymapRegistry, key_display_name
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.plan_search.filter_query import PlanFilterQueryError, PlanFilterValues
 from sase.plan_search.filter_query import to_query_string
 from sase.core.query_profile_corpus_facade import ArtifactQueryIndex
 
+from ....link_reveal import active_pane_link_reveal, pane_canonical_query
 from ..._artifact_tab_model import PaneGroupingModeDecl
 from ...models.artifact_groups import (
     ArtifactGroupBuildResult,
@@ -44,6 +45,7 @@ from .plans_rendering import (
     build_plans_status,
 )
 from .query_session import ArtifactQuerySession
+from .shell import build_reveal_chip
 from .types import ARTIFACTS_ACCENTS, ArtifactsPaneContract
 
 PLANS_PANE_ID_PREFIX = "ref:"
@@ -454,13 +456,29 @@ class PlansOptionsMixin(_MixinBase):
         return ARTIFACTS_ACCENTS["plans"] if contract is None else contract.accent
 
     def _scope_text(self) -> Text:
-        return build_plans_scope(
+        text = build_plans_scope(
             self._registry,
             project_scope=self.project_scope,
             project_display_name=self._project_display_name,
             provider_label=self.provider_label,
             accent=self._accent(),
         )
+        pane_id = getattr(self, "pane_key", None) or "ref:plan"
+        reveal = active_pane_link_reveal(
+            self._registry.app,
+            pane_id,
+            current_canonical=pane_canonical_query(self),
+        )
+        if reveal is not None:
+            text.append("\n")
+            text.append_text(
+                build_reveal_chip(
+                    label=f"Revealed {reveal.ref}",
+                    accent=self._accent(),
+                    return_hint=key_display_name(self._registry.app.prev_query),
+                )
+            )
+        return text
 
     def _status_text(self) -> Text:
         return build_plans_status(

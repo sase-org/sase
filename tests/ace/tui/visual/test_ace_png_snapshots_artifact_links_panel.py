@@ -124,6 +124,18 @@ def _dangling_chips() -> tuple[LinkChip, ...]:
     )
 
 
+def _needs_reveal_chips() -> tuple[LinkChip, ...]:
+    return (
+        _chip(0),
+        _chip(
+            1,
+            neighbor_ref="bead:sase-hidden.3",
+            why="Resolves to a real row that today's filter hides from the pane.",
+        ),
+        _chip(2, relation="launched", label="launched"),
+    )
+
+
 async def _assert_panel_snapshot(
     *,
     ace_png_visual: AcePngSnapshotFixture,
@@ -135,6 +147,7 @@ async def _assert_panel_snapshot(
     wait_text: str,
     scoped_label: str | None = None,
     staleness_notice: str = "",
+    reveal_flags: frozenset[int] = frozenset(),
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
@@ -147,6 +160,7 @@ async def _assert_panel_snapshot(
                 scoped_label=scoped_label,
                 add_enabled=True,
                 staleness_notice=staleness_notice,
+                reveal_flags=reveal_flags,
             )
         )
         await page.expect_modal("ArtifactLinksPanelModal")
@@ -226,6 +240,31 @@ async def test_artifact_links_panel_dangling_row_png_snapshots(
         title="ACE artifact links panel dangling row",
         chips=_dangling_chips(),
         wait_text="missing",
+    )
+
+
+@pytest.mark.parametrize(
+    ("size", "snapshot_name"),
+    [
+        ((120, 40), "artifact_links_panel_needs_reveal_row_120x40"),
+        ((60, 30), "artifact_links_panel_needs_reveal_row_60x30"),
+    ],
+)
+async def test_artifact_links_panel_needs_reveal_row_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    size: tuple[int, int],
+    snapshot_name: str,
+) -> None:
+    await _assert_panel_snapshot(
+        ace_png_visual=ace_png_visual,
+        monkeypatch=monkeypatch,
+        size=size,
+        snapshot_name=snapshot_name,
+        title="ACE artifact links panel needs-reveal row",
+        chips=_needs_reveal_chips(),
+        wait_text="needs reveal",
+        reveal_flags=frozenset({1}),
     )
 
 

@@ -178,4 +178,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
 
 
 def _link_follow_row(key: str) -> list[tuple[str, str]]:
-    return [(f"{key}{key} / {key}1-9 / {key}0", "Follow link / open links panel")]
+    return [
+        (f"{key}{key} / {key}1-9 / {key}0", "Follow link / open links panel"),
+        ("⊘ / ↻", "Panel: dangling / needs reveal"),
+    ]
