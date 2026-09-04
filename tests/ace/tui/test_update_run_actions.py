@@ -35,7 +35,6 @@ from sase.agent_clis.models import (
     AgentCliUpdatesReady,
     UpdateStrategy,
 )
-from sase.agents_sync.models import CachedIntegrationResult, CapturedIncomingHood
 from tests.ace.tui._plugins_browser_pane_helpers import _agent_cli_statuses
 from tests.ace.tui._proc_submit_signature_helpers import (
     assert_session_worker_submit_signature,
@@ -88,29 +87,12 @@ def _runnable_preview(
         ),
         all_clis=False,
     )
-    captured = CapturedIncomingHood(
-        project_key="alpha",
-        project="Alpha",
-        fetched_ref="refs/remotes/origin/main",
-        fetched_sha="a" * 40,
-        cache_id="alpha-foo",
-        format_version=2,
-        source_owner_kind="exact",
-        source_username="alice",
-        source_machine="zeus",
-        top_hood="foo",
-        hood_digest="b" * 64,
-        run_count=1,
-        family_count=1,
-        cache_created_at=1.0,
-    )
     return ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(
             ("claude",), scope, auto_approve=auto_approve
         ),
         sase_preview=DevUpdatePreview(plan=None, subject="sase"),
         provider_plan=plan,
-        agents_updates=(captured,),
     )
 
 
@@ -123,8 +105,6 @@ class _Harness(UpdateRunActionsMixin):
         self.messages: list[tuple[str, str]] = []
         self.restarts: list[str] = []
         self.updates_refreshes = 0
-        self.agents_refreshes = 0
-        self.agent_list_refreshes: list[str] = []
         self._automatic_update_status = None
 
     def notify(self, message: str, *, severity: str = "information") -> None:
@@ -141,12 +121,6 @@ class _Harness(UpdateRunActionsMixin):
 
     def _schedule_updates_indicator_revalidation(self) -> None:
         self.updates_refreshes += 1
-
-    def _schedule_agents_sync_indicator_revalidation(self) -> None:
-        self.agents_refreshes += 1
-
-    def _schedule_agents_async_refresh(self, *, source: str) -> None:
-        self.agent_list_refreshes.append(source)
 
     def _restart_after_update(self, message: str) -> None:
         self.restarts.append(message)
@@ -166,7 +140,6 @@ def test_preview_proc_runnable_result_pushes_confirm_modal() -> None:
     assert [section.title for section in modal._variants[0].sections] == [
         "SASE, core & plugins",
         "Agent CLIs",
-        "Cached agent hoods",
     ]
 
 
@@ -206,11 +179,10 @@ def test_preview_proc_none_payload_toasts_error() -> None:
         (
             UpdateScope.EVERYTHING,
             "comprehensive update",
-            "sase + agent CLIs + cached hoods",
+            "sase + agent CLIs",
         ),
         (UpdateScope.SASE, "update SASE, core & plugins", "sase"),
         (UpdateScope.PROVIDERS, "update providers", "agent CLIs"),
-        (UpdateScope.AGENTS, "import published agents", "cached hoods"),
     ],
 )
 def test_confirmed_modal_submits_scoped_mutation_proc(
@@ -235,7 +207,6 @@ def test_confirmed_modal_submits_scoped_mutation_proc(
     assert kwargs["exclusive_scopes"] == (
         "sase-update",
         "agent-cli-update",
-        "agents-sync",
     )
     assert scoped_update_proc_names(scope) == (display_name, cl_name)
 
@@ -246,11 +217,10 @@ def test_confirmed_modal_submits_scoped_mutation_proc(
         (
             UpdateScope.EVERYTHING,
             "comprehensive update",
-            "sase + agent CLIs + cached hoods",
+            "sase + agent CLIs",
         ),
         (UpdateScope.SASE, "update SASE, core & plugins", "sase"),
         (UpdateScope.PROVIDERS, "update providers", "agent CLIs"),
-        (UpdateScope.AGENTS, "import published agents", "cached hoods"),
     ],
 )
 def test_auto_approved_runnable_preview_submits_without_confirm(
@@ -274,7 +244,6 @@ def test_auto_approved_runnable_preview_submits_without_confirm(
     assert kwargs["exclusive_scopes"] == (
         "sase-update",
         "agent-cli-update",
-        "agents-sync",
     )
     assert scoped_update_proc_names(scope) == (display_name, cl_name)
 
@@ -320,7 +289,7 @@ def test_duplicate_scoped_submission_is_rejected() -> None:
     _, kwargs = harness.submitted
     assert (
         kwargs["duplicate_message"]
-        == "A SASE, agent CLI, or agents-repository update is already running."
+        == "A SASE or agent CLI update is already running."
     )
 
 
@@ -369,8 +338,7 @@ def test_code_changed_result_restarts(
 
     assert written == [receipt]
     assert harness.restarts == [
-        "SASE, core & plugins: sase updated; Agent CLIs: no captured work; "
-        "Cached agents: no cached agent hoods"
+        "SASE, core & plugins: sase updated; Agent CLIs: no captured work"
     ]
     assert harness.messages == []
 
@@ -382,13 +350,6 @@ def test_non_changing_result_toasts_without_restart() -> None:
             SaseUpdateResultStatus.ALREADY_CURRENT,
             "already current",
         ),
-        agents_outcomes=(
-            CachedIntegrationResult(
-                _runnable_preview().agents_updates[0],
-                "applied",
-                hoods_imported=1,
-            ),
-        ),
     )
 
     harness._on_scoped_update_complete(_completion(result))
@@ -398,8 +359,6 @@ def test_non_changing_result_toasts_without_restart() -> None:
     assert harness.messages[0][1] == "information"
     assert "already current" in harness.messages[0][0]
     assert harness.updates_refreshes == 1
-    assert harness.agents_refreshes == 1
-    assert harness.agent_list_refreshes == ["comprehensive_cached_agents"]
 
 
 def test_preview_proc_body_collects_inputs_then_builds_preview(

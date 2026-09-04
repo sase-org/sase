@@ -12,7 +12,6 @@ _LAZY_EXPORTS = {
     "AgentList": (".agent_list", "AgentList"),
     "AgentOnboarding": (".agent_onboarding", "AgentOnboarding"),
     "AgentToolsPanel": (".tools_panel", "AgentToolsPanel"),
-    "AgentsSyncIndicator": (".agents_sync_indicator", "AgentsSyncIndicator"),
     "AliasOverridesIndicator": (
         ".alias_overrides_indicator",
         "AliasOverridesIndicator",
@@ -117,7 +116,6 @@ __all__ = [
     "ToolDetailLevel",
     "AgentList",
     "AgentOnboarding",
-    "AgentsSyncIndicator",
     "AliasOverridesIndicator",
     "ActiveXPromptArgHint",
     "AxeDashboard",

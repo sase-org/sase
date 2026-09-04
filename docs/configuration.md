@@ -697,10 +697,6 @@ ace:
     check_interval_minutes: 10 # attempt a periodic check this often
     check_ttl_minutes: 10 # refresh latest-version checks at most this often
     recompute_interval_minutes: 60 # periodic full network recompute cadence
-  agents_sync:
-    check_interval_minutes: 10 # local/cached agents-repository status cadence
-    recompute_interval_minutes: 30 # minimum remote-fetching status cadence
-    indicator: true # show ⇅ N only for cached, unapplied hoods from other owners
   keymaps:
     config:
       select_subtab: "0"
@@ -759,7 +755,6 @@ ace:
 
 | Field                      | Type         | Default   | Description                                                                                                                                                |
 | -------------------------- | ------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agents_sync`              | dict         | see below | Periodic agents-repository status checks and the top-bar synchronization indicator.                                                                        |
 | `artifacts`                | dict         | see below | Per-pane settings for ACE's Artifacts tab.                                                                                                                 |
 | `axe_description_expanded` | bool         | `true`    | State the Axe-tab [description panel](ace.md#description-panel) starts each session in; `d` toggles it in memory.                                          |
 | `current_project`          | dict         | see below | Top-bar `+<project>` chip and session seeds for project filters.                                                                                           |
@@ -826,28 +821,6 @@ budget, and overflow row are described in
 
 Because the Axe tab claims `d`, the `show_diff` action is active only on the Patches
 sub-tab.
-
-#### `ace.agents_sync`
-
-| Field                        | Type   | Default | Description                                                                                   |
-| ---------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------- |
-| `check_interval_minutes`     | number | `10`    | Interval between cache-and-receipt status reconciliations in a running ACE session.           |
-| `recompute_interval_minutes` | number | `30`    | Minimum cadence between status checks that fetch remote refs before recomputing the snapshot. |
-| `indicator`                  | bool   | `true`  | Show the top-bar `⇅ N` badge for cached incoming hoods and publication queue diagnostics.     |
-
-Both intervals must be greater than zero. ACE schedules the first check after its
-initial paint, coalesces overlapping checks, and keeps the network-fetch cadence
-separate from the cheaper cache/receipt reconciliation cadence. Only a remote
-recomputation runs Git and refreshes ahead and behind counts; the cheaper pass carries
-those diagnostic values forward. Neither value controls the badge. The badge counts
-validated incoming hoods from other owners in the immutable incoming cache whose digests
-are not covered by import receipts, plus publication queue diagnostics from the same
-no-network snapshot. Clicking it imports exactly the displayed cache items without any
-fetch, pull, push, export, or sidecar-checkout mutation; publication diagnostics remain
-informational. Hiding the indicator also disables the periodic ACE status scheduler, but
-it does not disable `sase agent sync`, Updates-pane `a`, commit-triggered publication
-queueing, or the `,U` cached-integration leg. See
-[Agent Hood Synchronization](agents_sidecar.md).
 
 #### `ace.current_project`
 

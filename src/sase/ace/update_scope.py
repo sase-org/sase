@@ -10,12 +10,9 @@ class UpdateLeg(StrEnum):
 
     SASE = "sase"
     PROVIDERS = "providers"
-    AGENTS = "agents"
 
 
-ALL_LEGS: frozenset[UpdateLeg] = frozenset(
-    (UpdateLeg.SASE, UpdateLeg.PROVIDERS, UpdateLeg.AGENTS)
-)
+ALL_LEGS: frozenset[UpdateLeg] = frozenset((UpdateLeg.SASE, UpdateLeg.PROVIDERS))
 
 
 class UpdateScope(StrEnum):
@@ -24,7 +21,6 @@ class UpdateScope(StrEnum):
     EVERYTHING = "everything"
     SASE = "sase"
     PROVIDERS = "providers"
-    AGENTS = "agents"
 
     @property
     def legs(self) -> frozenset[UpdateLeg]:

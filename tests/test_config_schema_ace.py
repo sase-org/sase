@@ -152,29 +152,6 @@ def test_config_schema_validates_ace_current_project_settings() -> None:
             validator.validate({"ace": {"current_project": invalid}})
 
 
-def test_config_schema_validates_ace_agents_sync_settings() -> None:
-    validator = Draft7Validator(schema())
-    validator.validate(
-        {
-            "ace": {
-                "agents_sync": {
-                    "check_interval_minutes": 5,
-                    "recompute_interval_minutes": 30,
-                    "indicator": False,
-                }
-            }
-        }
-    )
-    for invalid in (
-        {"check_interval_minutes": 0},
-        {"recompute_interval_minutes": -1},
-        {"indicator": "yes"},
-        {"unknown": True},
-    ):
-        with pytest.raises(ValidationError):
-            validator.validate({"ace": {"agents_sync": invalid}})
-
-
 def test_config_schema_validates_ace_artifacts_relations_expanded() -> None:
     validator = Draft7Validator(schema())
     validator.validate({"ace": {"artifacts": {"relations_expanded": True}}})

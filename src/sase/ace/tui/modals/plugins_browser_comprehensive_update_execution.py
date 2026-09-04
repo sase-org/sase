@@ -1,4 +1,4 @@
-"""Execution helpers for comprehensive SASE, CLI, and agents-repo updates."""
+"""Execution helpers for comprehensive SASE and CLI updates."""
 
 from __future__ import annotations
 
@@ -17,12 +17,6 @@ from sase.agent_clis.models import (
     AgentCliUpdatesReady,
     UpdateResultStatus,
     UpdateTrigger,
-)
-from sase.agents_sync import integrate_cached_agent_updates
-from sase.agents_sync.models import CachedIntegrationResult
-from sase.ace.tui.agents_sync_format import (
-    cached_agents_result_line,
-    summarize_cached_agents_results,
 )
 from sase.ace.tui.session_proc_reporter import SessionProcReporter
 from sase.dev_update.journal import append_dev_update_journal
@@ -46,18 +40,16 @@ from .plugins_browser_sase_update_summary import (
 _SCOPED_UPDATE_NAMES: dict[UpdateScope, tuple[str, str]] = {
     UpdateScope.EVERYTHING: (
         "comprehensive update",
-        "sase + agent CLIs + cached hoods",
+        "sase + agent CLIs",
     ),
     UpdateScope.SASE: ("update SASE, core & plugins", "sase"),
     UpdateScope.PROVIDERS: ("update providers", "agent CLIs"),
-    UpdateScope.AGENTS: ("import published agents", "cached hoods"),
 }
 
 _PREVIEW_CL_NAMES: dict[UpdateScope, str] = {
     UpdateScope.EVERYTHING: "everything",
     UpdateScope.SASE: "sase",
     UpdateScope.PROVIDERS: "providers",
-    UpdateScope.AGENTS: "agents",
 }
 
 _UNSELECTED_SASE = ComprehensiveSaseUpdateResult(
@@ -283,34 +275,6 @@ def _perform_sase_leg(
     )
 
 
-def _execute_agents_leg(
-    preview: ComprehensiveUpdatePreview,
-    *,
-    reporter: SessionProcReporter | None = None,
-) -> tuple[tuple[CachedIntegrationResult, ...], str | None]:
-    """Import only the cached agent hoods captured by the preview."""
-    if not preview.agents_runnable:
-        return (), None
-    try:
-        if reporter is not None:
-            reporter.phase("Importing cached incoming agent hoods")
-        outcomes = tuple(integrate_cached_agent_updates(preview.agents_updates))
-    except Exception as exc:  # noqa: BLE001 - retain successful prior legs.
-        error = error_text(exc)
-        if reporter is not None:
-            reporter.section("Cached incoming hood results")
-            reporter.log(
-                f"Cached incoming hood import failed: {error}", stream="result"
-            )
-        return (), error
-
-    if reporter is not None:
-        reporter.section("Cached incoming hood results")
-        for outcome in outcomes:
-            reporter.log(cached_agents_result_line(outcome), stream="result")
-    return outcomes, None
-
-
 def run_scoped_update(
     preview: ComprehensiveUpdatePreview,
     uv_tool: object | None,
@@ -331,17 +295,10 @@ def run_scoped_update(
         sase_result = _execute_sase_leg(preview, uv_tool, reporter=reporter)
     else:
         sase_result = _UNSELECTED_SASE
-    if UpdateLeg.AGENTS in selected:
-        agents_outcomes, agents_error = _execute_agents_leg(preview, reporter=reporter)
-        agents_error = agents_error or preview.agents_error
-    else:
-        agents_outcomes, agents_error = (), None
     return ComprehensiveUpdateResult(
         sase=sase_result,
         provider_results=provider_results,
         provider_error=provider_error,
-        agents_outcomes=agents_outcomes,
-        agents_error=agents_error,
         elapsed=max(0.0, time.monotonic() - start),
         selected_legs=selected,
     )
@@ -392,13 +349,6 @@ def comprehensive_update_summary(result: ComprehensiveUpdateResult) -> str:
             "Agent CLIs: "
             + (", ".join(provider_parts) if provider_parts else "no captured work")
         )
-    if UpdateLeg.AGENTS in selected:
-        agents_line = "Cached agents: " + summarize_cached_agents_results(
-            result.agents_outcomes
-        )
-        if result.agents_error:
-            agents_line = f"Cached agents: failed — {result.agents_error}"
-        lines.append(agents_line)
     return "; ".join(lines)
 
 

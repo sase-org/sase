@@ -5,7 +5,6 @@ from __future__ import annotations
 import shlex
 from collections.abc import Callable, Collection, Sequence
 
-from sase.ace.tui.agents_sync_format import captured_agent_hood_label
 from sase.ace.tui.update_preview_inputs import UpdatePreviewInputs
 from sase.ace.update_scope import UpdateLeg, UpdateScope
 from sase.agent_clis.models import (
@@ -13,8 +12,6 @@ from sase.agent_clis.models import (
     AgentCliStatus,
     AgentCliUpdatePlan,
 )
-from sase.agents_sync import get_agents_sync_status
-from sase.agents_sync.models import CapturedIncomingHood
 from sase.dev_update.models import DevUpdatePlan
 from sase.updates import UpdateStatus
 from sase.uv_tool.commands import build_upgrade_all
@@ -42,9 +39,8 @@ from .plugins_browser_dev_update import (
 from .plugins_browser_sase_update_summary import load_receipt_for_summary
 
 _EVERYTHING_INTRO = (
-    "Confirm the snapshot-gated SASE, provider, and agents-repository "
-    "work below. Agent CLI commands run first and sequentially; "
-    "agent updates use only the captured cache."
+    "Confirm the snapshot-gated SASE and provider work below. "
+    "Agent CLI commands run first and sequentially."
 )
 _CONFIRM_COPY: dict[UpdateScope, tuple[str, str]] = {
     UpdateScope.EVERYTHING: ("Update everything", _EVERYTHING_INTRO),
@@ -55,10 +51,6 @@ _CONFIRM_COPY: dict[UpdateScope, tuple[str, str]] = {
     UpdateScope.PROVIDERS: (
         "Update providers",
         "Confirm the exact provider update commands below; they run sequentially.",
-    ),
-    UpdateScope.AGENTS: (
-        "Import published agents",
-        "Confirm the cached agent hoods to import. Only the captured cache is used.",
     ),
 }
 _CURRENT_MESSAGES: dict[UpdateScope, str] = {
@@ -71,15 +63,11 @@ _CURRENT_MESSAGES: dict[UpdateScope, str] = {
     UpdateScope.PROVIDERS: (
         "Captured providers in the selected update are already current."
     ),
-    UpdateScope.AGENTS: (
-        "Captured agent hoods in the selected update are already current."
-    ),
 }
 _DROPPED_LEADS: dict[UpdateScope, str] = {
     UpdateScope.EVERYTHING: "No captured updates remain",
     UpdateScope.SASE: "No captured SASE updates remain",
     UpdateScope.PROVIDERS: "No captured provider updates remain",
-    UpdateScope.AGENTS: "No captured agent updates remain",
 }
 
 
@@ -134,7 +122,6 @@ def build_comprehensive_update_preview(
 ) -> ComprehensiveUpdatePreview:
     """Plan only the legs selected by *request* from explicit *inputs*."""
     selected = request.scope.legs
-    agents_updates, agents_error = _plan_agents_leg(selected)
     provider_plan, dropped, provider_error = _plan_providers_leg(
         request, inputs, selected
     )
@@ -151,37 +138,7 @@ def build_comprehensive_update_preview(
         provider_plan=provider_plan,
         provider_dropped=dropped,
         provider_error=provider_error,
-        agents_updates=agents_updates,
-        agents_error=agents_error,
     )
-
-
-def _plan_agents_leg(
-    selected: frozenset[UpdateLeg],
-) -> tuple[tuple[CapturedIncomingHood, ...], str | None]:
-    if UpdateLeg.AGENTS not in selected:
-        return (), None
-    try:
-        agents_status = get_agents_sync_status(revalidate_only=True)
-        updates = tuple(
-            sorted(
-                (
-                    item
-                    for status in agents_status.projects
-                    for item in status.pending_updates
-                ),
-                key=lambda item: (
-                    item.project_key,
-                    item.source_username or "",
-                    item.source_machine,
-                    item.top_hood,
-                    item.cache_id,
-                ),
-            )
-        )
-    except Exception as exc:  # noqa: BLE001 - preserve independently valid legs.
-        return (), error_text(exc)
-    return updates, None
 
 
 def _plan_providers_leg(
@@ -438,62 +395,6 @@ def _provider_preview_section(
     )
 
 
-def _agents_preview_section(
-    preview: ComprehensiveUpdatePreview,
-) -> PluginActionPreviewSection:
-    """Render the no-network agents-repository snapshot for confirmation."""
-    title = "Cached agent hoods"
-    if preview.agents_error:
-        return PluginActionPreviewSection(
-            title=title,
-            summary="Cached agent-hood status could not be planned.",
-            components=(
-                PluginActionPreviewComponent(
-                    "Cached agent hoods",
-                    preview.agents_error,
-                    "skipped",
-                ),
-            ),
-            skipped=(preview.agents_error,),
-            counts=("1 error",),
-        )
-    updates = preview.agents_updates
-    if not updates:
-        return PluginActionPreviewSection(
-            title=title,
-            summary="No cached incoming agent hoods from other owners were captured.",
-        )
-
-    ordered = tuple(
-        sorted(
-            updates,
-            key=lambda item: (
-                item.project_key,
-                item.source_username or "",
-                item.source_machine,
-                item.top_hood,
-                item.cache_id,
-            ),
-        )
-    )
-    components = tuple(_captured_agents_component(item) for item in ordered)
-    project_count = len({item.project_key for item in ordered})
-    return PluginActionPreviewSection(
-        title=title,
-        summary=(
-            f"Imports {len(ordered)} captured incoming "
-            f"hood{'s' if len(ordered) != 1 else ''} from other owners across "
-            f"{project_count} project{'s' if project_count != 1 else ''} "
-            "without network access."
-        ),
-        components=components,
-        counts=(
-            _count_label(project_count, "project"),
-            _count_label(len(ordered), "hood"),
-        ),
-    )
-
-
 def comprehensive_preview_sections(
     preview: ComprehensiveUpdatePreview,
 ) -> tuple[PluginActionPreviewSection, ...]:
@@ -504,8 +405,6 @@ def comprehensive_preview_sections(
         sections.append(_sase_preview_section(preview))
     if UpdateLeg.PROVIDERS in selected:
         sections.append(_provider_preview_section(preview))
-    if UpdateLeg.AGENTS in selected:
-        sections.append(_agents_preview_section(preview))
     return tuple(sections)
 
 
@@ -549,7 +448,6 @@ def handle_comprehensive_noop(
         for item, selected_leg in (
             (preview.sase_blocker, UpdateLeg.SASE),
             (preview.provider_error, UpdateLeg.PROVIDERS),
-            (preview.agents_error, UpdateLeg.AGENTS),
         )
         if item and selected_leg in selected
     )
@@ -566,20 +464,6 @@ def handle_comprehensive_noop(
     notify(
         _comprehensive_current_message(preview.request.scope),
         severity="information",
-    )
-
-
-def _captured_agents_component(
-    item: CapturedIncomingHood,
-) -> PluginActionPreviewComponent:
-    run_noun = "run" if item.run_count == 1 else "runs"
-    family_noun = "family" if item.family_count == 1 else "families"
-    return PluginActionPreviewComponent(
-        item.project,
-        f"{captured_agent_hood_label(item)} · "
-        f"{item.run_count} {run_noun} · "
-        f"{item.family_count} {family_noun}",
-        "update",
     )
 
 

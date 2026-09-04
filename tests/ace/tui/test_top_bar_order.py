@@ -42,7 +42,6 @@ EXPECTED_TOP_BAR_ORDER = [
     "proc-indicator",
     "monitor-indicator",
     "updates-indicator",
-    "agents-sync-indicator",
     "llm-override-indicator",
     "alias-overrides-indicator",
     "provider-disables-indicator",

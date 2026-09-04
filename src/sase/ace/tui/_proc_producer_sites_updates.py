@@ -156,7 +156,6 @@ UPDATE_PRODUCERS: tuple[ProcProducerSite, ...] = (
             "comprehensive-update",
             "sase-update",
             "agent-cli-update",
-            "agents-sync",
         ),
         restart_recovery="not durable; session-local update workflow",
     ),

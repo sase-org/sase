@@ -20,7 +20,6 @@ from sase.agent_clis.models import (
     UpdateResultStatus,
     UpdateTrigger,
 )
-from sase.agents_sync.models import SyncStatusSnapshot
 from sase.ace.testing import AcePage
 from sase.ace._update_receipt_builders import build_update_receipt
 from sase.ace._update_receipt_codec import receipt_to_json
@@ -291,10 +290,6 @@ def _patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.modals.projects_pane.list_project_records",
         lambda *_a, **_kw: [],
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.plugins_browser_comprehensive_update_preview.get_agents_sync_status",
-        lambda **_kwargs: SyncStatusSnapshot(0.0),
     )
     monkeypatch.setattr(
         sp,

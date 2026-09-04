@@ -7,7 +7,6 @@ from enum import StrEnum
 
 from sase.ace.update_scope import ALL_LEGS, UpdateLeg
 from sase.agent_clis.models import AgentCliUpdateResult, UpdateResultStatus
-from sase.agents_sync.models import CachedIntegrationResult
 from sase.dev_update.models import DevUpdateResult
 from sase.main.update_types import CombinedUpdateResult
 from sase.uv_tool.render import UpdateSummary
@@ -46,8 +45,6 @@ class ComprehensiveUpdateResult:
     sase: ComprehensiveSaseUpdateResult
     provider_results: tuple[AgentCliUpdateResult, ...] = ()
     provider_error: str | None = None
-    agents_outcomes: tuple[CachedIntegrationResult, ...] = ()
-    agents_error: str | None = None
     elapsed: float = 0.0
     selected_legs: frozenset[UpdateLeg] = ALL_LEGS
 
@@ -62,12 +59,10 @@ class ComprehensiveUpdateResult:
         return bool(
             self.sase.status is SaseUpdateResultStatus.FAILED
             or self.provider_error
-            or self.agents_error
             or any(
                 result.status is UpdateResultStatus.FAILED
                 for result in self.provider_results
             )
-            or any(not outcome.ok for outcome in self.agents_outcomes)
         )
 
     @property
@@ -78,16 +73,10 @@ class ComprehensiveUpdateResult:
         )
 
     @property
-    def has_successful_agents_change(self) -> bool:
-        return any(outcome.disposition == "applied" for outcome in self.agents_outcomes)
-
-    @property
     def fully_failed(self) -> bool:
         """Return whether the run failed without changing either leg."""
         return self.has_failures and not (
-            self.code_changed
-            or self.has_successful_provider_change
-            or self.has_successful_agents_change
+            self.code_changed or self.has_successful_provider_change
         )
 
 

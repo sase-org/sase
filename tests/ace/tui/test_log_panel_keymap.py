@@ -50,7 +50,6 @@ class _ActionApp(BaseActionsMixin):
         self.revalidation_count = 0
         self._automatic_update_status = None
         self._automatic_update_provider_names = None
-        self._agents_sync_last_status = None
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
         self.pushed_modals.append(modal)
@@ -237,7 +236,7 @@ def test_update_sase_shortcut_opens_update_panel(
     assert len(app.pushed_modals) == 1
     modal = app.pushed_modals[0]
     assert isinstance(modal, UpdatePanel)
-    assert modal._state == build_update_panel_state(None, None, now=1_000.0)
+    assert modal._state == build_update_panel_state(None, now=1_000.0)
 
 
 def test_update_shortcut_confirm_uses_current_provider_projection() -> None:

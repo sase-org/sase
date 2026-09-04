@@ -50,9 +50,6 @@ class UpdateRunActionsMixin:
         schedule_update = getattr(self, "_schedule_automatic_update_check", None)
         if callable(schedule_update):
             schedule_update(periodic=True)
-        schedule_agents = getattr(self, "_schedule_agents_sync_status_check", None)
-        if callable(schedule_agents):
-            schedule_agents(recompute=True)
 
     def _refresh_open_update_panel(self, *, rechecking: bool | None = None) -> None:
         """Rebuild the active Update panel from cached snapshots; otherwise no-op."""
@@ -63,14 +60,10 @@ class UpdateRunActionsMixin:
         if not isinstance(screen, UpdatePanel):
             return
         if rechecking is None:
-            rechecking = bool(
-                getattr(self, "_automatic_update_check_in_flight", False)
-                or getattr(self, "_agents_sync_check_in_flight", False)
-            )
+            rechecking = bool(getattr(self, "_automatic_update_check_in_flight", False))
         screen.set_state(
             build_update_panel_state(
                 getattr(self, "_automatic_update_status", None),
-                getattr(self, "_agents_sync_last_status", None),
                 now=time.time(),
                 rechecking=rechecking,
             )
@@ -195,11 +188,8 @@ class UpdateRunActionsMixin:
             exclusive_scopes=(
                 "sase-update",
                 "agent-cli-update",
-                "agents-sync",
             ),
-            duplicate_message=(
-                "A SASE, agent CLI, or agents-repository update is already running."
-            ),
+            duplicate_message="A SASE or agent CLI update is already running.",
             on_complete=self._on_scoped_update_complete,
         )
         return submitted is not None
@@ -211,13 +201,6 @@ class UpdateRunActionsMixin:
         refresh = getattr(self, "_schedule_updates_indicator_revalidation", None)
         if callable(refresh):
             refresh()
-        refresh_agents = getattr(
-            self,
-            "_schedule_agents_sync_indicator_revalidation",
-            None,
-        )
-        if callable(refresh_agents):
-            refresh_agents()
 
         result = completion.payload
         if result is None:
@@ -226,10 +209,6 @@ class UpdateRunActionsMixin:
                 severity="error",
             )
             return
-        if result.agents_outcomes:
-            reload_agents = getattr(self, "_schedule_agents_async_refresh", None)
-            if callable(reload_agents):
-                reload_agents(source="comprehensive_cached_agents")
 
         message = comprehensive_update_summary(result)
         if result.code_changed:

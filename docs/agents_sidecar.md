@@ -432,37 +432,15 @@ and the fetched ref and commit.
 
 ## ACE integration
 
-ACE performs a networked detection check after first paint and then checks enabled
-agents repositories periodically. The green `⇅ N` badge counts validated incoming hoods
-from other owners already captured in the incoming cache and publication queue
-diagnostics from the same no-network status snapshot. Same-user/other-machine and
-other-user/same-machine hoods are incoming from another owner; exact-current-owner
-changes are not. Local ahead work, missing or disabled sidecars, Git behind counts, and
-errors remain available in CLI diagnostics but do not light the badge unless they are
-represented by publication queue diagnostics.
+ACE does not detect, display, preview, or apply incoming agent imports. The
+comprehensive `,U` Update panel covers SASE/core/plugins and providers only.
 
-Hover the badge for the project, source owner, hood, run, and family counts represented
-by that immutable snapshot, plus any queued, quarantined, retired, or retryable
-publication diagnostics. Clicking it imports exactly the displayed cache items as a
-tracked task; publication diagnostics stay informational and are cleared by a later
-commit's inline drain or an explicit sync. That path does not fetch, pull, push, export,
-or mutate the sidecar checkout; successful receipts clear the corresponding cache
-entries. Choosing Agents or Everything from the `,U` Update panel likewise captures only
-the cache items visible when the preview is built, lists their exact project and hood
-counts under **Agents repos**, and imports them after any other selected legs without
-network access. A later periodic fetch cannot widen an already confirmed preview.
-
-For an explicit full network reconciliation, open SASE Admin Center's Updates pane and
-press `a` (**Sync agents**). That tracked action covers every enabled project, drains
-retryable agent-hood publication work, continues after project-local failures, and
-refreshes the agent list, status, badge, and indexes when it completes. It is equivalent
-to unscoped `sase agent sync`, not to clicking the badge or running `,U`.
-
-Configure that status loop under `ace.agents_sync`. By default, ACE reconciles cached
-entries and receipts every 10 minutes and, once at least 30 minutes have elapsed,
-performs the remote-fetching detection pass on the next status tick. All Git,
-validation, cache import, and full-sync work runs outside the Textual event loop. See
-[ACE agents-sync configuration](configuration.md#aceagents_sync).
+For an explicit full network publication/reconciliation, open SASE Admin Center's
+Updates pane and press `a` (**Sync agents**). That tracked action covers every
+enabled project, drains retryable agent-hood publication work, continues after
+project-local failures, and refreshes the Agents view when it completes. It is
+equivalent to unscoped `sase agent sync`. All Git, validation, publication, and
+full-sync work runs outside the Textual event loop.
 
 ## Recovery
 

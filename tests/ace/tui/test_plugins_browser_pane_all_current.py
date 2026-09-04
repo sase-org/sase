@@ -9,11 +9,6 @@ import pytest
 from sase.agent_clis.models import AgentCliStatus, InstallMethod
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.plugins_browser_rows import SCOPE_ORDER
-from sase.agents_sync.models import (
-    CapturedIncomingHood,
-    ProjectSyncStatus,
-    SyncStatusSnapshot,
-)
 from sase.plugins.latest import LatestInfo
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _NOW,
@@ -42,41 +37,6 @@ def _current_agent_cli() -> AgentCliStatus:
         docs_url="https://example.test/claude",
         install_hint="install claude",
         self_update_argv=("update",),
-    )
-
-
-def _captured_hood(machine: str, hood: str) -> CapturedIncomingHood:
-    return CapturedIncomingHood(
-        project_key="sase",
-        project="SASE",
-        fetched_ref="refs/remotes/origin/main",
-        fetched_sha="a" * 40,
-        cache_id=f"{machine}-{hood}",
-        format_version=2,
-        source_owner_kind="exact",
-        source_username="alice",
-        source_machine=machine,
-        top_hood=hood,
-        hood_digest="b" * 64,
-        run_count=1,
-        family_count=1,
-        cache_created_at=1.0,
-    )
-
-
-def _agents_snapshot(*machines: str) -> SyncStatusSnapshot:
-    return SyncStatusSnapshot(
-        checked_at=_NOW,
-        projects=(
-            ProjectSyncStatus(
-                project_key="sase",
-                project="SASE",
-                state="ready",
-                pending_updates=tuple(
-                    _captured_hood(machine, machine) for machine in machines
-                ),
-            ),
-        ),
     )
 
 
@@ -326,31 +286,3 @@ async def test_updates_pane_digest_counts_match_row_domains(
         assert "sase 0.5.0 → 0.6.0" in text
         assert "1 plugin" in text
         assert "2 agent CLIs" in text
-
-
-async def test_updates_pane_agents_sync_chip_uses_cached_snapshot(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_other_panes(monkeypatch)
-    _patch_catalog(monkeypatch, catalog=_catalog(), uv_tool=_uv_tool())
-
-    async with AcePage() as page:
-        page.app._agents_sync_last_status = _agents_snapshot("athena", "zeus")
-        pane = await _open_plugins_pane(page)
-
-        text = _render(pane._header_renderable())
-        assert "⇅ 2 hoods" in text
-        assert "athena, zeus" in text
-
-
-async def test_updates_pane_agents_sync_chip_omitted_at_zero(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_other_panes(monkeypatch)
-    _patch_catalog(monkeypatch, catalog=_catalog(), uv_tool=_uv_tool())
-
-    async with AcePage() as page:
-        page.app._agents_sync_last_status = SyncStatusSnapshot(_NOW)
-        pane = await _open_plugins_pane(page)
-
-        assert "⇅" not in _render(pane._header_renderable())

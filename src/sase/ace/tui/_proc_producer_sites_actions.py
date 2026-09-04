@@ -347,18 +347,4 @@ ACTION_PRODUCERS: tuple[ProcProducerSite, ...] = (
         concurrency_keys=("agents-sync",),
         restart_recovery="not durable; session-local agents sync",
     ),
-    site(
-        "agents.cached",
-        "src/sase/ace/tui/actions/agents_sync.py",
-        "action_integrate_cached_agents",
-        "session_worker",
-        "agents-cached-integration",
-        "ui_only",
-        "AgentsSyncActionsMixin.action_integrate_cached_agents",
-        "",
-        identifiers=(),
-        result_kind="agent.sync",
-        concurrency_keys=("agents-sync",),
-        restart_recovery="not durable; session-local agents sync",
-    ),
 )

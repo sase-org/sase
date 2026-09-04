@@ -11,7 +11,6 @@ from sase.ace.tui.modals.plugins_browser_comprehensive_update_models import (
     ComprehensiveUpdateRequest,
 )
 from sase.ace.tui.modals.plugins_browser_comprehensive_update_preview import (
-    _agents_preview_section,
     _plan_captured_providers,
     _provider_preview_section,
     _sase_preview_section,
@@ -26,7 +25,6 @@ from sase.agent_clis.models import (
     AgentCliUpdatesReady,
     UpdateStrategy,
 )
-from sase.agents_sync.models import CapturedIncomingHood
 from sase.uv_tool.render import PlannedPackage
 from sase.updates.incoming_commits import (
     CommitSummary,
@@ -48,34 +46,6 @@ def _incoming_core_versions() -> Any:
         sase_latest="0.6.0",
         core_installed="0.4.0",
         core_latest="0.5.0",
-    )
-
-
-def _captured(
-    project_key: str,
-    project: str,
-    hood: str,
-    *,
-    username: str = "alice",
-    machine: str = "zeus",
-    runs: int = 2,
-    families: int = 1,
-) -> CapturedIncomingHood:
-    return CapturedIncomingHood(
-        project_key=project_key,
-        project=project,
-        fetched_ref="refs/remotes/origin/main",
-        fetched_sha="a" * 40,
-        cache_id=f"{project_key}-{hood}",
-        format_version=2,
-        source_owner_kind="exact",
-        source_username=username,
-        source_machine=machine,
-        top_hood=hood,
-        hood_digest="b" * 64,
-        run_count=runs,
-        family_count=families,
-        cache_created_at=1.0,
     )
 
 
@@ -318,60 +288,6 @@ def test_comprehensive_provider_preview_marks_current_and_manual_rows() -> None:
     )
 
 
-def test_comprehensive_agents_preview_captures_exact_projects_and_hoods() -> None:
-    preview = ComprehensiveUpdatePreview(
-        request=ComprehensiveUpdateRequest(()),
-        sase_preview=None,
-        sase_current=True,
-        agents_updates=(
-            _captured("alpha", "Alpha", "foo"),
-            _captured(
-                "alpha",
-                "Alpha",
-                "bar",
-                username="bob",
-                machine="hera",
-                runs=1,
-                families=0,
-            ),
-            _captured("beta", "Beta", "baz", runs=3, families=2),
-        ),
-    )
-
-    section = _agents_preview_section(preview)
-
-    assert preview.agents_runnable is True
-    assert preview.runnable is True
-    assert section.title == "Cached agent hoods"
-    assert section.counts == ("2 projects", "3 hoods")
-    assert section.summary == (
-        "Imports 3 captured incoming hoods from other owners across 2 projects "
-        "without network access."
-    )
-    assert [
-        (component.name, component.detail, component.state)
-        for component in section.components
-    ] == [
-        ("Alpha", "alice.zeus.foo · 2 runs · 1 family", "update"),
-        ("Alpha", "bob.hera.bar · 1 run · 0 families", "update"),
-        ("Beta", "alice.zeus.baz · 3 runs · 2 families", "update"),
-    ]
-
-
-def test_comprehensive_agents_preview_without_cache_items_is_noop() -> None:
-    preview = ComprehensiveUpdatePreview(
-        request=ComprehensiveUpdateRequest(()),
-        sase_preview=None,
-        sase_current=True,
-    )
-
-    assert preview.agents_runnable is False
-    assert preview.runnable is False
-    assert _agents_preview_section(preview).summary == (
-        "No cached incoming agent hoods from other owners were captured."
-    )
-
-
 def test_unselected_legs_are_not_runnable_or_current() -> None:
     provider_plan, dropped, error = _plan_captured_providers(
         ("claude",),
@@ -385,12 +301,10 @@ def test_unselected_legs_are_not_runnable_or_current() -> None:
         provider_plan=provider_plan,
         provider_dropped=dropped,
         provider_error=error,
-        agents_updates=(_captured("alpha", "Alpha", "foo"),),
     )
 
     assert preview.selected_legs == frozenset({UpdateLeg.PROVIDERS})
     assert preview.sase_runnable is False
-    assert preview.agents_runnable is False
     assert preview.provider_runnable is True
     assert preview.runnable is True
 

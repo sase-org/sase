@@ -26,11 +26,6 @@ from sase.ace.tui.update_preview_inputs import (
     collect_update_preview_inputs,
 )
 from sase.ace.update_scope import ALL_LEGS, UpdateLeg, UpdateScope
-from sase.agents_sync.models import (
-    CapturedIncomingHood,
-    ProjectSyncStatus,
-    SyncStatusSnapshot,
-)
 from sase.updates import UpdateSourceStatus, UpdateStatus
 from sase.uv_tool.detect import NotUvToolInstall, NotUvToolReason
 from tests.ace.tui._plugins_browser_pane_helpers import _agent_cli_statuses
@@ -57,40 +52,6 @@ def _current_status() -> UpdateStatus:
         components=(),
         core_source=UpdateSourceStatus.success(1.0),
         plugin_source=UpdateSourceStatus.success(1.0),
-    )
-
-
-def _captured() -> CapturedIncomingHood:
-    return CapturedIncomingHood(
-        project_key="alpha",
-        project="Alpha",
-        fetched_ref="refs/remotes/origin/main",
-        fetched_sha="a" * 40,
-        cache_id="alpha-foo",
-        format_version=2,
-        source_owner_kind="exact",
-        source_username="alice",
-        source_machine="zeus",
-        top_hood="foo",
-        hood_digest="b" * 64,
-        run_count=1,
-        family_count=1,
-        cache_created_at=1.0,
-    )
-
-
-def _agents_snapshot() -> SyncStatusSnapshot:
-    captured = _captured()
-    return SyncStatusSnapshot(
-        100.0,
-        (
-            ProjectSyncStatus(
-                "alpha",
-                "Alpha",
-                "ready",
-                pending_updates=(captured,),
-            ),
-        ),
     )
 
 
@@ -126,7 +87,6 @@ def test_update_scope_legs() -> None:
     assert UpdateScope.EVERYTHING.legs == ALL_LEGS
     assert UpdateScope.SASE.legs == frozenset({UpdateLeg.SASE})
     assert UpdateScope.PROVIDERS.legs == frozenset({UpdateLeg.PROVIDERS})
-    assert UpdateScope.AGENTS.legs == frozenset({UpdateLeg.AGENTS})
 
 
 def test_collect_update_preview_inputs_skips_unneeded_legs(
@@ -145,14 +105,6 @@ def test_collect_update_preview_inputs_skips_unneeded_legs(
         return ()
 
     monkeypatch.setattr(f"{_INPUTS_MOD}.collect_agent_cli_statuses", _collect)
-
-    agents_only = collect_update_preview_inputs(
-        cached_status=None, legs={UpdateLeg.AGENTS}
-    )
-    assert probes == []
-    assert collects == []
-    assert agents_only.uv_tool is None
-    assert agents_only.agent_cli_statuses == ()
 
     collect_update_preview_inputs(cached_status=None, legs={UpdateLeg.SASE})
     assert probes == ["sase"]
@@ -183,10 +135,6 @@ def test_build_preview_everything_plans_selected_legs(
 ) -> None:
     make_calls: list[object] = []
     monkeypatch.setattr(
-        f"{_PREVIEW_MOD}.get_agents_sync_status",
-        lambda **_kwargs: _agents_snapshot(),
-    )
-    monkeypatch.setattr(
         f"{_PREVIEW_MOD}.make_sase_dev_update_preview",
         lambda receipt, **_kwargs: (
             make_calls.append(receipt) or DevUpdatePreview(plan=None, subject="sase")
@@ -201,22 +149,16 @@ def test_build_preview_everything_plans_selected_legs(
     assert preview.selected_legs == ALL_LEGS
     assert preview.sase_runnable is True
     assert preview.provider_runnable is True
-    assert preview.agents_runnable is True
     assert make_calls
     assert _section_titles(preview) == [
         "SASE, core & plugins",
         "Agent CLIs",
-        "Cached agent hoods",
     ]
 
 
 def test_build_preview_sase_scope_omits_other_legs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        f"{_PREVIEW_MOD}.get_agents_sync_status",
-        lambda **_kwargs: pytest.fail("agents leg must not run"),
-    )
     monkeypatch.setattr(
         f"{_PREVIEW_MOD}.make_sase_dev_update_preview",
         lambda _receipt, **_kwargs: DevUpdatePreview(plan=None, subject="sase"),
@@ -235,7 +177,6 @@ def test_build_preview_sase_scope_omits_other_legs(
     assert preview.selected_legs == frozenset({UpdateLeg.SASE})
     assert preview.sase_runnable is True
     assert preview.provider_plan is None
-    assert preview.agents_updates == ()
     assert [section.title for section in sections] == ["SASE, core & plugins"]
     assert all("skip" not in section.summary.lower() for section in sections)
 
@@ -243,10 +184,6 @@ def test_build_preview_sase_scope_omits_other_legs(
 def test_build_preview_providers_scope_omits_other_legs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        f"{_PREVIEW_MOD}.get_agents_sync_status",
-        lambda **_kwargs: pytest.fail("agents leg must not run"),
-    )
     monkeypatch.setattr(
         f"{_PREVIEW_MOD}.make_sase_dev_update_preview",
         lambda *_args, **_kwargs: pytest.fail("sase leg must not run"),
@@ -260,37 +197,7 @@ def test_build_preview_providers_scope_omits_other_legs(
     assert preview.sase_runnable is False
     assert preview.sase_current is False
     assert preview.provider_runnable is True
-    assert preview.agents_runnable is False
     assert _section_titles(preview) == ["Agent CLIs"]
-
-
-def test_build_preview_agents_scope_omits_other_legs(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent_calls: list[dict[str, object]] = []
-    monkeypatch.setattr(
-        f"{_PREVIEW_MOD}.get_agents_sync_status",
-        lambda **kwargs: agent_calls.append(dict(kwargs)) or _agents_snapshot(),
-    )
-    monkeypatch.setattr(
-        f"{_PREVIEW_MOD}.make_sase_dev_update_preview",
-        lambda *_args, **_kwargs: pytest.fail("sase leg must not run"),
-    )
-    monkeypatch.setattr(
-        f"{_PREVIEW_MOD}._plan_captured_providers",
-        lambda *_args, **_kwargs: pytest.fail("provider leg must not run"),
-    )
-
-    preview = build_comprehensive_update_preview(
-        ComprehensiveUpdateRequest((), UpdateScope.AGENTS),
-        _inputs(),
-    )
-
-    assert agent_calls == [{"revalidate_only": True}]
-    assert preview.agents_runnable is True
-    assert preview.sase_preview is None
-    assert preview.provider_plan is None
-    assert _section_titles(preview) == ["Cached agent hoods"]
 
 
 def test_cached_current_status_skips_sase_planner(
@@ -299,10 +206,6 @@ def test_cached_current_status_skips_sase_planner(
     monkeypatch.setattr(
         f"{_PREVIEW_MOD}.make_sase_dev_update_preview",
         lambda *_args, **_kwargs: pytest.fail("cached current must skip planner"),
-    )
-    monkeypatch.setattr(
-        f"{_PREVIEW_MOD}.get_agents_sync_status",
-        lambda **_kwargs: _agents_snapshot(),
     )
 
     preview = build_comprehensive_update_preview(
@@ -367,7 +270,7 @@ def test_not_uv_tool_install_blocks_sase_leg() -> None:
         (
             UpdateScope.EVERYTHING,
             "Update everything",
-            "snapshot-gated SASE, provider, and agents-repository",
+            "snapshot-gated SASE and provider",
         ),
         (
             UpdateScope.SASE,
@@ -378,11 +281,6 @@ def test_not_uv_tool_install_blocks_sase_leg() -> None:
             UpdateScope.PROVIDERS,
             "Update providers",
             "Confirm the exact provider update commands below",
-        ),
-        (
-            UpdateScope.AGENTS,
-            "Import published agents",
-            "Confirm the cached agent hoods to import",
         ),
     ],
 )
@@ -404,7 +302,6 @@ def test_scoped_noop_messages_name_the_scope() -> None:
     )
     assert "SASE, core, and plugins" in _comprehensive_current_message(UpdateScope.SASE)
     assert "providers" in _comprehensive_current_message(UpdateScope.PROVIDERS)
-    assert "agent hoods" in _comprehensive_current_message(UpdateScope.AGENTS)
     assert _comprehensive_dropped_message(UpdateScope.EVERYTHING, "gone") == (
         "No captured updates remain: available components are current; "
         "no longer present: gone."
@@ -426,7 +323,6 @@ def test_confirm_modal_includes_only_selected_sections() -> None:
         provider_plan=provider_plan,
         provider_dropped=dropped,
         provider_error=error,
-        agents_updates=(_captured(),),
     )
 
     assert _section_titles(preview) == ["Agent CLIs"]

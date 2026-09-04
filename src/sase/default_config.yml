@@ -267,10 +267,6 @@ ace:
       enabled: true
       max_per_repo: 7
       confirm_max_per_repo: 250
-  agents_sync:
-    check_interval_minutes: 10
-    recompute_interval_minutes: 30
-    indicator: true
   prompt_completion:
     auto: soft
     debounce_ms: 90

@@ -158,7 +158,6 @@ async def test_ace_page_fast_startup_is_structurally_quiet() -> None:
         assert app._prompt_source_watcher is None
         assert app._prompt_catalog is None
         assert app._automatic_update_check_timer is None
-        assert app._agents_sync_check_timer is None
         assert app._stall_watchdog is None
         assert app._agents_refresh_pending_callbacks == []
         assert app._agents_with_children == []
@@ -258,11 +257,6 @@ async def test_ace_page_real_startup_policy_invokes_production_boundaries(
         record("update-check"),
     )
     monkeypatch.setattr(
-        AceApp,
-        "_schedule_startup_agents_sync_check",
-        record("agents-sync-check"),
-    )
-    monkeypatch.setattr(
         testing_module._stall_watchdog,
         "start_event_loop_stall_watchdog",
         record("stall-watchdog"),
@@ -284,7 +278,6 @@ async def test_ace_page_real_startup_policy_invokes_production_boundaries(
         "prompt-watcher",
         "prompt-catalog",
         "update-check",
-        "agents-sync-check",
         "stall-watchdog",
     }
 

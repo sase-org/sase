@@ -16,7 +16,6 @@ from .widgets import (
     AgentDetail,
     AgentInfoPanel,
     AgentList,
-    AgentsSyncIndicator,
     AliasOverridesIndicator,
     ArtifactsView,
     AxeDashboard,
@@ -69,7 +68,6 @@ class AppLayoutMixin:
             yield ProcIndicator(id="proc-indicator")
             yield MonitorIndicator(id="monitor-indicator")
             yield UpdatesAvailableIndicator(id="updates-indicator")
-            yield AgentsSyncIndicator(id="agents-sync-indicator")
             yield LLMOverrideIndicator(id="llm-override-indicator")
             yield AliasOverridesIndicator(id="alias-overrides-indicator")
             yield ProviderDisablesIndicator(id="provider-disables-indicator")

@@ -101,7 +101,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'update_sase'))}",
-                    "Update panel (SASE, providers, agents)",
+                    "Update panel (SASE, providers)",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'jump_to_last_error'))}",

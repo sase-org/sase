@@ -11,7 +11,6 @@ from sase.agent_clis.models import (
     AgentCliUpdatesReady,
     UpdateStrategy,
 )
-from sase.agents_sync.models import CapturedIncomingHood
 
 from .plugins_browser_dev_update import DevUpdatePreview
 
@@ -49,8 +48,6 @@ class ComprehensiveUpdatePreview:
     provider_plan: AgentCliUpdatePlan | None = None
     provider_dropped: tuple[DroppedProviderCandidate, ...] = ()
     provider_error: str | None = None
-    agents_updates: tuple[CapturedIncomingHood, ...] = ()
-    agents_error: str | None = None
 
     @property
     def selected_legs(self) -> frozenset[UpdateLeg]:
@@ -77,14 +74,7 @@ class ComprehensiveUpdatePreview:
 
     @property
     def runnable(self) -> bool:
-        return self.sase_runnable or self.provider_runnable or self.agents_runnable
-
-    @property
-    def agents_runnable(self) -> bool:
-        """Only the immutable cache items captured for confirmation may run."""
-        if UpdateLeg.AGENTS not in self.selected_legs:
-            return False
-        return bool(self.agents_updates)
+        return self.sase_runnable or self.provider_runnable
 
     @property
     def manual_provider_entries(self) -> tuple[Any, ...]:

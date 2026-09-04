@@ -32,10 +32,10 @@ _ROW_WIDTH = 68
 class UpdatePanelResult:
     """Chosen Update panel row.
 
-    ``scope`` is the panel-state row id (``everything``, ``sase``,
-    ``providers``, or ``agents``). ``auto_approve`` is explicit typed
-    intent from the capital-letter shortcuts; lowercase keys, Enter,
-    and mouse selection leave it false.
+    ``scope`` is the panel-state row id (``everything``, ``sase``, or
+    ``providers``). ``auto_approve`` is explicit typed intent from the
+    capital-letter shortcuts; lowercase keys, Enter, and mouse
+    selection leave it false.
     """
 
     scope: UpdateOptionScope
@@ -57,8 +57,6 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
         ("S", "apply_sase", "Apply SASE"),
         ("p", "choose_providers", "Providers"),
         ("P", "apply_providers", "Apply providers"),
-        ("a", "choose_agents", "Agents"),
-        ("A", "apply_agents", "Apply agents"),
         ("enter", "choose_highlighted", "Run"),
         ("r", "recheck", "Re-check"),
     ]
@@ -107,12 +105,6 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
 
     def action_apply_providers(self) -> None:
         self._choose_scope("providers", auto_approve=True)
-
-    def action_choose_agents(self) -> None:
-        self._choose_scope("agents")
-
-    def action_apply_agents(self) -> None:
-        self._choose_scope("agents", auto_approve=True)
 
     def action_choose_highlighted(self) -> None:
         option_list = self.query_one("#update-panel-list", OptionList)
@@ -218,10 +210,10 @@ def _chip_style(chip: UpdateOptionChip, accent: str) -> str:
 def _hint_text() -> Text:
     """Two-line legend: preview vs apply-now, then secondary navigation."""
     hints = Text()
-    hints.append("e s p a", style="bold")
+    hints.append("e s p", style="bold")
     hints.append("  preview", style="dim")
     hints.append("  ·  ")
-    hints.append("E S P A", style=f"bold {CORE_UPDATE_ACCENT}")
+    hints.append("E S P", style=f"bold {CORE_UPDATE_ACCENT}")
     hints.append("  ")
     hints.append(_AUTO_APPROVE_GLYPH, style=f"bold {CORE_UPDATE_ACCENT}")
     hints.append(" apply now · no prompt", style=CORE_UPDATE_ACCENT)

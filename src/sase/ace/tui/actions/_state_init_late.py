@@ -178,18 +178,9 @@ def init_late_startup_state(
         CurrentProjectSettings,
         parse_current_project_settings,
     )
-    from ._agents_sync_config import parse_agents_sync_config
 
-    agents_sync_config = parse_agents_sync_config(
-        ace_cfg.get("agents_sync", {}) if isinstance(ace_cfg, dict) else {}
-    )
     settings: CurrentProjectSettings = parse_current_project_settings(ace_cfg)
     self._current_project_settings = settings
-    self._agents_sync_check_interval_seconds = agents_sync_config.check_interval_seconds
-    self._agents_sync_recompute_interval_seconds = (
-        agents_sync_config.recompute_interval_seconds
-    )
-    self._agents_sync_indicator_enabled = agents_sync_config.indicator
     self._agents_repro_output_dir = (
         str(ace_cfg.get("repro_output_dir", "")) if isinstance(ace_cfg, dict) else ""
     )

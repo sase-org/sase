@@ -139,10 +139,6 @@ class StartupLoadsMixin:
             self._schedule_startup_update_toast_check()
         except Exception:
             log.debug("Failed to schedule startup update toast", exc_info=True)
-        try:
-            self._schedule_startup_agents_sync_check()
-        except Exception:
-            log.debug("Failed to schedule startup agents-sync check", exc_info=True)
         if just_updated:
             try:
                 self._maybe_show_keymap_unification_toast()

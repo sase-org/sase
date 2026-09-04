@@ -1,41 +1,10 @@
-"""Formatting coverage for cached agents-sync summaries."""
+"""Formatting coverage for agents-sidecar publication summaries."""
 
 from sase.ace.tui.agents_sync_format import (
     agents_sync_outcome_line,
-    cached_agents_result_line,
-    summarize_cached_agents_results,
+    summarize_agents_sync_outcomes,
 )
-from sase.agents_sync.models import (
-    CachedIntegrationResult,
-    CapturedIncomingHood,
-    SyncOutcome,
-)
-
-
-def test_owner_observed_cached_result_is_summarized_plainly() -> None:
-    captured = CapturedIncomingHood(
-        project_key="proj",
-        project="Project",
-        fetched_ref="refs/remotes/origin/main",
-        fetched_sha="a" * 40,
-        cache_id="b" * 64,
-        format_version=1,
-        source_owner_kind="username_unknown_v1",
-        source_username=None,
-        source_machine="athena",
-        top_hood="crew",
-        hood_digest="c" * 64,
-        run_count=2,
-        family_count=1,
-        cache_created_at=1.0,
-    )
-    result = CachedIntegrationResult(
-        captured,
-        "owner_observed",
-        unchanged=2,
-    )
-
-    assert summarize_cached_agents_results((result,)) == "1 owner observed"
+from sase.agents_sync.models import SyncOutcome
 
 
 def test_agents_sync_outcome_line_reports_failure_and_sync_details() -> None:
@@ -49,32 +18,15 @@ def test_agents_sync_outcome_line_reports_failure_and_sync_details() -> None:
     assert "pulled" in agents_sync_outcome_line(synced)
 
 
-def test_cached_agents_result_line_includes_disposition_and_counts() -> None:
-    captured = CapturedIncomingHood(
-        project_key="proj",
-        project="Project",
-        fetched_ref="refs/remotes/origin/main",
-        fetched_sha="a" * 40,
-        cache_id="b" * 64,
-        format_version=2,
-        source_owner_kind="exact",
-        source_username="alice",
-        source_machine="zeus",
-        top_hood="crew",
-        hood_digest="c" * 64,
-        run_count=2,
-        family_count=1,
-        cache_created_at=1.0,
-    )
-    result = CachedIntegrationResult(
-        captured,
-        "applied",
-        hoods_imported=1,
-        runs_imported=2,
-        families_imported=1,
+def test_summarize_agents_sync_outcomes_counts_states() -> None:
+    outcomes = (
+        SyncOutcome("alpha", "Alpha", pulled=True, hoods_published=1),
+        SyncOutcome("beta", "Beta"),
+        SyncOutcome("gamma", "Gamma", skip_reason="disabled"),
+        SyncOutcome("delta", "Delta", error="push failed"),
     )
 
-    line = cached_agents_result_line(result)
-    assert line.startswith("Project: alice.zeus.crew — applied")
-    assert "1 hood" in line
-    assert "2 runs" in line
+    assert (
+        summarize_agents_sync_outcomes(outcomes)
+        == "1 synchronized, 1 current, 1 skipped, 1 failed"
+    )

@@ -966,7 +966,7 @@ Help is not a leader command: press the app-level `?` on any tab to open the Hel
 | `,C`       | Review mentors (opens Mentor Review modal)                                                  |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                     |
 | `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control)) |
-| `,U`       | Open Update panel (SASE, providers, agents)                                                 |
+| `,U`       | Open Update panel (SASE, providers)                                                 |
 | `,L`       | Jump to the log entry for the most recent error toast                                       |
 | `,M`       | Kill running mentors                                                                        |
 | `,R`       | Show runners info                                                                           |
@@ -2243,7 +2243,7 @@ modal.
 | `,u`       | Mark all loaded unread completed agents as read                                                   |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                             |
 | `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control))       |
-| `,U`       | Open Update panel (SASE, providers, agents)                                                       |
+| `,U`       | Open Update panel (SASE, providers)                                                       |
 | `,L`       | Jump to the log entry for the most recent error toast                                             |
 | `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication          |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                 |
@@ -2612,7 +2612,7 @@ Help is not a leader command: press the app-level `?` on any tab to open the Hel
 | `,,`      | Repeat the last leader command                                                              |
 | `,h`      | Run agent from home prompt context; bare prompts default to `#git:home`                     |
 | `,m`      | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control)) |
-| `,U`      | Open Update panel (SASE, providers, agents)                                                 |
+| `,U`      | Open Update panel (SASE, providers)                                                 |
 | `,L`      | Jump to the log entry for the most recent error toast                                       |
 | `,R`      | Show runners info                                                                           |
 | `,.`      | Open prompt history modal                                                                   |
@@ -6554,22 +6554,18 @@ Every mutation still plans before it runs, and `Ctrl+D` / `Ctrl+U` scroll long p
 panes. When commit previews are enabled and a comparable range is available, core and
 installed-plugin **update** confirmations load incoming commits by repository in the
 background; install confirmations do not. The global `,U` chord opens the **Update
-panel** from already-fetched update and agents-sync snapshots — no Admin Center, no live
-inventory load. `e` / `s` / `p` / `a` (or `⏎` on the highlighted row) choose Everything,
-SASE, providers, or agents and then show the same `y`/`n` confirmation ACE uses
-elsewhere, containing only the selected legs. `E` / `S` / `P` / `A` plan those same
+panel** from already-fetched SASE and provider snapshots — no Admin Center, no live
+inventory load. `e` / `s` / `p` (or `⏎` on the highlighted row) choose Everything,
+SASE, or providers and then show the same `y`/`n` confirmation ACE uses
+elsewhere, containing only the selected legs. `E` / `S` / `P` plan those same
 scopes and skip only that final confirmation after a runnable preview succeeds; failed
 or already-current previews still do not mutate. `r` re-checks in place; `q` / `Esc`
-cancel. An Everything confirmation groups SASE, Agent CLI, and agents-repository work
-into labeled sections with update/current/skipped glyphs, counts, and commands. Its
-**Agents repos** section uses a captured no-network status snapshot from the
-enabled-project inventory. Every represented project remains runnable even when its
-cached status is current; lifecycle-disabled projects are absent rather than shown as
-skipped. The tracked proc runs Agent CLI commands first, the SASE/core/plugin leg
-second, and one all-enabled-project agent sync last. A failure in the final leg is
-reported alongside the independent earlier results. After a changed core/plugin update
-restarts ACE, the one-shot result toast can show applied commits grouped by repository
-as well as file/line statistics. Configure the toast with
+cancel. An Everything confirmation groups SASE and Agent CLI work into labeled
+sections with update/current/skipped glyphs, counts, and commands. The tracked
+proc runs Agent CLI commands first and the SASE/core/plugin leg second. A failure
+in one leg is reported alongside the independent earlier results. After a changed
+core/plugin update restarts ACE, the one-shot result toast can show applied commits
+grouped by repository as well as file/line statistics. Configure the toast with
 `ace.updates.post_update_toast_commits`, `post_update_toast_max_commits`, and
 `post_update_toast_diffstat`.
 
@@ -6577,8 +6573,7 @@ The providers leg still captures the agent-CLI candidates from the latest comple
 automatic result, revalidates exactly those names, and never broadens the captured set
 from an Updates-pane load. Manual-only providers remain in the preview with their
 suggested command or docs. A real SASE/core/plugin code change restarts ACE and axe only
-after provider and agents-repository work finishes, while provider-only updates refresh
-in place.
+after provider work finishes, while provider-only updates refresh in place.
 
 `u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate
 pane-wide agent-CLI action: it updates `Space`-marked agent CLIs from anywhere in the
@@ -6588,14 +6583,10 @@ pane, and with no marks it targets every safely updatable installed CLI. See the
 [Agent providers](agent_providers.md#inventory-and-updates) for the equivalent
 `sase agent-cli` CLI.
 
-Separately, ACE fetches and checks enabled agents repositories after first paint and on
-the remote cadence configured by `ace.agents_sync`; cheaper checks between fetches only
-reconcile cached entries and receipts. A green `⇅ N` top-bar badge appears only when
-incoming hoods from other owners are already captured in the cache and not covered by
-import receipts. Its tooltip lists the exact projects and hoods; clicking it imports
-only those cached hoods without fetching, pulling, pushing, exporting, or mutating the
-sidecar checkout. See [Agent Hood Synchronization](agents_sidecar.md) for privacy,
-import, status, and recovery behavior.
+The Updates pane still binds `a` to a tracked agents-sidecar publication sync. That
+action publishes and reconciles agent hoods for every enabled project; it is not
+part of the comprehensive update. See [Agent Hood Synchronization](agents_sidecar.md)
+for privacy, publication, status, and recovery behavior.
 
 ## Snippets
 

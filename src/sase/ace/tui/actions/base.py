@@ -152,12 +152,11 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
 
     def action_update_sase_shortcut(self) -> None:
         """Open the Update panel from already-fetched evidence."""
-        # Keystroke dispatch is allocation-only: project two in-memory
-        # snapshots and push the panel. Preview I/O starts in the
-        # update-preview proc after the user chooses a row.
+        # Keystroke dispatch is allocation-only: project the in-memory
+        # update-status snapshot and push the panel. Preview I/O starts
+        # in the update-preview proc after the user chooses a row.
         state = build_update_panel_state(
             getattr(self, "_automatic_update_status", None),
-            getattr(self, "_agents_sync_last_status", None),
             now=time.time(),
         )
 

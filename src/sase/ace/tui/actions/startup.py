@@ -95,13 +95,6 @@ class StartupMixin(
     _automatic_update_check_in_flight: bool
     _automatic_update_check_interval_seconds: float
     _automatic_update_check_timer: Timer | None
-    _agents_sync_check_interval_seconds: float
-    _agents_sync_recompute_interval_seconds: float
-    _agents_sync_indicator_enabled: bool
-    _agents_sync_check_in_flight: bool
-    _agents_sync_revalidation_pending: bool
-    _agents_sync_check_timer: Timer | None
-    _agents_sync_last_recompute_mono: float
     _refresh_timer: Timer | None
     _countdown_timer: Timer | None
     _countdown_remaining: int

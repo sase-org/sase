@@ -17,7 +17,6 @@ from sase.ace.tui.update_panel_state import (
 )
 from sase.ace.tui.widgets.update_accents import (
     AGENT_CLI_ACCENT,
-    AGENTS_SYNC_ACCENT,
     CORE_UPDATE_ACCENT,
     UPDATES_ACCENT,
 )
@@ -37,7 +36,7 @@ _COPY: dict[UpdateOptionScope, tuple[str, str, str]] = {
     "everything": (
         "e",
         "Everything",
-        "SASE, providers, and published agents in one tracked update.",
+        "SASE, core, plugins, and providers in one tracked update.",
     ),
     "sase": (
         "s",
@@ -48,11 +47,6 @@ _COPY: dict[UpdateOptionScope, tuple[str, str, str]] = {
         "p",
         "Providers",
         "Update every installed LLM / agent CLI provider.",
-    ),
-    "agents": (
-        "a",
-        "Agents",
-        "Import agent hoods your other machines published.",
     ),
 }
 
@@ -79,14 +73,14 @@ def _row(
 
 
 def _pending_state() -> UpdatePanelState:
-    """Every row populated: core rebuild, manual providers, pending agents."""
+    """Every row populated: core rebuild and manual providers."""
     return UpdatePanelState(
         rows=(
             _row(
                 "everything",
                 kind="available",
-                text="↑ 8 available",
-                count=8,
+                text="↑ 6 available",
+                count=6,
                 accent="$primary",
             ),
             _row(
@@ -105,14 +99,6 @@ def _pending_state() -> UpdatePanelState:
                 detail="claude, codex · 1 needs manual steps",
                 accent=AGENT_CLI_ACCENT,
             ),
-            _row(
-                "agents",
-                kind="available",
-                text="⇅ 2 available",
-                count=2,
-                detail="hera, zeus",
-                accent=AGENTS_SYNC_ACCENT,
-            ),
         ),
         freshness_label="4m ago",
         stale=False,
@@ -121,13 +107,12 @@ def _pending_state() -> UpdatePanelState:
 
 
 def _unchecked_state() -> UpdatePanelState:
-    """No snapshots: four unknown rows and the never-checked subtitle."""
+    """No snapshots: three unknown rows and the never-checked subtitle."""
     return UpdatePanelState(
         rows=(
             _row("everything", accent="$primary"),
             _row("sase", accent=UPDATES_ACCENT),
             _row("providers", accent=AGENT_CLI_ACCENT),
-            _row("agents", accent=AGENTS_SYNC_ACCENT),
         ),
         freshness_label="never checked — press r",
         stale=True,
@@ -154,7 +139,7 @@ async def test_update_panel_pending_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Populated rows: core rebuild, manual-steps providers, pending agents."""
+    """Populated rows: core rebuild and manual-steps providers."""
     patch_startup_loaders(monkeypatch)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -166,11 +151,10 @@ async def test_update_panel_pending_png_snapshot(
         await wait_for_state(
             page,
             lambda: (
-                option_list.option_count == 4
+                option_list.option_count == 3
                 and "e/E" in _option_plain(option_list, 0)
                 and "core rebuild" in _option_plain(option_list, 1)
                 and "needs manual steps" in _option_plain(option_list, 2)
-                and "⇅ 2 available" in _option_plain(option_list, 3)
             ),
             description="pending Update panel rows",
         )
@@ -188,7 +172,7 @@ async def test_update_panel_unchecked_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Never-checked evidence still renders four selectable unknown rows."""
+    """Never-checked evidence still renders three selectable unknown rows."""
     patch_startup_loaders(monkeypatch)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -200,11 +184,11 @@ async def test_update_panel_unchecked_png_snapshot(
         await wait_for_state(
             page,
             lambda: (
-                option_list.option_count == 4
+                option_list.option_count == 3
                 and "e/E" in _option_plain(option_list, 0)
                 and all(
                     "· not checked yet" in _option_plain(option_list, index)
-                    for index in range(4)
+                    for index in range(3)
                 )
             ),
             description="never-checked Update panel rows",

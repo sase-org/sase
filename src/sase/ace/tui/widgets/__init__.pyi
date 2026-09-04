@@ -7,7 +7,6 @@ from .agent_info_panel import AgentInfoPanel as AgentInfoPanel
 from .agent_list import AgentList as AgentList
 from .agent_onboarding import AgentOnboarding as AgentOnboarding
 from .tools_panel import AgentToolsPanel as AgentToolsPanel
-from .agents_sync_indicator import AgentsSyncIndicator as AgentsSyncIndicator
 from .alias_overrides_indicator import (
     AliasOverridesIndicator as AliasOverridesIndicator,
 )

@@ -29,7 +29,6 @@ _ORIGINAL_START_ARTIFACT_WATCHER = AceApp._start_artifact_watcher
 _ORIGINAL_START_PROMPT_SOURCE_WATCHER = AceApp._start_prompt_source_watcher
 _ORIGINAL_SCHEDULE_PROMPT_CATALOG_REBUILD = AceApp._schedule_prompt_catalog_rebuild
 _ORIGINAL_SCHEDULE_UPDATE_CHECK = AceApp._schedule_startup_update_toast_check
-_ORIGINAL_SCHEDULE_AGENTS_SYNC_CHECK = AceApp._schedule_startup_agents_sync_check
 
 _ORIGINAL_LOAD_AGENTS_FROM_DISK = _agent_loading.load_agents_from_disk_with_state
 _ORIGINAL_READ_NOTIFICATION_SNAPSHOT = _notifications.read_notification_snapshot
@@ -281,7 +280,6 @@ def _install_fast_startup_overrides(stack: AsyncExitStack) -> None:
             _ORIGINAL_START_PROMPT_SOURCE_WATCHER,
         ),
         ("_schedule_startup_update_toast_check", _ORIGINAL_SCHEDULE_UPDATE_CHECK),
-        ("_schedule_startup_agents_sync_check", _ORIGINAL_SCHEDULE_AGENTS_SYNC_CHECK),
     ):
         _patch_method_if_unchanged(stack, name, original, _noop_startup_service)
 

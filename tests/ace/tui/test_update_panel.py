@@ -24,7 +24,6 @@ from sase.ace.tui.update_panel_state import (
 )
 from sase.ace.tui.widgets.update_accents import (
     AGENT_CLI_ACCENT,
-    AGENTS_SYNC_ACCENT,
     CORE_UPDATE_ACCENT,
     UPDATES_ACCENT,
 )
@@ -33,13 +32,12 @@ _SCOPES: tuple[UpdateOptionScope, ...] = (
     "everything",
     "sase",
     "providers",
-    "agents",
 )
 _COPY: dict[UpdateOptionScope, tuple[str, str, str]] = {
     "everything": (
         "e",
         "Everything",
-        "SASE, providers, and published agents in one tracked update.",
+        "SASE, core, plugins, and providers in one tracked update.",
     ),
     "sase": (
         "s",
@@ -50,11 +48,6 @@ _COPY: dict[UpdateOptionScope, tuple[str, str, str]] = {
         "p",
         "Providers",
         "Update every installed LLM / agent CLI provider.",
-    ),
-    "agents": (
-        "a",
-        "Agents",
-        "Import agent hoods your other machines published.",
     ),
 }
 
@@ -132,12 +125,6 @@ def _populated_state() -> UpdatePanelState:
                 detail="claude, codex · 1 needs manual steps",
                 accent=AGENT_CLI_ACCENT,
             ),
-            _row(
-                "agents",
-                kind="current",
-                text="✓ up to date",
-                accent=AGENTS_SYNC_ACCENT,
-            ),
         ),
     )
 
@@ -191,7 +178,6 @@ async def test_letter_keys_dismiss_with_matching_scope() -> None:
         "e": "everything",
         "s": "sase",
         "p": "providers",
-        "a": "agents",
     }
     for key, scope in expected.items():
         async with _TestApp().run_test(size=(100, 40)) as pilot:
@@ -206,7 +192,6 @@ async def test_capital_keys_dismiss_with_auto_approve() -> None:
         "E": "everything",
         "S": "sase",
         "P": "providers",
-        "A": "agents",
     }
     for key, scope in expected.items():
         async with _TestApp().run_test(size=(100, 40)) as pilot:
@@ -271,7 +256,7 @@ async def test_r_posts_recheck_without_dismissing() -> None:
         modal.post_message = _capture  # type: ignore[method-assign]
         await pilot.press("r")
         await pilot.pause()
-        assert modal.query_one("#update-panel-list", OptionList).option_count == 4
+        assert modal.query_one("#update-panel-list", OptionList).option_count == 3
     assert dismissed == []
     assert any(isinstance(message, UpdatePanel.RecheckRequested) for message in posted)
 
@@ -288,7 +273,7 @@ async def test_set_state_preserves_highlight() -> None:
         modal.set_state(_populated_state())
         await pilot.pause()
         assert option_list.highlighted == 1
-        assert option_list.option_count == 4
+        assert option_list.option_count == 3
         prompt = _prompt_plain(option_list.get_option_at_index(1))
         assert "↑ 4 available" in prompt
 
@@ -321,27 +306,27 @@ async def test_everything_row_keeps_key_and_chip_visible() -> None:
     assert dismissed == [None]
 
 
-async def test_never_checked_state_renders_four_selectable_rows() -> None:
+async def test_never_checked_state_renders_three_selectable_rows() -> None:
     async with _TestApp().run_test(size=(100, 40)) as pilot:
         modal = UpdatePanel(_state())
         dismissed = await _push(pilot, modal)
         option_list = modal.query_one("#update-panel-list", OptionList)
-        assert option_list.option_count == 4
-        ids = [option_list.get_option_at_index(index).id for index in range(4)]
+        assert option_list.option_count == 3
+        ids = [option_list.get_option_at_index(index).id for index in range(3)]
         assert ids == list(_SCOPES)
         assert all(
-            not option_list.get_option_at_index(index).disabled for index in range(4)
+            not option_list.get_option_at_index(index).disabled for index in range(3)
         )
         everything = _prompt_plain(option_list.get_option_at_index(0))
         assert "Everything" in everything
         assert "e/E" in everything
         assert "· not checked yet" in everything
         paired = [
-            _prompt_plain(option_list.get_option_at_index(index)) for index in range(4)
+            _prompt_plain(option_list.get_option_at_index(index)) for index in range(3)
         ]
         assert all(
             label in prompt
-            for prompt, label in zip(paired, ("e/E", "s/S", "p/P", "a/A"), strict=True)
+            for prompt, label in zip(paired, ("e/E", "s/S", "p/P"), strict=True)
         )
         hints = modal.query_one("#update-panel-hints", Static)
         hint_plain = _plain(hints.content)
@@ -350,9 +335,9 @@ async def test_never_checked_state_renders_four_selectable_rows() -> None:
         assert "no prompt" in hint_plain
         assert "j/k move" in hint_plain
         assert "r re-check" in hint_plain
-        await pilot.press("a")
+        await pilot.press("p")
         await pilot.pause()
-    assert dismissed == [UpdatePanelResult(scope="agents", auto_approve=False)]
+    assert dismissed == [UpdatePanelResult(scope="providers", auto_approve=False)]
 
 
 async def test_border_chrome_uses_freshness_rechecking_and_stale_accent() -> None:

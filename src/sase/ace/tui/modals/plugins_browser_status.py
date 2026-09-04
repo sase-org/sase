@@ -10,7 +10,6 @@ from rich.table import Table
 from rich.text import Text
 from textual.widgets import OptionList, Static
 
-from sase.ace.tui.update_panel_state import build_update_panel_state
 from sase.plugins.catalog import PluginCatalog
 from sase.plugins.render_common import humanize_age
 from sase.uv_tool.detect import NotUvToolInstall
@@ -265,9 +264,6 @@ class PluginsBrowserStatusMixin:
 
     def _freshness_line(self) -> str:
         parts: list[str] = []
-        agents_chip = self._agents_sync_chip()
-        if agents_chip:
-            parts.append(agents_chip)
         parts.append(f"checked {self._cache_age_label()}")
         parts.append(self._install_mode_label())
         if self._offline:
@@ -290,28 +286,6 @@ class PluginsBrowserStatusMixin:
             "mixed": "Mixed",
         }
         return labels.get(mode or "", mode or "install mode unknown")
-
-    def _agents_sync_chip(self) -> str | None:
-        try:
-            app = self.app  # type: ignore[attr-defined]
-        except Exception:
-            return None
-        snapshot = getattr(app, "_agents_sync_last_status", None)
-        state = build_update_panel_state(None, snapshot, now=self._now)
-        row = next(
-            (
-                candidate
-                for candidate in state.rows
-                if candidate.scope == "agents" or candidate.key == "agents"
-            ),
-            None,
-        )
-        if row is None or row.chip.count <= 0:
-            return None
-        label = f"⇅ {row.chip.count} {self._plural(row.chip.count, 'hood')}"
-        if row.detail:
-            label = f"{label} · {row.detail}"
-        return label
 
     def _failed_source_lines(self) -> tuple[tuple[str, str], ...]:
         lines: list[tuple[str, str]] = []

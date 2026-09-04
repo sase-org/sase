@@ -34,7 +34,7 @@ def collect_update_preview_inputs(
     """Collect the minimum live inputs the selected legs require.
 
     Runs off-thread. Skipping a leg's collection is what keeps a Providers-only
-    or Agents-only selection quick.
+    or SASE-only selection quick.
     """
     uv_tool: object | None = None
     agent_cli_statuses: tuple[AgentCliStatus, ...] = ()

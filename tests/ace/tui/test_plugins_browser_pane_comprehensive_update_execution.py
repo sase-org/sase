@@ -12,7 +12,6 @@ from sase.ace.comprehensive_update import (
     SaseUpdateResultStatus,
 )
 from sase.ace.tui.modals.plugins_browser_comprehensive_update_execution import (
-    _execute_agents_leg,
     _execute_provider_leg,
     _execute_sase_leg,
     comprehensive_update_summary,
@@ -26,30 +25,6 @@ from sase.ace.tui.modals.plugins_browser_comprehensive_update_models import (
 from sase.ace.tui.modals.plugins_browser_dev_update import DevUpdatePreview
 from sase.ace.update_scope import UpdateLeg, UpdateScope
 from sase.agent_clis.models import AgentCliNothingToUpdate, UpdateResultStatus
-from sase.agents_sync.models import CachedIntegrationResult, CapturedIncomingHood
-
-
-def _captured(
-    project_key: str = "alpha",
-    project: str = "Alpha",
-    hood: str = "foo",
-) -> CapturedIncomingHood:
-    return CapturedIncomingHood(
-        project_key=project_key,
-        project=project,
-        fetched_ref="refs/remotes/origin/main",
-        fetched_sha="a" * 40,
-        cache_id=f"{project_key}-{hood}",
-        format_version=2,
-        source_owner_kind="exact",
-        source_username="alice",
-        source_machine="zeus",
-        top_hood=hood,
-        hood_digest="b" * 64,
-        run_count=2,
-        family_count=1,
-        cache_created_at=1.0,
-    )
 
 
 def test_run_scoped_update_continues_after_provider_failure(
@@ -70,19 +45,6 @@ def test_run_scoped_update_continues_after_provider_failure(
             "already current",
         )
 
-    def agents(
-        _preview: Any,
-        **_kwargs: Any,
-    ) -> tuple[tuple[CachedIntegrationResult, ...], str | None]:
-        order.append("agents")
-        return (
-            CachedIntegrationResult(
-                _captured(),
-                "applied",
-                hoods_imported=1,
-            ),
-        ), None
-
     monkeypatch.setattr(
         "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution."
         "_execute_provider_leg",
@@ -93,11 +55,6 @@ def test_run_scoped_update_continues_after_provider_failure(
         "_execute_sase_leg",
         sase,
     )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution."
-        "_execute_agents_leg",
-        agents,
-    )
     preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(("claude",)),
         sase_preview=DevUpdatePreview(plan=None, subject="sase"),
@@ -105,75 +62,10 @@ def test_run_scoped_update_continues_after_provider_failure(
 
     result = run_scoped_update(preview, uv_tool=None)
 
-    assert order == ["providers", "sase", "agents"]
+    assert order == ["providers", "sase"]
     assert result.provider_error == "provider failed"
-    assert result.agents_outcomes[0].captured.project_key == "alpha"
     assert result.selected_legs == preview.selected_legs
     assert result.has_failures is True
-
-
-def test_comprehensive_summary_and_failures_include_agents_repos() -> None:
-    result = ComprehensiveUpdateResult(
-        sase=ComprehensiveSaseUpdateResult(
-            SaseUpdateResultStatus.ALREADY_CURRENT,
-            "already current",
-        ),
-        agents_outcomes=(
-            CachedIntegrationResult(
-                _captured(),
-                "applied",
-                hoods_imported=1,
-            ),
-            CachedIntegrationResult(
-                _captured("beta", "Beta", "bar"),
-                "failed",
-                diagnostics=("import failed",),
-            ),
-        ),
-    )
-
-    assert result.has_failures is True
-    assert result.has_successful_agents_change is True
-    assert result.fully_failed is False
-    assert comprehensive_update_summary(result).endswith(
-        "Cached agents: 1 applied, 1 failed"
-    )
-
-
-def test_agents_leg_integrates_exact_captured_items_without_widening(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    zulu = _captured("z", "Zulu", "zeta")
-    alpha = _captured("a", "Alpha", "alpha")
-    returned = (
-        CachedIntegrationResult(zulu, "stale"),
-        CachedIntegrationResult(alpha, "applied", hoods_imported=1),
-    )
-    calls: list[tuple[CapturedIncomingHood, ...]] = []
-
-    def integrate(
-        items: tuple[CapturedIncomingHood, ...],
-    ) -> tuple[CachedIntegrationResult, ...]:
-        calls.append(items)
-        return returned
-
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution."
-        "integrate_cached_agent_updates",
-        integrate,
-    )
-    preview = ComprehensiveUpdatePreview(
-        request=ComprehensiveUpdateRequest(()),
-        sase_preview=None,
-        sase_current=True,
-        agents_updates=(zulu, alpha),
-    )
-
-    outcomes, error = _execute_agents_leg(preview)
-
-    assert error is None
-    assert calls == [(zulu, alpha)]
-    assert outcomes == returned
 
 
 def test_execute_provider_leg_preserves_dropped_candidates(
@@ -221,19 +113,6 @@ def test_execute_sase_leg_records_current_and_blockers() -> None:
     assert blocked.message == "not a uv tool install"
 
 
-def test_execute_agents_leg_skips_unselected_scope() -> None:
-    preview = ComprehensiveUpdatePreview(
-        request=ComprehensiveUpdateRequest((), UpdateScope.SASE),
-        sase_preview=None,
-        agents_updates=(_captured(),),
-    )
-
-    outcomes, error = _execute_agents_leg(preview)
-
-    assert outcomes == ()
-    assert error is None
-
-
 def test_run_scoped_update_records_unselected_sase_as_skipped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -241,11 +120,6 @@ def test_run_scoped_update_records_unselected_sase_as_skipped(
         "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution."
         "_execute_sase_leg",
         lambda *_args, **_kwargs: pytest.fail("sase leg must not run"),
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution."
-        "_execute_agents_leg",
-        lambda *_args, **_kwargs: pytest.fail("agents leg must not run"),
     )
     monkeypatch.setattr(
         "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution."
@@ -265,7 +139,6 @@ def test_run_scoped_update_records_unselected_sase_as_skipped(
     summary = comprehensive_update_summary(result)
     assert summary.startswith("Agent CLIs:")
     assert "SASE" not in summary
-    assert "Cached agents" not in summary
 
 
 def test_scoped_summary_omits_unselected_legs() -> None:
@@ -275,13 +148,10 @@ def test_scoped_summary_omits_unselected_legs() -> None:
             "not selected",
         ),
         provider_results=(),
-        agents_outcomes=(
-            CachedIntegrationResult(_captured(), "applied", hoods_imported=1),
-        ),
-        selected_legs=frozenset({UpdateLeg.AGENTS}),
+        selected_legs=frozenset({UpdateLeg.PROVIDERS}),
     )
 
-    assert comprehensive_update_summary(result) == "Cached agents: 1 applied"
+    assert comprehensive_update_summary(result) == "Agent CLIs: no captured work"
 
 
 def test_run_scoped_update_threads_reporter_and_reports_legs_in_order(
@@ -310,16 +180,6 @@ def test_run_scoped_update_threads_reporter_and_reports_legs_in_order(
             "already current",
         )
 
-    def agents(
-        _preview: Any, **kwargs: Any
-    ) -> tuple[tuple[CachedIntegrationResult, ...], str | None]:
-        order.append("agents")
-        reporters.append(kwargs.get("reporter"))
-        kwargs["reporter"].phase("Importing cached incoming agent hoods")
-        return (
-            CachedIntegrationResult(_captured(), "applied", hoods_imported=1),
-        ), None
-
     monkeypatch.setattr(
         "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution."
         "_execute_provider_leg",
@@ -330,11 +190,6 @@ def test_run_scoped_update_threads_reporter_and_reports_legs_in_order(
         "_execute_sase_leg",
         sase,
     )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution."
-        "_execute_agents_leg",
-        agents,
-    )
     preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(("claude",)),
         sase_preview=DevUpdatePreview(plan=None, subject="sase"),
@@ -342,14 +197,13 @@ def test_run_scoped_update_threads_reporter_and_reports_legs_in_order(
 
     result = run_scoped_update(preview, uv_tool=None, reporter=reporter)
 
-    assert order == ["providers", "sase", "agents"]
-    assert reporters == [reporter, reporter, reporter]
+    assert order == ["providers", "sase"]
+    assert reporters == [reporter, reporter]
     assert result.provider_error == "provider failed"
     assert result.has_failures is True
     output = reporter.proc.get_live_output()
     assert "==> Updating agent CLIs" in output
     assert "==> Resolving sase update" in output
-    assert "==> Importing cached incoming agent hoods" in output
 
 
 def test_provider_leg_uses_streaming_command_adapter(
