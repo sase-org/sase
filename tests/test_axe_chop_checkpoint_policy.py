@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -126,6 +127,98 @@ def test_git_commits_since_uses_runner_checkpoint_and_accumulates(
     assert first.decision["checkpoint_cursor"] == first_head
     assert ready.decision is not None
     assert ready.decision["checkpoint_cursor"] == latest_head
+
+
+def test_fs_trigger_uses_runner_checkpoint_and_reacts_to_watched_changes(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    watched = tmp_path / "watched.json"
+    watched.write_text("{}", encoding="utf-8")
+    chop = ChopConfig(
+        name="hook_checks",
+        description="",
+        trigger={
+            "provider": "fs",
+            "paths": [str(watched)],
+            "max_quiet": "5m",
+        },
+    )
+
+    first = evaluate_chop_preflight(
+        lumberjack_name="hooks",
+        chop=chop,
+        context_file=None,
+        scheduled=True,
+    )
+    assert first.outcome == "fire"
+    assert "no prior fs checkpoint" in first.reason
+    record_chop_checkpoint_event("hooks", "hook_checks", first, "observed")
+
+    unchanged = evaluate_chop_preflight(
+        lumberjack_name="hooks",
+        chop=chop,
+        context_file=None,
+        scheduled=True,
+    )
+    assert unchanged.outcome == "skip"
+
+    watched.write_text('{"changed": true}', encoding="utf-8")
+    changed = evaluate_chop_preflight(
+        lumberjack_name="hooks",
+        chop=chop,
+        context_file=None,
+        scheduled=True,
+    )
+    assert changed.outcome == "fire"
+    assert "changed" in changed.reason
+
+
+def test_fs_trigger_fires_after_max_quiet_elapses_with_unchanged_watch(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    watched = tmp_path / "watched.json"
+    watched.write_text("{}", encoding="utf-8")
+    chop = ChopConfig(
+        name="hook_checks",
+        description="",
+        trigger={
+            "provider": "fs",
+            "paths": [str(watched)],
+            "max_quiet": "60s",
+        },
+    )
+    base = datetime(2026, 7, 18, 12, 0, 0, tzinfo=UTC)
+
+    first = evaluate_chop_preflight(
+        lumberjack_name="hooks",
+        chop=chop,
+        context_file=None,
+        scheduled=True,
+        now=base,
+    )
+    assert first.outcome == "fire"
+    record_chop_checkpoint_event("hooks", "hook_checks", first, "observed", now=base)
+
+    soon = evaluate_chop_preflight(
+        lumberjack_name="hooks",
+        chop=chop,
+        context_file=None,
+        scheduled=True,
+        now=base + timedelta(seconds=30),
+    )
+    assert soon.outcome == "skip"
+
+    later = evaluate_chop_preflight(
+        lumberjack_name="hooks",
+        chop=chop,
+        context_file=None,
+        scheduled=True,
+        now=base + timedelta(seconds=90),
+    )
+    assert later.outcome == "fire"
+    assert "max_quiet" in later.reason
 
 
 def test_on_action_success_checkpoint_commits_only_after_success(

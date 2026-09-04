@@ -26,7 +26,7 @@ from .state import (
 # `run_every` interval before re-checking. Every other provider name is a
 # guard, whose skip means "the trigger was never evaluated" and should not
 # consume the cadence clock.
-_TRIGGER_PROVIDERS = frozenset({"always", "git.commits_since"})
+_TRIGGER_PROVIDERS = frozenset({"always", "git.commits_since", "fs"})
 
 
 def append_once_per_summary(

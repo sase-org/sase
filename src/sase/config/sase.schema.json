@@ -351,6 +351,25 @@
         ]
       }
     },
+    "axeFsWatchPaths": {
+      "type": "array",
+      "description": "Shallow filesystem watch specs for the fs trigger: bare paths or {path, glob} objects",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          { "type": "string", "minLength": 1 },
+          {
+            "type": "object",
+            "required": ["path"],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "glob": { "type": "string", "minLength": 1 }
+            }
+          }
+        ]
+      }
+    },
     "axeChop": {
       "type": "object",
       "required": ["description"],
@@ -444,18 +463,25 @@
           ]
         },
         "trigger": {
-          "description": "Runner-evaluated trigger provider: always or git.commits_since",
+          "description": "Runner-evaluated trigger provider: always, git.commits_since, or fs",
           "oneOf": [
             { "type": "string", "enum": ["always"] },
             {
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "provider": { "enum": ["always", "git.commits_since"] },
+                "provider": { "enum": ["always", "git.commits_since", "fs"] },
                 "project": { "type": "string", "minLength": 1 },
                 "threshold": { "type": "integer", "minimum": 1 },
                 "checkpoint_policy": { "enum": ["on_observation", "on_action_accepted", "on_action_success"] },
                 "checkpoint": { "enum": ["on_observation", "on_action_accepted", "on_action_success"] },
+                "paths": { "$ref": "#/definitions/axeFsWatchPaths" },
+                "max_quiet": {
+                  "type": "string",
+                  "description": "Positive compound duration (e.g., '60s', '5m') after which the fs trigger fires even without a watched-path change",
+                  "minLength": 2,
+                  "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
+                },
                 "always": { "oneOf": [{ "type": "object" }, { "type": "null" }] },
                 "git.commits_since": {
                   "type": "object",
@@ -466,6 +492,19 @@
                     "threshold": { "type": "integer", "minimum": 1 },
                     "checkpoint_policy": { "enum": ["on_observation", "on_action_accepted", "on_action_success"] },
                     "checkpoint": { "enum": ["on_observation", "on_action_accepted", "on_action_success"] }
+                  }
+                },
+                "fs": {
+                  "type": "object",
+                  "required": ["paths", "max_quiet"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "paths": { "$ref": "#/definitions/axeFsWatchPaths" },
+                    "max_quiet": {
+                      "type": "string",
+                      "minLength": 2,
+                      "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
+                    }
                   }
                 }
               }
@@ -2339,7 +2378,7 @@
                               "additionalProperties": false,
                               "properties": {
                                 "provider": {
-                                  "enum": ["always", "git.commits_since"]
+                                  "enum": ["always", "git.commits_since", "fs"]
                                 },
                                 "project": { "type": "string", "minLength": 1 },
                                 "threshold": { "type": "integer", "minimum": 1 },
@@ -2356,6 +2395,12 @@
                                     "on_action_accepted",
                                     "on_action_success"
                                   ]
+                                },
+                                "paths": { "$ref": "#/definitions/axeFsWatchPaths" },
+                                "max_quiet": {
+                                  "type": "string",
+                                  "minLength": 2,
+                                  "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
                                 },
                                 "always": {
                                   "oneOf": [{ "type": "object" }, { "type": "null" }]
@@ -2379,6 +2424,19 @@
                                         "on_action_accepted",
                                         "on_action_success"
                                       ]
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                "fs": {
+                                  "type": "object",
+                                  "required": ["paths", "max_quiet"],
+                                  "properties": {
+                                    "paths": { "$ref": "#/definitions/axeFsWatchPaths" },
+                                    "max_quiet": {
+                                      "type": "string",
+                                      "minLength": 2,
+                                      "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
                                     }
                                   },
                                   "additionalProperties": false

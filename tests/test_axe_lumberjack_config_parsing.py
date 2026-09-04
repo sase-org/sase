@@ -155,6 +155,41 @@ def test_parse_lumberjacks_normalizes_declarative_chop_policy() -> None:
     assert chop.once_per == {"key": "audit:{proposal.id}", "capacity": 50}
 
 
+def test_parse_lumberjacks_normalizes_fs_trigger_policy() -> None:
+    raw = {
+        "hooks": {
+            "description": "Run hook checks",
+            "interval": 5,
+            "chops": [
+                {
+                    "name": "hook_checks",
+                    "description": "Check hook state",
+                    "trigger": {
+                        "fs": {
+                            "paths": [
+                                "axe/lumberjacks/hooks",
+                                {"path": "axe/lumberjacks/hooks", "glob": "*.json"},
+                            ],
+                            "max_quiet": "5m",
+                        }
+                    },
+                }
+            ],
+        }
+    }
+
+    chop = _parse_lumberjacks(raw)["hooks"].chops[0]
+
+    assert chop.trigger == {
+        "provider": "fs",
+        "paths": [
+            "axe/lumberjacks/hooks",
+            {"path": "axe/lumberjacks/hooks", "glob": "*.json"},
+        ],
+        "max_quiet": "5m",
+    }
+
+
 def test_parse_lumberjacks_map_form_merges_env_and_expands_literal_targets() -> None:
     raw = {
         "docs": {

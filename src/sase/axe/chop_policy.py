@@ -10,7 +10,7 @@ from __future__ import annotations
 import fcntl
 import json
 import subprocess
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
@@ -27,7 +27,7 @@ from sase.core.axe_chop_facade import (
     evaluate_chop_decision,
     release_chop_once_per,
 )
-from sase.core.paths import sase_projects_dir
+from sase.core.paths import sase_home, sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
@@ -137,6 +137,7 @@ def evaluate_chop_preflight(
 
         trigger = chop.trigger if scheduled else {"provider": "always"}
         git: list[dict[str, Any]] = []
+        fs_snapshot: dict[str, Any] | None = None
         checkpoint_for_decision = checkpoint
         if trigger.get("provider") == "git.commits_since":
             git_snapshot, checkpoint_for_decision = _git_snapshot(
@@ -145,6 +146,8 @@ def evaluate_chop_preflight(
             )
             if git_snapshot is not None:
                 git.append(git_snapshot)
+        elif trigger.get("provider") == "fs":
+            fs_snapshot = _fs_snapshot(trigger)
 
         decision = evaluate_chop_decision(
             {
@@ -154,6 +157,7 @@ def evaluate_chop_preflight(
                 "changespecs": patches,  # legacy engine wire key
                 "agents": agents,
                 "git": git,
+                "fs": fs_snapshot,
                 "checkpoint": checkpoint_for_decision,
                 "now": timestamp,
             }
@@ -386,19 +390,26 @@ def release_chop_once_per_keys(
 
 
 def check_chop_trigger_runtime(chop: ChopConfig) -> str | None:
-    """Return a doctor error for an unusable git trigger, otherwise ``None``."""
-    if chop.trigger.get("provider") != "git.commits_since":
+    """Return a doctor error for an unusable trigger, otherwise ``None``."""
+    provider = chop.trigger.get("provider")
+    if provider == "git.commits_since":
+        project = str(chop.trigger.get("project") or "")
+        record = _resolve_chop_git_project(project)
+        if record is None:
+            return f"project ref {project!r} does not match a registered SASE project"
+        if not record.workspace_dir:
+            return f"project {project!r} has no primary workspace"
+        try:
+            _run_git(Path(record.workspace_dir).expanduser(), "rev-parse", "HEAD")
+        except RuntimeError as exc:
+            return str(exc)
         return None
-    project = str(chop.trigger.get("project") or "")
-    record = _resolve_chop_git_project(project)
-    if record is None:
-        return f"project ref {project!r} does not match a registered SASE project"
-    if not record.workspace_dir:
-        return f"project {project!r} has no primary workspace"
-    try:
-        _run_git(Path(record.workspace_dir).expanduser(), "rev-parse", "HEAD")
-    except RuntimeError as exc:
-        return str(exc)
+    if provider == "fs":
+        paths = chop.trigger.get("paths")
+        _, error = compute_fs_trigger_token(paths if isinstance(paths, list) else [])
+        if error is not None:
+            return f"fs trigger paths could not be read: {error}"
+        return None
     return None
 
 
@@ -475,6 +486,75 @@ def _git_snapshot(
         },
         checkpoint_for_decision,
     )
+
+
+def _resolve_fs_watch_path(raw: str) -> Path:
+    """Resolve one fs trigger watch path against the SASE state root.
+
+    Absolute paths (and ``~``) pass through untouched; anything else is
+    relative to ``sase_home()`` so a chop can watch its own state files
+    without knowing the host's absolute layout.
+    """
+    candidate = Path(raw).expanduser()
+    return candidate if candidate.is_absolute() else sase_home() / candidate
+
+
+def _fs_watch_token(spec: Mapping[str, Any]) -> tuple[str | None, str | None]:
+    """Compute one shallow, cheap state token for a single watch spec.
+
+    Returns ``(token, None)`` on success. A path that simply does not exist
+    is a valid, stable token state, not an error; only an unreadable path
+    (permission denied, a broken symlink loop, ...) returns ``(None, error)``
+    so the caller can fail open instead of trusting a partial token.
+    """
+    raw_path = str(spec.get("path") or "")
+    glob = spec.get("glob")
+    base = _resolve_fs_watch_path(raw_path)
+    try:
+        if glob:
+            if not base.is_dir():
+                return f"{raw_path}|{glob}:missing", None
+            parts = []
+            for entry in sorted(base.glob(str(glob))):
+                info = entry.stat()
+                parts.append(f"{entry.name}:{info.st_mtime_ns}:{info.st_size}")
+            return f"{raw_path}|{glob}:" + ",".join(parts), None
+        if not base.exists():
+            return f"{raw_path}:missing", None
+        info = base.stat()
+        if base.is_dir():
+            child_count = sum(1 for _ in base.iterdir())
+            return f"{raw_path}:dir:{info.st_mtime_ns}:{child_count}", None
+        return f"{raw_path}:{info.st_mtime_ns}:{info.st_size}", None
+    except OSError as exc:
+        return None, str(exc)
+
+
+def compute_fs_trigger_token(
+    paths: Sequence[Any],
+) -> tuple[str | None, str | None]:
+    """Combine every configured watch spec into one trigger-wide state token.
+
+    Each entry is either a bare path string or a ``{path, glob}`` mapping.
+    Fails open on the first unreadable path: returns ``(None, error)`` rather
+    than a token built from a partial observation.
+    """
+    parts: list[str] = []
+    for raw_spec in paths:
+        spec = raw_spec if isinstance(raw_spec, Mapping) else {"path": raw_spec}
+        token, error = _fs_watch_token(spec)
+        if error is not None:
+            return None, error
+        parts.append(token or "")
+    return "\x1f".join(parts), None
+
+
+def _fs_snapshot(trigger: dict[str, Any]) -> dict[str, Any]:
+    paths = trigger.get("paths")
+    token, error = compute_fs_trigger_token(paths if isinstance(paths, list) else [])
+    if error is not None:
+        return {"error": error}
+    return {"token": token}
 
 
 def _patch_snapshots(context_file: str | None) -> list[dict[str, str]]:
@@ -631,6 +711,7 @@ __all__ = [
     "ChopPreflight",
     "apply_chop_once_per",
     "check_chop_trigger_runtime",
+    "compute_fs_trigger_token",
     "evaluate_chop_preflight",
     "finalize_pending_chop_checkpoints",
     "record_chop_checkpoint_event",

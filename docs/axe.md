@@ -569,7 +569,7 @@ low threshold can serialize the clan.
 | `timeout`     | `str \| null`          | no        | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)                                                      |
 | `env`         | `dict[str, env-value]` | no        | Values merged over lumberjack env; literals or `{env:}`, `{file:}`, `{pass:}` refs                                         |
 | `inhibit_if`  | list or map            | no        | `patch` / `agent_hood` / `agent_clan` / `agent_runners` guards evaluated before the script; `changespec` is a legacy alias |
-| `trigger`     | string or map          | no        | `always` or `git.commits_since`; scheduled runs fire only when it accepts                                                  |
+| `trigger`     | string or map          | no        | `always`, `git.commits_since`, or `fs`; scheduled runs fire only when it accepts                                           |
 | `once_per`    | string or object       | no        | Bounded per-proposal dedupe-key template                                                                                   |
 | `for_each`    | list or source         | no        | Literal target objects or `source: projects`, expanded to stable per-target instances                                      |
 | `vars`        | `dict`                 | no        | Non-secret configuration copied into the script context                                                                    |
@@ -949,6 +949,18 @@ Policy is runner-owned and evaluated before the script:
 - `trigger` defaults to `always`. `git.commits_since` observes a project repository,
   fires when its threshold is met, and owns its checkpoint under the chop's state
   directory. A missing checkpoint fires once so a new chop is not silently inert.
+- `fs` fires when a cheap state token computed from `paths` differs from the token at
+  its last fire. Each entry in `paths` is a bare path string or a `{path, glob}` object;
+  a bare path is stat'd directly (existence, mtime, size, plus a non-recursive child
+  count for directories), and `glob` shallow-matches entries inside a directory path
+  (name, mtime, size per match — no recursion, no content reads). Relative paths resolve
+  against the SASE state root (`~/.sase`, or `$SASE_HOME`); absolute paths and `~` pass
+  through unchanged. `max_quiet` is a required positive compound duration: the trigger
+  fires unconditionally once that long has passed since its last fire, even with no
+  watched-path change, so a missed observation only delays work. Any watch path that
+  cannot be read (as opposed to one that does not exist, which is itself a valid token
+  state) fails open and fires without advancing the checkpoint. `fs` always uses
+  `on_observation` checkpoint semantics; it has no `checkpoint_policy` setting.
 - Checkpoint policy can be `on_observation`, `on_action_accepted`, or
   `on_action_success`. The last option advances only after every linked proposal agent
   succeeds.

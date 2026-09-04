@@ -531,3 +531,30 @@ def test_git_commits_since_trigger_skip_still_advances_run_every_cadence(
 
     assert outcome.status == "skipped"
     assert outcome.advances_cadence is True
+
+
+def test_fs_trigger_skip_still_advances_run_every_cadence(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    make_script(tmp_path, "watched", "echo ran\n")
+    chop = ChopConfig(name="watched", description="", run_every=3600)
+    preflight = ChopPreflight(
+        outcome="skip",
+        reason="watched paths unchanged and within max_quiet",
+        decision={"provider": "fs"},
+    )
+
+    with patch(
+        "sase.axe.chop_runner_script.evaluate_chop_preflight",
+        return_value=preflight,
+    ):
+        outcome = run_configured_chop_once(
+            lumberjack_name="checks",
+            chop=chop,
+            axe_config=AxeConfig(chop_script_dirs=[str(tmp_path / "scripts")]),
+            source="scheduled",
+        )
+
+    assert outcome.status == "skipped"
+    assert outcome.advances_cadence is True

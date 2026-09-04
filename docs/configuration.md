@@ -2605,7 +2605,7 @@ axe:
 | `timeout`     | string                  | no        | -        | Per-chop duration limit. Overrides lumberjack `chop_timeout`.                                                   |
 | `env`         | dict[string, env-value] | no        | `{}`     | Literal values or `{env:}`, `{file:}`, `{pass:}` references.                                                    |
 | `inhibit_if`  | list or map             | no        | -        | `patch` / `agent_hood` / `agent_clan` / `agent_runners` guards before dispatch; `changespec` is a legacy alias. |
-| `trigger`     | string or map           | no        | `always` | `always` or `git.commits_since` scheduled-run trigger.                                                          |
+| `trigger`     | string or map           | no        | `always` | `always`, `git.commits_since`, or `fs` scheduled-run trigger.                                                   |
 | `once_per`    | string or object        | no        | -        | Bounded per-proposal dedupe-key template.                                                                       |
 | `for_each`    | list or source          | no        | -        | Literal targets or the filtered `projects` source.                                                              |
 | `vars`        | object                  | no        | `{}`     | Non-secret values copied to the chop context.                                                                   |
@@ -2677,15 +2677,22 @@ agents, including waiting members; it never infers clans from dotted names.
 runner slots, the same population counted by `%wait(runners=N)` and the ACE
 runner-capacity chip. A `STARTING` agent has not yet been admitted and does not count;
 an agent parked on a question has yielded its slot and does not count. `trigger` accepts
-`always` or `git.commits_since`; the git provider requires `project` and `threshold`,
-and its checkpoint policy is `on_observation`, `on_action_accepted`, or
-`on_action_success`. Skips are recorded with reasons. Manual runs bypass the trigger but
-honor guards; with `agent_runners`, a manual run while agents hold runner slots skips
-unless `sase axe chop run -f/--force` is used. `once_per` can be a key template string
-or an object with `key` and bounded `capacity`; proposal-supplied `dedupe_key` values
-take precedence. `dedupe_key` is durable work identity, not a retry clock: it stays
-reserved after a successful no-op launch, so chops whose work can go stale between scans
-should recheck eligibility with a proposal `%if` predicate (see
+`always`, `git.commits_since`, or `fs`; the git provider requires `project` and
+`threshold`, and its checkpoint policy is `on_observation`, `on_action_accepted`, or
+`on_action_success`. The `fs` provider requires `paths` (bare path strings or
+`{path, glob}` objects, stat'd shallowly — no recursion, no content reads) and a
+positive `max_quiet` duration, fires when its computed state token changes or
+`max_quiet` elapses since the last fire, always uses `on_observation` checkpoint
+semantics, and fails open (fires without advancing its checkpoint) on an unreadable
+path. See
+[AXE — Triggers, Guards, Dedupe, and Targets](axe.md#triggers-guards-dedupe-and-targets)
+for the full contract. Skips are recorded with reasons. Manual runs bypass the trigger
+but honor guards; with `agent_runners`, a manual run while agents hold runner slots
+skips unless `sase axe chop run -f/--force` is used. `once_per` can be a key template
+string or an object with `key` and bounded `capacity`; proposal-supplied `dedupe_key`
+values take precedence. `dedupe_key` is durable work identity, not a retry clock: it
+stays reserved after a successful no-op launch, so chops whose work can go stale between
+scans should recheck eligibility with a proposal `%if` predicate (see
 [Structured Results and Launch Proposals](axe.md#structured-results-and-launch-proposals))
 instead of folding a repository revision into the key. When dedupe removes a proposal
 from a `wait_on` chain, AXE walks through the skipped dependencies to the nearest

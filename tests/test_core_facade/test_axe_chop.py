@@ -148,6 +148,68 @@ def test_decision_and_bookkeeping_facades() -> None:
     assert repeated["released"] == 0
 
 
+def test_fs_trigger_decision_and_checkpoint_facades() -> None:
+    baseline = evaluate_chop_decision(
+        {
+            "schema_version": 1,
+            "trigger": {
+                "provider": "fs",
+                "paths": ["axe/lumberjacks/hooks"],
+                "max_quiet": "5m",
+            },
+            "fs": {"token": "tok-1"},
+            "now": "2026-07-18T12:00:00Z",
+        }
+    )
+    assert baseline["outcome"] == "fire"
+    assert baseline["checkpoint_key"] == "fs"
+    assert baseline["checkpoint_cursor"] == "tok-1"
+
+    document = apply_chop_checkpoint_update(
+        {
+            "schema_version": 1,
+            "document": {"schema_version": 1, "entries": {}},
+            "key": baseline["checkpoint_key"],
+            "cursor": baseline["checkpoint_cursor"],
+            "now": "2026-07-18T12:00:00Z",
+            "policy": baseline["checkpoint_policy"],
+            "event": "observed",
+        }
+    )
+    assert document["entries"]["fs"]["cursor"] == "tok-1"
+
+    unchanged = evaluate_chop_decision(
+        {
+            "schema_version": 1,
+            "trigger": {
+                "provider": "fs",
+                "paths": ["axe/lumberjacks/hooks"],
+                "max_quiet": "5m",
+            },
+            "fs": {"token": "tok-1"},
+            "checkpoint": document,
+            "now": "2026-07-18T12:01:00Z",
+        }
+    )
+    assert unchanged["outcome"] == "skip"
+
+    failed_open = evaluate_chop_decision(
+        {
+            "schema_version": 1,
+            "trigger": {
+                "provider": "fs",
+                "paths": ["axe/lumberjacks/hooks"],
+                "max_quiet": "5m",
+            },
+            "fs": {"error": "permission denied"},
+            "checkpoint": document,
+            "now": "2026-07-18T12:01:00Z",
+        }
+    )
+    assert failed_open["outcome"] == "fire"
+    assert failed_open["checkpoint_key"] is None
+
+
 def test_target_duration_and_agent_name_facades() -> None:
     expansion = expand_chop_targets(
         {

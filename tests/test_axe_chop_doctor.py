@@ -121,6 +121,50 @@ def test_build_chop_checks_errors_on_unknown_trigger_project(
     assert "missing" in " ".join(check.details)
 
 
+def test_build_chop_checks_errors_on_unreadable_fs_trigger_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scripts_dir = tmp_path / "scripts"
+    scripts_dir.mkdir()
+    _make_executable(scripts_dir / "hook_checks")
+    config = AxeConfig(
+        chop_script_dirs=[str(scripts_dir)],
+        lumberjacks={
+            "hooks": LumberjackConfig(
+                name="hooks",
+                description="Run chop doctor checks",
+                interval=5,
+                chops=[
+                    ChopConfig(
+                        name="hook_checks",
+                        description="",
+                        trigger={
+                            "provider": "fs",
+                            "paths": [str(tmp_path / "watched")],
+                            "max_quiet": "60s",
+                        },
+                    )
+                ],
+            )
+        },
+    )
+    monkeypatch.setattr(
+        "sase.axe.chop_doctor.check_chop_trigger_runtime",
+        lambda chop: (
+            "fs trigger paths could not be read: permission denied"
+            if chop.trigger.get("provider") == "fs"
+            else None
+        ),
+    )
+
+    checks = _build_chop_checks(collect_chop_inventory(config), which_fn=lambda _: None)
+
+    check = next(item for item in checks if item.id.startswith("declarative_chop:"))
+    assert check.status == "ERROR"
+    assert "permission denied" in " ".join(check.details)
+
+
 def test_build_chop_checks_warns_on_unconfigured_telegram(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

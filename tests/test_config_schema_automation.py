@@ -98,6 +98,87 @@ def test_config_schema_accepts_declarative_chop_policies() -> None:
     )
 
 
+def test_config_schema_accepts_fs_trigger() -> None:
+    _validate(
+        {
+            "axe": {
+                "lumberjacks": {
+                    "hooks": {
+                        "description": "Run hook checks",
+                        "interval": 5,
+                        "chops": [
+                            {
+                                "name": "hook_checks",
+                                "description": "Check hook state",
+                                "trigger": {
+                                    "fs": {
+                                        "paths": [
+                                            "axe/lumberjacks/hooks",
+                                            {
+                                                "path": "axe/lumberjacks/hooks",
+                                                "glob": "*.json",
+                                            },
+                                        ],
+                                        "max_quiet": "5m",
+                                    }
+                                },
+                            }
+                        ],
+                    }
+                }
+            }
+        }
+    )
+
+
+def test_config_schema_rejects_fs_trigger_missing_max_quiet() -> None:
+    with pytest.raises(ValidationError):
+        _validate(
+            {
+                "axe": {
+                    "lumberjacks": {
+                        "hooks": {
+                            "description": "Run hook checks",
+                            "interval": 5,
+                            "chops": [
+                                {
+                                    "name": "hook_checks",
+                                    "description": "Check hook state",
+                                    "trigger": {
+                                        "fs": {"paths": ["axe/lumberjacks/hooks"]}
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                }
+            }
+        )
+
+
+def test_config_schema_rejects_fs_trigger_empty_paths() -> None:
+    with pytest.raises(ValidationError):
+        _validate(
+            {
+                "axe": {
+                    "lumberjacks": {
+                        "hooks": {
+                            "description": "Run hook checks",
+                            "interval": 5,
+                            "chops": [
+                                {
+                                    "name": "hook_checks",
+                                    "description": "Check hook state",
+                                    "trigger": {"fs": {"paths": [], "max_quiet": "5m"}},
+                                }
+                            ],
+                        }
+                    }
+                }
+            }
+        )
+
+
 def test_config_schema_rejects_negative_agent_runners_max() -> None:
     with pytest.raises(ValidationError):
         _validate(
