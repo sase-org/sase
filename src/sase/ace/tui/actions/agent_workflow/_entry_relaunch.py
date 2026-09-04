@@ -230,15 +230,20 @@ class EntryRelaunchMixin:
             raw_prompt, agent.project_file, agent.cl_name, agent.is_project_agent
         )
 
-    def _kill_and_edit_agent(self) -> None:
-        """Kill the selected agent, then show its prompt in the prompt input bar.
+    def _kill_and_edit_agent(self, target: Agent | None = None) -> None:
+        """Kill *target* (or the selected agent), then edit its prompt.
 
         Reads the agent's raw xprompt content, kills the agent (with
         confirmation if running), and shows the prompt in the prompt input
         bar for editing.  The user can press ``Ctrl+G`` to open their
         editor, or submit directly from the bar.
+
+        Args:
+            target: An explicit row to act on (the ``,X`` last-launch path),
+                skipping row selection. ``None`` keeps the ``,x`` default of
+                acting on the currently focused row.
         """
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        agent = target if target is not None else self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return

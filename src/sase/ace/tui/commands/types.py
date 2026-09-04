@@ -215,6 +215,7 @@ class CommandContext:
     completed_agent_count: int = 0
     stopped_agent_count: int = 0
     unread_completed_agent_count: int = 0
+    has_live_launch_record: bool = False
     runner_count: int = 0
     can_jump_to_patch: bool = False
     can_jump_to_changespec: InitVar[bool | None] = None  # legacy compatibility alias

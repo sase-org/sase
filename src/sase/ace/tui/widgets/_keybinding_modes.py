@@ -323,6 +323,7 @@ class KeybindingModesMixin:
         has_stopped_agent: bool = False,
         has_revertable_agent: bool = False,
         marked_agent_count: int = 0,
+        has_live_launch_record: bool = False,
     ) -> None:
         """Update bindings to show leader mode options.
 
@@ -339,6 +340,8 @@ class KeybindingModesMixin:
             marked_agent_count: Number of marked agents; when non-zero ``,r``
                 reverts every marked agent and the footer reads
                 ``revert marked (N)``.
+            has_live_launch_record: Whether ``,X`` has a session launch to
+                target, independent of the focused row or marks.
         """
         d = footer_key_display
         current_tab = (
@@ -411,6 +414,8 @@ class KeybindingModesMixin:
                 bindings.append((k("kill_and_edit"), "kill & edit"))
                 if has_revertable_agent:
                     bindings.append((k("revert_agent"), "revert agent"))
+            if has_live_launch_record:
+                bindings.append((k("kill_and_edit_last"), "kill & edit last"))
             bindings.append((k("capture_agents_repro"), "capture repro"))
             bindings.append((k("toggle_agents_repro_checks"), "repro checks"))
             if has_notification:

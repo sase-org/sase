@@ -32,7 +32,7 @@ def _artifact_dir_from_output_path(output_path: str) -> Path | None:
     return None
 
 
-def _artifact_dir_from_launch_result(result: AgentLaunchResult) -> Path | None:
+def artifact_dir_from_launch_result(result: AgentLaunchResult) -> Path | None:
     """Return the exact artifact directory created by a launch result."""
     project_name = result.project_name
     if not project_name and result.project_file:
@@ -66,7 +66,7 @@ class LaunchDeltaMixin:
 
         artifact_dirs: list[Path] = []
         for result in present_results:
-            artifact_dir = _artifact_dir_from_launch_result(result)
+            artifact_dir = artifact_dir_from_launch_result(result)
             if artifact_dir is None:
                 self._fallback_launch_refresh("missing_artifact_dir", source=source)
                 return
@@ -104,5 +104,5 @@ class LaunchDeltaMixin:
 
 __all__ = [
     "LaunchDeltaMixin",
-    "_artifact_dir_from_launch_result",
+    "artifact_dir_from_launch_result",
 ]

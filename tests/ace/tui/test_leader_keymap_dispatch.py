@@ -333,6 +333,31 @@ def test_leader_x_repeat_reevaluates_marks() -> None:
     assert app.kill_and_edit_count == 1
 
 
+def test_leader_shift_x_targets_last_launch_ignoring_marks() -> None:
+    app = _FakeApp(current_tab="agents")
+    app._marked_agents = {("running", "my_feature", None)}
+
+    handled = app._handle_leader_key("X")
+
+    assert handled is True
+    assert app._leader_mode_active is False
+    assert app.kill_and_edit_last_count == 1
+    assert app.kill_and_edit_count == 0
+    assert app.bulk_kill_and_edit_count == 0
+    assert app._last_leader_key == "X"
+    assert app.refresh_count == 1
+
+
+def test_leader_shift_x_noops_on_non_agents_tabs() -> None:
+    app = _FakeApp(current_tab="patches")
+
+    handled = app._handle_leader_key("X")
+
+    assert handled is True
+    assert app.kill_and_edit_last_count == 0
+    assert app.refresh_count == 1
+
+
 def test_leader_j_notifies_when_no_unread_done_agent() -> None:
     app = _FakeApp(current_tab="agents")
     app.jump_unread_result = False

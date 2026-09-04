@@ -346,17 +346,25 @@ def test_leader_mode_reserves_r_for_revert_and_moves_runners_to_uppercase_r() ->
 
 
 def test_leader_mode_kill_and_edit_is_contextual_x_only() -> None:
-    """Leader ``,x`` owns kill-and-edit; the separate ``,X`` key is retired.
+    """Leader ``,x`` owns kill-and-edit; the retired ``kill_marked_and_edit`` id is gone.
 
     A single ``kill_and_edit`` action bound to ``x`` handles both the focused
     row and the marked set (contextually); ``kill_marked_and_edit`` no longer
-    exists as a default leader key.
+    exists as a default leader key. ``,X`` is a distinct, unrelated action
+    (``kill_and_edit_last``, see the next test) that reuses the freed key.
     """
     reg = load_keymap_registry({})
     assert LeaderModeKeymaps().keys["kill_and_edit"] == "x"
     assert "kill_marked_and_edit" not in LeaderModeKeymaps().keys
     assert reg.leader_mode.keys["kill_and_edit"] == "x"
     assert "kill_marked_and_edit" not in reg.leader_mode.keys
+
+
+def test_leader_mode_kill_and_edit_last_registered_on_shift_x() -> None:
+    """``,X`` is the distinct ``kill_and_edit_last`` action, not a mark-scoped ``,x``."""
+    reg = load_keymap_registry({})
+    assert LeaderModeKeymaps().keys["kill_and_edit_last"] == "X"
+    assert reg.leader_mode.keys["kill_and_edit_last"] == "X"
 
 
 def test_leader_mode_opens_prompt_stash_without_reviving_restore_action() -> None:

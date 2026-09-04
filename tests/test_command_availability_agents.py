@@ -39,6 +39,37 @@ def test_kill_and_edit_is_contextual_on_marks_or_focus() -> None:
     )
 
 
+def test_kill_and_edit_last_tracks_live_launch_record_independent_of_focus() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["leader.kill_and_edit_last"]
+
+    # A live launch record makes it runnable even with no focused agent and
+    # no marks (,X ignores both).
+    assert is_command_available(
+        spec,
+        CommandContext(
+            tab="agents", agent=None, mark_count=0, has_live_launch_record=True
+        ),
+    )
+    agent = _make_agent(status="RUNNING")
+    assert is_command_available(
+        spec,
+        CommandContext(
+            tab="agents",
+            agent=agent,
+            mark_count=3,
+            has_live_launch_record=True,
+        ),
+    )
+    # No live launch record: nothing to target, regardless of focus/marks.
+    assert not is_command_available(
+        spec,
+        CommandContext(
+            tab="agents", agent=agent, mark_count=0, has_live_launch_record=False
+        ),
+    )
+
+
 def test_kill_agent_visible_on_group_banner_even_without_agent() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.kill_agent"]

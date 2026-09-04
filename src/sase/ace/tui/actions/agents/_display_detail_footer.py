@@ -60,6 +60,8 @@ class AgentFooterDisplayMixin:
                 fold_scale=fold_scale,
             )
         elif getattr(self, "_leader_mode_active", False):
+            from ..agent_workflow._launch_records import latest_live_launch_record
+
             footer_widget.update_leader_bindings(
                 current_tab="agents",
                 has_notification=(
@@ -70,6 +72,7 @@ class AgentFooterDisplayMixin:
                 has_unread_completed_agent=self._has_unread_completed_agent(),  # type: ignore[attr-defined]
                 has_bulk_read_undo_available=self._has_bulk_read_undo_available(),  # type: ignore[attr-defined]
                 has_stopped_agent=self._has_stopped_agent(),  # type: ignore[attr-defined]
+                has_live_launch_record=latest_live_launch_record(self) is not None,
             )
         elif getattr(self, "_bang_mode_active", False):
             footer_widget.update_bang_bindings()

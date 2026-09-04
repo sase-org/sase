@@ -172,6 +172,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "full_history_refresh": "y",
             "mark_all_unread_done_agents_read": "u",
             "kill_and_edit": "x",
+            "kill_and_edit_last": "X",
             "clear_comments": "c",
             "open_prompt_stash": "at",
             "prompt_history": "full_stop",

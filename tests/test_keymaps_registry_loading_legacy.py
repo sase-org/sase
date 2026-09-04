@@ -176,6 +176,58 @@ def test_stale_kill_marked_and_edit_override_is_dropped() -> None:
     assert reg.leader_mode.keys["kill_and_edit"] == "y"  # legit override survives
 
 
+def test_stale_kill_marked_and_edit_override_does_not_collide_with_kill_and_edit_last() -> (
+    None
+):
+    """A stale ``kill_marked_and_edit`` override cannot shadow the new ``,X`` default.
+
+    ``kill_marked_and_edit`` used to bind ``X`` before it was folded into
+    contextual ``,x``; ``X`` is now the live default for the unrelated
+    ``kill_and_edit_last`` action. The retired-key filter must still drop the
+    stale override so it cannot reintroduce a competing binding on ``X``.
+    """
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "leader_mode": {
+                        "keys": {
+                            "kill_marked_and_edit": "X",
+                        },
+                    },
+                },
+            },
+        }
+    )
+    assert "kill_marked_and_edit" not in reg.leader_mode.keys
+    assert reg.leader_mode.keys["kill_and_edit_last"] == "X"
+
+
+def test_user_override_binding_another_action_to_shift_x_round_trips() -> None:
+    """A legitimate user override of an unrelated action onto ``X`` still applies.
+
+    This does not collide with ``kill_and_edit_last``'s own default ``X``
+    binding: a user config is free to move ``kill_and_edit_last`` off ``X``
+    while binding another action onto it.
+    """
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "leader_mode": {
+                        "keys": {
+                            "kill_and_edit_last": "z",
+                            "full_history_refresh": "X",
+                        },
+                    },
+                },
+            },
+        }
+    )
+    assert reg.leader_mode.keys["kill_and_edit_last"] == "z"
+    assert reg.leader_mode.keys["full_history_refresh"] == "X"
+
+
 def test_stale_restore_prompt_stash_override_is_dropped() -> None:
     """A lingering ``restore_prompt_stash`` override cannot revive global ``,P``.
 

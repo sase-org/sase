@@ -227,6 +227,11 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             return True
         return agent is not None
 
+    if spec.id == "leader.kill_and_edit_last":
+        # ,X always targets this session's most recent accepted launch,
+        # independent of the focused row or marks.
+        return ctx.has_live_launch_record
+
     if spec.id == "leader.revert_agent":
         # Marks drive a bulk revert of every marked agent, so the command is
         # runnable when marks exist even if the focused row is a group banner

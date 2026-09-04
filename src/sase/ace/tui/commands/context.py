@@ -170,6 +170,14 @@ def _agents_mark_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
     return len(getattr(app, "_marked_agents", set()))
 
 
+def _has_live_launch_record(app: AceApp) -> bool:  # type: ignore[no-untyped-def]
+    from sase.ace.tui.actions.agent_workflow._launch_records import (
+        latest_live_launch_record,
+    )
+
+    return latest_live_launch_record(app) is not None
+
+
 def _runner_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
     slots = getattr(app, "_bgcmd_slots", [])
     return len(slots)
@@ -299,6 +307,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         completed_agent_count=completed,
         stopped_agent_count=stopped,
         unread_completed_agent_count=unread_completed,
+        has_live_launch_record=_has_live_launch_record(app),
         runner_count=_runner_count(app),
         can_jump_to_patch=can_jump,
         attempt_pinned=attempt_pinned,

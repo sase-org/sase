@@ -15,6 +15,7 @@ from ._entry_name_prompts import (
 from ._entry_prompt_history import EntryPromptHistoryMixin
 from ._entry_quick_launch import EntryQuickLaunchMixin
 from ._entry_relaunch import EntryRelaunchMixin
+from ._kill_last_launch import KillAndEditLastLaunchMixin
 
 if TYPE_CHECKING:
     from ....patch import Patch
@@ -125,6 +126,7 @@ class EntryPointsMixin(
     EntryQuickLaunchMixin,
     EntryRelaunchMixin,
     EntryBulkMixin,
+    KillAndEditLastLaunchMixin,
     _EntryPointsBaseMixin,
 ):
     """Mixin providing agent start entry points."""

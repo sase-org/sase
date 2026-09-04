@@ -999,8 +999,8 @@ changed but `repeat_last` is not, the second key remains comma. Repeat re-dispat
 last recognized leader subkey against the current tab and selection. If no leader
 command has been run yet, ACE shows a toast and does nothing.
 
-> **Note:** `,x` (kill & edit) is only available on the Agents tab — see
-> [Agents Tab Leader Mode](#leader-mode-prefix_1).
+> **Note:** `,x` (kill & edit) and `,X` (kill & edit last launched agent) are only
+> available on the Agents tab — see [Agents Tab Leader Mode](#leader-mode-prefix_1).
 
 ### Mentor Review Modal
 
@@ -2249,6 +2249,7 @@ modal.
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                 |
 | `,r`       | Revert focused or marked agent commits, including recorded linked repos                           |
 | `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                          |
+| `,X`       | Kill & edit this session's last launched agent, ignoring marks and focus                          |
 | `,<space>` | Run agent from current agent's PR (skips selection)                                               |
 | `,.`       | Open prompt history modal                                                                         |
 | `,Ctrl+G`  | Open prompt history and edit the newest entry immediately                                         |
@@ -2294,6 +2295,21 @@ the launch, so no second confirmation is asked for. Forced reuse cannot be combi
 alt/fan-out directives in one segment; such a prompt is rejected with an explanatory
 error and preserved in prompt history, so you can reopen it from `,.` and split the
 launch.
+
+`,X` targets the most recently launched agent this ACE session accepted, instead of the
+focused or marked row(s) — marks are ignored entirely, even when agents are marked.
+Repeating `,X` walks back through this session's launch history one accepted launch at a
+time; a launch already killed or dismissed by hand is skipped. Once its target row
+exists, `,X` reuses the exact `,x` machinery above (the same confirmation rule and
+forced-name-reuse rewrite), so a single-agent launch opens one editable pane and a
+bulk-Patch or multi-prompt `---` launch opens one pane per launched agent in launch
+order. Nothing is recorded across ACE restarts: the targetable history is this session's
+in-memory launch stack, not disk state.
+
+`,X` is meant to undo a premature `<enter>` press, including the moment right after
+submit before the launched agent's row exists yet. That in-flight window currently shows
+a toast asking you to press `,X` again once the row appears, instead of undoing the
+launch immediately; an upcoming change closes that gap with an immediate, deferred kill.
 
 Press `,r` on a `DONE` or `FAILED` agent to preview commits attributed to that agent
 before creating git revert commits. For plan/follow-up families, ACE reverts the family

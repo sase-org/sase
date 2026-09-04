@@ -214,6 +214,16 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["kill_and_edit_last"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            if self.current_tab == "agents":
+                # Marks are ignored by design: ,X always targets the most
+                # recently launched agent this session accepted, never the
+                # focused or marked row(s).
+                self._kill_and_edit_last_launch()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["clear_comments"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "artifacts":
@@ -395,8 +405,10 @@ class LeaderModeMixin:
         has_stopped_agent = False
         has_revertable_agent = False
         marked_agent_count = 0
+        has_live_launch_record = False
         if current_tab == "agents":
             from ...models.agent_status import is_revertable_agent_status
+            from ._launch_records import latest_live_launch_record
 
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
             if agent is not None:
@@ -406,6 +418,7 @@ class LeaderModeMixin:
             has_bulk_read_undo = self._has_bulk_read_undo_available()  # type: ignore[attr-defined]
             has_stopped_agent = self._has_stopped_agent()  # type: ignore[attr-defined]
             marked_agent_count = len(getattr(self, "_marked_agents", set()))
+            has_live_launch_record = latest_live_launch_record(self) is not None
 
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
@@ -419,6 +432,7 @@ class LeaderModeMixin:
                 has_stopped_agent=has_stopped_agent,
                 has_revertable_agent=has_revertable_agent,
                 marked_agent_count=marked_agent_count,
+                has_live_launch_record=has_live_launch_record,
             )
         except Exception:
             pass

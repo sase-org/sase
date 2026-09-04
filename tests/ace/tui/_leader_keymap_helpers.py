@@ -33,6 +33,7 @@ class _FakeApp(LeaderModeMixin, PatchMixin):
         self._marked_agents: set[Any] = set()
         self.kill_and_edit_count = 0
         self.bulk_kill_and_edit_count = 0
+        self.kill_and_edit_last_count = 0
         self._leader_mode_active = True
         self._last_leader_key: str | None = None
         self._keymap_registry = load_keymap_registry({})
@@ -140,6 +141,9 @@ class _FakeApp(LeaderModeMixin, PatchMixin):
 
     def _bulk_kill_marked_agents_and_edit(self) -> None:
         self.bulk_kill_and_edit_count += 1
+
+    def _kill_and_edit_last_launch(self) -> None:
+        self.kill_and_edit_last_count += 1
 
     def action_update_sase_shortcut(self) -> None:
         self.update_sase_shortcut_count += 1

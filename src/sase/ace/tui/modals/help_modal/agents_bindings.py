@@ -284,6 +284,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Kill & edit (marked or focused)",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'kill_and_edit_last'))}",
+                    "Kill & edit last launched agent",
+                ),
+                (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'revert_agent'))}",
                     "Revert agent + opened repos",
                 ),
