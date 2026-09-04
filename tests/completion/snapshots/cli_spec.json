@@ -11360,13 +11360,12 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "a251a382d593cf60",
+        "description_digest": "1a0a0982685cfd38",
         "hidden": false,
         "mutex_groups": [
           [
             "all",
-            "enable_project_memory",
-            "project"
+            "enable_project_memory"
           ],
           [
             "check",
@@ -11425,18 +11424,6 @@
           },
           {
             "choices": null,
-            "dest": "json",
-            "hidden": false,
-            "kind": null,
-            "repeatable": false,
-            "strings": [
-              "-j",
-              "--json"
-            ],
-            "takes_value": false
-          },
-          {
-            "choices": null,
             "dest": "enable_project_memory",
             "hidden": false,
             "kind": null,
@@ -11446,18 +11433,6 @@
               "--enable-project-memory"
             ],
             "takes_value": false
-          },
-          {
-            "choices": null,
-            "dest": "project",
-            "hidden": false,
-            "kind": "project",
-            "repeatable": true,
-            "strings": [
-              "-p",
-              "--project"
-            ],
-            "takes_value": true
           },
           {
             "choices": null,

@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from sase.bead.config import load_config, save_config
 from sase.bead.ids import issue_id_for_counter, max_counter_in_ids
 from sase.bead.project import (
     BEADS_DIRNAME,
@@ -108,6 +109,17 @@ def _resolve_bead_conflicts(
             False,
             "unsupported bead conflicts: " + ", ".join(unsupported),
         )
+    config_path = _store_path(bead_prefix, "config.json")
+    merged_config: dict[str, object] | None = None
+    if config_path in store_conflicts:
+        # load_config json.loads the worktree file; conflict markers raise.
+        merged_config = _merged_conflicted_config(repo_root, config_path)
+        if merged_config is None:
+            return _BeadConflictResolution(
+                False,
+                "unsupported bead conflicts: " + config_path,
+            )
+        save_config(resolved_beads_dir, merged_config)
     if not store_conflicts:
         resolved_paths = _resolve_regenerable_conflicts(
             repo_root,
@@ -170,6 +182,12 @@ def _resolve_bead_conflicts(
             merged_stream_ids.add(relocated_id)
         relocated_beads.extend(normalize_bead_relocations(outcome))
 
+    if merged_config is not None:
+        merged_config = _config_with_allocated_counter(
+            merged_config, relocation_ids.next_counter
+        )
+        save_config(resolved_beads_dir, merged_config)
+
     ordered_streams = [streams[key] for key in sorted(streams)]
     issues = reduce_event_streams(ordered_streams)
     manifest = event_store_manifest(ordered_streams)
@@ -214,14 +232,16 @@ class _RelocationIds:
     """
 
     def __init__(self, beads_dir: Path, taken_ids: set[str]) -> None:
-        from sase.bead.config import load_config
-
         config = load_config(beads_dir)
         self._prefix = str(config.get("issue_prefix", "beads"))
         raw_counter = config.get("next_counter", 1)
         minimum = raw_counter if isinstance(raw_counter, int) else 1
         self._counter = max(minimum, max_counter_in_ids(self._prefix, taken_ids) + 1)
         self._taken = set(taken_ids)
+
+    @property
+    def next_counter(self) -> int:
+        return self._counter
 
     def allocate(self) -> str:
         while True:
@@ -324,6 +344,7 @@ def _is_mergeable_bead_path(path: str, bead_prefix: str) -> bool:
     return path in {
         _store_path(bead_prefix, "issues.jsonl"),
         _store_path(bead_prefix, "events/manifest.json"),
+        _store_path(bead_prefix, "config.json"),
     } or _is_event_stream_path(path, bead_prefix)
 
 
@@ -331,6 +352,84 @@ def _store_path(prefix: str, rest: str) -> str:
     """Join one store-relative path without a leading slash at repo root."""
 
     return f"{prefix}/{rest}" if prefix else rest
+
+
+def _merged_conflicted_config(repo_root: Path, path: str) -> dict[str, object] | None:
+    """Merge a conflicted store config.json when only next_counter diverges."""
+    stages = _unmerged_stages(repo_root, path)
+    base = _read_config_stage(repo_root, path, 1, stages, absent={})
+    upstream_stage, local_stage = _upstream_and_local_stages(repo_root)
+    upstream = _read_config_stage(repo_root, path, upstream_stage, stages)
+    local = _read_config_stage(repo_root, path, local_stage, stages)
+    if base is None or upstream is None or local is None:
+        return None
+    if _config_without_counter(local) != _config_without_counter(upstream):
+        return None
+    counters = _next_counters(base, local, upstream)
+    if counters is None:
+        return None
+    merged = dict(local)
+    if counters:
+        merged["next_counter"] = max(counters)
+    elif "next_counter" in merged:
+        del merged["next_counter"]
+    return merged
+
+
+def _config_with_allocated_counter(
+    config: dict[str, object], allocated_next: int
+) -> dict[str, object]:
+    updated = dict(config)
+    current = updated.get("next_counter")
+    candidates = [allocated_next]
+    if isinstance(current, int) and not isinstance(current, bool):
+        candidates.append(current)
+    updated["next_counter"] = max(candidates)
+    return updated
+
+
+def _config_without_counter(config: dict[str, object]) -> dict[str, object]:
+    return {key: value for key, value in config.items() if key != "next_counter"}
+
+
+def _next_counters(*configs: dict[str, object]) -> list[int] | None:
+    values: list[int] = []
+    for config in configs:
+        if "next_counter" not in config:
+            continue
+        value = config["next_counter"]
+        if isinstance(value, bool) or not isinstance(value, int):
+            return None
+        values.append(value)
+    return values
+
+
+def _read_config_stage(
+    repo_root: Path,
+    path: str,
+    stage: int,
+    stages: frozenset[int],
+    *,
+    absent: dict[str, object] | None = None,
+) -> dict[str, object] | None:
+    if stage not in stages:
+        return absent
+    result = _run_git(repo_root, ["show", f":{stage}:{path}"])
+    if result.returncode != 0:
+        raise _GitProbeFailure(
+            _probe_failure(f"could not read stage {stage} of {path}", result)
+        )
+    return _parse_config_object(result.stdout)
+
+
+def _parse_config_object(text: str) -> dict[str, object] | None:
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    return {str(key): value for key, value in parsed.items()}
 
 
 def _load_worktree_streams(

@@ -296,7 +296,8 @@ def register_bead_resolve_conflicts_parser(
         help="Resolve mechanical git conflicts in sdd/beads event streams",
         description=(
             "Resolve merge or rebase conflicts in generated bead state. "
-            "Only sdd/beads/issues.jsonl, events/manifest.json, and "
+            "Only sdd/beads/issues.jsonl, events/manifest.json, "
+            "config.json (next_counter-only), and "
             "events/streams/*.jsonl conflicts are auto-merged."
         ),
     )

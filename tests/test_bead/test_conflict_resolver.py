@@ -10,6 +10,7 @@ import pytest
 
 from sase.bead._stream_integrity import prepare_event_streams_for_commit
 from sase.bead import conflict_resolver
+from sase.bead.config import save_config
 from sase.bead.conflict_resolver import _git_add, resolve_bead_conflicts
 from sase.bead.model import IssueType
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_ROOT, BeadProject
@@ -31,6 +32,16 @@ def _init_repo(repo: Path) -> None:
     _git(repo, "init", "--initial-branch=master")
     _git(repo, "config", "user.email", "test@example.com")
     _git(repo, "config", "user.name", "Test User")
+
+
+def _assert_config_roundtrips_save_config(beads_dir: Path, tmp_path: Path) -> None:
+    parsed = json.loads((beads_dir / "config.json").read_text(encoding="utf-8"))
+    roundtrip_dir = tmp_path / "_save_config_roundtrip"
+    roundtrip_dir.mkdir(exist_ok=True)
+    save_config(roundtrip_dir, parsed)
+    assert (beads_dir / "config.json").read_bytes() == (
+        roundtrip_dir / "config.json"
+    ).read_bytes()
 
 
 def test_resolve_bead_conflicts_noops_without_conflicts(tmp_path: Path) -> None:
@@ -80,6 +91,99 @@ def test_resolve_bead_conflicts_rejects_nonmergeable_bead_file(tmp_path: Path) -
 
     assert result.ok is False
     assert result.message == "unsupported bead conflicts: sdd/beads/config.json"
+
+
+def test_config_counter_and_owner_divergence_is_unsupported(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    config = tmp_path / "sdd/beads/config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        '{"issue_prefix":"beads","next_counter":1,"owner":"base"}\n',
+        encoding="utf-8",
+    )
+    _git(tmp_path, "add", "sdd/beads/config.json")
+    _git(tmp_path, "commit", "-m", "base")
+    _git(tmp_path, "checkout", "-b", "other")
+    config.write_text(
+        '{"issue_prefix":"beads","next_counter":3,"owner":"other"}\n',
+        encoding="utf-8",
+    )
+    _git(tmp_path, "commit", "-am", "other")
+    _git(tmp_path, "checkout", "master")
+    config.write_text(
+        '{"issue_prefix":"beads","next_counter":2,"owner":"local"}\n',
+        encoding="utf-8",
+    )
+    _git(tmp_path, "commit", "-am", "local")
+    _git(tmp_path, "merge", "other", check=False)
+
+    result = resolve_bead_conflicts(tmp_path)
+
+    assert result.ok is False
+    assert result.message == "unsupported bead conflicts: sdd/beads/config.json"
+
+
+def test_malformed_config_json_stage_is_unsupported(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    config = tmp_path / "sdd/beads/config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        '{"issue_prefix":"beads","next_counter":1,"owner":""}\n',
+        encoding="utf-8",
+    )
+    _git(tmp_path, "add", "sdd/beads/config.json")
+    _git(tmp_path, "commit", "-m", "base")
+    _git(tmp_path, "checkout", "-b", "other")
+    config.write_text("{not json", encoding="utf-8")
+    _git(tmp_path, "commit", "-am", "other")
+    _git(tmp_path, "checkout", "master")
+    config.write_text(
+        '{"issue_prefix":"beads","next_counter":2,"owner":""}\n',
+        encoding="utf-8",
+    )
+    _git(tmp_path, "commit", "-am", "local")
+    _git(tmp_path, "merge", "other", check=False)
+
+    result = resolve_bead_conflicts(tmp_path)
+
+    assert result.ok is False
+    assert result.message == "unsupported bead conflicts: sdd/beads/config.json"
+
+
+def test_next_counter_only_config_conflict_merges_to_max(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    config = tmp_path / "sdd/beads/config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        '{"issue_prefix":"beads","next_counter":10,"owner":""}\n',
+        encoding="utf-8",
+    )
+    _git(tmp_path, "add", "sdd/beads/config.json")
+    _git(tmp_path, "commit", "-m", "base")
+    _git(tmp_path, "checkout", "-b", "other")
+    config.write_text(
+        '{"issue_prefix":"beads","next_counter":12,"owner":""}\n',
+        encoding="utf-8",
+    )
+    _git(tmp_path, "commit", "-am", "other")
+    _git(tmp_path, "checkout", "master")
+    config.write_text(
+        '{"issue_prefix":"beads","next_counter":11,"owner":""}\n',
+        encoding="utf-8",
+    )
+    _git(tmp_path, "commit", "-am", "local")
+    _git(tmp_path, "merge", "other", check=False)
+
+    result = resolve_bead_conflicts(tmp_path)
+
+    assert result.ok is True, result.message
+    assert result.resolved_files.count("sdd/beads/config.json") == 1
+    merged = json.loads(config.read_text(encoding="utf-8"))
+    assert merged["next_counter"] == 12
+    assert merged["issue_prefix"] == "beads"
+    assert merged["owner"] == ""
+    assert _git(tmp_path, "diff", "--name-only", "--diff-filter=U").stdout == ""
+    _assert_config_roundtrips_save_config(tmp_path / "sdd/beads", tmp_path)
 
 
 def test_resolve_bead_conflicts_rejects_only_non_bead_conflicts(
@@ -487,6 +591,76 @@ def test_duplicate_top_level_creations_report_typed_relocation(
     assert f'"issue_id":"{relocation.new_id}"' in relocated_stream
     with BeadProject(tmp_path, beads_dirname=BEADS_DIRNAME) as project:
         assert project.show(upstream.id).title == "Upstream wins"
+        assert project.show(relocation.new_id).title == "Local relocates"
+
+
+def test_unequal_mint_counts_merge_config_json_and_relocate_duplicate(
+    tmp_path: Path,
+) -> None:
+    _init_repo(tmp_path)
+    (tmp_path / ".gitignore").write_text("beads/beads.db*\n", encoding="utf-8")
+    with BeadProject.init(tmp_path, beads_dirname=BEADS_DIRNAME):
+        pass
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-m", "seed empty bead store")
+
+    _git(tmp_path, "checkout", "-b", "other")
+    upstream_ids: list[str] = []
+    for index, title in enumerate(
+        ("Upstream first", "Upstream second", "Upstream third")
+    ):
+        issue, _ = bead_mutation_facade.create(
+            tmp_path / BEADS_DIRNAME,
+            title=title,
+            issue_type=IssueType.PLAN,
+            now=f"2026-08-20T00:00:0{index}Z",
+        )
+        upstream_ids.append(issue.id)
+    upstream_counter = json.loads(
+        (tmp_path / BEADS_DIRNAME / "config.json").read_text(encoding="utf-8")
+    )["next_counter"]
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-m", "other mints three")
+
+    _git(tmp_path, "checkout", "master")
+    local, _ = bead_mutation_facade.create(
+        tmp_path / BEADS_DIRNAME,
+        title="Local relocates",
+        issue_type=IssueType.PLAN,
+        now="2026-08-20T00:00:10Z",
+    )
+    assert local.id == upstream_ids[0]
+    local_counter = json.loads(
+        (tmp_path / BEADS_DIRNAME / "config.json").read_text(encoding="utf-8")
+    )["next_counter"]
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-m", f"local creates {local.id}")
+    _git(tmp_path, "merge", "other", check=False)
+
+    conflicted = _git(tmp_path, "diff", "--name-only", "--diff-filter=U").stdout.split()
+    config_relpath = f"{BEADS_DIRNAME}/config.json"
+    assert config_relpath in conflicted
+
+    result = resolve_bead_conflicts(tmp_path, beads_dir=tmp_path / BEADS_DIRNAME)
+
+    assert result.ok is True, result.message
+    assert result.resolved_files.count(config_relpath) == 1
+    assert len(result.bead_relocations) == 1
+    relocation = result.bead_relocations[0]
+    assert relocation.old_id == local.id
+    assert relocation.new_id not in upstream_ids
+    relocated_counter = int(relocation.new_id.rsplit("-", 1)[1], 36)
+    merged = json.loads(
+        (tmp_path / BEADS_DIRNAME / "config.json").read_text(encoding="utf-8")
+    )
+    assert merged["next_counter"] >= local_counter
+    assert merged["next_counter"] >= upstream_counter
+    assert merged["next_counter"] > relocated_counter
+    _assert_config_roundtrips_save_config(tmp_path / BEADS_DIRNAME, tmp_path)
+    with BeadProject(tmp_path, beads_dirname=BEADS_DIRNAME) as project:
+        assert project.show(upstream_ids[0]).title == "Upstream first"
+        assert project.show(upstream_ids[1]).title == "Upstream second"
+        assert project.show(upstream_ids[2]).title == "Upstream third"
         assert project.show(relocation.new_id).title == "Local relocates"
 
 
