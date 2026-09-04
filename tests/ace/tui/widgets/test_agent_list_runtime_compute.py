@@ -6,7 +6,7 @@ from datetime import datetime
 
 import pytest
 
-from sase.ace.tui.models.agent import Agent, compute_row_runtime
+from sase.ace.tui.models.agent import Agent, AgentType, compute_row_runtime
 from sase.ace.tui.models.agent_time import (
     compute_leaf_row_runtime,
     compute_lowest_row_runtime,
@@ -315,7 +315,7 @@ def test_compute_row_runtime_family_container_spans_running_monitor() -> None:
 
     ts, elapsed = compute_row_runtime(container, now=now)
     assert ts is None
-    assert elapsed == "6m"
+    assert elapsed == "10m"
     assert runtime_suffix_ticks(container) is True
 
 
@@ -458,8 +458,108 @@ def test_family_container_includes_monitor_but_not_gate() -> None:
 
     ts, elapsed = compute_row_runtime(container, now=now)
     assert ts is None
-    assert elapsed == "6m"
+    assert elapsed == "10m"
     assert runtime_suffix_ticks(container) is True
+
+
+def test_family_container_counts_monitor_starter_and_monitor() -> None:
+    planner = agent(
+        status="DONE",
+        start=datetime(2026, 4, 25, 14, 0, 0),
+        stop=datetime(2026, 4, 25, 14, 10, 0),
+        cl_name="demo--plan",
+        role_suffix="--plan",
+        raw_suffix="20260425140000",
+    )
+    gate = gate_shell(
+        status="ANSWERED",
+        start=datetime(2026, 4, 25, 14, 10, 0),
+        stop=datetime(2026, 4, 25, 14, 20, 0),
+        gate_state="answered",
+        raw_suffix="20260425141000",
+    )
+    coder = agent(
+        status="DONE",
+        start=datetime(2026, 4, 25, 14, 20, 0),
+        stop=datetime(2026, 4, 25, 15, 13, 0),
+        cl_name="demo--code",
+        role_suffix="--code",
+        raw_suffix="20260425142000",
+    )
+    coder.runtime_children.append(
+        monitor_shell(
+            start=datetime(2026, 4, 25, 14, 50, 0),
+            raw_suffix="20260425145000",
+        )
+    )
+    container = family_container(planner)
+    container.runtime_children.extend([gate, coder])
+    container.followup_agents.extend([gate, coder])
+    now = datetime(2026, 4, 25, 15, 20, 0)
+
+    ts, elapsed = compute_row_runtime(container, now=now)
+    assert ts is None
+    assert elapsed == "1h10m"
+    assert runtime_suffix_ticks(container) is True
+
+
+def test_monitor_only_family_container_counts_own_interval() -> None:
+    root = agent(
+        status="DONE",
+        start=datetime(2026, 4, 25, 14, 0, 0),
+        stop=datetime(2026, 4, 25, 14, 30, 0),
+        cl_name="demo",
+        role_suffix="--root",
+        raw_suffix="20260425140000",
+    )
+    root.agent_family_role = "root"
+    settled_monitor = monitor_shell(
+        status="DONE",
+        start=datetime(2026, 4, 25, 14, 20, 0),
+        stop=datetime(2026, 4, 25, 14, 40, 0),
+        raw_suffix="20260425142000",
+        cl_name="demo--mon-1",
+        monitor_state="completed",
+    )
+    running_monitor = monitor_shell(
+        start=datetime(2026, 4, 25, 14, 45, 0),
+        raw_suffix="20260425144500",
+        cl_name="demo--mon-2",
+    )
+    root.runtime_children.extend([settled_monitor, running_monitor])
+    root.followup_agents.extend([settled_monitor, running_monitor])
+    now = datetime(2026, 4, 25, 15, 0, 0)
+
+    ts, elapsed = compute_row_runtime(root, now=now)
+    assert ts is None
+    assert elapsed == "55m"
+    assert runtime_suffix_ticks(root) is True
+
+
+def test_workflow_aggregate_runtime_uses_steps_not_parent_interval() -> None:
+    workflow = agent(
+        agent_type=AgentType.WORKFLOW,
+        status="DONE",
+        start=datetime(2026, 4, 25, 14, 0, 0),
+        stop=datetime(2026, 4, 25, 14, 20, 0),
+        cl_name="demo-workflow",
+        raw_suffix="20260425140000",
+    )
+    step = workflow_child(
+        step_type="agent",
+        status="DONE",
+        start=datetime(2026, 4, 25, 14, 5, 0),
+        stop=datetime(2026, 4, 25, 14, 7, 0),
+        raw_suffix="20260425140500",
+        cl_name="workflow-agent-step",
+    )
+    workflow.runtime_children.append(step)
+    container = family_container(workflow)
+    now = datetime(2026, 4, 25, 14, 30, 0)
+
+    ts, elapsed = compute_row_runtime(container, now=now)
+    assert ts == ("", "14:07:00")
+    assert elapsed == "2m"
 
 
 def test_family_container_chained_gates_do_not_resurrect_intervals() -> None:

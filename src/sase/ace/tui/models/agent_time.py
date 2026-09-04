@@ -372,6 +372,19 @@ def _aggregates_family_shells(agent: "Agent") -> bool:
     return agent.is_clan_container or agent.is_family_container_row
 
 
+def _represented_by_descendants(agent: "Agent", eligible: tuple["Agent", ...]) -> bool:
+    """Return whether *agent*'s runtime is carried by descendant rows."""
+    if not (
+        _aggregates_family_shells(agent)
+        or any(
+            child.is_workflow_step_child
+            for child in getattr(agent, "runtime_children", ())
+        )
+    ):
+        return False
+    return not eligible or any(not row.is_monitor for row in eligible)
+
+
 def _runtime_child_rows(
     agent: "Agent",
     *,
@@ -420,6 +433,7 @@ def _aggregate_runtime(
     include_monitor_shells = _aggregates_family_shells(agent)
     runtime_members: list[ClanRuntimeMemberWire] = []
     terminal_times: list[datetime] = []
+    saw_non_monitor_member = False
 
     def timestamp(value: datetime | None) -> str | None:
         if value is None:
@@ -428,18 +442,10 @@ def _aggregate_runtime(
             value = value.replace(tzinfo=UTC)
         return value.isoformat()
 
-    def append_runtime_member(child: "Agent") -> None:
-        child_id = id(child)
-        if child_id in seen:
-            return
-        seen.add(child_id)
-        grandchildren = getattr(child, "runtime_children", ())
-        if grandchildren:
-            for grandchild in _runtime_child_rows(
-                child, include_monitor_shells=include_monitor_shells
-            ):
-                append_runtime_member(grandchild)
-            return
+    def append_member_wire(child: "Agent") -> None:
+        nonlocal saw_non_monitor_member
+        if not child.is_monitor:
+            saw_non_monitor_member = True
         terminal = _row_runtime_terminal_time(child)
         if terminal is not None:
             terminal_times.append(terminal)
@@ -474,10 +480,29 @@ def _aggregate_runtime(
             )
         )
 
+    def append_runtime_member(child: "Agent") -> None:
+        child_id = id(child)
+        if child_id in seen:
+            return
+        seen.add(child_id)
+        eligible = _runtime_child_rows(
+            child, include_monitor_shells=include_monitor_shells
+        )
+        for grandchild in eligible:
+            append_runtime_member(grandchild)
+        if getattr(child, "runtime_children", ()) and _represented_by_descendants(
+            child, eligible
+        ):
+            return
+        append_member_wire(child)
+
     for child in _runtime_child_rows(
         agent, include_monitor_shells=include_monitor_shells
     ):
         append_runtime_member(child)
+
+    if runtime_members and not saw_non_monitor_member and not agent.is_clan_container:
+        append_member_wire(agent)
 
     if not runtime_members:
         return None

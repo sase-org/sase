@@ -953,7 +953,7 @@ async def test_slow_hydration_stays_pending_without_a_miss_toast() -> None:
     )
 
     app._follow_link_number(1)
-    await asyncio.sleep(0.05)
+    await asyncio.sleep(0.05)  # sase-test-wait: hydration worker enters lookup
 
     assert app.notifications == []
     assert app._link_follow_transaction is not None
@@ -994,7 +994,7 @@ async def test_duplicate_hydration_requests_coalesce_into_one_lookup() -> None:
     )
 
     app._follow_link_number(1)
-    await asyncio.sleep(0.05)
+    await asyncio.sleep(0.05)  # sase-test-wait: hydration worker enters lookup
     first_generation = app._link_follow_transaction.generation
 
     # A second follow of the identical ref while the lookup is in flight
@@ -1035,7 +1035,7 @@ async def test_second_follow_supersedes_in_flight_hydration() -> None:
     )
 
     app._follow_link_number(1)
-    await asyncio.sleep(0.05)
+    await asyncio.sleep(0.05)  # sase-test-wait: hydration worker enters lookup
 
     app._follow_link_number(2)
 
