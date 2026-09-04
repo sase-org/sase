@@ -30,6 +30,7 @@ from sase.ace.tui.actions.agent_workflow._launch_records import (
 )
 from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
 from sase.ace.tui.modals import ConfirmKillModal
+from sase.ace.tui.models.agent import AgentType
 from sase.agent.launch_types import AgentLaunchResult
 
 AgentIdentity = tuple[str, str, str | None]
@@ -55,7 +56,8 @@ class _FakeAgent:
     phase_bead_id: str | None = None
     is_family_root_entry: bool = False
     artifacts_dir_value: str | None = None
-    agent_type: str = "running"
+    agent_type: AgentType = AgentType.RUNNING
+    workspace_num: int | None = None
 
     @property
     def identity(self) -> AgentIdentity:
@@ -63,6 +65,10 @@ class _FakeAgent:
 
     @property
     def display_name(self) -> str:
+        return self.name
+
+    @property
+    def agent_name(self) -> str:
         return self.name
 
     def get_raw_xprompt_content(self) -> str | None:
@@ -157,6 +163,10 @@ class _DispatchApp(KillAndEditLastLaunchMixin):
         self.single_targets: list[_FakeAgent] = []
         self.set_targets: list[list[_FakeAgent]] = []
         self.revealed: list[Any] = []
+        self.edit_calls: list[tuple[str, str, str, bool]] = []
+        self.bulk_edit_calls: list[dict[str, Any]] = []
+        self.timers: list[Any] = []
+        self._prompt_bar: Any | None = None
 
     def notify(self, message: str, *, severity: str | None = None) -> None:
         self.notifications.append((message, severity))
@@ -171,6 +181,43 @@ class _DispatchApp(KillAndEditLastLaunchMixin):
     def _kill_and_edit_last_launch_set(self, agents: list[_FakeAgent]) -> None:
         self.set_targets.append(agents)
 
+    def _edit_and_relaunch_agent(
+        self,
+        raw_prompt: str,
+        project_file: str,
+        cl_name: str,
+        is_project_agent: bool,
+    ) -> None:
+        self.edit_calls.append((raw_prompt, project_file, cl_name, is_project_agent))
+
+    def _edit_and_relaunch_agents_bulk(
+        self,
+        raw_prompts: list[str],
+        project_file: str,
+        cl_name: str,
+        is_project_agent: bool,
+    ) -> None:
+        self.bulk_edit_calls.append(
+            {
+                "prompts": list(raw_prompts),
+                "project_file": project_file,
+                "cl_name": cl_name,
+                "is_project_agent": is_project_agent,
+            }
+        )
+
+    def _mounted_prompt_bar(self) -> Any | None:
+        return self._prompt_bar
+
+    def set_timer(
+        self, delay: float, callback: Callable[[], None], name: str = ""
+    ) -> Any:
+        timer = SimpleNamespace(
+            stop=lambda: None, callback=callback, delay=delay, name=name
+        )
+        self.timers.append(timer)
+        return timer
+
 
 def test_no_live_record_notifies_and_does_nothing() -> None:
     app = _DispatchApp()
@@ -182,26 +229,117 @@ def test_no_live_record_notifies_and_does_nothing() -> None:
     assert app.set_targets == []
 
 
-def test_in_flight_record_toasts_and_is_not_consumed() -> None:
+def test_in_flight_record_restores_prompt_and_marks_kill_pending() -> None:
+    app = _DispatchApp()
+    record = push_launch_record(
+        app, proc_ids=("p1",), prompt="do the thing", context=_context("demo")
+    )
+    assert record is not None
+
+    app._kill_and_edit_last_launch()
+
+    assert app.edit_calls == [
+        ("do the thing", record.context.project_file, record.context.cl_name, True)
+    ]
+    assert app.single_targets == []
+    assert app.set_targets == []
+    assert app.notifications == [('Will kill "demo" when its launch finishes', None)]
+    from sase.ace.tui.actions.agent_workflow._launch_records import (
+        LaunchRecordState,
+    )
+
+    assert record.state is LaunchRecordState.KILL_PENDING
+    assert len(app.timers) == 1
+    assert app.timers[0].name == "pending-launch-kill-timeout"
+
+
+def test_kill_pending_repeat_refocuses_and_does_not_advance() -> None:
+    app = _DispatchApp()
+    older = push_launch_record(
+        app, proc_ids=("older",), prompt="older", context=_context("older")
+    )
+    newer = push_launch_record(
+        app, proc_ids=("newer",), prompt="newer", context=_context("newer")
+    )
+    assert older is not None and newer is not None
+    bar = SimpleNamespace(focus_count=0)
+
+    def focus() -> None:
+        bar.focus_count += 1
+
+    bar.focus = focus
+    app._prompt_bar = bar
+
+    app._kill_and_edit_last_launch()
+    assert newer.state.value == "kill_pending"
+    assert app.edit_calls == [
+        ("newer", newer.context.project_file, newer.context.cl_name, True)
+    ]
+
+    app._kill_and_edit_last_launch()
+
+    assert bar.focus_count == 1
+    assert app.edit_calls == [
+        ("newer", newer.context.project_file, newer.context.cl_name, True)
+    ]
+    assert app.single_targets == []
+    assert len(app.timers) == 1
+    from sase.ace.tui.actions.agent_workflow._launch_records import (
+        LaunchRecordState,
+        latest_live_launch_record,
+    )
+
+    assert newer.state is LaunchRecordState.KILL_PENDING
+    assert older.state is LaunchRecordState.IN_FLIGHT
+    assert latest_live_launch_record(app) is newer
+
+
+def test_inflight_bulk_record_mounts_per_unit_prompts() -> None:
+    app = _DispatchApp()
+    record = push_launch_record(
+        app,
+        proc_ids=("p1", "p2"),
+        prompt="shared",
+        context=_context("bulk 2 Patches"),
+        submitted_prompts={"p1": "#gh:alpha shared", "p2": "#gh:beta shared"},
+    )
+    assert record is not None
+
+    app._kill_and_edit_last_launch()
+
+    assert app.edit_calls == []
+    assert app.bulk_edit_calls == [
+        {
+            "prompts": ["#gh:alpha shared", "#gh:beta shared"],
+            "project_file": record.context.project_file,
+            "cl_name": record.context.cl_name,
+            "is_project_agent": True,
+        }
+    ]
+
+
+def test_inflight_handler_does_no_synchronous_disk_or_proc_store_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     app = _DispatchApp()
     record = push_launch_record(
         app, proc_ids=("p1",), prompt="p", context=_context("demo")
     )
     assert record is not None
 
+    def fail_disk(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("in-flight ,X must not touch disk or the proc store")
+
+    monkeypatch.setattr("os.stat", fail_disk)
+    monkeypatch.setattr("os.listdir", fail_disk)
+    monkeypatch.setattr("pathlib.Path.exists", fail_disk)
+    monkeypatch.setattr("pathlib.Path.is_dir", fail_disk)
+    monkeypatch.setattr("pathlib.Path.read_text", fail_disk)
+
     app._kill_and_edit_last_launch()
 
-    assert len(app.notifications) == 1
-    message, severity = app.notifications[0]
-    assert '"demo" is still launching' in message
-    assert severity is None
-    assert app.single_targets == []
-    assert app.set_targets == []
-    from sase.ace.tui.actions.agent_workflow._launch_records import (
-        LaunchRecordState,
-    )
-
-    assert record.state is LaunchRecordState.IN_FLIGHT
+    assert record.state.value == "kill_pending"
+    assert app.edit_calls
 
 
 def test_resolved_single_match_reveals_and_delegates_to_kill_and_edit_agent(
@@ -279,7 +417,8 @@ def test_already_dead_target_pops_to_next_live_record(
 
     def fake_matcher(record: Any, loaded: Any) -> list[_FakeAgent]:
         calls.append(record)
-        return [] if record is stale else [agent]
+        # Newest record is already gone; pop it and take the older live one.
+        return [] if record is live else [agent]
 
     monkeypatch.setattr(
         "sase.ace.tui.actions.agent_workflow._kill_last_launch."
@@ -289,7 +428,7 @@ def test_already_dead_target_pops_to_next_live_record(
 
     app._kill_and_edit_last_launch()
 
-    assert calls == [stale, live]
+    assert calls == [live, stale]
     assert app.single_targets == [agent]
     from sase.ace.tui.actions.agent_workflow._launch_records import (
         LaunchRecordState,

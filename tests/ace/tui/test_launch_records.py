@@ -17,6 +17,7 @@ from sase.ace.tui.actions.agent_workflow._launch_records import (
     LaunchRecordState,
     MAX_SESSION_LAUNCH_RECORDS,
     consume_launch_record,
+    has_pending_launch_kill,
     latest_live_launch_record,
     push_launch_record,
     stamp_launch_record_failure,
@@ -253,6 +254,34 @@ def test_latest_live_launch_record_skips_consumed_and_failed_records() -> None:
     consume_launch_record(consumed)
 
     assert latest_live_launch_record(app) is live
+
+
+def test_kill_pending_survives_result_stamp() -> None:
+    app = SimpleNamespace()
+    record = push_launch_record(
+        app, proc_ids=("p1",), prompt="p", context=_context("demo")
+    )
+    assert record is not None
+    record.state = LaunchRecordState.KILL_PENDING
+
+    stamp_launch_record_results(app, "p1", (_result("demo"),))
+
+    assert record.state is LaunchRecordState.KILL_PENDING
+    assert record.results["p1"] == (_result("demo"),)
+
+
+def test_has_pending_launch_kill_tracks_kill_pending_records() -> None:
+    app = SimpleNamespace()
+    assert has_pending_launch_kill(app) is False
+    record = push_launch_record(
+        app, proc_ids=("p1",), prompt="p", context=_context("demo")
+    )
+    assert record is not None
+    assert has_pending_launch_kill(app) is False
+    record.state = LaunchRecordState.KILL_PENDING
+    assert has_pending_launch_kill(app) is True
+    consume_launch_record(record)
+    assert has_pending_launch_kill(app) is False
 
 
 def test_completion_stamps_record_before_launch_delta() -> None:

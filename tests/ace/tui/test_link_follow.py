@@ -70,7 +70,9 @@ class _Pane:
     def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
         return self._targets
 
-    def entry_target_for_ref(self, kind: str, payload: str) -> ArtifactEntryTarget | None:
+    def entry_target_for_ref(
+        self, kind: str, payload: str
+    ) -> ArtifactEntryTarget | None:
         return None if self._resolver is None else self._resolver(kind, payload)
 
     def selected_entry_target(self) -> ArtifactEntryTarget | None:

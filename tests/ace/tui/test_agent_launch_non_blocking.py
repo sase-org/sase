@@ -117,6 +117,36 @@ def test_launch_outcome_from_completion_accepts_proc_only_payload() -> None:
     assert outcome.schedule_agents_refresh is True
     assert outcome.message == "Launched 1 of 1 launch unit"
     assert outcome.severity is None
+    assert outcome.admission_complete is True
+
+
+def test_launch_outcome_from_completion_reads_admission_complete_false() -> None:
+    completion = TrackedProcCompletion(
+        proc_info=ProcInfo(
+            proc_id="task",
+            proc_type="launch",
+            cl_name="test",
+            project_file="/tmp/test.sase",
+            status="success",
+            message="Accepted 2 launch units; admission continues in the background",
+            started_at=datetime.now(),
+        ),
+        success=True,
+        message="Accepted 2 launch units; admission continues in the background",
+        output="",
+        payload={
+            "count": 1,
+            "pids": [1],
+            "results": [],
+            "admission_complete": False,
+        },
+        error=None,
+    )
+
+    outcome = _launch_outcome_from_completion(completion)
+
+    assert outcome is not None
+    assert outcome.admission_complete is False
 
 
 def test_launch_task_completion_emits_warning_messages_from_result_payload() -> None:

@@ -288,7 +288,9 @@ def known_target_for_ref(
     callers that only need one lookup against a plain set of targets, not
     the batch-edge-projection index this module builds for itself.
     """
-    return _known_target_for_ref(kind, payload, frozenset(known_targets), project_hint=project_hint)
+    return _known_target_for_ref(
+        kind, payload, frozenset(known_targets), project_hint=project_hint
+    )
 
 
 def _known_target_for_ref(

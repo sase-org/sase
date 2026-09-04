@@ -7,6 +7,10 @@ from the old cleanup must not resurrect a name the replacement agent is about
 to reuse. A :class:`_RelaunchCleanupBarrier` records one such in-flight
 cleanup; :func:`hold_launch_for_relaunch_cleanup` parks a launch until every
 open barrier settles.
+
+An in-flight ``,X`` deferred kill is an additional hold: the replacement
+launch must wait through the T0→T4 window until the pending kill is
+abandoned or the ordinary cleanup barrier opened at T4 takes over.
 """
 
 from __future__ import annotations
@@ -18,6 +22,7 @@ from dataclasses import dataclass
 log = logging.getLogger(__name__)
 
 RELAUNCH_CLEANUP_BARRIER_TIMEOUT_SECONDS = 30.0
+PENDING_LAUNCH_KILL_TIMEOUT_SECONDS = 180.0
 
 _MISSING = object()
 
@@ -77,8 +82,12 @@ def settle_relaunch_cleanup_barrier(
 
 
 def _relaunch_cleanup_is_pending(app: object) -> bool:
-    """Return whether any relaunch cleanup barrier is still open."""
-    return bool(getattr(app, "_relaunch_cleanup_barriers", None))
+    """Return whether a replacement launch must wait on cleanup or a pending kill."""
+    if getattr(app, "_relaunch_cleanup_barriers", None):
+        return True
+    from ._launch_records import has_pending_launch_kill
+
+    return has_pending_launch_kill(app)
 
 
 def hold_launch_for_relaunch_cleanup(app: object, resume: Callable[[], None]) -> bool:
@@ -99,8 +108,17 @@ def hold_launch_for_relaunch_cleanup(app: object, resume: Callable[[], None]) ->
 
     notify = getattr(app, "notify", None)
     if callable(notify):
-        notify("Waiting for kill/dismiss cleanup to finish before launching...")
+        if getattr(app, "_relaunch_cleanup_barriers", None):
+            notify("Waiting for kill/dismiss cleanup to finish before launching...")
+        else:
+            notify("Waiting for the last launch to finish so it can be killed...")
     return True
+
+
+def release_relaunch_holds_if_idle(app: object) -> None:
+    """Replay parked launches when no cleanup barrier or pending kill remains."""
+    if not _relaunch_cleanup_is_pending(app):
+        _drain_relaunch_cleanup_launch_waiters(app)
 
 
 def _drain_relaunch_cleanup_launch_waiters(app: object) -> None:

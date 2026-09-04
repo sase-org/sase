@@ -36,6 +36,7 @@ class _LaunchProcOutcome:
     request_agents_refresh: bool = False
     schedule_agents_refresh: bool = False
     refresh_notifications: bool = False
+    admission_complete: bool = True
 
     @property
     def success(self) -> bool:
@@ -106,9 +107,16 @@ class LaunchProcMixin:
         outcome = _launch_outcome_from_completion(completion)
         proc_id = completion.proc_info.proc_id
         if outcome is None:
+            from ._kill_last_launch import apply_deferred_launch_kill_on_completion
             from ._launch_records import stamp_launch_record_failure
 
             stamp_launch_record_failure(self, proc_id)
+            apply_deferred_launch_kill_on_completion(
+                self,
+                proc_id,
+                (),
+                failed=not completion.success,
+            )
             if not completion.success:
                 error_id = new_error_id()
                 _schedule_payloadless_launch_failure_log(
@@ -139,6 +147,16 @@ class LaunchProcMixin:
 
         if outcome.results:
             self._handle_launch_results_delta(outcome.results)  # type: ignore[attr-defined]
+
+        from ._kill_last_launch import apply_deferred_launch_kill_on_completion
+
+        apply_deferred_launch_kill_on_completion(
+            self,
+            proc_id,
+            outcome.results,
+            failed=not outcome.success,
+            admission_complete=outcome.admission_complete,
+        )
 
         if outcome.request_agents_refresh:
             self.request_agents_refresh("launch")  # type: ignore[attr-defined]
@@ -344,6 +362,7 @@ def _launch_outcome_from_completion(
         request_agents_refresh=bool(payload.get("request_agents_refresh")),
         schedule_agents_refresh=bool(payload.get("schedule_agents_refresh")),
         refresh_notifications=bool(payload.get("refresh_notifications")),
+        admission_complete=bool(payload.get("admission_complete", True)),
     )
 
 

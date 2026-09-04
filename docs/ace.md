@@ -2307,9 +2307,14 @@ order. Nothing is recorded across ACE restarts: the targetable history is this s
 in-memory launch stack, not disk state.
 
 `,X` is meant to undo a premature `<enter>` press, including the moment right after
-submit before the launched agent's row exists yet. That in-flight window currently shows
-a toast asking you to press `,X` again once the row appears, instead of undoing the
-launch immediately; an upcoming change closes that gap with an immediate, deferred kill.
+submit before the launched agent's row exists yet. In that in-flight window ACE restores
+the submitted prompt immediately (no confirmation — the `,X` press is the confirmation)
+and kills the launched agent(s) once the launch proc finishes. A replacement submit from
+the restored prompt waits until that kill settles so the original name is not
+resurrected underneath it. Repeat `,X` while the kill is still pending re-focuses the
+restored prompt and does not walk back to an earlier launch. Restarting ACE mid-flight
+drops the pending kill: the launch completes, the row appears, and ordinary `,x`
+applies.
 
 Press `,r` on a `DONE` or `FAILED` agent to preview commits attributed to that agent
 before creating git revert commits. For plan/follow-up families, ACE reverts the family

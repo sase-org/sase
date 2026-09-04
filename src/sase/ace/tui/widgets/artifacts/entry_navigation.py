@@ -90,7 +90,9 @@ class ArtifactEntryNavigator(metaclass=_ArtifactEntryNavigatorMeta):
         del target, role
         return False
 
-    def entry_target_for_ref(self, kind: str, payload: str) -> ArtifactEntryTarget | None:
+    def entry_target_for_ref(
+        self, kind: str, payload: str
+    ) -> ArtifactEntryTarget | None:
         """Resolve a link-graph ref to this pane's own row identity.
 
         Answered from the pane's *unfiltered* snapshot, so a filtered-out

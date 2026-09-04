@@ -128,6 +128,30 @@ def launch_record_for_proc_id(app: object, proc_id: str) -> LaunchRecord | None:
     return None
 
 
+def has_pending_launch_kill(app: object) -> bool:
+    """Return whether any session launch record is waiting to be killed at T4."""
+    return any(
+        record.state is LaunchRecordState.KILL_PENDING
+        for record in _launch_record_stack(app)
+    )
+
+
+def record_procs_are_terminal(record: LaunchRecord) -> bool:
+    """Return whether every proc on *record* has results or a failure stamp."""
+    return all(
+        proc_id in record.results or proc_id in record.failed_proc_ids
+        for proc_id in record.proc_ids
+    )
+
+
+def release_kill_pending_launch_record(record: LaunchRecord) -> LaunchRecord:
+    """Drop ``KILL_PENDING`` so later stamps can move *record* to a terminal state."""
+    if record.state is LaunchRecordState.KILL_PENDING:
+        record.state = LaunchRecordState.IN_FLIGHT
+        _refresh_launch_record_state(record)
+    return record
+
+
 def _launch_record_stack(app: object) -> list[LaunchRecord]:
     stack = getattr(app, "_session_launch_records", None)
     if isinstance(stack, list):
@@ -169,9 +193,12 @@ __all__ = [
     "LaunchRecordState",
     "MAX_SESSION_LAUNCH_RECORDS",
     "consume_launch_record",
+    "has_pending_launch_kill",
     "latest_live_launch_record",
     "launch_record_for_proc_id",
     "push_launch_record",
+    "record_procs_are_terminal",
+    "release_kill_pending_launch_record",
     "stamp_launch_record_failure",
     "stamp_launch_record_results",
 ]
