@@ -6,21 +6,24 @@ from pathlib import Path
 
 import pytest
 
-from sase.axe.chop_policy import check_chop_trigger_runtime, compute_fs_trigger_token
+from sase.axe.chop_policy import (
+    _compute_fs_trigger_token,
+    check_chop_trigger_runtime,
+)
 from sase.axe.config import ChopConfig
 
 
 def test_missing_path_is_a_stable_token_not_an_error(tmp_path: Path) -> None:
     missing = tmp_path / "does-not-exist"
 
-    token, error = compute_fs_trigger_token([str(missing)])
+    token, error = _compute_fs_trigger_token([str(missing)])
 
     assert error is None
     assert token is not None
     first_token = token
 
     # A second call against the same still-missing path is stable.
-    token_again, error_again = compute_fs_trigger_token([str(missing)])
+    token_again, error_again = _compute_fs_trigger_token([str(missing)])
     assert error_again is None
     assert token_again == first_token
 
@@ -31,15 +34,15 @@ def test_file_token_changes_with_content_and_is_stable_otherwise(
     watched = tmp_path / "watched.json"
     watched.write_text("{}", encoding="utf-8")
 
-    token, error = compute_fs_trigger_token([str(watched)])
+    token, error = _compute_fs_trigger_token([str(watched)])
     assert error is None
 
-    same_token, same_error = compute_fs_trigger_token([str(watched)])
+    same_token, same_error = _compute_fs_trigger_token([str(watched)])
     assert same_error is None
     assert same_token == token
 
     watched.write_text('{"changed": true}', encoding="utf-8")
-    changed_token, changed_error = compute_fs_trigger_token([str(watched)])
+    changed_token, changed_error = _compute_fs_trigger_token([str(watched)])
     assert changed_error is None
     assert changed_token != token
 
@@ -48,11 +51,11 @@ def test_directory_token_reflects_child_count(tmp_path: Path) -> None:
     watched_dir = tmp_path / "state"
     watched_dir.mkdir()
 
-    empty_token, error = compute_fs_trigger_token([str(watched_dir)])
+    empty_token, error = _compute_fs_trigger_token([str(watched_dir)])
     assert error is None
 
     (watched_dir / "one.json").write_text("{}", encoding="utf-8")
-    one_child_token, error = compute_fs_trigger_token([str(watched_dir)])
+    one_child_token, error = _compute_fs_trigger_token([str(watched_dir)])
     assert error is None
     assert one_child_token != empty_token
 
@@ -64,16 +67,16 @@ def test_glob_watch_spec_matches_shallow_entries_only(tmp_path: Path) -> None:
     (watched_dir / "nested" / "deep.json").write_text("{}", encoding="utf-8")
 
     spec = {"path": str(watched_dir), "glob": "*.json"}
-    baseline, error = compute_fs_trigger_token([spec])
+    baseline, error = _compute_fs_trigger_token([spec])
     assert error is None
 
     # A deeply nested match is invisible to a shallow (non-recursive) glob.
-    unchanged, error = compute_fs_trigger_token([spec])
+    unchanged, error = _compute_fs_trigger_token([spec])
     assert error is None
     assert unchanged == baseline
 
     (watched_dir / "top.json").write_text("{}", encoding="utf-8")
-    with_match, error = compute_fs_trigger_token([spec])
+    with_match, error = _compute_fs_trigger_token([spec])
     assert error is None
     assert with_match != baseline
 
@@ -87,7 +90,7 @@ def test_relative_watch_path_resolves_against_sase_home(
     (home / "axe" / "lumberjacks" / "hooks.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr("sase.axe.chop_policy.sase_home", lambda: home)
 
-    token, error = compute_fs_trigger_token(["axe/lumberjacks/hooks.json"])
+    token, error = _compute_fs_trigger_token(["axe/lumberjacks/hooks.json"])
 
     assert error is None
     assert token is not None
@@ -105,7 +108,7 @@ def test_unreadable_path_fails_open_with_an_error(
 
     monkeypatch.setattr(Path, "exists", _raise_permission_error, raising=True)
 
-    token, error = compute_fs_trigger_token([str(watched)])
+    token, error = _compute_fs_trigger_token([str(watched)])
 
     assert token is None
     assert error is not None
@@ -163,9 +166,9 @@ def test_bare_string_and_object_watch_specs_combine_independently(
     first.write_text("{}", encoding="utf-8")
     second_dir.mkdir()
 
-    combined, error = compute_fs_trigger_token([str(first), {"path": str(second_dir)}])
+    combined, error = _compute_fs_trigger_token([str(first), {"path": str(second_dir)}])
     assert error is None
 
-    first_only, error = compute_fs_trigger_token([str(first)])
+    first_only, error = _compute_fs_trigger_token([str(first)])
     assert error is None
     assert combined != first_only

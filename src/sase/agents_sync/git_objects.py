@@ -8,6 +8,7 @@ from pathlib import Path, PurePosixPath
 import re
 import signal
 import subprocess
+from typing import Any
 
 from sase.agents_sync.git import GitRunner, noninteractive_git_env, run_git
 from sase.agents_sync.io import AgentsSyncFormatError
@@ -15,6 +16,13 @@ from sase.agents_sync.v2_io import validate_relative_path
 from sase.sdd._git import sdd_git_command
 
 _SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+
+
+class _CatFileStreamClosed(AgentsSyncFormatError):
+    """The ``git cat-file`` pipe ended before a framed object was complete."""
+
+    def __init__(self) -> None:
+        super().__init__("git cat-file batch stream closed")
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,6 +179,86 @@ class LocalGitObjectReader:
         return self._batch
 
 
+class _CatFileStream:
+    """Buffered reader for NUL-framed ``git cat-file --batch -Z`` output.
+
+    ``BufferedReader.read(n)`` on a pipe waits for *n* bytes or EOF, so a
+    large ``read()`` while scanning for the header NUL would block until git
+    wrote that many bytes. ``read1()`` returns whatever one raw read already
+    has; leftover bytes after the header stay in this buffer so the
+    length-prefixed body is consumed exactly, not byte-wise.
+    """
+
+    _CHUNK_SIZE = 64 * 1024
+    _MAX_HEADER_BYTES = 4096
+    _DRAIN_CHUNK_SIZE = 1024 * 1024
+
+    def __init__(self, stdout: Any) -> None:
+        self._stdout = stdout
+        self._buffer = bytearray()
+
+    def read_until_nul(self) -> bytes:
+        while True:
+            nul = self._buffer.find(b"\0", 0, self._MAX_HEADER_BYTES + 1)
+            if nul != -1:
+                result = bytes(self._buffer[:nul])
+                del self._buffer[: nul + 1]
+                return result
+            if len(self._buffer) > self._MAX_HEADER_BYTES:
+                raise AgentsSyncFormatError("git cat-file batch header is too large")
+            chunk = self._read_available(self._CHUNK_SIZE)
+            if not chunk:
+                raise _CatFileStreamClosed()
+            self._buffer.extend(chunk)
+
+    def read_exact(self, size: int) -> bytes:
+        if size < 0:
+            raise _CatFileStreamClosed()
+        if size == 0:
+            return b""
+        out = bytearray()
+        taken = self._consume_buffer(size)
+        if taken:
+            out += taken
+        remaining = size - len(out)
+        while remaining:
+            chunk = self._read_blocking(remaining)
+            if not chunk:
+                break
+            out += chunk
+            remaining = size - len(out)
+        return bytes(out)
+
+    def drain(self, size: int) -> None:
+        remaining = size
+        if remaining < 0:
+            raise _CatFileStreamClosed()
+        discarded = self._consume_buffer(remaining)
+        remaining -= len(discarded)
+        while remaining:
+            chunk = self._read_blocking(min(remaining, self._DRAIN_CHUNK_SIZE))
+            if not chunk:
+                raise _CatFileStreamClosed()
+            remaining -= len(chunk)
+
+    def _consume_buffer(self, size: int) -> bytes:
+        if size <= 0 or not self._buffer:
+            return b""
+        take = min(size, len(self._buffer))
+        result = bytes(self._buffer[:take])
+        del self._buffer[:take]
+        return result
+
+    def _read_available(self, size: int) -> bytes:
+        read1 = getattr(self._stdout, "read1", None)
+        if callable(read1):
+            return _require_bytes(read1(size))
+        return self._read_blocking(size)
+
+    def _read_blocking(self, size: int) -> bytes:
+        return _require_bytes(self._stdout.read(size))
+
+
 class _CatFileBatch:
     """One NUL-framed ``git cat-file --batch`` session for fetched blobs."""
 
@@ -186,10 +274,13 @@ class _CatFileBatch:
             text=False,
             start_new_session=True,
         )
+        stdout = self._process.stdout
+        self._stream = None if stdout is None else _CatFileStream(stdout)
 
     def read_blob(self, spec: str, *, relative: str, maximum: int) -> bytes:
         process = self._process
-        if process.stdin is None or process.stdout is None:
+        stream = self._stream
+        if process.stdin is None or process.stdout is None or stream is None:
             raise AgentsSyncFormatError("git cat-file batch stream is unavailable")
         if process.poll() is not None:
             raise AgentsSyncFormatError(self._closed_stream_error(relative))
@@ -229,7 +320,7 @@ class _CatFileBatch:
             raise AgentsSyncFormatError(
                 f"fetched object {relative!r} exceeds the byte limit"
             )
-        payload = process.stdout.read(size)
+        payload = stream.read_exact(size)
         if len(payload) != size:
             raise AgentsSyncFormatError(self._closed_stream_error(relative))
         self._read_object_separator(relative)
@@ -249,35 +340,26 @@ class _CatFileBatch:
                 _terminate_process(process)
 
     def _read_until_nul(self) -> bytes:
-        stdout = self._process.stdout
-        if stdout is None:
+        stream = self._stream
+        if stream is None:
             raise AgentsSyncFormatError("git cat-file batch stream is unavailable")
-        chunks: list[bytes] = []
-        while True:
-            chunk = stdout.read(1)
-            if chunk == b"":
-                raise AgentsSyncFormatError("git cat-file batch stream closed")
-            if chunk == b"\0":
-                return b"".join(chunks)
-            chunks.append(chunk)
+        return stream.read_until_nul()
 
     def _drain_object(self, size: int, relative: str) -> None:
-        stdout = self._process.stdout
-        if stdout is None:
+        stream = self._stream
+        if stream is None:
             raise AgentsSyncFormatError("git cat-file batch stream is unavailable")
-        remaining = size
-        while remaining:
-            chunk = stdout.read(min(remaining, 1024 * 1024))
-            if not chunk:
-                raise AgentsSyncFormatError(self._closed_stream_error(relative))
-            remaining -= len(chunk)
+        try:
+            stream.drain(size)
+        except _CatFileStreamClosed as exc:
+            raise AgentsSyncFormatError(self._closed_stream_error(relative)) from exc
         self._read_object_separator(relative)
 
     def _read_object_separator(self, relative: str) -> None:
-        stdout = self._process.stdout
-        if stdout is None:
+        stream = self._stream
+        if stream is None:
             raise AgentsSyncFormatError("git cat-file batch stream is unavailable")
-        separator = stdout.read(1)
+        separator = stream.read_exact(1)
         if separator != b"\0":
             raise AgentsSyncFormatError(
                 f"could not parse fetched object boundary for {relative!r}"
@@ -293,6 +375,14 @@ class _CatFileBatch:
                 stderr = ""
         detail = f": {stderr}" if stderr else ""
         return f"could not read fetched object {relative!r}{detail}"
+
+
+def _require_bytes(chunk: object) -> bytes:
+    if not chunk:
+        return b""
+    if isinstance(chunk, (bytes, bytearray, memoryview)):
+        return bytes(chunk)
+    raise _CatFileStreamClosed()
 
 
 def _validate_sha(value: str) -> None:

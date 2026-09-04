@@ -406,7 +406,7 @@ def check_chop_trigger_runtime(chop: ChopConfig) -> str | None:
         return None
     if provider == "fs":
         paths = chop.trigger.get("paths")
-        _, error = compute_fs_trigger_token(paths if isinstance(paths, list) else [])
+        _, error = _compute_fs_trigger_token(paths if isinstance(paths, list) else [])
         if error is not None:
             return f"fs trigger paths could not be read: {error}"
         return None
@@ -530,7 +530,7 @@ def _fs_watch_token(spec: Mapping[str, Any]) -> tuple[str | None, str | None]:
         return None, str(exc)
 
 
-def compute_fs_trigger_token(
+def _compute_fs_trigger_token(
     paths: Sequence[Any],
 ) -> tuple[str | None, str | None]:
     """Combine every configured watch spec into one trigger-wide state token.
@@ -551,7 +551,7 @@ def compute_fs_trigger_token(
 
 def _fs_snapshot(trigger: dict[str, Any]) -> dict[str, Any]:
     paths = trigger.get("paths")
-    token, error = compute_fs_trigger_token(paths if isinstance(paths, list) else [])
+    token, error = _compute_fs_trigger_token(paths if isinstance(paths, list) else [])
     if error is not None:
         return {"error": error}
     return {"token": token}
@@ -711,7 +711,6 @@ __all__ = [
     "ChopPreflight",
     "apply_chop_once_per",
     "check_chop_trigger_runtime",
-    "compute_fs_trigger_token",
     "evaluate_chop_preflight",
     "finalize_pending_chop_checkpoints",
     "record_chop_checkpoint_event",
