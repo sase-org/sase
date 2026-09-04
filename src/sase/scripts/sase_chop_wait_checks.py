@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Wait dependency resolution chop script.
 
-Scans all waiting.json markers across projects and resolves dependencies
-by checking if named agents have completed. Writes ready.json when all
-dependencies for a waiting agent are satisfied.
+Consults waiting.json markers first and exits no_op before loading
+agent_meta.json when nothing is pending. Remaining waits resolve through
+the agent artifact index when it is present, else a targeted filesystem
+read of referenced artifacts. ``SASE_CHOP_SCAN_FULL_WALK=1`` restores the
+legacy full O(all-artifacts) meta walk for parity testing.
 """
 
 import json
@@ -24,6 +26,11 @@ from sase.core.wait_dependency_resolution import (
     read_json_dict as _read_json_dict,
 )
 from sase.core.wait_dependency_resolution._types import ArtifactCandidate
+from sase.scripts._chop_incremental_index import (
+    chop_scan_full_walk,
+    query_ace_run_index_records,
+    wait_rows_from_index_records,
+)
 
 _MAX_TERMINAL_BLOCKER_LOGS = 10
 
@@ -43,7 +50,11 @@ class _TerminalBlocker:
 
 
 @builtin_chop("wait_checks")
-def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
+def _run(
+    runtime: BuiltinChopRuntime,
+    *,
+    full_walk: bool | None = None,
+) -> ChopResultBuilder:
     projects_dir = sase_projects_dir()
     if not projects_dir.exists():
         return runtime.emit_summary(
@@ -56,6 +67,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             reason="no_projects_dir",
         )
 
+    use_full_walk = chop_scan_full_walk() if full_walk is None else full_walk
     projects = 0
     artifacts = 0
     waiting_markers = 0
@@ -82,30 +94,35 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         ):
             artifacts += 1
 
+            waiting_path = artifact_dir / "waiting.json"
+            if waiting_path.exists():
+                waiting_markers += 1
+                ready_path = artifact_dir / "ready.json"
+                if ready_path.exists():
+                    skipped_ready += 1
+                else:
+                    pending_waiting_markers.append(
+                        _WaitingMarker(
+                            project_name=project_dir.name,
+                            ready_path=ready_path,
+                            waiting_path=waiting_path,
+                        )
+                    )
+
+            if not use_full_walk:
+                continue
             meta = _read_json_dict(artifact_dir / "agent_meta.json")
             if meta is not None:
                 artifact_rows.append((artifact_dir, meta, project_dir.name))
 
-            waiting_path = artifact_dir / "waiting.json"
-            if not waiting_path.exists():
-                continue
-            waiting_markers += 1
-
-            # Already resolved -- skip
-            ready_path = artifact_dir / "ready.json"
-            if ready_path.exists():
-                skipped_ready += 1
-                continue
-
-            pending_waiting_markers.append(
-                _WaitingMarker(
-                    project_name=project_dir.name,
-                    ready_path=ready_path,
-                    waiting_path=waiting_path,
-                )
-            )
-
-    dependency_index.add_many(artifact_rows)
+    if pending_waiting_markers:
+        if not artifact_rows:
+            indexed = query_ace_run_index_records(projects_dir)
+            if indexed:
+                artifact_rows = wait_rows_from_index_records(indexed)
+            if not artifact_rows:
+                artifact_rows = _filesystem_dependency_rows(projects_dir)
+        dependency_index.add_many(artifact_rows)
 
     closed_bead_ids_by_project: dict[str, frozenset[str] | None] = {}
     for waiting_marker in pending_waiting_markers:
@@ -244,6 +261,27 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         },
         reason=reason,
     )
+
+
+def _filesystem_dependency_rows(
+    projects_dir: Path,
+) -> list[tuple[Path, dict[str, Any], str]]:
+    """Load ace-run agent_meta.json files for wait-dependency resolution."""
+
+    rows: list[tuple[Path, dict[str, Any], str]] = []
+    for project_dir in projects_dir.iterdir():
+        if not project_dir.is_dir():
+            continue
+        project_name = project_dir.name
+        for artifact_dir in iter_agent_artifact_dirs(
+            project_name,
+            "ace-run",
+            projects_root=projects_dir,
+        ):
+            meta = _read_json_dict(artifact_dir / "agent_meta.json")
+            if meta is not None:
+                rows.append((artifact_dir, meta, project_name))
+    return rows
 
 
 def _terminal_blockers(

@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 import sase.scripts.sase_chop_bead_claim_checks as claim_checks
+from sase.bead.claims import BEAD_CLAIM_MARKER
 from sase.bead.model import Status
 from sase.chops.sdk import ChopLogger
 
@@ -53,7 +54,7 @@ def test_artifact_scan_records_claim_marker_presence(
 
     assert not claim_checks._scan_claim_artifacts(tmp_path)[0].has_bead_claim_marker
 
-    (artifact_dir / claim_checks.BEAD_CLAIM_MARKER).write_text(
+    (artifact_dir / BEAD_CLAIM_MARKER).write_text(
         "{}\n",
         encoding="utf-8",
     )

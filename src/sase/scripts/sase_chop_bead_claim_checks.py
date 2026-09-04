@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Reconcile bead claims for live and dead pre-launch agents."""
+"""Reconcile bead claims for live and dead pre-launch agents.
+
+The owner pre-pass prefers the agent artifact index so idle ticks skip
+``scan_agent_artifacts``. A full filesystem walk runs only when the index
+is unusable or ``SASE_CHOP_SCAN_FULL_WALK=1`` selects the legacy path.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.bead.claims import BEAD_CLAIM_MARKER, write_bead_claim_marker
+from sase.bead.claims import write_bead_claim_marker
 from sase.bead.model import Issue, Status
 from sase.bead.store_locator import open_bead_project_for_beads_dir
 from sase.bead.sync import (
@@ -19,32 +24,18 @@ from sase.bead.sync import (
     refresh_bead_store,
 )
 from sase.bead.work_liveness import AGENT_BEAD_SCAN_OPTIONS as _SCAN_OPTIONS
-from sase.bead.work_liveness import agent_record_is_alive
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopLogger, ChopResultBuilder
 from sase.core import bead_read_facade as rust_beads
 from sase.core.agent_scan_facade import scan_agent_artifacts
 from sase.core.paths import sase_projects_dir
-
-#: Terminal marker written beside a dead owner's artifact record once its claim
-#: has been reconciled. Without it the pre-pass would keep every dead record as
-#: a release candidate forever and open bead stores on every tick.
-BEAD_CLAIM_RECONCILED_MARKER = "bead_claim_reconciled.json"
-
-
-@dataclass(frozen=True)
-class _ClaimArtifact:
-    project_name: str
-    agent_name: str
-    artifact_dir: Path
-    timestamp: str
-    pid: int | None
-    stopped_at: str | None
-    bead_id: str
-    bead_claim_promoted: bool | None
-    has_bead_claim_marker: bool
-    has_reconcile_tombstone: bool = False
-    is_alive: bool = False
+from sase.scripts._chop_bead_claim_scan import (
+    BEAD_CLAIM_RECONCILED_MARKER,
+    ClaimArtifact as _ClaimArtifact,
+    claim_artifact_from_record,
+    claim_artifacts_from_index,
+)
+from sase.scripts._chop_incremental_index import chop_scan_full_walk
 
 
 @dataclass(frozen=True)
@@ -156,56 +147,25 @@ def _reconcile_project_claims(
     )
 
 
-def _read_json_dict(path: Path) -> dict[str, Any] | None:
-    try:
-        with path.open(encoding="utf-8") as stream:
-            payload = json.load(stream)
-    except (json.JSONDecodeError, OSError):
-        return None
-    return payload if isinstance(payload, dict) else None
-
-
 def _scan_claim_artifacts(projects_root: Path) -> list[_ClaimArtifact]:
     """Return claim-bearing agent records from the shared artifact scanner."""
     snapshot = scan_agent_artifacts(projects_root, _SCAN_OPTIONS)
     claims: list[_ClaimArtifact] = []
     for record in snapshot.records:
-        meta = record.agent_meta
-        if (
-            record.workflow_dir_name != "ace-run"
-            or meta is None
-            or not meta.name
-            or not meta.bead_id
-        ):
-            continue
-
-        artifact_dir = Path(record.artifact_dir)
-        raw_meta = _read_json_dict(artifact_dir / "agent_meta.json")
-        promoted: bool | None
-        if raw_meta is None:
-            # An unreadable marker cannot prove that the claim was never promoted.
-            promoted = None
-        else:
-            promoted = raw_meta.get("bead_claim_promoted") is True
-
-        claims.append(
-            _ClaimArtifact(
-                project_name=record.project_name,
-                agent_name=meta.name,
-                artifact_dir=artifact_dir,
-                timestamp=record.timestamp,
-                pid=meta.pid,
-                stopped_at=meta.stopped_at,
-                bead_id=meta.bead_id,
-                bead_claim_promoted=promoted,
-                has_bead_claim_marker=(artifact_dir / BEAD_CLAIM_MARKER).exists(),
-                has_reconcile_tombstone=(
-                    artifact_dir / BEAD_CLAIM_RECONCILED_MARKER
-                ).exists(),
-                is_alive=agent_record_is_alive(record),
-            )
-        )
+        claim = claim_artifact_from_record(record)
+        if claim is not None:
+            claims.append(claim)
     return claims
+
+
+def _prepass_claim_artifacts(projects_root: Path) -> list[_ClaimArtifact]:
+    """Cheap owner pre-pass: index first, full scan only when the index is unusable."""
+
+    if not chop_scan_full_walk():
+        indexed = claim_artifacts_from_index(projects_root)
+        if indexed is not None:
+            return indexed
+    return _scan_claim_artifacts(projects_root)
 
 
 def _write_reconcile_tombstone(record: _ClaimArtifact, log: ChopLogger) -> bool:
@@ -389,7 +349,8 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
 
     # Cheap pre-pass: do not touch bead stores unless an unpromoted record is
     # either a dead claim owner or a live agent that still lacks a claim marker.
-    prepass = _latest_owner_records(_scan_claim_artifacts(projects_root))
+    # Prefer the artifact index so idle ticks skip scan_agent_artifacts.
+    prepass = _latest_owner_records(_prepass_claim_artifacts(projects_root))
     release_candidates: list[_ClaimArtifact] = []
     acquire_candidates: list[_ClaimArtifact] = []
     for record in prepass.values():
