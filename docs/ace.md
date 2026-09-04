@@ -2299,12 +2299,16 @@ launch.
 `,X` targets the most recently launched agent this ACE session accepted, instead of the
 focused or marked row(s) — marks are ignored entirely, even when agents are marked.
 Repeating `,X` walks back through this session's launch history one accepted launch at a
-time; a launch already killed or dismissed by hand is skipped. Once its target row
-exists, `,X` reuses the exact `,x` machinery above (the same confirmation rule and
-forced-name-reuse rewrite), so a single-agent launch opens one editable pane and a
-bulk-Patch or multi-prompt `---` launch opens one pane per launched agent in launch
-order. Nothing is recorded across ACE restarts: the targetable history is this session's
-in-memory launch stack, not disk state.
+time; a launch already killed or dismissed by hand is skipped. A launch leaves that
+history only once its kill or dismissal actually starts, so canceling the confirmation,
+losing the row mid-action, or failing to resolve the prompt leaves the same launch as
+the next `,X` target instead of walking back to an older one — and pressing `,X` again
+while that confirmation is still up neither opens a second one nor advances. Once its
+target row exists, `,X` reuses the exact `,x` machinery above (the same confirmation
+rule and forced-name-reuse rewrite), so a single-agent launch opens one editable pane
+and a bulk-Patch or multi-prompt `---` launch opens one pane per launched agent in
+launch order. Nothing is recorded across ACE restarts: the targetable history is this
+session's in-memory launch stack, not disk state.
 
 `,X` is meant to undo a premature `<enter>` press, including the moment right after
 submit before the launched agent's row exists yet. In that in-flight window ACE restores
