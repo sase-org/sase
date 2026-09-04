@@ -9,7 +9,7 @@
 schema_version: 1
 aliases:
   xsmall:
-    target: "claude/sonnet@medium | codex/gpt-5.5@medium | grok/grok-4.6@medium | agy/gemini-3.7-flash-high"
+    target: "claude/sonnet@medium | codex/gpt-5.5@medium | grok/grok-4.6@medium | agy/gemini-3.8-flash-high"
     description: >-
       Extra-small launch alias for the smallest direct tasks and tale follow-ups.
   small:

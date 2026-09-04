@@ -81,7 +81,7 @@ def test_size_aliases_use_independent_rotations(
                 "claude/": ("claude/sonnet", "medium"),
                 "codex/": ("codex/gpt-5.5", "medium"),
                 "grok/": ("grok/grok-4.6", "medium"),
-                "agy/": ("agy/gemini-3.7-flash-high", None),
+                "agy/": ("agy/gemini-3.8-flash-high", None),
             },
         ),
         (

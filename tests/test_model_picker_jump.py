@@ -29,12 +29,12 @@ async def test_model_picker_jump_hints_follow_filtered_visible_order() -> None:
         modal.action_jump_to_entry()
 
         visible_ids = modal._jump_target_keys()
-        # Providers render in entry-point order (alphabetical), so the
-        # Antigravity (agy) Gemini slugs lead the filtered list.
+        # Providers render in entry-point order, with Antigravity's newest
+        # Gemini slugs leading the filtered list.
         assert visible_ids[:3] == [
             "__default__",
-            "gemini-3.7-flash-high",
-            "gemini-3.7-flash-medium",
+            "gemini-3.8-flash-high",
+            "gemini-3.8-flash-medium",
         ]
         hints = modal.jump_hints_by_key()
         assert hints[visible_ids[0]] == "0"

@@ -18,6 +18,9 @@ from sase.llm_provider.registry import resolve_model_provider
 from sase.llm_provider.types import LLMInvocationError
 
 _AGY_MODELS = [
+    "gemini-3.8-flash-high",
+    "gemini-3.8-flash-medium",
+    "gemini-3.8-flash-low",
     "gemini-3.7-flash-high",
     "gemini-3.7-flash-medium",
     "gemini-3.7-flash-low",
@@ -61,6 +64,9 @@ def test_agy_provider_metadata_hooks() -> None:
     assert provider.llm_known_model_names() == _AGY_MODELS
     aliases = provider.llm_model_short_aliases()
     assert aliases == {
+        "gemini-3.8-flash-high": "flash38h",
+        "gemini-3.8-flash-medium": "flash38m",
+        "gemini-3.8-flash-low": "flash38l",
         "gemini-3.7-flash-high": "flash37h",
         "gemini-3.7-flash-medium": "flash37m",
         "gemini-3.7-flash-low": "flash37l",

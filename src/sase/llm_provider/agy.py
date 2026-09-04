@@ -275,6 +275,9 @@ class AgyProvider(LLMProvider):
     def llm_known_model_names(self) -> list[str]:
         # Exact stable slugs reported by `agy models`; keep CLI ordering.
         return [
+            "gemini-3.8-flash-high",
+            "gemini-3.8-flash-medium",
+            "gemini-3.8-flash-low",
             "gemini-3.7-flash-high",
             "gemini-3.7-flash-medium",
             "gemini-3.7-flash-low",
@@ -295,6 +298,9 @@ class AgyProvider(LLMProvider):
     def llm_model_short_aliases(self) -> dict[str, str]:
         # Compact aliases for model picker labels and same-provider fan-out ids.
         return {
+            "gemini-3.8-flash-high": "flash38h",
+            "gemini-3.8-flash-medium": "flash38m",
+            "gemini-3.8-flash-low": "flash38l",
             "gemini-3.7-flash-high": "flash37h",
             "gemini-3.7-flash-medium": "flash37m",
             "gemini-3.7-flash-low": "flash37l",

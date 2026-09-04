@@ -155,6 +155,10 @@ def test_resolve_model_provider_explicit_syntax() -> None:
         "agy",
         "gemini-3.7-flash-high",
     )
+    assert resolve_model_provider("agy/gemini-3.8-flash-high") == (
+        "agy",
+        "gemini-3.8-flash-high",
+    )
 
 
 def test_resolve_model_provider_implicit_mapping() -> None:
@@ -187,6 +191,10 @@ def test_resolve_model_provider_implicit_mapping() -> None:
         "agy",
         "gemini-3.7-flash-high",
     )
+    assert resolve_model_provider("gemini-3.8-flash-high") == (
+        "agy",
+        "gemini-3.8-flash-high",
+    )
     assert resolve_model_provider("qwen3.6-plus") == ("qwen", "qwen3.6-plus")
 
 
@@ -208,6 +216,8 @@ def test_resolve_model_provider_explicit_with_unknown_model() -> None:
 def test_model_short_alias_map_contains_agy_entries() -> None:
     """The aggregated alias map carries the agy plugin's entries."""
     aliases = model_short_alias_map()
+    assert aliases.get("gemini-3.8-flash-high") == "flash38h"
+    assert aliases.get("gemini-3.8-flash-low") == "flash38l"
     assert aliases.get("gemini-3.7-flash-high") == "flash37h"
     assert aliases.get("gemini-3.7-flash-low") == "flash37l"
     assert aliases.get("gemini-3.6-flash-high") == "flash36h"

@@ -128,6 +128,33 @@ def test_model_completion_catalog_includes_agy_gemini_37_flash_variants(
         assert f"agy/{model}" in scoped_values
 
 
+def test_model_completion_catalog_includes_agy_gemini_38_flash_variants(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Real registry metadata surfaces all three Antigravity 3.8 Flash rows."""
+    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
+    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
+
+    entries = model_completion.build_model_completion_catalog()
+    model_entries = {entry.value: entry for entry in entries if entry.kind == "model"}
+
+    expected_aliases = {
+        "gemini-3.8-flash-high": "flash38h",
+        "gemini-3.8-flash-medium": "flash38m",
+        "gemini-3.8-flash-low": "flash38l",
+    }
+    for model, alias in expected_aliases.items():
+        assert model in model_entries
+        entry = model_entries[model]
+        assert entry.provider == "agy"
+        assert entry.aliases == (alias,)
+
+    scoped = model_completion.filter_model_completion_entries(entries, "agy/")
+    scoped_values = {entry.value for entry in scoped}
+    for model in expected_aliases:
+        assert f"agy/{model}" in scoped_values
+
+
 def test_model_completion_catalog_hides_fakey_from_real_registry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
