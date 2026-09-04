@@ -14,7 +14,7 @@ from sase.agents_sync.rendering_markdown import (
     state_counts,
 )
 from sase.agents_sync.v2_models import V2HoodSnapshot, V2OwnerManifest
-from sase.core.agent_identity_facade import agent_link_target
+from sase.core.agent_identity_facade import AgentIdentitySnapshot, agent_link_target
 
 _AGENTS_DIRECTORY_MAP_MARKDOWN = (
     "![Project-scoped agent hoods pass through explicit privacy consent into "
@@ -147,6 +147,7 @@ def render_hood_page(snapshot: V2HoodSnapshot, hood_root: str) -> str:
     """Render a hood's run roster."""
 
     owner = snapshot.owner
+    identity = AgentIdentitySnapshot(owner)
     machine_rel = "../../README.md"
     user_rel = "../../../../README.md"
     root_rel = "../../../../../../README.md"
@@ -167,7 +168,7 @@ def render_hood_page(snapshot: V2HoodSnapshot, hood_root: str) -> str:
         "|---|---|---|---|---:|---|",
     ]
     for run in snapshot.runs:
-        target = agent_link_target(run.local_name, owner)
+        target = agent_link_target(run.local_name, owner, identity)
         target_path = target.path + (
             f"#{target.anchor}" if target.anchor is not None else ""
         )

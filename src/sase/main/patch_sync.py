@@ -74,6 +74,7 @@ def handle_sync_external(
     """Handle ``sase patch sync-external``."""
     from rich.table import Table
 
+    _refresh_console_width_from_env(console_obj)
     records = [
         record
         for record in list_project_records_fn(
@@ -153,6 +154,22 @@ def handle_sync_external(
 
     console_obj.print(table)
     return exit_code
+
+
+def _refresh_console_width_from_env(console_obj: Any) -> None:
+    raw = os.environ.get("COLUMNS")
+    if raw is None:
+        return
+    try:
+        width = int(raw)
+    except ValueError:
+        return
+    if width <= 0:
+        return
+    try:
+        console_obj.width = width
+    except AttributeError:
+        return
 
 
 def select_sync_external_project(

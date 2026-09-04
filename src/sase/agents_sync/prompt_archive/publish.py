@@ -137,7 +137,7 @@ def _publish_prompt_archive(
             local_agent=agent_ref.local_name,
             global_agent=agent_ref.global_name,
             primary_revision=primary_revision,
-            local_hood=agent_local_hood(agent_ref.local_name),
+            local_hood=agent_local_hood(agent_ref.local_name, identity),
         )
     )
 

@@ -28,6 +28,18 @@ def _single_line(text: str) -> str:
     return " ".join(text.split())
 
 
+def _legacy_chezmoi_provider_copy(content: str) -> str:
+    _title, separator, body = content.partition("\n")
+    assert separator
+    return (
+        '{{ if eq .chezmoi.hostname "Kellys-MBP" }}# kellys_mbp - Kelly\'s MacBook Pro'
+        '{{ else if eq .chezmoi.hostname "apollo" }}# apollo - Bryan Bugyi\'s Rendezvous Server'
+        '{{ else if eq .chezmoi.hostname "athena" }}# athena - Bryan Bugyi\'s Home Server'
+        "{{ else }}# kellys_mbp - Kelly's MacBook Pro{{ end }}\n"
+        f"{body}"
+    )
+
+
 def test_init_memory_uses_chezmoi_home_and_global_config_source(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -142,6 +154,60 @@ def test_init_memory_chezmoi_migrates_plain_provider_shim_source(
     assert (chezmoi_home / "CLAUDE.md").read_text() == agents
     assert not (chezmoi_home / "CLAUDE.md.tmpl").exists()
     assert chezmoi_home / "CLAUDE.md" in deployed
+
+
+def test_init_memory_chezmoi_migrates_generated_legacy_provider_templates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+        use_chezmoi=True,
+    )
+    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+
+    deployed: list[Path] = []
+    deleted: list[Path] = []
+
+    def fake_deploy(
+        paths: Iterable[Path],
+        delete_targets: Sequence[Path] = (),
+    ) -> int:
+        deployed.extend(paths)
+        deleted.extend(delete_targets)
+        return 0
+
+    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", fake_deploy)
+
+    assert run_handler() == 0
+    agents = (chezmoi_home / "AGENTS.md").read_text()
+    for filename in ("AGENTS.md", *PROVIDER_SHIM_FILES):
+        (chezmoi_home / filename).unlink()
+    write(chezmoi_home / "AGENTS.md.tmpl", _legacy_chezmoi_provider_copy(agents))
+    for filename in PROVIDER_SHIM_FILES:
+        write(chezmoi_home / f"{filename}.tmpl", _legacy_chezmoi_provider_copy(agents))
+    deployed.clear()
+    deleted.clear()
+
+    assert run_handler() == 0
+
+    agents = (chezmoi_home / "AGENTS.md").read_text()
+    assert not (chezmoi_home / "AGENTS.md.tmpl").exists()
+    assert Path.home() / "AGENTS.md" in deleted
+    for filename in PROVIDER_SHIM_FILES:
+        assert (chezmoi_home / filename).read_text() == agents
+        assert not (chezmoi_home / f"{filename}.tmpl").exists()
+        assert chezmoi_home / filename in deployed
+        assert Path.home() / filename in deleted
 
 
 def test_init_memory_deferred_chezmoi_collects_paths_without_deploy(

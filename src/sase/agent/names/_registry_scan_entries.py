@@ -265,7 +265,7 @@ def _localize_v2_payload_name(
     root = (
         f"{source_owner.machine_name}."
         if classification is AgentOwnershipClassification.SAME_USER_OTHER_MACHINE
-        else f"{source_owner.username}."
+        else f"{source_owner.username}.{source_owner.machine_name}."
     )
     if name.startswith(root):
         return name

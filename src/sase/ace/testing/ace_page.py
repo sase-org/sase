@@ -283,6 +283,8 @@ class AcePage:
             if app is not None:
                 await _drain_app_work(app)
             await stack.aclose()
+            if app is not None:
+                await _drain_app_work(app)
             self._stack = None
             _stop_ace_app_proc_observer(app)
             raise
@@ -301,6 +303,8 @@ class AcePage:
                 await _drain_app_work(app)
             if stack is not None:
                 await stack.__aexit__(exc_type, exc_val, exc_tb)
+            if app is not None:
+                await _drain_app_work(app)
         finally:
             _stop_ace_app_proc_observer(app)
 

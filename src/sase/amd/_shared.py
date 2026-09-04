@@ -36,6 +36,9 @@ _PROVIDER_SHIM_TEXTS = frozenset(
     }
 )
 _ABSOLUTE_AGENTS_IMPORT_RE = re.compile(r"^@/.+/AGENTS\.md$")
+_CHEZMOI_GENERATED_TITLE_RE = re.compile(
+    r"^\{\{.*\.chezmoi\.hostname.*\}\}# .+\{\{ end \}\}$"
+)
 
 
 @dataclass(frozen=True)
@@ -209,6 +212,16 @@ def _is_provider_shim_text(text: str) -> bool:
     )
 
 
+def _is_legacy_generated_chezmoi_copy(text: str, *, expected_content: str) -> bool:
+    title, separator, body = text.partition("\n")
+    expected_title, expected_separator, expected_body = expected_content.partition("\n")
+    if not separator or not expected_separator or body != expected_body:
+        return False
+    if not expected_title.startswith("# "):
+        return False
+    return bool(_CHEZMOI_GENERATED_TITLE_RE.fullmatch(title))
+
+
 def _provider_state_for_text(
     text: str,
     *,
@@ -218,6 +231,10 @@ def _provider_state_for_text(
     if preferred and text == expected_content:
         return "exact_shim"
     if _is_provider_shim_text(text):
+        return "shim"
+    if not preferred and _is_legacy_generated_chezmoi_copy(
+        text, expected_content=expected_content
+    ):
         return "shim"
     return "custom"
 
@@ -403,12 +420,18 @@ def provider_shim_plan(
                 continue
 
             managed = is_managed_agents_document(legacy_text)
-            if _is_provider_shim_text(legacy_text) or managed:
+            legacy_generated = _is_legacy_generated_chezmoi_copy(
+                legacy_text,
+                expected_content=spec.content,
+            )
+            if _is_provider_shim_text(legacy_text) or managed or legacy_generated:
                 delete = _planned_delete(
                     legacy_path,
                     detail="legacy provider instruction shim",
-                    expected_content=legacy_text if managed else None,
-                    allow_custom=managed,
+                    expected_content=(
+                        legacy_text if managed or legacy_generated else None
+                    ),
+                    allow_custom=managed or legacy_generated,
                 )
                 if delete is not None:
                     deletes.append(delete)
@@ -429,4 +452,54 @@ def provider_shim_plan(
         writes=tuple(writes),
         deletes=tuple(deletes),
         source_path=source_path,
+    )
+
+
+def legacy_agents_template_plan(
+    root: Path,
+    *,
+    agents_content: str,
+    chezmoi_home_roots: Iterable[Path] = (),
+) -> ProviderShimPlan:
+    """Return a guarded delete plan for old generated chezmoi ``AGENTS.md.tmpl``."""
+    if not is_chezmoi_home_root(root, chezmoi_home_roots=chezmoi_home_roots):
+        return ProviderShimPlan(writes=(), deletes=(), source_path=root / "AGENTS.md")
+
+    legacy_path = root / "AGENTS.md.tmpl"
+    if not legacy_path.exists():
+        return ProviderShimPlan(writes=(), deletes=(), source_path=root / "AGENTS.md")
+
+    legacy_text, legacy_error = read_text(legacy_path)
+    if legacy_error is not None or legacy_text is None:
+        return ProviderShimPlan(
+            writes=(),
+            deletes=(),
+            blockers=(legacy_error or f"{legacy_path}: failed to read legacy source",),
+            source_path=root / "AGENTS.md",
+        )
+
+    if legacy_text == agents_content or _is_legacy_generated_chezmoi_copy(
+        legacy_text,
+        expected_content=agents_content,
+    ):
+        delete = _planned_delete(
+            legacy_path,
+            detail="legacy managed AGENTS.md source",
+            expected_content=legacy_text,
+            allow_custom=True,
+        )
+        return ProviderShimPlan(
+            writes=(),
+            deletes=() if delete is None else (delete,),
+            source_path=root / "AGENTS.md",
+        )
+
+    return ProviderShimPlan(
+        writes=(),
+        deletes=(),
+        blockers=(
+            f"{legacy_path}: custom legacy AGENTS.md template must be migrated "
+            "or removed before managing AGENTS.md",
+        ),
+        source_path=root / "AGENTS.md",
     )

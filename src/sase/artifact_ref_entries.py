@@ -184,13 +184,17 @@ def reference_for_agent_name(name: str) -> str | None:
     from sase.core.agent_identity_facade import (
         AgentIdentitySnapshot,
         current_owner_agent_name_lookup_candidates,
+        foreign_agent_owner_root,
         globalize_owned_agent_name,
     )
 
     identity = AgentIdentitySnapshot.current()
-    candidates = current_owner_agent_name_lookup_candidates(name, identity)
-    global_name = globalize_owned_agent_name(name, identity)
-    durable_name = global_name if global_name in candidates else name
+    if foreign_agent_owner_root(name, identity) is not None:
+        durable_name = name
+    else:
+        candidates = current_owner_agent_name_lookup_candidates(name, identity)
+        global_name = globalize_owned_agent_name(name, identity)
+        durable_name = global_name if global_name in candidates else name
     try:
         return parse_artifact_ref(f"agent:{durable_name}").rendered
     except ValueError:

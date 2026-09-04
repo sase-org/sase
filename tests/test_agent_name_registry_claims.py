@@ -201,7 +201,7 @@ def test_v2_import_rejects_owner_and_namespace_collisions_atomically(
     source_owner = AgentOwnerIdentity("bob", "athena")
 
     with patch.object(Path, "home", return_value=tmp_path):
-        claim_registered_name("bob.local", first)
+        claim_registered_name("bob.athena.local", first)
         before = load_name_registry()
         with pytest.raises(ImportedNameCollisionError):
             claim_imported_registered_name_v2(

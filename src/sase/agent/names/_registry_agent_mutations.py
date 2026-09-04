@@ -12,6 +12,7 @@ from sase.agent.names._registry_mutation_support import (
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     current_owner_agent_name_lookup_candidates,
+    foreign_agent_owner_root,
     normalize_owned_agent_name,
     present_agent_name,
 )
@@ -27,7 +28,7 @@ def claim_registered_name(
     """Best-effort upsert of a claimed name into the registry."""
     with operations.lock():
         identity = AgentIdentitySnapshot.current()
-        name = normalize_owned_agent_name(name, identity)
+        name = _normalize_local_registry_name(name, identity)
         artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
         entries = dict(operations.load()["entries"])
         ensure_local_namespace_available(entries, name)
@@ -64,7 +65,7 @@ def reserve_registered_name(
     """Reserve *name* for a not-yet-started agent artifacts directory."""
     with operations.lock():
         identity = AgentIdentitySnapshot.current()
-        name = normalize_owned_agent_name(name, identity)
+        name = _normalize_local_registry_name(name, identity)
         artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
         entries = dict(operations.load()["entries"])
         ensure_local_namespace_available(entries, name)
@@ -90,6 +91,23 @@ def reserve_registered_name(
         )
         entries[storage_name] = entry
         operations.save_entries(entries)
+
+
+def _normalize_local_registry_name(
+    name: str,
+    identity: AgentIdentitySnapshot,
+) -> str:
+    try:
+        return normalize_owned_agent_name(name, identity)
+    except ValueError as exc:
+        foreign_root = foreign_agent_owner_root(name, identity)
+        if foreign_root is None:
+            raise
+        from sase.agent.names._common import NameCollisionError
+
+        raise NameCollisionError(
+            f"agent name '{name}' is inside reserved owner namespace '{foreign_root}'"
+        ) from exc
 
 
 def release_planned_registered_name(

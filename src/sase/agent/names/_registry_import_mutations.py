@@ -26,6 +26,7 @@ from sase.core.agent_identity_facade import (
     classify_imported_agent_owner,
     current_owner_agent_name_lookup_candidates,
     localize_imported_agent_name,
+    validate_owner_root,
 )
 
 
@@ -40,6 +41,7 @@ class ImportedV2RegistryClaim:
     digest: str
     container_kind: str | None = None
     clan_generation: str | None = None
+    registry_namespace_root: str | None = None
 
 
 def claim_imported_registered_name(
@@ -246,10 +248,14 @@ def _apply_imported_v2_registry_claim(
             identity,
         )
     elif classification is AgentOwnershipClassification.SAME_USER_OTHER_MACHINE:
-        source_root = claim.source_owner.machine_name
+        source_root = claim.registry_namespace_root or claim.source_owner.machine_name
+        validate_owner_root(source_root)
         candidates = (claim.localized_name,)
     else:
-        source_root = claim.source_owner.username
+        source_root = claim.registry_namespace_root or (
+            f"{claim.source_owner.username}.{claim.source_owner.machine_name}"
+        )
+        validate_owner_root(source_root)
         candidates = (claim.localized_name,)
 
     if adopted_v1_artifact_dirs:
@@ -258,6 +264,15 @@ def _apply_imported_v2_registry_claim(
             legacy_candidate = claim.canonical_global_name[len(username_prefix) :]
             if legacy_candidate not in candidates:
                 candidates = (*candidates, legacy_candidate)
+
+    legacy_username_root: str | None = None
+    if (
+        classification is AgentOwnershipClassification.OTHER_USER
+        and claim.registry_namespace_root is None
+        and source_root != claim.source_owner.username
+    ):
+        legacy_username_root = claim.source_owner.username
+        validate_owner_root(legacy_username_root)
 
     existing_name: str | None = None
     existing: dict[str, Any] | None = None
@@ -324,6 +339,13 @@ def _apply_imported_v2_registry_claim(
                 existing=existing,
             )
     if source_root is not None:
+        if legacy_username_root is not None:
+            ensure_import_namespace_available(
+                entries,
+                source_root=legacy_username_root,
+                source_owner=claim.source_owner,
+                destination_name=claim.localized_name,
+            )
         ensure_import_namespace_available(
             entries,
             source_root=source_root,

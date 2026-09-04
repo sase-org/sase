@@ -42,6 +42,7 @@ class HoodPlan:
     containers: tuple[PlannedContainer, ...]
     registry_claims: tuple[ImportedV2RegistryClaim, ...]
     relationships: tuple[Mapping[str, Any], ...]
+    registry_namespace_root: str | None = None
 
     @property
     def changed_runs(self) -> tuple[PlannedRun, ...]:

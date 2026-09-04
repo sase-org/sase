@@ -7,8 +7,9 @@ indexes, never by scanning live agent directories; see
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Any
 
 from sase.completion.candidates.catalog_support import (
     dedupe,
@@ -16,83 +17,122 @@ from sase.completion.candidates.catalog_support import (
 )
 from sase.completion.candidates.protocol import Candidate
 
-if TYPE_CHECKING:
-    from sase.core.agent_scan_wire import AgentArtifactScanWire
 
-
-def _query_agent_index(*, only_monitors: bool) -> AgentArtifactScanWire:
-    from sase.core.agent_scan_facade import (
-        default_agent_artifact_index_path,
-        query_agent_artifact_index,
-    )
-    from sase.core.agent_scan_wire import AgentArtifactIndexQueryWire
+def _query_agent_index(*, only_monitors: bool) -> tuple[Mapping[str, Any], ...]:
+    from sase.core.agent_artifact_index_lock import agent_artifact_index_operation_lock
+    from sase.core.paths import sase_home
     from sase.core.paths import sase_projects_dir
+    from sase.core.rust import require_rust_binding
 
-    return query_agent_artifact_index(
-        default_agent_artifact_index_path(),
-        sase_projects_dir(),
-        query=AgentArtifactIndexQueryWire(
-            only_monitors=only_monitors,
-            freshness="cached",
-        ),
-    )
+    query = {
+        "include_active": True,
+        "include_recent_completed": True,
+        "include_full_history": False,
+        "active_limit": None,
+        "recent_completed_limit": 200,
+        "include_hidden": False,
+        "freshness": "cached",
+        "only_monitors": only_monitors,
+        "record_shape": "list",
+        "window_limit": None,
+        "candidate_filter": None,
+    }
+    options = {
+        "include_prompt_step_markers": False,
+        "include_raw_prompt_snippets": False,
+        "max_prompt_snippet_bytes": 0,
+        "only_workflow_dirs": [],
+        "max_records": None,
+        "newest_first": False,
+        "not_before_timestamp": None,
+        "include_done_markers": True,
+        "include_workflow_state": False,
+        "include_waiting": False,
+        "only_projects": [],
+        "include_project_states": [],
+    }
+    with agent_artifact_index_operation_lock():
+        payload = require_rust_binding("query_agent_artifact_index")(
+            str(sase_home() / "agent_artifact_index.sqlite"),
+            str(sase_projects_dir()),
+            query,
+            options,
+        )
+    if not isinstance(payload, Mapping):
+        return ()
+    records = payload.get("records")
+    if not isinstance(records, list):
+        return ()
+    return tuple(record for record in records if isinstance(record, Mapping))
 
 
 def agent_source_path(_project: str | None) -> Path | None:
     """Return the agent artifact index whose mtime invalidates agent names."""
-    from sase.core.agent_scan_facade import default_agent_artifact_index_path
+    from sase.core.paths import sase_home
 
-    return default_agent_artifact_index_path()
+    return sase_home() / "agent_artifact_index.sqlite"
 
 
 def agent_candidates(project: str | None) -> list[Candidate]:
     """Return every known agent name, described by its project."""
     try:
-        scan = _query_agent_index(only_monitors=False)
+        records = _query_agent_index(only_monitors=False)
     except Exception:
+        return []
+    if not records:
         return []
     _records, snapshot = project_records_and_snapshot(project)
     candidates: list[Candidate] = []
-    for record in scan.records:
-        if project is not None and record.project_name != project:
+    for record in records:
+        project_name = str(record.get("project_name") or "")
+        if project is not None and project_name != project:
             continue
         name = None
-        if record.agent_meta is not None and record.agent_meta.name:
-            name = record.agent_meta.name
-        elif record.done is not None and record.done.name:
-            name = record.done.name
+        meta = record.get("agent_meta")
+        done = record.get("done")
+        if isinstance(meta, Mapping) and meta.get("name"):
+            name = str(meta["name"])
+        elif isinstance(done, Mapping) and done.get("name"):
+            name = str(done["name"])
         if not name:
             continue
-        candidates.append(Candidate(name, snapshot.label_for(record.project_name)))
+        candidates.append(Candidate(name, snapshot.label_for(project_name)))
     return dedupe(candidates)
 
 
 def monitor_source_path(_project: str | None) -> Path | None:
     """Return the agent artifact index whose mtime invalidates monitor ids."""
-    from sase.core.agent_scan_facade import default_agent_artifact_index_path
+    from sase.core.paths import sase_home
 
-    return default_agent_artifact_index_path()
+    return sase_home() / "agent_artifact_index.sqlite"
 
 
 def monitor_candidates(project: str | None) -> list[Candidate]:
     """Return every monitor id, described by its label or agent name."""
     try:
-        scan = _query_agent_index(only_monitors=True)
+        records = _query_agent_index(only_monitors=True)
     except Exception:
         return []
     candidates: list[Candidate] = []
-    for record in scan.records:
-        if project is not None and record.project_name != project:
+    for record in records:
+        project_name = str(record.get("project_name") or "")
+        if project is not None and project_name != project:
             continue
-        meta = record.agent_meta
-        shell = None if meta is None else meta.family_shell
-        monitor_shell = shell if shell is not None and shell.kind == "monitor" else None
-        if meta is None or meta.agent_family_role != "monitor" or monitor_shell is None:
+        meta = record.get("agent_meta")
+        if not isinstance(meta, Mapping):
             continue
-        monitor_id = monitor_shell.id
+        shell = meta.get("family_shell")
+        monitor_shell = (
+            shell
+            if isinstance(shell, Mapping) and shell.get("kind") == "monitor"
+            else None
+        )
+        if meta.get("agent_family_role") != "monitor" or monitor_shell is None:
+            continue
+        monitor_id = str(monitor_shell.get("id") or "")
         if not monitor_id:
             continue
-        description = monitor_shell.label or meta.name or ""
+        description = str(monitor_shell.get("label") or meta.get("name") or "")
         candidates.append(Candidate(monitor_id, description))
     return dedupe(candidates)
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 import json
 from pathlib import Path
@@ -15,6 +16,7 @@ from sase.agents_sync import v2_import_planning
 from sase.agents_sync import v2_importer
 from sase.agents_sync.models import ProjectTarget
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
+from sase.agents_sync.v2_models import V2RelationshipRecord, V2RelationshipTarget
 
 from tests.agents_sync.v2_importer_fixtures import (
     LOCAL_OWNER,
@@ -234,6 +236,43 @@ def test_preflight_context_scans_artifacts_once_for_multi_run_import(
     assert imported.runs_imported == 2
     assert history_scans == 2
     assert planning_scans == 1
+
+
+def test_preflight_hood_uses_core_graph_projection_for_import_names(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, package = published_package(tmp_path)
+    isolate_local_state(tmp_path, target, monkeypatch)
+    relationship = V2RelationshipRecord(
+        "wait",
+        "source-2",
+        V2RelationshipTarget("source_run_id", source_run_id="source-1"),
+        True,
+    )
+    package = replace(
+        package,
+        snapshot=replace(package.snapshot, relationships=(relationship,)),
+    )
+
+    plan = v2_import_planning.preflight_hood(
+        target,
+        package,
+        AgentIdentitySnapshot(LOCAL_OWNER, (), ("bob.zeus",)),
+    )
+
+    assert plan.registry_namespace_root == "bob.zeus"
+    assert [run.localized_name for run in plan.runs] == [
+        "bob.zeus.crew--plan",
+        "bob.zeus.crew--code",
+    ]
+    assert [container.localized_name for container in plan.containers] == [
+        "bob.zeus.crew"
+    ]
+    assert plan.relationships[0]["target"]["localized_name"] == ("bob.zeus.crew--plan")
+    assert {claim.registry_namespace_root for claim in plan.registry_claims} == {
+        "bob.zeus"
+    }
 
 
 def test_shared_preflight_context_recovers_transactions_once(

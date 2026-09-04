@@ -155,6 +155,7 @@ def test_plan_file_mode_archives_prompt_link_per_expect_prompt_snapshot(
     class Resolver:
         def prompt_url(self, prompt_ref: str) -> str | None:
             prompt_refs.append(prompt_ref)
+            assert prompt_ref.endswith("/rollout.md")
             return f"https://github.com/sase-org/sase--agents/blob/main/{prompt_ref}"
 
         def bead_url(self, _bead_id: str) -> None:

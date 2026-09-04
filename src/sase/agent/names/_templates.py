@@ -359,13 +359,33 @@ def render_agent_name_template_namespace(template: str, token: str) -> str:
 def match_agent_name_template(template: str, concrete: str) -> str | None:
     """Return the canonical template token in *concrete*, if it matches."""
     identity = AgentIdentitySnapshot.current()
-    local_template = present_agent_name(template, identity)
+    local_template = _present_template_match_value(template, identity)
     local_concrete = present_agent_name(concrete, identity)
     try:
         token = _core("match_agent_name_template")(local_template, local_concrete)
     except ValueError as exc:
         raise _template_error(template, exc) from exc
     return None if token is None else str(token)
+
+
+def _present_template_match_value(
+    value: str,
+    identity: AgentIdentitySnapshot,
+) -> str:
+    if AGENT_NAME_TEMPLATE_MARKER not in value:
+        return present_agent_name(value, identity)
+
+    owner = identity.owner
+    if owner is None:
+        return value
+    match = re.match(r"^(\d{6}\.)(.+)$", value)
+    prefix = match.group(1) if match else ""
+    core = match.group(2) if match else value
+    for root in (f"{owner.username}.{owner.machine_name}", owner.machine_name):
+        root_prefix = f"{root}."
+        if core.startswith(root_prefix):
+            return prefix + core[len(root_prefix) :]
+    return value
 
 
 def compare_agent_name_template_tokens(left: str, right: str) -> int:

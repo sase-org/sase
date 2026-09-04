@@ -235,11 +235,12 @@ def collect_owner_namespace_entries(
                         ),
                     )
             else:
+                root = f"{source_owner.username}.{source_owner.machine_name}"
                 _reserve_owner_namespace_root(
                     entries,
-                    source_owner.username,
+                    root,
                     owner_namespace_entry(
-                        source_owner.username,
+                        root,
                         namespace_kind="foreign_username",
                         source_owner=source_owner,
                     ),

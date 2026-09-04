@@ -16,6 +16,7 @@ from sase.agents_sync.v2_models import (
     V2RunRecord,
 )
 from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
     agent_link_target,
     agent_name_ancestors,
 )
@@ -110,6 +111,7 @@ def build_hood_kinship(snapshot: V2HoodSnapshot) -> HoodKinshipProjection:
     family_by_member: dict[str, V2ContainerRecord] = {}
     nodes: list[_Node] = []
     owner_prefix = f"{snapshot.owner.username}.{snapshot.owner.machine_name}."
+    identity = AgentIdentitySnapshot(snapshot.owner)
 
     for container in snapshot.containers:
         if container.kind != "family":
@@ -124,7 +126,7 @@ def build_hood_kinship(snapshot: V2HoodSnapshot) -> HoodKinshipProjection:
                 page_path=f"families/{container.global_name}.md",
                 runs=members,
                 is_family=True,
-                chain=agent_name_ancestors(node_name),
+                chain=agent_name_ancestors(node_name, identity),
             )
         )
         for source_id in container.member_source_run_ids:
@@ -133,7 +135,7 @@ def build_hood_kinship(snapshot: V2HoodSnapshot) -> HoodKinshipProjection:
     for run in snapshot.runs:
         if run.source_run_id in family_by_member:
             continue
-        target = agent_link_target(run.local_name, snapshot.owner)
+        target = agent_link_target(run.local_name, snapshot.owner, identity)
         page_path = target.path
         if not page_path.startswith("agents/"):
             page_path = f"agents/{run.global_name}/README.md"
@@ -143,7 +145,7 @@ def build_hood_kinship(snapshot: V2HoodSnapshot) -> HoodKinshipProjection:
                 page_path=page_path,
                 runs=(run,),
                 is_family=False,
-                chain=agent_name_ancestors(run.local_name),
+                chain=agent_name_ancestors(run.local_name, identity),
             )
         )
 

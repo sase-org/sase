@@ -7,9 +7,12 @@ and mappings at the application boundary.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 from enum import StrEnum
+from functools import lru_cache
+import json
+from pathlib import Path
 import re
 from typing import Any
 
@@ -48,6 +51,7 @@ class AgentIdentitySnapshot:
 
     owner: AgentOwnerIdentity | None
     sibling_machines: tuple[str, ...] = ()
+    known_owner_roots: tuple[str, ...] = ()
 
     @classmethod
     def current(cls) -> AgentIdentitySnapshot:
@@ -56,14 +60,24 @@ class AgentIdentitySnapshot:
 
         owner = get_agent_owner_identity()
         if owner is None:
-            return cls(None, ())
+            return cls(None, (), ())
         siblings = tuple(dict.fromkeys((*discover_machine_names(), owner.machine_name)))
-        return cls(owner, siblings)
+        roots = _discover_known_owner_roots(owner, siblings)
+        return cls(owner, siblings, roots)
 
     @classmethod
     def unconfigured(cls) -> AgentIdentitySnapshot:
         """Return the strict no-owner compatibility snapshot."""
-        return cls(None, ())
+        return cls(None, (), ())
+
+
+@dataclass(frozen=True, slots=True)
+class _ParsedOwnedAgentName:
+    owner_root: str | None
+    local_name: str
+    hood: str
+    family_name: str
+    member_role: str | None
 
 
 class AgentOwnershipClassification(StrEnum):
@@ -131,7 +145,169 @@ class _RewrittenAgentRelationshipBatch:
     relationships: tuple[Mapping[str, Any], ...]
 
 
+@dataclass(frozen=True, slots=True)
+class _ProjectedAgentRelationshipGraph:
+    schema_version: int
+    source_owner: AgentOwnerIdentity
+    destination_owner: AgentOwnerIdentity
+    registry_namespace_root: str | None
+    runs: tuple[Mapping[str, Any], ...]
+    containers: tuple[Mapping[str, Any], ...]
+    relationships: tuple[Mapping[str, Any], ...]
+
+
 _DISMISSED_PREFIX_RE = re.compile(r"^(\d{6}\.)(.+)$")
+_REGISTRY_FILENAME = "agent_name_registry.json"
+
+
+@lru_cache(maxsize=32)
+def _discover_known_owner_roots(
+    owner: AgentOwnerIdentity,
+    sibling_machines: tuple[str, ...],
+) -> tuple[str, ...]:
+    candidates: list[str] = [*sibling_machines]
+    candidates.append(owner.machine_name)
+    candidates.append(f"{owner.username}.{owner.machine_name}")
+    candidates.extend(_registry_owner_roots(owner))
+    candidates.extend(_agents_sidecar_owner_roots(owner))
+    return _valid_owner_roots(candidates)
+
+
+def _valid_owner_roots(candidates: Iterable[str]) -> tuple[str, ...]:
+    binding = require_rust_binding("validate_owner_root")
+    roots: list[str] = []
+    for candidate in candidates:
+        if not isinstance(candidate, str) or not candidate:
+            continue
+        try:
+            binding(candidate)
+        except (RuntimeError, ValueError):
+            continue
+        roots.append(candidate)
+    return tuple(
+        sorted(dict.fromkeys(roots), key=lambda value: (-value.count("."), value))
+    )
+
+
+def _registry_owner_roots(current_owner: AgentOwnerIdentity) -> tuple[str, ...]:
+    try:
+        from sase.core.paths import sase_home
+
+        path = sase_home() / _REGISTRY_FILENAME
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return ()
+    if not isinstance(data, dict):
+        return ()
+    entries = data.get("entries")
+    if not isinstance(entries, dict):
+        return ()
+
+    roots: list[str] = []
+    for name, entry in entries.items():
+        if not isinstance(name, str) or not isinstance(entry, dict):
+            continue
+        if entry.get("container_kind") == "owner_namespace":
+            roots.append(name)
+        source_owner = _owner_from_untrusted_mapping(entry.get("source_owner"))
+        if source_owner is not None:
+            roots.extend(_source_owner_roots(source_owner, current_owner))
+    return tuple(roots)
+
+
+def _agents_sidecar_owner_roots(current_owner: AgentOwnerIdentity) -> tuple[str, ...]:
+    roots: list[str] = []
+    for repo_root in _configured_agents_sidecar_paths():
+        users_dir = repo_root / "users"
+        if not users_dir.is_dir():
+            continue
+        try:
+            machine_dirs = sorted(
+                users_dir.glob("*/machines/*"),
+                key=lambda path: path.as_posix(),
+            )
+        except OSError:
+            continue
+        for machine_dir in machine_dirs:
+            if not machine_dir.is_dir():
+                continue
+            username = machine_dir.parent.parent.name
+            machine_name = machine_dir.name
+            owner = AgentOwnerIdentity(username, machine_name)
+            roots.extend(_source_owner_roots(owner, current_owner))
+            roots.extend(
+                _manifest_owner_roots(machine_dir / "manifest.json", current_owner)
+            )
+    return tuple(roots)
+
+
+@lru_cache(maxsize=1)
+def _configured_agents_sidecar_paths() -> tuple[Path, ...]:
+    try:
+        from sase.agents_sync.targets import resolve_sync_targets
+
+        selection = resolve_sync_targets()
+    except Exception:
+        return ()
+    paths: list[Path] = []
+    for target in selection.targets:
+        try:
+            paths.append(Path(target.sidecar_path).expanduser().resolve(strict=False))
+        except OSError:
+            continue
+    return tuple(dict.fromkeys(paths))
+
+
+def _manifest_owner_roots(
+    path: Path,
+    current_owner: AgentOwnerIdentity,
+) -> tuple[str, ...]:
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return ()
+    if not isinstance(data, dict):
+        return ()
+    owner = _owner_from_untrusted_mapping(data.get("owner"))
+    if owner is None:
+        return ()
+    return _source_owner_roots(owner, current_owner)
+
+
+def _owner_from_untrusted_mapping(value: Any) -> AgentOwnerIdentity | None:
+    if not isinstance(value, Mapping):
+        return None
+    username = value.get("username")
+    machine_name = value.get("machine_name")
+    if not isinstance(username, str) or not isinstance(machine_name, str):
+        return None
+    return AgentOwnerIdentity(username, machine_name)
+
+
+def _source_owner_roots(
+    source_owner: AgentOwnerIdentity,
+    current_owner: AgentOwnerIdentity,
+) -> tuple[str, ...]:
+    canonical = f"{source_owner.username}.{source_owner.machine_name}"
+    if source_owner.username == current_owner.username:
+        return (source_owner.machine_name, canonical)
+    return (canonical,)
+
+
+def _known_owner_roots(
+    snapshot: AgentIdentitySnapshot,
+) -> tuple[str, ...]:
+    if snapshot.owner is None:
+        return ()
+    return snapshot.known_owner_roots or _valid_owner_roots(
+        (
+            *snapshot.sibling_machines,
+            snapshot.owner.machine_name,
+            f"{snapshot.owner.username}.{snapshot.owner.machine_name}",
+        )
+    )
 
 
 def validate_agent_username(username: str) -> None:
@@ -139,15 +315,31 @@ def validate_agent_username(username: str) -> None:
     binding(username)
 
 
-def validate_new_agent_name(name: str) -> None:
+def validate_owner_root(root: str) -> None:
+    binding = require_rust_binding("validate_owner_root")
+    binding(root)
+
+
+def validate_new_agent_name(
+    name: str,
+    identity: AgentIdentitySnapshot | None = None,
+) -> None:
     """Strictly validate a name the runtime is about to create.
 
     Historical classification helpers are total on purpose, so a legacy name
     such as ``fi--code.f0`` is read rather than rejected. Name *creation* keeps
     the strict rule: at most one ``--<role>`` suffix, in the final segment.
     """
-    binding = require_rust_binding("validate_agent_name")
-    binding(name)
+    snapshot = identity or AgentIdentitySnapshot.current()
+    owner = snapshot.owner
+    if owner is None:
+        binding = require_rust_binding("validate_agent_name")
+        binding(name)
+        return
+    binding = require_rust_binding("validate_owned_agent_name")
+    binding(
+        name, owner.username, owner.machine_name, list(_known_owner_roots(snapshot))
+    )
 
 
 def validate_agent_owner(owner: AgentOwnerIdentity) -> None:
@@ -200,20 +392,6 @@ def globalize_agent_name(
     return str(binding(local_name, owner.username, owner.machine_name))
 
 
-def _strip_global_agent_name(
-    global_name: str,
-    source_owner: AgentOwnerIdentity,
-) -> str:
-    binding = require_rust_binding("strip_global_agent_name")
-    return str(
-        binding(
-            global_name,
-            source_owner.username,
-            source_owner.machine_name,
-        )
-    )
-
-
 def _localize_agent_name(
     global_name: str,
     source: AgentSourceOwnerIdentity,
@@ -247,14 +425,15 @@ def normalize_owned_agent_name(
     owner = snapshot.owner
     if owner is None:
         return name
-    prefix, core_name = _split_dismissed_prefix(name)
-    machine_prefix = f"{owner.machine_name}."
-    global_prefix = f"{owner.username}.{owner.machine_name}."
-    if core_name.startswith(global_prefix):
-        core_name = _strip_global_agent_name(core_name, owner)
-    elif core_name.startswith(machine_prefix):
-        core_name = core_name[len(machine_prefix) :]
-    return prefix + core_name
+    binding = require_rust_binding("normalize_owned_agent_name")
+    return str(
+        binding(
+            name,
+            owner.username,
+            owner.machine_name,
+            list(_known_owner_roots(snapshot)),
+        )
+    )
 
 
 def globalize_owned_agent_name(
@@ -266,9 +445,15 @@ def globalize_owned_agent_name(
     owner = snapshot.owner
     if owner is None:
         return name
-    prefix, core_name = _split_dismissed_prefix(name)
-    bare = normalize_owned_agent_name(core_name, snapshot)
-    return prefix + globalize_agent_name(bare, owner)
+    binding = require_rust_binding("globalize_owned_agent_name")
+    return str(
+        binding(
+            name,
+            owner.username,
+            owner.machine_name,
+            list(_known_owner_roots(snapshot)),
+        )
+    )
 
 
 def localize_imported_agent_name(
@@ -299,7 +484,13 @@ def present_agent_name(
     identity: AgentIdentitySnapshot | None = None,
 ) -> str:
     """Hide only explicit current-owner compatibility prefixes."""
-    return normalize_owned_agent_name(name, identity)
+    snapshot = identity or AgentIdentitySnapshot.current()
+    if (
+        snapshot.owner is not None
+        and foreign_agent_owner_root(name, snapshot) is not None
+    ):
+        return name
+    return normalize_owned_agent_name(name, snapshot)
 
 
 def current_owner_agent_name_lookup_candidates(
@@ -351,18 +542,57 @@ def foreign_agent_owner_root(
     owner = snapshot.owner
     if owner is None:
         return None
-    _prefix, core_name = _split_dismissed_prefix(name)
-    parts = core_name.split(".")
-    machines = set(snapshot.sibling_machines)
-    if len(parts) >= 2 and parts[0] in machines:
-        return parts[0] if parts[0] != owner.machine_name else None
-    if len(parts) >= 3 and parts[1] in machines:
-        if parts[0] != owner.username or parts[1] != owner.machine_name:
-            return f"{parts[0]}.{parts[1]}"
-    return None
+    binding = require_rust_binding("foreign_agent_owner_root")
+    value = binding(
+        name,
+        owner.username,
+        owner.machine_name,
+        list(_known_owner_roots(snapshot)),
+    )
+    return str(value) if value is not None else None
 
 
-def parse_agent_family_name(name: str) -> _ParsedAgentFamilyName:
+def _parse_owned_agent_name(
+    name: str,
+    identity: AgentIdentitySnapshot | None = None,
+) -> _ParsedOwnedAgentName:
+    snapshot = identity or AgentIdentitySnapshot.current()
+    roots = _known_owner_roots(snapshot)
+    binding = require_rust_binding("parse_owned_agent_name")
+    payload: Mapping[str, Any] = binding(name, list(roots))
+    return _ParsedOwnedAgentName(
+        owner_root=(
+            str(payload["owner_root"])
+            if payload.get("owner_root") is not None
+            else None
+        ),
+        local_name=str(payload["local_name"]),
+        hood=str(payload["hood"]),
+        family_name=str(payload["family_name"]),
+        member_role=(
+            str(payload["member_role"])
+            if payload.get("member_role") is not None
+            else None
+        ),
+    )
+
+
+def parse_agent_family_name(
+    name: str,
+    identity: AgentIdentitySnapshot | None = None,
+) -> _ParsedAgentFamilyName:
+    snapshot = identity or AgentIdentitySnapshot.current()
+    if snapshot.owner is not None:
+        parsed = _parse_owned_agent_name(name, snapshot)
+        return _ParsedAgentFamilyName(
+            kind=(
+                AgentFamilyNameKind.MEMBER
+                if parsed.member_role is not None
+                else AgentFamilyNameKind.SOLO
+            ),
+            family_name=parsed.family_name,
+            member_role=parsed.member_role,
+        )
     binding = require_rust_binding("parse_agent_family_name")
     payload: Mapping[str, Any] = binding(name)
     return _ParsedAgentFamilyName(
@@ -376,17 +606,41 @@ def parse_agent_family_name(name: str) -> _ParsedAgentFamilyName:
     )
 
 
-def agent_local_hood(name: str) -> str:
+def agent_local_hood(
+    name: str,
+    identity: AgentIdentitySnapshot | None = None,
+) -> str:
+    snapshot = identity or AgentIdentitySnapshot.current()
+    if snapshot.owner is not None:
+        binding = require_rust_binding("agent_local_hood")
+        return str(binding(name, list(_known_owner_roots(snapshot))))
     binding = require_rust_binding("agent_local_hood")
     return str(binding(name))
 
 
-def agent_name_in_hood(name: str, hood: str) -> bool:
+def agent_name_in_hood(
+    name: str,
+    hood: str,
+    identity: AgentIdentitySnapshot | None = None,
+) -> bool:
+    snapshot = identity or AgentIdentitySnapshot.current()
+    if snapshot.owner is not None:
+        binding = require_rust_binding("agent_name_in_hood")
+        return bool(binding(name, hood, list(_known_owner_roots(snapshot))))
     binding = require_rust_binding("agent_name_in_hood")
     return bool(binding(name, hood))
 
 
-def agent_name_ancestors(name: str) -> tuple[str, ...]:
+def agent_name_ancestors(
+    name: str,
+    identity: AgentIdentitySnapshot | None = None,
+) -> tuple[str, ...]:
+    snapshot = identity or AgentIdentitySnapshot.current()
+    if snapshot.owner is not None:
+        binding = require_rust_binding("agent_name_ancestors")
+        return tuple(
+            str(value) for value in binding(name, list(_known_owner_roots(snapshot)))
+        )
     binding = require_rust_binding("agent_name_ancestors")
     return tuple(str(value) for value in binding(name))
 
@@ -394,13 +648,36 @@ def agent_name_ancestors(name: str) -> tuple[str, ...]:
 def agent_link_target(
     name: str,
     owner: AgentOwnerIdentity,
+    identity: AgentIdentitySnapshot | None = None,
 ) -> _AgentLinkTarget:
+    snapshot = identity or AgentIdentitySnapshot(owner)
+    if snapshot.owner is not None:
+        binding = require_rust_binding("agent_link_target")
+        rooted_payload: Mapping[str, Any] = binding(
+            name,
+            owner.username,
+            owner.machine_name,
+            list(_known_owner_roots(snapshot)),
+        )
+        return _AgentLinkTarget(
+            kind=_AgentLinkTargetKind(str(rooted_payload["kind"])),
+            path=str(rooted_payload["path"]),
+            anchor=(
+                str(rooted_payload["anchor"])
+                if rooted_payload.get("anchor") is not None
+                else None
+            ),
+        )
     binding = require_rust_binding("agent_link_target")
-    payload: Mapping[str, Any] = binding(name, owner.username, owner.machine_name)
+    plain_payload: Mapping[str, Any] = binding(name, owner.username, owner.machine_name)
     return _AgentLinkTarget(
-        kind=_AgentLinkTargetKind(str(payload["kind"])),
-        path=str(payload["path"]),
-        anchor=(str(payload["anchor"]) if payload.get("anchor") is not None else None),
+        kind=_AgentLinkTargetKind(str(plain_payload["kind"])),
+        path=str(plain_payload["path"]),
+        anchor=(
+            str(plain_payload["anchor"])
+            if plain_payload.get("anchor") is not None
+            else None
+        ),
     )
 
 
@@ -434,6 +711,40 @@ def rewrite_agent_relationship_batch(
     return _RewrittenAgentRelationshipBatch(
         schema_version=int(payload["schema_version"]),
         owner=_owner_from_mapping(payload["owner"]),
+        runs=tuple(dict(value) for value in payload["runs"]),
+        containers=tuple(dict(value) for value in payload["containers"]),
+        relationships=tuple(dict(value) for value in payload["relationships"]),
+    )
+
+
+def project_agent_relationship_graph(
+    batch: Mapping[str, Any],
+    destination_ids: Mapping[str, str],
+    *,
+    source_owner: AgentOwnerIdentity,
+    destination_owner: AgentOwnerIdentity,
+    identity: AgentIdentitySnapshot | None = None,
+) -> _ProjectedAgentRelationshipGraph:
+    binding = require_rust_binding("project_agent_relationship_graph")
+    snapshot = identity or AgentIdentitySnapshot(destination_owner)
+    payload: Mapping[str, Any] = binding(
+        dict(batch),
+        dict(destination_ids),
+        source_owner.username,
+        source_owner.machine_name,
+        destination_owner.username,
+        destination_owner.machine_name,
+        list(_known_owner_roots(snapshot)),
+    )
+    return _ProjectedAgentRelationshipGraph(
+        schema_version=int(payload["schema_version"]),
+        source_owner=_owner_from_mapping(payload["source_owner"]),
+        destination_owner=_owner_from_mapping(payload["destination_owner"]),
+        registry_namespace_root=(
+            str(payload["registry_namespace_root"])
+            if payload.get("registry_namespace_root") is not None
+            else None
+        ),
         runs=tuple(dict(value) for value in payload["runs"]),
         containers=tuple(dict(value) for value in payload["containers"]),
         relationships=tuple(dict(value) for value in payload["relationships"]),
@@ -477,9 +788,11 @@ __all__ = [
     "normalize_agent_archive_name",
     "parse_agent_family_name",
     "present_agent_name",
+    "project_agent_relationship_graph",
     "rewrite_agent_relationship_batch",
     "validate_agent_owner",
     "validate_agent_relationship_batch",
     "validate_agent_username",
     "validate_new_agent_name",
+    "validate_owner_root",
 ]

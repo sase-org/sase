@@ -64,7 +64,7 @@ def sase_agent_ref_for_shell(
     """
     snapshot = identity or AgentIdentitySnapshot.current()
     local_name = normalize_owned_agent_name(name, snapshot)
-    parsed = parse_agent_family_name(local_name)
+    parsed = parse_agent_family_name(local_name, snapshot)
     is_member = parsed.kind is AgentFamilyNameKind.MEMBER
     return SaseAgentRef(
         local_name=parsed.family_name,
@@ -92,7 +92,7 @@ def sase_agent_ref_for_name(
     """
     snapshot = identity or AgentIdentitySnapshot.current()
     local_name = normalize_owned_agent_name(name, snapshot)
-    parsed = parse_agent_family_name(local_name)
+    parsed = parse_agent_family_name(local_name, snapshot)
     if parsed.kind is AgentFamilyNameKind.MEMBER:
         return sase_agent_ref_for_shell(local_name, snapshot)
     return SaseAgentRef(
@@ -107,7 +107,11 @@ def sase_agent_ref_for_name(
     )
 
 
-def sase_agent_page_path(ref: SaseAgentRef, owner: AgentOwnerIdentity) -> str:
+def sase_agent_page_path(
+    ref: SaseAgentRef,
+    owner: AgentOwnerIdentity,
+    identity: AgentIdentitySnapshot | None = None,
+) -> str:
     """Return the sidecar page path that durably represents *ref*.
 
     A known concrete shell is preferred as the input to
@@ -116,10 +120,10 @@ def sase_agent_page_path(ref: SaseAgentRef, owner: AgentOwnerIdentity) -> str:
     agent is known to be a family and no shell is available.
     """
     if ref.member_local_name is not None:
-        return agent_link_target(ref.member_local_name, owner).path
+        return agent_link_target(ref.member_local_name, owner, identity).path
     if ref.is_family:
         return f"families/{ref.global_name}.md"
-    return agent_link_target(ref.local_name, owner).path
+    return agent_link_target(ref.local_name, owner, identity).path
 
 
 def sase_agent_name(name: str) -> str:

@@ -21,7 +21,10 @@ from sase.agents_sync.v2_import_history import (
     reserve_timestamp,
     scan_local_import_state,
 )
-from sase.agents_sync.v2_import_package import ValidatedV2HoodPackage
+from sase.agents_sync.v2_import_package import (
+    ValidatedV2HoodPackage,
+    ValidatedV2RunPayload,
+)
 from sase.agents_sync.v2_import_types import HoodPlan, PlannedContainer, PlannedRun
 from sase.agents_sync.v2_import_v1_adoption import (
     LegacyV1AdoptionIndex,
@@ -38,8 +41,7 @@ from sase.core.agent_identity_facade import (
     AgentOwnershipClassification,
     AgentSourceOwnerIdentity,
     classify_imported_agent_owner,
-    localize_imported_agent_name,
-    rewrite_agent_relationship_batch,
+    project_agent_relationship_graph,
 )
 
 
@@ -52,6 +54,16 @@ class ImportPreflightContext:
     observations: ExactLocalObservationIndex
     legacy_v1: LegacyV1AdoptionIndex
     recovery_complete: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class _RunPlanCandidate:
+    payload: ValidatedV2RunPayload
+    destination_id: str
+    artifact_dir: Path
+    disposition: str
+    previous_digest: str | None
+    superseded_v1_name: str | None = None
 
 
 def build_import_preflight_context(
@@ -91,19 +103,19 @@ def preflight_hood(
     *,
     context: ImportPreflightContext | None = None,
 ) -> HoodPlan:
-    if identity.owner is None:
+    destination_owner = identity.owner
+    if destination_owner is None:
         raise AgentsSyncFormatError("v2 import requires a configured owner identity")
     source = AgentSourceOwnerIdentity.v2(package.owner)
     classification = classify_imported_agent_owner(source, identity)
     resolved_context = context or build_import_preflight_context(target, identity)
     existing = resolved_context.existing
     reserved = resolved_context.reserved
-    planned_runs: list[PlannedRun] = []
+    planned_run_candidates: list[_RunPlanCandidate] = []
     destination_ids: dict[str, str] = {}
 
     for payload in package.runs:
         run = payload.record
-        localized = localize_imported_agent_name(run.global_name, source, identity)
         superseded_v1_name: str | None = None
         match = existing.get(
             (
@@ -178,10 +190,9 @@ def preflight_hood(
                 disposition = "new"
                 previous_digest = None
         destination_ids[run.source_run_id] = destination
-        planned_runs.append(
-            PlannedRun(
+        planned_run_candidates.append(
+            _RunPlanCandidate(
                 payload,
-                localized,
                 destination,
                 artifact,
                 disposition,
@@ -190,18 +201,36 @@ def preflight_hood(
             )
         )
 
-    rewritten = rewrite_agent_relationship_batch(
+    projection = project_agent_relationship_graph(
         package.snapshot.relationship_batch(),
         destination_ids,
+        source_owner=package.owner,
+        destination_owner=destination_owner,
+        identity=identity,
     )
+    localized_by_source_id = {
+        str(row["source_run_id"]): str(row["localized_name"]) for row in projection.runs
+    }
+    planned_runs = tuple(
+        PlannedRun(
+            candidate.payload,
+            localized_by_source_id[candidate.payload.record.source_run_id],
+            candidate.destination_id,
+            candidate.artifact_dir,
+            candidate.disposition,
+            candidate.previous_digest,
+            candidate.superseded_v1_name,
+        )
+        for candidate in planned_run_candidates
+    )
+    localized_container_names = {
+        (str(row["kind"]), str(row["global_name"])): str(row["localized_name"])
+        for row in projection.containers
+    }
     containers = tuple(
         PlannedContainer(
             container,
-            localize_imported_agent_name(
-                container.global_name,
-                source,
-                identity,
-            ),
+            localized_container_names[(container.kind, container.global_name)],
         )
         for container in package.snapshot.containers
     )
@@ -210,10 +239,11 @@ def preflight_hood(
         package,
         identity,
         transaction_key,
-        tuple(planned_runs),
+        planned_runs,
         containers,
         (),
-        rewritten.relationships,
+        projection.relationships,
+        projection.registry_namespace_root,
     )
     claims = _registry_claims(preliminary)
     preflight_imported_registered_names_v2(
@@ -225,10 +255,11 @@ def preflight_hood(
         package,
         identity,
         transaction_key,
-        tuple(planned_runs),
+        planned_runs,
         containers,
         claims,
-        rewritten.relationships,
+        projection.relationships,
+        projection.registry_namespace_root,
     )
 
 
@@ -255,6 +286,7 @@ def _registry_claims(plan: HoodPlan) -> tuple[ImportedV2RegistryClaim, ...]:
                 plan.package.entry.digest,
                 container_kind=container.record.kind,
                 clan_generation=plan.transaction_key,
+                registry_namespace_root=plan.registry_namespace_root,
             )
         )
     container_names = {
@@ -274,6 +306,7 @@ def _registry_claims(plan: HoodPlan) -> tuple[ImportedV2RegistryClaim, ...]:
                 run.localized_name,
                 run.artifact_dir,
                 plan.package.entry.digest,
+                registry_namespace_root=plan.registry_namespace_root,
             )
         )
     return tuple(claims)

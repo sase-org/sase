@@ -209,6 +209,7 @@ class _SaseArgumentParser(argparse.ArgumentParser):
         namespace: Any = None,
     ) -> Any:
         raw_args = list(sys.argv[1:] if args is None else args)
+        raw_args = _normalize_bead_note_args(raw_args)
         if _uses_obsolete_detached_proc_option(raw_args):
             self.exit(2, f"{_OBSOLETE_DETACHED_PROC_MESSAGE}\n")
         parsed, unknown = super().parse_known_args(raw_args, namespace)
@@ -238,12 +239,97 @@ class _SaseArgumentParser(argparse.ArgumentParser):
         return parsed
 
 
+_BEAD_NOTE_VALUE_OPTIONS = frozenset(
+    {
+        "-a",
+        "--author",
+        "-e",
+        "--edit",
+        "-x",
+        "--remove",
+    }
+)
+_GLOBAL_VALUE_OPTIONS = frozenset(
+    {
+        "-f",
+        "--enable-feature",
+        "-F",
+        "--disable-feature",
+    }
+)
+
+
 def _is_bead_note_args(parsed: argparse.Namespace) -> bool:
     return (
         getattr(parsed, "command", None) == "bead"
         and getattr(parsed, "bead_subcommand", None) == "note"
         and isinstance(getattr(parsed, "text", None), list)
     )
+
+
+def _normalize_bead_note_args(argv: list[str]) -> list[str]:
+    """Let ``sase bead note`` text appear after its option flags.
+
+    ``argparse`` does not intermix a ``nargs="*"`` positional with options
+    under subparsers, so collect the known note flags and move free-form text
+    before them.  The parser still owns validation and help rendering.
+    """
+
+    command_index = _root_command_index(argv)
+    if command_index is None or argv[command_index : command_index + 2] != [
+        "bead",
+        "note",
+    ]:
+        return argv
+
+    id_index = command_index + 2
+    if len(argv) <= id_index:
+        return argv
+
+    prefix = argv[: id_index + 1]
+    rest = argv[id_index + 1 :]
+    text: list[str] = []
+    options: list[str] = []
+    force_text = False
+    index = 0
+    while index < len(rest):
+        token = rest[index]
+        if force_text:
+            text.append(token)
+            index += 1
+            continue
+        if token == "--":
+            force_text = True
+            index += 1
+            continue
+        option_name = token.split("=", 1)[0]
+        if option_name in _BEAD_NOTE_VALUE_OPTIONS:
+            options.append(token)
+            if "=" not in token and index + 1 < len(rest):
+                options.append(rest[index + 1])
+                index += 2
+            else:
+                index += 1
+            continue
+        text.append(token)
+        index += 1
+    return [*prefix, *text, *options]
+
+
+def _root_command_index(argv: Sequence[str]) -> int | None:
+    index = 0
+    while index < len(argv):
+        token = argv[index]
+        if token in _GLOBAL_VALUE_OPTIONS:
+            index += 2
+            continue
+        if token.startswith("--enable-feature=") or token.startswith(
+            "--disable-feature="
+        ):
+            index += 1
+            continue
+        return index
+    return None
 
 
 def _uses_obsolete_detached_proc_option(argv: Sequence[str]) -> bool:

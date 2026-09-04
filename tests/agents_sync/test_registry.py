@@ -120,7 +120,7 @@ def test_v2_claim_batch_preflights_without_write_and_saves_once(
     assert saves == []
     _registry.claim_imported_registered_names_v2(claims, identity=identity)
     assert len(saves) == 1
-    assert {"bob", "bob.zeus.one", "bob.zeus.two"} <= set(
+    assert {"bob.zeus", "bob.zeus.one", "bob.zeus.two"} <= set(
         stored["entries"]  # type: ignore[arg-type]
     )
 
@@ -216,7 +216,8 @@ def test_foreign_username_namespace_accepts_multiple_source_machines(
     entries = stored["entries"]
     assert isinstance(entries, dict)
     assert {
-        "bbugyi200",
+        "bbugyi200.athena",
+        "bbugyi200.zeus",
         "bbugyi200.athena.worker",
         "bbugyi200.zeus.builder",
     } <= set(entries)

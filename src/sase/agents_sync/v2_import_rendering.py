@@ -93,7 +93,7 @@ def artifact_payload(
         if isinstance(raw_role, str) and raw_role:
             meta["agent_family_role"] = raw_role
         else:
-            parsed = parse_agent_family_name(run.localized_name)
+            parsed = parse_agent_family_name(run.localized_name, plan.identity)
             if parsed.member_role:
                 meta["agent_family_role"] = parsed.member_role
     if clan is not None:
@@ -227,7 +227,10 @@ def bundle_payload(
         bundle["agent_family"] = family.localized_name
         raw_role = _optional_text(metadata.get("agent_family_role"))
         if raw_role is None:
-            raw_role = parse_agent_family_name(run.localized_name).member_role
+            raw_role = parse_agent_family_name(
+                run.localized_name,
+                plan.identity,
+            ).member_role
         bundle["agent_family_role"] = raw_role
     if clan is not None:
         bundle["agent_clan"] = clan.localized_name
@@ -369,6 +372,9 @@ def _localized_external_target(
     target: Mapping[str, Any],
     plan: HoodPlan,
 ) -> str | None:
+    localized_name = target.get("localized_name")
+    if isinstance(localized_name, str) and localized_name:
+        return localized_name
     global_name = target.get("global_name")
     owner = target.get("owner")
     if not isinstance(global_name, str) or not isinstance(owner, Mapping):

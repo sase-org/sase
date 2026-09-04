@@ -230,6 +230,7 @@ def prepare_transaction(target: ProjectTarget, plan: HoodPlan) -> None:
             "digest": claim.digest,
             "container_kind": claim.container_kind,
             "clan_generation": claim.clan_generation,
+            "registry_namespace_root": claim.registry_namespace_root,
         }
         for claim in plan.registry_claims
     ]
@@ -471,6 +472,11 @@ def _claims_from_journal(
                 (
                     str(row["clan_generation"])
                     if row.get("clan_generation") is not None
+                    else None
+                ),
+                (
+                    str(row["registry_namespace_root"])
+                    if row.get("registry_namespace_root") is not None
                     else None
                 ),
             )

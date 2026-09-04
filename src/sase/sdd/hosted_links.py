@@ -174,9 +174,9 @@ class HostedLinkResolver:
             return None
         try:
             local_name = normalize_owned_agent_name(agent_name, snapshot)
-            parsed = parse_agent_family_name(local_name)
+            parsed = parse_agent_family_name(local_name, snapshot)
             if parsed.kind is AgentFamilyNameKind.MEMBER:
-                link_target = agent_link_target(local_name, owner)
+                link_target = agent_link_target(local_name, owner, snapshot)
                 path = link_target.path
             else:
                 agent_ref = sase_agent_ref_for_name(
@@ -184,7 +184,7 @@ class HostedLinkResolver:
                     snapshot,
                     reserved_family_names=self._reserved_family_names,
                 )
-                path = sase_agent_page_path(agent_ref, owner)
+                path = sase_agent_page_path(agent_ref, owner, snapshot)
                 family_path = f"families/{agent_ref.global_name}.md"
                 if (
                     not agent_ref.is_family

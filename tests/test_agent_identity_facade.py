@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -49,6 +51,45 @@ def _batch() -> dict[str, Any]:
     }
 
 
+def _owned_batch(owner: facade.AgentOwnerIdentity) -> dict[str, Any]:
+    owner_payload = {"username": owner.username, "machine_name": owner.machine_name}
+    return {
+        "schema_version": 2,
+        "owner": owner_payload,
+        "runs": [
+            {
+                "source_run_id": "run-1",
+                "global_name": f"{owner.username}.{owner.machine_name}.crew",
+                "owner": owner_payload,
+            },
+            {
+                "source_run_id": "run-2",
+                "global_name": f"{owner.username}.{owner.machine_name}.crew--code",
+                "owner": owner_payload,
+            },
+        ],
+        "containers": [
+            {
+                "kind": "family",
+                "global_name": f"{owner.username}.{owner.machine_name}.crew",
+                "owner": owner_payload,
+                "member_source_run_ids": ["run-1", "run-2"],
+            }
+        ],
+        "relationships": [
+            {
+                "kind": "wait",
+                "source_run_id": "run-2",
+                "target": {
+                    "kind": "source_run_id",
+                    "source_run_id": "run-1",
+                },
+                "required": True,
+            }
+        ],
+    }
+
+
 def test_facade_delegates_every_operation_with_static_binding_names(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -56,12 +97,23 @@ def test_facade_delegates_every_operation_with_static_binding_names(
     owner = {"username": "alice", "machine_name": "athena"}
 
     results: dict[str, Any] = {
+        "validate_owner_root": None,
+        "validate_owned_agent_name": None,
         "classify_agent_ownership": "exact_owner",
         "classify_legacy_v1_group_ownership": "owner_observed",
         "normalize_agent_archive_name": "foo",
         "globalize_agent_name": "alice.athena.foo",
-        "strip_global_agent_name": "foo",
+        "normalize_owned_agent_name": "foo",
+        "globalize_owned_agent_name": "alice.athena.foo",
+        "foreign_agent_owner_root": None,
         "localize_agent_name": "foo",
+        "parse_owned_agent_name": {
+            "owner_root": None,
+            "local_name": "foo--code",
+            "hood": "foo",
+            "family_name": "foo",
+            "member_role": "code",
+        },
         "parse_agent_family_name": {
             "kind": "member",
             "family_name": "foo",
@@ -96,6 +148,21 @@ def test_facade_delegates_every_operation_with_static_binding_names(
             "containers": [],
             "relationships": [],
         },
+        "project_agent_relationship_graph": {
+            "schema_version": 2,
+            "source_owner": owner,
+            "destination_owner": owner,
+            "registry_namespace_root": None,
+            "runs": [
+                {
+                    "source_run_id": "run-1",
+                    "destination_run_id": "dest-1",
+                    "localized_name": "foo",
+                }
+            ],
+            "containers": [],
+            "relationships": [],
+        },
     }
 
     def lookup(name: str) -> Callable[..., Any]:
@@ -108,10 +175,12 @@ def test_facade_delegates_every_operation_with_static_binding_names(
     monkeypatch.setattr(facade, "require_rust_binding", lookup)
     target = facade.AgentOwnerIdentity("alice", "athena")
     source = facade.AgentSourceOwnerIdentity.v2(target)
-    identity = facade.AgentIdentitySnapshot(target)
+    identity = facade.AgentIdentitySnapshot(target, (), ("athena", "alice.athena"))
 
     facade.validate_agent_username("alice")
     facade.validate_agent_owner(target)
+    facade.validate_owner_root("athena")
+    facade.validate_new_agent_name("foo", identity)
     assert (
         facade.classify_agent_ownership(source, target)
         is facade.AgentOwnershipClassification.EXACT_OWNER
@@ -131,6 +200,7 @@ def test_facade_delegates_every_operation_with_static_binding_names(
     assert facade.normalize_agent_archive_name("260722.foo") == "foo"
     assert facade.globalize_agent_name("foo", target) == "alice.athena.foo"
     assert facade.normalize_owned_agent_name("alice.athena.foo", identity) == "foo"
+    assert facade.globalize_owned_agent_name("foo", identity) == "alice.athena.foo"
     assert (
         facade.localize_imported_agent_name(
             "alice.athena.foo",
@@ -139,11 +209,13 @@ def test_facade_delegates_every_operation_with_static_binding_names(
         )
         == "foo"
     )
-    assert facade.parse_agent_family_name("foo--code").member_role == "code"
-    assert facade.agent_local_hood("foo.bar") == "foo"
-    assert facade.agent_name_in_hood("foo.bar", "foo")
-    assert facade.agent_name_ancestors("foo.bar") == ("foo", "foo.bar")
-    assert facade.agent_link_target("foo--code", target).anchor == "member-code"
+    assert facade.parse_agent_family_name("foo--code", identity).member_role == "code"
+    assert facade.agent_local_hood("foo.bar", identity) == "foo"
+    assert facade.agent_name_in_hood("foo.bar", "foo", identity)
+    assert facade.agent_name_ancestors("foo.bar", identity) == ("foo", "foo.bar")
+    assert facade.agent_link_target("foo--code", target, identity).anchor == (
+        "member-code"
+    )
     assert facade.validate_agent_relationship_batch(_batch()).run_count == 2
     assert (
         facade.rewrite_agent_relationship_batch(
@@ -151,23 +223,37 @@ def test_facade_delegates_every_operation_with_static_binding_names(
         ).runs[0]["destination_run_id"]
         == "dest-1"
     )
+    assert (
+        facade.project_agent_relationship_graph(
+            _batch(),
+            {"run-1": "dest-1", "run-2": "dest-2"},
+            source_owner=target,
+            destination_owner=target,
+            identity=identity,
+        ).runs[0]["localized_name"]
+        == "foo"
+    )
 
     assert [name for name, _args in calls] == [
         "validate_agent_username",
         "validate_agent_owner",
+        "validate_owner_root",
+        "validate_owned_agent_name",
         "classify_agent_ownership",
         "classify_legacy_v1_group_ownership",
         "normalize_agent_archive_name",
         "globalize_agent_name",
-        "strip_global_agent_name",
+        "normalize_owned_agent_name",
+        "globalize_owned_agent_name",
         "localize_agent_name",
-        "parse_agent_family_name",
+        "parse_owned_agent_name",
         "agent_local_hood",
         "agent_name_in_hood",
         "agent_name_ancestors",
         "agent_link_target",
         "validate_agent_relationship_batch",
         "rewrite_agent_relationship_batch",
+        "project_agent_relationship_graph",
     ]
 
 
@@ -258,7 +344,7 @@ def test_owner_family_and_localization_integration() -> None:
         facade.globalize_agent_name("260722.foo.bar--code", target)
         == "alice.athena.foo.bar--code"
     )
-    parsed = facade.parse_agent_family_name("foo.bar--code")
+    parsed = facade.parse_agent_family_name("foo.bar--code", identity)
     assert (
         parsed.kind,
         parsed.family_name,
@@ -268,10 +354,13 @@ def test_owner_family_and_localization_integration() -> None:
         "foo.bar",
         "code",
     )
-    assert facade.agent_name_ancestors("foo.bar--code") == ("foo", "foo.bar")
-    assert facade.agent_name_in_hood("foo.bar--code", "foo")
-    assert not facade.agent_name_in_hood("foobar", "foo")
-    assert facade.agent_link_target("foo.bar--code", target).path == (
+    assert facade.agent_name_ancestors("foo.bar--code", identity) == (
+        "foo",
+        "foo.bar",
+    )
+    assert facade.agent_name_in_hood("foo.bar--code", "foo", identity)
+    assert not facade.agent_name_in_hood("foobar", "foo", identity)
+    assert facade.agent_link_target("foo.bar--code", target, identity).path == (
         "families/alice.athena.foo.bar.md"
     )
 
@@ -304,6 +393,7 @@ def test_application_identity_policy_preserves_explicit_foreign_hoods() -> None:
     identity = facade.AgentIdentitySnapshot(
         facade.AgentOwnerIdentity("alice", "athena"),
         ("athena", "zeus"),
+        ("athena", "zeus", "alice.zeus", "bob.athena"),
     )
 
     assert facade.foreign_agent_owner_root("zeus.foo", identity) == "zeus"
@@ -313,6 +403,130 @@ def test_application_identity_policy_preserves_explicit_foreign_hoods() -> None:
     assert facade.present_agent_name("bob.athena.foo", identity) == ("bob.athena.foo")
     assert facade.current_owner_agent_name_lookup_candidates("zeus.foo", identity) == (
         "zeus.foo",
+    )
+
+
+def test_owner_roots_parse_topology_without_becoming_local_owner() -> None:
+    identity = facade.AgentIdentitySnapshot(
+        facade.AgentOwnerIdentity("alice", "hera"),
+        (),
+        ("athena",),
+    )
+
+    parsed = facade._parse_owned_agent_name("athena.7n--code", identity)
+
+    assert parsed.owner_root == "athena"
+    assert parsed.hood == "7n"
+    assert parsed.family_name == "7n"
+    assert parsed.member_role == "code"
+    assert facade.agent_local_hood("athena.7n--code", identity) == "7n"
+    assert facade.foreign_agent_owner_root("athena.7n--code", identity) == "athena"
+    with pytest.raises(ValueError, match="foreign owner root"):
+        facade.globalize_owned_agent_name("athena.7n--code", identity)
+    with pytest.raises(ValueError, match="foreign owner root"):
+        facade.validate_new_agent_name("athena.7n--code", identity)
+
+
+def test_known_owner_roots_include_raw_registry_namespaces(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    registry = tmp_path / "agent_name_registry.json"
+    registry.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "entries": {
+                    "zeus": {
+                        "container_kind": "owner_namespace",
+                        "source_owner": {
+                            "username": "alice",
+                            "machine_name": "zeus",
+                        },
+                    },
+                    "bob.athena": {
+                        "container_kind": "owner_namespace",
+                        "source_owner": {
+                            "username": "bob",
+                            "machine_name": "athena",
+                        },
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    roots = facade._registry_owner_roots(facade.AgentOwnerIdentity("alice", "athena"))
+
+    assert {"zeus", "alice.zeus", "bob.athena"} <= set(roots)
+
+
+def test_known_owner_roots_include_configured_sidecar_owner_directories(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sidecar = tmp_path / "agents"
+    same_user = sidecar / "users/alice/machines/zeus"
+    other_user = sidecar / "users/bob/machines/athena"
+    same_user.mkdir(parents=True)
+    other_user.mkdir(parents=True)
+    other_user.joinpath("manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "owner": {"username": "carol", "machine_name": "hera"},
+                "project": {"key": "proj", "name": "Project"},
+                "hoods": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        facade,
+        "_configured_agents_sidecar_paths",
+        lambda: (sidecar,),
+    )
+
+    roots = facade._agents_sidecar_owner_roots(
+        facade.AgentOwnerIdentity("alice", "athena")
+    )
+
+    assert {"zeus", "alice.zeus", "bob.athena", "carol.hera"} <= set(roots)
+
+
+def test_current_snapshot_known_owner_roots_are_deduplicated_union(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    facade._discover_known_owner_roots.cache_clear()
+    facade._configured_agents_sidecar_paths.cache_clear()
+    owner = facade.AgentOwnerIdentity("alice", "athena")
+    import sase.config
+
+    monkeypatch.setattr(sase.config, "get_agent_owner_identity", lambda: owner)
+    monkeypatch.setattr(sase.config, "discover_machine_names", lambda: ("zeus",))
+    monkeypatch.setattr(
+        facade,
+        "_registry_owner_roots",
+        lambda _owner: ("bob.athena", "zeus"),
+    )
+    monkeypatch.setattr(
+        facade,
+        "_agents_sidecar_owner_roots",
+        lambda _owner: ("bob.athena", "carol.hera"),
+    )
+
+    snapshot = facade.AgentIdentitySnapshot.current()
+
+    assert snapshot.owner == owner
+    assert snapshot.sibling_machines == ("zeus", "athena")
+    assert snapshot.known_owner_roots == (
+        "alice.athena",
+        "bob.athena",
+        "carol.hera",
+        "athena",
+        "zeus",
     )
 
 
@@ -340,3 +554,27 @@ def test_relationship_validation_and_rewrite_integration() -> None:
             _batch(),
             {"run-1": "dest-1"},
         )
+
+
+def test_graph_projection_integration_uses_typed_owner_roots() -> None:
+    source = facade.AgentOwnerIdentity("bob", "zeus")
+    destination = facade.AgentOwnerIdentity("alice", "athena")
+    identity = facade.AgentIdentitySnapshot(destination, (), ("bob.zeus",))
+
+    projected = facade.project_agent_relationship_graph(
+        _owned_batch(source),
+        {"run-1": "dest-1", "run-2": "dest-2"},
+        source_owner=source,
+        destination_owner=destination,
+        identity=identity,
+    )
+
+    assert projected.registry_namespace_root == "bob.zeus"
+    assert [row["localized_name"] for row in projected.runs] == [
+        "bob.zeus.crew",
+        "bob.zeus.crew--code",
+    ]
+    assert projected.containers[0]["localized_name"] == "bob.zeus.crew"
+    assert projected.relationships[0]["source_destination_run_id"] == "dest-2"
+    assert projected.relationships[0]["target"]["destination_run_id"] == "dest-1"
+    assert projected.relationships[0]["target"]["localized_name"] == "bob.zeus.crew"

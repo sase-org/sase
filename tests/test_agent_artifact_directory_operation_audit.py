@@ -102,6 +102,9 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "an agents sidecar checkout, not local agent artifact directories."
         ),
     ),
+    "src/sase/agents_sync/v1_forget_import.py:_apply_closure": DirOpReview(
+        lifecycle_calls=(_DELETE_INDEX,),
+    ),
     "src/sase/agents_sync/v2_io.py:apply_payload_atomic": DirOpReview(
         exemption=(
             "Atomically promotes validated owner-sharded payload files inside "

@@ -129,6 +129,7 @@ def test_plan_design_and_agent_reference_entry_points(
     identity = AgentIdentitySnapshot(
         AgentOwnerIdentity(username="alice", machine_name="athena"),
         sibling_machines=("athena", "zeus"),
+        known_owner_roots=("bob.zeus", "athena", "zeus", "alice.athena"),
     )
     monkeypatch.setattr(
         AgentIdentitySnapshot,

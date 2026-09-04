@@ -6,10 +6,15 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from sase.amd._shared import (
+    ProviderShimPlan,
+    legacy_agents_template_plan,
+    provider_shim_plan,
+    read_text,
+)
 from sase.amd._agents_doc import is_managed_agents_document
 from sase.amd._chezmoi_template import render_chezmoi_h1_template
 from sase.amd._config import resolve_chezmoi_machine_h1_titles
-from sase.amd._shared import ProviderShimPlan, provider_shim_plan, read_text
 from sase.amd.constants import AGENTS_FILENAME, AGENTS_TEMPLATE_FILENAME
 from sase.amd.init import (
     AmdMemorySyncPlan,
@@ -504,16 +509,28 @@ def memory_root_context(
             chezmoi_home_roots=chezmoi_home_roots,
         )
     )
+    agents_content = final_agents_content(root, expected_files)
     shim_plan = provider_shim_plan(
         root,
-        agents_content=final_agents_content(root, expected_files),
+        agents_content=agents_content,
         chezmoi_home_roots=chezmoi_home_roots,
         prefer_templates=prefer_templates,
     )
+    legacy_template_plans = (
+        ()
+        if prefer_templates
+        else (
+            legacy_agents_template_plan(
+                root,
+                agents_content=agents_content,
+                chezmoi_home_roots=chezmoi_home_roots,
+            ),
+        )
+    )
     additional_shim_plans = (
-        agent_doc_shim_plans(root, include_root=False)
+        legacy_template_plans + agent_doc_shim_plans(root, include_root=False)
         if include_project_agent_docs
-        else ()
+        else legacy_template_plans
     )
     return _MemoryRootContext(
         amd_sync=amd_sync,

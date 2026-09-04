@@ -50,7 +50,7 @@ def publish_agent_hood(
         target, snapshot, git_runner=git_runner
     )
     agent_ref: SaseAgentRef = sase_agent_ref_for_name(local_name, snapshot)
-    hood = agent_local_hood(agent_ref.local_name)
+    hood = agent_local_hood(agent_ref.local_name, snapshot)
     if agent_ref.is_family:
         # A family sase agent is a container, not a run, so only its hood
         # decides whether there is anything to publish.
