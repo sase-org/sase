@@ -336,10 +336,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-n4(get_usage_limit_config)" \
-        --epic-symbol "sase-w8.2(LaunchRecord)" \
-        --epic-symbol "sase-w8.2(LaunchRecordState)" \
-        --epic-symbol "sase-w8.2(consume_launch_record)" \
-        --epic-symbol "sase-w8.2(latest_live_launch_record)" \
         --epic-symbol "sase-w8.3(launch_record_for_proc_id)" \
         {{ args }}
 

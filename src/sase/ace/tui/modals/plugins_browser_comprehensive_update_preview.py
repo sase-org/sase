@@ -533,24 +533,15 @@ def handle_comprehensive_noop(
     preview: ComprehensiveUpdatePreview,
     *,
     notify: Callable[..., None],
-    switch_to_subtab: Callable[..., object] | None = None,
 ) -> None:
     """Toast the scoped no-op outcome; never treat an unselected leg as current."""
     if preview.manual_provider_entries:
-        if callable(switch_to_subtab):
-            switch_to_subtab("agent-clis")
-            notify(
-                "No safe automatic Agent CLI command is available. Review the "
-                "manual command and vendor documentation in Agent CLIs.",
-                severity="warning",
-            )
-        else:
-            notify(
-                "No safe automatic Agent CLI command is available. Review the "
-                "manual command and vendor documentation in the Admin Center "
-                "Updates tab.",
-                severity="warning",
-            )
+        notify(
+            "No safe automatic Agent CLI command is available. Review the "
+            "manual command and vendor documentation in the Admin Center "
+            "Updates tab.",
+            severity="warning",
+        )
         return
     selected = preview.selected_legs
     errors = tuple(

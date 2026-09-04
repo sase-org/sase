@@ -452,22 +452,6 @@ def test_noop_without_admin_center_points_at_updates_tab() -> None:
     assert "Admin Center Updates tab" in message
 
 
-def test_noop_with_subtab_keeps_agent_clis_toast() -> None:
-    notes: list[tuple[str, str]] = []
-    switched: list[str] = []
-
-    handle_comprehensive_noop(
-        _manual_provider_preview(),
-        notify=lambda message, *, severity="information": notes.append(
-            (message, severity)
-        ),
-        switch_to_subtab=switched.append,
-    )
-
-    assert switched == ["agent-clis"]
-    assert "Agent CLIs" in notes[0][0]
-
-
 def test_scoped_current_noop_names_sase() -> None:
     preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest((), UpdateScope.SASE),
