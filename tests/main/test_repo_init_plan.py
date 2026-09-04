@@ -144,6 +144,7 @@ def test_plan_github_reports_every_configured_sidecar_without_writing(
     )
     assert not (tmp_path / "sase" / "repos").exists()
     assert not state_root.exists()
+    assert plan.requires_tty is True
 
     output = StringIO()
     render_plan_diff(Console(file=output, width=400, no_color=True), plan)

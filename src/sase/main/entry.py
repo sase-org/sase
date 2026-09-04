@@ -264,9 +264,15 @@ def main() -> NoReturn:
 
     # --- init ---
     if args.command == "init":
+        selected_projects = getattr(args, "project", None) or []
         if getattr(args, "all", False) and args.init_subcommand is not None:
             parser.error(
                 "sase init --all cannot be combined with an explicit init subcommand"
+            )
+        if selected_projects and args.init_subcommand is not None:
+            parser.error(
+                "sase init --project cannot be combined with an explicit init "
+                "subcommand"
             )
         if args.init_subcommand is None:
             from .init_onboarding import (
@@ -274,7 +280,7 @@ def main() -> NoReturn:
                 run_init_onboarding_all,
             )
 
-            if getattr(args, "all", False):
+            if getattr(args, "all", False) or selected_projects:
                 sys.exit(run_init_onboarding_all(args))
             sys.exit(run_init_onboarding(args))
 

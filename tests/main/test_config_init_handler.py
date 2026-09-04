@@ -297,6 +297,7 @@ def test_plan_config_init_distinguishes_legacy_and_current_identity(
     assert missing.label == "Config"
     assert len(missing.actions) == 1
     assert missing.summary == (f"the machine selector {machine_name_path()} is missing")
+    assert missing.requires_tty is True
 
     overlay = config_dir / "sase_athena.yml"
     overlay.write_text("machine_name: athena\n", encoding="utf-8")
@@ -313,6 +314,7 @@ def test_plan_config_init_distinguishes_legacy_and_current_identity(
     current = config_init_handler.plan_config_init(argparse.Namespace())
     assert current.actions == ()
     assert "alice@athena" in current.summary
+    assert current.requires_tty is False
 
 
 def test_plan_config_init_identifies_missing_username(
@@ -331,6 +333,7 @@ def test_plan_config_init_identifies_missing_username(
 
     assert "missing `id.username`" in plan.summary
     assert len(plan.actions) == 1
+    assert plan.requires_tty is True
 
 
 def test_new_chezmoi_overlay_uses_direct_deploy(

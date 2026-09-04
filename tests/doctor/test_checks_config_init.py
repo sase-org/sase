@@ -7,7 +7,7 @@ from pathlib import Path
 
 from sase.doctor.checks_config_init import check_config_init
 from sase.doctor.runner import DoctorContext
-from sase.main.init_plan import InitAction, InitPlan
+from sase.main.init_plan import InitAction, InitPlan, serialize_init_plan
 from sase.main.init_registry import InitCommandSpec
 from sase.core.paths import machine_name_path
 
@@ -91,3 +91,48 @@ def test_config_init_doctor_reports_missing_then_current_owner_identity(
     current = check_config_init(_context())
     assert current.status == "OK"
     assert current.data["action_count"] == 0
+
+
+def test_serialize_init_plan_marks_truncation_and_preserves_count() -> None:
+    plan = InitPlan(
+        command="memory",
+        label="Memory",
+        summary="refresh memory",
+        actions=tuple(
+            InitAction(Path(f"memory/{index}.md"), "update", "changed")
+            for index in range(12)
+        ),
+    )
+
+    row = serialize_init_plan(plan, max_actions=10)
+
+    assert row["action_count"] == 12
+    assert len(row["actions"]) == 10
+    assert row["actions_truncated"] is True
+    assert "new_content" not in row["actions"][0]
+    assert "requires_tty" not in row
+
+
+def test_serialize_init_plan_json_includes_content_and_status() -> None:
+    plan = InitPlan(
+        command="memory",
+        label="Memory",
+        summary="create memory",
+        actions=(
+            InitAction(
+                Path("memory/sase.md"),
+                "create",
+                "project memory",
+                new_content="# hello\n",
+            ),
+        ),
+        requires_tty=False,
+    )
+
+    row = serialize_init_plan(plan, include_content=True, include_status=True)
+
+    assert row["has_changes"] is True
+    assert row["runnable"] is True
+    assert row["requires_tty"] is False
+    assert row["actions"][0]["new_content"] == "# hello\n"
+    assert "actions_truncated" not in row

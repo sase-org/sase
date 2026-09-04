@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from sase.main._init_chezmoi_deploy import defer_chezmoi_paths
+from sase.main import init_onboarding
 from sase.main.init_onboarding import run_init_onboarding_all
 from sase.main.init_plan import InitAction, InitPlan
 from sase.main.init_project_scope import InitProjectInventory, InitProjectTarget
@@ -43,8 +44,6 @@ def test_batch_check_isolates_failures_and_restores_cwd(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from sase.main import init_onboarding
-
     original = tmp_path / "original"
     original.mkdir()
     monkeypatch.chdir(original)
@@ -109,7 +108,6 @@ def test_batch_task_type_registry_reflects_each_project_cwd(
     project's registry for every project after it, because a bare ``chdir``
     never invalidated ``current_config_token()``.
     """
-    from sase.main import init_onboarding
     from sase.task_types.registry import (
         get_task_type_registry,
         reset_task_type_registry_cache,
@@ -179,8 +177,6 @@ def test_batch_yes_continues_after_failure_and_deploys_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.main import init_onboarding
-
     original = tmp_path / "original"
     original.mkdir()
     monkeypatch.chdir(original)
@@ -245,8 +241,6 @@ def test_batch_interactive_decline_reports_remaining_attention(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from sase.main import init_onboarding
-
     target = _target(tmp_path, "alpha")
     monkeypatch.setattr(
         init_onboarding,
@@ -283,8 +277,6 @@ def test_batch_keyboard_interrupt_aborts_and_restores_cwd(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from sase.main import init_onboarding
-
     original = tmp_path / "original"
     original.mkdir()
     monkeypatch.chdir(original)
@@ -327,3 +319,69 @@ def test_batch_keyboard_interrupt_aborts_and_restores_cwd(
     out = capsys.readouterr().out
     assert "cancelled; aborting" in out
     assert "Traceback" not in out
+
+
+def test_named_project_check_visits_only_selected_targets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    original = tmp_path / "original"
+    original.mkdir()
+    monkeypatch.chdir(original)
+    alpha = _target(tmp_path, "alpha", display_name="Alpha")
+    beta = _target(tmp_path, "beta", display_name="Beta")
+    gamma = _target(tmp_path, "gamma", display_name="Gamma")
+    monkeypatch.setattr(
+        init_onboarding,
+        "resolve_init_project_inventory",
+        lambda: InitProjectInventory((alpha, beta, gamma)),
+    )
+    planned_from: list[str] = []
+
+    def plan(args: argparse.Namespace) -> InitPlan:
+        del args
+        planned_from.append(Path.cwd().name)
+        return InitPlan(command="memory", label="Memory", summary="", actions=())
+
+    spec = InitCommandSpec(name="memory", label="Memory", plan=plan, run=lambda a: 0)
+
+    exit_code = run_init_onboarding_all(
+        _args(check=True, project=["Gamma", "alpha"]),
+        specs=(spec,),
+        stdin=StringIO(),
+        input_func=_reject_prompt,
+    )
+
+    assert exit_code == 0
+    assert planned_from == ["gamma", "alpha"]
+    out = capsys.readouterr().out
+    assert "Project: Gamma" in out
+    assert "Project: Alpha" in out
+    assert "Project: Beta" not in out
+
+
+def test_named_project_unknown_name_fails_fast(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target = _target(tmp_path, "alpha")
+    monkeypatch.setattr(
+        init_onboarding,
+        "resolve_init_project_inventory",
+        lambda: InitProjectInventory((target,)),
+    )
+
+    exit_code = run_init_onboarding_all(
+        _args(check=True, project=["missing"]),
+        specs=(),
+        stdin=StringIO(),
+        input_func=_reject_prompt,
+    )
+
+    assert exit_code == 1
+    err_out = capsys.readouterr().out
+    assert "init --project:" in err_out
+    assert "unknown or non-enabled project 'missing'" in err_out
+    assert "alpha" in err_out

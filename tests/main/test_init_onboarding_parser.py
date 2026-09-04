@@ -51,6 +51,15 @@ def test_parser_accepts_bare_init_modes() -> None:
     assert parser.parse_args(["init", "--all", "--check"]).check is True
     assert parser.parse_args(["init", "--all", "--yes"]).yes is True
 
+    project_args = parser.parse_args(["init", "-p", "alpha", "--project", "beta"])
+    assert project_args.project == ["alpha", "beta"]
+    assert project_args.all is False
+
+    json_args = parser.parse_args(["init", "--check", "--json"])
+    assert json_args.json is True
+    assert json_args.check is True
+    assert parser.parse_args(["init", "-c", "-j"]).json is True
+
 
 def test_parser_accepts_scoped_init_check_modes() -> None:
     parser = create_parser()
@@ -174,6 +183,19 @@ def test_parser_rejects_all_project_memory_opt_in() -> None:
         parser.parse_args(["init", "--all", "--enable-project-memory"])
 
 
+def test_parser_rejects_project_scope_conflicts() -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["init", "--all", "--project", "alpha"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["init", "-p", "alpha", "--enable-project-memory"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["init", "--json"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["init", "--json", "--yes"])
+
+
 def test_init_help_lists_existing_subcommands(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -193,14 +215,19 @@ def test_init_help_lists_existing_subcommands(
     assert "-a, --all" in out
     assert "-c, --check" in out
     assert "-d, --diff" in out
+    assert "-j, --json" in out
     assert "-M, --enable-project-memory" in out
+    assert "-p NAME, --project NAME" in out
     assert "is_sase_managed:" in out
     assert "Advanced deploy controls live on explicit subcommands" in out
     assert "enabled main SASE project" in out
     assert out.index("-a, --all") < out.index("-c, --check")
     assert out.index("-c, --check") < out.index("-d, --diff")
-    assert out.index("-d, --diff") < out.index("-M, --enable-project-memory")
-    assert out.index("-M, --enable-project-memory") < out.index("-y, --yes")
+    assert out.index("-d, --diff") < out.index("-j, --json")
+    assert out.index("-j, --json") < out.index("-M, --enable-project-memory")
+    project_opt = "-p NAME, --project NAME"
+    assert out.index("-M, --enable-project-memory") < out.index(project_opt)
+    assert out.index(project_opt) < out.index("-y, --yes")
 
 
 def test_registry_order_is_config_memory_repo_skills() -> None:

@@ -22,6 +22,8 @@ def _args(
     diff: bool = False,
     enable_project_memory: bool = False,
     all_projects: bool = False,
+    json: bool = False,
+    project: list[str] | None = None,
 ) -> argparse.Namespace:
     return argparse.Namespace(
         command="init",
@@ -31,6 +33,8 @@ def _args(
         diff=diff,
         enable_project_memory=enable_project_memory,
         all=all_projects,
+        json=json,
+        project=project,
     )
 
 
@@ -41,6 +45,7 @@ def _plan(
     summary: str = "",
     warnings: tuple[str, ...] = (),
     blockers: tuple[str, ...] = (),
+    requires_tty: bool = False,
 ) -> InitPlan:
     return InitPlan(
         command=command,
@@ -49,6 +54,7 @@ def _plan(
         actions=actions,
         warnings=warnings,
         blockers=blockers,
+        requires_tty=requires_tty,
     )
 
 

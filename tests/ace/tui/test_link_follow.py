@@ -335,8 +335,8 @@ class _App(LinkFollowMixin, ArtifactsQueryHistoryActionsMixin):
     def link_edges_for_selection(self) -> tuple[LinkChip, ...]:
         return self._chips
 
-    def _artifacts_entry_navigator(self, pane_key: str | None = None) -> _Pane:
-        return self._panes[pane_key or self.current_artifacts_pane_key]
+    def _artifacts_entry_navigator(self, pane_key: str | None = None) -> _Pane | None:
+        return self._panes.get(pane_key or self.current_artifacts_pane_key)
 
     def _request_artifacts_entry(
         self,

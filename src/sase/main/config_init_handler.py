@@ -135,6 +135,7 @@ def plan_config_init(args: argparse.Namespace) -> InitPlan:
         summary=summary,
         actions=tuple(actions),
         blockers=tuple(blockers),
+        requires_tty=snapshot.repairable,
     )
 
 

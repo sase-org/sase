@@ -236,6 +236,12 @@ class _SaseArgumentParser(argparse.ArgumentParser):
             ):
                 if getattr(parsed, attribute, False):
                     self.error(f"sase agent sync {flag} cannot be used with --check")
+        if (
+            getattr(parsed, "command", None) == "init"
+            and getattr(parsed, "json", False)
+            and not getattr(parsed, "check", False)
+        ):
+            self.error("sase init --json requires --check")
         return parsed
 
 

@@ -131,7 +131,23 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Show full file diffs for planned changes",
     )
+    init_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="With --check, emit one JSON document instead of human-readable output",
+    )
     add_enable_project_memory_argument(project_scope_group)
+    project_scope_group.add_argument(
+        "-p",
+        "--project",
+        action="append",
+        metavar="NAME",
+        help=(
+            "Check or initialize one enabled project by name, display name, or "
+            "alias; repeatable"
+        ),
+    )
     mode_group.add_argument(
         "-y",
         "--yes",

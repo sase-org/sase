@@ -186,6 +186,7 @@ def plan_repo_init(args: argparse.Namespace) -> InitPlan:
     actions: list[InitAction] = []
     warnings: list[str] = []
     blockers: list[str] = []
+    requires_tty = False
 
     config_update = _explicit_sidecar_config_update(management.config_path)
     if config_update.error is not None:
@@ -206,14 +207,15 @@ def plan_repo_init(args: argparse.Namespace) -> InitPlan:
 
         specs = _configured_sidecar_specs(project_root)
         try:
-            sidecar_actions, sidecar_warnings = _plan_sidecar_actions(
-                project_root, specs
+            sidecar_actions, sidecar_warnings, sidecar_requires_tty = (
+                _plan_sidecar_actions(project_root, specs)
             )
         except SddMaterializationError as exc:
             blockers.append(str(exc))
         else:
             actions.extend(sidecar_actions)
             warnings.extend(sidecar_warnings)
+            requires_tty = sidecar_requires_tty
     else:
         legacy_actions, legacy_warnings = _plan_legacy_store_actions(project_root)
         actions.extend(legacy_actions)
@@ -231,6 +233,7 @@ def plan_repo_init(args: argparse.Namespace) -> InitPlan:
         actions=tuple(actions),
         warnings=tuple(warnings),
         blockers=tuple(blockers),
+        requires_tty=requires_tty,
     )
 
 
@@ -263,7 +266,7 @@ def _plan_legacy_store_actions(
 def _plan_sidecar_actions(
     project_root: Path,
     specs: tuple[SidecarInitSpec, ...],
-) -> tuple[list[InitAction], list[str]]:
+) -> tuple[list[InitAction], list[str], bool]:
     recorded_roles = _materialized_compatibility_roles(project_root)
     return _plan_sidecar_actions_impl(
         project_root,

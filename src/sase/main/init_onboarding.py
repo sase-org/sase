@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import sys
-from typing import Literal, TextIO
+from typing import Any, Literal, TextIO
 
 from rich.console import Console
 from rich.text import Text
@@ -22,6 +22,7 @@ from ._init_chezmoi_deploy import (
     deploy_deferred_chezmoi,
     print_chezmoi_deploy_lock_timeout,
 )
+from .init_check_json import cwd_check_row, emit_init_check_json, target_check_row
 from .init_plan import InitAction, InitPlan
 from .init_preview import preview_console, render_plan_diff, render_plan_inventory
 from .init_project_scope import (
@@ -29,6 +30,7 @@ from .init_project_scope import (
     InitProjectTarget,
     is_project_directory,
     resolve_init_project_inventory,
+    select_init_project_targets,
 )
 from .init_registry import InitCommandSpec, iter_init_command_specs
 
@@ -47,6 +49,7 @@ class _InitRunResult:
 
     exit_code: int
     status: InitRunStatus
+    plans: tuple[InitPlan, ...] = ()
 
 
 def _fallback_summary(plan: InitPlan) -> str:
@@ -245,6 +248,27 @@ def _render_check_summary(
     return has_changes, has_blockers, has_warnings
 
 
+def _check_result_for_plans(plans: Sequence[InitPlan]) -> _InitRunResult:
+    has_changes, has_blockers, _has_warnings = _plan_check_status(plans)
+    if has_blockers:
+        return _InitRunResult(1, "failed", tuple(plans))
+    if not has_changes:
+        return _InitRunResult(0, "current", tuple(plans))
+    return _InitRunResult(1, "needs_attention", tuple(plans))
+
+
+def _emit_cwd_check_json(
+    plans: Sequence[InitPlan],
+    result: _InitRunResult,
+    *,
+    console: Console,
+) -> None:
+    emit_init_check_json(
+        [cwd_check_row(plans, status=result.status)],
+        console=console,
+    )
+
+
 def run_init_check(
     args: argparse.Namespace,
     *,
@@ -254,21 +278,28 @@ def run_init_check(
     """Run a read-only initialization check and return a process exit code."""
     active_specs = tuple(specs)
     out_console = console or preview_console(sys.stdout)
+    json_mode = bool(getattr(args, "json", False))
 
     if not active_specs:
+        if json_mode:
+            result = _InitRunResult(1, "failed")
+            _emit_cwd_check_json((), result, console=out_console)
+            return result.exit_code
         _render_no_specs(out_console)
         return 1
 
     plans = _plan_specs(args, active_specs)
-    has_changes, has_blockers, _has_warnings = _render_check_summary(
+    result = _check_result_for_plans(plans)
+    if json_mode:
+        _emit_cwd_check_json(plans, result, console=out_console)
+        return result.exit_code
+    _render_check_summary(
         out_console,
         active_specs,
         plans,
         show_diff=getattr(args, "diff", False),
     )
-    if has_blockers:
-        return 1
-    return 1 if has_changes else 0
+    return result.exit_code
 
 
 def _run_changed_plans(
@@ -323,6 +354,12 @@ def _run_changed_plans(
     return _InitRunResult(0, "initialized")
 
 
+def _result_with_plans(
+    result: _InitRunResult, plans: Sequence[InitPlan]
+) -> _InitRunResult:
+    return _InitRunResult(result.exit_code, result.status, tuple(plans))
+
+
 def _run_init_onboarding_result(
     args: argparse.Namespace,
     *,
@@ -331,8 +368,12 @@ def _run_init_onboarding_result(
     stdin: TextIO | None = None,
     console: Console | None = None,
     manage_chezmoi_deploy: bool = True,
+    render: bool = True,
+    emit_json: bool | None = None,
 ) -> _InitRunResult:
     """Run one project's onboarding and return a structured result."""
+    json_mode = bool(getattr(args, "json", False)) if emit_json is None else emit_json
+    should_render = render and not json_mode
     if getattr(args, "enable_project_memory", False):
         from .init_memory_handler import prepare_project_memory_opt_in
 
@@ -345,66 +386,80 @@ def _run_init_onboarding_result(
     effective_stdin = stdin or sys.stdin
 
     if not active_specs:
-        _render_no_specs(out_console)
-        return _InitRunResult(1, "failed")
+        result = _InitRunResult(1, "failed")
+        if json_mode:
+            _emit_cwd_check_json((), result, console=out_console)
+            return result
+        if should_render:
+            _render_no_specs(out_console)
+        return result
 
     plans = _plan_specs(args, active_specs)
-    has_changes, has_blockers, _has_warnings = _render_check_summary(
-        out_console,
-        active_specs,
-        plans,
-        show_diff=getattr(args, "diff", False),
-        show_prompt_tip=(
-            is_tty
-            and not getattr(args, "yes", False)
-            and not getattr(args, "check", False)
-        ),
-    )
+    if should_render:
+        has_changes, has_blockers, _has_warnings = _render_check_summary(
+            out_console,
+            active_specs,
+            plans,
+            show_diff=getattr(args, "diff", False),
+            show_prompt_tip=(
+                is_tty
+                and not getattr(args, "yes", False)
+                and not getattr(args, "check", False)
+            ),
+        )
+    else:
+        has_changes, has_blockers, _has_warnings = _plan_check_status(plans)
 
     if has_blockers:
-        return _InitRunResult(1, "failed")
-
-    if not has_changes:
-        return _InitRunResult(0, "current")
-
-    if getattr(args, "check", False):
-        return _InitRunResult(1, "needs_attention")
-
-    if not getattr(args, "yes", False) and not is_tty:
-        out_console.print()
-        out_console.print("Run `sase init --yes` to apply these changes.")
-        return _InitRunResult(1, "needs_attention")
-
-    if not manage_chezmoi_deploy:
-        return _run_changed_plans(
-            args,
-            plans=plans,
-            specs=active_specs,
-            input_func=input_func,
-            stdin=effective_stdin,
-            console=out_console,
-        )
-
-    try:
-        with defer_chezmoi_deploy() as deferred_chezmoi:
-            result = _run_changed_plans(
+        result = _InitRunResult(1, "failed", tuple(plans))
+    elif not has_changes:
+        result = _InitRunResult(0, "current", tuple(plans))
+    elif getattr(args, "check", False):
+        result = _InitRunResult(1, "needs_attention", tuple(plans))
+    elif not getattr(args, "yes", False) and not is_tty:
+        if should_render:
+            out_console.print()
+            out_console.print("Run `sase init --yes` to apply these changes.")
+        result = _InitRunResult(1, "needs_attention", tuple(plans))
+    elif not manage_chezmoi_deploy:
+        result = _result_with_plans(
+            _run_changed_plans(
                 args,
                 plans=plans,
                 specs=active_specs,
                 input_func=input_func,
                 stdin=effective_stdin,
                 console=out_console,
-            )
-            if result.exit_code != 0:
-                return result
+            ),
+            plans,
+        )
+    else:
+        try:
+            with defer_chezmoi_deploy() as deferred_chezmoi:
+                result = _result_with_plans(
+                    _run_changed_plans(
+                        args,
+                        plans=plans,
+                        specs=active_specs,
+                        input_func=input_func,
+                        stdin=effective_stdin,
+                        console=out_console,
+                    ),
+                    plans,
+                )
+                if result.exit_code == 0:
+                    deploy_exit_code = deploy_deferred_chezmoi(deferred_chezmoi)
+                    if deploy_exit_code != 0:
+                        result = _InitRunResult(
+                            deploy_exit_code, "failed", tuple(plans)
+                        )
+        except LockTimeoutError as exc:
+            if should_render:
+                print_chezmoi_deploy_lock_timeout("init", exc)
+            result = _InitRunResult(1, "failed", tuple(plans))
 
-            deploy_exit_code = deploy_deferred_chezmoi(deferred_chezmoi)
-            if deploy_exit_code != 0:
-                return _InitRunResult(deploy_exit_code, "failed")
-    except LockTimeoutError as exc:
-        print_chezmoi_deploy_lock_timeout("init", exc)
-        return _InitRunResult(1, "failed")
-
+    if json_mode:
+        _emit_cwd_check_json(plans, result, console=out_console)
     return result
 
 
@@ -442,6 +497,10 @@ def _project_args(args: argparse.Namespace) -> argparse.Namespace:
     project_args = copy.copy(args)
     project_args.all = False
     project_args.enable_project_memory = False
+    if hasattr(project_args, "project"):
+        project_args.project = None
+    if hasattr(project_args, "json"):
+        project_args.json = False
     for marker in (
         "_project_memory_opt_in_prepared",
         "_project_config_changed",
@@ -490,6 +549,25 @@ def _summary_parts(
     return parts
 
 
+def _tally_batch_status(
+    status: InitRunStatus,
+    *,
+    current: int,
+    initialized: int,
+    needs_attention: int,
+    failed: int,
+) -> tuple[int, int, int, int, bool]:
+    if status == "current":
+        return current + 1, initialized, needs_attention, failed, False
+    if status == "initialized":
+        return current, initialized + 1, needs_attention, failed, False
+    if status == "needs_attention":
+        return current, initialized, needs_attention + 1, failed, False
+    if status == "cancelled":
+        return current, initialized, needs_attention, failed, True
+    return current, initialized, needs_attention, failed + 1, False
+
+
 def run_init_onboarding_all(
     args: argparse.Namespace,
     *,
@@ -497,24 +575,44 @@ def run_init_onboarding_all(
     input_func: Callable[[str], str] = input,
     stdin: TextIO | None = None,
     console: Console | None = None,
+    targets: Sequence[InitProjectTarget] | None = None,
 ) -> int:
     """Run bare onboarding for every enabled main SASE project."""
     out_console = console or preview_console(sys.stdout)
-    inventory: InitProjectInventory = resolve_init_project_inventory()
-    if inventory.error is not None:
-        out_console.print(f"init --all: {inventory.error}", style="red")
-        return 1
-    if not inventory.targets:
-        out_console.print("init --all: no enabled main SASE projects were found.")
-        return 1
+    json_mode = bool(getattr(args, "json", False))
+    names = getattr(args, "project", None)
+    scope = "init --project" if names else "init --all"
+    if targets is None:
+        inventory: InitProjectInventory = resolve_init_project_inventory()
+        if inventory.error is not None:
+            out_console.print(f"{scope}: {inventory.error}", style="red")
+            return 1
+        if names:
+            inventory = select_init_project_targets(inventory, names)
+            if inventory.error is not None:
+                out_console.print(f"{scope}: {inventory.error}", style="red")
+                return 1
+        if not inventory.targets:
+            empty = (
+                "no matching enabled main SASE projects were found."
+                if names
+                else "no enabled main SASE projects were found."
+            )
+            out_console.print(f"{scope}: {empty}")
+            return 1
+        selected = inventory.targets
+    else:
+        selected = tuple(targets)
 
     checked = current = initialized = needs_attention = unavailable = failed = 0
     cancelled = deploy_failed = False
+    project_rows: list[dict[str, Any]] = []
 
     try:
         with defer_chezmoi_deploy() as deferred_chezmoi:
-            for target in inventory.targets:
-                _render_project_heading(out_console, target)
+            for target in selected:
+                if not json_mode:
+                    _render_project_heading(out_console, target)
                 if (
                     target.unavailable_reason is not None
                     or target.workspace_dir is None
@@ -523,7 +621,10 @@ def run_init_onboarding_all(
                     reason = (
                         target.unavailable_reason or "primary workspace is unavailable"
                     )
-                    out_console.print(f"init --all: {reason}", style="red")
+                    if json_mode:
+                        project_rows.append(target_check_row(target, status="failed"))
+                    else:
+                        out_console.print(f"{scope}: {reason}", style="red")
                     continue
 
                 checked += 1
@@ -536,51 +637,78 @@ def run_init_onboarding_all(
                             stdin=stdin,
                             console=out_console,
                             manage_chezmoi_deploy=False,
+                            render=not json_mode,
+                            emit_json=False,
                         )
                 except KeyboardInterrupt:
-                    out_console.print()
-                    out_console.print("init --all: cancelled; aborting.")
                     cancelled = True
+                    if json_mode:
+                        project_rows.append(
+                            target_check_row(target, status="cancelled")
+                        )
+                    else:
+                        out_console.print()
+                        out_console.print(f"{scope}: cancelled; aborting.")
                     break
                 except Exception as exc:
-                    out_console.print(
-                        f"init --all: project failed: {exc}",
-                        style="red",
-                    )
                     failed += 1
+                    if json_mode:
+                        project_rows.append(
+                            target_check_row(target, status="failed", error=str(exc))
+                        )
+                    else:
+                        out_console.print(
+                            f"{scope}: project failed: {exc}",
+                            style="red",
+                        )
                     continue
 
-                if result.status == "current":
-                    current += 1
-                elif result.status == "initialized":
-                    initialized += 1
-                elif result.status == "needs_attention":
-                    needs_attention += 1
-                elif result.status == "cancelled":
+                if json_mode:
+                    project_rows.append(
+                        target_check_row(
+                            target, status=result.status, plans=result.plans
+                        )
+                    )
+                (
+                    current,
+                    initialized,
+                    needs_attention,
+                    failed,
+                    batch_cancelled,
+                ) = _tally_batch_status(
+                    result.status,
+                    current=current,
+                    initialized=initialized,
+                    needs_attention=needs_attention,
+                    failed=failed,
+                )
+                if batch_cancelled:
                     cancelled = True
                     break
-                else:
-                    failed += 1
 
             if not cancelled:
                 deploy_exit_code = deploy_deferred_chezmoi(deferred_chezmoi)
                 deploy_failed = deploy_exit_code != 0
     except LockTimeoutError as exc:
-        print_chezmoi_deploy_lock_timeout("init --all", exc)
+        if not json_mode:
+            print_chezmoi_deploy_lock_timeout(scope, exc)
         deploy_failed = True
 
-    parts = _summary_parts(
-        checked=checked,
-        current=current,
-        initialized=initialized,
-        needs_attention=needs_attention,
-        unavailable=unavailable,
-        failed=failed,
-        cancelled=cancelled,
-        deploy_failed=deploy_failed,
-    )
-    out_console.print()
-    out_console.print(f"Initialization summary: {', '.join(parts)}")
+    if json_mode:
+        emit_init_check_json(project_rows, console=out_console)
+    else:
+        parts = _summary_parts(
+            checked=checked,
+            current=current,
+            initialized=initialized,
+            needs_attention=needs_attention,
+            unavailable=unavailable,
+            failed=failed,
+            cancelled=cancelled,
+            deploy_failed=deploy_failed,
+        )
+        out_console.print()
+        out_console.print(f"Initialization summary: {', '.join(parts)}")
 
     return int(
         cancelled

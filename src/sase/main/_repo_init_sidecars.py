@@ -264,7 +264,7 @@ def plan_sidecar_actions(
     project_root: Path,
     specs: tuple[SidecarInitSpec, ...],
     recorded_roles: frozenset[str],
-) -> tuple[list[InitAction], list[str]]:
+) -> tuple[list[InitAction], list[str], bool]:
     """Plan provider connection and guide-file actions for sidecars."""
 
     from sase.sdd._sidecar_init import (
@@ -275,6 +275,7 @@ def plan_sidecar_actions(
 
     actions: list[InitAction] = []
     warnings: list[str] = []
+    requires_tty = False
     roots: dict[str, Path] = {}
     for spec in specs:
         root = resolve_sidecar_clone_root(project_root, spec.role)
@@ -288,6 +289,7 @@ def plan_sidecar_actions(
         clone_exists = (root / ".git").is_dir()
         needs_connection = not clone_exists and spec.role not in recorded_roles
         if needs_connection:
+            requires_tty = True
             detail = f"create or connect the provider {spec.role} sidecar repository"
             if spec.role == AGENTS_SIDECAR_ROLE:
                 detail += (
@@ -330,7 +332,7 @@ def plan_sidecar_actions(
                 detail="adopt bead state from the plans sidecar",
             )
         )
-    return actions, warnings
+    return actions, warnings, requires_tty
 
 
 __all__ = [
