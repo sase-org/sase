@@ -4,15 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from sase.ace.patch import Patch
-from sase.axe.check_cycles import CheckCycleRunner
 from sase.axe.chop_script_context import (
     ChopScriptContext,
     load_patches_from_file,
 )
-from sase.axe.hook_jobs import HookJobRunner
 from sase.axe.state import AxeMetrics
 
 from .sdk import (
@@ -26,6 +23,11 @@ from .sdk import (
     resolve_chop_result_file,
     write_chop_result,
 )
+
+if TYPE_CHECKING:
+    from sase.ace.patch import Patch
+    from sase.axe.check_cycles import CheckCycleRunner
+    from sase.axe.hook_jobs import HookJobRunner
 
 
 @dataclass
@@ -57,6 +59,8 @@ class BuiltinChopRuntime:
     @property
     def hook_runner(self) -> HookJobRunner:
         if self._hook_runner is None:
+            from sase.axe.hook_jobs import HookJobRunner
+
             self._hook_runner = HookJobRunner(
                 AxeMetrics(),
                 self.context.zombie_timeout_seconds,
@@ -72,6 +76,8 @@ class BuiltinChopRuntime:
     @property
     def check_cycle_runner(self) -> CheckCycleRunner:
         if self._check_cycle_runner is None:
+            from sase.axe.check_cycles import CheckCycleRunner
+
             self._check_cycle_runner = CheckCycleRunner(
                 self.context.query or None,
                 self.log,
