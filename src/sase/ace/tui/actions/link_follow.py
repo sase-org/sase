@@ -6,6 +6,13 @@ test invariant prefers it over a ``limit:`` drop -- then the head-slice
 drop, a reserved identity-reveal gap, minimal widening, and a blunt
 ``limit:all`` neutral query. Every rewrite commits through the pane's
 host-query adapter so query history records exactly one ``^`` restore.
+
+When every rung misses, one final acquisition step -- targeted hydration
+-- gets a row the pane never fetched at all (a deep-archive plan, a
+stitch outside the collection window, a capped provider snapshot)
+directly from its source, off the message pump, before falling back to
+the honest "not in this pane's inventory" toast. It fires at most once
+per transaction and never for a ref that failed to parse or route.
 """
 
 from __future__ import annotations
@@ -39,7 +46,11 @@ from ..relations.link_keys import (
 )
 from ..relations.link_subject import selected_link_subject
 from ..tab_order import ARTIFACTS_TAB
-from ..widgets.artifacts.entry_navigation import LinkRequestState
+from ..widgets.artifacts.entry_navigation import (
+    HydrationOutcome,
+    HydrationResult,
+    LinkRequestState,
+)
 from ._link_follow_ladder import (
     RUNG_FOLD,
     RUNG_IDENTITY,
@@ -81,7 +92,10 @@ class _LinkFollowTransaction:
     :meth:`~.entry_navigation.ArtifactEntryNavigator._complete_entry_request`
     seam) can be finalized safely. ``rung`` is the next ladder step to
     try and only ever increases, so an authoritative ``MISSING`` cannot
-    retry a rung that already fired.
+    retry a rung that already fired. ``hydrated`` marks that this
+    transaction (or the one it restarted from) already spent its one
+    targeted-hydration attempt, so a fetched row that still misses every
+    rung on re-entry reports absence instead of hydrating in a loop.
     """
 
     generation: int
@@ -91,6 +105,7 @@ class _LinkFollowTransaction:
     rung: int = RUNG_FOLD
     origin_query: QueryRecord | None = None
     origin_target: ArtifactEntryTarget | None = None
+    hydrated: bool = False
 
 
 class LinkFollowMixin:
@@ -106,6 +121,8 @@ class LinkFollowMixin:
     _link_follow_transaction: _LinkFollowTransaction | None
     _link_follow_dispatching: bool
     _link_reveals: dict[str, LinkReveal]
+    _link_hydration_waiters: dict[tuple[str, str], int]
+    _link_hydration_in_flight: set[tuple[str, str]]
 
     def action_follow_artifact_link(self) -> None:
         """Arm ``$`` link selection, or follow the lead chip on ``$$``."""
@@ -485,7 +502,7 @@ class LinkFollowMixin:
         self._handle_missing_link_follow(transaction)
 
     def _handle_missing_link_follow(self, transaction: _LinkFollowTransaction) -> None:
-        """Walk the remaining reveal rungs, then report inventory absence."""
+        """Walk the remaining reveal rungs, then hydrate or report absence."""
         pane = self._artifacts_entry_navigator(  # type: ignore[attr-defined]
             transaction.target.pane_id
         )
@@ -504,9 +521,141 @@ class LinkFollowMixin:
                     self._handle_link_follow_outcome(transaction.generation, state)
                     return
                 rung += 1
+            if not transaction.hydrated and self._begin_link_hydration(
+                pane, transaction
+            ):
+                return
         self._link_follow_transaction = None
         end_link_follow_pinning(self)
         self._notify_missing_in_inventory(transaction.ref, transaction.target)
+
+    def _begin_link_hydration(
+        self,
+        pane: Any,
+        transaction: _LinkFollowTransaction,
+    ) -> bool:
+        """Start (or coalesce into) one blocking direct-lookup for *transaction*.
+
+        Keyed by (pane, ref) so a repeated request while a lookup is
+        already running never spawns a second one -- a newer generation
+        simply supersedes the old waiter by overwriting the map entry, so
+        whichever transaction is live when the single in-flight lookup
+        resolves is the one :meth:`_complete_link_hydration` applies it
+        to. Returns ``False`` when the pane has no direct source, the ref
+        cannot be parsed, or no event loop is available to run the
+        lookup, so the caller falls back to the honest toast.
+        """
+        hydrate = getattr(pane, "hydrate_ref", None)
+        if not callable(hydrate):
+            return False
+        parsed = parse_link_ref(transaction.ref)
+        if parsed is None:
+            return False
+        kind, payload = parsed
+        pane_id = transaction.target.pane_id
+        key = (pane_id, transaction.ref)
+        self._link_follow_transaction = replace(transaction, hydrated=True)
+        waiters = self._link_hydration_waiters_map()
+        waiters[key] = transaction.generation
+        in_flight = self._link_hydration_in_flight_set()
+        if key in in_flight:
+            return True  # already running; the newer generation now owns it
+        from ..util.pump_tasks import spawn_pump_free_task
+
+        async def _runner() -> None:
+            try:
+                result = await asyncio.to_thread(hydrate, kind, payload)
+            except Exception as exc:  # noqa: BLE001 - mapped to FAILED below
+                result = HydrationResult(HydrationOutcome.FAILED, error=str(exc))
+            in_flight.discard(key)
+            self._complete_link_hydration(key, pane_id, result)
+
+        task = spawn_pump_free_task(
+            self,
+            _runner(),
+            name="sase-link-hydration",
+            registry_attr="_link_hydration_tasks",
+        )
+        if task is None:
+            del waiters[key]
+            return False
+        in_flight.add(key)
+        return True
+
+    def _link_hydration_waiters_map(self) -> dict[tuple[str, str], int]:
+        waiters = getattr(self, "_link_hydration_waiters", None)
+        if not isinstance(waiters, dict):
+            waiters = {}
+            self._link_hydration_waiters = waiters
+        return waiters
+
+    def _link_hydration_in_flight_set(self) -> set[tuple[str, str]]:
+        in_flight = getattr(self, "_link_hydration_in_flight", None)
+        if not isinstance(in_flight, set):
+            in_flight = set()
+            self._link_hydration_in_flight = in_flight
+        return in_flight
+
+    def _complete_link_hydration(
+        self,
+        key: tuple[str, str],
+        pane_id: str,
+        result: HydrationResult,
+    ) -> None:
+        """Apply one resolved hydration lookup, unless it has been superseded.
+
+        Re-reads the live transaction rather than trusting anything
+        captured before the lookup's ``await`` -- cancellation, a second
+        follow, user navigation, or teardown may have replaced or cleared
+        it while the lookup ran off the pump.
+        """
+        waiters = self._link_hydration_waiters_map()
+        generation = waiters.pop(key, None)
+        transaction = self._link_follow_transaction
+        if (
+            transaction is None
+            or generation is None
+            or transaction.generation != generation
+            or transaction.ref != key[1]
+            or transaction.target.pane_id != pane_id
+        ):
+            return  # superseded by a later follow, cancellation, or teardown
+        if result.outcome is HydrationOutcome.FETCHED:
+            self._install_hydrated_link_row(pane_id, transaction, result.payload)
+            return
+        self._link_follow_transaction = None
+        end_link_follow_pinning(self)
+        if result.outcome is HydrationOutcome.ABSENT:
+            self._notify_dangling_link_ref(transaction.ref)
+            return
+        if result.outcome is HydrationOutcome.FAILED:
+            self._notify_link_follow_failed(transaction)
+            return
+        self._notify_missing_in_inventory(transaction.ref, transaction.target)
+
+    def _install_hydrated_link_row(
+        self,
+        pane_id: str,
+        transaction: _LinkFollowTransaction,
+        payload: Any,
+    ) -> None:
+        """Merge one fetched row on the UI thread, then re-enter the ladder."""
+        pane = self._artifacts_entry_navigator(pane_id)  # type: ignore[attr-defined]
+        installer = (
+            getattr(pane, "install_hydrated_row", None) if pane is not None else None
+        )
+        new_target = installer(payload) if callable(installer) else None
+        if new_target is None:
+            self._link_follow_transaction = None
+            end_link_follow_pinning(self)
+            self._notify_link_follow_failed(transaction)
+            return
+        retried = replace(transaction, target=new_target, rung=RUNG_FOLD)
+        self._link_follow_transaction = retried
+        state = self._request_artifacts_target(
+            new_target, generation=transaction.generation
+        )
+        self._handle_link_follow_outcome(transaction.generation, state)
 
     def _finalize_selected_link_follow(
         self, transaction: _LinkFollowTransaction

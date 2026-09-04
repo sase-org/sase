@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from textual.widgets import Markdown, OptionList, Static
@@ -10,6 +12,7 @@ from textual.widgets.option_list import Option
 
 from sase.ace.tui._artifact_tab_model import PanePresentation
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.plan_search.model import PlanSearchMatch
 from sase.sdd.plan_refs import PLAN_REFERENCE_KIND
 from sase.sidecar_ref_config import sidecar_role_ref_kind
 
@@ -17,12 +20,15 @@ from .._prompt_preview_target import PreviewPayload
 from .entry_navigation import (
     ArtifactEntryNavigator,
     ArtifactEntryTarget,
+    HydrationOutcome,
+    HydrationResult,
     LinkRequestState,
     reveal_option_list_highlight,
     schedule_option_list_highlight_reveal,
 )
 from .plans_data import PlansSnapshot
 from .plans_data_models import ProjectArchive
+from .plans_data_sources import project_document_roots, resolve_projects
 from .plans_detail import (
     active_plan_properties_header,
     archive_preview_markdown,
@@ -226,6 +232,88 @@ class PlansNavigationMixin(_MixinBase):
     def clear_pending_entry_target(self) -> None:
         self._pending_entry_target = None
         self._pending_entry_generation = None
+
+    def hydrate_ref(self, kind: str, payload: str) -> HydrationResult:
+        """Resolve one archived document directly, without a deep-archive scan.
+
+        Scopes the Rust search to the target file's own containing
+        directory instead of the whole role root, so it costs one small
+        directory scan rather than the bounded-but-broad deep-archive
+        walk. Proposal refs (identified by a notification id, not a path)
+        and paths outside every currently known document root are
+        unsupported here -- a proposal that vanished from every loaded
+        row is genuinely gone, not merely unfetched.
+        """
+        del kind
+        if not payload or "/" not in payload:
+            return HydrationResult(HydrationOutcome.UNSUPPORTED)
+        path = Path(payload).expanduser()
+        located = self._locate_document_role(path)
+        if located is None:
+            return HydrationResult(HydrationOutcome.UNSUPPORTED)
+        project, role = located
+        from sase.plan_search.facade import SOURCE_REPO, search
+
+        kinds = ("tale", "epic") if role == "plans" else (role,)
+        try:
+            matches = search(
+                None,
+                kinds=kinds,
+                source=SOURCE_REPO,
+                sort="recent",
+                limit=None,
+                document_corpora=((path.parent, role),),
+            )
+        except Exception as exc:  # noqa: BLE001 - reported as FAILED below
+            return HydrationResult(HydrationOutcome.FAILED, error=str(exc))
+        resolved_target = str(path.resolve(strict=False))
+        match = next(
+            (
+                item
+                for item in matches
+                if str(Path(item.plan.path).resolve(strict=False)) == resolved_target
+            ),
+            None,
+        )
+        if match is None:
+            return HydrationResult(HydrationOutcome.ABSENT)
+        return HydrationResult(HydrationOutcome.FETCHED, payload=(project, role, match))
+
+    def _locate_document_role(self, path: Path) -> tuple[str, str] | None:
+        """Return ``(project, role)`` owning *path* among this pane's roots."""
+        provider_kind = None if self.provider_kind == "plan" else self.provider_kind  # type: ignore[attr-defined]
+        resolved = path.resolve(strict=False)
+        for item in resolve_projects(self.project_scope):
+            roots = project_document_roots(item, provider_kind=provider_kind)
+            for role, root in roots.items():
+                try:
+                    resolved.relative_to(root.resolve(strict=False))
+                except (ValueError, OSError):
+                    continue
+                return item.project, role
+        return None
+
+    def install_hydrated_row(self, payload: Any) -> ArtifactEntryTarget | None:
+        """Merge one fetched archive document into the current snapshot."""
+        if not isinstance(payload, tuple) or len(payload) != 3:
+            return None
+        project, role, match = payload
+        if not isinstance(match, PlanSearchMatch):
+            return None
+        snapshot = self._snapshot
+        if snapshot is None:
+            return None
+        if not any(
+            item.project == project and item.match.plan.path == match.plan.path
+            for item in snapshot.archive
+        ):
+            self._snapshot = replace(
+                snapshot,
+                archive=(*snapshot.archive, ProjectArchive(project, match, role)),
+            )
+        return ArtifactEntryTarget(
+            f"ref:{snapshot.provider_kind}", (project, "archive", match.plan.path)
+        )
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
         row = self.selected_row()

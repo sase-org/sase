@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
 from collections.abc import Mapping
+from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, cast
 
@@ -32,6 +33,35 @@ class LinkRequestState(Enum):
     PENDING = auto()
     MISSING = auto()
     FAILED = auto()
+
+
+class HydrationOutcome(Enum):
+    """Result of one blocking :meth:`ArtifactEntryNavigator.hydrate_ref` call.
+
+    ``UNSUPPORTED`` is the default for panes with no direct source, so a
+    hydration attempt degrades to the pane's existing inventory-miss
+    result. ``ABSENT`` is an *authoritative* direct-lookup miss -- the ref
+    is dangling, not merely filtered out of a capped snapshot, so it is
+    reported the same way as a malformed ref rather than an inventory
+    miss. ``FETCHED`` carries an immutable row payload for
+    :meth:`ArtifactEntryNavigator.install_hydrated_row` to merge in on the
+    UI thread. ``FAILED`` is an acquisition error, never conflated with
+    deletion.
+    """
+
+    UNSUPPORTED = auto()
+    ABSENT = auto()
+    FETCHED = auto()
+    FAILED = auto()
+
+
+@dataclass(frozen=True, slots=True)
+class HydrationResult:
+    """Typed outcome of one blocking targeted-hydration lookup."""
+
+    outcome: HydrationOutcome
+    payload: Any = None
+    error: str | None = None
 
 
 class _ArtifactEntryNavigatorMeta(ABCMeta, _MessagePumpMeta):
@@ -151,6 +181,28 @@ class ArtifactEntryNavigator(metaclass=_ArtifactEntryNavigatorMeta):
         """
         del target
         return False
+
+    def hydrate_ref(self, kind: str, payload: str) -> HydrationResult:
+        """Directly resolve a row this pane never fetched, off the UI thread.
+
+        Called via ``asyncio.to_thread`` only after the reveal ladder is
+        exhausted, so it must do no Textual widget mutation and touch no
+        pane snapshot -- return an immutable payload for
+        :meth:`install_hydrated_row` to merge in back on the UI thread.
+        The default is unsupported, so panes without a direct source keep
+        their existing inventory-miss result.
+        """
+        del kind, payload
+        return HydrationResult(HydrationOutcome.UNSUPPORTED)
+
+    def install_hydrated_row(self, payload: Any) -> ArtifactEntryTarget | None:
+        """Merge one :meth:`hydrate_ref`-fetched row into this pane's snapshot.
+
+        Runs on the UI thread. Returns the row's new stable identity, or
+        ``None`` when the merge itself fails.
+        """
+        del payload
+        return None
 
     def close_host_filter_session(self) -> None:
         """Close any open inline filter editor before a host query rewrite."""
@@ -364,6 +416,8 @@ def prepend_mark_glyph(prompt: Text, marked: bool) -> Text:
 __all__ = [
     "ArtifactEntryNavigator",
     "ArtifactEntryTarget",
+    "HydrationOutcome",
+    "HydrationResult",
     "LinkRequestState",
     "RelationEntryFact",
     "prepend_jump_hint",

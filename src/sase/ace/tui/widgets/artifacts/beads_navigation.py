@@ -10,22 +10,31 @@ from textual.widgets.option_list import Option
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.keymaps import KeymapRegistry
-from sase.bead.model import IssueType, Status
+from sase.bead.flag_fields import is_flag_bead
+from sase.bead.model import Issue, IssueType, Status
 from sase.core.artifact_relation_layout import RelationKeymap
 
 from ...models.group_fold import GroupFoldRegistry, GroupKey
 from .._prompt_preview_target import PreviewPayload
 from .beads_data import BeadsSnapshot
+from .beads_data_models import ProjectBead
+from .beads_data_sources import (
+    _hierarchical_id_key,
+    _project_beads_dir,
+    _resolve_projects,
+)
 from .beads_detail import (
     bead_body_markdown,
     bead_preview_markdown,
     bead_properties_header,
     resolved_plan_path,
 )
-from .beads_list import BeadRow, bead_row_target, row_option_id
+from .beads_list import BeadRow, BeadRowKind, bead_row_target, row_option_id
 from .entry_navigation import (
     ArtifactEntryNavigator,
     ArtifactEntryTarget,
+    HydrationOutcome,
+    HydrationResult,
     LinkRequestState,
     prewarm_option_render_cache,
     reveal_option_list_highlight,
@@ -250,6 +259,73 @@ class BeadsNavigationMixin(_MixinBase):
     def clear_pending_entry_target(self) -> None:
         self._pending_entry_target = None
         self._pending_entry_generation = None
+
+    def hydrate_ref(self, kind: str, payload: str) -> HydrationResult:
+        """Resolve one bead by exact id, searching only the current scope.
+
+        Scoping the store search to ``self.project_scope`` (one project, or
+        every enabled project when unscoped) guarantees the resolved
+        project is always compatible with the current snapshot, so the
+        merge in :meth:`install_hydrated_row` never has to reconcile a
+        foreign project scope.
+        """
+        if kind != "bead":
+            return HydrationResult(HydrationOutcome.UNSUPPORTED)
+        from sase.core.bead_read_facade import resolve_id, show
+
+        found: tuple[str, Issue] | None = None
+        for item in _resolve_projects(self.project_scope):
+            beads_dir = _project_beads_dir(item.project)
+            if beads_dir is None:
+                continue
+            try:
+                full_id = resolve_id(beads_dir, payload)
+                issue = show(beads_dir, full_id)
+            except KeyError:
+                continue
+            except Exception as exc:  # noqa: BLE001 - reported as FAILED below
+                return HydrationResult(HydrationOutcome.FAILED, error=str(exc))
+            found = (item.project, issue)
+            break
+        if found is None:
+            return HydrationResult(HydrationOutcome.ABSENT)
+        project, issue = found
+        parent_epic: Issue | None = None
+        if issue.issue_type is IssueType.PHASE and issue.parent_id:
+            beads_dir = _project_beads_dir(project)
+            if beads_dir is not None:
+                try:
+                    parent_epic = show(beads_dir, issue.parent_id)
+                except KeyError:
+                    parent_epic = None
+                except Exception as exc:  # noqa: BLE001 - reported as FAILED below
+                    return HydrationResult(HydrationOutcome.FAILED, error=str(exc))
+        return HydrationResult(
+            HydrationOutcome.FETCHED, payload=(project, issue, parent_epic)
+        )
+
+    def install_hydrated_row(self, payload: Any) -> ArtifactEntryTarget | None:
+        """Merge one fetched bead (plus its parent epic, if needed) in.
+
+        Leaves rebuilding ``_rows``/options to the request that follows:
+        the coordinator immediately re-requests the returned target, whose
+        ``request_entry_target`` miss path already calls
+        ``_refresh_options()`` with ``_pending_entry_target`` set, which
+        expands the owning epic fold for a phase for free.
+        """
+        if not isinstance(payload, tuple) or len(payload) != 3:
+            return None
+        project, issue, parent_epic = payload
+        snapshot = self._snapshot
+        if snapshot is None:
+            return None
+        if parent_epic is not None and not any(
+            bead.project == project and bead.issue.id == parent_epic.id
+            for bead in snapshot.epics
+        ):
+            snapshot = _merge_bead_into_snapshot(snapshot, project, parent_epic)
+        self._snapshot = _merge_bead_into_snapshot(snapshot, project, issue)
+        return ArtifactEntryTarget("beads", (project, _bead_row_kind(issue), issue.id))
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
         row = self.selected_row()
@@ -548,6 +624,65 @@ def _bead_row_is_snoozable(row: BeadRow) -> bool:
         Status.READY,
         Status.SNOOZED,
     }
+
+
+def _bead_row_kind(issue: Issue) -> BeadRowKind:
+    if issue.issue_type is IssueType.PLAN:
+        return "epic"
+    if issue.issue_type is IssueType.PHASE:
+        return "phase"
+    if is_flag_bead(issue):
+        return "flag"
+    return "task"
+
+
+def _merge_bead_into_snapshot(
+    snapshot: BeadsSnapshot,
+    project: str,
+    issue: Issue,
+) -> BeadsSnapshot:
+    """Append one hydrated bead into *snapshot*, preserving phase grouping."""
+    from dataclasses import replace as _replace
+
+    if issue.issue_type is IssueType.PLAN:
+        if any(
+            bead.project == project and bead.issue.id == issue.id
+            for bead in snapshot.epics
+        ):
+            return snapshot
+        epics = (*snapshot.epics, ProjectBead(project, issue))
+        key = (project, issue.id)
+        phases_by_epic = snapshot.phases_by_epic
+        if key not in phases_by_epic:
+            phases_by_epic = {**phases_by_epic, key: ()}
+        return _replace(snapshot, epics=epics, phases_by_epic=phases_by_epic)
+    if issue.issue_type is IssueType.PHASE:
+        if not issue.parent_id:
+            return snapshot  # an orphan phase has no epic to group under
+        key = (project, issue.parent_id)
+        existing = snapshot.phases_by_epic.get(key, ())
+        if any(bead.issue.id == issue.id for bead in existing):
+            return snapshot
+        phases = tuple(
+            sorted(
+                (*existing, ProjectBead(project, issue)),
+                key=lambda bead: _hierarchical_id_key(bead.issue.id),
+            )
+        )
+        phases_by_epic = {**snapshot.phases_by_epic, key: phases}
+        return _replace(snapshot, phases_by_epic=phases_by_epic)
+    if is_flag_bead(issue):
+        if any(
+            bead.project == project and bead.issue.id == issue.id
+            for bead in snapshot.flags
+        ):
+            return snapshot
+        return _replace(snapshot, flags=(*snapshot.flags, ProjectBead(project, issue)))
+    if any(
+        bead.project == project and bead.issue.id == issue.id for bead in snapshot.tasks
+    ):
+        return snapshot
+    return _replace(snapshot, tasks=(*snapshot.tasks, ProjectBead(project, issue)))
 
 
 __all__ = ["BeadsNavigationMixin", "BeadsOptionList"]

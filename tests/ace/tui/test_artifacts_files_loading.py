@@ -11,6 +11,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts import files_data, files_pane
 from sase.ace.tui.widgets.artifacts.entry_navigation import (
     ArtifactEntryTarget,
+    HydrationOutcome,
     LinkRequestState,
 )
 from sase.ace.tui.widgets.artifacts.files_pane import ArtifactsFilesPane
@@ -186,6 +187,97 @@ async def test_request_entry_target_defers_until_a_matching_snapshot_loads(
             assert pane.selected_entry_target() == target
     finally:
         release_full.set()
+
+
+async def test_hydrate_ref_resolves_exact_file_by_logical_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A file the pane's capped snapshot never fetched is hydrated directly."""
+    existing_row = artifact_file("known")
+    hydrated_row = artifact_file("never-fetched", artifact_id="hydrated:abc")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        files_pane,
+        "load_files_snapshot",
+        lambda project, limit: snapshot((existing_row,), project=project),
+    )
+
+    async with AcePage(initial_tab="patches") as page:
+        await page.press(page.artifacts_digit("files"), "(")
+        pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
+        await page.wait_for(
+            lambda _state: pane.snapshot is not None and len(pane.snapshot.rows) == 1,
+        )
+
+        calls: list[dict[str, object]] = []
+
+        def fake_query_artifact_files(**kwargs: object) -> list:
+            calls.append(dict(kwargs))
+            return [hydrated_row]
+
+        def fake_query_ref_file_versions() -> list:
+            return []
+
+        monkeypatch.setattr(
+            files_data, "query_artifact_files", fake_query_artifact_files
+        )
+        monkeypatch.setattr(
+            files_data, "query_ref_file_versions", fake_query_ref_file_versions
+        )
+
+        target_logical_id = logical_file(hydrated_row).logical_id
+        outcome = pane.hydrate_ref("file", target_logical_id)
+
+        assert outcome.outcome is HydrationOutcome.FETCHED
+        payload = outcome.payload
+        assert isinstance(payload, files_data.LogicalFile)
+        assert payload.logical_id == target_logical_id
+        # Scoped to this pane's project, never a global scan.
+        assert calls == [{"project": pane.project_scope, "limit": None}]
+
+        before = len(pane.snapshot.rows)
+        new_target = pane.install_hydrated_row(payload)
+
+        assert new_target == ArtifactEntryTarget(
+            pane_id="files", parts=(target_logical_id,)
+        )
+        assert pane.snapshot is not None
+        assert len(pane.snapshot.rows) == before + 1
+        assert any(row.logical_id == target_logical_id for row in pane.snapshot.rows)
+
+        # A repeated hydration of the same id is a no-op merge.
+        replay_target = pane.install_hydrated_row(payload)
+        assert replay_target == new_target
+        assert len(pane.snapshot.rows) == before + 1
+
+
+async def test_hydrate_ref_reports_absent_for_unknown_logical_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        files_pane,
+        "load_files_snapshot",
+        lambda project, limit: snapshot((), project=project),
+    )
+
+    async with AcePage(initial_tab="patches") as page:
+        await page.press(page.artifacts_digit("files"), "(")
+        pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
+        await page.wait_for(lambda _state: pane.snapshot is not None)
+
+        monkeypatch.setattr(files_data, "query_artifact_files", lambda **_kw: [])
+        monkeypatch.setattr(files_data, "query_ref_file_versions", lambda: [])
+
+        outcome = pane.hydrate_ref("file", "no/such/file.txt")
+        assert outcome.outcome is HydrationOutcome.ABSENT
 
 
 async def test_error_snapshot_renders_status_without_crashing(

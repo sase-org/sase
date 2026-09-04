@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
+from sase.agents.catalog import AgentCatalogRow
+
+from .agents_data import AgentsSnapshot
 from .agents_list import AgentRow, agent_row_target
 from .entry_navigation import (
     ArtifactEntryNavigator,
     ArtifactEntryTarget,
+    HydrationOutcome,
+    HydrationResult,
     LinkRequestState,
     prewarm_option_render_cache,
     reveal_option_list_highlight,
@@ -65,6 +71,7 @@ class AgentsOptionList(OptionList):
 class AgentsNavigationMixin(_MixinBase):
     """Own agent-row selection and the shared Artifacts entry contract."""
 
+    _snapshot: AgentsSnapshot | None
     _rows: dict[str, AgentRow]
     _syncing_options: bool
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
@@ -225,6 +232,57 @@ class AgentsNavigationMixin(_MixinBase):
     def clear_pending_entry_target(self) -> None:
         self._pending_entry_target = None
         self._pending_entry_generation = None
+
+    def hydrate_ref(self, kind: str, payload: str) -> HydrationResult:
+        """Resolve one agent directly from the persistent name registry.
+
+        Building the full registry-spined catalog is bounded by the name
+        registry's own size (the same work the pane's own background
+        full-corpus extension already does) rather than any external
+        scan, so this stays a direct lookup rather than a paginated
+        collection. Filtering candidates by ``self.project_scope`` before
+        picking a row keeps the merge in :meth:`install_hydrated_row`
+        compatible with the current snapshot's own project scope.
+        """
+        if kind != "agent":
+            return HydrationResult(HydrationOutcome.UNSUPPORTED)
+        from sase.agents.catalog import build_agent_catalog_snapshot
+        from sase.core.agent_identity_facade import (
+            AgentIdentitySnapshot,
+            current_owner_agent_name_lookup_candidates,
+        )
+
+        try:
+            catalog = build_agent_catalog_snapshot()
+        except Exception as exc:  # noqa: BLE001 - reported as FAILED below
+            return HydrationResult(HydrationOutcome.FAILED, error=str(exc))
+        scope = self.project_scope  # type: ignore[attr-defined]
+        by_name = {
+            row.name: row
+            for row in catalog.rows
+            if scope is None or row.project == scope
+        }
+        identity = AgentIdentitySnapshot.current()
+        for candidate in current_owner_agent_name_lookup_candidates(payload, identity):
+            row = by_name.get(candidate)
+            if row is not None:
+                return HydrationResult(HydrationOutcome.FETCHED, payload=row)
+        return HydrationResult(HydrationOutcome.ABSENT)
+
+    def install_hydrated_row(self, payload: Any) -> ArtifactEntryTarget | None:
+        """Merge one fetched agent row into the current snapshot."""
+        if not isinstance(payload, AgentCatalogRow):
+            return None
+        snapshot = self._current_snapshot()  # type: ignore[attr-defined]
+        if snapshot is None:
+            return None
+        if not any(row.name == payload.name for row in snapshot.rows):
+            self._snapshot = replace(
+                snapshot,
+                rows=(*snapshot.rows, payload),
+                total_row_count=snapshot.total_row_count + 1,
+            )
+        return agent_row_target(AgentRow(option_id=payload.name, entry=payload))
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
         keymap = getattr(

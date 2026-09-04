@@ -266,6 +266,102 @@ def _merge_rows(
     return rows if limit is None else rows[:limit]
 
 
+def merge_one_file_into_snapshot(
+    snapshot: FilesSnapshot,
+    row: LogicalFile,
+) -> FilesSnapshot:
+    """Merge one hydrated :class:`LogicalFile` into *snapshot*.
+
+    Updates only the derived view-mode/origin counters for the new row
+    instead of recomputing them over the whole snapshot, mirroring
+    :func:`_files_snapshot`'s per-row accounting.
+    """
+    if any(existing.logical_id == row.logical_id for existing in snapshot.rows):
+        return snapshot
+    view_modes: dict[str, ArtifactViewMode] = dict(snapshot.view_modes)
+    view_counts: Counter[ArtifactViewMode] = Counter(snapshot.view_mode_counts)
+    origin_counts: Counter[FileOrigin] = Counter(snapshot.origin_counts)
+    for origin in row.origins:
+        origin_counts[origin] += 1
+    for version in row.versions:
+        mode = (
+            artifact_file_view_mode(
+                version.path
+                or version.source_path
+                or version.vcs_relpath
+                or version.label,
+                kind=version.kind,
+            )
+            or "text"
+        )
+        view_modes[version.version_id] = mode
+    view_counts[view_modes[row.latest.version_id]] += 1
+    return replace(
+        snapshot,
+        rows=(*snapshot.rows, row),
+        view_modes=MappingProxyType(view_modes),
+        view_mode_counts=MappingProxyType(
+            {mode: view_counts.get(mode, 0) for mode in _VIEW_MODES}
+        ),
+        origin_counts=MappingProxyType(
+            {origin: origin_counts.get(origin, 0) for origin in _ORIGINS}
+        ),
+    )
+
+
+def load_one_file_by_logical_id(
+    identity: str,
+    *,
+    project: str | None = None,
+) -> LogicalFile | None:
+    """Directly resolve one file's full version history by exact logical id.
+
+    Scans both backing indexes the way :func:`load_files_snapshot` does --
+    neither exposes a narrower single-id query -- but returns one
+    :class:`LogicalFile` instead of a capped page. This is the
+    targeted-hydration resolver for a file ref the Files pane never
+    fetched at all: it matches both the modern ref-files identity
+    spelling and the legacy fallback spelling, the same two the pane's
+    own merge already reconciles, and applies the same project-scope
+    filter :func:`load_files_snapshot` does so the result is always
+    compatible with a project-scoped snapshot.
+    """
+    try:
+        legacy_rows = query_artifact_files(project=project, limit=None)
+        ref_rows = query_ref_file_versions()
+    except (ImportError, RuntimeError):
+        return None
+    legacy_by_artifact_id = {row.id: row for row in legacy_rows}
+    sidecar_roots = _sidecar_roots()
+    project_values = _project_scope_values(project)
+    versions: list[FileVersion] = []
+    for logical in ref_rows:
+        if _logical_identity(logical) != identity:
+            continue
+        raw_versions = logical.get("versions")
+        if not isinstance(raw_versions, Sequence):
+            continue
+        for raw_version in raw_versions:
+            if not isinstance(raw_version, Mapping):
+                continue
+            version = _version_from_ref_row(
+                logical,
+                raw_version,
+                legacy_by_artifact_id=legacy_by_artifact_id,
+                sidecar_roots=sidecar_roots,
+            )
+            if project_values and set(version.projects).isdisjoint(project_values):
+                continue
+            versions.append(version)
+    for row in legacy_rows:
+        if _legacy_logical_identity(row) != identity:
+            continue
+        versions.append(_version_from_legacy_row(row))
+    if not versions:
+        return None
+    return _logical_file(identity, versions)
+
+
 def _version_from_ref_row(
     logical: Mapping[str, Any],
     version: Mapping[str, Any],
@@ -552,5 +648,7 @@ __all__ = [
     "FilesSnapshot",
     "LogicalFile",
     "load_files_snapshot",
+    "load_one_file_by_logical_id",
+    "merge_one_file_into_snapshot",
     "selected_file_version_to_artifact_file",
 ]

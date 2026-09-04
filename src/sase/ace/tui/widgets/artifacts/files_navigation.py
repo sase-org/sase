@@ -11,9 +11,17 @@ from textual.widgets.option_list import Option
 from .entry_navigation import (
     ArtifactEntryNavigator,
     ArtifactEntryTarget,
+    HydrationOutcome,
+    HydrationResult,
     LinkRequestState,
     prewarm_option_render_cache,
     reveal_option_list_highlight,
+)
+from .files_data import (
+    FilesSnapshot,
+    LogicalFile,
+    load_one_file_by_logical_id,
+    merge_one_file_into_snapshot,
 )
 from .files_list import FileRow, file_row_target
 
@@ -65,6 +73,7 @@ class FilesOptionList(OptionList):
 class FilesNavigationMixin(_MixinBase):
     """Own file selection and the shared Artifacts entry contract."""
 
+    _snapshot: FilesSnapshot | None
     _rows: dict[str, FileRow]
     _syncing_options: bool
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
@@ -225,6 +234,31 @@ class FilesNavigationMixin(_MixinBase):
     def clear_pending_entry_target(self) -> None:
         self._pending_entry_target = None
         self._pending_entry_generation = None
+
+    def hydrate_ref(self, kind: str, payload: str) -> HydrationResult:
+        """Resolve one file directly by exact logical id, off the UI thread."""
+        if kind != "file":
+            return HydrationResult(HydrationOutcome.UNSUPPORTED)
+        try:
+            row = load_one_file_by_logical_id(
+                payload,
+                project=self.project_scope,  # type: ignore[attr-defined]
+            )
+        except Exception as exc:  # noqa: BLE001 - reported as FAILED below
+            return HydrationResult(HydrationOutcome.FAILED, error=str(exc))
+        if row is None:
+            return HydrationResult(HydrationOutcome.ABSENT)
+        return HydrationResult(HydrationOutcome.FETCHED, payload=row)
+
+    def install_hydrated_row(self, payload: Any) -> ArtifactEntryTarget | None:
+        """Merge one fetched file into the current snapshot."""
+        if not isinstance(payload, LogicalFile):
+            return None
+        snapshot = self._current_snapshot()  # type: ignore[attr-defined]
+        if snapshot is None:
+            return None
+        self._snapshot = merge_one_file_into_snapshot(snapshot, payload)
+        return file_row_target(FileRow(option_id=payload.logical_id, entry=payload))
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
         keymap = getattr(

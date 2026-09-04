@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any, cast
 
 from rich.console import RenderableType
@@ -17,10 +18,12 @@ from sase.core.vcs_log_wire import AggregatedCommitWire
 from sase.vcs_log.models import VcsLogResult
 
 from .commits_rendering import build_commit_detail, build_commit_view_spec
-from .commits_timeline import CommitsTimeline
+from .commits_timeline import CommitsTimeline, commit_row_target
 from .entry_navigation import (
     ArtifactEntryNavigator,
     ArtifactEntryTarget,
+    HydrationOutcome,
+    HydrationResult,
     LinkRequestState,
 )
 
@@ -125,6 +128,80 @@ class CommitsDetailMixin(_MixinBase):
         if worker is not None and getattr(worker, "is_running", False):
             return True
         return bool(getattr(self, "_query_result_pending", False))
+
+    def hydrate_ref(self, kind: str, payload: str) -> HydrationResult:
+        """Resolve one ``stitch:repo@sha`` commit directly, bypassing collection.
+
+        Requests exactly this revision through the repo's own VCS
+        provider -- no ``since``/``until``/sidecar/merges window, no
+        remote-ref resolution -- so it never grows the collected inventory.
+        """
+        if kind != "stitch":
+            return HydrationResult(HydrationOutcome.UNSUPPORTED)
+        repo, sep, sha = payload.partition("@")
+        if not sep or not repo or not sha:
+            return HydrationResult(HydrationOutcome.UNSUPPORTED)
+        checkout_path = self._stitch_checkout_path(repo)
+        if checkout_path is None:
+            return HydrationResult(HydrationOutcome.UNSUPPORTED)
+        from sase.vcs_provider import VCSOperationError, get_vcs_provider
+
+        try:
+            provider = get_vcs_provider(checkout_path)
+            full_sha = provider.revision_id(f"{sha}^{{commit}}", checkout_path)
+        except VCSOperationError:
+            return HydrationResult(HydrationOutcome.ABSENT)
+        except Exception as exc:  # noqa: BLE001 - reported as FAILED below
+            return HydrationResult(HydrationOutcome.FAILED, error=str(exc))
+        normalized = full_sha.strip().lower()
+        if len(normalized) != 40 or any(
+            character not in "0123456789abcdef" for character in normalized
+        ):
+            return HydrationResult(HydrationOutcome.ABSENT)
+        try:
+            commits = provider.log(checkout_path, 1, revs=(normalized,), merges="show")
+        except Exception as exc:  # noqa: BLE001 - reported as FAILED below
+            return HydrationResult(HydrationOutcome.FAILED, error=str(exc))
+        if not commits:
+            return HydrationResult(HydrationOutcome.ABSENT)
+        return HydrationResult(
+            HydrationOutcome.FETCHED,
+            payload=AggregatedCommitWire(repo=repo, commit=commits[0]),
+        )
+
+    def _stitch_checkout_path(self, repo: str) -> str | None:
+        result = self.result
+        if result is None:
+            return None
+        for log_repo in result.repos:
+            if log_repo.name == repo or repo in log_repo.aliases:
+                return log_repo.path
+        return None
+
+    def install_hydrated_row(self, payload: Any) -> ArtifactEntryTarget | None:
+        """Merge one fetched commit into the current result, then re-render."""
+        if not isinstance(payload, AggregatedCommitWire):
+            return None
+        result = self.result
+        if result is None:
+            return None
+        for entry in result.commits:
+            if (
+                entry.repo == payload.repo
+                and entry.commit.full_id == payload.commit.full_id
+            ):
+                self._display_result(result)
+                return commit_row_target(entry)
+        commits = list(result.commits)
+        insert_at = len(commits)
+        for index, entry in enumerate(commits):
+            if entry.commit.timestamp < payload.commit.timestamp:
+                insert_at = index
+                break
+        commits.insert(insert_at, payload)
+        merged = replace(result, commits=tuple(commits))
+        self._display_result(merged)
+        return commit_row_target(payload)
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
         keymap = getattr(

@@ -103,6 +103,11 @@ def init_navigation_state(self: Any) -> None:
     self._link_follow_generation = 0
     self._link_follow_transaction = None
     self._link_follow_dispatching = False
+    # Targeted-hydration coalescing state, keyed by (pane_id, ref): the
+    # generation currently waiting on each in-flight blocking lookup, and
+    # which lookups are still running.
+    self._link_hydration_waiters = {}
+    self._link_hydration_in_flight = set()
 
     # Cached graph index over ``_all_patches``; rebuilt only when the
     # list identity changes (see ``_get_patch_graph_index``).
