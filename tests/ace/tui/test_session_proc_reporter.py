@@ -75,6 +75,48 @@ def test_session_reporter_run_streams_combined_child_output() -> None:
     assert "err" in result.stdout
 
 
+def test_session_reporter_run_can_suppress_line_logging() -> None:
+    reporter = session_reporter()
+
+    result = reporter.run(
+        [sys.executable, "-c", "print('secret-json', flush=True)"],
+        log_lines=False,
+    )
+
+    assert result.returncode == 0
+    assert "secret-json" in result.stdout
+    texts = [text for text, _stream in _streams(reporter)]
+    assert "secret-json" not in texts
+    assert any(text.startswith("$ ") for text in texts)
+
+
+def test_session_reporter_run_on_line_survives_callback_errors() -> None:
+    reporter = session_reporter()
+    seen: list[str] = []
+
+    def on_line(line: str) -> None:
+        seen.append(line)
+        if line == "one":
+            raise RuntimeError("boom")
+
+    result = reporter.run(
+        [
+            sys.executable,
+            "-c",
+            "print('one', flush=True); print('two', flush=True)",
+        ],
+        on_line=on_line,
+    )
+
+    assert result.returncode == 0
+    assert seen == ["one", "two"]
+    texts = [text for text, _stream in _streams(reporter)]
+    assert "one" in texts
+    assert "two" in texts
+    assert any("on_line callback failed" in text for text in texts)
+    assert any("boom" in text for text in texts)
+
+
 def test_session_reporter_run_timeout_raises_with_captured_output() -> None:
     reporter = session_reporter()
 

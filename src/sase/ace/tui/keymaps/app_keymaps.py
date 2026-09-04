@@ -284,6 +284,8 @@ class ProjectsPaneKeymaps:
     pick_project: str = "p"
     clear_project_filter: str = "escape"
     set_current_project: str = "c"
+    initialize_project: str = "i"
+    initialize_all_projects: str = "I"
 
 
 @dataclass

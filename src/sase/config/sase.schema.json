@@ -2103,6 +2103,14 @@
                 "set_current_project": {
                   "type": "string",
                   "description": "Make the selected project the current project"
+                },
+                "initialize_project": {
+                  "type": "string",
+                  "description": "Initialize the selected (or marked) project(s)"
+                },
+                "initialize_all_projects": {
+                  "type": "string",
+                  "description": "Initialize every enabled project"
                 }
               }
             },

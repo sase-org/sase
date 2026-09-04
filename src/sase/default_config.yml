@@ -403,6 +403,8 @@ ace:
       pick_project: "p"
       clear_project_filter: "escape"
       set_current_project: "c"
+      initialize_project: "i"
+      initialize_all_projects: "I"
     app:
       # Navigation
       next_patch: "j"

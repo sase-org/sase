@@ -215,6 +215,8 @@ _PROJECTS_BINDING_META: tuple[tuple[str, str, str], ...] = (
     ("show_project_workspaces", "show_project_workspaces", "Project Workspaces"),
     ("jump_to_entry", "jump_to_entry", "Jump"),
     ("set_current_project", "set_current_project", "Set Current"),
+    ("initialize_project", "initialize_project", "Initialize"),
+    ("initialize_all_projects", "initialize_all_projects", "Initialize All"),
 )
 
 # Scoped bindings owned by the Repos/Workspaces Projects-tab inventory panes.

@@ -163,12 +163,37 @@ class SessionProcReporter:
         env: Mapping[str, str] | None = None,
         timeout: float | None = None,
         stream: ProcLogStream = "stdout",
+        log_lines: bool = True,
+        on_line: LineCallback | None = None,
     ) -> subprocess.CompletedProcess[str]:
-        """Run a subprocess with live line streaming into this proc."""
+        """Run a subprocess with live line streaming into this proc.
+
+        ``log_lines=False`` still captures stdout on the returned
+        ``CompletedProcess`` but does not append child lines to the proc log
+        (used for JSON check payloads). ``on_line`` is invoked on the reader
+        thread after optional logging; exceptions there are reported once and
+        must not abort the rest of the stream.
+        """
         self.set_command(argv)
+        hook_failed = False
+
+        def _handle_line(line: str) -> None:
+            nonlocal hook_failed
+            if log_lines:
+                self.log(line, stream=stream)
+            if on_line is None:
+                return
+            try:
+                on_line(line)
+            except Exception as exc:  # noqa: BLE001 - reader thread must survive.
+                if hook_failed:
+                    return
+                hook_failed = True
+                self.log(f"on_line callback failed: {exc}", stream="stderr")
+
         result = _stream_subprocess(
             argv,
-            on_line=lambda line: self.log(line, stream=stream),
+            on_line=_handle_line,
             cancel_event=self.cancel_event,
             cwd=cwd,
             env=env,

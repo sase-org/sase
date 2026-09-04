@@ -581,6 +581,8 @@ def test_default_config_covers_all_projects_keymaps() -> None:
         "pick_project": "p",
         "clear_project_filter": "escape",
         "set_current_project": "c",
+        "initialize_project": "i",
+        "initialize_all_projects": "I",
     }
     assert field_names == set(defaults)
 

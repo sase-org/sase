@@ -8627,6 +8627,55 @@ PluginActionConfirmModal Button {
     margin: 0 1;
 }
 
+/* Projects-tab initialization plan confirm-preview modal */
+InitPlanModal > #init-plan-container {
+    width: 76;
+    max-width: 95%;
+    height: auto;
+    max-height: 80%;
+    background: $surface;
+    padding: 1 2;
+    border-subtitle-align: center;
+}
+
+InitPlanModal.has-scrollable-preview > #init-plan-container {
+    height: 90%;
+    max-height: 90%;
+}
+
+InitPlanModal #init-plan-preview-scroll {
+    width: 100%;
+    height: auto;
+    max-height: 70vh;
+    margin-bottom: 1;
+    padding: 0 1;
+    border: round $accent;
+    border-subtitle-align: right;
+}
+
+InitPlanModal #init-plan-container.confirm-dialog--danger #init-plan-preview-scroll {
+    border: round $error;
+}
+
+InitPlanModal.has-scrollable-preview #init-plan-preview-scroll {
+    height: 1fr;
+}
+
+InitPlanModal #init-plan-preview {
+    width: 100%;
+    height: auto;
+}
+
+InitPlanModal #init-plan-buttons {
+    align: center middle;
+    height: auto;
+    margin-top: 1;
+}
+
+InitPlanModal Button {
+    margin: 0 1;
+}
+
 /* Config XPrompts child (migrated XPrompt Browser body) */
 XPromptBrowserPane #browser-title {
     text-style: bold;
