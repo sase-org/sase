@@ -167,7 +167,7 @@ install: _venv
         printf "[install] Installing prebuilt sase_core_rs wheel from %s.\n" "$SASE_CORE_WHEEL"; \
         uv pip install --python {{ venv_bin }}/python "$SASE_CORE_WHEEL"; \
     elif [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
-        printf "[install] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
+        printf "[install] Installing local sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
         just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
     fi
     uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev]"
@@ -191,7 +191,7 @@ install-visual: _venv
         printf "[install-visual] Installing prebuilt sase_core_rs wheel from %s.\n" "$SASE_CORE_WHEEL"; \
         uv pip install --python {{ venv_bin }}/python "$SASE_CORE_WHEEL"; \
     elif [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
-        printf "[install-visual] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
+        printf "[install-visual] Installing local sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
         just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
     fi
     uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,visual]"
@@ -244,7 +244,7 @@ install-terminal-smoke: _venv
         printf "[install-terminal-smoke] Installing prebuilt sase_core_rs wheel from %s.\n" "$SASE_CORE_WHEEL"; \
         uv pip install --python {{ venv_bin }}/python "$SASE_CORE_WHEEL"; \
     elif [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
-        printf "[install-terminal-smoke] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
+        printf "[install-terminal-smoke] Installing local sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
         just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
     fi
     uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,terminal-smoke]"
@@ -872,22 +872,33 @@ rust-install VENV=venv_dir_abs: _venv
     elif [ "$status" -ne 0 ]; then \
         printf "[rust-install] Note: the sase-core checkout is ahead of the published sase-core-rs window in pyproject.toml; dev builds from {{ sase_core_dir }} ignore it. This is normal — the release-branch reconciler ratchets the published window at release time, so no action is needed here.\n"; \
     fi
-    @"{{ VENV }}/bin/maturin" --version > /dev/null 2>&1 || uv pip install --python "{{ VENV }}/bin/python" maturin
     # Harden cargo crate downloads against transient crates.io flakiness.
     # CI has hit `curl ... [16] Error in the HTTP2 framing layer` while
     # maturin's `cargo metadata` fetches deps; disabling HTTP/2 multiplexing
     # and raising the retry count makes the download resilient. Both are
     # overridable from the environment.
-    @marker="$(mktemp)"; \
-    trap 'rm -f "$marker"' EXIT; \
-    touch "$marker"; \
-    cd "{{ sase_core_dir }}/crates/sase_core_py" && \
-        VIRTUAL_ENV="{{ VENV }}" \
-        PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 \
-        CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
-        CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
-        "{{ VENV }}/bin/maturin" develop --release && \
-    "{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/purge_sase_core_rs_extensions" --exclude-newer-than "$marker"
+    @cached_wheel="$("{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/sase_core_wheel_cache" lookup --sase-core-dir "{{ sase_core_dir }}" --python "{{ VENV }}/bin/python" || true)"; \
+    if [ -n "$cached_wheel" ]; then \
+        printf "[rust-install] Installing cached sase_core_rs wheel from %s.\n" "$cached_wheel"; \
+        uv pip install --python "{{ VENV }}/bin/python" --reinstall-package sase-core-rs "$cached_wheel"; \
+    else \
+        "{{ VENV }}/bin/maturin" --version > /dev/null 2>&1 || uv pip install --python "{{ VENV }}/bin/python" maturin; \
+        marker="$(mktemp)"; \
+        trap 'rm -f "$marker"' EXIT; \
+        touch "$marker"; \
+        cd "{{ sase_core_dir }}/crates/sase_core_py" && \
+            VIRTUAL_ENV="{{ VENV }}" \
+            PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 \
+            CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
+            CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
+            "{{ VENV }}/bin/maturin" develop --release && \
+        "{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/purge_sase_core_rs_extensions" --exclude-newer-than "$marker"; \
+        build_status=$?; \
+        if [ "$build_status" -ne 0 ]; then \
+            exit "$build_status"; \
+        fi; \
+        "{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/sase_core_wheel_cache" store --sase-core-dir "{{ sase_core_dir }}" --python "{{ VENV }}/bin/python" --maturin "{{ VENV }}/bin/maturin" || true; \
+    fi
     # Keep the LSP server in lockstep with the extension: both are built
     # from the same sase-core checkout, and the ACE/LSP parity tests
     # compare their directive contracts.

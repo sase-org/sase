@@ -436,11 +436,11 @@ ACE does not detect, display, preview, or apply incoming agent imports. The
 comprehensive `,U` Update panel covers SASE/core/plugins and providers only.
 
 For an explicit full network publication/reconciliation, open SASE Admin Center's
-Updates pane and press `a` (**Sync agents**). That tracked action covers every
-enabled project, drains retryable agent-hood publication work, continues after
-project-local failures, and refreshes the Agents view when it completes. It is
-equivalent to unscoped `sase agent sync`. All Git, validation, publication, and
-full-sync work runs outside the Textual event loop.
+Updates pane and press `a` (**Sync agents**). That tracked action covers every enabled
+project, drains retryable agent-hood publication work, continues after project-local
+failures, and refreshes the Agents view when it completes. It is equivalent to unscoped
+`sase agent sync`. All Git, validation, publication, and full-sync work runs outside the
+Textual event loop.
 
 ## Recovery
 

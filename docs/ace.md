@@ -966,7 +966,7 @@ Help is not a leader command: press the app-level `?` on any tab to open the Hel
 | `,C`       | Review mentors (opens Mentor Review modal)                                                  |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                     |
 | `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control)) |
-| `,U`       | Open Update panel (SASE, providers)                                                 |
+| `,U`       | Open Update panel (SASE, providers)                                                         |
 | `,L`       | Jump to the log entry for the most recent error toast                                       |
 | `,M`       | Kill running mentors                                                                        |
 | `,R`       | Show runners info                                                                           |
@@ -2243,7 +2243,7 @@ modal.
 | `,u`       | Mark all loaded unread completed agents as read                                                   |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                             |
 | `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control))       |
-| `,U`       | Open Update panel (SASE, providers)                                                       |
+| `,U`       | Open Update panel (SASE, providers)                                                               |
 | `,L`       | Jump to the log entry for the most recent error toast                                             |
 | `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication          |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                 |
@@ -2612,7 +2612,7 @@ Help is not a leader command: press the app-level `?` on any tab to open the Hel
 | `,,`      | Repeat the last leader command                                                              |
 | `,h`      | Run agent from home prompt context; bare prompts default to `#git:home`                     |
 | `,m`      | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control)) |
-| `,U`      | Open Update panel (SASE, providers)                                                 |
+| `,U`      | Open Update panel (SASE, providers)                                                         |
 | `,L`      | Jump to the log entry for the most recent error toast                                       |
 | `,R`      | Show runners info                                                                           |
 | `,.`      | Open prompt history modal                                                                   |
@@ -6555,19 +6555,18 @@ panes. When commit previews are enabled and a comparable range is available, cor
 installed-plugin **update** confirmations load incoming commits by repository in the
 background; install confirmations do not. The global `,U` chord opens the **Update
 panel** from already-fetched SASE and provider snapshots — no Admin Center, no live
-inventory load. `e` / `s` / `p` (or `⏎` on the highlighted row) choose Everything,
-SASE, or providers and then show the same `y`/`n` confirmation ACE uses
-elsewhere, containing only the selected legs. `E` / `S` / `P` plan those same
-scopes and skip only that final confirmation after a runnable preview succeeds; failed
-or already-current previews still do not mutate. `r` re-checks in place; `q` / `Esc`
-cancel. An Everything confirmation groups SASE and Agent CLI work into labeled
-sections with update/current/skipped glyphs, counts, and commands. The tracked
-proc runs Agent CLI commands first and the SASE/core/plugin leg second. A failure
-in one leg is reported alongside the independent earlier results. After a changed
-core/plugin update restarts ACE, the one-shot result toast can show applied commits
-grouped by repository as well as file/line statistics. Configure the toast with
-`ace.updates.post_update_toast_commits`, `post_update_toast_max_commits`, and
-`post_update_toast_diffstat`.
+inventory load. `e` / `s` / `p` (or `⏎` on the highlighted row) choose Everything, SASE,
+or providers and then show the same `y`/`n` confirmation ACE uses elsewhere, containing
+only the selected legs. `E` / `S` / `P` plan those same scopes and skip only that final
+confirmation after a runnable preview succeeds; failed or already-current previews still
+do not mutate. `r` re-checks in place; `q` / `Esc` cancel. An Everything confirmation
+groups SASE and Agent CLI work into labeled sections with update/current/skipped glyphs,
+counts, and commands. The tracked proc runs Agent CLI commands first and the
+SASE/core/plugin leg second. A failure in one leg is reported alongside the independent
+earlier results. After a changed core/plugin update restarts ACE, the one-shot result
+toast can show applied commits grouped by repository as well as file/line statistics.
+Configure the toast with `ace.updates.post_update_toast_commits`,
+`post_update_toast_max_commits`, and `post_update_toast_diffstat`.
 
 The providers leg still captures the agent-CLI candidates from the latest completed
 automatic result, revalidates exactly those names, and never broadens the captured set
@@ -6584,9 +6583,9 @@ pane, and with no marks it targets every safely updatable installed CLI. See the
 `sase agent-cli` CLI.
 
 The Updates pane still binds `a` to a tracked agents-sidecar publication sync. That
-action publishes and reconciles agent hoods for every enabled project; it is not
-part of the comprehensive update. See [Agent Hood Synchronization](agents_sidecar.md)
-for privacy, publication, status, and recovery behavior.
+action publishes and reconciles agent hoods for every enabled project; it is not part of
+the comprehensive update. See [Agent Hood Synchronization](agents_sidecar.md) for
+privacy, publication, status, and recovery behavior.
 
 ## Snippets
 

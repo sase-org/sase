@@ -288,8 +288,7 @@ def test_duplicate_scoped_submission_is_rejected() -> None:
     assert harness.submitted is not None
     _, kwargs = harness.submitted
     assert (
-        kwargs["duplicate_message"]
-        == "A SASE or agent CLI update is already running."
+        kwargs["duplicate_message"] == "A SASE or agent CLI update is already running."
     )
 
 

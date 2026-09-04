@@ -1,0 +1,553 @@
+#!/usr/bin/env python3
+"""Host-local cache for clean ``sase-core`` release wheels."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+
+CACHE_SCHEMA_VERSION = 1
+DEFAULT_MAX_BYTES = 4 * 1024 * 1024 * 1024
+DEFAULT_MAX_ENTRIES = 12
+INPUT_PATHS = ("Cargo.toml", "Cargo.lock", "crates/sase_core_py")
+MISS_EXIT = 1
+
+
+class CacheUnavailable(RuntimeError):
+    """Raised when this checkout cannot safely use the wheel cache."""
+
+
+@dataclass(frozen=True)
+class CacheIdentity:
+    digest: str
+    payload: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class CacheEntry:
+    digest: str
+    path: Path
+    size: int
+    last_used: float
+
+
+def _default_cache_root() -> Path:
+    configured = os.environ.get("SASE_CORE_WHEEL_CACHE_DIR")
+    if configured:
+        return Path(configured).expanduser()
+    return Path.home() / ".sase" / "cache" / "sase-core-wheels"
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _run_text(
+    command: Sequence[str],
+    *,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+    timeout: float = 60.0,
+) -> str:
+    completed = subprocess.run(
+        list(command),
+        cwd=cwd,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+    if completed.returncode != 0:
+        command_text = " ".join(command)
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise CacheUnavailable(f"{command_text} failed: {detail}")
+    return completed.stdout
+
+
+def _run_bytes(command: Sequence[str], *, cwd: Path, timeout: float = 60.0) -> bytes:
+    completed = subprocess.run(
+        list(command),
+        cwd=cwd,
+        check=False,
+        capture_output=True,
+        timeout=timeout,
+    )
+    if completed.returncode != 0:
+        command_text = " ".join(command)
+        detail = completed.stderr.decode(errors="replace").strip()
+        raise CacheUnavailable(f"{command_text} failed: {detail}")
+    return completed.stdout
+
+
+def _git(core_dir: Path, *args: str) -> str:
+    return _run_text(("git", "-C", str(core_dir), *args), timeout=30.0)
+
+
+def _ensure_clean_git_checkout(core_dir: Path) -> None:
+    inside = _git(core_dir, "rev-parse", "--is-inside-work-tree").strip()
+    if inside != "true":
+        raise CacheUnavailable("sase-core directory is not a git worktree")
+
+    dirty = _git(
+        core_dir,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+    )
+    dirty_lines = [
+        line
+        for line in dirty.splitlines()
+        if not line.startswith("?? target/")
+    ]
+    if dirty_lines:
+        raise CacheUnavailable("sase-core checkout is dirty")
+
+    upstream = subprocess.run(
+        ["git", "-C", str(core_dir), "rev-parse", "--abbrev-ref", "@{upstream}"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30.0,
+    )
+    if upstream.returncode != 0:
+        return
+
+    counts = _git(core_dir, "rev-list", "--left-right", "--count", "HEAD...@{upstream}")
+    parts = counts.split()
+    if len(parts) != 2:
+        raise CacheUnavailable("could not compute sase-core upstream divergence")
+    ahead, behind = (int(parts[0]), int(parts[1]))
+    if ahead or behind:
+        raise CacheUnavailable("sase-core checkout is ahead or behind its upstream")
+
+
+def _crate_input_digest(core_dir: Path) -> str:
+    output = _run_bytes(
+        (
+            "git",
+            "-C",
+            str(core_dir),
+            "ls-tree",
+            "-r",
+            "--full-tree",
+            "-z",
+            "HEAD",
+            "--",
+            *INPUT_PATHS,
+        ),
+        cwd=core_dir,
+        timeout=30.0,
+    )
+    paths: list[str] = []
+    for record in output.split(b"\0"):
+        if not record or b"\t" not in record:
+            continue
+        paths.append(record.split(b"\t", 1)[1].decode(errors="replace"))
+    if not any(path.startswith("crates/sase_core_py/") for path in paths):
+        raise CacheUnavailable("sase-core checkout has no crates/sase_core_py tree")
+    return hashlib.sha256(output).hexdigest()
+
+
+def _python_abi(python: Path) -> dict[str, Any]:
+    script = """
+import json
+import platform
+import sys
+import sysconfig
+
+print(json.dumps({
+    "abiflags": getattr(sys, "abiflags", ""),
+    "cache_tag": sys.implementation.cache_tag,
+    "ext_suffix": sysconfig.get_config_var("EXT_SUFFIX") or "",
+    "implementation": platform.python_implementation(),
+    "platform": sysconfig.get_platform(),
+    "soabi": sysconfig.get_config_var("SOABI") or "",
+    "version": list(sys.version_info[:3]),
+}, sort_keys=True))
+"""
+    raw = _run_text((str(python), "-c", script), timeout=15.0)
+    loaded = json.loads(raw)
+    if not isinstance(loaded, dict):
+        raise CacheUnavailable("target Python ABI probe returned invalid JSON")
+    return loaded
+
+
+def _cache_identity(
+    *,
+    core_dir: Path,
+    python: Path,
+    rustc: str,
+) -> CacheIdentity:
+    core_dir = core_dir.resolve()
+    _ensure_clean_git_checkout(core_dir)
+    commit = _git(core_dir, "rev-parse", "HEAD").strip()
+    rustc_version = _run_text((rustc, "-vV"), timeout=15.0).strip()
+    payload: dict[str, Any] = {
+        "schema_version": CACHE_SCHEMA_VERSION,
+        "sase_core_commit": commit,
+        "dirty_state": "clean",
+        "rustc": rustc_version,
+        "python_abi": _python_abi(python),
+        "sase_core_py_inputs": _crate_input_digest(core_dir),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return CacheIdentity(
+        digest=hashlib.sha256(encoded).hexdigest(),
+        payload=payload,
+    )
+
+
+def _entry_dir(cache_root: Path, digest: str) -> Path:
+    return cache_root / digest
+
+
+def _metadata_path(entry_dir: Path) -> Path:
+    return entry_dir / "metadata.json"
+
+
+def _read_json(path: Path) -> dict[str, Any] | None:
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    return loaded if isinstance(loaded, dict) else None
+
+
+def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temporary.write_text(
+        json.dumps(payload, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(temporary, path)
+
+
+def _wheel_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _cached_wheel(cache_root: Path, identity: CacheIdentity) -> Path | None:
+    entry_dir = _entry_dir(cache_root, identity.digest)
+    metadata = _read_json(_metadata_path(entry_dir))
+    if metadata is None:
+        return None
+    if metadata.get("schema_version") != CACHE_SCHEMA_VERSION:
+        return None
+    if metadata.get("key_digest") != identity.digest:
+        return None
+    if metadata.get("key") != identity.payload:
+        return None
+    wheel_filename = metadata.get("wheel_filename")
+    if not isinstance(wheel_filename, str) or "/" in wheel_filename:
+        return None
+    wheel = entry_dir / wheel_filename
+    if not wheel.is_file():
+        return None
+    metadata["last_used"] = time.time()
+    try:
+        _write_json_atomic(_metadata_path(entry_dir), metadata)
+    except OSError:
+        pass
+    return wheel
+
+
+def lookup_cache(
+    *,
+    cache_root: Path,
+    core_dir: Path,
+    python: Path,
+    rustc: str,
+) -> Path | None:
+    identity = _cache_identity(core_dir=core_dir, python=python, rustc=rustc)
+    return _cached_wheel(cache_root, identity)
+
+
+def _venv_from_python(python: Path) -> Path | None:
+    if python.name != "python":
+        return None
+    if python.parent.name not in {"bin", "Scripts"}:
+        return None
+    return python.parent.parent
+
+
+def _run_maturin_build(
+    *,
+    core_dir: Path,
+    python: Path,
+    maturin: Path,
+    out_dir: Path,
+) -> Path:
+    env = os.environ.copy()
+    env.setdefault("PYO3_USE_ABI3_FORWARD_COMPATIBILITY", "1")
+    env.setdefault("CARGO_NET_RETRY", "10")
+    env.setdefault("CARGO_HTTP_MULTIPLEXING", "false")
+    venv = _venv_from_python(python)
+    if venv is not None:
+        env["VIRTUAL_ENV"] = str(venv)
+
+    crate_dir = core_dir / "crates" / "sase_core_py"
+    completed = subprocess.run(
+        [
+            str(maturin),
+            "build",
+            "--release",
+            "--out",
+            str(out_dir),
+            "--interpreter",
+            str(python),
+        ],
+        cwd=crate_dir,
+        env=env,
+        check=False,
+        text=True,
+    )
+    if completed.returncode != 0:
+        raise CacheUnavailable(f"maturin build failed with exit {completed.returncode}")
+
+    wheels = sorted(out_dir.glob("*.whl"))
+    if len(wheels) != 1:
+        raise CacheUnavailable(
+            f"maturin build produced {len(wheels)} wheels; expected exactly one"
+        )
+    return wheels[0]
+
+
+def _directory_size(path: Path) -> int:
+    total = 0
+    for candidate in path.rglob("*"):
+        if candidate.is_file():
+            try:
+                total += candidate.stat().st_size
+            except OSError:
+                continue
+    return total
+
+
+def _cache_entries(cache_root: Path) -> list[CacheEntry]:
+    entries: list[CacheEntry] = []
+    if not cache_root.is_dir():
+        return entries
+    for child in cache_root.iterdir():
+        if not child.is_dir() or child.name.startswith("."):
+            continue
+        metadata = _read_json(_metadata_path(child)) or {}
+        last_used = metadata.get("last_used")
+        if not isinstance(last_used, int | float):
+            try:
+                last_used = child.stat().st_mtime
+            except OSError:
+                last_used = 0.0
+        entries.append(
+            CacheEntry(
+                digest=child.name,
+                path=child,
+                size=_directory_size(child),
+                last_used=float(last_used),
+            )
+        )
+    return entries
+
+
+def prune_cache(
+    cache_root: Path,
+    *,
+    keep_digest: str | None = None,
+    max_entries: int,
+    max_bytes: int,
+) -> None:
+    entries = sorted(_cache_entries(cache_root), key=lambda entry: entry.last_used)
+    keep: set[str] = set()
+    used_bytes = 0
+
+    newest_first = list(reversed(entries))
+    for entry in newest_first:
+        if entry.digest == keep_digest:
+            keep.add(entry.digest)
+            used_bytes += entry.size
+            break
+
+    for entry in newest_first:
+        if entry.digest in keep:
+            continue
+        if len(keep) >= max_entries:
+            continue
+        if used_bytes + entry.size > max_bytes:
+            continue
+        keep.add(entry.digest)
+        used_bytes += entry.size
+
+    for entry in entries:
+        if entry.digest in keep:
+            continue
+        shutil.rmtree(entry.path, ignore_errors=True)
+
+
+def store_cache(
+    *,
+    cache_root: Path,
+    core_dir: Path,
+    python: Path,
+    maturin: Path,
+    rustc: str,
+    max_entries: int,
+    max_bytes: int,
+) -> Path:
+    identity = _cache_identity(core_dir=core_dir, python=python, rustc=rustc)
+    cache_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".build-", dir=cache_root) as raw_tmp_dir:
+        wheel = _run_maturin_build(
+            core_dir=core_dir.resolve(),
+            python=python,
+            maturin=maturin,
+            out_dir=Path(raw_tmp_dir),
+        )
+        rebuilt_identity = _cache_identity(core_dir=core_dir, python=python, rustc=rustc)
+        if rebuilt_identity != identity:
+            raise CacheUnavailable("sase-core inputs changed while building the wheel")
+        entry_dir = _entry_dir(cache_root, identity.digest)
+        entry_dir.mkdir(parents=True, exist_ok=True)
+        final_wheel = entry_dir / wheel.name
+        temporary = entry_dir / f".{wheel.name}.{os.getpid()}.tmp"
+        shutil.copy2(wheel, temporary)
+        os.replace(temporary, final_wheel)
+        metadata = {
+            "schema_version": CACHE_SCHEMA_VERSION,
+            "created_at": time.time(),
+            "last_used": time.time(),
+            "key_digest": identity.digest,
+            "key": identity.payload,
+            "wheel_filename": wheel.name,
+            "wheel_sha256": _wheel_sha256(final_wheel),
+            "wheel_size": final_wheel.stat().st_size,
+        }
+        _write_json_atomic(_metadata_path(entry_dir), metadata)
+        for stale_wheel in entry_dir.glob("*.whl"):
+            if stale_wheel != final_wheel:
+                stale_wheel.unlink(missing_ok=True)
+
+    prune_cache(
+        cache_root,
+        keep_digest=identity.digest,
+        max_entries=max_entries,
+        max_bytes=max_bytes,
+    )
+    return final_wheel
+
+
+def _positive_int(raw: str) -> int:
+    parsed = int(raw)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be positive")
+    return parsed
+
+
+def _add_common_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--sase-core-dir", type=Path, required=True)
+    parser.add_argument("--python", type=Path, required=True)
+    parser.add_argument("--cache-dir", type=Path, default=_default_cache_root())
+    parser.add_argument("--rustc", default="rustc")
+
+
+def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    key_parser = subparsers.add_parser("key", help="print the cache key")
+    _add_common_arguments(key_parser)
+    key_parser.add_argument("--json", action="store_true")
+
+    lookup_parser = subparsers.add_parser("lookup", help="print a cached wheel path")
+    _add_common_arguments(lookup_parser)
+
+    store_parser = subparsers.add_parser("store", help="build and store a wheel")
+    _add_common_arguments(store_parser)
+    store_parser.add_argument("--maturin", type=Path, required=True)
+    store_parser.add_argument(
+        "--max-entries",
+        type=_positive_int,
+        default=_env_int("SASE_CORE_WHEEL_CACHE_MAX_ENTRIES", DEFAULT_MAX_ENTRIES),
+    )
+    store_parser.add_argument(
+        "--max-bytes",
+        type=_positive_int,
+        default=_env_int("SASE_CORE_WHEEL_CACHE_MAX_BYTES", DEFAULT_MAX_BYTES),
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    namespace = _parse_args(argv)
+    try:
+        if namespace.command == "key":
+            identity = _cache_identity(
+                core_dir=namespace.sase_core_dir,
+                python=namespace.python,
+                rustc=namespace.rustc,
+            )
+            if namespace.json:
+                print(
+                    json.dumps(
+                        {"key_digest": identity.digest, "key": identity.payload},
+                        sort_keys=True,
+                    )
+                )
+            else:
+                print(identity.digest)
+            return 0
+        if namespace.command == "lookup":
+            wheel = lookup_cache(
+                cache_root=namespace.cache_dir,
+                core_dir=namespace.sase_core_dir,
+                python=namespace.python,
+                rustc=namespace.rustc,
+            )
+            if wheel is None:
+                print("[sase-core-wheel-cache] miss: no exact cached wheel", file=sys.stderr)
+                return MISS_EXIT
+            print(wheel)
+            return 0
+        if namespace.command == "store":
+            wheel = store_cache(
+                cache_root=namespace.cache_dir,
+                core_dir=namespace.sase_core_dir,
+                python=namespace.python,
+                maturin=namespace.maturin,
+                rustc=namespace.rustc,
+                max_entries=namespace.max_entries,
+                max_bytes=namespace.max_bytes,
+            )
+            print(wheel)
+            return 0
+    except CacheUnavailable as exc:
+        print(f"[sase-core-wheel-cache] miss: {exc}", file=sys.stderr)
+        return MISS_EXIT
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

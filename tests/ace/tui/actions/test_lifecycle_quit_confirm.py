@@ -156,7 +156,7 @@ async def test_controlled_exit_waits_for_admin_center_flush() -> None:
     quitting = asyncio.create_task(app.action_quit())
     await asyncio.wait_for(entered.wait(), timeout=0.5)
 
-    assert shutdown.is_shutdown_requested() is True
+    assert shutdown._shutdown_signal.is_requested() is True
     assert app.did_quit is False
     release.set()
     await quitting
@@ -178,7 +178,7 @@ async def test_controlled_exit_waits_for_fold_state_flush() -> None:
     quitting = asyncio.create_task(app.action_quit())
     await asyncio.wait_for(entered.wait(), timeout=0.5)
 
-    assert shutdown.is_shutdown_requested() is True
+    assert shutdown._shutdown_signal.is_requested() is True
     assert app.did_quit is False
     release.set()
     await quitting

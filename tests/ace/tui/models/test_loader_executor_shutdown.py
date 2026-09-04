@@ -76,7 +76,7 @@ def test_lifecycle_do_quit_shuts_down_loader_executor(monkeypatch) -> None:
 
     app._do_quit()
 
-    assert shutdown.is_shutdown_requested() is True
+    assert shutdown._shutdown_signal.is_requested() is True
     assert calls.count("loader") == 1
     assert calls.index("loader") < calls.index("exit")
 

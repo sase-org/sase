@@ -207,6 +207,4 @@ def test_shortcut_dispatch_does_not_call_cached_status_accessors(
     harness.action_update_sase_shortcut()
 
     assert isinstance(harness.pushed_modals[0], UpdatePanel)
-    assert harness.pushed_modals[0]._state == build_update_panel_state(
-        None, now=_NOW
-    )
+    assert harness.pushed_modals[0]._state == build_update_panel_state(None, now=_NOW)

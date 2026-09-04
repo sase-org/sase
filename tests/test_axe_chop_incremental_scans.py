@@ -17,12 +17,11 @@ from sase.core.agent_scan_facade import (
 )
 from sase.scripts._chop_bead_claim_scan import BEAD_CLAIM_RECONCILED_MARKER
 from sase.scripts._chop_incremental_index import chop_scan_full_walk
-
-FULL_WALK_ENV = "SASE_CHOP_SCAN_FULL_WALK"
-
 from tests._agent_names_fixtures import make_agent
 from tests._axe_chop_bead_claim_checks_helpers import make_runtime
 from tests._axe_chop_wait_checks_helpers import make_waiting_agent, run_wait_checks
+
+FULL_WALK_ENV = "SASE_CHOP_SCAN_FULL_WALK"
 
 
 def _count_wait_meta_reads(

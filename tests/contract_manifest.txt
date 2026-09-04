@@ -45,6 +45,7 @@ tests/test_sase_core_rs_feature_flag_state_smoke_tool.py
 tests/test_sase_core_rs_glossary_line_break_smoke_tool.py
 tests/test_sase_core_rs_plan_header_smoke_tool.py
 tests/test_sase_core_rs_telemetry_smoke_tool.py
+tests/test_sase_core_wheel_cache_tool.py
 tests/test_sase_migrate_statuses.py
 tests/test_sdd_canonical_layout.py
 tests/test_setup_required_plugins_tool.py

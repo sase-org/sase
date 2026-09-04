@@ -25,8 +25,3 @@ _shutdown_signal = _ShutdownSignal()
 def request_shutdown() -> None:
     """Tell cooperative ACE workers to stop before their next blocking call."""
     _shutdown_signal.request()
-
-
-def is_shutdown_requested() -> bool:
-    """Return whether ACE teardown has begun."""
-    return _shutdown_signal.is_requested()

@@ -349,7 +349,7 @@ Docs-only commands do not need the application package or the Rust extension.
 `just docs-check` and `just docs-pdf-check` install only MkDocs tooling into `.venv`,
 which is why documentation CI can run without checking out `../sase-core`.
 
-`just rust-install` remains the explicit way to (re)build the local Rust artifacts, and
+`just rust-install` remains the explicit way to install the local Rust artifacts, and
 `just rust-install-uv-tool` targets the uv-tool venv at `$(uv tool dir)/sase` for users
 who installed `sase` via `uv tool install` and want the latest local Rust code instead
 of the published wheel:
@@ -360,13 +360,19 @@ just rust-install-uv-tool         # $(uv tool dir)/sase
 just rust-install /path/to/venv   # any other venv (pipx, system Python, custom location)
 ```
 
-Those targets install `maturin` into the target venv on demand and run
-`maturin develop --release` inside `../sase-core/crates/sase_core_py/`, then chain
-`just rust-lsp-install` for the same venv. Both artifacts come from one checkout, so
-`sase-xprompt-lsp` can never lag the directive contract compiled into `sase_core_rs`; a
-stale binary would otherwise fail the ACE/LSP parity tests with a confusing completion
-diff. Re-running them after a `../sase-core` update is the supported way to refresh an
-existing source install.
+Those targets first validate the configured `sase-core` checkout, then consult the
+host-level wheel cache under `~/.sase/cache/sase-core-wheels/`. A clean checkout with an
+exact key match installs the cached wheel; a miss, dirty checkout, upstream-diverged
+checkout, or key-computation failure falls back to `maturin develop --release` inside
+`../sase-core/crates/sase_core_py/`. Successful release builds from clean checkouts are
+stored back in the cache with bounded LRU pruning. Explicit `SASE_CORE_WHEEL` installs
+still take precedence over the cache.
+
+After the wheel step, `rust-install` chains `just rust-lsp-install` for the same venv.
+Both artifacts come from one checkout, so `sase-xprompt-lsp` can never lag the directive
+contract compiled into `sase_core_rs`; a stale binary would otherwise fail the ACE/LSP
+parity tests with a confusing completion diff. Re-running the target after a
+`../sase-core` update is the supported way to refresh an existing source install.
 
 Editable `sase update` uses `just rust-dev-install-uv-tool` instead. It builds with the
 `dev-update` Cargo profile from `sase-core`, which inherits `release` but disables LTO,
@@ -468,7 +474,7 @@ contributors without the sibling checkout are never blocked.
 
 | Target                          | Description                                                                                                                 |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `just rust-install`             | Build + install `sase_core_rs` via `maturin develop --release` (installs maturin if missing)                                |
+| `just rust-install`             | Install `sase_core_rs` from the host wheel cache or build via `maturin develop --release` on cache miss                     |
 | `just rust-install-uv-tool`     | Same as `rust-install` but targets `$(uv tool dir)/sase` for users who installed sase via `uv tool install`                 |
 | `just rust-dev-install`         | Build and install `sase_core_rs` and `sase-xprompt-lsp` into a venv using the `dev-update` profile and isolated target dirs |
 | `just rust-dev-install-uv-tool` | Same as `rust-dev-install` but targets `$(uv tool dir)/sase`; this is the Rust reconcile step used by editable dev update   |
