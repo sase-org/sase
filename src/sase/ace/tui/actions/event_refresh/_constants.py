@@ -8,9 +8,10 @@ from sase.agent.status_buckets import (
 )
 
 # Slow sanity-refresh floor: even when the inotify watcher is active and
-# every dirty flag is clear we still reconcile every minute as a safety
-# net for missed events (NFS, container bind-mount edge cases, etc.).
-FULL_SANITY_REFRESH_SECONDS = 60.0
+# every dirty flag is clear we still reconcile on this interval as a
+# safety net for missed events (NFS, container bind-mount edge cases,
+# etc.). ``sase ace -s/--sanity-refresh-interval`` overrides it per session.
+FULL_SANITY_REFRESH_SECONDS = 300.0
 PROMPT_INPUT_DEFER_SECONDS = 0.25
 # Minimum spacing between successive ``_load_agents_async`` calls from the
 # auto-refresh tick. The loader is the dominant cost on every refresh, so

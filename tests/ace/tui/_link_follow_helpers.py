@@ -393,17 +393,17 @@ class _App(LinkFollowMixin, ArtifactsQueryHistoryActionsMixin):
         if event is not None:
             event.set()
 
-    def _files_pane(self) -> _Pane:
-        return self._panes["files"]
+    def _files_pane(self) -> _Pane | None:
+        return self._artifacts_entry_navigator("files")
 
-    def _beads_pane(self) -> _Pane:
-        return self._panes["beads"]
+    def _beads_pane(self) -> _Pane | None:
+        return self._artifacts_entry_navigator("beads")
 
-    def _commits_pane(self) -> _Pane:
-        return self._panes["stitches"]
+    def _commits_pane(self) -> _Pane | None:
+        return self._artifacts_entry_navigator("stitches")
 
-    def _active_documents_pane(self) -> _Pane:
-        return self._panes["ref:plan"]
+    def _active_documents_pane(self) -> _Pane | None:
+        return self._artifacts_entry_navigator("ref:plan")
 
     def _schedule_query_history_persist(self) -> None:
         return

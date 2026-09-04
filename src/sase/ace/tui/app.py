@@ -53,6 +53,7 @@ from .actions import (
     UpdateToastMixin,
     WorkspaceActionsMixin,
 )
+from .actions.event_refresh._constants import FULL_SANITY_REFRESH_SECONDS
 from ._app_action_availability import check_app_action
 from ._app_layout import (
     BGCMD_LIST_RESERVED_FOR_DASHBOARD as _BGCMD_LIST_RESERVED_FOR_DASHBOARD,
@@ -285,6 +286,7 @@ class AceApp(
         auto_start_axe: bool = True,
         restart_axe: bool = False,
         initial_tab: TabInput = "agents",
+        sanity_refresh_interval: int = int(FULL_SANITY_REFRESH_SECONDS),
     ) -> None:
         """Initialize the ace TUI app."""
         super().__init__()
@@ -301,6 +303,7 @@ class AceApp(
             auto_start_axe=auto_start_axe,
             restart_axe=restart_axe,
             initial_tab=normalize_tab_name(initial_tab),
+            sanity_refresh_interval=sanity_refresh_interval,
         )
 
     def notify(

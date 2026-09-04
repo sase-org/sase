@@ -24,6 +24,7 @@ class EventHandlersBase:
     current_attempt_number: int | None
     current_tab: TabName
     refresh_interval: int
+    sanity_refresh_interval: int
     _countdown_remaining: int
     _fold_mode_active: bool
     _checkout_mode_active: bool
@@ -59,6 +60,7 @@ class EventHandlersBase:
     _dirty_notifications: bool
     _artifact_change_defer_pending: bool
     _last_full_sanity_refresh: float
+    _last_completed_surface_tokens: dict[str, object]
     _prompt_editor_suspended: bool
 
     def _refresh_current_tab(self) -> None:

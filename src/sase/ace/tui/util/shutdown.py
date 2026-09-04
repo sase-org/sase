@@ -24,4 +24,6 @@ _shutdown_signal = _ShutdownSignal()
 
 def request_shutdown() -> None:
     """Tell cooperative ACE workers to stop before their next blocking call."""
+    if _shutdown_signal.is_requested():
+        return
     _shutdown_signal.request()

@@ -36,6 +36,7 @@ def init_runtime_state(
     auto_start_axe: bool,
     restart_axe: bool,
     initial_tab: TabName,
+    sanity_refresh_interval: int,
 ) -> None:
     """Initialize startup, refresh, watcher, and artifacts-scope state."""
     self._current_idx = 0
@@ -188,6 +189,7 @@ def init_runtime_state(
     self._artifacts_scope_was_picked = False
     self.artifacts_plan_target_bead_id = None
     self.refresh_interval = refresh_interval
+    self.sanity_refresh_interval = sanity_refresh_interval
     from ..tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 
     self._slow_tool_call_threshold_ms = SLOW_TOOL_CALL_THRESHOLD_MS
@@ -221,6 +223,7 @@ def init_runtime_state(
     self._dirty_notifications = True
     self._artifact_change_defer_pending = False
     self._last_full_sanity_refresh = 0.0
+    self._last_completed_surface_tokens = {}
     self._prompt_editor_suspended = False
     self._last_agents_load_mono = 0.0
     # Per-STARTING-agent agent_meta.json/waiting.json (mtime_ns, size)

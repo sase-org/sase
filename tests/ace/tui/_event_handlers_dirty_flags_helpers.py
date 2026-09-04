@@ -10,9 +10,63 @@ from pathlib import Path
 from typing import Any
 
 from sase.ace.tui.actions.event_handlers import EventHandlersMixin
+from sase.ace.tui.actions.event_refresh._constants import FULL_SANITY_REFRESH_SECONDS
+from sase.ace.tui.actions.event_refresh._surface_tokens import (
+    SurfaceToken,
+    SurfaceTokenSnapshot,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+
+
+def _surface_token(surface: str, stamp: int = 1) -> SurfaceToken:
+    return SurfaceToken(
+        surface=surface,
+        parts=((f"/{surface}", True, stamp, 1),),
+    )
+
+
+def _surface_token_snapshot(
+    *,
+    agents: int = 1,
+    axe: int = 1,
+    notifications: int = 1,
+    patches: int = 1,
+    procs: int = 1,
+    indeterminate: str | None = None,
+) -> SurfaceTokenSnapshot:
+    tokens = {
+        "agents": _surface_token("agents", agents),
+        "axe": _surface_token("axe", axe),
+        "notifications": _surface_token("notifications", notifications),
+        "patches": _surface_token("patches", patches),
+        "procs": _surface_token("procs", procs),
+    }
+    if indeterminate is not None:
+        token = tokens[indeterminate]
+        tokens[indeterminate] = SurfaceToken(
+            surface=token.surface,
+            parts=token.parts,
+            indeterminate=True,
+        )
+    return SurfaceTokenSnapshot(
+        agents=tokens["agents"],
+        axe=tokens["axe"],
+        notifications=tokens["notifications"],
+        patches=tokens["patches"],
+        procs=tokens["procs"],
+    )
+
+
+def _completed_tokens(snapshot: SurfaceTokenSnapshot) -> dict[str, SurfaceToken]:
+    return {
+        "agents": snapshot.agents,
+        "axe": snapshot.axe,
+        "notifications": snapshot.notifications,
+        "patches": snapshot.patches,
+        "procs": snapshot.procs,
+    }
 
 
 def _make_agent(
@@ -65,6 +119,7 @@ class _FakeApp(EventHandlersMixin):
     ) -> None:
         self._nav_gate = NavigationGate(window_s=0.25)
         self.refresh_interval = 10
+        self.sanity_refresh_interval = FULL_SANITY_REFRESH_SECONDS
         self._countdown_remaining = 10
         self._agents_loading = False
         self.current_tab = "agents"
@@ -91,6 +146,11 @@ class _FakeApp(EventHandlersMixin):
         self._dirty_notifications = False
         self._artifact_change_defer_pending = False
         self._last_full_sanity_refresh = time.monotonic()
+        self._probed_surface_tokens = _surface_token_snapshot()
+        self._last_completed_surface_tokens = _completed_tokens(
+            self._probed_surface_tokens
+        )
+        self.token_probe_calls = 0
         self._last_agents_load_mono = 0.0
         self._poll_agent_completions_result = False
         self.deferred_calls: list[tuple[float, Callable[[], Any]]] = []
@@ -109,6 +169,10 @@ class _FakeApp(EventHandlersMixin):
         if selector == "#agent-detail-panel":
             return self.agent_detail
         raise LookupError(selector)
+
+    def _probe_surface_tokens(self) -> SurfaceTokenSnapshot:
+        self.token_probe_calls += 1
+        return self._probed_surface_tokens
 
     def _get_selected_agent(self) -> Agent | None:
         if self._agents and 0 <= self.current_idx < len(self._agents):
@@ -160,3 +224,6 @@ class _FakeApp(EventHandlersMixin):
 
     def _schedule_patches_async_refresh(self) -> None:
         self.refresh_calls.append("schedule_patches")
+
+    def _request_active_artifacts_refresh(self) -> None:
+        self.refresh_calls.append("artifacts")

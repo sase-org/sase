@@ -63,7 +63,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "7890066d855d73ef",
+        "description_digest": "45cedd4908615ee9",
         "hidden": false,
         "mutex_groups": [],
         "name": "ace",
@@ -145,6 +145,18 @@
               "--restart-axe"
             ],
             "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "sanity_refresh_interval",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-s",
+              "--sanity-refresh-interval"
+            ],
+            "takes_value": true
           },
           {
             "choices": [

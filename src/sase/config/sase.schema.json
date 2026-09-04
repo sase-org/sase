@@ -3912,6 +3912,12 @@
         "type": "boolean"
       },
       "properties": {
+        "ace_refresh_tokens": {
+          "type": "boolean",
+          "description": "Gate ACE and proc refreshes on per-surface stat-only change tokens.",
+          "default": true,
+          "deprecated": true
+        },
         "admin_center_flags": {
           "type": "boolean",
           "description": "The Config catalog exposes the Flags pane for persistent feature-flag control.",

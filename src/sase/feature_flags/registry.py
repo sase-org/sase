@@ -21,6 +21,7 @@ from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
 class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
+    ace_refresh_tokens = "ace_refresh_tokens"
     admin_center_flags = "admin_center_flags"
     provider_drain = "provider_drain"
     ref_sync_gesture = "ref_sync_gesture"
@@ -29,6 +30,14 @@ class FeatureFlag(StrEnum):
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
+    FeatureFlag.ace_refresh_tokens: FeatureFlagDefinition(
+        key=FeatureFlag.ace_refresh_tokens,
+        kind="sunset",
+        description=(
+            "Gate ACE and proc refreshes on per-surface stat-only change tokens."
+        ),
+        bead="sase-wr",
+    ),
     FeatureFlag.admin_center_flags: FeatureFlagDefinition(
         key=FeatureFlag.admin_center_flags,
         kind="sunset",

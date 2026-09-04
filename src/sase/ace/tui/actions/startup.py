@@ -66,6 +66,7 @@ class StartupMixin(
     query_string: str
     parsed_query: QueryExpr
     refresh_interval: int
+    sanity_refresh_interval: int
     theme: str
     _current_idx: int
     _current_attempt_number: int | None
@@ -122,6 +123,7 @@ class StartupMixin(
     _dirty_axe: bool
     _dirty_notifications: bool
     _last_full_sanity_refresh: float
+    _last_completed_surface_tokens: dict[str, object]
     _link_index: Any
     _link_index_errors: tuple[str, ...]
     _link_index_loading: bool

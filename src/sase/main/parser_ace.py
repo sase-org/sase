@@ -3,6 +3,17 @@
 import argparse
 
 from sase.ace.saved_queries import load_first_saved_query, load_last_query
+from sase.ace.tui.actions.event_refresh._constants import FULL_SANITY_REFRESH_SECONDS
+
+
+def _positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a positive integer") from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
 
 
 def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -57,6 +68,15 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
         "--restart-axe",
         action="store_true",
         help="Restart the axe daemon on startup (no-op if axe is not running)",
+    )
+    ace_parser.add_argument(
+        "-s",
+        "--sanity-refresh-interval",
+        type=_positive_int,
+        default=int(FULL_SANITY_REFRESH_SECONDS),
+        help="Full sanity-refresh interval in seconds (default: "
+        f"{int(FULL_SANITY_REFRESH_SECONDS)}). Missed watcher or token "
+        "changes are still reconciled at least this often.",
     )
     ace_parser.add_argument(
         "-t",

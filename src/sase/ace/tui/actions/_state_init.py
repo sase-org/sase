@@ -31,6 +31,7 @@ class StateInitMixin:
         auto_start_axe: bool,
         restart_axe: bool,
         initial_tab: TabName,
+        sanity_refresh_interval: int,
     ) -> None:
         """Initialize all instance state for ``AceApp``.
 
@@ -44,6 +45,7 @@ class StateInitMixin:
             auto_start_axe=auto_start_axe,
             restart_axe=restart_axe,
             initial_tab=initial_tab,
+            sanity_refresh_interval=sanity_refresh_interval,
         )
         init_navigation_state(self)
         init_agent_state(self)

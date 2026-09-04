@@ -45,6 +45,19 @@ def test_startup_restores_patch_grouping_mode_file(
     assert set(app._patch_group_fold_registries) == {PatchGroupingMode.BY_STATUS}
 
 
+def test_startup_stores_sanity_refresh_interval(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    sase_dir = tmp_path / ".sase"
+    sase_dir.mkdir()
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    app = AceApp(auto_start_axe=False, sanity_refresh_interval=120)
+
+    assert app.sanity_refresh_interval == 120
+    assert app.refresh_interval == 10
+
+
 def test_startup_uses_defaults_for_invalid_grouping_mode_files(
     tmp_path: Path, monkeypatch: Any
 ) -> None:

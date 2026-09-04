@@ -16,15 +16,23 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 import uuid
 import weakref
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
+from sase.ace.tui.actions.event_refresh._constants import FULL_SANITY_REFRESH_SECONDS
+from sase.ace.tui.actions.event_refresh._surface_tokens import (
+    SurfaceToken,
+    probe_procs_token,
+    surface_token_drifted,
+)
 from sase.core.state_write_guard import pytest_path_is_sandboxed
 from sase.core.time import local_now
-from sase.procs import proc_store_path, read_procs
+from sase.feature_flags import FeatureFlag, current_flags
+from sase.procs import Proc, proc_store_path, read_procs
 
 from ._proc_observer_log import ObservedProcLog, ProcLogLine, ProcLogStream
 from ._proc_observer_models import (
@@ -70,6 +78,12 @@ class ProcObserver:
     _detail_proc_id: str | None = field(default=None, init=False)
     _context: ObserverContext | None = field(default=None, init=False)
     _last_signature: tuple[Any, ...] | None = field(default=None, init=False)
+    _cached_store_rows: list[Proc] | None = field(default=None, init=False, repr=False)
+    _last_proc_store_token: SurfaceToken | None = field(
+        default=None, init=False, repr=False
+    )
+    _force_store_read: bool = field(default=True, init=False, repr=False)
+    _last_proc_store_sanity_mono: float = field(default=0.0, init=False, repr=False)
     _owner_ref: weakref.ref[Any] | None = field(default=None, init=False, repr=False)
 
     @property
@@ -178,6 +192,7 @@ class ProcObserver:
     def request_poll(self) -> None:
         """Ask the observer to publish a fresh snapshot soon."""
         self._last_signature = None
+        self._force_store_read = True
 
     def _thread_main(self) -> None:
         while not self._stop.wait(POLL_SECONDS):
@@ -210,7 +225,7 @@ class ProcObserver:
         rows: list[ObservedProc] = []
         completions: list[ProcCompletionRecord] = []
         session_ids = live_session_ids()
-        store_rows = read_procs()
+        store_rows = self._store_rows()
         seen_proc_ids: set[str] = set()
         for proc in store_rows:
             if not proc_is_relevant(proc, context=context, watched=watches):
@@ -256,6 +271,45 @@ class ProcObserver:
         if self._context is None:
             self._context = load_observer_context()
         return self._context
+
+    def _store_rows(self) -> list[Proc]:
+        """Return durable proc rows, skipping an unchanged store parse."""
+        force_read = self._force_store_read
+        self._force_store_read = False
+        if not current_flags().enabled(FeatureFlag.ace_refresh_tokens):
+            rows = read_procs()
+            self._cached_store_rows = rows
+            self._last_proc_store_token = None
+            return rows
+
+        token = probe_procs_token(proc_store_path())
+        now_mono = time.monotonic()
+        sanity_due = (
+            now_mono - self._last_proc_store_sanity_mono >= self._proc_sanity_seconds()
+        )
+        should_read = (
+            force_read
+            or self._cached_store_rows is None
+            or surface_token_drifted(token, self._last_proc_store_token)
+            or sanity_due
+        )
+        cached = self._cached_store_rows
+        if should_read or cached is None:
+            rows = read_procs()
+            self._cached_store_rows = rows
+            if not token.indeterminate:
+                self._last_proc_store_token = token
+            self._last_proc_store_sanity_mono = now_mono
+            return rows
+        return list(cached)
+
+    def _proc_sanity_seconds(self) -> float:
+        owner = self._owner_ref() if self._owner_ref is not None else None
+        if owner is not None:
+            value = getattr(owner, "sanity_refresh_interval", None)
+            if isinstance(value, (int, float)) and float(value) > 0:
+                return float(value)
+        return FULL_SANITY_REFRESH_SECONDS
 
 
 def _snapshot_signature(snapshot: ProcObserverSnapshot) -> tuple[Any, ...]:

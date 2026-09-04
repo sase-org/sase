@@ -9,6 +9,10 @@ from typing import Any
 import pytest
 
 from sase.ace.tui.actions.event_handlers import EventHandlersMixin
+from sase.ace.tui.actions.event_refresh._surface_tokens import (
+    SurfaceToken,
+    SurfaceTokenSnapshot,
+)
 from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
@@ -24,6 +28,7 @@ class _FakeApp(EventHandlersMixin):
     def __init__(self) -> None:
         self._nav_gate = NavigationGate(window_s=0.25)
         self.refresh_interval = 10
+        self.sanity_refresh_interval = 300
         self._countdown_remaining = 10
         self._agents_loading = False
         self.current_tab = "agents"
@@ -40,6 +45,21 @@ class _FakeApp(EventHandlersMixin):
 
     def set_timer(self, delay: float, callback: Callable[[], Any]) -> None:
         self.deferred_calls.append((delay, callback))
+
+    def _probe_surface_tokens(self) -> SurfaceTokenSnapshot:
+        def _token(surface: str) -> SurfaceToken:
+            return SurfaceToken(
+                surface=surface,
+                parts=((f"/{surface}", True, 1, 1),),
+            )
+
+        return SurfaceTokenSnapshot(
+            agents=_token("agents"),
+            axe=_token("axe"),
+            notifications=_token("notifications"),
+            patches=_token("patches"),
+            procs=_token("procs"),
+        )
 
     async def _load_axe_status_async(self) -> None:
         self.refresh_calls.append("axe")
@@ -60,6 +80,9 @@ class _FakeApp(EventHandlersMixin):
 
     def _schedule_patches_async_refresh(self) -> None:
         self.refresh_calls.append("schedule_patches")
+
+    def _request_active_artifacts_refresh(self) -> None:
+        self.refresh_calls.append("artifacts")
 
     def _update_agents_info_panel(self) -> None:
         self.countdown_calls.append("info")

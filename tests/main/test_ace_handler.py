@@ -186,6 +186,31 @@ def test_tab_option_rejects_invalid_choice() -> None:
         _parse_ace_args(["--tab", "bogus"])
 
 
+def test_sanity_refresh_interval_defaults_to_300() -> None:
+    args = _parse_ace_args([])
+    assert args.sanity_refresh_interval == 300
+
+
+def test_sanity_refresh_interval_short_flag() -> None:
+    args = _parse_ace_args(["-s", "120"])
+    assert args.sanity_refresh_interval == 120
+
+
+def test_sanity_refresh_interval_rejects_non_positive() -> None:
+    for value in ("0", "-1"):
+        with pytest.raises(SystemExit):
+            _parse_ace_args(["--sanity-refresh-interval", value])
+
+
+def test_sanity_refresh_interval_help_mentions_option() -> None:
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="subcommand")
+    register_ace_parser(subparsers)
+    ace_help = subparsers.choices["ace"].format_help()
+    assert "--sanity-refresh-interval" in ace_help
+    assert "-s" in ace_help
+
+
 def test_build_ace_restart_argv_strips_restart_and_tmux_flags() -> None:
     argv = [
         "ace",

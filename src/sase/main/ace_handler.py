@@ -198,6 +198,7 @@ def handle_ace_command(args: argparse.Namespace) -> None:
             if old_size is not None:
                 model_tier_override = {"big": "large", "little": "small"}[old_size]
 
+        from sase.ace.tui.actions.event_refresh import FULL_SANITY_REFRESH_SECONDS
         from sase.ace.tui.tab_order import normalize_tab_name
 
         initial_tab = normalize_tab_name(args.tab)
@@ -210,6 +211,11 @@ def handle_ace_command(args: argparse.Namespace) -> None:
             auto_start_axe=not getattr(args, "no_axe", False),
             restart_axe=getattr(args, "restart_axe", False),
             initial_tab=initial_tab,
+            sanity_refresh_interval=getattr(
+                args,
+                "sanity_refresh_interval",
+                int(FULL_SANITY_REFRESH_SECONDS),
+            ),
         )
     except QueryParseError as e:
         print(f"Error: Invalid query: {e}")

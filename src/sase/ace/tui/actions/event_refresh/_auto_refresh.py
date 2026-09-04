@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any
+
+from sase.feature_flags import FeatureFlag, current_flags
 
 from .._debug_leaks import debug_leaks_enabled, log_leak_snapshot
 from ..agents._notification_utils import request_notification_agents_refresh
@@ -14,6 +17,14 @@ from ._constants import (
     FULL_SANITY_REFRESH_SECONDS,
 )
 from ._helpers import callable_accepts_kwarg
+from ._sdd_paths import cached_sdd_beads_dir
+from ._surface_tokens import (
+    SurfaceTokenRoots,
+    SurfaceTokenSnapshot,
+    live_surface_token_roots,
+    probe_surface_tokens,
+    surface_token_drifted,
+)
 from ._watcher import EventWatcherRefreshMixin
 
 
@@ -58,8 +69,9 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
 
         Phase 7: when the inotify watcher is active each surface's refresh
         is gated on its dirty flag; flags clear after the refresh runs.
-        Every ``FULL_SANITY_REFRESH_SECONDS`` we ignore the gate and run
-        a full reconcile to recover from any missed events.
+        Token probes additionally skip unchanged surfaces when
+        ``ace_refresh_tokens`` is enabled. Every sanity interval we ignore
+        those gates and run a full reconcile to recover from missed events.
         """
         self._countdown_remaining = self.refresh_interval
         if self._nav_gate.is_navigating():
@@ -110,25 +122,72 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                 self._auto_refresh_pending = False
                 self._on_auto_refresh()
 
+    def _probe_surface_tokens(self) -> SurfaceTokenSnapshot:
+        """Collect metadata-only tokens for every ACE refresh surface."""
+        roots: SurfaceTokenRoots = live_surface_token_roots(
+            beads_dir=cached_sdd_beads_dir(self)
+        )
+        return probe_surface_tokens(roots)
+
+    def _accept_surface_token(
+        self,
+        surface: str,
+        snapshot: SurfaceTokenSnapshot | None,
+    ) -> None:
+        """Record *surface*'s probed token after a successful load."""
+        if snapshot is None:
+            return
+        token = snapshot.token_for(surface)
+        if token.indeterminate:
+            return
+        tokens = getattr(self, "_last_completed_surface_tokens", None)
+        if tokens is None:
+            self._last_completed_surface_tokens = {}
+            tokens = self._last_completed_surface_tokens
+        tokens[surface] = token
+
+    def _surface_token_drifted(
+        self,
+        snapshot: SurfaceTokenSnapshot | None,
+        surface: str,
+    ) -> bool:
+        if snapshot is None:
+            return True
+        last = getattr(self, "_last_completed_surface_tokens", {}).get(surface)
+        return surface_token_drifted(snapshot.token_for(surface), last)
+
     async def _run_auto_refresh_body(self) -> None:
         """Refresh dirty surfaces; always called from a pump-free task."""
 
         watcher_active = self._watcher_active()
         now_mono = time.monotonic()
+        sanity_interval = float(
+            getattr(self, "sanity_refresh_interval", FULL_SANITY_REFRESH_SECONDS)
+        )
         sanity_due = (
             now_mono - getattr(self, "_last_full_sanity_refresh", 0.0)
-            >= FULL_SANITY_REFRESH_SECONDS
+            >= sanity_interval
         )
+        tokens_enabled = current_flags().enabled(FeatureFlag.ace_refresh_tokens)
+        current_tokens: SurfaceTokenSnapshot | None = None
+        if tokens_enabled:
+            current_tokens = await asyncio.to_thread(self._probe_surface_tokens)
 
-        def _should_refresh(flag_name: str) -> bool:
-            if not watcher_active or sanity_due:
+        def _should_refresh(flag_name: str, surface: str) -> bool:
+            if sanity_due:
                 return True
-            return bool(getattr(self, flag_name, True))
+            if not tokens_enabled:
+                if not watcher_active:
+                    return True
+                return bool(getattr(self, flag_name, True))
+            if watcher_active and bool(getattr(self, flag_name, True)):
+                return True
+            return self._surface_token_drifted(current_tokens, surface)
 
         # Always poll axe status regardless of tab (for STARTING/STOPPING
         # transitions) — but skip the disk poll on idle ticks when the
         # watcher is active and nothing about axe has changed.
-        if _should_refresh("_dirty_axe"):
+        if _should_refresh("_dirty_axe", "axe"):
             run_axe_refresh = getattr(self, "_run_axe_status_refresh", None)
             if callable(run_axe_refresh):
                 if not getattr(
@@ -140,11 +199,13 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                 ):
                     if await run_axe_refresh():
                         self._dirty_axe = False
+                        self._accept_surface_token("axe", current_tokens)
             else:
                 # Narrow EventAutoRefreshMixin test doubles do not include the
                 # AXE loader mixin; production always takes the guarded path.
                 await self._load_axe_status_async()  # type: ignore[attr-defined]
                 self._dirty_axe = False
+                self._accept_surface_token("axe", current_tokens)
 
         queued_agent_artifact_dirs = tuple(
             getattr(self, "_dirty_agent_artifact_dirs", ())
@@ -154,7 +215,7 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
             and bool(queued_agent_artifact_dirs)
             and getattr(self, "_dirty_agent_artifact_fallback_reason", None) is None
         )
-        agents_due = _should_refresh("_dirty_agents") or agent_delta_ready
+        agents_due = _should_refresh("_dirty_agents", "agents") or agent_delta_ready
         # Tab-gate: broad (expensive) agent loads are deferred until the
         # user is actually looking at the Agents tab, or the sanity-floor
         # escape hatch below fires. A queued, bounded exact artifact-delta
@@ -182,11 +243,12 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         # the watcher is inactive, otherwise wait for inotify to set
         # the dirty flag or the sanity-refresh window to elapse.
         new_agent_notification = False
-        if _should_refresh("_dirty_notifications"):
+        if _should_refresh("_dirty_notifications", "notifications"):
             new_agent_notification = bool(
                 await self._poll_agent_completions()  # type: ignore[attr-defined]
             )
             self._dirty_notifications = False
+            self._accept_surface_token("notifications", current_tokens)
 
         # Skip patch/agent refresh if the user is in a transient input
         # mode (hint bar or similar is active).
@@ -224,6 +286,7 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
             ):
                 self._dirty_agents = False
                 self._last_agents_load_mono = time.monotonic()
+                self._accept_surface_token("agents", current_tokens)
             elif not sanity_due and self.current_tab != "agents":
                 # Broad loads stay tab-gated. An off-tab delta that could
                 # not be applied (e.g. the delta consumer failed) leaves
@@ -249,7 +312,8 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                     self._last_agents_load_mono = time.monotonic()
                     self._clear_agent_artifact_delta_state()
                 self._dirty_agents = False
-        elif watcher_active and not new_agent_notification:
+                self._accept_surface_token("agents", current_tokens)
+        elif not new_agent_notification:
             self._refresh_selected_agent_file_panel()
 
         if new_agent_notification and not ran_broad_agents_load:
@@ -262,7 +326,7 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         if (
             self.current_tab == "artifacts"
             and getattr(self, "current_artifacts_subtab", "patches") == "patches"
-            and _should_refresh("_dirty_patches")
+            and _should_refresh("_dirty_patches", "patches")
         ):
             run_patches_refresh = getattr(
                 self,
@@ -277,11 +341,13 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                 ):
                     await run_patches_refresh()
                     self._dirty_patches = False
+                    self._accept_surface_token("patches", current_tokens)
             else:
                 # Narrow EventAutoRefreshMixin test doubles do not include the
                 # Patch loader mixin; production uses its overlap guard.
                 await self._reload_and_reposition_async()  # type: ignore[attr-defined]
                 self._dirty_patches = False
+                self._accept_surface_token("patches", current_tokens)
         elif (
             self.current_tab == "artifacts"
             and getattr(self, "current_artifacts_subtab", "patches") != "patches"

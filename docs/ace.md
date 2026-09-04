@@ -6769,11 +6769,12 @@ Tab switches are instant: cached data is shown immediately while a background re
 runs asynchronously, so moving between tabs never blocks on disk I/O.
 
 When the inotify-based artifact watcher is active, the periodic tick is
-**event-driven**: it consults per-surface dirty flags (`_dirty_changespecs`,
+**event-driven**: it consults per-surface dirty flags (`_dirty_patches`,
 `_dirty_agents`, `_dirty_axe`) and short-circuits the whole tick when nothing has
-changed. A 60-second `FULL_SANITY_REFRESH_SECONDS` floor still triggers a full reconcile
-to recover from missed inotify events, so a quiet TUI does ~zero work between real
-changes without going stale.
+changed. With `ace_refresh_tokens` enabled (the default), cheap stat-only change tokens
+also skip unchanged surfaces when no watcher is available. A 300-second
+`--sanity-refresh-interval` floor still triggers a full reconcile to recover from missed
+events, so a quiet TUI does ~zero work between real changes without going stale.
 
 ### Performance Tracing
 
