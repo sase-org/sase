@@ -34,6 +34,7 @@ from sase.agents_sync.v2_run_io import (
     run_metadata_from_json,
     run_state_from_json,
 )
+from sase.core.agent_archive_facade import capabilities_from_v2_run
 from sase.core.agent_identity_facade import (
     AgentOwnerIdentity,
     rewrite_agent_relationship_batch,
@@ -339,6 +340,16 @@ def _validate_run(
         raise AgentsSyncFormatError("state.json disagrees with its snapshot run")
     if commits.source_run_id != run.source_run_id or commits.commits != run.commits:
         raise AgentsSyncFormatError("commits.json disagrees with its snapshot run")
+    try:
+        capabilities_from_v2_run(
+            dict(metadata.metadata),
+            {kind for kind, _payload in payloads},
+            asserted=run.capabilities,
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise AgentsSyncFormatError(
+            f"run {run.source_run_id!r} has invalid capabilities: {exc}"
+        ) from exc
     if "embedded_workflows" in decoded:
         _validate_embedded_workflows(decoded["embedded_workflows"])
     if "prompt_steps" in decoded:

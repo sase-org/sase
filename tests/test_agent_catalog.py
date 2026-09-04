@@ -17,9 +17,9 @@ from sase.agents.catalog._derive import (
     classify_kind,
     derive_patch,
     has_attention,
+    _is_revivable,
     is_dismissed,
     is_retrying,
-    is_revivable,
 )
 from sase.agents.catalog._family import family_and_role
 from sase.agents.catalog._sources import ArtifactIndexRecord
@@ -90,14 +90,29 @@ def _summary(**overrides: Any) -> DismissedBundleSummary:
         "bundle_path": "/dismissed/20260801000000.json",
         "shard": "202608",
         "filename": "20260801000000.json",
+        "agent_id": "legacy:20260801000000",
+        "source_username": None,
+        "source_machine": None,
+        "source_run_id": None,
+        "archive_visibility": "hidden",
+        "archive_payload_sha256": None,
+        "historically_viewable": True,
+        "durably_revivable": True,
+        "restartable": False,
+        "missing_requirements": (),
         "agent_type": "agent",
         "cl_name": "gh_sase-org__sase",
         "agent_name": "solo",
         "status": "DONE",
         "start_time": "2026-08-01T00:00:00",
         "stop_time": "2026-08-01T00:05:00",
+        "dismissed_at": "2026-08-01T00:05:00",
+        "revived_at": None,
+        "times_revived": 0,
         "project_file": "/projects/gh_sase-org__sase/gh_sase-org__sase.sase",
+        "project_name": "gh_sase-org__sase",
         "model": "claude-opus-5",
+        "runtime": None,
         "llm_provider": "claude",
         "vcs_provider": "github",
         "workflow": None,
@@ -105,6 +120,7 @@ def _summary(**overrides: Any) -> DismissedBundleSummary:
         "parent_timestamp": None,
         "step_index": None,
         "step_name": None,
+        "step_type": None,
         "retry_of_timestamp": None,
         "retried_as_timestamp": None,
         "retry_chain_root_timestamp": None,
@@ -395,9 +411,9 @@ class TestDeriveHelpers:
         )
 
     def test_is_revivable(self) -> None:
-        assert is_revivable(dismissed=True, bundle_path="/x") is True
-        assert is_revivable(dismissed=True, bundle_path=None) is False
-        assert is_revivable(dismissed=False, bundle_path="/x") is False
+        assert _is_revivable(dismissed=True, bundle_path="/x") is True
+        assert _is_revivable(dismissed=True, bundle_path=None) is False
+        assert _is_revivable(dismissed=False, bundle_path="/x") is False
 
     def test_is_dismissed(self) -> None:
         assert is_dismissed("dismissed") is True

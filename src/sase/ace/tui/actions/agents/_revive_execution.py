@@ -28,6 +28,19 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
 
 
+def _durably_revivable(agent: object) -> bool:
+    return bool(getattr(agent, "durably_revivable", True))
+
+
+def _revive_block_message(agent: object) -> str:
+    missing = getattr(agent, "missing_requirements", None) or ()
+    if missing:
+        return "This archive record is not revivable: missing " + ", ".join(
+            str(item) for item in missing
+        )
+    return "This archive record is not revivable"
+
+
 class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin):
     """Mixin providing single and batch revive execution."""
 
@@ -63,6 +76,22 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                         None,
                         stage="input_validation",
                         message="not an Agent",
+                    ),
+                ),
+                dismiss_revive_epoch_before=epoch_before,
+                dismiss_revive_epoch_after=epoch_before,
+                dismissed_count_before=dismissed_count_before,
+                dismissed_count_after=dismissed_count_before,
+            )
+        if not _durably_revivable(agent):
+            message = _revive_block_message(agent)
+            self.notify(message, severity="warning")  # type: ignore[attr-defined]
+            return AgentReviveDelta(
+                failed=(
+                    revive_failure_for_agent(
+                        agent,
+                        stage="capability_check",
+                        message=message,
                     ),
                 ),
                 dismiss_revive_epoch_before=epoch_before,
@@ -136,13 +165,9 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                 self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
 
                 if save_dismissed_agents(self._dismissed_agents):
-                    # Purge the revived agents' dismissed bundles *before*
-                    # syncing the artifact index. The dismissed projection
-                    # unions the in-memory set with every dismissed-bundle
-                    # summary, so a lingering bundle re-hides the revived agent
-                    # on the next projection rebuild; purging first also makes
-                    # the recorded projection signature reflect the post-purge
-                    # bundle index so a later drift rebuild cannot re-add them.
+                    # Mark bundle projections visible before syncing the
+                    # artifact index so the legacy dismissed view no longer
+                    # re-derives these identities.
                     stage = "bundle_marking"
                     mark_bundles_revived_by_suffixes(revived_suffixes)
                     stage = "dismissed_set_update"
@@ -272,6 +297,23 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         epoch_before = int(getattr(self, "_dismiss_revive_epoch", 0))
         dismissed_count_before = len(getattr(self, "_dismissed_agents", ()))
         valid_agents = [a for a in agents if isinstance(a, AgentModel)]
+        blocked_agents = [
+            agent for agent in valid_agents if not _durably_revivable(agent)
+        ]
+        if blocked_agents:
+            blocked_failed_records = tuple(
+                revive_failure_for_agent(
+                    agent,
+                    stage="capability_check",
+                    message=_revive_block_message(agent),
+                )
+                for agent in blocked_agents
+            )
+            valid_agents = [
+                agent for agent in valid_agents if _durably_revivable(agent)
+            ]
+        else:
+            blocked_failed_records = ()
         if not valid_agents:
             invalid_failed_records = tuple(
                 revive_failure_for_agent(
@@ -282,10 +324,11 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                 for agent in agents
                 if not isinstance(agent, AgentModel)
             )
-            if not invalid_failed_records:
+            failed = (*invalid_failed_records, *blocked_failed_records)
+            if not failed:
                 return False
             return AgentReviveDelta(
-                failed=invalid_failed_records,
+                failed=failed,
                 dismiss_revive_epoch_before=epoch_before,
                 dismiss_revive_epoch_after=epoch_before,
                 dismissed_count_before=dismissed_count_before,
@@ -343,6 +386,7 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             for agent in agents
             if not isinstance(agent, AgentModel)
         ]
+        failed_records.extend(blocked_failed_records)
         for agent in valid_agents:
             per_stage = "artifact_restore"
             try:
@@ -424,10 +468,8 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
 
             # Phase 3: Single disk write for dismissed set
             if save_dismissed_agents(self._dismissed_agents):
-                # Purge the revived agents' dismissed bundles *before* syncing
-                # the artifact index so the projection stops re-deriving the
-                # revived identities and the recorded signature reflects the
-                # post-purge bundle index (see _do_revive_agent for details).
+                # Mark bundle projections visible before syncing the artifact
+                # index so the legacy dismissed view stops re-deriving them.
                 stage = "bundle_marking"
                 mark_bundles_revived_by_suffixes(succeeded_suffixes)
                 stage = "dismissed_set_update"

@@ -11,6 +11,7 @@ from ._api import (
     query_summaries,
     query_summary_identities,
     rebuild_index,
+    set_archive_visibility_for_suffixes,
     upsert_bundle_summary,
     verify_index,
 )
@@ -47,6 +48,7 @@ __all__ = [
     "query_summaries",
     "query_summary_identities",
     "rebuild_index",
+    "set_archive_visibility_for_suffixes",
     "upsert_bundle_summary",
     "verify_index",
 ]

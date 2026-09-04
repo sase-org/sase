@@ -287,10 +287,10 @@ def test_save_dismissed_bundle_writes_legacy_sharded_file(tmp_path: Path) -> Non
         assert loaded[0].identity == agent.identity
 
 
-def test_re_dismiss_overwrites_legacy_bundle_path(
+def test_re_dismiss_rejects_conflicting_legacy_bundle_path(
     tmp_path: Path,
 ) -> None:
-    """Repeated dismissals return to the legacy single-bundle path."""
+    """Repeated dismissals reject conflicting immutable archive bytes."""
     bundles_dir = tmp_path / "bundles"
     with (
         patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
@@ -304,16 +304,16 @@ def test_re_dismiss_overwrites_legacy_bundle_path(
         assert first_payload["status"] == "FAILED"
 
         agent.status = "DONE"
-        assert save_dismissed_bundle(agent)
+        assert save_dismissed_bundle(agent) is False
         paths = sorted((bundles_dir / "202506").glob("*.json"))
         assert paths == [first_path]
-        assert json.loads(first_path.read_text())["status"] == "DONE"
+        assert json.loads(first_path.read_text())["status"] == "FAILED"
 
         summaries = load_dismissed_bundle_summaries(suffixes={"20250615100000"})
         assert [summary.raw_suffix for summary in summaries] == ["20250615100000"]
         loaded = load_dismissed_bundles({"20250615100000"})
         assert len(loaded) == 1
-        assert loaded[0].status == "DONE"
+        assert loaded[0].status == "FAILED"
 
 
 @pytest.mark.slow

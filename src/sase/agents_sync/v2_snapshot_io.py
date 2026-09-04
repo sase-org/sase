@@ -37,6 +37,7 @@ from sase.agents_sync.v2_validation import (
     validate_run_id,
     validate_schema,
 )
+from sase.core.agent_archive_facade import capabilities_from_v2_run
 from sase.core.agent_identity_facade import (
     AgentOwnerIdentity,
     globalize_agent_name,
@@ -133,21 +134,23 @@ def _runs(value: object, owner: AgentOwnerIdentity) -> tuple[V2RunRecord, ...]:
 
 def _run(value: object, owner: AgentOwnerIdentity, index: int) -> V2RunRecord:
     label = f"hood snapshot runs[{index}]"
+    raw = json_object(value, label)
+    base_keys = {
+        "source_run_id",
+        "local_name",
+        "global_name",
+        "state",
+        "started_at",
+        "finished_at",
+        "dismissed_at",
+        "metadata",
+        "commits",
+        "files",
+    }
     row = exact_object(
-        value,
+        raw,
         label,
-        {
-            "source_run_id",
-            "local_name",
-            "global_name",
-            "state",
-            "started_at",
-            "finished_at",
-            "dismissed_at",
-            "metadata",
-            "commits",
-            "files",
-        },
+        base_keys | ({"capabilities"} if "capabilities" in raw else set()),
     )
     run_id = row["source_run_id"]
     try:
@@ -177,6 +180,14 @@ def _run(value: object, owner: AgentOwnerIdentity, index: int) -> V2RunRecord:
         (kind, _file_ref(raw, f"{label} file {kind}"))
         for kind, raw in sorted(raw_files.items())
     )
+    try:
+        capabilities = capabilities_from_v2_run(
+            metadata,
+            set(raw_files),
+            asserted=row.get("capabilities") if "capabilities" in row else None,
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise AgentsSyncFormatError(f"{label} has invalid capabilities: {exc}") from exc
     return V2RunRecord(
         run_id,
         local_name,
@@ -188,6 +199,7 @@ def _run(value: object, owner: AgentOwnerIdentity, index: int) -> V2RunRecord:
         tuple(sorted(metadata.items())),
         commits,
         files,
+        capabilities,
     )
 
 

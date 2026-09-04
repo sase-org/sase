@@ -60,6 +60,8 @@ class _Agent:
     phase_bead_id: str | None = None
     is_family_root_entry: bool = False
     is_clan_container: bool = False
+    restartable: bool = True
+    missing_requirements: tuple[str, ...] = ()
 
     def get_raw_xprompt_content(self) -> str | None:
         return self.raw_prompt

@@ -32,6 +32,8 @@ def prepare_kill_edit_agent_prompt(
     """Resolve and rewrite one exact agent relaunch prompt."""
     from ...models.artifact_files import get_restartable_prompt_content
 
+    if not _agent_is_restartable(agent):
+        return None
     raw_prompt = get_restartable_prompt_content(agent, agents)
     if raw_prompt is None:
         return None
@@ -151,6 +153,19 @@ def resolve_agent_identity(owner: object, identity: object) -> Agent | None:
     )
 
 
+def _agent_is_restartable(agent: object) -> bool:
+    return bool(getattr(agent, "restartable", True))
+
+
+def _restart_block_message(agent: object) -> str:
+    missing = getattr(agent, "missing_requirements", None) or ()
+    if missing:
+        return "This archive record is not restartable: missing " + ", ".join(
+            str(item) for item in missing
+        )
+    return "This archive record is not restartable"
+
+
 class EntryRelaunchMixin:
     """Mixin providing agent retry and edit/relaunch entry points."""
 
@@ -176,6 +191,9 @@ class EntryRelaunchMixin:
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+        if not _agent_is_restartable(agent):
+            self.notify(_restart_block_message(agent), severity="warning")  # type: ignore[attr-defined]
             return
 
         raw_prompt = agent.get_raw_xprompt_content()
@@ -235,6 +253,9 @@ class EntryRelaunchMixin:
                 ",x on the marked set instead.",
                 severity="warning",
             )
+            return
+        if not _agent_is_restartable(agent):
+            self.notify(_restart_block_message(agent), severity="warning")  # type: ignore[attr-defined]
             return
 
         identity = getattr(agent, "identity", agent)

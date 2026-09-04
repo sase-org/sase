@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 INDEX_FILENAME = "index.sqlite"
 
 
@@ -16,14 +16,29 @@ class DismissedBundleSummary:
     bundle_path: str
     shard: str
     filename: str
+    agent_id: str
+    source_username: str | None
+    source_machine: str | None
+    source_run_id: str | None
+    archive_visibility: str
+    archive_payload_sha256: str | None
+    historically_viewable: bool
+    durably_revivable: bool
+    restartable: bool
+    missing_requirements: tuple[str, ...]
     agent_type: str
     cl_name: str
     agent_name: str | None
     status: str
     start_time: str | None
     stop_time: str | None
+    dismissed_at: str | None
+    revived_at: str | None
+    times_revived: int
     project_file: str | None
+    project_name: str | None
     model: str | None
+    runtime: str | None
     llm_provider: str | None
     vcs_provider: str | None
     workflow: str | None
@@ -31,6 +46,7 @@ class DismissedBundleSummary:
     parent_timestamp: str | None
     step_index: int | None
     step_name: str | None
+    step_type: str | None
     retry_of_timestamp: str | None
     retried_as_timestamp: str | None
     retry_chain_root_timestamp: str | None

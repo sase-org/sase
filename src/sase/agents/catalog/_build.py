@@ -14,7 +14,7 @@ from ._derive import (
     has_attention,
     is_dismissed,
     is_retrying,
-    is_revivable,
+    is_durably_revivable,
     known_project_keys,
 )
 from ._family import family_and_role
@@ -148,6 +148,9 @@ def _build_row(
     state = entry.get("state")
     dismissed = is_dismissed(state)
     bundle_path = dismissed_record.bundle_path if dismissed_record else None
+    durably_revivable = (
+        dismissed_record.durably_revivable if dismissed_record else False
+    )
 
     clan = (
         name if "clan" in kind else (index_record.agent_clan if index_record else None)
@@ -229,7 +232,19 @@ def _build_row(
         retry_chain_root_timestamp=retry_chain_root_timestamp,
         patch=patch,
         dismissed=dismissed,
-        revivable=is_revivable(dismissed=dismissed, bundle_path=bundle_path),
+        revivable=is_durably_revivable(
+            dismissed=dismissed,
+            bundle_path=bundle_path,
+            durably_revivable=durably_revivable,
+        ),
+        historically_viewable=(
+            dismissed_record.historically_viewable if dismissed_record else False
+        ),
+        durably_revivable=durably_revivable,
+        restartable=dismissed_record.restartable if dismissed_record else False,
+        missing_requirements=(
+            dismissed_record.missing_requirements if dismissed_record else ()
+        ),
         attention=has_attention(status),
         retry=is_retrying(
             retry_attempt=retry_attempt,

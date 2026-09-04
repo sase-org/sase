@@ -158,6 +158,37 @@ def test_do_revive_agent_selects_revived_agent_panel_after_reload() -> None:
     assert app.refresh_calls == [False]
 
 
+def test_do_revive_agent_blocks_non_revivable_archive() -> None:
+    app = FakeReviveApp()
+    dismissed = make_agent(
+        cl_name="revived",
+        raw_suffix="revived_suffix",
+        durably_revivable=False,
+        missing_requirements=["commits"],
+    )
+    app._dismissed_agent_objects = [dismissed]
+    app._dismissed_agents = {dismissed.identity}
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"
+        ) as mock_mark,
+    ):
+        delta = app._do_revive_agent(dismissed)
+
+    assert delta.failed[0].stage == "capability_check"
+    assert delta.failed[0].message == (
+        "This archive record is not revivable: missing commits"
+    )
+    assert not delta.has_changes
+    assert app.notifications == [
+        ("This archive record is not revivable: missing commits", "warning")
+    ]
+    mock_save.assert_not_called()
+    mock_mark.assert_not_called()
+
+
 def test_do_revive_agent_clears_stale_banner_focus() -> None:
     """Reviving an agent selects its row, not a stale collapsed group banner."""
     app = FakeReviveApp()
@@ -234,6 +265,37 @@ def test_do_revive_agents_batch_removes_suffix_aliases() -> None:
     )
     assert app.load_count == 1
     assert len(app.restored) == 4
+
+
+def test_do_revive_agents_batch_skips_non_revivable_archive() -> None:
+    app = FakeReviveApp()
+    one = make_agent(cl_name="rev1", raw_suffix="suffix1")
+    two = make_agent(
+        cl_name="rev2",
+        raw_suffix="suffix2",
+        durably_revivable=False,
+        missing_requirements=["loader_reconstructible_archive"],
+    )
+    app._dismissed_agent_objects = [one, two]
+    app._dismissed_agents = {one.identity, two.identity}
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch(
+            "sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"
+        ) as mock_mark,
+    ):
+        delta = app._do_revive_agents([one, two])
+
+    assert delta is not False
+    assert delta.revived_identities == (one.identity,)
+    assert len(delta.failed) == 1
+    assert delta.failed[0].identity == two.identity
+    assert delta.failed[0].stage == "capability_check"
+    assert delta.failed[0].message == (
+        "This archive record is not revivable: missing loader_reconstructible_archive"
+    )
+    mock_mark.assert_called_once_with({"suffix1"})
 
 
 def test_do_revive_agent_uses_artifact_delta_for_known_dir() -> None:

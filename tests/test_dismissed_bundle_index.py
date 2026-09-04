@@ -129,8 +129,8 @@ def test_dismissed_bundle_index_query_summaries_supports_offset(
     assert [summary.raw_suffix for summary in second_page] == ["20250615100000"]
 
 
-def test_dismissed_bundle_index_legacy_summary_fields(tmp_path: Path) -> None:
-    """Legacy summary rows expose only storage and revive lookup fields."""
+def test_dismissed_bundle_index_summary_fields(tmp_path: Path) -> None:
+    """Summary rows expose storage, provenance, and capability fields."""
     bundles_dir = tmp_path / "bundles"
     with (
         patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
@@ -163,28 +163,44 @@ def test_dismissed_bundle_index_legacy_summary_fields(tmp_path: Path) -> None:
     assert summary.model == "gpt-test"
     assert summary.llm_provider == "codex"
     assert set(summary.__dataclass_fields__) == {
+        "agent_id",
         "agent_name",
         "agent_type",
         "bundle_path",
         "cl_name",
         "filename",
+        "archive_payload_sha256",
+        "archive_visibility",
+        "dismissed_at",
+        "durably_revivable",
+        "historically_viewable",
         "is_workflow_child",
         "llm_provider",
+        "missing_requirements",
         "meta_changespec",
         "model",
         "parent_timestamp",
         "project_file",
+        "project_name",
         "raw_suffix",
+        "restartable",
+        "revived_at",
         "retried_as_timestamp",
         "retry_attempt",
         "retry_chain_root_timestamp",
         "retry_of_timestamp",
+        "runtime",
         "shard",
+        "source_machine",
+        "source_run_id",
+        "source_username",
         "start_time",
         "status",
         "step_index",
         "step_name",
+        "step_type",
         "stop_time",
+        "times_revived",
         "vcs_provider",
         "workflow",
     }

@@ -95,6 +95,9 @@ def agent_catalog_query_entry(
     _add_field(fields, "hidden", row.hidden)
     _add_field(fields, "dismissed", row.dismissed)
     _add_field(fields, "revivable", row.revivable)
+    _add_field(fields, "historically_viewable", row.historically_viewable)
+    _add_field(fields, "durably_revivable", row.durably_revivable)
+    _add_field(fields, "restartable", row.restartable)
     _add_field(fields, "attention", row.attention)
     _add_field(fields, "retry", row.retry)
     _add_field(fields, "linked", bool(link_facet and link_facet.linked))
@@ -314,6 +317,7 @@ def _text_values(
         row.artifacts_dir,
         row.bundle_path,
         row.patch,
+        *row.missing_requirements,
     )
 
 

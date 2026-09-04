@@ -31,6 +31,7 @@ from sase.agents_sync.v2_run_io import (
     run_metadata_from_json,
     run_state_from_json,
 )
+from sase.core.agent_archive_facade import capabilities_from_v2_run
 from sase.core.agent_identity_facade import (
     AgentFamilyNameKind,
     AgentOwnerIdentity,
@@ -157,6 +158,9 @@ def _published_run(
         path = f"{root}/{name}"
         payload[path] = content
         files.append((kind, file_reference(path, content)))
+    capabilities = capabilities_from_v2_run(
+        dict(run.metadata), {kind for kind, _ in files}
+    )
     return V2RunRecord(
         source_run_id=run.source_run_id,
         local_name=run.local_name,
@@ -168,6 +172,7 @@ def _published_run(
         metadata=run.metadata,
         commits=run.commits,
         files=tuple(files),
+        capabilities=capabilities,
     )
 
 

@@ -137,7 +137,10 @@ def agents_query_schema() -> ArtifactQuerySchema:
         for key, hint in (
             ("hidden", "artifact-index hidden flag"),
             ("dismissed", "true when state is dismissed"),
-            ("revivable", "dismissed and backed by a readable top-level bundle"),
+            ("revivable", "dismissed with durable archive inputs"),
+            ("historically_viewable", "archive has enough data to inspect"),
+            ("durably_revivable", "archive has enough data to restore"),
+            ("restartable", "archive has prompt and model parameters"),
             ("attention", "failed or waiting on input"),
             ("retry", "participates in a retry chain"),
             ("linked", "true when at least one artifact link touches the agent"),

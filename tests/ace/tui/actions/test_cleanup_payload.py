@@ -73,6 +73,24 @@ def _archive_without_version(agent: Agent) -> dict[str, object]:
     return payload
 
 
+def _without_archive_metadata(payload: dict[str, object]) -> dict[str, object]:
+    result = dict(payload)
+    for key in (
+        "archive_capabilities",
+        "archive_payload_sha256",
+        "archive_visibility",
+        "durably_revivable",
+        "historically_viewable",
+        "missing_requirements",
+        "restartable",
+        "source_machine",
+        "source_run_id",
+        "source_username",
+    ):
+        result.pop(key, None)
+    return result
+
+
 def test_cleanup_archive_dto_fields_match_bundle_writer() -> None:
     agent = _local_agent(artifacts_dir="/tmp/artifacts/ace-run/20260101120000")
     dto_fields = set(serialize_agent(agent)) - {CLEANUP_AGENT_ARCHIVE_VERSION_KEY}
@@ -198,7 +216,15 @@ def test_cleanup_subprocess_dismiss_preserves_local_durable_record(
     agent = _local_agent(artifacts_dir=artifacts_dir)
     loaded = _dismiss_through_cleanup_subprocess(agent, tmp_path)
     expected = agent_from_json(serialize_agent(agent)).to_bundle_dict()
-    assert loaded.to_bundle_dict() == expected
+    actual = loaded.to_bundle_dict()
+    assert _without_archive_metadata(actual) == _without_archive_metadata(expected)
+    assert actual["archive_visibility"] == "hidden"
+    assert actual["archive_capabilities"] == {
+        "historically_viewable": True,
+        "durably_revivable": True,
+        "restartable": False,
+        "missing_requirements": ["prompt"],
+    }
     for field_name in _REVIVAL_FIELDS:
         assert getattr(loaded, field_name) == getattr(agent, field_name)
 

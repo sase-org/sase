@@ -111,6 +111,23 @@ def test_retry_edit_agent_preserves_unnamed_agent_prompt(
     assert not mock_allocate.called
 
 
+def test_retry_edit_agent_blocks_non_restartable_archive() -> None:
+    app = _App(
+        _Agent(
+            "Do work",
+            restartable=False,
+            missing_requirements=("prompt",),
+        )
+    )
+
+    app._retry_edit_agent()
+
+    assert app.launched is None
+    assert app.notifications == [
+        ("This archive record is not restartable: missing prompt", "warning")
+    ]
+
+
 @patch("sase.agent.names.allocate_retry_name", return_value="foo.r0")
 def test_retry_edit_agent_replaces_name_without_force_reuse(
     _mock_allocate: Mock,

@@ -41,6 +41,10 @@ class AgentCatalogRow:
     patch: str | None
     dismissed: bool
     revivable: bool
+    historically_viewable: bool
+    durably_revivable: bool
+    restartable: bool
+    missing_requirements: tuple[str, ...]
     attention: bool
     retry: bool
     has_collision_history: bool

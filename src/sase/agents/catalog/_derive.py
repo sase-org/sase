@@ -47,7 +47,7 @@ def is_dismissed(state: str | None) -> bool:
     return state == "dismissed"
 
 
-def is_revivable(*, dismissed: bool, bundle_path: str | None) -> bool:
+def _is_revivable(*, dismissed: bool, bundle_path: str | None) -> bool:
     """Return whether a dismissed row has a bundle available to revive.
 
     Trusts the dismissed summary index's ``bundle_path`` rather than
@@ -60,6 +60,19 @@ def is_revivable(*, dismissed: bool, bundle_path: str | None) -> bool:
     race (file pruned after the last sync) must be caught regardless.
     """
     return dismissed and bundle_path is not None
+
+
+def is_durably_revivable(
+    *,
+    dismissed: bool,
+    bundle_path: str | None,
+    durably_revivable: bool,
+) -> bool:
+    """Return whether a dismissed row has enough persisted inputs to revive."""
+
+    return _is_revivable(dismissed=dismissed, bundle_path=bundle_path) and bool(
+        durably_revivable
+    )
 
 
 def has_attention(status: str | None) -> bool:

@@ -110,6 +110,23 @@ def test_kill_and_edit_agent_keeps_prompt_when_it_has_no_id() -> None:
     assert app.notifications == []
 
 
+def test_kill_and_edit_agent_blocks_non_restartable_archive() -> None:
+    app = _App(
+        _Agent(
+            "%id:foo\nDo work",
+            restartable=False,
+            missing_requirements=("prompt", "model"),
+        )
+    )
+
+    app._kill_and_edit_agent()
+
+    assert app.launched is None
+    assert app.notifications == [
+        ("This archive record is not restartable: missing prompt, model", "warning")
+    ]
+
+
 def test_kill_and_edit_family_root_keeps_clan_identity() -> None:
     app = _App(
         _Agent(

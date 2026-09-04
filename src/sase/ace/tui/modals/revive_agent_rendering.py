@@ -171,6 +171,24 @@ def build_metadata_preview(agent: Agent, children: list[Agent]) -> Text:
         meta.append(f"  {'Provider':<{label_width}}", style="bold")
         meta.append(f"{agent.llm_provider}\n", style="dim")
 
+    meta.append(f"  {'Viewable':<{label_width}}", style="bold")
+    meta.append(_yes_no(getattr(agent, "historically_viewable", True)))
+    meta.append("\n")
+
+    meta.append(f"  {'Revivable':<{label_width}}", style="bold")
+    meta.append(_yes_no(getattr(agent, "durably_revivable", True)))
+    meta.append("\n")
+
+    meta.append(f"  {'Restart':<{label_width}}", style="bold")
+    meta.append(_yes_no(getattr(agent, "restartable", True)))
+    meta.append("\n")
+
+    missing = getattr(agent, "missing_requirements", None) or ()
+    if missing:
+        meta.append(f"  {'Missing':<{label_width}}", style="bold")
+        meta.append(", ".join(str(item) for item in missing), style="dim")
+        meta.append("\n")
+
     if agent.presented_agent_name:
         meta.append(f"  {'Agent':<{label_width}}", style="bold")
         meta.append(f"@{agent.presented_agent_name}\n", style="#87D7FF")
@@ -203,6 +221,12 @@ def build_metadata_preview(agent: Agent, children: list[Agent]) -> Text:
             meta.append(f"  {agent.error_traceback}\n", style="dim #FF5F5F")
 
     return meta
+
+
+def _yes_no(value: object) -> Text:
+    if bool(value):
+        return Text("yes", style="bold #5FD75F")
+    return Text("no", style="bold #FFAF5F")
 
 
 def build_response_preview(agent: Agent) -> Text:

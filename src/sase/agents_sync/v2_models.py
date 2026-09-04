@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from sase.agents_sync.models import CommitRecord
+from sase.core.agent_archive_facade import AgentArchiveCapabilities
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 
 V2_SCHEMA_VERSION = 2
@@ -57,8 +58,30 @@ class V2RunRecord:
     metadata: tuple[tuple[str, Any], ...] = ()
     commits: tuple[CommitRecord, ...] = ()
     files: tuple[tuple[str, V2FileReference], ...] = ()
+    capabilities: AgentArchiveCapabilities = field(
+        default_factory=lambda: AgentArchiveCapabilities(
+            historically_viewable=False,
+            durably_revivable=False,
+            restartable=False,
+            missing_requirements=(
+                "commits",
+                "llm_provider",
+                "loader_reconstructible_archive",
+                "metadata",
+                "model",
+                "prompt",
+                "reasoning_effort",
+                "state",
+            ),
+        )
+    )
 
     def to_json_dict(self) -> dict[str, object]:
+        from sase.core.agent_archive_facade import capabilities_from_v2_run
+
+        capabilities = capabilities_from_v2_run(
+            dict(self.metadata), {kind for kind, _reference in self.files}
+        )
         return {
             "source_run_id": self.source_run_id,
             "local_name": self.local_name,
@@ -72,6 +95,7 @@ class V2RunRecord:
             "files": {
                 kind: reference.to_json_dict() for kind, reference in sorted(self.files)
             },
+            "capabilities": capabilities.to_json_dict(),
         }
 
 

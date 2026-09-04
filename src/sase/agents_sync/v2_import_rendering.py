@@ -42,6 +42,7 @@ def artifact_payload(
 
     record = run.payload.record
     metadata = dict(record.metadata)
+    capabilities = record.capabilities.to_json_dict()
     meta: dict[str, Any] = {
         key: metadata[key]
         for key in (
@@ -78,6 +79,11 @@ def artifact_payload(
             "imported_file_digests": {
                 kind: reference.digest for kind, reference in record.files
             },
+            "archive_capabilities": capabilities,
+            "historically_viewable": record.capabilities.historically_viewable,
+            "durably_revivable": record.capabilities.durably_revivable,
+            "restartable": record.capabilities.restartable,
+            "missing_requirements": list(record.capabilities.missing_requirements),
             "imported_transaction_key": plan.transaction_key,
             "historical_source_state": record.state,
             "stopped_at": (
@@ -128,6 +134,11 @@ def artifact_payload(
         "imported_source_owner": meta["imported_source_owner"],
         "imported_source_run_id": record.source_run_id,
         "imported_snapshot_digest": plan.package.entry.digest,
+        "archive_capabilities": capabilities,
+        "historically_viewable": record.capabilities.historically_viewable,
+        "durably_revivable": record.capabilities.durably_revivable,
+        "restartable": record.capabilities.restartable,
+        "missing_requirements": list(record.capabilities.missing_requirements),
         "imported_transaction_key": plan.transaction_key,
         "finished_at": _source_datetime(
             record.finished_at or record.dismissed_at or record.started_at,
@@ -183,6 +194,7 @@ def bundle_payload(
 
     record = run.payload.record
     metadata = dict(record.metadata)
+    capabilities = record.capabilities.to_json_dict()
     start = _source_datetime(record.started_at, run.destination_id)
     stop = _source_datetime(
         record.finished_at or record.dismissed_at or record.started_at,
@@ -208,10 +220,21 @@ def bundle_payload(
         "role_suffix": _optional_text(metadata.get("role_suffix")),
         "hidden": metadata.get("hidden") is True,
         "approve": metadata.get("approve") is True,
+        "source_username": plan.package.owner.username,
+        "source_machine": plan.package.owner.machine_name,
+        "source_run_id": record.source_run_id,
+        "archive_visibility": "hidden",
+        "archive_schema_version": 2,
+        "archive_capabilities": capabilities,
+        "historically_viewable": record.capabilities.historically_viewable,
+        "durably_revivable": record.capabilities.durably_revivable,
+        "restartable": record.capabilities.restartable,
+        "missing_requirements": list(record.capabilities.missing_requirements),
         "imported_source_owner": {
             "username": plan.package.owner.username,
             "machine_name": plan.package.owner.machine_name,
         },
+        "imported_source_run_id": record.source_run_id,
         "imported_snapshot_digest": plan.package.entry.digest,
         "imported_transaction_key": plan.transaction_key,
         "step_output": {
@@ -223,6 +246,9 @@ def bundle_payload(
     }
     if chat_path is not None:
         bundle["response_path"] = _local_path_string(chat_path)
+    prompt = run.payload.file_bytes("prompt")
+    if prompt is not None:
+        bundle["raw_xprompt"] = prompt.decode("utf-8")
     if family is not None:
         bundle["agent_family"] = family.localized_name
         raw_role = _optional_text(metadata.get("agent_family_role"))
@@ -245,6 +271,7 @@ def bundle_payload(
         elif kind == "retry" and isinstance(target_id, str):
             bundle["retry_of_timestamp"] = target_id
 
+    bundle["archive_payload_sha256"] = _archive_payload_hash(bundle)
     validate_dismissed_agent_bundle(bundle)
     return bundle
 
@@ -279,7 +306,14 @@ def saved_family_group(
                 "model": bundle.get("model"),
                 "llm_provider": bundle.get("llm_provider"),
                 "reasoning_effort": bundle.get("reasoning_effort"),
+                "source_username": bundle.get("source_username"),
+                "source_machine": bundle.get("source_machine"),
                 "tribe": bundle.get("tribe"),
+                "archive_capabilities": bundle.get("archive_capabilities"),
+                "historically_viewable": bundle.get("historically_viewable"),
+                "durably_revivable": bundle.get("durably_revivable"),
+                "restartable": bundle.get("restartable"),
+                "missing_requirements": bundle.get("missing_requirements") or [],
                 "prompt_preview": _prompt_preview(prompt),
                 "source_run_id": source_id,
             }
@@ -493,6 +527,19 @@ def json_bytes(value: object) -> bytes:
         ).encode("utf-8")
         + b"\n"
     )
+
+
+def _archive_payload_hash(bundle: dict[str, Any]) -> str:
+    payload = dict(bundle)
+    payload.pop("archive_payload_sha256", None)
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 __all__ = [

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from concurrent.futures import CancelledError
+from datetime import UTC, datetime
 from functools import lru_cache
+import hashlib
 import json
 import os
 import sqlite3
@@ -64,6 +66,7 @@ def save_dismissed_bundle(ctx: Any, agent: Agent) -> bool:
         return False
     bundle = agent.to_bundle_dict()
     try:
+        _prepare_archive_bundle(bundle)
         bundles_dir = ctx.dismissed_bundles_dir()
         saved_path = ctx._save_dismissed_bundle_python(bundles_dir, bundle)
     except OSError:
@@ -128,7 +131,10 @@ def load_dismissed_bundle_summaries(
         )
         if summaries is not None:
             return summaries
-        ctx.rebuild_dismissed_bundle_index()
+        rebuild = getattr(ctx, "rebuild_dismissed_bundle_index", None)
+        if not callable(rebuild):
+            return []
+        rebuild()
         return (
             query_summaries(
                 bundles_dir,
@@ -176,54 +182,25 @@ def mark_bundles_revived_by_suffixes(
     *,
     revived_at: str | None = None,
 ) -> int:
-    """Purge the dismissed bundles for revived agents.
+    """Mark dismissed bundles locally visible without mutating archive bytes."""
 
-    Revive restores the live on-disk artifacts, so the dismissed bundle is
-    redundant. Worse, the artifact-index dismissed projection unions the
-    in-memory dismissed set with *every* dismissed-bundle summary, so a
-    lingering bundle re-hides the revived agent on the next projection rebuild
-    (``sase agent index gc``, cold-start archive maintenance, or a
-    drift-triggered non-authoritative sync). Delete both the bundle files and
-    their summary index rows -- mirroring the name-wipe path
-    (``agent/names/_wipe.py``) -- so the projection stops re-deriving the
-    revived identities. If the user re-dismisses, the dismiss flow writes a
-    fresh bundle.
-
-    Returns the number of bundle files removed.
-    """
-    del revived_at
     if not suffixes:
         return 0
 
-    from .dismissed_bundle_index import delete_bundle_summaries_for_suffixes
+    from .dismissed_bundle_index import set_archive_visibility_for_suffixes
 
-    removed = 0
-    for path in ctx._bundle_paths_for_suffixes(suffixes):
-        try:
-            path.unlink()
-        except FileNotFoundError:
-            continue
-        except OSError:
-            continue
-        removed += 1
-
-    delete_bundle_summaries_for_suffixes(ctx.dismissed_bundles_dir(), suffixes)
-    return removed
+    timestamp = revived_at or datetime.now(UTC).isoformat()
+    return set_archive_visibility_for_suffixes(
+        ctx.dismissed_bundles_dir(),
+        suffixes,
+        "visible",
+        revived_at=timestamp,
+    )
 
 
 def purge_revived_dismissed_bundles(ctx: Any) -> int:
-    """Purge dismissed bundles whose identities are no longer dismissed.
+    """Reproject legacy stale bundles as visible instead of deleting them."""
 
-    One-time reconciliation for archives that accumulated stale bundles before
-    revive learned to purge them. A bundle whose ``raw_suffix`` is absent from
-    every identity in ``dismissed_agents.json`` belongs to an already-revived
-    agent; its lingering summary keeps re-feeding the dismissed projection.
-    Purging by suffix is parent/child safe: a suffix is treated as orphaned
-    only when *no* dismissed identity still references it, so bundles for
-    agents that remain dismissed are preserved.
-
-    Returns the number of bundle files removed.
-    """
     from .dismissed_agents_state import load_dismissed_agents
 
     dismissed = load_dismissed_agents(ctx._dismissed_agents_file())
@@ -248,7 +225,7 @@ def bundle_paths_for_suffixes(ctx: Any, suffixes: set[str]) -> list[Path]:
         )
     except (OSError, ValueError, sqlite3.Error):
         indexed_paths = None
-    if indexed_paths:
+    if indexed_paths is not None:
         return [path for path in indexed_paths if path.is_file()]
 
     paths: list[Path] = []
@@ -282,6 +259,14 @@ def save_dismissed_bundle_python(root: Path, bundle: dict[str, Any]) -> Path:
         target = bundle_shard_dir(root, filename) / filename
     except (OSError, ValueError):
         pass
+    payload = _json_file_bytes(bundle)
+    if target.is_file():
+        try:
+            if target.read_bytes() == payload:
+                return target
+        except OSError as exc:
+            raise OSError(f"could not read existing dismissed bundle: {exc}") from exc
+        raise OSError(f"dismissed archive conflict for {target}")
     write_json_file_atomic(target, bundle)
     return target
 
@@ -290,8 +275,7 @@ def write_json_file_atomic(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_name(f".{path.name}.tmp.{os.getpid()}.{time.time_ns()}")
     with open(tmp_path, "w", encoding="utf-8") as handle:
-        json.dump(data, handle, indent=2)
-        handle.write("\n")
+        handle.write(_json_file_bytes(data).decode("utf-8"))
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(tmp_path, path)
@@ -307,6 +291,90 @@ def fsync_dir(path: Path) -> None:
         os.fsync(fd)
     finally:
         os.close(fd)
+
+
+def _prepare_archive_bundle(bundle: dict[str, Any]) -> None:
+    """Attach canonical archive metadata before an immutable bundle write."""
+
+    from sase.core.agent_archive_facade import (
+        archive_key_from_bundle,
+        archive_key_from_owner,
+        capabilities_from_bundle,
+        validate_archive_visibility,
+    )
+    from sase.core.agent_identity_facade import AgentIdentitySnapshot
+
+    has_archive_payload = (
+        isinstance(bundle.get("archive_schema_version"), int)
+        or isinstance(bundle.get("archive_payload_sha256"), str)
+        or isinstance(bundle.get("archive_capabilities"), dict)
+    )
+    key = archive_key_from_bundle(bundle)
+    if key is None:
+        owner = AgentIdentitySnapshot.current().owner
+        if owner is not None:
+            from sase.agents_sync.inventory_io import source_run_id
+
+            raw_suffix = str(bundle["raw_suffix"])
+            project_key = _project_key_from_bundle(bundle)
+            key = archive_key_from_owner(
+                owner,
+                source_run_id(project_key, "ace-run", raw_suffix),
+            )
+    if key is not None:
+        bundle["source_username"] = key.source_username
+        bundle["source_machine"] = key.source_machine
+        bundle["source_run_id"] = key.source_run_id
+    if not has_archive_payload:
+        bundle.pop("archive_capabilities", None)
+        bundle.pop("historically_viewable", None)
+        bundle.pop("durably_revivable", None)
+        bundle.pop("restartable", None)
+        bundle.pop("missing_requirements", None)
+    visibility = validate_archive_visibility(
+        str(bundle.get("archive_visibility") if has_archive_payload else "hidden")
+        or "hidden"
+    )
+    bundle["archive_visibility"] = visibility
+    bundle["archive_schema_version"] = 2
+    capabilities = capabilities_from_bundle(bundle)
+    capability_payload = capabilities.to_json_dict()
+    bundle["archive_capabilities"] = capability_payload
+    bundle["historically_viewable"] = capabilities.historically_viewable
+    bundle["durably_revivable"] = capabilities.durably_revivable
+    bundle["restartable"] = capabilities.restartable
+    bundle["missing_requirements"] = list(capabilities.missing_requirements)
+    bundle["archive_payload_sha256"] = _archive_payload_hash(bundle)
+
+
+def _archive_payload_hash(bundle: dict[str, Any]) -> str:
+    payload = dict(bundle)
+    payload.pop("archive_payload_sha256", None)
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _json_file_bytes(data: dict[str, Any]) -> bytes:
+    return (json.dumps(data, indent=2) + "\n").encode("utf-8")
+
+
+def _project_key_from_bundle(bundle: dict[str, Any]) -> str:
+    project_file = bundle.get("project_file")
+    if isinstance(project_file, str) and project_file:
+        try:
+            project_key = Path(project_file).expanduser().parent.name
+            if project_key:
+                return project_key
+        except (OSError, RuntimeError, ValueError):
+            pass
+    return "unknown"
 
 
 def bundle_filename(agent: Agent) -> str:
@@ -342,12 +410,13 @@ def load_dismissed_bundles(ctx: Any, suffixes: set[str] | None = None) -> list[A
         except (OSError, ValueError):
             indexed_paths = None
 
-        if indexed_paths:
+        if indexed_paths is not None:
             bundle_paths.extend(path for path in indexed_paths if path.is_file())
         else:
             bundle_paths.extend(ctx._bundle_paths_for_suffixes(suffixes))
     else:
-        bundle_paths.extend(ctx._iter_bundle_paths())
+        summaries = load_dismissed_bundle_summaries(ctx, limit=None)
+        bundle_paths.extend(Path(summary.bundle_path) for summary in summaries)
 
     if not bundle_paths:
         return []

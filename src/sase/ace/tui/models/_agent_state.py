@@ -338,6 +338,20 @@ class AgentState:
     # Whether this agent should be hidden by default (shown with '.' toggle)
     hidden: bool = False
 
+    # Immutable archive provenance and persisted capabilities. Live rows
+    # default to restartable so existing prompt-based actions keep their
+    # current behavior unless a loaded archive record says otherwise.
+    source_username: str | None = None
+    source_machine: str | None = None
+    source_run_id: str | None = None
+    archive_visibility: str = "visible"
+    archive_payload_sha256: str | None = None
+    archive_capabilities: dict[str, Any] | None = None
+    historically_viewable: bool = True
+    durably_revivable: bool = True
+    restartable: bool = True
+    missing_requirements: list[str] = field(default_factory=list)
+
     # Whether this agent's commits were reverted via the Agents-tab `,r` action
     # (detected from revert_result.json in the agent's artifacts dir at load time).
     reverted: bool = False

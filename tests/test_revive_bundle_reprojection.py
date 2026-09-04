@@ -1,10 +1,11 @@
-"""Revive purges dismissed bundles so the projection stops re-hiding agents.
+"""Revive marks dismissed bundles visible so projection stops re-hiding agents.
 
 Regression coverage for the bug where reviving an agent left its dismissed
-bundle on disk. The artifact-index dismissed projection is the in-memory
-dismissed set unioned with every dismissed-bundle summary, so a lingering
-bundle re-hid the revived agent on the next projection rebuild
-(``sase agent index gc`` / cold-start maintenance / drift-triggered sync).
+bundle contributing to the hidden projection. The artifact-index dismissed
+projection is the in-memory dismissed set unioned with hidden bundle summaries,
+so a revived bundle must stay historically present while no longer projecting
+as hidden (``sase agent index gc`` / cold-start maintenance /
+drift-triggered sync).
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from sase.ace.dismissed_agents import (
     save_dismissed_bundle,
     verify_dismissed_bundle_index,
 )
+from sase.ace.dismissed_bundle_index import query_summaries
 from sase.core.agent_artifact_index_lifecycle import (
     build_dismissed_agent_projection_inputs,
 )
@@ -58,10 +60,10 @@ def _projection_suffixes() -> set[str]:
     return {row.raw_suffix for row in projection.identities if row.raw_suffix}
 
 
-def test_mark_bundles_revived_purges_files_rows_and_projection(
+def test_mark_bundles_revived_marks_visibility_projection(
     tmp_path: Path,
 ) -> None:
-    """The purge removes bundle files, summary rows, and projection identity."""
+    """Revive hides the bundle from dismissed views without mutating bytes."""
     with _patch_archive(tmp_path):
         agent = make_dismiss_agent(cl_name="revived", raw_suffix="20260101120000")
         assert save_dismissed_bundle(agent)
@@ -74,8 +76,18 @@ def test_mark_bundles_revived_purges_files_rows_and_projection(
 
         assert removed == 1
         bundles_dir = tmp_path / "bundles"
-        assert not list(bundles_dir.rglob("*.json"))
+        assert list(bundles_dir.rglob("*.json"))
         assert load_dismissed_bundle_summaries(suffixes={"20260101120000"}) == []
+        [summary] = (
+            query_summaries(
+                bundles_dir,
+                suffixes={"20260101120000"},
+                visibility=None,
+            )
+            or []
+        )
+        assert summary.archive_visibility == "visible"
+        assert summary.times_revived == 1
         report = verify_dismissed_bundle_index()
         assert report["ok"] is True
         assert "20260101120000" not in _projection_suffixes()
@@ -91,7 +103,7 @@ def test_mark_bundles_revived_is_noop_for_empty_suffixes(tmp_path: Path) -> None
         assert load_dismissed_bundle_summaries(suffixes={"20260101120000"})
 
 
-def test_revive_flow_purges_bundle_so_projection_rebuild_keeps_agent_visible(
+def test_revive_flow_marks_bundle_visible_so_projection_rebuild_keeps_agent_visible(
     tmp_path: Path,
 ) -> None:
     """End-to-end: after revive a projection rebuild does not re-hide the agent."""
@@ -123,17 +135,26 @@ def test_revive_flow_purges_bundle_so_projection_rebuild_keeps_agent_visible(
 
         app._do_revive_agent(agent)
 
-        # The dismissed identity, the bundle files, and the bundle summary are
-        # all gone, so the rebuilt projection (what gc / cold start derive) no
-        # longer contains the revived agent.
+        # The dismissed identity is gone and the bundle summary is visible, so
+        # the rebuilt projection (what gc / cold start derive) no longer
+        # contains the revived agent.
         assert load_dismissed_agents() == set()
         assert load_dismissed_bundle_summaries(suffixes={"20260101120000"}) == []
+        [summary] = (
+            query_summaries(
+                tmp_path / "bundles",
+                suffixes={"20260101120000"},
+                visibility=None,
+            )
+            or []
+        )
+        assert summary.archive_visibility == "visible"
         assert verify_dismissed_bundle_index()["ok"] is True
         assert "20260101120000" not in _projection_suffixes()
 
 
-def test_revive_purges_nested_child_bundles(tmp_path: Path) -> None:
-    """Reviving a parent purges its restored children's bundles too."""
+def test_revive_marks_nested_child_bundles_visible(tmp_path: Path) -> None:
+    """Reviving a parent marks its restored children's bundles visible too."""
     with _patch_archive(tmp_path), ExitStack() as stack:
         stack.enter_context(
             patch(
@@ -179,14 +200,29 @@ def test_revive_purges_nested_child_bundles(tmp_path: Path) -> None:
             )
             == []
         )
+        summaries = (
+            query_summaries(
+                tmp_path / "bundles",
+                suffixes={"20260101120000", "20260101130000"},
+                visibility=None,
+            )
+            or []
+        )
+        assert {summary.raw_suffix for summary in summaries} == {
+            "20260101120000",
+            "20260101130000",
+        }
+        assert {summary.archive_visibility for summary in summaries} == {"visible"}
         assert verify_dismissed_bundle_index()["ok"] is True
         rebuilt = _projection_suffixes()
         assert "20260101120000" not in rebuilt
         assert "20260101130000" not in rebuilt
 
 
-def test_purge_revived_dismissed_bundles_only_drops_orphans(tmp_path: Path) -> None:
-    """Reconciliation purges bundles absent from the dismissed identity file."""
+def test_purge_revived_dismissed_bundles_marks_only_orphans_visible(
+    tmp_path: Path,
+) -> None:
+    """Reconciliation marks bundles absent from the dismissed identity file."""
     with _patch_archive(tmp_path):
         kept = make_dismiss_agent(cl_name="kept", raw_suffix="20260101130000")
         orphan = make_dismiss_agent(cl_name="orphan", raw_suffix="20260101120000")
@@ -201,6 +237,15 @@ def test_purge_revived_dismissed_bundles_only_drops_orphans(tmp_path: Path) -> N
         assert purged == 1
         assert load_dismissed_bundle_summaries(suffixes={"20260101120000"}) == []
         assert load_dismissed_bundle_summaries(suffixes={"20260101130000"})
+        [orphan_summary] = (
+            query_summaries(
+                tmp_path / "bundles",
+                suffixes={"20260101120000"},
+                visibility=None,
+            )
+            or []
+        )
+        assert orphan_summary.archive_visibility == "visible"
         assert verify_dismissed_bundle_index()["ok"] is True
         rebuilt = _projection_suffixes()
         assert "20260101120000" not in rebuilt
@@ -225,7 +270,7 @@ def test_index_gc_parser_accepts_purge_revived_bundles_flag() -> None:
 def test_index_gc_purges_revived_bundles_before_rebuild(
     tmp_path: Path,
 ) -> None:
-    """`gc --purge-revived-bundles` deletes orphan bundles before reprojection."""
+    """`gc --purge-revived-bundles` marks orphan bundles visible before rebuild."""
     from sase.agents.cli_index import handle_agents_index
     from sase.core.agent_scan_wire import (
         AgentArtifactIndexUpdateWire,

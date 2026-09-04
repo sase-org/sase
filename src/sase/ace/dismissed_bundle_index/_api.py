@@ -23,6 +23,7 @@ from ._models import (
 from ._schema import (
     connection,
     rebuild_rows_from_bundles,
+    set_visibility_for_suffixes as _set_visibility_for_suffixes,
     upsert_summary,
     write_connection,
 )
@@ -105,6 +106,7 @@ def query_summaries(
     cl_name: str | None = None,
     project_name: str | None = None,
     top_level_only: bool = False,
+    visibility: str | None = "hidden",
     limit: int | None = None,
     offset: int | None = None,
 ) -> list[DismissedBundleSummary] | None:
@@ -120,21 +122,34 @@ def query_summaries(
         if not suffixes:
             return []
         placeholders = ",".join("?" for _ in suffixes)
-        clauses.append(f"raw_suffix IN ({placeholders})")
+        clauses.append(f"s.raw_suffix IN ({placeholders})")
         params.extend(sorted(suffixes))
     if cl_name is not None:
-        clauses.append("(cl_name = ? OR meta_patch = ?)")
+        clauses.append("(s.cl_name = ? OR s.meta_patch = ?)")
         params.extend([cl_name, cl_name])
     if project_name is not None:
-        clauses.append("project_file LIKE ?")
+        clauses.append("s.project_file LIKE ?")
         params.append(f"%/{project_name}/%")
     if top_level_only:
-        clauses.append("is_workflow_child = 0")
+        clauses.append("s.is_workflow_child = 0")
+    if visibility is not None:
+        clauses.append("COALESCE(v.visibility, s.archive_visibility) = ?")
+        params.append(visibility)
 
-    sql = "SELECT * FROM dismissed_bundle_summaries"
+    sql = (
+        "SELECT s.*, "
+        "COALESCE(v.visibility, s.archive_visibility) AS effective_archive_visibility, "
+        "COALESCE(v.revived_at, s.revived_at) AS effective_revived_at, "
+        "COALESCE(v.times_revived, s.times_revived) AS effective_times_revived "
+        "FROM dismissed_bundle_summaries s "
+        "LEFT JOIN archive_visibility_projection v "
+        "ON v.source_username = s.source_username "
+        "AND v.source_machine = s.source_machine "
+        "AND v.source_run_id = s.source_run_id"
+    )
     if clauses:
         sql += " WHERE " + " AND ".join(clauses)
-    sql += " ORDER BY COALESCE(start_time, raw_suffix) DESC, filename ASC"
+    sql += " ORDER BY COALESCE(s.start_time, s.raw_suffix) DESC, s.filename ASC"
     if limit is not None:
         sql += " LIMIT ?"
         params.append(max(0, limit))
@@ -164,6 +179,31 @@ def query_bundle_paths_by_suffixes(
     return [Path(summary.bundle_path) for summary in summaries]
 
 
+def set_archive_visibility_for_suffixes(
+    root: Path,
+    suffixes: set[str],
+    visibility: str,
+    *,
+    revived_at: str | None = None,
+    dismissed_at: str | None = None,
+    pinned_at: str | None = None,
+) -> int:
+    """Set local visibility for all indexed rows matching *suffixes*."""
+
+    try:
+        with write_connection(root) as conn:
+            return _set_visibility_for_suffixes(
+                conn,
+                suffixes,
+                visibility,
+                revived_at=revived_at,
+                dismissed_at=dismissed_at,
+                pinned_at=pinned_at,
+            )
+    except sqlite3.Error:
+        return 0
+
+
 def rebuild_index(root: Path) -> DismissedBundleIndexRebuildResult:
     """Rebuild the entire dismissed bundle index from bundle JSON files."""
 
@@ -172,6 +212,7 @@ def rebuild_index(root: Path) -> DismissedBundleIndexRebuildResult:
     root.mkdir(parents=True, exist_ok=True)
     with write_connection(root) as conn:
         conn.execute("DELETE FROM dismissed_bundle_summaries")
+        conn.execute("DELETE FROM dismissed_bundle_search_fts")
         indexed = rebuild_rows_from_bundles(conn, root)
         bundle_count = len(iter_bundle_paths(root))
         skipped = max(0, bundle_count - indexed)
@@ -197,9 +238,14 @@ def query_summary_identities(root: Path) -> set[tuple[str, str, str | None]] | N
 
     sql = (
         "SELECT DISTINCT agent_type, "
-        "CASE WHEN cl_name = '' THEN 'unknown' ELSE cl_name END, "
-        "NULLIF(raw_suffix, '') "
-        "FROM dismissed_bundle_summaries"
+        "CASE WHEN s.cl_name = '' THEN 'unknown' ELSE s.cl_name END, "
+        "NULLIF(s.raw_suffix, '') "
+        "FROM dismissed_bundle_summaries s "
+        "LEFT JOIN archive_visibility_projection v "
+        "ON v.source_username = s.source_username "
+        "AND v.source_machine = s.source_machine "
+        "AND v.source_run_id = s.source_run_id "
+        "WHERE COALESCE(v.visibility, s.archive_visibility) = 'hidden'"
     )
     try:
         with connection(root) as conn:
