@@ -11,6 +11,7 @@ import re
 from typing import Any
 
 from sase.agents_sync.git import GitRunner, run_git
+from sase.agents_sync.inventory_io import source_run_id as compute_source_run_id
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.v2_import_package import (
     ValidatedV2HoodPackage,
@@ -133,7 +134,7 @@ def build_exact_local_observation_index(
         durable = meta.get("artifact_agent_id")
         if not isinstance(durable, str) or not durable:
             durable = artifact.name
-        source_run_id = _source_run_id(
+        source_run_id = compute_source_run_id(
             target.project_key,
             ACE_RUN_WORKFLOW_DIR,
             durable,
@@ -368,13 +369,6 @@ def _parse_datetime(value: str | None) -> datetime | None:
     except ValueError:
         return None
     return parsed.replace(tzinfo=parsed.tzinfo or UTC)
-
-
-def _source_run_id(project: str, workflow: str, durable: str) -> str:
-    digest = hashlib.sha256(
-        "\x00".join((project, workflow, durable)).encode("utf-8")
-    ).hexdigest()
-    return f"run-{digest[:32]}"
 
 
 __all__ = [
