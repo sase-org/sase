@@ -11,21 +11,6 @@ from sase._linked_repo_config import AGENTS_SIDECAR_ROLE
 
 from .init_plan import InitAction
 
-SIDECAR_CREATION_TTY_REQUIRED = "interactive y/yes confirmation is required"
-
-
-def sidecar_creation_requires_tty(
-    actions: tuple[InitAction, ...] | list[InitAction],
-) -> bool:
-    """Return whether planned sidecar work needs a real TTY to apply."""
-    return any(
-        action.operation == "create"
-        and "sidecar" in action.detail.casefold()
-        and "repository" in action.detail.casefold()
-        for action in actions
-    )
-
-
 if TYPE_CHECKING:
     from sase.sdd._sidecar_init import SidecarInitSpec
     from sase.workspace_provider import SddSidecarPreflight
@@ -152,7 +137,7 @@ def _confirm_sidecar_creation(
     resource = f"{preflight.provider} sidecar repository"
     if not stdin.isatty():
         print(
-            f"error: {resource} creation cancelled: {SIDECAR_CREATION_TTY_REQUIRED}",
+            f"error: {resource} creation cancelled: interactive y/yes confirmation is required",
             file=sys.stderr,
         )
         return False
@@ -190,8 +175,8 @@ def _confirm_agents_sidecar_creation(
     resource = f"{preflight.provider} agents sidecar repository"
     if not stdin.isatty():
         print(
-            f"warning: {resource} creation refused: {SIDECAR_CREATION_TTY_REQUIRED}; "
-            "run `sase repo init` interactively "
+            f"warning: {resource} creation refused: interactive y/yes "
+            "confirmation is required; run `sase repo init` interactively "
             "to create it; continuing without the agents sidecar",
             file=sys.stderr,
         )
@@ -349,11 +334,9 @@ def plan_sidecar_actions(
 
 
 __all__ = [
-    "SIDECAR_CREATION_TTY_REQUIRED",
     "plan_legacy_store_actions",
     "plan_sidecar_actions",
     "run_configured_sidecars",
     "run_legacy_store_init",
     "run_materialized_sidecars",
-    "sidecar_creation_requires_tty",
 ]

@@ -296,7 +296,6 @@ def test_plan_config_init_distinguishes_legacy_and_current_identity(
     assert missing.command == "config"
     assert missing.label == "Config"
     assert len(missing.actions) == 1
-    assert missing.requires_tty is True
     assert missing.summary == (f"the machine selector {machine_name_path()} is missing")
 
     overlay = config_dir / "sase_athena.yml"
@@ -313,7 +312,6 @@ def test_plan_config_init_distinguishes_legacy_and_current_identity(
     config_core.clear_config_cache()
     current = config_init_handler.plan_config_init(argparse.Namespace())
     assert current.actions == ()
-    assert current.requires_tty is False
     assert "alice@athena" in current.summary
 
 

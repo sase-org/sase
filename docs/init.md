@@ -9,9 +9,7 @@ sase init -c       # report drift without writing
 sase init          # prompt before each needed initializer
 sase init --yes    # run every needed initializer in order
 sase init -M --yes # mark this repository as SASE-managed, then initialize it
-sase init -p sase --check --json # structured plan for named enabled projects
 sase init --all --check # check every enabled main project without writing
-sase init --all --check --json # one schema-versioned document for every enabled project
 sase init --all         # visit every enabled main project; prompt when interactive
 sase init --all --yes   # skip generic prompts for every enabled main project
 ```
@@ -50,31 +48,14 @@ summary and exit status reflect the whole batch. `--all --check` is fully read-o
 exits non-zero if any project has drift or cannot be checked. Without a TTY, `--all`
 remains read-only unless `--yes` is supplied.
 
-`-p, --project NAME` is the named-subset counterpart: it is repeatable, mutually
-exclusive with `-a/--all` and `-M/--enable-project-memory`, and cannot be combined with
-an explicit init subcommand. Each name may be a project name, display name, or alias
-from the same enabled inventory `--all` uses; an unknown or non-enabled name fails fast
-and lists the valid names. The selected projects still run as one process with one
-batched chezmoi deploy.
-
-`-j, --json` is valid only with `--check`. It suppresses Rich prose and writes exactly
-one JSON document to stdout. Exit codes stay the same as human `--check` (0 when
-everything is current, 1 when work remains), so consumers must read the payload rather
-than the exit code. The document carries `schema_version` (currently `1`) and a
-top-level `status` of `current`, `drift`, or `blocked` — `--check` otherwise conflates
-drift and blockers as exit 1. Each project entry includes per-planner `requires_tty`
-markers for steps that cannot be authorized without a real TTY (owner-identity setup and
-provider sidecar creation). Action `new_content` is included so a frontend can render
-full unified diffs without a second planning pass.
-
 Use `-M, --enable-project-memory` to create or update the current project's
 `sase/sase.yml` with `is_sase_managed: true` before normal initialization. The
 compatibility spelling remains, but the marker now authorizes SASE management of the
 repository as a whole and thereby enables managed project memory and explicit repository
 initialization. The option preserves other local configuration and is available on both
 bare `sase init` and `sase memory init` (as well as the `sase init memory` compatibility
-alias). Because it writes configuration, it cannot be combined with `--check`, `--all`,
-or `-p/--project`; repositories must be marked one at a time.
+alias). Because it writes configuration, it cannot be combined with `--check` or
+`--all`; repositories must be marked one at a time.
 
 Explicit subcommands are still available when you need narrower control:
 
@@ -120,9 +101,7 @@ alias for `sase memory init`, and `sase init config` remains a compatibility ali
 | `sase init`                             | Check config, memory, repositories, and skills; prompt once per needed initializer.               |
 | `sase init -a, --all`                   | Check or initialize every registered enabled main project, continuing after project errors.       |
 | `sase init -c, --check`                 | Report initialization drift without writing and exit non-zero when changes are needed.            |
-| `sase init -j, --json`                  | With `--check`, emit one JSON plan (`schema_version`, `current`/`drift`/`blocked` status).        |
 | `sase init -M, --enable-project-memory` | Mark the current repository as SASE-managed before running initialization.                        |
-| `sase init -p, --project NAME`          | Check or initialize named enabled projects (repeatable; exclusive with `-a` and `-M`).            |
 | `sase init --yes`                       | Run every needed initializer in config, memory, repository, skills order without generic prompts. |
 | `sase config init`                      | Interactively create, select, or migrate the explicit owner identity.                             |
 | `sase config init --check`              | Report owner identity initialization, migration, or conflicts without writing.                    |

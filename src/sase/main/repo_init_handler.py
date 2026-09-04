@@ -23,7 +23,6 @@ from ._repo_init_sidecars import (
     run_configured_sidecars as _run_configured_sidecars_impl,
     run_legacy_store_init as _run_legacy_store_init_impl,
     run_materialized_sidecars as _run_materialized_sidecars_impl,
-    sidecar_creation_requires_tty,
 )
 from .init_plan import InitAction, InitPlan
 from .init_project_scope import is_project_directory
@@ -232,7 +231,6 @@ def plan_repo_init(args: argparse.Namespace) -> InitPlan:
         actions=tuple(actions),
         warnings=tuple(warnings),
         blockers=tuple(blockers),
-        requires_tty=sidecar_creation_requires_tty(actions),
     )
 
 

@@ -22,8 +22,6 @@ def _args(
     diff: bool = False,
     enable_project_memory: bool = False,
     all_projects: bool = False,
-    json_output: bool = False,
-    project: list[str] | None = None,
 ) -> argparse.Namespace:
     return argparse.Namespace(
         command="init",
@@ -33,8 +31,6 @@ def _args(
         diff=diff,
         enable_project_memory=enable_project_memory,
         all=all_projects,
-        json=json_output,
-        project=project,
     )
 
 

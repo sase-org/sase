@@ -34,10 +34,6 @@ _USERNAME_CONTRACT = (
     "Your SASE username must be globally unique, should be reused on every "
     "machine you own, and should normally be your GitHub username."
 )
-OWNER_IDENTITY_TTY_REQUIRED = (
-    "owner identity initialization requires an interactive TTY; "
-    "run `sase config init` in a terminal"
-)
 
 
 def _existing_machine_names() -> tuple[str, ...]:
@@ -139,7 +135,6 @@ def plan_config_init(args: argparse.Namespace) -> InitPlan:
         summary=summary,
         actions=tuple(actions),
         blockers=tuple(blockers),
-        requires_tty=bool(actions),
     )
 
 
@@ -483,7 +478,11 @@ def run_config_init(args: argparse.Namespace) -> int:
 
     stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
     if not stdin.isatty():
-        print(f"error: {OWNER_IDENTITY_TTY_REQUIRED}", file=sys.stderr)
+        print(
+            "error: owner identity initialization requires an interactive TTY; "
+            "run `sase config init` in a terminal",
+            file=sys.stderr,
+        )
         return 1
 
     machine_name = snapshot.selector

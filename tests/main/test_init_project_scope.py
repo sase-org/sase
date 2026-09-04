@@ -25,7 +25,6 @@ def _record(
     is_project: bool = True,
     warnings: list[str] | None = None,
     parse_warnings: list[str] | None = None,
-    aliases: list[str] | None = None,
 ) -> ProjectRecordWire:
     project_dir = tmp_path / "projects" / project_name
     project_dir.mkdir(parents=True, exist_ok=True)
@@ -47,7 +46,7 @@ def _record(
         system_managed=system_managed,
         active_claim_count=0,
         launchable=state == "enabled",
-        aliases=aliases or [],
+        aliases=[],
         warnings=warnings or [],
         parse_warnings=parse_warnings or [],
         display_name=display_name,
@@ -137,74 +136,3 @@ def test_inventory_failure_is_returned_without_raising(
         inventory.error
         == "project inventory could not be loaded: inventory unavailable"
     )
-
-
-def test_select_init_project_targets_resolves_name_alias_and_display(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    records = [
-        _record(tmp_path, "alpha", display_name="Alpha", aliases=["a"]),
-        _record(tmp_path, "beta", display_name="Beta Project"),
-        _record(tmp_path, "gamma"),
-    ]
-    monkeypatch.setattr(
-        init_project_scope,
-        "list_project_records",
-        lambda *args, **kwargs: records,
-    )
-
-    inventory = init_project_scope.resolve_init_project_inventory()
-    selected = init_project_scope.select_init_project_targets(
-        ["a", "Beta Project", "gamma"],
-        inventory,
-    )
-
-    assert selected.error is None
-    assert [target.project_name for target in selected.targets] == [
-        "alpha",
-        "beta",
-        "gamma",
-    ]
-
-
-def test_select_init_project_targets_fails_unknown_and_lists_valid(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    records = [_record(tmp_path, "alpha", display_name="Alpha")]
-    monkeypatch.setattr(
-        init_project_scope,
-        "list_project_records",
-        lambda *args, **kwargs: records,
-    )
-    inventory = init_project_scope.resolve_init_project_inventory()
-
-    selected = init_project_scope.select_init_project_targets(["missing"], inventory)
-
-    assert selected.targets == ()
-    assert selected.error is not None
-    assert "unknown or non-enabled project 'missing'" in selected.error
-    assert "Alpha (alpha)" in selected.error
-
-
-def test_select_init_project_targets_rejects_disabled_names(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    records = [
-        _record(tmp_path, "alpha"),
-        _record(tmp_path, "retired", state="disabled"),
-    ]
-    monkeypatch.setattr(
-        init_project_scope,
-        "list_project_records",
-        lambda *args, **kwargs: records,
-    )
-    inventory = init_project_scope.resolve_init_project_inventory()
-
-    selected = init_project_scope.select_init_project_targets(["retired"], inventory)
-
-    assert selected.targets == ()
-    assert selected.error is not None
-    assert "unknown or non-enabled project 'retired'" in selected.error

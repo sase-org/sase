@@ -4579,13 +4579,8 @@ recorded primary workspace, even when the command starts outside a project. It e
 disabled projects, internal sibling backing records, `home`, and other system-managed
 records, continues after per-project failures, and returns non-zero if any project has
 drift, is unavailable, or fails. `--all --check` is read-only, while non-interactive
-apply still requires `--yes`. `--all` is incompatible with `--enable-project-memory`,
-`-p/--project`, and explicit compatibility subcommands.
-
-`-p, --project NAME` selects a named subset of that same enabled inventory (repeatable;
-name, display name, or alias) and is mutually exclusive with `-a/--all` and
-`-M/--enable-project-memory`. `-j, --json` is valid only with `--check` and emits one
-JSON document whose `status` distinguishes `current`, `drift`, and `blocked`.
+apply still requires `--yes`. `--all` is incompatible with `--enable-project-memory` and
+with explicit compatibility subcommands.
 
 Advanced deploy controls stay on explicit subcommands such as
 `sase memory init --no-commit` and `sase skill init --no-push`.
@@ -4594,9 +4589,7 @@ Advanced deploy controls stay on explicit subcommands such as
 | ----------------------------- | ------ | ------- | ---------------------------------------------------------------------------------------- |
 | `-a, --all`                   | flag   | -       | Attempt every known enabled main SASE project and report one aggregate status.           |
 | `-c, --check`                 | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed.     |
-| `-j, --json`                  | flag   | -       | With `--check`, emit one JSON plan (`schema_version`, `current`/`drift`/`blocked`).      |
 | `-M, --enable-project-memory` | flag   | -       | Mark the repository with `is_sase_managed: true` before initialization.                  |
-| `-p, --project NAME`          | string | -       | Initialize only these named enabled projects (repeatable).                               |
 | `-y, --yes`                   | flag   | -       | Run needed initializers without generic prompts; cannot approve GitHub sidecar creation. |
 
 ### `sase memory agent-docs`
