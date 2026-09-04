@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from threading import Event
 
@@ -54,11 +55,13 @@ class _Pane:
         selected: ArtifactEntryTarget | None = None,
         query: str | None = None,
         target_after_limit: ArtifactEntryTarget | None = None,
+        resolver: Callable[[str, str], ArtifactEntryTarget | None] | None = None,
     ) -> None:
         self._targets = targets
         self.current = selected
         self.query = query
         self.target_after_limit = target_after_limit
+        self._resolver = resolver
         self.applied_queries: list[tuple[str, bool]] = []
         self.revealed: tuple[ArtifactEntryTarget, RelationRole] | None = None
         self._loading = False
@@ -66,6 +69,9 @@ class _Pane:
 
     def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
         return self._targets
+
+    def entry_target_for_ref(self, kind: str, payload: str) -> ArtifactEntryTarget | None:
+        return None if self._resolver is None else self._resolver(kind, payload)
 
     def selected_entry_target(self) -> ArtifactEntryTarget | None:
         return self.current
@@ -400,3 +406,142 @@ def test_loaded_agent_link_prefers_agents_tab_over_artifacts_pane() -> None:
     assert app.refreshed == 1
     assert app.rail_refreshed == 1
     assert len(app._link_trail) == 1
+
+
+def _resolving_only(
+    expect: tuple[str, str],
+    resolved: ArtifactEntryTarget,
+) -> Callable[[str, str], ArtifactEntryTarget | None]:
+    def resolver(kind: str, payload: str) -> ArtifactEntryTarget | None:
+        return resolved if (kind, payload) == expect else None
+
+    return resolver
+
+
+def test_follow_link_resolves_epic_kind_mismatch_via_pane_resolver() -> None:
+    """A bead ref's chip hint always synthesizes kind ``task`` (Class A)."""
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    wrong_kind_hint = ArtifactEntryTarget("beads", ("demo", "task", "sase-w3"))
+    real_target = ArtifactEntryTarget("beads", ("demo", "epic", "sase-w3"))
+    app = _App(
+        chips=(_chip("bead:sase-w3", wrong_kind_hint),),
+        panes={
+            "files": _Pane(targets=(origin,), selected=origin),
+            "beads": _Pane(
+                targets=(real_target,),
+                resolver=_resolving_only(("bead", "sase-w3"), real_target),
+            ),
+        },
+    )
+
+    app._follow_link_number(1)
+
+    pane = app._artifacts_entry_navigator("beads")
+    assert pane.selected_entry_target() == real_target
+    assert len(app._link_trail) == 1
+
+
+def test_follow_link_resolves_proposed_plan_kind_mismatch_via_pane_resolver() -> None:
+    """A plan ref's chip hint always synthesizes stage ``archive`` (Class A)."""
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    wrong_stage_hint = ArtifactEntryTarget(
+        "ref:plan", ("demo", "archive", "202609/x.md")
+    )
+    real_target = ArtifactEntryTarget("ref:plan", ("demo", "proposal", "notif-1"))
+    app = _App(
+        chips=(_chip("plan:202609/x.md", wrong_stage_hint),),
+        panes={
+            "files": _Pane(targets=(origin,), selected=origin),
+            "ref:plan": _Pane(
+                targets=(real_target,),
+                resolver=_resolving_only(("plan", "202609/x.md"), real_target),
+            ),
+        },
+    )
+
+    app._follow_link_number(1)
+
+    pane = app._artifacts_entry_navigator("ref:plan")
+    assert pane.selected_entry_target() == real_target
+
+
+def test_follow_link_resolves_abbreviated_stitch_sha_via_pane_resolver() -> None:
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    abbreviated_hint = ArtifactEntryTarget("stitches", ("sase", "abc1234"))
+    real_target = ArtifactEntryTarget("stitches", ("sase", "abc1234567890"))
+    app = _App(
+        chips=(_chip("stitch:sase@abc1234", abbreviated_hint),),
+        panes={
+            "files": _Pane(targets=(origin,), selected=origin),
+            "stitches": _Pane(
+                targets=(real_target,),
+                resolver=_resolving_only(("stitch", "sase@abc1234"), real_target),
+            ),
+        },
+    )
+
+    app._follow_link_number(1)
+
+    pane = app._artifacts_entry_navigator("stitches")
+    assert pane.selected_entry_target() == real_target
+
+
+def test_follow_link_resolves_cross_project_patch_via_pane_resolver() -> None:
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    unscoped_hint = ArtifactEntryTarget("patches", ("", "shared-name"))
+    real_target = ArtifactEntryTarget("patches", ("beta", "shared-name"))
+    app = _App(
+        chips=(_chip("patch:shared-name", unscoped_hint),),
+        panes={
+            "files": _Pane(targets=(origin,), selected=origin),
+            "patches": _Pane(
+                targets=(real_target,),
+                resolver=_resolving_only(("patch", "shared-name"), real_target),
+            ),
+        },
+    )
+
+    app._follow_link_number(1)
+
+    pane = app._artifacts_entry_navigator("patches")
+    assert pane.selected_entry_target() == real_target
+
+
+def test_follow_link_uses_chip_target_hint_when_pane_resolver_has_no_answer() -> None:
+    """A pane with no answer degrades to the old chip-hint behavior, not a miss."""
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    target = ArtifactEntryTarget("beads", ("demo", "task", "sase-ug.7"))
+    app = _App(
+        chips=(_chip("bead:sase-ug.7", target),),
+        panes={
+            "files": _Pane(targets=(origin,), selected=origin),
+            "beads": _Pane(targets=(target,)),  # no resolver configured
+        },
+    )
+
+    app._follow_link_number(1)
+
+    pane = app._artifacts_entry_navigator("beads")
+    assert pane.selected_entry_target() == target
+
+
+def test_follow_link_no_longer_falls_back_to_family_reveal_rung() -> None:
+    """The FAMILY-role reveal rung is gone; a miss reports honestly instead."""
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    target = ArtifactEntryTarget("beads", ("demo", "task", "sase-ug.9"))
+    app = _App(
+        chips=(_chip("bead:sase-ug.9", target),),
+        panes={
+            "files": _Pane(targets=(origin,), selected=origin),
+            "beads": _Pane(targets=()),
+        },
+    )
+
+    app._follow_link_number(1)
+
+    pane = app._artifacts_entry_navigator("beads")
+    assert pane.revealed is None
+    assert app.notifications == [
+        ("Linked target bead:sase-ug.9 is not visible in Bead", "warning")
+    ]
+    assert app._link_trail == []

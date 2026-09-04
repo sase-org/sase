@@ -274,6 +274,23 @@ def _target_for_ref(
     return target_for_ref_kind(kind, payload, project_hint=project_hint)
 
 
+def known_target_for_ref(
+    kind: str,
+    payload: str,
+    known_targets: Iterable[ArtifactEntryTarget],
+    *,
+    project_hint: str | None = None,
+) -> ArtifactEntryTarget | None:
+    """Resolve a ref against a pane's own known row identities.
+
+    Public entry point for :meth:`ArtifactEntryNavigator.entry_target_for_ref`
+    implementations: a thin wrapper over :func:`_known_target_for_ref` for
+    callers that only need one lookup against a plain set of targets, not
+    the batch-edge-projection index this module builds for itself.
+    """
+    return _known_target_for_ref(kind, payload, frozenset(known_targets), project_hint=project_hint)
+
+
 def _known_target_for_ref(
     kind: str,
     payload: str,
@@ -354,6 +371,7 @@ __all__ = [
     "ArtifactLinksSnapshot",
     "artifact_link_edges",
     "empty_artifact_links_snapshot",
+    "known_target_for_ref",
     "load_artifact_links_snapshot",
     "parse_link_ref",
     "target_for_ref_kind",

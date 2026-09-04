@@ -148,3 +148,34 @@ def test_reveal_reports_dangling_when_profile_has_no_field_for_role() -> None:
     assert handled is False
     assert app.query_string == "name:root_child"
     assert "patches" not in app._relation_reveals
+
+
+def test_reveal_reports_failure_not_success_when_rewrite_still_misses_target() -> None:
+    """A rewrite that lands but doesn't select the target must not report success.
+
+    ``build_relation_reveal_query`` writes a query from the target's *name*
+    alone -- it never checks the name exists -- so a rewrite can "succeed"
+    (parse, commit, reload) while the target is still nowhere in the
+    reloaded list. Before this fix that case still returned ``True``, so the
+    follow path recorded a successful reveal for a target it never actually
+    selected.
+    """
+    app = _RevealTestApp(_patches())
+    app.set_query("name:root_child")
+    composed_source = app.query_string
+
+    ghost = ArtifactEntryTarget("patches", ("demo", "ghost"))
+    handled = app._change_query_for_navigation(ghost, RelationRole.ANCESTOR)
+
+    assert handled is False
+    assert app.query_string == "ancestor:ghost"
+    assert "patches" not in app._relation_reveals
+    assert app.notifications == [
+        ("ghost is not reachable through ancestor:ghost", "warning")
+    ]
+
+    # The rewrite still landed (this fixes false-success reporting, not the
+    # rewrite itself) so restoring the prior query still works -- a caller
+    # just never gets a reveal lens for a target it never selected.
+    app.set_query(composed_source)
+    assert [p.name for p in app.patches] == ["root_child"]

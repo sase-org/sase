@@ -429,10 +429,11 @@ class TreeNavigationMixin(NavigationMixinBase):
         rather than a hard-coded ``ancestor:``/``sibling:`` token, and is
         wrapped in a :class:`~sase.ace.relation_reveal.RelationReveal` lens
         so the shell can advertise a way back through the existing
-        `prev_query` (``^``) history stack. Returns whether the rewrite
-        happened; a relation with no matching query-profile field reports
-        ``False`` so the caller can fall back to a dangling notice instead
-        of writing an unparseable query.
+        `prev_query` (``^``) history stack. Returns whether *target* is
+        selected once the rewrite lands; a relation with no matching
+        query-profile field, or a rewrite whose result still misses
+        *target*, reports ``False`` so the caller can fall back to a
+        dangling notice instead of recording a reveal that didn't happen.
         """
         from sase.core.artifact_relation_layout import assign_relation_roles
 
@@ -480,13 +481,13 @@ class TreeNavigationMixin(NavigationMixinBase):
 
             # Find and select the target
             target_idx = self._find_in_current_list(target_name)
-            if target_idx is not None:
-                self.current_idx = target_idx
-            else:
+            if target_idx is None:
                 self.notify(  # type: ignore[attr-defined]
                     f"{target_name} is not reachable through {new_query}",
                     severity="warning",
                 )
+                return False
+            self.current_idx = target_idx
 
             if decl is not None:
                 self._relation_reveals["patches"] = make_relation_reveal(

@@ -12,7 +12,6 @@ from textual.widgets import Input
 from sase.ace.query.limit_token import LimitTokenError, extract_limit
 from sase.artifact_ref_entries import reference_for_agent_name
 from sase.core.artifact_entry_target import ArtifactEntryTarget
-from sase.core.artifact_relation_layout import RelationRole
 
 from ..artifact_tabs import artifacts_pane_contract
 from ..modals.numbered_link_keys import (
@@ -21,7 +20,7 @@ from ..modals.numbered_link_keys import (
     clear_link_prefix,
     handle_link_prefix_key,
 )
-from ..relations.artifact_links import parse_link_ref
+from ..relations.artifact_links import parse_link_ref, target_for_ref_kind
 from ..relations.link_index import LinkChip
 from ..relations.link_keys import (
     MAX_DIRECT_LINK_KEYS,
@@ -335,7 +334,10 @@ class LinkFollowMixin:
         if isinstance(forward, list):
             forward.clear()
 
-    def _follow_artifacts_target(self, ref: str, target: ArtifactEntryTarget) -> bool:
+    def _follow_artifacts_target(
+        self, ref: str, chip_target: ArtifactEntryTarget
+    ) -> bool:
+        target = self._resolve_link_follow_target(ref, chip_target)
         if self._select_current_artifacts_target(target):
             return True
         project = _target_project_scope(target)
@@ -357,12 +359,37 @@ class LinkFollowMixin:
         if self._drop_head_slice_limit(pane, ref, target):
             if self._request_artifacts_target(target):
                 return True
-        if pane.reveal_entry_target(target, role=RelationRole.FAMILY):
-            return True
-        if self._request_artifacts_target(target):
-            return True
         self._notify_missing_link_target(ref, target)
         return False
+
+    def _resolve_link_follow_target(
+        self,
+        ref: str,
+        chip_target: ArtifactEntryTarget,
+    ) -> ArtifactEntryTarget:
+        """Address *ref* by this pane's own row identity; *chip_target* is a hint.
+
+        ``chip_target`` was synthesized at chip-build time from the ref's
+        kind alone (:func:`target_for_ref_kind`) and can name a row identity
+        the destination pane never uses -- it is reliable about which pane
+        owns the ref, unreliable about which row. The destination pane's own
+        :meth:`~.entry_navigation.ArtifactEntryNavigator.entry_target_for_ref`
+        resolves the real row from its unfiltered snapshot; ``chip_target``
+        survives only as the fallback when that pane has no answer, so a
+        same-pane visible row still fast-paths through unchanged.
+        """
+        parsed = parse_link_ref(ref)
+        if parsed is None:
+            return chip_target
+        kind, payload = parsed
+        routed = target_for_ref_kind(kind, payload, project_hint=None)
+        pane_id = routed.pane_id if routed is not None else chip_target.pane_id
+        pane = self._artifacts_entry_navigator(pane_id)  # type: ignore[attr-defined]
+        resolver = (
+            getattr(pane, "entry_target_for_ref", None) if pane is not None else None
+        )
+        resolved = resolver(kind, payload) if callable(resolver) else None
+        return resolved if resolved is not None else chip_target
 
     def _select_current_artifacts_target(self, target: ArtifactEntryTarget) -> bool:
         if self.current_tab != ARTIFACTS_TAB:

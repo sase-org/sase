@@ -90,6 +90,24 @@ class ArtifactEntryNavigator(metaclass=_ArtifactEntryNavigatorMeta):
         del target, role
         return False
 
+    def entry_target_for_ref(self, kind: str, payload: str) -> ArtifactEntryTarget | None:
+        """Resolve a link-graph ref to this pane's own row identity.
+
+        Answered from the pane's *unfiltered* snapshot, so a filtered-out
+        row still resolves -- which is what lets the host build a reveal
+        for it. The default degrades to "no answer" for panes with no
+        relation index (never a fabricated target) by reusing the same
+        known-row-identity set the relation panel already resolves
+        against, via the Phase 1 sase-core matching facade.
+        """
+        index_getter = getattr(self, "relation_index", None)
+        index = index_getter() if callable(index_getter) else None
+        if index is None:
+            return None
+        from sase.ace.tui.relations.artifact_links import known_target_for_ref
+
+        return known_target_for_ref(kind, payload, index.known_targets)
+
     def record_relation_origin(self, origin: ArtifactEntryTarget) -> None:
         """Record a jump-back origin before relation navigation leaves it."""
         app = getattr(self, "app", None)
