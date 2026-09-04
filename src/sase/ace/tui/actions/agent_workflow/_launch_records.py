@@ -19,6 +19,7 @@ class LaunchRecordState(StrEnum):
 
     IN_FLIGHT = "in_flight"
     RESOLVED = "resolved"
+    RESOLVED_ACTION_PENDING = "resolved_action_pending"
     FAILED = "failed"
     KILL_PENDING = "kill_pending"
     CONSUMED = "consumed"
@@ -118,6 +119,20 @@ def consume_launch_record(record: LaunchRecord) -> LaunchRecord:
     return record
 
 
+def begin_resolved_launch_action(record: LaunchRecord) -> LaunchRecord:
+    """Hold a resolved record while its kill-and-edit action is in progress."""
+    if record.state is LaunchRecordState.RESOLVED:
+        record.state = LaunchRecordState.RESOLVED_ACTION_PENDING
+    return record
+
+
+def release_resolved_launch_action(record: LaunchRecord) -> LaunchRecord:
+    """Make an unacted resolved record targetable again."""
+    if record.state is LaunchRecordState.RESOLVED_ACTION_PENDING:
+        record.state = LaunchRecordState.RESOLVED
+    return record
+
+
 def launch_record_for_proc_id(app: object, proc_id: str) -> LaunchRecord | None:
     """Return the record that owns *proc_id*, if this session has one."""
     if not proc_id:
@@ -164,6 +179,7 @@ def _launch_record_stack(app: object) -> list[LaunchRecord]:
 def _refresh_launch_record_state(record: LaunchRecord) -> None:
     if record.state in (
         LaunchRecordState.KILL_PENDING,
+        LaunchRecordState.RESOLVED_ACTION_PENDING,
         LaunchRecordState.CONSUMED,
     ):
         return
@@ -192,12 +208,14 @@ __all__ = [
     "LaunchRecordContext",
     "LaunchRecordState",
     "MAX_SESSION_LAUNCH_RECORDS",
+    "begin_resolved_launch_action",
     "consume_launch_record",
     "has_pending_launch_kill",
     "latest_live_launch_record",
     "launch_record_for_proc_id",
     "push_launch_record",
     "record_procs_are_terminal",
+    "release_resolved_launch_action",
     "release_kill_pending_launch_record",
     "stamp_launch_record_failure",
     "stamp_launch_record_results",

@@ -15,10 +15,12 @@ from ._launch_delta import artifact_dir_from_launch_result
 from ._launch_records import (
     LaunchRecord,
     LaunchRecordState,
+    begin_resolved_launch_action,
     consume_launch_record,
     latest_live_launch_record,
     launch_record_for_proc_id,
     record_procs_are_terminal,
+    release_resolved_launch_action,
     release_kill_pending_launch_record,
 )
 from ._relaunch_barrier import (
@@ -111,6 +113,9 @@ class KillAndEditLastLaunchMixin:
             if record.state is LaunchRecordState.KILL_PENDING:
                 self._refocus_kill_pending_launch_prompt(record)
                 return
+            if record.state is LaunchRecordState.RESOLVED_ACTION_PENDING:
+                self._refocus_resolved_launch_action(record)
+                return
             if record.state is LaunchRecordState.IN_FLIGHT:
                 self._begin_inflight_deferred_kill(record)
                 return
@@ -133,11 +138,21 @@ class KillAndEditLastLaunchMixin:
                 continue
 
             self._reveal_last_launch_target(matched[0].identity)
-            consume_launch_record(record)
+            begin_resolved_launch_action(record)
+
+            def finish(initiated: bool, target_record: LaunchRecord = record) -> None:
+                self._finish_resolved_launch_action(target_record, initiated=initiated)
+
             if len(matched) == 1:
-                self._kill_and_edit_agent(target=matched[0])  # type: ignore[attr-defined]
+                self._kill_and_edit_agent(  # type: ignore[attr-defined]
+                    target=matched[0],
+                    on_initiated=finish,
+                )
             else:
-                self._kill_and_edit_last_launch_set(matched)
+                self._kill_and_edit_last_launch_set(
+                    matched,
+                    on_initiated=finish,
+                )
             return
 
         self.notify(  # type: ignore[attr-defined]
@@ -162,6 +177,24 @@ class KillAndEditLastLaunchMixin:
                 focus()
             return
         self._mount_inflight_launch_prompt(record)
+
+    def _refocus_resolved_launch_action(self, _record: LaunchRecord) -> None:
+        """Keep a pending resolved action pinned to its launch record."""
+        screen = getattr(self, "screen", None)
+        focus = getattr(screen, "focus", None)
+        if callable(focus):
+            focus()
+
+    def _finish_resolved_launch_action(
+        self, record: LaunchRecord, *, initiated: bool
+    ) -> None:
+        """Consume only resolved records whose kill/dismiss action started."""
+        if record.state is not LaunchRecordState.RESOLVED_ACTION_PENDING:
+            return
+        if initiated:
+            consume_launch_record(record)
+            return
+        release_resolved_launch_action(record)
 
     def _mount_inflight_launch_prompt(self, record: LaunchRecord) -> None:
         """Seed the edit/relaunch prompt from the in-flight record's snapshot."""
@@ -216,7 +249,12 @@ class KillAndEditLastLaunchMixin:
         except Exception:
             log.debug("Failed to reveal ,X last-launch target", exc_info=True)
 
-    def _kill_and_edit_last_launch_set(self, agents: list[Agent]) -> None:
+    def _kill_and_edit_last_launch_set(
+        self,
+        agents: list[Agent],
+        *,
+        on_initiated: Callable[[bool], None] | None = None,
+    ) -> None:
         """Kill/dismiss a resolved record's rows after one confirmation, then edit.
 
         Mirrors :meth:`AgentMarkedKillMixin._bulk_kill_marked_agents_and_edit`
@@ -230,6 +268,15 @@ class KillAndEditLastLaunchMixin:
             or getattr(self, "_agents", None)
             or ()
         )
+        finished = False
+
+        def finish(initiated: bool) -> None:
+            nonlocal finished
+            if finished:
+                return
+            finished = True
+            if on_initiated is not None:
+                on_initiated(initiated)
 
         def resolve_prompts() -> list[str | None]:
             return [
@@ -246,6 +293,7 @@ class KillAndEditLastLaunchMixin:
                     "A launched agent is no longer available; nothing killed",
                     severity="warning",
                 )
+                finish(False)
                 return
             missing = sum(prompt is None for prompt in resolved)
             if missing:
@@ -255,6 +303,7 @@ class KillAndEditLastLaunchMixin:
                     "nothing killed",
                     severity="warning",
                 )
+                finish(False)
                 return
 
             prompts = [prompt for prompt in resolved if prompt is not None]
@@ -273,6 +322,7 @@ class KillAndEditLastLaunchMixin:
                         "A launched agent is no longer available; nothing killed",
                         severity="warning",
                     )
+                    finish(False)
                     return
                 from ..agents._core import DISMISSABLE_STATUSES
 
@@ -317,11 +367,15 @@ class KillAndEditLastLaunchMixin:
                     killable, dismissable, on_settled=settle
                 ):
                     settle()
+                    finish(False)
                     return
+                finish(True)
                 mount_prompt_stack()
 
             self._present_bulk_kill_modal(  # type: ignore[attr-defined]
-                present_agents, on_confirm=on_confirm
+                present_agents,
+                on_confirm=on_confirm,
+                on_cancel=lambda: finish(False),
             )
 
         schedule_relaunch_prompt_resolution(
@@ -330,6 +384,7 @@ class KillAndEditLastLaunchMixin:
             on_prompts_resolved,
             worker_name="last-launch-relaunch-prompts",
             failure_message="Unable to prepare last-launch relaunch prompts",
+            on_error=lambda: finish(False),
         )
 
 

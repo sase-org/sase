@@ -80,30 +80,33 @@ def schedule_relaunch_prompt_resolution(
     *,
     worker_name: str,
     failure_message: str,
+    on_error: Callable[[], None] | None = None,
 ) -> None:
     """Resolve disk-backed relaunch prompts off the Textual event loop."""
+
+    def notify_failure(exc: BaseException) -> None:
+        log.exception("Failed to prepare relaunch prompt")
+        owner.notify(  # type: ignore[attr-defined]
+            _relaunch_prompt_failure_message(failure_message, exc),
+            severity="error",
+        )
+        if on_error is not None:
+            on_error()
+
     run_worker = getattr(owner, "run_worker", None)
     if not callable(run_worker):
         # Narrow mixin unit tests do not have Textual worker infrastructure.
         try:
             on_complete(resolver())
         except Exception as exc:
-            log.exception("Failed to prepare relaunch prompt")
-            owner.notify(  # type: ignore[attr-defined]
-                _relaunch_prompt_failure_message(failure_message, exc),
-                severity="error",
-            )
+            notify_failure(exc)
         return
 
     async def prepare_prompt() -> None:
         try:
             result = await asyncio.to_thread(resolver)
         except Exception as exc:
-            log.exception("Failed to prepare relaunch prompt")
-            owner.notify(  # type: ignore[attr-defined]
-                _relaunch_prompt_failure_message(failure_message, exc),
-                severity="error",
-            )
+            notify_failure(exc)
             return
         on_complete(result)
 
@@ -117,11 +120,7 @@ def schedule_relaunch_prompt_resolution(
         )
     except Exception as exc:
         worker_coro.close()
-        log.exception("Failed to schedule relaunch prompt preparation")
-        owner.notify(  # type: ignore[attr-defined]
-            _relaunch_prompt_failure_message(failure_message, exc),
-            severity="error",
-        )
+        notify_failure(exc)
 
 
 def _relaunch_prompt_failure_message(failure_message: str, exc: BaseException) -> str:
@@ -230,7 +229,12 @@ class EntryRelaunchMixin:
             raw_prompt, agent.project_file, agent.cl_name, agent.is_project_agent
         )
 
-    def _kill_and_edit_agent(self, target: Agent | None = None) -> None:
+    def _kill_and_edit_agent(
+        self,
+        target: Agent | None = None,
+        *,
+        on_initiated: Callable[[bool], None] | None = None,
+    ) -> None:
         """Kill *target* (or the selected agent), then edit its prompt.
 
         Reads the agent's raw xprompt content, kills the agent (with
@@ -246,6 +250,8 @@ class EntryRelaunchMixin:
         agent = target if target is not None else self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            if on_initiated is not None:
+                on_initiated(False)
             return
         if getattr(agent, "is_clan_container", False):
             label = (
@@ -258,9 +264,13 @@ class EntryRelaunchMixin:
                 ",x on the marked set instead.",
                 severity="warning",
             )
+            if on_initiated is not None:
+                on_initiated(False)
             return
         if not _agent_is_restartable(agent):
             self.notify(_restart_block_message(agent), severity="warning")  # type: ignore[attr-defined]
+            if on_initiated is not None:
+                on_initiated(False)
             return
 
         identity = getattr(agent, "identity", agent)
@@ -277,14 +287,23 @@ class EntryRelaunchMixin:
                     "Selected agent is no longer available; nothing killed",
                     severity="warning",
                 )
+                if on_initiated is not None:
+                    on_initiated(False)
                 return
             if raw_prompt is None:
                 self.notify(  # type: ignore[attr-defined]
                     "No prompt found for this agent",
                     severity="warning",
                 )
+                if on_initiated is not None:
+                    on_initiated(False)
                 return
-            self._finish_kill_and_edit_agent(current, identity, raw_prompt)
+            self._finish_kill_and_edit_agent(
+                current,
+                identity,
+                raw_prompt,
+                on_initiated=on_initiated,
+            )
 
         schedule_relaunch_prompt_resolution(
             self,
@@ -292,6 +311,9 @@ class EntryRelaunchMixin:
             on_prompt_resolved,
             worker_name="agent-relaunch-prompt",
             failure_message="Unable to prepare agent relaunch prompt",
+            on_error=(
+                (lambda: on_initiated(False)) if on_initiated is not None else None
+            ),
         )
 
     def _finish_kill_and_edit_agent(
@@ -299,6 +321,8 @@ class EntryRelaunchMixin:
         agent: Agent,
         identity: object,
         raw_prompt: str,
+        *,
+        on_initiated: Callable[[bool], None] | None = None,
     ) -> None:
         """Apply a resolved relaunch prompt to a still-current row.
 
@@ -337,7 +361,11 @@ class EntryRelaunchMixin:
             settle = lambda: settle_relaunch_cleanup_barrier(self, barrier)  # noqa: E731
             if not self._dismiss_done_agent(agent, on_settled=settle):  # type: ignore[attr-defined]
                 settle()
+                if on_initiated is not None:
+                    on_initiated(False)
                 return
+            if on_initiated is not None:
+                on_initiated(True)
             mount_prompt_bar()
             return
 
@@ -373,6 +401,8 @@ class EntryRelaunchMixin:
         def on_dismiss(confirmed: bool | None) -> None:
             if not confirmed:
                 # A cancelled kill leaves no barrier; nothing was opened yet.
+                if on_initiated is not None:
+                    on_initiated(False)
                 return
             current = resolve_agent_identity(self, identity)
             if current is None:
@@ -380,6 +410,8 @@ class EntryRelaunchMixin:
                     "Selected agent is no longer available; nothing killed",
                     severity="warning",
                 )
+                if on_initiated is not None:
+                    on_initiated(False)
                 return
             barrier = open_relaunch_cleanup_barrier(
                 self, f"kill-and-edit {current.display_name}"
@@ -387,7 +419,11 @@ class EntryRelaunchMixin:
             settle = lambda: settle_relaunch_cleanup_barrier(self, barrier)  # noqa: E731
             if not self._do_kill_agent(current, on_settled=settle):  # type: ignore[attr-defined]
                 settle()
+                if on_initiated is not None:
+                    on_initiated(False)
                 return
+            if on_initiated is not None:
+                on_initiated(True)
             mount_prompt_bar()
 
         self.push_screen(ConfirmKillModal(agent_description), on_dismiss)  # type: ignore[attr-defined]

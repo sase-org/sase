@@ -188,6 +188,7 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
         *,
         header: str | None = None,
         on_confirm: Callable[[list[Agent], list[Agent]], None] | None = None,
+        on_cancel: Callable[[], None] | None = None,
     ) -> None:
         """Show the kill/dismiss confirmation modal for an arbitrary agent set.
 
@@ -288,10 +289,14 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
         if not killable and not dismissable and not proc_dismissable:
             if skip_line:
                 self.notify(skip_line, severity="warning")  # type: ignore[attr-defined]
+            if on_cancel is not None:
+                on_cancel()
             return
 
         def on_dismiss(confirmed: bool | None) -> None:
             if not confirmed:
+                if on_cancel is not None:
+                    on_cancel()
                 return
             if killable or dismissable:
                 confirm(killable, dismissable)
