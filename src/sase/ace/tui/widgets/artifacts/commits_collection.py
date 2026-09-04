@@ -414,6 +414,35 @@ class CommitsCollectionMixin(_MixinBase):
             return None
         return self._relation_indexes_by_result.get(id(snap.result))
 
+    def host_query_row_for_target(self, target: Any) -> dict[str, Any] | None:
+        """Return the unfiltered Stitches query row backing *target*."""
+        from .entry_navigation import ArtifactEntryTarget
+        from .query_rows import commit_query_entry
+
+        if (
+            not isinstance(target, ArtifactEntryTarget)
+            or target.pane_id != "stitches"
+            or len(target.parts) < 2
+        ):
+            return None
+        result = self.result
+        if result is None:
+            return None
+        repo, full_sha = target.parts[0], target.parts[1]
+        repo_kind_by_name = {item.name: item.kind for item in result.repos}
+        repo_labels_by_name = {
+            item.name: tuple(dict.fromkeys((item.name, *item.aliases)))
+            for item in result.repos
+        }
+        for entry in result.commits:
+            if entry.repo == repo and entry.commit.full_id == full_sha:
+                return commit_query_entry(
+                    entry,
+                    repo_labels=repo_labels_by_name.get(entry.repo, (entry.repo,)),
+                    repo_kind=repo_kind_by_name.get(entry.repo, "primary"),
+                )
+        return None
+
     def _show_collection_error(self, error: BaseException | None) -> None:
         message = str(error).strip() if error is not None else "unknown error"
         self.query_one("#stitches-timeline", CommitsTimeline).update_result(

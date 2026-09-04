@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from collections.abc import Mapping
 from enum import Enum, auto
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from rich.text import Text
 from textual.message_pump import _MessagePumpMeta
@@ -13,6 +13,10 @@ from textual.widgets import OptionList
 
 from sase.core.artifact_relation_layout import RelationEntryFact, RelationRole
 from sase.core.artifact_entry_target import ArtifactEntryTarget
+
+if TYPE_CHECKING:
+    from sase.ace.link_reveal import HostQueryProbe
+    from sase.ace.query.profile_evaluator_types import ArtifactQueryRowInput
 
 
 class LinkRequestState(Enum):
@@ -138,6 +142,38 @@ class ArtifactEntryNavigator(metaclass=_ArtifactEntryNavigatorMeta):
         from sase.ace.tui.relations.artifact_links import known_target_for_ref
 
         return known_target_for_ref(kind, payload, index.known_targets)
+
+    def expand_fold_for_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        """Expand the minimum fold hiding *target*; no query change.
+
+        Returns ``True`` when a collapsed fold was expanded. The default
+        is a no-op so panes without grouping still construct.
+        """
+        del target
+        return False
+
+    def close_host_filter_session(self) -> None:
+        """Close any open inline filter editor before a host query rewrite."""
+
+    def host_query_row_for_target(
+        self, target: ArtifactEntryTarget
+    ) -> ArtifactQueryRowInput | None:
+        """Return the profile-query row entry backing *target*.
+
+        Answered from this pane's unfiltered snapshot, or ``None`` when
+        the pane cannot answer (no snapshot, unknown target).
+        """
+        del target
+        return None
+
+    def host_query_probe(self, target: ArtifactEntryTarget) -> HostQueryProbe | None:
+        """Build a one-row matcher for *target*, or ``None`` when unavailable."""
+        from sase.ace.link_reveal import build_host_query_probe
+
+        return build_host_query_probe(
+            self.host_query_row_for_target(target),
+            getattr(self, "_query_profile", None),
+        )
 
     def _complete_entry_request(
         self,

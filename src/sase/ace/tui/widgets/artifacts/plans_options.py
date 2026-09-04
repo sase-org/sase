@@ -360,13 +360,6 @@ class PlansOptionsMixin(_MixinBase):
         )
         pending_id = self._pending_option_id()
         if pending_id is None and self._pending_entry_target is not None:
-            if not values.is_empty and self._clear_filter_for_entry_jump():
-                self._notify_filter_cleared_for_entry_jump()
-                self._refresh_options(
-                    preferred_id=preferred_id,
-                    update_detail=update_detail,
-                )
-                return
             if self._loaded_current_snapshot():
                 state = (
                     LinkRequestState.FAILED
@@ -528,22 +521,26 @@ class PlansOptionsMixin(_MixinBase):
             None,
         )
 
-    def _clear_filter_for_entry_jump(self) -> bool:
-        if self.filters.is_empty and not self._filter_session_open:
-            return False
-        self.filters = PlanFilterValues()
-        self._filter_query_error = None
-        self._invalidate_deep_archive_request()
-        if self._filter_session_open:
-            self._close_filter_session()
-        else:
-            self._live_filter_values = None
-        return True
+    def host_query_row_for_target(self, target: ArtifactEntryTarget) -> dict | None:
+        """Return the unfiltered Plans query row backing *target*."""
+        pane_id = getattr(self, "pane_key", None)
+        if pane_id is None and self.contract is not None:
+            pane_id = self.contract.id
+        if target.pane_id != (pane_id or "ref:plan") or len(target.parts) < 3:
+            return None
+        snapshot = self._snapshot
+        index = getattr(self, "_filter_index", None)
+        if snapshot is None or index is None:
+            return None
+        from .plans_list import row_option_id
+        from .query_rows import plan_query_entry
 
-    def _notify_filter_cleared_for_entry_jump(self) -> None:
-        notify = getattr(self, "notify", None)
-        if callable(notify):
-            notify("Cleared Plans filter to show linked plan")
+        project, kind, identity = target.parts[0], target.parts[1], target.parts[2]
+        option_id = row_option_id(snapshot, kind, project, identity)  # type: ignore[arg-type]
+        record = index.by_option_id.get(option_id)
+        if record is None:
+            return None
+        return plan_query_entry(snapshot, record)
 
     def _loaded_current_snapshot(self) -> bool:
         return (

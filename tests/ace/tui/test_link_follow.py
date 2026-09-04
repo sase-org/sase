@@ -7,7 +7,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from threading import Event
 
+from sase.ace.query_record import QueryRecord
 from sase.ace.tui.actions import link_follow
+from sase.ace.tui.actions.artifacts_query_history import (
+    ArtifactsQueryHistoryActionsMixin,
+)
 from sase.ace.tui.actions.link_follow import LinkFollowMixin
 from sase.ace.tui.modals.artifact_links_panel_modal import (
     ArtifactLinksPanelModal,
@@ -57,16 +61,28 @@ class _Pane:
         query: str | None = None,
         target_after_limit: ArtifactEntryTarget | None = None,
         resolver: Callable[[str, str], ArtifactEntryTarget | None] | None = None,
+        foldable: bool = False,
+        probe: object | None = None,
+        reveal_when: Callable[[str], bool] | None = None,
+        filter_session_open: bool = False,
     ) -> None:
         self._targets = targets
         self.current = selected
         self.query = query
         self.target_after_limit = target_after_limit
         self._resolver = resolver
+        self._foldable = foldable
+        self._probe = probe
+        self.reveal_when = reveal_when
         self.applied_queries: list[tuple[str, bool]] = []
+        self.expanded_folds: list[ArtifactEntryTarget] = []
+        self.closed_sessions = 0
+        self._filter_session_open = filter_session_open
         self.revealed: tuple[ArtifactEntryTarget, RelationRole] | None = None
         self._loading = False
         self._loading_full = False
+        self.app: object | None = None
+        self.pane_id: str | None = None
 
     def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
         return self._targets
@@ -108,11 +124,55 @@ class _Pane:
     def host_limit_query(self) -> str:
         return "" if self.query is None else self.query
 
+    def query_history_record(self) -> QueryRecord:
+        query = self.host_limit_query()
+        return QueryRecord(source=query, canonical=query)
+
+    def apply_query_history_record(self, record: QueryRecord) -> bool:
+        self.query = record.source
+        return True
+
+    def expand_fold_for_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        if not self._foldable or target in self._targets:
+            return False
+        self._targets = (*self._targets, target)
+        self.expanded_folds.append(target)
+        return True
+
+    def close_host_filter_session(self) -> None:
+        if self._filter_session_open:
+            self._filter_session_open = False
+            self.closed_sessions += 1
+
+    def host_query_probe(self, target: ArtifactEntryTarget) -> object | None:
+        del target
+        return self._probe
+
     def apply_host_limit_query(self, query: str, *, grow: bool = False) -> None:
+        old = self.host_limit_query()
+        old_target = self.current
         self.query = query
         self.applied_queries.append((query, grow))
-        if self.target_after_limit is not None:
-            self._targets = (*self._targets, self.target_after_limit)
+        should_reveal = (
+            self.reveal_when(query)
+            if self.reveal_when is not None
+            else self.target_after_limit is not None
+        )
+        if should_reveal and self.target_after_limit is not None:
+            if self.target_after_limit not in self._targets:
+                self._targets = (*self._targets, self.target_after_limit)
+        app = getattr(self, "app", None)
+        pane_id = getattr(self, "pane_id", None)
+        recorder = getattr(app, "_record_artifacts_query_transition", None)
+        if callable(recorder) and pane_id is not None:
+            recorder(
+                pane_id,
+                old_source=old,
+                old_canonical=old,
+                old_profile_digest=None,
+                new_canonical=query,
+                selected_target=old_target,
+            )
 
 
 class _DeferredPane:
@@ -201,7 +261,7 @@ class _Agent:
     identity: tuple[str, str, str | None]
 
 
-class _App(LinkFollowMixin):
+class _App(LinkFollowMixin, ArtifactsQueryHistoryActionsMixin):
     def __init__(
         self,
         *,
@@ -219,6 +279,11 @@ class _App(LinkFollowMixin):
         self._link_follow_generation = 0
         self._link_follow_transaction = None
         self._link_follow_dispatching = False
+        self._link_reveals = {}
+        self._collapsed_query_transitions = None
+        self._collapsed_query_transition_recorded = False
+        self._query_history = {}
+        self._query_selections = {}
         self._chips = chips
         self._panes = panes
         self._agents = list(agents)
@@ -238,6 +303,9 @@ class _App(LinkFollowMixin):
         self.synced = 0
         self.refreshed = 0
         self.rail_refreshed = 0
+        for pane_id, pane in panes.items():
+            pane.pane_id = pane_id
+            pane.app = self
 
     def link_edges_for_selection(self) -> tuple[LinkChip, ...]:
         return self._chips
@@ -298,6 +366,24 @@ class _App(LinkFollowMixin):
         if event is not None:
             event.set()
 
+    def _files_pane(self) -> _Pane:
+        return self._artifacts_entry_navigator("files")
+
+    def _beads_pane(self) -> _Pane:
+        return self._artifacts_entry_navigator("beads")
+
+    def _commits_pane(self) -> _Pane:
+        return self._artifacts_entry_navigator("stitches")
+
+    def _active_documents_pane(self) -> _Pane:
+        return self._artifacts_entry_navigator("ref:plan")
+
+    def _schedule_query_history_persist(self) -> None:
+        return
+
+    def _schedule_query_selection_persist(self) -> None:
+        return
+
 
 def test_action_double_dollar_follows_first_link_and_records_origin() -> None:
     origin = ArtifactEntryTarget("files", ("origin.txt",))
@@ -341,7 +427,7 @@ def test_follow_link_drops_head_slice_limit_before_missing_warning() -> None:
     assert pane.applied_queries == [("kind:log limit:all", True)]
     assert pane.selected_entry_target() == target
     assert app.notifications == [
-        ("Expanded File limit to show linked file:hidden.txt", None)
+        ("Revealed file:hidden.txt — press ^ to restore your query", None)
     ]
     assert len(app._link_trail) == 1
 
@@ -641,7 +727,7 @@ def test_follow_link_no_longer_falls_back_to_family_reveal_rung() -> None:
     pane = app._artifacts_entry_navigator("beads")
     assert pane.revealed is None
     assert app.notifications == [
-        ("Linked target bead:sase-ug.9 is not visible in Bead", "warning")
+        ("Bead has no bead:sase-ug.9 in its inventory", "warning")
     ]
     assert app._link_trail == []
 
@@ -727,7 +813,7 @@ def test_pending_follow_resolves_to_authoritative_missing_after_limit_drop() -> 
     beads_pane.resolve(LinkRequestState.MISSING)
 
     assert app.notifications == [
-        ("Linked target bead:sase-ug.9 is not visible in Bead", "warning")
+        ("Bead has no bead:sase-ug.9 in its inventory", "warning")
     ]
     assert app._link_trail == []
     assert app._link_follow_transaction is None

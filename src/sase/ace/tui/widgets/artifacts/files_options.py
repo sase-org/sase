@@ -202,10 +202,6 @@ class FilesOptionsMixin(_MixinBase):
             ):
                 self._refresh_options(preferred_target=pending_target)
                 return
-            elif not values.is_empty and self._clear_filter_for_entry_jump():
-                self._notify_filter_cleared_for_entry_jump()
-                self._refresh_options(preferred_target=pending_target)
-                return
             elif self._pending_entry_resolution_complete():
                 snapshot = self._current_snapshot()
                 state = (
@@ -259,21 +255,23 @@ class FilesOptionsMixin(_MixinBase):
                     changed = True
         return changed
 
-    def _clear_filter_for_entry_jump(self) -> bool:
-        if self.filters.is_empty and not self._filter_session_open:
-            return False
-        self.filters = FilesFilterValues()
-        self._filter_query_error = None
-        if self._filter_session_open:
-            self._close_filter_session()  # type: ignore[attr-defined]
-        else:
-            self._live_filter_values = None  # type: ignore[attr-defined]
-        return True
+    def host_query_row_for_target(self, target: ArtifactEntryTarget) -> dict | None:
+        """Return the unfiltered Files query row backing *target*."""
+        if target.pane_id != "files" or not target.parts:
+            return None
+        snapshot = self._current_snapshot()
+        if snapshot is None:
+            return None
+        from .query_rows import file_query_entry
 
-    def _notify_filter_cleared_for_entry_jump(self) -> None:
-        notify = getattr(self, "notify", None)
-        if callable(notify):
-            notify("Cleared Files filter to show linked file")
+        logical_id = target.parts[0]
+        for row in snapshot.rows:
+            if row.logical_id == logical_id:
+                return file_query_entry(
+                    row,
+                    project_ref_display=self._project_ref_display,
+                )
+        return None
 
     def _pending_entry_resolution_complete(self) -> bool:
         if self._loading or self._loading_full:

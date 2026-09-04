@@ -28,6 +28,8 @@ class ArtifactsQueryHistoryActionsMixin:
     _query_history_persist_pending: bool
     _query_selection_persist_running: bool
     _query_selection_persist_pending: bool
+    _collapsed_query_transitions: str | None
+    _collapsed_query_transition_recorded: bool
 
     def action_prev_query(self) -> None:
         """Navigate to the active Artifacts pane's previous committed query."""
@@ -212,6 +214,23 @@ class ArtifactsQueryHistoryActionsMixin:
             profile = getattr(contract, "query_profile", None)
         return getattr(profile, "digest", None)
 
+    def _begin_collapsed_query_transitions(self, pane_id: str) -> None:
+        """Pin query-history recording to one pane for a multi-rung reveal.
+
+        The first transition for *pane_id* records normally; later ones
+        are skipped so a follow that fires several rewrites still leaves
+        exactly one ``^`` record.
+        """
+        if getattr(self, "_collapsed_query_transitions", None) is not None:
+            return
+        self._collapsed_query_transitions = pane_id
+        self._collapsed_query_transition_recorded = False
+
+    def _end_collapsed_query_transitions(self) -> None:
+        """Release the reveal pin on every follow exit path."""
+        self._collapsed_query_transitions = None
+        self._collapsed_query_transition_recorded = False
+
     def _record_artifacts_query_transition(
         self,
         pane_id: str,
@@ -223,6 +242,13 @@ class ArtifactsQueryHistoryActionsMixin:
         selected_target: Any | None = None,
     ) -> bool:
         """Record a committed pane query replacement in memory."""
+        pinned = getattr(self, "_collapsed_query_transitions", None)
+        if (
+            pinned is not None
+            and pinned == pane_id
+            and getattr(self, "_collapsed_query_transition_recorded", False)
+        ):
+            return False
         if old_canonical == new_canonical:
             return False
 
@@ -245,6 +271,8 @@ class ArtifactsQueryHistoryActionsMixin:
             QueryHistoryStacks(prev=[], next=[]),
         )
         push_to_prev_stack(current_record, stacks)
+        if pinned == pane_id:
+            self._collapsed_query_transition_recorded = True
         self._schedule_query_history_persist()
         return True
 

@@ -257,6 +257,11 @@ class PlansFilterSessionMixin(_MixinBase):
         self._live_filter_values = None
         self._filter_query_error = None
 
+    def close_host_filter_session(self) -> None:
+        """Close the inline Plans filter editor before a host query rewrite."""
+        if self._filter_session_open:
+            self._close_filter_session()
+
     def _display_filter_values(self) -> PlanFilterValues:
         if self._filter_session_open and self._live_filter_values is not None:
             return self._live_filter_values

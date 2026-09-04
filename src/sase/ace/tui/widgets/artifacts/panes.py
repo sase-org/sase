@@ -57,6 +57,11 @@ class ArtifactsPatchesPane(
         self._init_artifacts_lifecycle()
         self._init_patches_filter_session()
         self.contract = contract
+        self._query_profile = (
+            contract.query_profile
+            if contract is not None
+            else compiled_profile_for_builtin_pane("patches")
+        )
 
     def compose(self) -> ComposeResult:
         profile = (
@@ -136,6 +141,16 @@ class ArtifactsPatchesPane(
             return LinkRequestState.SELECTED
         return LinkRequestState.MISSING
 
+    def host_query_row_for_target(self, target: ArtifactEntryTarget) -> Any | None:
+        """Return the Patch object backing *target* from the unfiltered inventory."""
+        if target.pane_id != "patches":
+            return None
+        app = cast(Any, self.app)
+        for patch in getattr(app, "_all_patches", ()):
+            if patch_row_target(patch) == target:
+                return patch
+        return None
+
     def host_limit_query(self) -> str:
         """Return the live or committed Patch query used for ``limit:`` paging."""
         app = cast(Any, self.app)
@@ -153,7 +168,7 @@ class ArtifactsPatchesPane(
         app = cast(Any, self.app)
         commit = getattr(app, "_commit_patch_query", None)
         if callable(commit):
-            commit(query)
+            commit(query, notify=False)
 
     def apply_entry_jump_hints(
         self,

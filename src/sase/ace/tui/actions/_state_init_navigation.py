@@ -193,6 +193,9 @@ def init_navigation_state(self: Any) -> None:
 
     self._relation_keymap = EMPTY_RELATION_KEYMAP
     self._relation_reveals = {}  # Reversible lens state, keyed by pane id
+    self._link_reveals = {}  # Link-follow rewrite lenses, keyed by pane id
+    self._collapsed_query_transitions = None
+    self._collapsed_query_transition_recorded = False
     from ...patch import Patch
 
     self._all_patches = []  # Cache for ancestry lookup

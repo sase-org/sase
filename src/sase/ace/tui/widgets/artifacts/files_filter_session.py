@@ -238,6 +238,11 @@ class FilesFilterSessionMixin(_MixinBase):
         self._live_filter_values = None
         self._filter_query_error = None
 
+    def close_host_filter_session(self) -> None:
+        """Close the inline Files filter editor before a host query rewrite."""
+        if self._filter_session_open:
+            self._close_filter_session()
+
     def _cancel_jump_mode_for_filter_change(self) -> None:
         cancel = getattr(
             self.app,

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ....query.types import QueryExpr
+    from ....link_reveal import LinkReveal
     from ....relation_reveal import RelationReveal
     from ...models.fold_state import FoldLevel
     from ...util.debounce import DetailPanelDebouncer
@@ -57,6 +58,7 @@ class PatchDisplayMixin(PatchOnboardingMixin):
     _all_patches: list[Patch]
     _relation_keymap: Any
     _relation_reveals: dict[str, RelationReveal]
+    _link_reveals: dict[str, LinkReveal]
     _hidden_reverted_count: int
     _hidden_submitted_count: int
     _patch_detail_debouncer: DetailPanelDebouncer

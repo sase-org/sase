@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from ....query.types import QueryExpr
     from ....query_history import QueryHistoryStacks
     from ....query_record import QueryRecord
+    from ....link_reveal import LinkReveal
     from ....relation_reveal import RelationReveal
     from ...bgcmd import BackgroundCommandInfo
     from ...keymaps import KeymapRegistry
@@ -106,6 +107,9 @@ class NavigationMixinBase:
     artifacts_relations_collapsed: bool
     _relation_keymap: RelationKeymap
     _relation_reveals: dict[ArtifactsPaneKey, RelationReveal]
+    _link_reveals: dict[ArtifactsPaneKey, LinkReveal]
+    _collapsed_query_transitions: str | None
+    _collapsed_query_transition_recorded: bool
     _all_patches: list[Patch]
     _query_history: dict[str, QueryHistoryStacks]
     _saved_queries: dict[str, dict[str, QueryRecord]]

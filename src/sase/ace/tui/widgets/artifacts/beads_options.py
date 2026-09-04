@@ -191,13 +191,6 @@ class BeadsOptionsMixin(_MixinBase):
         self._set_bead_rows(rows, options)
         pending_id = self._pending_option_id()
         if pending_id is None and self._pending_entry_target is not None:
-            if not values.is_empty and self._clear_filter_for_entry_jump():
-                self._notify_filter_cleared_for_entry_jump()
-                self._refresh_options(
-                    preferred_id=preferred_id,
-                    update_detail=update_detail,
-                )
-                return
             if self._loaded_current_snapshot():
                 state = (
                     LinkRequestState.FAILED
@@ -327,24 +320,57 @@ class BeadsOptionsMixin(_MixinBase):
         except Exception:
             pass
 
+    def expand_fold_for_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        """Expand the epic fold hiding a pending phase target."""
+        if not self._expand_parent_for_target(target):
+            return False
+        self._refresh_options()
+        return True
+
+    def host_query_row_for_target(
+        self, target: ArtifactEntryTarget
+    ) -> dict[str, Any] | None:
+        """Return the unfiltered Beads query row backing *target*."""
+        snapshot = self._snapshot
+        index = getattr(self, "_filter_index", None)
+        if (
+            snapshot is None
+            or index is None
+            or target.pane_id != "beads"
+            or len(target.parts) < 3
+        ):
+            return None
+        from .beads_list import row_option_id
+        from .query_rows import bead_query_entry
+
+        project, kind, bead_id = target.parts[0], target.parts[1], target.parts[2]
+        option_id = row_option_id(snapshot, kind, project, bead_id)  # type: ignore[arg-type]
+        record = index.by_option_id.get(option_id)
+        if record is None:
+            return None
+        return bead_query_entry(record)
+
     def _expand_parent_for_pending_target(self) -> None:
         target = self._pending_entry_target
+        if target is not None:
+            self._expand_parent_for_target(target)
+
+    def _expand_parent_for_target(self, target: ArtifactEntryTarget) -> bool:
         snapshot = self._snapshot
         if (
-            target is None
-            or len(target.parts) < 3
+            len(target.parts) < 3
             or target.pane_id != "beads"
             or target.parts[1] != "phase"
             or snapshot is None
         ):
-            return
+            return False
         project, bead_id = target.parts[0], target.parts[2]
         for (phase_project, epic_id), phases in snapshot.phases_by_epic.items():
             if phase_project != project:
                 continue
             if any(phase.issue.id == bead_id for phase in phases):
-                self._epic_fold_registry.expand((project, epic_id))
-                return
+                return self._epic_fold_registry.expand((project, epic_id))
+        return False
 
     def _pending_option_id(self) -> str | None:
         target = self._pending_entry_target
@@ -358,22 +384,6 @@ class BeadsOptionsMixin(_MixinBase):
             ),
             None,
         )
-
-    def _clear_filter_for_entry_jump(self) -> bool:
-        if self.filters.is_empty and not self._filter_session_open:
-            return False
-        self.filters = BeadFilterValues()
-        self._filter_query_error = None
-        if self._filter_session_open:
-            self._close_filter_session()
-        else:
-            self._live_filter_values = None
-        return True
-
-    def _notify_filter_cleared_for_entry_jump(self) -> None:
-        notify = getattr(self, "notify", None)
-        if callable(notify):
-            notify("Cleared Beads filter to show linked bead")
 
     def _loaded_current_snapshot(self) -> bool:
         return (

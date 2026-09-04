@@ -49,7 +49,7 @@ def build_beads_query_index(
             pane_id=pane_id,
             generation=generation,
             profile=profile,
-            entries=(_bead_query_entry(record) for record in filter_index),
+            entries=(bead_query_entry(record) for record in filter_index),
         ),
     )
 
@@ -70,7 +70,7 @@ def build_plans_query_index(
             pane_id=pane_id,
             generation=generation,
             profile=profile,
-            entries=(_plan_query_entry(snapshot, record) for record in filter_index),
+            entries=(plan_query_entry(snapshot, record) for record in filter_index),
         ),
     )
 
@@ -90,7 +90,7 @@ def build_files_query_index(
         generation=generation,
         profile=profile,
         entries=(
-            _file_query_entry(row, project_ref_display=project_ref_display)
+            file_query_entry(row, project_ref_display=project_ref_display)
             for row in snapshot.rows
         ),
     )
@@ -116,7 +116,7 @@ def build_agents_query_index(
         generation=generation,
         profile=profile,
         entries=(
-            _agent_query_entry(
+            agent_query_entry(
                 row,
                 project_ref_display=project_ref_display,
                 link_facets=link_facets,
@@ -145,7 +145,7 @@ def build_commits_query_index(
         generation=generation,
         profile=profile,
         entries=(
-            _commit_query_entry(
+            commit_query_entry(
                 entry,
                 repo_labels=repo_labels_by_name.get(entry.repo, (entry.repo,)),
                 repo_kind=repo_kind_by_name.get(entry.repo, "primary"),
@@ -166,7 +166,9 @@ def build_commits_query_index(
     return replace(index, facets=facets)
 
 
-def _bead_query_entry(record: Any) -> dict[str, Any]:
+def bead_query_entry(record: Any) -> dict[str, Any]:
+    """Return the profile-query row entry for one Beads filter record."""
+
     fields: dict[str, object] = {
         "type": tuple(record.type_labels),
         "task_type": tuple(record.task_type_labels),
@@ -202,10 +204,12 @@ def _bead_query_entry(record: Any) -> dict[str, Any]:
     }
 
 
-def _plan_query_entry(
+def plan_query_entry(
     snapshot: PlansSnapshot,
     record: Any,
 ) -> dict[str, Any]:
+    """Return the profile-query row entry for one Plans filter record."""
+
     fields: dict[str, object] = {
         "kind": tuple(record.kind_labels or frozenset((record.kind,))),
         "status": tuple(record.status_labels),
@@ -229,12 +233,14 @@ def _plan_query_entry(
     }
 
 
-def _agent_query_entry(
+def agent_query_entry(
     row: AgentCatalogRow,
     *,
     project_ref_display: ProjectRefDisplaySnapshot,
     link_facets: Mapping[str, AgentCatalogLinkFacets] | None = None,
 ) -> dict[str, Any]:
+    """Return the profile-query row entry for one Agent catalog row."""
+
     started_at = _epoch_seconds(row.started_at)
     finished_at = _epoch_seconds(row.finished_at)
     runtime_seconds = _runtime_seconds(
@@ -345,11 +351,13 @@ def _plan_provider_properties(
     return {}
 
 
-def _file_query_entry(
+def file_query_entry(
     row: LogicalFile,
     *,
     project_ref_display: ProjectRefDisplaySnapshot,
 ) -> dict[str, Any]:
+    """Return the profile-query row entry for one logical file."""
+
     project_labels: list[str] = []
     for project in row.projects:
         project_labels.append(project)
@@ -411,12 +419,14 @@ def _file_query_entry(
     }
 
 
-def _commit_query_entry(
+def commit_query_entry(
     entry: Any,
     *,
     repo_labels: tuple[str, ...],
     repo_kind: str,
 ) -> dict[str, Any]:
+    """Return the profile-query row entry for one aggregated commit."""
+
     commit = entry.commit
     return {
         "stable_id": commit_query_row_id(entry),
@@ -507,11 +517,16 @@ def _runtime_seconds(
 
 
 __all__ = [
+    "agent_query_entry",
     "agent_query_row_id",
+    "bead_query_entry",
     "build_agents_query_index",
     "build_beads_query_index",
     "build_commits_query_index",
     "build_files_query_index",
     "build_plans_query_index",
+    "commit_query_entry",
     "commit_query_row_id",
+    "file_query_entry",
+    "plan_query_entry",
 ]

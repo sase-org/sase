@@ -561,6 +561,11 @@ class CommitsFilteringMixin(_MixinBase):
         self._pending_filter_values = None
         self._filter_query_error = None
 
+    def close_host_filter_session(self) -> None:
+        """Close the inline Stitches filter editor before a host query rewrite."""
+        if self._filter_session_open:
+            self._close_filter_session()
+
     def host_limit_query(self) -> str:
         """Return the live or committed Stitches query used for ``limit:`` paging."""
 

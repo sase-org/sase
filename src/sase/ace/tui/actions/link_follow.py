@@ -1,4 +1,12 @@
-"""One-shot ``$`` link-follow navigation for the app-owned link graph."""
+"""One-shot ``$`` link-follow navigation for the app-owned link graph.
+
+Missing-target follows walk a host-owned reveal ladder. Fold expansion
+runs before any query rewrite -- it is strictly cheaper and the phase's
+test invariant prefers it over a ``limit:`` drop -- then the head-slice
+drop, a reserved identity-reveal gap, minimal widening, and a blunt
+``limit:all`` neutral query. Every rewrite commits through the pane's
+host-query adapter so query history records exactly one ``^`` restore.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +17,8 @@ from typing import TYPE_CHECKING, Any
 from textual.events import Key
 from textual.widgets import Input
 
-from sase.ace.query.limit_token import LimitTokenError, extract_limit
+from sase.ace.link_reveal import LinkReveal, is_link_reveal_active
+from sase.ace.query_record import QueryRecord
 from sase.artifact_ref_entries import reference_for_agent_name
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 
@@ -31,6 +40,15 @@ from ..relations.link_keys import (
 from ..relations.link_subject import selected_link_subject
 from ..tab_order import ARTIFACTS_TAB
 from ..widgets.artifacts.entry_navigation import LinkRequestState
+from ._link_follow_ladder import (
+    RUNG_FOLD,
+    RUNG_IDENTITY,
+    RUNG_TOAST,
+    capture_query_origin,
+    end_link_follow_pinning,
+    pane_limit_query,
+    try_reveal_rung,
+)
 from .axe_display._loader_items import selected_axe_item_key
 
 if TYPE_CHECKING:
@@ -61,16 +79,18 @@ class _LinkFollowTransaction:
     Registered before any pane is asked to resolve *target*, so a
     synchronous completion (reported through the shared
     :meth:`~.entry_navigation.ArtifactEntryNavigator._complete_entry_request`
-    seam) can be finalized safely. ``limit_drop_attempted`` guards the
-    one-shot host fallback (dropping a ``limit:`` head slice) so a second,
-    authoritative ``MISSING`` never retries it.
+    seam) can be finalized safely. ``rung`` is the next ladder step to
+    try and only ever increases, so an authoritative ``MISSING`` cannot
+    retry a rung that already fired.
     """
 
     generation: int
     ref: str
     target: ArtifactEntryTarget
     origin: LinkTrailHop
-    limit_drop_attempted: bool = False
+    rung: int = RUNG_FOLD
+    origin_query: QueryRecord | None = None
+    origin_target: ArtifactEntryTarget | None = None
 
 
 class LinkFollowMixin:
@@ -85,6 +105,7 @@ class LinkFollowMixin:
     _link_follow_generation: int
     _link_follow_transaction: _LinkFollowTransaction | None
     _link_follow_dispatching: bool
+    _link_reveals: dict[str, LinkReveal]
 
     def action_follow_artifact_link(self) -> None:
         """Arm ``$`` link selection, or follow the lead chip on ``$$``."""
@@ -143,14 +164,14 @@ class LinkFollowMixin:
     def _follow_single_link_chip(self, chip: LinkChip) -> None:
         parsed = parse_link_ref(chip.neighbor_ref)
         if parsed is None:
-            self._notify_missing_link_target(chip.neighbor_ref, None)
+            self._notify_dangling_link_ref(chip.neighbor_ref)
             return
         kind, payload = parsed
         origin = self._current_link_trail_origin()
         # A new follow supersedes whatever the previous one left open, so a
         # late resolution for it is ignored rather than producing a stale
         # trail hop or toast.
-        self._link_follow_transaction = None
+        self._cancel_link_follow_transaction()
         self._link_trail_guard = True
         try:
             if kind == "chop":
@@ -168,8 +189,10 @@ class LinkFollowMixin:
                 return
             target = chip.neighbor_target
             if target is None:
-                self._notify_missing_link_target(chip.neighbor_ref, None)
-                return
+                target = target_for_ref_kind(kind, payload, project_hint=None)
+                if target is None:
+                    self._notify_dangling_link_ref(chip.neighbor_ref)
+                    return
             self._follow_artifacts_target(chip.neighbor_ref, target, origin)
         finally:
             self._link_trail_guard = False
@@ -327,7 +350,7 @@ class LinkFollowMixin:
             pane = self._artifacts_entry_navigator()  # type: ignore[attr-defined]
             if pane is not None:
                 origin = pane.selected_entry_target()
-                query_source = _pane_limit_query(pane)
+                query_source = pane_limit_query(pane)
             project_scope = getattr(self, "artifacts_project_scope", None)
         elif tab == "agents":
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
@@ -401,17 +424,26 @@ class LinkFollowMixin:
     ) -> int:
         self._link_follow_generation += 1
         generation = self._link_follow_generation
+        pane = self._artifacts_entry_navigator(  # type: ignore[attr-defined]
+            target.pane_id
+        )
+        origin_query, origin_target = capture_query_origin(self, pane, target.pane_id)
         self._link_follow_transaction = _LinkFollowTransaction(
             generation=generation,
             ref=ref,
             target=target,
             origin=origin,
+            origin_query=origin_query,
+            origin_target=origin_target,
         )
         return generation
 
     def _cancel_link_follow_transaction(self) -> None:
         """Invalidate any open transaction so its later completion is ignored."""
         self._link_follow_transaction = None
+        ender = getattr(self, "_end_collapsed_query_transitions", None)
+        if callable(ender):
+            ender()
 
     def _complete_link_follow_request(
         self,
@@ -445,29 +477,34 @@ class LinkFollowMixin:
             return
         if state is LinkRequestState.FAILED:
             self._link_follow_transaction = None
+            end_link_follow_pinning(self)
             self._notify_link_follow_failed(transaction)
             return
         self._handle_missing_link_follow(transaction)
 
     def _handle_missing_link_follow(self, transaction: _LinkFollowTransaction) -> None:
-        """Try the one-shot head-limit-drop fallback, then report absence."""
-        if not transaction.limit_drop_attempted:
-            pane = self._artifacts_entry_navigator(  # type: ignore[attr-defined]
-                transaction.target.pane_id
-            )
-            if pane is not None and not _pane_is_loading(pane):
-                if self._drop_head_slice_limit(
-                    pane, transaction.ref, transaction.target
-                ):
-                    retried = replace(transaction, limit_drop_attempted=True)
+        """Walk the remaining reveal rungs, then report inventory absence."""
+        pane = self._artifacts_entry_navigator(  # type: ignore[attr-defined]
+            transaction.target.pane_id
+        )
+        if pane is not None and not _pane_is_loading(pane):
+            rung = transaction.rung
+            while rung < RUNG_TOAST:
+                if rung == RUNG_IDENTITY:
+                    rung += 1
+                    continue
+                if try_reveal_rung(self, pane, transaction, rung):
+                    retried = replace(transaction, rung=rung + 1)
                     self._link_follow_transaction = retried
                     state = self._request_artifacts_target(
                         transaction.target, generation=transaction.generation
                     )
                     self._handle_link_follow_outcome(transaction.generation, state)
                     return
+                rung += 1
         self._link_follow_transaction = None
-        self._notify_missing_link_target(transaction.ref, transaction.target)
+        end_link_follow_pinning(self)
+        self._notify_missing_in_inventory(transaction.ref, transaction.target)
 
     def _finalize_selected_link_follow(
         self, transaction: _LinkFollowTransaction
@@ -486,6 +523,20 @@ class LinkFollowMixin:
                 note()
         finally:
             self._link_trail_guard = previous_guard
+        end_link_follow_pinning(self)
+        pane = self._artifacts_entry_navigator(  # type: ignore[attr-defined]
+            transaction.target.pane_id
+        )
+        current = pane_limit_query(pane) or ""
+        reveal = getattr(self, "_link_reveals", {}).get(transaction.target.pane_id)
+        if is_link_reveal_active(
+            reveal,
+            pane_id=transaction.target.pane_id,
+            current_canonical=current,
+        ):
+            self.notify(  # type: ignore[attr-defined]
+                f"Revealed {transaction.ref} — press ^ to restore your query",
+            )
         self.refresh_link_rail()  # type: ignore[attr-defined]
 
     def _notify_link_follow_failed(self, transaction: _LinkFollowTransaction) -> None:
@@ -561,29 +612,6 @@ class LinkFollowMixin:
         finally:
             self._link_follow_dispatching = False
 
-    def _drop_head_slice_limit(
-        self,
-        pane: Any,
-        ref: str,
-        target: ArtifactEntryTarget,
-    ) -> bool:
-        query = _pane_limit_query(pane)
-        apply = getattr(pane, "apply_host_limit_query", None)
-        if query is None or not callable(apply):
-            return False
-        try:
-            remainder, cap = extract_limit(query)
-        except LimitTokenError:
-            return False
-        if cap is None:
-            return False
-        rewritten = _limit_all_query(remainder)
-        apply(rewritten, grow=True)
-        self.notify(  # type: ignore[attr-defined]
-            f"Expanded {_pane_label(target)} limit to show linked {ref}",
-        )
-        return True
-
     def _follow_loaded_agent(self, payload: str) -> bool:
         agents = getattr(self, "_agents", ())
         for idx, agent in enumerate(agents):
@@ -606,13 +634,13 @@ class LinkFollowMixin:
     ) -> bool:
         lumberjack, sep, base_chop = payload.partition("/")
         if not sep or not lumberjack or not base_chop:
-            self._notify_missing_link_target(f"chop:{payload}", None)
+            self._notify_dangling_link_ref(f"chop:{payload}")
             return False
         if self._expand_lumberjack_for_chop(lumberjack) and expanded is not None:
             expanded.append(lumberjack)
         idx = self._find_chop_index(lumberjack, base_chop)
         if idx is None:
-            self._notify_missing_link_target(f"chop:{payload}", None)
+            self._notify_dangling_link_ref(f"chop:{payload}")
             return False
         self._save_current_tab_position()  # type: ignore[attr-defined]
         self.current_tab = "axe"
@@ -662,29 +690,21 @@ class LinkFollowMixin:
             return idx
         return None
 
-    def _notify_missing_link_target(
+    def _notify_dangling_link_ref(self, ref: str) -> None:
+        self.notify(  # type: ignore[attr-defined]
+            f"No such artifact: {ref}",
+            severity="warning",
+        )
+
+    def _notify_missing_in_inventory(
         self,
         ref: str,
         target: ArtifactEntryTarget | None,
     ) -> None:
         self.notify(  # type: ignore[attr-defined]
-            f"Linked target {ref} is not visible in {_pane_label(target)}",
+            f"{_pane_label(target)} has no {ref} in its inventory",
             severity="warning",
         )
-
-
-def _pane_limit_query(pane: Any) -> str | None:
-    getter = getattr(pane, "host_limit_query", None)
-    if not callable(getter):
-        return None
-    return str(getter())
-
-
-def _limit_all_query(remainder: str) -> str:
-    stripped = remainder.strip()
-    if not stripped:
-        return "limit:all"
-    return f"{stripped} limit:all"
 
 
 def _target_project_scope(target: ArtifactEntryTarget) -> str | None:

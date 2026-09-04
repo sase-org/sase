@@ -98,6 +98,24 @@ class ArtifactGroupFoldMixin:
                 deepest_level = row.banner.level
         return deepest
 
+    def expand_fold_for_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        """Expand the collapsed banners whose members include *target*."""
+        registry = self._group_fold_registry()
+        result = self._group_build_result(fold_registry=registry)
+        changed = False
+        for row in result.rows:
+            if (
+                row.kind == "banner"
+                and row.banner is not None
+                and row.banner.collapsed
+                and target in row.banner.member_targets
+            ):
+                if registry.expand(row.banner.group_key):
+                    changed = True
+        if changed:
+            self._group_refresh(target)
+        return changed
+
     def _group_banner_target(self, group_key: GroupKey) -> ArtifactEntryTarget | None:
         mode = self._active_grouping_mode()
         if mode is None:

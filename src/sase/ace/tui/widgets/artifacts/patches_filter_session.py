@@ -130,5 +130,10 @@ class PatchesFilterSessionMixin(_MixinBase):
         self._patch_filter_restore_query = None
         self._patch_filter_restore_selection = None
 
+    def close_host_filter_session(self) -> None:
+        """Close the inline Patch filter editor before a host query rewrite."""
+        if self._patch_filter_session_open:
+            self._close_patch_filter_session()
+
 
 __all__ = ["PatchesFilterSessionMixin"]
