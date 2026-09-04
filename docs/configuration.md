@@ -338,22 +338,32 @@ for Perf data sources and retention.
 ### Updates tab
 
 The Updates tab keeps SASE, its plugins, and its supported agent CLIs current without
-leaving the TUI. Use `]` / `[` to cycle its three pane-local sub-tabs:
+leaving the TUI, as one master/detail inventory rather than separate tabs per source.
+Every SASE core package, plugin, and registered agent CLI is a row, grouped into
+**SASE**, **Plugins · Built-in**, **Plugins · Community**, and **Agent CLIs** sections.
+Use `]` / `[` to cycle a scope strip that narrows the list to **Outdated** (an update is
+available or a probe failed), **Installed** (the default), or **All**; each scope label
+shows a live row count.
 
-- **Core** (the default) shows the installed and latest versions of `sase` and
-  `sase-core`, incoming commits, and the all-current banner.
-- **Plugins** brings the full
+- **SASE** rows show the installed and latest versions of `sase` and `sase-core`; the
+  highlighted row's detail includes its incoming commits.
+- **Plugins** rows bring the full
   [`sase plugin`](plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show)
   experience into the TUI: filter the catalog, inspect a plugin, and install, update,
   uninstall, or switch install mode.
-- **Agent CLIs** is a provider-colored master/detail browser for Claude Code, Codex CLI,
-  OpenCode, Qwen Code, Antigravity, Muse Code, and Grok Build. Rows show installed →
-  latest versions, install method, `↑` availability, and update marks. Details show the
-  resolved executable, exact automatic or manual update command, skip reason, canonical
-  vendor docs URL, and the last result.
+- **Agent CLIs** rows are a provider-colored master/detail browser for Claude Code,
+  Codex CLI, OpenCode, Qwen Code, Antigravity, Muse Code, and Grok Build. Rows show
+  installed → latest versions, install method, `↑` availability, and update marks.
+  Details show the resolved executable, exact automatic or manual update command, skip
+  reason, canonical vendor docs URL, and the last result.
 
-The Plugins browser stays visually consistent with the CLI by reusing the same catalog
-loader and Rich renderables. Its list is split into **Built-in** and **Community**
+The always-visible header above the list shows either the all-current banner or a digest
+(update counts per source, cache age, install mode, an offline badge, and the
+agents-sync chip) plus a line per failed source; it never renders "all current" while
+any enabled source is unknown or failed.
+
+The Plugins rows stay visually consistent with the CLI by reusing the same catalog
+loader and Rich renderables. They are split into **Built-in** and **Community**
 (third-party, shown with a warning) sections; status glyphs match the CLI exactly: `●`
 installed, `○` available, `↑` update available. Editable / dev installs (both core
 packages and plugins) carry a lowercase `dev` marker and are compared against their git
@@ -403,25 +413,26 @@ The cached-hood section is runnable only when captured incoming hoods from other
 exist, and it lists their exact projects and hood counts. The tracked proc runs Agent
 CLI commands first, the SASE/core/plugin leg second, and cached agents integration last,
 reporting independent partial failures. `A` previews every exact agent-CLI command and
-every skip with its reason and docs URL; on the Agent CLIs sub-tab it uses the marked
-subset, otherwise it targets every safely updatable installed CLI. Agent-CLI commands
+every skip with its reason and docs URL; it uses the marked subset from anywhere in the
+pane, otherwise it targets every safely updatable installed CLI. Agent-CLI commands
 execute sequentially as one tracked proc and refresh the browser without restarting ACE;
 new agent launches naturally use the updated binaries. Installable plugins use `I` /
-`Space` marks, while updatable agent CLIs use `Space`; `Esc` clears marks in the active
-sub-tab before closing. All slow work runs off the event loop. Core/plugin code changes
-retain the existing automatic ACE/axe restart behavior after the other legs finish. The
-context-sensitive keymaps are:
+`Space` marks, while updatable agent CLIs use `Space`, in one shared mark set; `Esc`
+clears every mark, of either kind and regardless of the active filter, before closing.
+All slow work runs off the event loop. Core/plugin code changes retain the existing
+automatic ACE/axe restart behavior after the other legs finish. The context-sensitive
+keymaps are:
 
 | Key                 | Action                                                                                                      |
 | ------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `]` / `[`           | Cycle Core / Plugins / Agent CLIs sub-tabs                                                                  |
-| `j` / `k`           | Move the highlight down / up in Plugins or Agent CLIs                                                       |
-| `'`                 | Jump to an item row via adaptive hints in Plugins or Agent CLIs; no-op on Core                              |
-| `I` / `Space`       | Mark / unmark an installable plugin; `Space` marks an updatable agent CLI on that sub-tab                   |
+| `]` / `[`           | Cycle Outdated / Installed / All scopes                                                                     |
+| `j` / `k`           | Move the highlight down / up                                                                                |
+| `'`                 | Jump to a row via adaptive hints, across every section                                                      |
+| `I` / `Space`       | Mark / unmark the highlighted row — `I` for an installable plugin, `Space` follows the highlighted row      |
 | `i`                 | Open the install preview for the marked set, or for the highlighted plugin when no install marks are active |
 | `x`                 | Uninstall the highlighted plugin (only when installed)                                                      |
 | `u`                 | Run `sase update` for SASE core plus all installed plugins                                                  |
-| `A`                 | Update marked agent CLIs on that sub-tab, or every safely updatable installed agent CLI otherwise           |
+| `A`                 | Update marked agent CLIs from anywhere, or every safely updatable installed agent CLI otherwise             |
 | `a`                 | Full-network sync every enabled agents repository and drain publication retries                             |
 | `U`                 | Update the highlighted installed plugin when that row has an update available                               |
 | `m`                 | Switch install mode (PyPI managed ↔ dev editable; the `sase update --to` analog)                            |
@@ -432,10 +443,10 @@ context-sensitive keymaps are:
 | `G`                 | Scroll the detail panel to the bottom                                                                       |
 | `o`                 | Toggle offline (cache-only) mode, with a header badge (the `-o/--offline` analog)                           |
 | `v`                 | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)                              |
-| `/`                 | Focus the filter input (matches name / description / topics)                                                |
+| `/`                 | Focus the filter input (matches every row's own name / description / topics, across all sections)           |
 | `#` (default)       | From home, resume the last section used; in a section, jump to the previous one, press again to toggle      |
 | `Tab` / `Shift+Tab` | From home enter Config / Updates; otherwise switch SASE Admin Center tabs (`1`–`6` jump directly)           |
-| `Esc`               | Clear active plugin/agent-CLI marks first; close when no marks are active                                   |
+| `Esc`               | Clear every mark first, including any hidden by the filter; close when no marks are active                  |
 | `q`                 | Close SASE Admin Center                                                                                     |
 
 The Admin Center opener is the effective `ace.keymaps.app.open_config_center` binding
@@ -985,7 +996,7 @@ Ctrl+J / Ctrl+K there always step by 10 runs, independently of this setting and 
 | `post_update_toast_diffstat`            | bool   | `true`  | Show per-repository applied file and line-change statistics when available.                                                       |
 | `post_update_toast_commits`             | bool   | `true`  | Show applied commits grouped by repository when available.                                                                        |
 | `post_update_toast_max_commits`         | int    | `5`     | Maximum applied commit subjects shown per repository; `0` keeps totals but hides subjects.                                        |
-| `agent_cli_history`                     | bool   | `true`  | Show the durable update-history panel beneath the selected CLI's details on the Agent CLIs sub-tab.                               |
+| `agent_cli_history`                     | bool   | `true`  | Show the durable update-history panel beneath the selected Agent CLI row's details.                                               |
 | `agent_cli_history_max_rows`            | int    | `8`     | Maximum rows in the this-CLI view or runs in the all-CLIs view; `0` shows all history loaded for the pane.                        |
 | `indicator`                             | bool   | `true`  | Show the segmented SASE and agent-CLI badge when cached status reports available updates.                                         |
 | `prebuild_rust`                         | bool   | `true`  | Prebuild exact-match editable `sase-core` Rust artifacts in the background; update confirmation falls back on every cache miss.   |

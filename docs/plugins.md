@@ -273,16 +273,16 @@ Axe restarted (pid 12345) to load the updated code.
   axe when it is running so the daemon loads the new code. In the Admin Center Updates
   tab, SASE restarts ACE and axe through the same restart path as the `Q` restart
   action. No-op and failed updates do not restart anything.
-- **The Admin Center mirrors the split.** In the Updates tab's **Plugins** sub-tab, `U`
-  updates the highlighted installed plugin and `m` switches install mode. Pane-wide `u`
-  still runs only the SASE core + plugins update, while pane-wide `A` deliberately
-  targets the current supported agent-CLI inventory. Global `,U` opens the Update panel
-  from cached snapshots. Lowercase `e` / `s` / `p` / `a` choose Everything, SASE,
-  providers, or agents and then confirm with `y`/`n`; capital `E` / `S` / `P` / `A` plan
-  the same scopes and skip only that confirmation after a runnable preview succeeds. The
-  providers leg is still snapshot-gated: it includes only provider names from the latest
-  completed automatic check, revalidates them live, and never guesses or privileges
-  manual-only providers.
+- **The Admin Center mirrors the split.** On a highlighted **Plugins** row in the
+  Updates tab, `U` updates that installed plugin and `m` switches install mode.
+  Pane-wide `u` still runs only the SASE core + plugins update, while pane-wide `A`
+  deliberately targets the current supported agent-CLI inventory. Global `,U` opens the
+  Update panel from cached snapshots. Lowercase `e` / `s` / `p` / `a` choose Everything,
+  SASE, providers, or agents and then confirm with `y`/`n`; capital `E` / `S` / `P` /
+  `A` plan the same scopes and skip only that confirmation after a runnable preview
+  succeeds. The providers leg is still snapshot-gated: it includes only provider names
+  from the latest completed automatic check, revalidates them live, and never guesses or
+  privileges manual-only providers.
 - **`-n|--dry-run`** prints the exact `uv` command or editable-checkout plan that would
   run and exits `0` without changing anything. uv itself has no dry-run, so sase
   resolves and prints the managed plan itself.
@@ -400,9 +400,9 @@ of updating within one:
   without `-y|--yes` an interactive confirmation is required, and cancelling exits
   non-zero. A changed switch restarts axe (and ACE plus axe when driven from the Updates
   tab) through the shared restart path.
-- **In the Admin Center Updates tab's Plugins sub-tab, press `m`** to switch mode
-  interactively: it shows the current mode and dev root, confirms, runs the switch as a
-  proc, and shows a restart toast.
+- **In the Admin Center Updates tab, highlight a Plugins row and press `m`** to switch
+  mode interactively: it shows the current mode and dev root, confirms, runs the switch
+  as a proc, and shows a restart toast.
 
 ## Installing and updating plugins (`sase plugin install` / `sase plugin update`)
 

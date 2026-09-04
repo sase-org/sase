@@ -208,7 +208,7 @@ async def test_config_center_agent_clis_marked_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_agent_clis_marked_120x40",
-            title="ACE SASE Admin Center — Agent CLIs sub-tab (marked update)",
+            title="ACE SASE Admin Center — Agent CLIs section (marked update)",
         )
 
 
@@ -239,7 +239,7 @@ async def test_config_center_agent_clis_history_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_agent_clis_history_120x40",
-            title="ACE SASE Admin Center — Agent CLIs sub-tab (history)",
+            title="ACE SASE Admin Center — Agent CLIs section (history)",
         )
 
 
@@ -271,7 +271,7 @@ async def test_config_center_agent_clis_history_all_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_agent_clis_history_all_120x40",
-            title="ACE SASE Admin Center — Agent CLIs sub-tab (all history)",
+            title="ACE SASE Admin Center — Agent CLIs section (all history)",
         )
 
 
@@ -302,7 +302,7 @@ async def test_config_center_agent_clis_history_empty_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_agent_clis_history_empty_120x40",
-            title="ACE SASE Admin Center — Agent CLIs sub-tab (empty history)",
+            title="ACE SASE Admin Center — Agent CLIs section (empty history)",
         )
 
 
@@ -567,4 +567,113 @@ async def test_config_center_plugins_loading_png_snapshot(
             page,
             "config_center_plugins_loading_120x40",
             title="ACE SASE Admin Center — Updates tab (loading)",
+        )
+
+
+async def test_config_center_updates_outdated_scope_cli_only_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Outdated scope with only the Agent CLIs section behind."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch, catalog=_all_current_catalog())
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_plugins_modal(page, scope="outdated")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_updates_outdated_scope_cli_only_120x40",
+            title="ACE SASE Admin Center — Outdated scope (agent CLIs only)",
+        )
+
+
+async def test_config_center_updates_outdated_scope_plugin_only_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Outdated scope with only a Plugins row behind."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch, agent_cli_statuses=())
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_plugins_modal(page, scope="outdated")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_updates_outdated_scope_plugin_only_120x40",
+            title="ACE SASE Admin Center — Outdated scope (plugin only)",
+        )
+
+
+async def test_config_center_updates_outdated_scope_all_current_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Outdated scope shows zero rows and the all-current banner, never a blank lie."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(
+        monkeypatch,
+        catalog=_all_current_catalog(),
+        uv_tool=_uv_tool(),
+        agent_cli_statuses=(),
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_plugins_modal(page, scope="outdated")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_updates_outdated_scope_all_current_120x40",
+            title="ACE SASE Admin Center — Outdated scope (all current banner)",
+        )
+
+
+async def test_config_center_updates_marks_hidden_by_filter_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A filter that hides marked rows still counts them in the hint aggregate."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch, uv_tool=_uv_tool())
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_plugins_modal(page)
+        _highlight_row(pane, "plugin:nvim")
+        pane.action_toggle_install_mark()
+        _highlight_row(pane, "cli:claude")
+        pane.action_toggle_mark()
+        pane._filter_text = "github"
+        if pane._detail_debouncer is not None:
+            pane._detail_debouncer.cancel()
+        pane._apply_filter()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_updates_marks_hidden_by_filter_120x40",
+            title="ACE SASE Admin Center — Updates tab (marks hidden by filter)",
         )

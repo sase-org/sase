@@ -1,4 +1,4 @@
-"""Scale bench for the Updates > Plugins sub-tab.
+"""Scale bench for the Updates tab's Plugins rows.
 
 Run explicitly with::
 

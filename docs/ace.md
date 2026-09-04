@@ -2816,8 +2816,8 @@ catalog is alphabetized as **01 All · 02 Flags · 03 Launch · 04 Memory · 05 
 06 XPrompts** when `admin_center_flags` is on, or **01 All** through **05 XPrompts**
 when it is off; `0` then the matching digits selects those children, while bare digits
 continue to belong to the active child or the Admin Center's top-level tabs. The Updates
-tab's Core sub-tab has no list at all, so `'` is a silent no-op there while Plugins and
-Agent CLIs jump normally.
+tab's single merged list jumps normally across every section — SASE, Plugins, and Agent
+CLIs alike.
 
 ### Quit / Restart Menu
 
@@ -6510,22 +6510,34 @@ press clears the filter and removes the bar.
 
 ## Updates Tab
 
-Open the SASE Admin Center with `#`, then press `6`. The Updates tab has **Core**,
-**Plugins**, and **Agent CLIs** sub-tabs; cycle them with `]` / `[`. Core shows SASE
-package versions and incoming commits. Plugins hosts the catalog browser and its
-install/update/uninstall/mode-switch actions. Agent CLIs shows provider-colored
-installed → latest rows, exact update or manual commands, vendor docs links, update
-marks, and durable update history. Providers that opt out of independent CLI management,
-including the bundled internal Fakey provider, are omitted from this sub-tab. On Plugins
-and Agent CLIs, `'` jumps to an item row via adaptive hints; Core has no list, so `'` is
-a silent no-op there.
+Open the SASE Admin Center with `#`, then press `6`. The Updates tab is one
+master/detail inventory: every SASE core package, plugin, and registered agent CLI
+appears as a row, grouped into **SASE**, **Plugins · Built-in**, **Plugins ·
+Community**, and **Agent CLIs** sections. An always-visible header above the list shows
+either the all-current banner or a digest of update counts, cache age, install mode, and
+any failed source — it never claims everything is current while a source is unknown or
+failed. A scope strip cycled with `]` / `[` narrows the list to **Outdated** (rows with
+an update available or a probe error), **Installed** (the default), or **All**; each
+scope label carries a live row count. `'` jumps to any row via adaptive hints, across
+every section.
+
+Core rows show SASE package versions and incoming commits in their own per-package
+detail. Plugin rows bring the full
+[`sase plugin`](plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show) experience:
+filter the catalog, inspect a plugin, and install, update, uninstall, or switch install
+mode. Agent CLI rows are provider-colored, showing installed → latest versions, exact
+update or manual commands, vendor docs links, update marks, and durable update history.
+Providers that opt out of independent CLI management, including the bundled internal
+Fakey provider, are omitted from the Agent CLIs section. The plain substring filter
+(`/`) searches every row's own fields — name, description, topics for plugins; binary
+and install method for agent CLIs — across all sections at once.
 
 Every sase-managed agent-CLI update run from `,U`, `A`, or `sase agent-cli update` is
 appended to `~/.sase/logs/agent_cli_updates.jsonl`. Runs where no command reaches a
-terminal outcome are not recorded. The Agent CLIs sub-tab renders that journal below the
-selected CLI's details; `H` toggles between this CLI's executed update rows and a
-run-grouped timeline across all CLIs. Configure the panel with
-`ace.updates.agent_cli_history` and `agent_cli_history_max_rows`.
+terminal outcome are not recorded. Highlighting an Agent CLI row renders that journal
+below its details; `H` toggles between this CLI's executed update rows and a run-grouped
+timeline across all CLIs. Configure the panel with `ace.updates.agent_cli_history` and
+`agent_cli_history_max_rows`.
 
 Automatic checks publish one composite snapshot after first paint. Ten-minute session
 ticks only revalidate cached SASE/plugin rows and provider names already known outdated;
@@ -6564,8 +6576,8 @@ after provider and agents-repository work finishes, while provider-only updates 
 in place.
 
 `u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate
-pane-wide agent-CLI action: on the Agent CLIs sub-tab it updates the marked `Space`
-selection, and elsewhere it targets every safely updatable installed CLI. See the
+pane-wide agent-CLI action: it updates `Space`-marked agent CLIs from anywhere in the
+pane, and with no marks it targets every safely updatable installed CLI. See the
 [Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior,
 [Plugins](plugins.md) for the equivalent `sase plugin` CLI, and
 [Agent providers](agent_providers.md#inventory-and-updates) for the equivalent

@@ -1,4 +1,4 @@
-"""Updates-pane sub-tab and Agent CLIs browser tests."""
+"""Updates-pane scope and Agent CLIs browser tests."""
 
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ async def test_updates_scopes_cycle_and_gate_row_actions(
         assert tuple(SCOPE_ORDER) == ("outdated", "installed", "all")
 
 
-async def test_agent_cli_session_restores_subtab_and_row_by_identity(
+async def test_agent_cli_session_restores_scope_and_row_by_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -185,7 +185,7 @@ async def test_agent_cli_pane_uses_shared_filtered_inventory(
         assert current.name == "claude"
 
 
-async def test_updates_subtabs_handle_brackets_from_core_and_lists(
+async def test_updates_scope_cycling_handles_brackets_from_core_and_lists(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -232,7 +232,7 @@ async def test_updates_subtabs_handle_brackets_from_core_and_lists(
         assert page.app.focused is updates_list
 
 
-async def test_updates_subtab_hints_share_projects_wording(
+async def test_updates_scope_hints_share_projects_wording(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)

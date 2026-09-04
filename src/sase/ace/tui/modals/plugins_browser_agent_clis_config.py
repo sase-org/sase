@@ -11,7 +11,7 @@ from sase.config.core import load_merged_config
 
 @dataclass(frozen=True)
 class AgentCliHistoryConfig:
-    """Config for the Agent CLIs sub-tab update-history panel."""
+    """Config for the Agent CLIs update-history panel."""
 
     enabled: bool = True
     max_rows: int = 8

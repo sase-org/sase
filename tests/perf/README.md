@@ -2,8 +2,8 @@
 
 ## Plugins Catalog Scale
 
-Measure the Updates > Plugins sub-tab (and the shared fetch/enrich paths behind it) at
-10 / 250 / 1000 / 2000 synthetic catalog entries:
+Measure the Updates tab's Plugins rows (and the shared fetch/enrich paths behind them)
+at 10 / 250 / 1000 / 2000 synthetic catalog entries:
 
 ```bash
 just bench-plugin-catalog-scale

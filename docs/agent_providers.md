@@ -258,10 +258,10 @@ placed last in provider autodetection. It is also hidden from the ACE model pick
 coding work.
 
 Because Fakey is bundled and internal, it is also absent from `sase agent-cli`
-inventories and the Admin Center's **Updates → Agent CLIs** list. That management
-visibility is separate from routing and diagnostics: explicit fakey selection, the
-`fakey` console script, provider autodetection metadata, and `sase doctor` checks remain
-supported.
+inventories and the Admin Center's **Updates** tab **Agent CLIs** section. That
+management visibility is separate from routing and diagnostics: explicit fakey
+selection, the `fakey` console script, provider autodetection metadata, and
+`sase doctor` checks remain supported.
 
 For demos and hermetic end-to-end tests, `SASE_LLM_EXEC_PROVIDER=fakey` dispatches
 through fakey while preserving the requested provider/model in display metadata. Run
@@ -360,6 +360,6 @@ where no command reaches a terminal outcome are not recorded.
 This command manages the provider CLIs only. Use [`sase update`](cli.md) to upgrade SASE
 itself and its plugins.
 
-The same inventory is available inside ACE on the SASE Admin Center's **Updates → Agent
-CLIs** sub-tab, which adds marked multi-select updates and confirmation previews. See
-the [Updates tab](ace.md#updates-tab) for that surface.
+The same inventory is available inside ACE, as the **Agent CLIs** section of the SASE
+Admin Center's Updates tab, which adds marked multi-select updates and confirmation
+previews. See the [Updates tab](ace.md#updates-tab) for that surface.
