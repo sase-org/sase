@@ -164,7 +164,12 @@ async def test_key_during_layout_invalidation_gets_one_after_refresh_retry() -> 
         await pilot.pause()
         assert panel.active_section_identity == "last"
 
-        panel.update(Group(section("FIRST", "body\n"), section("LAST", "tail\n")))
+        panel.update(
+            Group(
+                section("FIRST", "body now wraps " * 8 + "\n"),
+                section("LAST", "tail\n"),
+            )
+        )
         app.action_next_agent_metadata_section()
         assert panel.active_section_identity == "last"
         await pilot.pause()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, cast
@@ -13,6 +14,8 @@ from textual.css.styles import RulesMap
 from textual.strip import Strip
 from textual.style import Style
 from textual.visual import RenderOptions, RichVisual, Visual
+
+from ...util.renderable_digest import renderable_content_digest
 
 if TYPE_CHECKING:
     from . import AgentPromptPanel
@@ -60,10 +63,63 @@ class PromptPanelSectionTarget:
         return self.kind is not PromptPanelSectionTargetKind.NOT_READY
 
 
+@dataclass(frozen=True, slots=True)
+class _SectionLayoutCacheEntry:
+    """Cached height, anchors, and optional paint strips for one document."""
+
+    anchors: tuple[PromptPanelSectionAnchor, ...]
+    height: int | None = None
+    strips: tuple[Strip, ...] | None = None
+
+
+_SECTION_LAYOUT_CACHE_MAX_ENTRIES = 8
+_section_height_cache: OrderedDict[tuple[str, int], _SectionLayoutCacheEntry] = (
+    OrderedDict()
+)
+_section_strip_cache: OrderedDict[tuple[str, int, str], _SectionLayoutCacheEntry] = (
+    OrderedDict()
+)
+
+
+def _textual_style_token(style: Style) -> str:
+    """Return a stable paint-style token independent of object identity."""
+    return (
+        f"{getattr(style, 'foreground', None)}|"
+        f"{getattr(style, 'background', None)}|"
+        f"{getattr(style, 'bold', None)}|"
+        f"{getattr(style, 'dim', None)}|"
+        f"{getattr(style, 'italic', None)}"
+    )
+
+
+def _visual_content_digest(visual: Visual) -> str:
+    renderable = getattr(visual, "_renderable", None)
+    if renderable is not None:
+        return renderable_content_digest(renderable)
+    return f"visual:{type(visual).__name__}:{id(visual)}"
+
+
+def _store_layout(
+    cache: OrderedDict,
+    key: object,
+    entry: _SectionLayoutCacheEntry,
+) -> None:
+    cache[key] = entry
+    cache.move_to_end(key)
+    if len(cache) > _SECTION_LAYOUT_CACHE_MAX_ENTRIES:
+        cache.popitem(last=False)
+
+
 class SectionTrackingVisual(Visual):
     """Pass through Textual's normal visual while collecting marked rows."""
 
-    __slots__ = ("_anchors_by_key", "_generation", "_owner", "_visual")
+    __slots__ = (
+        "_anchors_by_key",
+        "_content_digest",
+        "_generation",
+        "_owner",
+        "_visual",
+    )
 
     def __init__(
         self,
@@ -74,6 +130,7 @@ class SectionTrackingVisual(Visual):
         self._visual = visual
         self._owner = ref(owner)
         self._generation = generation
+        self._content_digest = _visual_content_digest(visual)
         self._anchors_by_key: dict[
             tuple[int, int],
             tuple[PromptPanelSectionAnchor, ...],
@@ -86,12 +143,37 @@ class SectionTrackingVisual(Visual):
         style: Style,
         options: RenderOptions,
     ) -> list[Strip]:
+        style_token = _textual_style_token(style)
+        strip_key = (self._content_digest, width, style_token)
+        cached = _section_strip_cache.get(strip_key)
+        if cached is not None and cached.strips is not None:
+            _section_strip_cache.move_to_end(strip_key)
+            self._publish(width=width, anchors=cached.anchors)
+            return list(cached.strips)
+
         strips = self._visual.render_strips(width, height, style, options)
         anchors = (
             self._anchors_for_rich_visual(width)
             if isinstance(self._visual, RichVisual)
             else self._anchors_for_strips(width=width, strips=strips)
         )
+        _store_layout(
+            _section_strip_cache,
+            strip_key,
+            _SectionLayoutCacheEntry(
+                anchors=anchors,
+                height=len(strips),
+                strips=tuple(strips),
+            ),
+        )
+        height_key = (self._content_digest, width)
+        height_cached = _section_height_cache.get(height_key)
+        if height_cached is None or height_cached.height is None:
+            _store_layout(
+                _section_height_cache,
+                height_key,
+                _SectionLayoutCacheEntry(anchors=anchors, height=len(strips)),
+            )
         self._publish(width=width, anchors=anchors)
         return strips
 
@@ -102,6 +184,11 @@ class SectionTrackingVisual(Visual):
         strips: list[Strip],
     ) -> tuple[PromptPanelSectionAnchor, ...]:
         """Return cached anchors, collecting them from the paint strips once."""
+        height_key = (self._content_digest, width)
+        height_cached = _section_height_cache.get(height_key)
+        if height_cached is not None and height_cached.anchors:
+            _section_height_cache.move_to_end(height_key)
+            return height_cached.anchors
         key = (self._generation, width)
         cached = self._anchors_by_key.get(key)
         if cached is not None:
@@ -120,6 +207,15 @@ class SectionTrackingVisual(Visual):
 
         cached = tuple(anchors)
         self._anchors_by_key[key] = cached
+        existing = _section_height_cache.get(height_key)
+        _store_layout(
+            _section_height_cache,
+            height_key,
+            _SectionLayoutCacheEntry(
+                anchors=cached,
+                height=(existing.height if existing is not None else len(strips)),
+            ),
+        )
         return cached
 
     def _anchors_for_rich_visual(
@@ -127,6 +223,11 @@ class SectionTrackingVisual(Visual):
         width: int,
     ) -> tuple[PromptPanelSectionAnchor, ...]:
         """Return cached Rich anchors from the uncropped segment stream."""
+        height_key = (self._content_digest, width)
+        height_cached = _section_height_cache.get(height_key)
+        if height_cached is not None and height_cached.anchors:
+            _section_height_cache.move_to_end(height_key)
+            return height_cached.anchors
         key = (self._generation, width)
         cached = self._anchors_by_key.get(key)
         if cached is not None:
@@ -150,6 +251,15 @@ class SectionTrackingVisual(Visual):
 
         cached = tuple(anchors)
         self._anchors_by_key[key] = cached
+        existing = _section_height_cache.get(height_key)
+        _store_layout(
+            _section_height_cache,
+            height_key,
+            _SectionLayoutCacheEntry(
+                anchors=cached,
+                height=existing.height if existing is not None else None,
+            ),
+        )
         return cached
 
     def get_optimal_width(self, rules: RulesMap, container_width: int) -> int:
@@ -162,9 +272,24 @@ class SectionTrackingVisual(Visual):
 
     def get_height(self, rules: RulesMap, width: int) -> int:
         """Delegate height measurement and publish cached Rich anchors."""
+        height_key = (self._content_digest, width)
+        cached = _section_height_cache.get(height_key)
+        if cached is not None and cached.height is not None:
+            _section_height_cache.move_to_end(height_key)
+            if cached.anchors:
+                self._publish(width=width, anchors=cached.anchors)
+            return cached.height
+
         height = self._visual.get_height(rules, width)
+        anchors: tuple[PromptPanelSectionAnchor, ...] = ()
         if isinstance(self._visual, RichVisual):
-            self._publish(width=width, anchors=self._anchors_for_rich_visual(width))
+            anchors = self._anchors_for_rich_visual(width)
+            self._publish(width=width, anchors=anchors)
+        _store_layout(
+            _section_height_cache,
+            height_key,
+            _SectionLayoutCacheEntry(anchors=anchors, height=height),
+        )
         return height
 
     def _publish(

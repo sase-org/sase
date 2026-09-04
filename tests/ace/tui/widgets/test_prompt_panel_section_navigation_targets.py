@@ -122,6 +122,20 @@ def test_prompt_panel_render_reuses_visual_within_generation() -> None:
     assert panel.render() is third
 
 
+def test_prompt_panel_update_skips_equivalent_content() -> None:
+    panel = AgentPromptPanel()
+    original = Group(Text("unchanged idle document\n"))
+    panel.update(original)
+    generation = panel._section_generation  # noqa: SLF001
+    visual = panel.render()
+
+    panel.update(Group(Text("unchanged idle document\n")))
+
+    assert panel._section_generation == generation  # noqa: SLF001
+    assert panel.render() is visual
+    assert panel.content is original
+
+
 def test_section_tracking_visual_caches_rich_anchor_collection_by_width(
     monkeypatch,
 ) -> None:
@@ -173,6 +187,47 @@ def test_section_tracking_visual_caches_rich_anchor_collection_by_width(
 
     assert visual.strip_calls == 1
     assert inspected_segments == first_pass_segment_count
+
+
+def test_section_tracking_visual_reuses_layout_across_visuals_for_same_content() -> (
+    None
+):
+    panel = AgentPromptPanel()
+    panel._section_generation = 1  # noqa: SLF001
+    renderable = Group(section("IDLE", "body\n"), section("TAIL", "tail\n"))
+    first_visual = _CountingRichVisual([], renderable=renderable)
+    first = SectionTrackingVisual(first_visual, panel, 1)
+    paint = RenderOptions(get_style=lambda _style: Style(), rules={})
+    console = Console(width=80)
+    token = active_app.set(
+        SimpleNamespace(console=console, console_options=console.options)
+    )
+    try:
+        first.get_height({}, 40)
+        first.render_strips(40, 1, Style(), paint)
+        assert [anchor.identity for anchor in panel._section_anchors] == [  # noqa: SLF001
+            "idle",
+            "tail",
+        ]
+
+        panel._section_generation = 2  # noqa: SLF001
+        panel._section_anchors = ()  # noqa: SLF001
+        second_visual = _CountingRichVisual(
+            [],
+            renderable=Group(section("IDLE", "body\n"), section("TAIL", "tail\n")),
+        )
+        second = SectionTrackingVisual(second_visual, panel, 2)
+        second.get_height({}, 40)
+        second.render_strips(40, 1, Style(), paint)
+    finally:
+        active_app.reset(token)
+
+    assert second_visual.height_calls == 0
+    assert second_visual.strip_calls == 0
+    assert [anchor.identity for anchor in panel._section_anchors] == [  # noqa: SLF001
+        "idle",
+        "tail",
+    ]
 
 
 def test_section_tracking_visual_delegates_non_rich_height_without_anchor_collection(
@@ -273,7 +328,7 @@ def test_section_tracking_visual_caches_anchor_collection_by_generation_and_widt
         Style(),
         RenderOptions(get_style=lambda _style: Style(), rules={}),
     )
-    assert visual.strip_calls == 2
+    assert visual.strip_calls == 1
     assert inspected_segments == first_pass_segment_count
 
 

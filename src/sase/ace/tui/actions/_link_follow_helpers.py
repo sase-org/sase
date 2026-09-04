@@ -34,8 +34,11 @@ def link_panel_reveal_flags(app: Any, chips: tuple[LinkChip, ...]) -> frozenset[
     for index, chip in enumerate(chips):
         if chip.neighbor_target is None:
             continue
-        resolved = resolve(chip.neighbor_ref, chip.neighbor_target)
-        pane = navigator(resolved.pane_id)
+        try:
+            resolved = resolve(chip.neighbor_ref, chip.neighbor_target)
+            pane = navigator(resolved.pane_id)
+        except Exception:
+            continue
         if pane is None or pane_is_loading(pane):
             continue
         entry_targets = getattr(pane, "entry_targets", None)

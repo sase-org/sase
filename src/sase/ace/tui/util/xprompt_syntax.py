@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
+from collections.abc import Callable
+from hashlib import blake2b
 from typing import Protocol
 
 from pygments.lexers.markup import MarkdownLexer  # type: ignore[import-untyped]
@@ -59,6 +62,27 @@ class _XPromptMarkdownLexer(MarkdownLexer):
 
 
 _XPROMPT_MARKDOWN_LEXER = _XPromptMarkdownLexer()
+_MARKDOWN_TEXT_CACHE_MAX_ENTRIES = 24
+_markdown_text_cache: OrderedDict[tuple[object, ...], Text] = OrderedDict()
+
+
+def _text_digest(text: str) -> str:
+    return blake2b(text.encode("utf-8", errors="replace"), digest_size=16).hexdigest()
+
+
+def _cached_highlighted_text(
+    key: tuple[object, ...],
+    factory: Callable[[], Text],
+) -> Text:
+    cached = _markdown_text_cache.get(key)
+    if cached is not None:
+        _markdown_text_cache.move_to_end(key)
+        return cached
+    highlighted = factory()
+    _markdown_text_cache[key] = highlighted
+    if len(_markdown_text_cache) > _MARKDOWN_TEXT_CACHE_MAX_ENTRIES:
+        _markdown_text_cache.popitem(last=False)
+    return highlighted
 
 
 class _StylizableText(Protocol):
@@ -128,37 +152,29 @@ def highlight_prompt_text(
     """
     if _exceeds_prompt_highlight_cap(text):
         return Text(text)
+    key = (
+        "prompt",
+        _text_digest(text),
+        frozenset(known_skills),
+        semantic_styles.signature if semantic_styles is not None else "",
+        id(glossary_catalog) if glossary_catalog is not None else 0,
+        id(repo_catalog) if repo_catalog is not None else 0,
+        frozenset(artifact_ref_known_kinds or ()),
+        getattr(artifact_ref_styles, "signature", ""),
+    )
     try:
-        highlighted = Syntax(
-            text,
-            _XPROMPT_MARKDOWN_LEXER,
-            theme="monokai",
-        ).highlight(text)
-        _trim_syntax_trailing_newline(highlighted, text)
-        apply_semantic_overlays(
-            highlighted,
-            text,
-            glossary_catalog=glossary_catalog,
-            repo_catalog=repo_catalog,
-            styles=semantic_styles,
-            skip_xprompt=True,
-            known_skills=known_skills,
-        )
-        apply_xprompt_overlays(
-            highlighted,
-            text,
-            known_skills=known_skills,
-        )
-        if artifact_ref_known_kinds is not None:
-            apply_artifact_ref_overlays(
-                highlighted,
+        return _cached_highlighted_text(
+            key,
+            lambda: _highlight_prompt_text_uncached(
                 text,
-                known_kinds=artifact_ref_known_kinds,
-                palette=artifact_ref_styles,
-                max_bytes=MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES,
-                max_lines=MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES,
-            )
-        return highlighted
+                known_skills=known_skills,
+                glossary_catalog=glossary_catalog,
+                repo_catalog=repo_catalog,
+                semantic_styles=semantic_styles,
+                artifact_ref_known_kinds=artifact_ref_known_kinds,
+                artifact_ref_styles=artifact_ref_styles,
+            ),
+        )
     except Exception:
         return Text(text)
 
@@ -177,23 +193,90 @@ def highlight_markdown_text(
     """
     if _exceeds_prompt_highlight_cap(text):
         return Text(text)
+    key = (
+        "markdown",
+        _text_digest(text),
+        semantic_styles.signature if semantic_styles is not None else "",
+        id(glossary_catalog) if glossary_catalog is not None else 0,
+        id(repo_catalog) if repo_catalog is not None else 0,
+    )
     try:
-        highlighted = Syntax(
-            text,
-            FRONTMATTER_MARKDOWN_LEXER,
-            theme="monokai",
-        ).highlight(text)
-        _trim_syntax_trailing_newline(highlighted, text)
-        apply_semantic_overlays(
-            highlighted,
-            text,
-            glossary_catalog=glossary_catalog,
-            repo_catalog=repo_catalog,
-            styles=semantic_styles,
+        return _cached_highlighted_text(
+            key,
+            lambda: _highlight_markdown_text_uncached(
+                text,
+                glossary_catalog=glossary_catalog,
+                repo_catalog=repo_catalog,
+                semantic_styles=semantic_styles,
+            ),
         )
-        return highlighted
     except Exception:
         return Text(text)
+
+
+def _highlight_prompt_text_uncached(
+    text: str,
+    *,
+    known_skills: frozenset[str],
+    glossary_catalog: EditorGlossaryCatalog | None,
+    repo_catalog: EditorRepoMentionCatalog | None,
+    semantic_styles: SemanticHighlightStyles | None,
+    artifact_ref_known_kinds: frozenset[str] | None,
+    artifact_ref_styles: ArtifactRefStylePalette | None,
+) -> Text:
+    highlighted = Syntax(
+        text,
+        _XPROMPT_MARKDOWN_LEXER,
+        theme="monokai",
+    ).highlight(text)
+    _trim_syntax_trailing_newline(highlighted, text)
+    apply_semantic_overlays(
+        highlighted,
+        text,
+        glossary_catalog=glossary_catalog,
+        repo_catalog=repo_catalog,
+        styles=semantic_styles,
+        skip_xprompt=True,
+        known_skills=known_skills,
+    )
+    apply_xprompt_overlays(
+        highlighted,
+        text,
+        known_skills=known_skills,
+    )
+    if artifact_ref_known_kinds is not None:
+        apply_artifact_ref_overlays(
+            highlighted,
+            text,
+            known_kinds=artifact_ref_known_kinds,
+            palette=artifact_ref_styles,
+            max_bytes=MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES,
+            max_lines=MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES,
+        )
+    return highlighted
+
+
+def _highlight_markdown_text_uncached(
+    text: str,
+    *,
+    glossary_catalog: EditorGlossaryCatalog | None,
+    repo_catalog: EditorRepoMentionCatalog | None,
+    semantic_styles: SemanticHighlightStyles | None,
+) -> Text:
+    highlighted = Syntax(
+        text,
+        FRONTMATTER_MARKDOWN_LEXER,
+        theme="monokai",
+    ).highlight(text)
+    _trim_syntax_trailing_newline(highlighted, text)
+    apply_semantic_overlays(
+        highlighted,
+        text,
+        glossary_catalog=glossary_catalog,
+        repo_catalog=repo_catalog,
+        styles=semantic_styles,
+    )
+    return highlighted
 
 
 def _exceeds_prompt_highlight_cap(text: str) -> bool:

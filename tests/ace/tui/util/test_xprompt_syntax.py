@@ -10,6 +10,7 @@ from sase.ace.tui.util.lazy_syntax import MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES
 from sase.ace.tui.util.xprompt_syntax import (
     _XPROMPT_MARKDOWN_LEXER,
     XPROMPT_TOKEN_STYLES,
+    highlight_markdown_text,
     highlight_prompt_text,
 )
 
@@ -191,7 +192,16 @@ def test_highlighting_exception_falls_back_to_plain_text(monkeypatch) -> None:
         raise RuntimeError("boom")
 
     monkeypatch.setattr("sase.ace.tui.util.xprompt_syntax.Syntax.highlight", _raise)
-    highlighted = highlight_prompt_text("#foo")
+    highlighted = highlight_prompt_text("#foo-exception-fallback-unique")
 
-    assert highlighted.plain == "#foo"
+    assert highlighted.plain == "#foo-exception-fallback-unique"
     assert highlighted.spans == []
+
+
+def test_highlight_markdown_text_reuses_unchanged_content() -> None:
+    source = "---\ntier: tale\n---\n# Idle document\n"
+    first = highlight_markdown_text(source)
+    second = highlight_markdown_text(source)
+
+    assert first is second
+    assert first.plain.startswith("---")

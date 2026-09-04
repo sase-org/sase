@@ -15,6 +15,7 @@ from sase.ace.tui.util.lazy_syntax import (
     MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES,
     PLAIN_RENDER_MAX_BYTES,
     PLAIN_RENDER_MAX_LINES,
+    CachedRenderable,
     LazySyntaxRenderCache,
     SYNTAX_HIGHLIGHT_MAX_BYTES,
     SYNTAX_HIGHLIGHT_MAX_LINES,
@@ -24,23 +25,30 @@ from sase.ace.tui.util.lazy_syntax import (
 )
 
 
+def _syntax(out: object) -> Syntax:
+    if isinstance(out, CachedRenderable):
+        inner = out.renderable
+        assert isinstance(inner, Syntax)
+        return inner
+    assert isinstance(out, Syntax)
+    return out
+
+
 def test_lazy_renderable_under_cap_returns_syntax() -> None:
     out = lazy_renderable("# hello\n", "markdown")
-    assert isinstance(out, Syntax)
+    assert isinstance(_syntax(out), Syntax)
 
 
 def test_lazy_renderable_markdown_uses_frontmatter_lexer() -> None:
     out = lazy_renderable("---\ntier: tale\n---\n# hello\n", "markdown")
 
-    assert isinstance(out, Syntax)
-    assert out.lexer is FRONTMATTER_MARKDOWN_LEXER
+    assert _syntax(out).lexer is FRONTMATTER_MARKDOWN_LEXER
 
 
 def test_lazy_renderable_non_markdown_lexer_is_unchanged() -> None:
     out = lazy_renderable("print('hello')\n", "python")
 
-    assert isinstance(out, Syntax)
-    assert vars(out)["_lexer"] == "python"
+    assert vars(_syntax(out))["_lexer"] == "python"
 
 
 def test_lazy_renderable_over_byte_cap_returns_plain_group() -> None:
@@ -59,14 +67,14 @@ def test_lazy_renderable_uses_lower_markdown_byte_cap_only_for_markdown() -> Non
     content = "x" * (MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES + 1)
 
     assert isinstance(lazy_renderable(content, "markdown"), Group)
-    assert isinstance(lazy_renderable(content, "python"), Syntax)
+    assert isinstance(_syntax(lazy_renderable(content, "python")), Syntax)
 
 
 def test_lazy_renderable_uses_lower_markdown_line_cap_only_for_markdown() -> None:
     content = "\n".join(["x"] * (MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES + 1))
 
     assert isinstance(lazy_renderable(content, "markdown"), Group)
-    assert isinstance(lazy_renderable(content, "python"), Syntax)
+    assert isinstance(_syntax(lazy_renderable(content, "python")), Syntax)
 
 
 def test_lazy_renderable_diff_with_line_range_uses_visible_size() -> None:
@@ -74,7 +82,7 @@ def test_lazy_renderable_diff_with_line_range_uses_visible_size() -> None:
     even when the whole file is huge."""
     huge_diff = "\n".join(["+ line"] * 50_000)
     out = lazy_renderable(huge_diff, "diff", line_numbers=True, line_range=(1, 100))
-    assert isinstance(out, Syntax)
+    assert isinstance(_syntax(out), Syntax)
 
 
 def test_exceeds_cap_measures_visible_range_only() -> None:
@@ -166,10 +174,11 @@ def test_cached_lazy_renderable_renders_distinct_width(monkeypatch) -> None:
     )
     console = Console(width=40, force_terminal=True)
 
-    tuple(out.__rich_console__(console, console.options.update_width(40)))
-    tuple(out.__rich_console__(console, console.options.update_width(72)))
+    narrow = tuple(out.__rich_console__(console, console.options.update_width(40)))
+    wide = tuple(out.__rich_console__(console, console.options.update_width(72)))
 
-    assert calls == 2
+    assert calls == 1
+    assert narrow != wide
 
 
 def test_cached_lazy_renderable_reuses_renderable_for_same_content() -> None:
@@ -371,3 +380,49 @@ def test_5mb_response_renders_as_plain_group() -> None:
     assert isinstance(body, Text)
     assert len(body.plain.encode("utf-8")) <= PLAIN_RENDER_MAX_BYTES
     assert "truncated for display" in str(out.renderables[2])
+
+
+def test_default_cache_reuses_renderable_for_unchanged_content() -> None:
+    first = lazy_renderable("# idle document sase-wn.7\n", "markdown")
+    second = lazy_renderable("# idle document sase-wn.7\n", "markdown")
+
+    assert first is second
+    assert isinstance(first, CachedRenderable)
+
+
+def test_highlight_is_reused_across_cached_renderable_instances(monkeypatch) -> None:
+    original_highlight = Syntax.highlight
+    calls = 0
+
+    def counted_highlight(self, code, line_range=None):
+        nonlocal calls
+        calls += 1
+        return original_highlight(self, code, line_range)
+
+    monkeypatch.setattr(Syntax, "highlight", counted_highlight)
+    content = "def idle_refresh_sase_wn7():\n    return 'unchanged'\n"
+    first = LazySyntaxRenderCache(max_entries=2).get(
+        content,
+        "python",
+        theme="monokai",
+        word_wrap=True,
+        line_range=None,
+        line_numbers=False,
+        highlight_lines=None,
+    )
+    second = LazySyntaxRenderCache(max_entries=2).get(
+        content,
+        "python",
+        theme="monokai",
+        word_wrap=True,
+        line_range=None,
+        line_numbers=False,
+        highlight_lines=None,
+    )
+    assert first is not second
+
+    console = Console(width=48, force_terminal=True)
+    tuple(first.__rich_console__(console, console.options.update_width(48)))
+    tuple(second.__rich_console__(console, console.options.update_width(48)))
+
+    assert calls == 1

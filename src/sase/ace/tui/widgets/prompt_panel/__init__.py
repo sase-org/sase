@@ -17,6 +17,7 @@ from ._helpers import (
     format_meta_key,
     load_xprompts_used,
 )
+from ...util.renderable_digest import renderable_content_digest
 from ._section_navigation import (
     PromptPanelSectionAnchor,
     PromptPanelSectionRole,
@@ -48,6 +49,7 @@ class AgentPromptPanel(
     _section_layout_reserve_enabled: bool = False
     _section_tracking_visual: SectionTrackingVisual | None = None
     _section_tracking_visual_generation: int = -1
+    _section_content_digest: str | None = None
     _preserve_missing_section_next_update: bool = False
     _preserve_missing_section_generation: int = -1
 
@@ -75,7 +77,26 @@ class AgentPromptPanel(
         self._preserve_missing_section_next_update = True
 
     def update(self, content: Any = "", *, layout: bool = True) -> None:
-        """Update content while invalidating only the cached rendered anchors."""
+        """Update content while invalidating only the cached rendered anchors.
+
+        Equivalent documents (same content hash) skip generation bumps, visual
+        rebuilds, and layout invalidation so idle refreshes of an unchanged
+        prompt panel do not re-render.
+        """
+        digest: str | None
+        try:
+            digest = renderable_content_digest(content)
+        except Exception:
+            digest = None
+        previous = getattr(self, "_section_content_digest", None)
+        if (
+            digest is not None
+            and digest == previous
+            and getattr(self, "_section_generation", 0) > 0
+        ):
+            self._preserve_missing_section_next_update = False
+            return
+        self._section_content_digest = digest
         self._section_generation = getattr(self, "_section_generation", 0) + 1
         self._preserve_missing_section_generation = (
             self._section_generation

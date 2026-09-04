@@ -8,7 +8,9 @@ import pytest
 from pygments.lexers.markup import MarkdownLexer  # type: ignore[import-untyped]
 from pygments.token import Token  # type: ignore[import-untyped]
 
-from sase.ace.tui.util.frontmatter_syntax import FrontmatterMarkdownLexer
+from sase.ace.tui.util.frontmatter_syntax import (
+    FrontmatterMarkdownLexer,
+)
 from sase.sdd.frontmatter import frontmatter_span, parse_frontmatter
 
 
@@ -101,6 +103,24 @@ def test_lexer_engagement_matches_frontmatter_span(
 
     assert span == expected_span
     assert engaged is (span is not None)
+
+
+def test_lexer_reuses_tokens_for_unchanged_content(monkeypatch) -> None:
+    calls = 0
+    original = MarkdownLexer.get_tokens_unprocessed
+
+    def counted(self, text):
+        nonlocal calls
+        calls += 1
+        return original(self, text)
+
+    monkeypatch.setattr(MarkdownLexer, "get_tokens_unprocessed", counted)
+    source = "# Unique idle prompt panel document for token reuse\n\nUnchanged body.\n"
+    first = _tokens(source)
+    second = _tokens(source)
+
+    assert first == second
+    assert calls == 1
 
 
 def test_parse_frontmatter_semantics_are_preserved() -> None:

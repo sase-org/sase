@@ -70,14 +70,85 @@ def _effective_lexer(lexer: str) -> FrontmatterMarkdownLexer | str:
 
 
 def _render_options_key(options: object) -> tuple[object, ...]:
+    """Return a primitive style/width token for Rich console options.
+
+    Values are coerced to stable types so equivalent ConsoleOptions objects
+    produced on idle refreshes share a cache entry.
+    """
+    overflow = getattr(options, "overflow", None)
     return (
-        getattr(options, "max_width", None),
-        getattr(options, "min_width", None),
-        getattr(options, "legacy_windows", None),
-        getattr(options, "ascii_only", None),
-        getattr(options, "no_wrap", None),
-        getattr(options, "overflow", None),
+        int(getattr(options, "max_width", 0) or 0),
+        int(getattr(options, "min_width", 0) or 0),
+        bool(getattr(options, "legacy_windows", False)),
+        bool(getattr(options, "ascii_only", False)),
+        bool(getattr(options, "no_wrap", False)),
+        "" if overflow is None else str(overflow),
     )
+
+
+_SEGMENT_CACHE_MAX_ENTRIES = 32
+_HIGHLIGHT_CACHE_MAX_ENTRIES = 24
+_segments_by_content_and_style: OrderedDict[
+    tuple[str, tuple[object, ...]], tuple[Segment, ...]
+] = OrderedDict()
+_measurements_by_content_and_style: OrderedDict[
+    tuple[str, tuple[object, ...]], Measurement
+] = OrderedDict()
+_highlight_by_content: OrderedDict[tuple[object, ...], Text] = OrderedDict()
+
+
+def _bounded_store(
+    cache: OrderedDict, key: object, value: object, max_entries: int
+) -> None:
+    cache[key] = value
+    cache.move_to_end(key)
+    if len(cache) > max_entries:
+        cache.popitem(last=False)
+
+
+def _syntax_highlight_key(
+    syntax: Syntax,
+    content_digest: str,
+    line_range: tuple[int | None, int | None] | None,
+) -> tuple[object, ...]:
+    lexer = getattr(syntax, "lexer", None)
+    theme = getattr(syntax, "theme", "")
+    highlight_lines = getattr(syntax, "highlight_lines", None) or ()
+    return (
+        content_digest,
+        type(lexer).__name__ if lexer is not None else "",
+        str(theme),
+        line_range,
+        frozenset(highlight_lines),
+    )
+
+
+def _bind_syntax_highlight_cache(syntax: Syntax, content_digest: str) -> None:
+    """Reuse Syntax.highlight() output across widths and equivalent documents."""
+    if getattr(syntax, "_sase_highlight_cached", False):
+        return
+    original = syntax.highlight
+
+    def cached_highlight(
+        code: str,
+        line_range: tuple[int | None, int | None] | None = None,
+    ) -> Text:
+        key = _syntax_highlight_key(syntax, content_digest, line_range)
+        cached = _highlight_by_content.get(key)
+        if cached is not None:
+            _highlight_by_content.move_to_end(key)
+            return cached
+        highlighted = original(code, line_range)
+        _bounded_store(
+            _highlight_by_content,
+            key,
+            highlighted,
+            _HIGHLIGHT_CACHE_MAX_ENTRIES,
+        )
+        return highlighted
+
+    syntax.highlight = cached_highlight  # type: ignore[method-assign]
+    syntax._sase_highlight_cached = True  # type: ignore[attr-defined]
 
 
 class CachedRenderable:
@@ -86,12 +157,20 @@ class CachedRenderable:
     def __init__(self, renderable: RenderableType, content: str) -> None:
         self._renderable = renderable
         self._content = content
+        self._digest = _content_digest(content)
         self._segments_by_options: OrderedDict[tuple[object, ...], tuple[Segment, ...]]
         self._segments_by_options = OrderedDict()
         self._measurements_by_options: OrderedDict[tuple[object, ...], Measurement] = (
             OrderedDict()
         )
         self._max_width_entries = 8
+        if isinstance(renderable, Syntax):
+            _bind_syntax_highlight_cache(renderable, self._digest)
+
+    @property
+    def content_digest(self) -> str:
+        """Return the content hash used by document-level render caches."""
+        return self._digest
 
     @property
     def code(self) -> str:
@@ -116,29 +195,50 @@ class CachedRenderable:
         console: Console,
         options: ConsoleOptions,
     ) -> Iterable[Segment]:
-        key = _render_options_key(options)
-        cached = self._segments_by_options.get(key)
+        style_key = _render_options_key(options)
+        cached = self._segments_by_options.get(style_key)
         if cached is None:
-            cached = tuple(console.render(self._renderable, options=options))
-            self._segments_by_options[key] = cached
+            shared_key = (self._digest, style_key)
+            cached = _segments_by_content_and_style.get(shared_key)
+            if cached is None:
+                cached = tuple(console.render(self._renderable, options=options))
+                _bounded_store(
+                    _segments_by_content_and_style,
+                    shared_key,
+                    cached,
+                    _SEGMENT_CACHE_MAX_ENTRIES,
+                )
+            self._segments_by_options[style_key] = cached
             if len(self._segments_by_options) > self._max_width_entries:
                 self._segments_by_options.popitem(last=False)
         else:
-            self._segments_by_options.move_to_end(key)
+            self._segments_by_options.move_to_end(style_key)
+            shared_key = (self._digest, style_key)
+            if shared_key in _segments_by_content_and_style:
+                _segments_by_content_and_style.move_to_end(shared_key)
         yield from cached
 
     def __rich_measure__(
         self, console: Console, options: ConsoleOptions
     ) -> Measurement:
-        key = _render_options_key(options)
-        cached = self._measurements_by_options.get(key)
+        style_key = _render_options_key(options)
+        cached = self._measurements_by_options.get(style_key)
         if cached is None:
-            cached = Measurement.get(console, options, self._renderable)
-            self._measurements_by_options[key] = cached
+            shared_key = (self._digest, style_key)
+            cached = _measurements_by_content_and_style.get(shared_key)
+            if cached is None:
+                cached = Measurement.get(console, options, self._renderable)
+                _bounded_store(
+                    _measurements_by_content_and_style,
+                    shared_key,
+                    cached,
+                    _SEGMENT_CACHE_MAX_ENTRIES,
+                )
+            self._measurements_by_options[style_key] = cached
             if len(self._measurements_by_options) > self._max_width_entries:
                 self._measurements_by_options.popitem(last=False)
         else:
-            self._measurements_by_options.move_to_end(key)
+            self._measurements_by_options.move_to_end(style_key)
         return cached
 
 
@@ -242,6 +342,9 @@ class LazySyntaxRenderCache:
         if len(self._entries) > self._max_entries:
             self._entries.popitem(last=False)
         return cached
+
+
+_DEFAULT_SYNTAX_RENDER_CACHE = LazySyntaxRenderCache(max_entries=32)
 
 
 def _measure(content: str, line_range: tuple[int, int] | None) -> tuple[int, int]:
@@ -405,32 +508,26 @@ def lazy_renderable(
     truncation_hint: str = DEFAULT_TRUNCATION_HINT,
     highlight_lines: frozenset[int] | None = None,
 ) -> RenderableType:
-    """Return a Rich ``Syntax`` when small enough, else a capped plain block.
+    """Return a cached Syntax wrapper when small enough, else a capped plain block.
 
-    When ``content`` exceeds either highlight cap, render a ``Text`` of the
-    visible portion preceded by a one-line dim-italic notice. The plain path is
-    always byte- and line-capped; callers may lower the default line cap and
-    customize the trailing truncation hint for their surface.
+    Under the highlight cap, the result is a ``CachedRenderable`` keyed by
+    content hash, width, and wrap options so idle refreshes of unchanged
+    documents reuse highlighting. When ``content`` exceeds either highlight
+    cap, render a ``Text`` of the visible portion preceded by a one-line
+    dim-italic notice. The plain path is always byte- and line-capped;
+    callers may lower the default line cap and customize the trailing
+    truncation hint for their surface.
     """
     if not exceeds_syntax_highlight_cap(content, lexer, line_range):
-        if render_cache is not None:
-            return render_cache.get(
-                content,
-                lexer,
-                theme=theme,
-                word_wrap=word_wrap,
-                line_range=line_range,
-                line_numbers=line_numbers,
-                highlight_lines=highlight_lines,
-            )
-        return Syntax(
+        cache = _DEFAULT_SYNTAX_RENDER_CACHE if render_cache is None else render_cache
+        return cache.get(
             content,
-            _effective_lexer(lexer),
+            lexer,
             theme=theme,
             word_wrap=word_wrap,
-            line_numbers=line_numbers,
             line_range=line_range,
-            highlight_lines=set(highlight_lines or ()),
+            line_numbers=line_numbers,
+            highlight_lines=highlight_lines,
         )
 
     notice = Text(
