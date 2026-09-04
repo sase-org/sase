@@ -9,7 +9,10 @@ from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts import files_data, files_pane
-from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
+from sase.ace.tui.widgets.artifacts.entry_navigation import (
+    ArtifactEntryTarget,
+    LinkRequestState,
+)
 from sase.ace.tui.widgets.artifacts.files_pane import ArtifactsFilesPane
 from tests.ace.tui._artifacts_files_helpers import (
     artifact_file,
@@ -165,7 +168,7 @@ async def test_request_entry_target_defers_until_a_matching_snapshot_loads(
             target = ArtifactEntryTarget(
                 pane_id="files", parts=(logical_file(linked).logical_id,)
             )
-            assert pane.request_entry_target(target) is False
+            assert pane.request_entry_target(target) is LinkRequestState.PENDING
             assert pane._pending_entry_target == target
 
             release_full.set()

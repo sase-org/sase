@@ -8,6 +8,7 @@ from sase.ace.tui.actions.link_follow import LinkFollowMixin, LinkTrailHop
 from sase.ace.tui.actions.link_trail import LinkTrailMixin, link_trail_breadcrumb_text
 from sase.ace.tui.relations.link_index import LinkChip
 from sase.ace.tui.models.fold_state import FoldLevel, FoldStateManager
+from sase.ace.tui.widgets.artifacts.entry_navigation import LinkRequestState
 from sase.ace.tui.widgets.bgcmd_list import ChopItem, LumberjackItem
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.artifact_relation_layout import RelationRole
@@ -67,8 +68,16 @@ class _Pane:
         self.current = target
         return True
 
-    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
-        return self.select_entry_target(target)
+    def request_entry_target(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        generation: int | None = None,
+    ) -> LinkRequestState:
+        del generation
+        if self.select_entry_target(target):
+            return LinkRequestState.SELECTED
+        return LinkRequestState.MISSING
 
     def reveal_entry_target(
         self,
@@ -113,6 +122,9 @@ class _App(LinkFollowMixin, LinkTrailMixin):
         self._link_trail: list[LinkTrailHop] = []
         self._link_trail_forward: list[LinkTrailHop] = []
         self._link_trail_guard = False
+        self._link_follow_generation = 0
+        self._link_follow_transaction = None
+        self._link_follow_dispatching = False
         self._chips = chips
         self._panes = panes or {}
         self._agents = list(agents)
@@ -134,10 +146,17 @@ class _App(LinkFollowMixin, LinkTrailMixin):
     def _artifacts_entry_navigator(self, pane_key: str | None = None) -> _Pane | None:
         return self._panes.get(pane_key or self.current_artifacts_pane_key)
 
-    def _request_artifacts_entry(self, target: ArtifactEntryTarget) -> bool:
+    def _request_artifacts_entry(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        generation: int | None = None,
+    ) -> LinkRequestState:
         self.current_artifacts_pane_key = target.pane_id
         pane = self._artifacts_entry_navigator(target.pane_id)
-        return bool(pane is not None and pane.request_entry_target(target))
+        if pane is None:
+            return LinkRequestState.MISSING
+        return pane.request_entry_target(target, generation=generation)
 
     def _set_artifacts_project_scope(
         self, project: str | None, *, picked: bool
@@ -242,6 +261,40 @@ def test_back_restores_project_scope_changed_by_the_forward_hop() -> None:
 
     assert app._walk_link_trail_back() is True
     assert app.artifacts_project_scope is None
+
+
+def test_ctrl_o_restores_patches_origin_query_and_selection() -> None:
+    """A Patches-origin follow captures its query, so ``Ctrl+O`` restores it.
+
+    Before the Patches host-query adapter, ``_current_link_trail_origin``
+    always captured ``query_source=None`` for a Patches origin, so the
+    restored hop never reapplied the query it left behind.
+    """
+    patches_origin = ArtifactEntryTarget("patches", ("demo", "origin-patch"))
+    target = ArtifactEntryTarget("beads", ("demo", "task", "sase-ug.7"))
+    patches_pane = _Pane(
+        targets=(patches_origin,),
+        selected=patches_origin,
+        query="author:me limit:40",
+    )
+    app = _App(
+        chips=(_chip("bead:sase-ug.7", target),),
+        panes={
+            "patches": patches_pane,
+            "beads": _Pane(targets=(target,)),
+        },
+    )
+    app.current_artifacts_pane_key = "patches"
+
+    _follow_first(app)
+    assert app.current_artifacts_pane_key == "beads"
+    # The follow itself must not touch the Patches query.
+    assert patches_pane.query == "author:me limit:40"
+
+    assert app._walk_link_trail_back() is True
+    assert patches_pane.applied_queries == ["author:me limit:40"]
+    assert app.current_artifacts_pane_key == "patches"
+    assert patches_pane.selected_entry_target() == patches_origin
 
 
 def test_axe_hop_restores_across_tabs_and_expands_the_lumberjack() -> None:
@@ -443,6 +496,55 @@ def test_marking_a_row_does_not_clear_the_trail() -> None:
     app._note_artifacts_selection_for_link_trail()
 
     assert app._link_trail != []
+
+
+def test_user_navigation_cancels_a_pending_link_follow_transaction() -> None:
+    """A pending follow's later resolution must not land after the user moves on."""
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    target = ArtifactEntryTarget("beads", ("demo", "task", "sase-ug.9"))
+    decoy = ArtifactEntryTarget("beads", ("demo", "task", "sase-ug.1"))
+    files_pane = _Pane(targets=(origin,), selected=origin)
+
+    class _DeferredBeadsPane(_Pane):
+        def request_entry_target(
+            self,
+            target: ArtifactEntryTarget,
+            *,
+            generation: int | None = None,
+        ) -> LinkRequestState:
+            if self.select_entry_target(target):
+                return LinkRequestState.SELECTED
+            self.pending_target = target
+            self.pending_generation = generation
+            return LinkRequestState.PENDING
+
+    beads_pane = _DeferredBeadsPane(targets=(decoy,))
+    app = _App(
+        chips=(_chip("bead:sase-ug.9", target),),
+        panes={"files": files_pane, "beads": beads_pane},
+    )
+
+    _follow_first(app)
+    assert app._link_follow_transaction is not None
+    generation = app._link_follow_transaction.generation
+    # Establish the observed-selection baseline for the now-active Beads pane.
+    app._note_artifacts_selection_for_link_trail()
+
+    # The user navigates onto a different row within Beads while the follow
+    # is still pending; that real selection change must cancel the
+    # transaction, even though it belongs to the same pane the follow
+    # switched to.
+    beads_pane.select_entry_target(decoy)
+    app._note_artifacts_selection_for_link_trail()
+    assert app._link_follow_transaction is None
+
+    # The follow's later async resolution is now stale and silently ignored.
+    beads_pane._targets = (decoy, target)
+    beads_pane.select_entry_target(target)
+    app._complete_link_follow_request(generation, LinkRequestState.SELECTED)
+
+    assert app._link_trail == []
+    assert app.rail_refreshed == 0
 
 
 def test_breadcrumb_text_is_none_with_an_empty_trail() -> None:

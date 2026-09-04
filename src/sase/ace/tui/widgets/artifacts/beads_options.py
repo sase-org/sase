@@ -24,7 +24,7 @@ from .beads_rendering import (
     build_beads_status,
     build_empty_bead_detail,
 )
-from .entry_navigation import ArtifactEntryTarget
+from .entry_navigation import ArtifactEntryTarget, LinkRequestState
 from .query_session import ArtifactQuerySession
 from .shell import ArtifactsPaneState
 from .types import ARTIFACTS_ACCENTS, ArtifactsPaneContract
@@ -71,6 +71,10 @@ class BeadsOptionsMixin(_MixinBase):
         ) -> BeadFilterIndex | None: ...
 
         def _option_list(self) -> BeadsOptionList | None: ...
+
+        def _complete_entry_request(
+            self, state: LinkRequestState
+        ) -> LinkRequestState: ...
 
         def _set_bead_rows(
             self,
@@ -195,7 +199,12 @@ class BeadsOptionsMixin(_MixinBase):
                 )
                 return
             if self._loaded_current_snapshot():
-                self._notify_pending_entry_missing()
+                state = (
+                    LinkRequestState.FAILED
+                    if self._load_error is not None
+                    else LinkRequestState.MISSING
+                )
+                self._complete_entry_request(state)
         if pending_id is not None:
             preferred_id = pending_id
         target_index = next(
@@ -217,7 +226,7 @@ class BeadsOptionsMixin(_MixinBase):
         finally:
             self._syncing_options = False
         if pending_id is not None:
-            self._pending_entry_target = None
+            self._complete_entry_request(LinkRequestState.SELECTED)
         self._update_static("#beads-status", self._status_text())
         self._update_static("#beads-info", self._scope_text())
         self._sync_query_bar(
@@ -365,12 +374,6 @@ class BeadsOptionsMixin(_MixinBase):
         notify = getattr(self, "notify", None)
         if callable(notify):
             notify("Cleared Beads filter to show linked bead")
-
-    def _notify_pending_entry_missing(self) -> None:
-        self._pending_entry_target = None
-        notify = getattr(self, "notify", None)
-        if callable(notify):
-            notify("Linked bead is no longer visible in Beads", severity="warning")
 
     def _loaded_current_snapshot(self) -> bool:
         return (

@@ -11,7 +11,10 @@ from sase.ace.tui._artifact_tab_contract import compile_builtin_contract
 from sase.ace.tui.actions.artifacts_query_history import (
     ArtifactsQueryHistoryActionsMixin,
 )
-from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
+from sase.ace.tui.widgets.artifacts.entry_navigation import (
+    ArtifactEntryTarget,
+    LinkRequestState,
+)
 
 
 class _Pane:
@@ -37,9 +40,15 @@ class _Pane:
     def selected_entry_target(self) -> ArtifactEntryTarget:
         return self.selected
 
-    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
+    def request_entry_target(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        generation: int | None = None,
+    ) -> LinkRequestState:
+        del generation
         self.restored.append(target)
-        return True
+        return LinkRequestState.SELECTED
 
 
 class _App(ArtifactsQueryHistoryActionsMixin):

@@ -274,14 +274,17 @@ class ArtifactsQueryHistoryActionsMixin:
         token = self._query_selections.get(pane_id, {}).get(canonical)
         if token is None:
             return
-        from ..widgets.artifacts.entry_navigation import ArtifactEntryTarget
+        from ..widgets.artifacts.entry_navigation import (
+            ArtifactEntryTarget,
+            LinkRequestState,
+        )
 
         try:
             target = ArtifactEntryTarget.from_token(token)
         except ValueError:
             return
         request = getattr(pane, "request_entry_target", None)
-        if callable(request) and request(target):
+        if callable(request) and request(target) is LinkRequestState.SELECTED:
             return
         select = getattr(pane, "select_entry_target", None)
         if callable(select):

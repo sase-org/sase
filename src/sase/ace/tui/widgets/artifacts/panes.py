@@ -20,7 +20,11 @@ from ..patch_info_panel import PatchInfoPanel
 from ..patch_list import PatchList
 from ..tab_quickstart import TabQuickStart
 from .lifecycle import ArtifactsPaneLifecycle
-from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
+from .entry_navigation import (
+    ArtifactEntryNavigator,
+    ArtifactEntryTarget,
+    LinkRequestState,
+)
 from .patch_filter_bar import PatchFilterBar
 from .patches_filter_session import PatchesFilterSessionMixin
 from .patch_entry import patch_row_target
@@ -114,7 +118,12 @@ class ArtifactsPatchesPane(
             return True
         return False
 
-    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
+    def request_entry_target(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        generation: int | None = None,
+    ) -> LinkRequestState:
         """Select *target* now.
 
         Unlike the async-loaded non-PR panes, Patches are already loaded
@@ -122,7 +131,29 @@ class ArtifactsPatchesPane(
         no later row model to defer to — a miss here means the Patch is
         genuinely not in the current filtered list.
         """
-        return self.select_entry_target(target)
+        del generation
+        if self.select_entry_target(target):
+            return LinkRequestState.SELECTED
+        return LinkRequestState.MISSING
+
+    def host_limit_query(self) -> str:
+        """Return the live or committed Patch query used for ``limit:`` paging."""
+        app = cast(Any, self.app)
+        display = getattr(app, "_display_patch_query", None)
+        return display() if callable(display) else ""
+
+    def apply_host_limit_query(self, query: str, *, grow: bool = False) -> None:
+        """Commit a rewritten host-limit query through the existing query seam.
+
+        Patches are already fully loaded into app state, so there is no
+        bounded snapshot to grow; ``grow`` exists only to keep this
+        signature uniform with the other panes' host-query adapter.
+        """
+        del grow
+        app = cast(Any, self.app)
+        commit = getattr(app, "_commit_patch_query", None)
+        if callable(commit):
+            commit(query)
 
     def apply_entry_jump_hints(
         self,

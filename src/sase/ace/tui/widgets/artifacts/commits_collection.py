@@ -420,6 +420,12 @@ class CommitsCollectionMixin(_MixinBase):
             VcsLogResult((), (), (f"Unable to load commits: {message}",))
         )
         self.notify(f"Unable to load commits: {message}", severity="error")
+        if getattr(self, "_pending_entry_target", None) is not None:
+            from .entry_navigation import LinkRequestState
+
+            complete = getattr(self, "_complete_entry_request", None)
+            if callable(complete):
+                complete(LinkRequestState.FAILED)
 
 
 def _snapshot_breadth(

@@ -17,6 +17,7 @@ from .._prompt_preview_target import PreviewPayload
 from .entry_navigation import (
     ArtifactEntryNavigator,
     ArtifactEntryTarget,
+    LinkRequestState,
     reveal_option_list_highlight,
     schedule_option_list_highlight_reveal,
 )
@@ -86,6 +87,7 @@ class PlansNavigationMixin(_MixinBase):
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
     _entry_marks: set[ArtifactEntryTarget]
     _pending_entry_target: ArtifactEntryTarget | None
+    _pending_entry_generation: int | None
     provider_spec: Mapping[str, Any] | None
 
     if TYPE_CHECKING:
@@ -105,6 +107,10 @@ class PlansNavigationMixin(_MixinBase):
             self, keymap: Any = None
         ) -> tuple[tuple[str, str], ...]: ...
 
+        def _complete_entry_request(
+            self, state: LinkRequestState
+        ) -> LinkRequestState: ...
+
     def _init_plans_navigation(self) -> None:
         self._rows = {}
         self._banner_target_by_option_id = {}
@@ -113,6 +119,7 @@ class PlansNavigationMixin(_MixinBase):
         self._entry_jump_hints = {}
         self._entry_marks = set()
         self._pending_entry_target = None
+        self._pending_entry_generation = None
 
     def selected_row(self) -> PlanRow | None:
         option_list = self._option_list()
@@ -201,17 +208,24 @@ class PlansNavigationMixin(_MixinBase):
             )
         return True
 
-    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
+    def request_entry_target(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        generation: int | None = None,
+    ) -> LinkRequestState:
         if self.select_entry_target(target):
-            self._pending_entry_target = None
-            return True
+            self._pending_entry_generation = generation
+            return self._complete_entry_request(LinkRequestState.SELECTED)
         self._pending_entry_target = target
+        self._pending_entry_generation = generation
         if self._snapshot is not None and self._snapshot.project == self.project_scope:
             self._refresh_options()
-        return False
+        return LinkRequestState.PENDING
 
     def clear_pending_entry_target(self) -> None:
         self._pending_entry_target = None
+        self._pending_entry_generation = None
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
         row = self.selected_row()

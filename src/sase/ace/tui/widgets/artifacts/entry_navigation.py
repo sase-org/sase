@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
 from collections.abc import Mapping
+from enum import Enum, auto
 from typing import Any, cast
 
 from rich.text import Text
@@ -12,6 +13,21 @@ from textual.widgets import OptionList
 
 from sase.core.artifact_relation_layout import RelationEntryFact, RelationRole
 from sase.core.artifact_entry_target import ArtifactEntryTarget
+
+
+class LinkRequestState(Enum):
+    """Outcome of one pane's attempt to satisfy an entry-target request.
+
+    ``PENDING`` keeps a host link-follow transaction open until the pane
+    reports a later, authoritative outcome through the shared completion
+    seam (:meth:`ArtifactEntryNavigator._complete_entry_request`) -- loading
+    is never conflated with absence.
+    """
+
+    SELECTED = auto()
+    PENDING = auto()
+    MISSING = auto()
+    FAILED = auto()
 
 
 class _ArtifactEntryNavigatorMeta(ABCMeta, _MessagePumpMeta):
@@ -44,8 +60,21 @@ class ArtifactEntryNavigator(metaclass=_ArtifactEntryNavigatorMeta):
         """Select and focus a currently visible target."""
 
     @abstractmethod
-    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
-        """Select a target now, or remember it for the next loaded row model."""
+    def request_entry_target(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        generation: int | None = None,
+    ) -> LinkRequestState:
+        """Select a target now, or remember it for the next loaded row model.
+
+        ``generation`` is an opaque host-owned link-follow transaction token;
+        implementers must retain it beside their pending-target state and
+        pass it back unchanged to :meth:`_complete_entry_request` when a
+        deferred request later resolves. Callers outside the link-follow
+        coordinator (e.g. ``Ctrl+O`` trail restoration) omit it, in which
+        case a later async resolution is never reported to the host.
+        """
 
     @abstractmethod
     def apply_entry_jump_hints(
@@ -109,6 +138,29 @@ class ArtifactEntryNavigator(metaclass=_ArtifactEntryNavigatorMeta):
         from sase.ace.tui.relations.artifact_links import known_target_for_ref
 
         return known_target_for_ref(kind, payload, index.known_targets)
+
+    def _complete_entry_request(
+        self,
+        state: LinkRequestState,
+    ) -> LinkRequestState:
+        """Clear this pane's pending target and report the outcome once.
+
+        The single seam every implementer's deferred (and immediate)
+        completion routes through -- whether the resolution happens inline
+        within :meth:`request_entry_target` or later from an async refresh --
+        so the host link-follow coordinator sees a matching generation
+        exactly once. Reports nothing when no generation was retained
+        (a non-link-follow caller, or no pending request was open).
+        """
+        generation = getattr(self, "_pending_entry_generation", None)
+        self._pending_entry_target = None
+        self._pending_entry_generation = None
+        if generation is not None:
+            app = getattr(self, "app", None)
+            reporter = getattr(app, "_complete_link_follow_request", None)
+            if callable(reporter):
+                reporter(generation, state)
+        return state
 
     def record_relation_origin(self, origin: ArtifactEntryTarget) -> None:
         """Record a jump-back origin before relation navigation leaves it."""
@@ -276,6 +328,7 @@ def prepend_mark_glyph(prompt: Text, marked: bool) -> Text:
 __all__ = [
     "ArtifactEntryNavigator",
     "ArtifactEntryTarget",
+    "LinkRequestState",
     "RelationEntryFact",
     "prepend_jump_hint",
     "prepend_mark_glyph",

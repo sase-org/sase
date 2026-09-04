@@ -22,7 +22,7 @@ from ...models.artifact_groups import (
     group_banner_target,
 )
 from ...models.group_fold import GroupFoldRegistry
-from .entry_navigation import ArtifactEntryTarget
+from .entry_navigation import ArtifactEntryTarget, LinkRequestState
 from .file_filter_bar import FileFilterBar
 from .files_data import FilesSnapshot, LogicalFile
 from .files_filtering import (
@@ -101,6 +101,10 @@ class FilesOptionsMixin(_MixinBase):
         def _active_grouping_mode(self) -> PaneGroupingModeDecl | None: ...
 
         def _group_fold_registry(self) -> GroupFoldRegistry: ...
+
+        def _complete_entry_request(
+            self, state: LinkRequestState
+        ) -> LinkRequestState: ...
 
     def _init_files_options(self) -> None:
         self._filtered_count = None
@@ -192,7 +196,7 @@ class FilesOptionsMixin(_MixinBase):
         )
         if pending_target is not None:
             if highlighted is not None:
-                self._pending_entry_target = None
+                self._complete_entry_request(LinkRequestState.SELECTED)
             elif registry is not None and self._expand_group_for_pending_target(
                 pending_target, registry
             ):
@@ -203,7 +207,13 @@ class FilesOptionsMixin(_MixinBase):
                 self._refresh_options(preferred_target=pending_target)
                 return
             elif self._pending_entry_resolution_complete():
-                self._notify_pending_entry_missing()
+                snapshot = self._current_snapshot()
+                state = (
+                    LinkRequestState.FAILED
+                    if snapshot is not None and snapshot.load_error is not None
+                    else LinkRequestState.MISSING
+                )
+                self._complete_entry_request(state)
         if highlighted is None:
             highlighted = next(
                 (index for index, option in enumerate(options) if not option.disabled),
@@ -264,12 +274,6 @@ class FilesOptionsMixin(_MixinBase):
         notify = getattr(self, "notify", None)
         if callable(notify):
             notify("Cleared Files filter to show linked file")
-
-    def _notify_pending_entry_missing(self) -> None:
-        self._pending_entry_target = None
-        notify = getattr(self, "notify", None)
-        if callable(notify):
-            notify("Linked file is no longer visible in Files", severity="warning")
 
     def _pending_entry_resolution_complete(self) -> bool:
         if self._loading or self._loading_full:

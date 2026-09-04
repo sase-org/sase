@@ -14,6 +14,7 @@ from sase.ace.tui.modals.artifact_links_panel_modal import (
     ArtifactLinksPanelResult,
 )
 from sase.ace.tui.relations.link_index import LinkChip
+from sase.ace.tui.widgets.artifacts.entry_navigation import LinkRequestState
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.artifact_relation_layout import RelationRole
 
@@ -84,8 +85,16 @@ class _Pane:
         self.current = target
         return True
 
-    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
-        return self.select_entry_target(target)
+    def request_entry_target(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        generation: int | None = None,
+    ) -> LinkRequestState:
+        del generation
+        if self.select_entry_target(target):
+            return LinkRequestState.SELECTED
+        return LinkRequestState.MISSING
 
     def reveal_entry_target(
         self,
@@ -104,6 +113,86 @@ class _Pane:
         self.applied_queries.append((query, grow))
         if self.target_after_limit is not None:
             self._targets = (*self._targets, self.target_after_limit)
+
+
+class _DeferredPane:
+    """A minimal async-pane stand-in that defers until :meth:`resolve` fires.
+
+    Unlike :class:`_Pane` (which always resolves synchronously, mirroring
+    Patches), this models the async panes (Agents/Beads/Files/Plans/
+    Stitches): a miss returns ``PENDING`` and retains the generation, and a
+    later refresh reports the real outcome through the same
+    ``app._complete_link_follow_request`` seam the shared
+    ``ArtifactEntryNavigator._complete_entry_request`` helper uses.
+    """
+
+    def __init__(
+        self,
+        *,
+        app: _App,
+        targets: tuple[ArtifactEntryTarget, ...] = (),
+    ) -> None:
+        self.app = app
+        self._targets = targets
+        self.current: ArtifactEntryTarget | None = None
+        self._pending_target: ArtifactEntryTarget | None = None
+        self._pending_generation: int | None = None
+        self._loading = False
+        self._loading_full = False
+
+    def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
+        return self._targets
+
+    def entry_target_for_ref(
+        self, kind: str, payload: str
+    ) -> ArtifactEntryTarget | None:
+        del kind, payload
+        return None
+
+    def selected_entry_target(self) -> ArtifactEntryTarget | None:
+        return self.current
+
+    def select_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        if target not in self._targets:
+            return False
+        self.current = target
+        return True
+
+    def request_entry_target(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        generation: int | None = None,
+    ) -> LinkRequestState:
+        if self.select_entry_target(target):
+            return LinkRequestState.SELECTED
+        self._pending_target = target
+        self._pending_generation = generation
+        return LinkRequestState.PENDING
+
+    def resolve(
+        self,
+        state: LinkRequestState,
+        *,
+        reveal: ArtifactEntryTarget | None = None,
+    ) -> None:
+        """Simulate a later async refresh reporting *state* for the pending request."""
+        target = self._pending_target
+        generation = self._pending_generation
+        self._pending_target = None
+        self._pending_generation = None
+        if reveal is not None:
+            self._targets = (*self._targets, reveal)
+        if state is LinkRequestState.SELECTED and target is not None:
+            self.select_entry_target(target)
+        if generation is not None:
+            self.app._complete_link_follow_request(generation, state)
+
+    def host_limit_query(self) -> str:
+        return ""
+
+    def apply_host_limit_query(self, query: str, *, grow: bool = False) -> None:
+        del query, grow
 
 
 @dataclass
@@ -127,6 +216,9 @@ class _App(LinkFollowMixin):
         self.artifacts_project_scope = None
         self._pending_link_prefix = False
         self._link_trail = []
+        self._link_follow_generation = 0
+        self._link_follow_transaction = None
+        self._link_follow_dispatching = False
         self._chips = chips
         self._panes = panes
         self._agents = list(agents)
@@ -153,10 +245,15 @@ class _App(LinkFollowMixin):
     def _artifacts_entry_navigator(self, pane_key: str | None = None) -> _Pane:
         return self._panes[pane_key or self.current_artifacts_pane_key]
 
-    def _request_artifacts_entry(self, target: ArtifactEntryTarget) -> bool:
+    def _request_artifacts_entry(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        generation: int | None = None,
+    ) -> LinkRequestState:
         self.current_artifacts_pane_key = target.pane_id
         return self._artifacts_entry_navigator(target.pane_id).request_entry_target(
-            target
+            target, generation=generation
         )
 
     def _set_artifacts_project_scope(
@@ -547,3 +644,130 @@ def test_follow_link_no_longer_falls_back_to_family_reveal_rung() -> None:
         ("Linked target bead:sase-ug.9 is not visible in Bead", "warning")
     ]
     assert app._link_trail == []
+
+
+def test_follow_into_deferred_pane_returns_pending_until_resolved() -> None:
+    """A follow into a loading pane opens a transaction instead of failing."""
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    target = ArtifactEntryTarget("beads", ("demo", "task", "sase-ug.9"))
+    app = _App(
+        chips=(_chip("bead:sase-ug.9", target),),
+        panes={"files": _Pane(targets=(origin,), selected=origin)},
+    )
+    beads_pane = _DeferredPane(app=app)
+    app._panes["beads"] = beads_pane
+
+    app._follow_link_number(1)
+
+    assert app._link_trail == []
+    assert app.notifications == []
+    assert app.rail_refreshed == 0
+    assert beads_pane._pending_target == target
+    assert app._link_follow_transaction is not None
+
+    beads_pane.resolve(LinkRequestState.SELECTED, reveal=target)
+
+    assert beads_pane.selected_entry_target() == target
+    assert len(app._link_trail) == 1
+    assert app._link_trail[0].origin == origin
+    assert app.rail_refreshed == 1
+    assert app._link_follow_transaction is None
+
+
+def test_second_follow_supersedes_pending_and_ignores_stale_resolution() -> None:
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    first_target = ArtifactEntryTarget("beads", ("demo", "task", "sase-ug.1"))
+    second_target = ArtifactEntryTarget("files", ("other.txt",))
+    app = _App(
+        chips=(
+            _chip("bead:sase-ug.1", first_target),
+            _chip("file:other.txt", second_target),
+        ),
+        panes={"files": _Pane(targets=(origin, second_target), selected=origin)},
+    )
+    beads_pane = _DeferredPane(app=app)
+    app._panes["beads"] = beads_pane
+
+    app._follow_link_number(1)
+    first_generation = app._link_follow_transaction.generation
+    assert beads_pane._pending_target == first_target
+
+    app._follow_link_number(2)
+
+    assert app.current_artifacts_pane_key == "files"
+    assert app._artifacts_entry_navigator("files").selected_entry_target() == (
+        second_target
+    )
+    assert len(app._link_trail) == 1
+    assert app.rail_refreshed == 1
+    assert app._link_follow_transaction is None
+
+    # The superseded first request's later resolution is silently ignored:
+    # no stale trail hop, no toast.
+    app._complete_link_follow_request(first_generation, LinkRequestState.SELECTED)
+
+    assert len(app._link_trail) == 1
+    assert app.notifications == []
+
+
+def test_pending_follow_resolves_to_authoritative_missing_after_limit_drop() -> None:
+    """A later authoritative MISSING still tries the host fallback once."""
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    target = ArtifactEntryTarget("beads", ("demo", "task", "sase-ug.9"))
+    app = _App(
+        chips=(_chip("bead:sase-ug.9", target),),
+        panes={"files": _Pane(targets=(origin,), selected=origin)},
+    )
+    beads_pane = _DeferredPane(app=app)
+    app._panes["beads"] = beads_pane
+
+    app._follow_link_number(1)
+    assert app.notifications == []
+
+    beads_pane.resolve(LinkRequestState.MISSING)
+
+    assert app.notifications == [
+        ("Linked target bead:sase-ug.9 is not visible in Bead", "warning")
+    ]
+    assert app._link_trail == []
+    assert app._link_follow_transaction is None
+
+
+def test_pending_follow_resolves_to_failed_with_distinct_error_copy() -> None:
+    """A load/query failure is never described as deletion or absence."""
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    target = ArtifactEntryTarget("beads", ("demo", "task", "sase-ug.9"))
+    app = _App(
+        chips=(_chip("bead:sase-ug.9", target),),
+        panes={"files": _Pane(targets=(origin,), selected=origin)},
+    )
+    beads_pane = _DeferredPane(app=app)
+    app._panes["beads"] = beads_pane
+
+    app._follow_link_number(1)
+    beads_pane.resolve(LinkRequestState.FAILED)
+
+    assert app.notifications == [("Failed to load Bead for bead:sase-ug.9", "error")]
+    assert app._link_trail == []
+    assert app._link_follow_transaction is None
+
+
+def test_pane_is_loading_recognizes_stitches_collection_and_query_state() -> None:
+    """Stitches collection/query-session in-flight work counts as loading."""
+
+    class _RunningWorker:
+        is_running = True
+
+    class _StitchesPane:
+        _collection_worker: object | None = None
+        _query_result_pending = False
+
+    pane = _StitchesPane()
+    assert link_follow._pane_is_loading(pane) is False
+
+    pane._collection_worker = _RunningWorker()
+    assert link_follow._pane_is_loading(pane) is True
+
+    pane._collection_worker = None
+    pane._query_result_pending = True
+    assert link_follow._pane_is_loading(pane) is True

@@ -18,7 +18,11 @@ from sase.vcs_log.models import VcsLogResult
 
 from .commits_rendering import build_commit_detail, build_commit_view_spec
 from .commits_timeline import CommitsTimeline
-from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
+from .entry_navigation import (
+    ArtifactEntryNavigator,
+    ArtifactEntryTarget,
+    LinkRequestState,
+)
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
@@ -41,6 +45,7 @@ class CommitsDetailMixin(_MixinBase):
     _diff_loading_key: tuple[str, str] | None
     _syntax_render_cache: LazySyntaxRenderCache
     _pending_entry_target: ArtifactEntryTarget | None
+    _pending_entry_generation: int | None
 
     if TYPE_CHECKING:
 
@@ -56,6 +61,10 @@ class CommitsDetailMixin(_MixinBase):
             self, keymap: Any = None
         ) -> tuple[tuple[str, str], ...]: ...
 
+        def _complete_entry_request(
+            self, state: LinkRequestState
+        ) -> LinkRequestState: ...
+
     def _init_commits_detail(self, diff_loader: CommitDiffLoader) -> None:
         self._diff_loader = diff_loader
         self._selected_commit_index = None
@@ -65,6 +74,7 @@ class CommitsDetailMixin(_MixinBase):
         self._diff_loading_key = None
         self._syntax_render_cache = LazySyntaxRenderCache()
         self._pending_entry_target = None
+        self._pending_entry_generation = None
 
     def move_selection(self, step: int) -> None:
         timeline = self.query_one("#stitches-timeline", CommitsTimeline)
@@ -94,12 +104,27 @@ class CommitsDetailMixin(_MixinBase):
         self._sync_timeline_selection(timeline.selected_commit_index)
         return True
 
-    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
+    def request_entry_target(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        generation: int | None = None,
+    ) -> LinkRequestState:
         if self.select_entry_target(target):
-            self._pending_entry_target = None
-            return True
+            self._pending_entry_generation = generation
+            return self._complete_entry_request(LinkRequestState.SELECTED)
         self._pending_entry_target = target
-        return False
+        self._pending_entry_generation = generation
+        if self._collection_in_flight():
+            return LinkRequestState.PENDING
+        return self._complete_entry_request(LinkRequestState.MISSING)
+
+    def _collection_in_flight(self) -> bool:
+        """Return whether Stitches collection or query evaluation is still running."""
+        worker = getattr(self, "_collection_worker", None)
+        if worker is not None and getattr(worker, "is_running", False):
+            return True
+        return bool(getattr(self, "_query_result_pending", False))
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
         keymap = getattr(
@@ -157,16 +182,10 @@ class CommitsDetailMixin(_MixinBase):
         pending = self._pending_entry_target
         if pending is not None:
             if timeline.select_entry_target(pending):
-                self._pending_entry_target = None
                 self._selected_commit_index = timeline.selected_commit_index
-            else:
-                self._pending_entry_target = None
-                notify = getattr(self, "notify", None)
-                if callable(notify):
-                    notify(
-                        "Linked commit is no longer visible in Stitches",
-                        severity="warning",
-                    )
+                self._complete_entry_request(LinkRequestState.SELECTED)
+            elif not self._collection_in_flight():
+                self._complete_entry_request(LinkRequestState.MISSING)
         self._refresh_info()
         self.refresh_relation_panel()
         if self._selected_commit_index is not None:

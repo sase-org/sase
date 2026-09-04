@@ -16,6 +16,7 @@ from ..widgets.artifacts import (
     ArtifactsSubTab,
     ArtifactsView,
     FilesSubTab,
+    LinkRequestState,
     artifacts_pane_key,
     artifacts_subtab_order,
     normalize_artifacts_subtab,
@@ -123,18 +124,23 @@ class ArtifactsNavigationActionsMixin:
             return ()
         return tuple(pane.conditional_footer_entries())
 
-    def _request_artifacts_entry(self, target: ArtifactEntryTarget) -> bool:
+    def _request_artifacts_entry(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        generation: int | None = None,
+    ) -> LinkRequestState:
         """Switch to the target's owning pane and select it when ready."""
 
         pane_key = target.pane_id
         self._switch_artifacts_subtab(cast(ArtifactsSubTab, pane_key))
         pane = self._artifacts_entry_navigator(pane_key)
         if pane is None:
-            return False
-        selected = pane.request_entry_target(target)
+            return LinkRequestState.MISSING
+        state = pane.request_entry_target(target, generation=generation)
         if self.current_tab == ARTIFACTS_TAB:
             self._sync_active_artifacts_entry_state()
-        return selected
+        return state
 
     def _active_artifacts_marks(self) -> set[ArtifactEntryTarget]:
         """Return the app-owned mark set for the visible non-PR pane."""

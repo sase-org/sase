@@ -11,6 +11,7 @@ from textual.widgets.option_list import Option
 from .entry_navigation import (
     ArtifactEntryNavigator,
     ArtifactEntryTarget,
+    LinkRequestState,
     prewarm_option_render_cache,
     reveal_option_list_highlight,
 )
@@ -74,6 +75,7 @@ class FilesNavigationMixin(_MixinBase):
     _option_index_by_target: dict[ArtifactEntryTarget, int]
     _banner_target_by_option_id: dict[str, ArtifactEntryTarget]
     _pending_entry_target: ArtifactEntryTarget | None
+    _pending_entry_generation: int | None
 
     if TYPE_CHECKING:
 
@@ -89,6 +91,10 @@ class FilesNavigationMixin(_MixinBase):
             self, keymap: Any = None
         ) -> tuple[tuple[str, str], ...]: ...
 
+        def _complete_entry_request(
+            self, state: LinkRequestState
+        ) -> LinkRequestState: ...
+
     def _init_files_navigation(self) -> None:
         self._rows = {}
         self._syncing_options = False
@@ -100,6 +106,7 @@ class FilesNavigationMixin(_MixinBase):
         self._option_index_by_target = {}
         self._banner_target_by_option_id = {}
         self._pending_entry_target = None
+        self._pending_entry_generation = None
 
     def _set_file_rows(
         self,
@@ -200,17 +207,24 @@ class FilesNavigationMixin(_MixinBase):
             self._syncing_options = False
         return True
 
-    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
+    def request_entry_target(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        generation: int | None = None,
+    ) -> LinkRequestState:
         if self.select_entry_target(target):
-            self._pending_entry_target = None
-            return True
+            self._pending_entry_generation = generation
+            return self._complete_entry_request(LinkRequestState.SELECTED)
         self._pending_entry_target = target
+        self._pending_entry_generation = generation
         if self._current_snapshot() is not None:  # type: ignore[attr-defined]
             self._refresh_options()  # type: ignore[attr-defined]
-        return False
+        return LinkRequestState.PENDING
 
     def clear_pending_entry_target(self) -> None:
         self._pending_entry_target = None
+        self._pending_entry_generation = None
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
         keymap = getattr(

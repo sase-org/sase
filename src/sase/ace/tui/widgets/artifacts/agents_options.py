@@ -26,7 +26,7 @@ from .agents_list import (
     build_grouped_agent_rows,
 )
 from .agents_navigation import AgentsOptionList
-from .entry_navigation import ArtifactEntryTarget
+from .entry_navigation import ArtifactEntryTarget, LinkRequestState
 from .shell import (
     ArtifactsPaneState,
     build_empty_card,
@@ -97,6 +97,10 @@ class AgentsOptionsMixin(_MixinBase):
         def _active_grouping_mode(self) -> PaneGroupingModeDecl | None: ...
 
         def _group_fold_registry(self) -> GroupFoldRegistry: ...
+
+        def _complete_entry_request(
+            self, state: LinkRequestState
+        ) -> LinkRequestState: ...
 
     def _group_pane_id(self) -> str:
         return AGENTS_PANE_ID
@@ -179,15 +183,20 @@ class AgentsOptionsMixin(_MixinBase):
         )
         if pending_target is not None:
             if highlighted is not None:
-                self._pending_entry_target = None
+                self._complete_entry_request(LinkRequestState.SELECTED)
             elif (
                 self._query_has_active_filter() and self._clear_filter_for_entry_jump()
             ):
                 self._notify_filter_cleared_for_entry_jump()
                 self._refresh_options(preferred_target=pending_target)
                 return
-            elif self._current_snapshot() is not None:
-                self._notify_pending_entry_missing()
+            elif self._pending_entry_resolution_complete():
+                state = (
+                    LinkRequestState.FAILED
+                    if self._load_error is not None
+                    else LinkRequestState.MISSING
+                )
+                self._complete_entry_request(state)
         if highlighted is None:
             highlighted = next(
                 (index for index, option in enumerate(options) if not option.disabled),
@@ -232,11 +241,13 @@ class AgentsOptionsMixin(_MixinBase):
         if callable(notify):
             notify("Cleared Agent filter to show linked agent")
 
-    def _notify_pending_entry_missing(self) -> None:
-        self._pending_entry_target = None
-        notify = getattr(self, "notify", None)
-        if callable(notify):
-            notify("Linked agent is no longer visible in Agent", severity="warning")
+    def _pending_entry_resolution_complete(self) -> bool:
+        if self._loading or getattr(self, "_loading_full", False):
+            return False
+        snapshot = self._current_snapshot()
+        if snapshot is None:
+            return False
+        return snapshot.complete or self._load_error is not None
 
     def _update_empty(self) -> None:
         if not self.is_mounted:

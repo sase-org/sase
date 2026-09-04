@@ -257,9 +257,14 @@ class BeadsFilterSessionMixin(_MixinBase):
 
         return to_query_string(self._display_filter_values())
 
-    def apply_host_limit_query(self, query: str) -> None:
-        """Commit a rewritten host-limit query without closing the editor."""
+    def apply_host_limit_query(self, query: str, *, grow: bool = False) -> None:
+        """Commit a rewritten host-limit query without closing the editor.
 
+        Beads always loads its full project store, so there is no bounded
+        snapshot to grow; ``grow`` exists only to keep this signature
+        uniform with the other panes' host-query adapter.
+        """
+        del grow
         from sase.ace.tui.actions.artifacts_limit import restore_selection_after_limit
 
         try:

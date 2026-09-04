@@ -30,6 +30,7 @@ from ..relations.link_keys import (
 )
 from ..relations.link_subject import selected_link_subject
 from ..tab_order import ARTIFACTS_TAB
+from ..widgets.artifacts.entry_navigation import LinkRequestState
 from .axe_display._loader_items import selected_axe_item_key
 
 if TYPE_CHECKING:
@@ -53,6 +54,25 @@ class LinkTrailHop:
     axe_fold_expanded: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class _LinkFollowTransaction:
+    """One open ``$`` link-follow awaiting an authoritative pane outcome.
+
+    Registered before any pane is asked to resolve *target*, so a
+    synchronous completion (reported through the shared
+    :meth:`~.entry_navigation.ArtifactEntryNavigator._complete_entry_request`
+    seam) can be finalized safely. ``limit_drop_attempted`` guards the
+    one-shot host fallback (dropping a ``limit:`` head slice) so a second,
+    authoritative ``MISSING`` never retries it.
+    """
+
+    generation: int
+    ref: str
+    target: ArtifactEntryTarget
+    origin: LinkTrailHop
+    limit_drop_attempted: bool = False
+
+
 class LinkFollowMixin:
     """Resolve and follow addressable link-rail chips."""
 
@@ -62,6 +82,9 @@ class LinkFollowMixin:
     _link_trail: list[LinkTrailHop]
     _link_trail_forward: list[LinkTrailHop]
     _link_trail_guard: bool
+    _link_follow_generation: int
+    _link_follow_transaction: _LinkFollowTransaction | None
+    _link_follow_dispatching: bool
 
     def action_follow_artifact_link(self) -> None:
         """Arm ``$`` link selection, or follow the lead chip on ``$$``."""
@@ -124,6 +147,10 @@ class LinkFollowMixin:
             return
         kind, payload = parsed
         origin = self._current_link_trail_origin()
+        # A new follow supersedes whatever the previous one left open, so a
+        # late resolution for it is ignored rather than producing a stale
+        # trail hop or toast.
+        self._link_follow_transaction = None
         self._link_trail_guard = True
         try:
             if kind == "chop":
@@ -143,8 +170,7 @@ class LinkFollowMixin:
             if target is None:
                 self._notify_missing_link_target(chip.neighbor_ref, None)
                 return
-            if self._follow_artifacts_target(chip.neighbor_ref, target):
-                self._record_link_trail(origin)
+            self._follow_artifacts_target(chip.neighbor_ref, target, origin)
         finally:
             self._link_trail_guard = False
 
@@ -335,11 +361,23 @@ class LinkFollowMixin:
             forward.clear()
 
     def _follow_artifacts_target(
-        self, ref: str, chip_target: ArtifactEntryTarget
-    ) -> bool:
+        self,
+        ref: str,
+        chip_target: ArtifactEntryTarget,
+        origin: LinkTrailHop,
+    ) -> None:
+        """Resolve and dispatch one artifacts-pane follow to completion.
+
+        Handles the immediate same-pane fast path itself; every other case
+        opens a host-owned :class:`_LinkFollowTransaction` before touching the
+        destination pane, so a synchronous ``SELECTED``/``MISSING``/``FAILED``
+        report through the shared completion seam can finalize safely, and a
+        ``PENDING`` report leaves the transaction open for a later async one.
+        """
         target = self._resolve_link_follow_target(ref, chip_target)
         if self._select_current_artifacts_target(target):
-            return True
+            self._record_link_trail(origin)
+            return
         project = _target_project_scope(target)
         if project is not None and project != getattr(
             self, "artifacts_project_scope", None
@@ -351,16 +389,110 @@ class LinkFollowMixin:
         if self.current_tab != ARTIFACTS_TAB:
             self._save_current_tab_position()  # type: ignore[attr-defined]
             self.current_tab = ARTIFACTS_TAB
-        if self._request_artifacts_target(target):
-            return True
-        pane = self._artifacts_entry_navigator(target.pane_id)  # type: ignore[attr-defined]
-        if pane is None or _pane_is_loading(pane):
-            return False
-        if self._drop_head_slice_limit(pane, ref, target):
-            if self._request_artifacts_target(target):
-                return True
-        self._notify_missing_link_target(ref, target)
-        return False
+        generation = self._begin_link_follow_transaction(ref, target, origin)
+        state = self._request_artifacts_target(target, generation=generation)
+        self._handle_link_follow_outcome(generation, state)
+
+    def _begin_link_follow_transaction(
+        self,
+        ref: str,
+        target: ArtifactEntryTarget,
+        origin: LinkTrailHop,
+    ) -> int:
+        self._link_follow_generation += 1
+        generation = self._link_follow_generation
+        self._link_follow_transaction = _LinkFollowTransaction(
+            generation=generation,
+            ref=ref,
+            target=target,
+            origin=origin,
+        )
+        return generation
+
+    def _cancel_link_follow_transaction(self) -> None:
+        """Invalidate any open transaction so its later completion is ignored."""
+        self._link_follow_transaction = None
+
+    def _complete_link_follow_request(
+        self,
+        generation: int | None,
+        state: LinkRequestState,
+    ) -> None:
+        """Shared completion seam entry point: reported by a pane's request.
+
+        A no-op while :attr:`_link_follow_dispatching` is set -- that means
+        this report arrived synchronously, reentrantly, from within the very
+        call that is about to receive *state* as a plain return value, so
+        the dispatching call site handles it directly instead.
+        """
+        if generation is None or self._link_follow_dispatching:
+            return
+        self._handle_link_follow_outcome(generation, state)
+
+    def _handle_link_follow_outcome(
+        self,
+        generation: int,
+        state: LinkRequestState,
+    ) -> None:
+        transaction = self._link_follow_transaction
+        if transaction is None or transaction.generation != generation:
+            return  # a stale or already-finalized generation
+        if state is LinkRequestState.PENDING:
+            return  # keep the transaction open for a later report
+        if state is LinkRequestState.SELECTED:
+            self._link_follow_transaction = None
+            self._finalize_selected_link_follow(transaction)
+            return
+        if state is LinkRequestState.FAILED:
+            self._link_follow_transaction = None
+            self._notify_link_follow_failed(transaction)
+            return
+        self._handle_missing_link_follow(transaction)
+
+    def _handle_missing_link_follow(self, transaction: _LinkFollowTransaction) -> None:
+        """Try the one-shot head-limit-drop fallback, then report absence."""
+        if not transaction.limit_drop_attempted:
+            pane = self._artifacts_entry_navigator(  # type: ignore[attr-defined]
+                transaction.target.pane_id
+            )
+            if pane is not None and not _pane_is_loading(pane):
+                if self._drop_head_slice_limit(
+                    pane, transaction.ref, transaction.target
+                ):
+                    retried = replace(transaction, limit_drop_attempted=True)
+                    self._link_follow_transaction = retried
+                    state = self._request_artifacts_target(
+                        transaction.target, generation=transaction.generation
+                    )
+                    self._handle_link_follow_outcome(transaction.generation, state)
+                    return
+        self._link_follow_transaction = None
+        self._notify_missing_link_target(transaction.ref, transaction.target)
+
+    def _finalize_selected_link_follow(
+        self, transaction: _LinkFollowTransaction
+    ) -> None:
+        """Record the trail hop and refresh the rail exactly once."""
+        previous_guard = self._link_trail_guard
+        self._link_trail_guard = True
+        try:
+            self._record_link_trail(transaction.origin)
+            note = getattr(self, "_note_artifacts_selection_for_link_trail", None)
+            if callable(note):
+                # Sync the last-observed-selection baseline while guarded,
+                # so a later unguarded navigation doesn't mistake this
+                # follow's own landing for user navigation and wipe the
+                # hop just recorded above.
+                note()
+        finally:
+            self._link_trail_guard = previous_guard
+        self.refresh_link_rail()  # type: ignore[attr-defined]
+
+    def _notify_link_follow_failed(self, transaction: _LinkFollowTransaction) -> None:
+        self.notify(  # type: ignore[attr-defined]
+            f"Failed to load {_pane_label(transaction.target)} for {transaction.ref}",
+            severity="error",
+        )
 
     def _resolve_link_follow_target(
         self,
@@ -404,13 +536,30 @@ class LinkFollowMixin:
             sync()
         return True
 
-    def _request_artifacts_target(self, target: ArtifactEntryTarget) -> bool:
+    def _request_artifacts_target(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        generation: int | None = None,
+    ) -> LinkRequestState:
+        """Dispatch one pane request without the completion seam reentering.
+
+        ``_link_follow_dispatching`` marks this call's extent so a
+        synchronous report through :meth:`_complete_link_follow_request` is a
+        no-op; the resolved state returned here is what the caller (this
+        method's own caller, not the pane) uses to finalize instead.
+        """
         request = getattr(self, "_request_artifacts_entry", None)
-        selected = bool(request(target)) if callable(request) else False
-        pane = self._artifacts_entry_navigator(target.pane_id)  # type: ignore[attr-defined]
-        return bool(
-            selected or (pane is not None and pane.selected_entry_target() == target)
-        )
+        if not callable(request):
+            pane = self._artifacts_entry_navigator(target.pane_id)  # type: ignore[attr-defined]
+            if pane is not None and pane.selected_entry_target() == target:
+                return LinkRequestState.SELECTED
+            return LinkRequestState.MISSING
+        self._link_follow_dispatching = True
+        try:
+            return request(target, generation=generation)
+        finally:
+            self._link_follow_dispatching = False
 
     def _drop_head_slice_limit(
         self,
@@ -429,10 +578,7 @@ class LinkFollowMixin:
         if cap is None:
             return False
         rewritten = _limit_all_query(remainder)
-        try:
-            apply(rewritten, grow=True)
-        except TypeError:
-            apply(rewritten)
+        apply(rewritten, grow=True)
         self.notify(  # type: ignore[attr-defined]
             f"Expanded {_pane_label(target)} limit to show linked {ref}",
         )
@@ -554,9 +700,15 @@ def _target_project_scope(target: ArtifactEntryTarget) -> str | None:
 
 
 def _pane_is_loading(pane: Any) -> bool:
-    return bool(
-        getattr(pane, "_loading", False) or getattr(pane, "_loading_full", False)
-    )
+    if getattr(pane, "_loading", False) or getattr(pane, "_loading_full", False):
+        return True
+    # Stitches has no plain ``_loading`` flag: its collection worker and
+    # asynchronous query-session evaluation are the equivalent in-flight
+    # signals, so a follow into either counts as loading here too.
+    worker = getattr(pane, "_collection_worker", None)
+    if worker is not None and getattr(worker, "is_running", False):
+        return True
+    return bool(getattr(pane, "_query_result_pending", False))
 
 
 def _pane_label(target: ArtifactEntryTarget | None) -> str:

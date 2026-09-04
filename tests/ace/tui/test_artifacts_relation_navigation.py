@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from sase.ace.tui._artifact_tab_model import PaneCapability
 from sase.ace.tui.actions.navigation._tree import TreeNavigationMixin
+from sase.ace.tui.widgets.artifacts.entry_navigation import LinkRequestState
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.artifact_relation_layout import RelationKeymap, RelationRole
 
@@ -44,8 +45,16 @@ class _Pane:
             return True
         return False
 
-    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
-        return self.select_entry_target(target)
+    def request_entry_target(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        generation: int | None = None,
+    ) -> LinkRequestState:
+        del generation
+        if self.select_entry_target(target):
+            return LinkRequestState.SELECTED
+        return LinkRequestState.MISSING
 
     def reveal_entry_target(
         self,
@@ -81,11 +90,16 @@ class _App(TreeNavigationMixin):
     def _artifacts_entry_navigator(self, pane_key: str | None = None) -> _Pane:
         return self.panes[pane_key or self.current_artifacts_pane_key]
 
-    def _request_artifacts_entry(self, target: ArtifactEntryTarget) -> bool:
+    def _request_artifacts_entry(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        generation: int | None = None,
+    ) -> LinkRequestState:
         self.requested = target
         self.current_artifacts_pane_key = target.pane_id
         return self._artifacts_entry_navigator(target.pane_id).request_entry_target(
-            target
+            target, generation=generation
         )
 
     def _sync_active_artifacts_entry_state(self) -> None:

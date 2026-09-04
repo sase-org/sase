@@ -16,6 +16,7 @@ from ..relations.artifact_links import parse_link_ref
 from ..relations.link_keys import short_ref_label
 from ..relations.link_subject import accent_and_icon_for_ref, ref_for_target
 from ..tab_order import ARTIFACTS_TAB
+from ..widgets.artifacts.entry_navigation import LinkRequestState
 from .axe_display._loader_items import find_axe_item_idx
 from .link_follow import LinkTrailHop
 
@@ -120,7 +121,9 @@ class LinkTrailMixin:
         if hop.origin is None:
             return True
         request = getattr(self, "_request_artifacts_entry", None)
-        return bool(request(hop.origin)) if callable(request) else False
+        if not callable(request):
+            return False
+        return request(hop.origin) is LinkRequestState.SELECTED
 
     def _restore_agents_link_trail_hop(self, hop: LinkTrailHop) -> bool:
         name = (
@@ -160,7 +163,13 @@ class LinkTrailMixin:
         return True
 
     def _clear_link_trail_if_unguarded(self) -> None:
-        """Drop the link trail once the user navigates by any other means."""
+        """Drop the link trail once the user navigates by any other means.
+
+        Also cancels any still-open link-follow transaction, so a pane's
+        later async resolution (a stale generation) is silently ignored
+        instead of producing a trail hop or toast for a follow the user has
+        already navigated away from.
+        """
         if getattr(self, "_link_trail_guard", False):
             return
         trail = getattr(self, "_link_trail", None)
@@ -169,6 +178,9 @@ class LinkTrailMixin:
         forward = getattr(self, "_link_trail_forward", None)
         if forward:
             forward.clear()
+        cancel = getattr(self, "_cancel_link_follow_transaction", None)
+        if callable(cancel):
+            cancel()
 
     def _note_artifacts_selection_for_link_trail(self) -> None:
         """Clear the trail only when the selected Artifacts row really moved.

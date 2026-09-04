@@ -571,9 +571,14 @@ class CommitsFilteringMixin(_MixinBase):
         )
         return to_query_string(values)
 
-    def apply_host_limit_query(self, query: str) -> None:
-        """Commit a rewritten host-limit query through the collection path."""
+    def apply_host_limit_query(self, query: str, *, grow: bool = False) -> None:
+        """Commit a rewritten host-limit query through the collection path.
 
+        Stitches always re-collects from the rewritten filter values rather
+        than extending a bounded snapshot in place, so ``grow`` exists only
+        to keep this signature uniform with the other panes' adapter.
+        """
+        del grow
         from sase.ace.tui.actions.artifacts_limit import restore_selection_after_limit
 
         try:

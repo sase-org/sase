@@ -21,7 +21,7 @@ from ...models.artifact_groups import (
     group_banner_target,
 )
 from ...models.group_fold import GroupFoldRegistry
-from .entry_navigation import ArtifactEntryTarget
+from .entry_navigation import ArtifactEntryTarget, LinkRequestState
 from .plan_filter_bar import PlanFilterBar
 from .plans_data import PlansSnapshot, ProjectArchive
 from .plans_deep_archive import (
@@ -112,6 +112,10 @@ class PlansOptionsMixin(_MixinBase):
         def _first_selectable_index(self) -> int | None: ...
 
         def _option_index(self, option_id: str | None) -> int | None: ...
+
+        def _complete_entry_request(
+            self, state: LinkRequestState
+        ) -> LinkRequestState: ...
 
         def _option_list(self) -> PlansOptionList | None: ...
 
@@ -364,7 +368,12 @@ class PlansOptionsMixin(_MixinBase):
                 )
                 return
             if self._loaded_current_snapshot():
-                self._notify_pending_entry_missing()
+                state = (
+                    LinkRequestState.FAILED
+                    if self._load_error is not None
+                    else LinkRequestState.MISSING
+                )
+                self._complete_entry_request(state)
         if pending_id is not None:
             preferred_id = pending_id
         target_index = next(
@@ -386,7 +395,7 @@ class PlansOptionsMixin(_MixinBase):
         finally:
             self._syncing_options = False
         if pending_id is not None:
-            self._pending_entry_target = None
+            self._complete_entry_request(LinkRequestState.SELECTED)
         self._update_status()
         self._update_static("#plans-info", self._scope_text())
         exact, coverage_label = self._filter_coverage(values)
@@ -535,12 +544,6 @@ class PlansOptionsMixin(_MixinBase):
         notify = getattr(self, "notify", None)
         if callable(notify):
             notify("Cleared Plans filter to show linked plan")
-
-    def _notify_pending_entry_missing(self) -> None:
-        self._pending_entry_target = None
-        notify = getattr(self, "notify", None)
-        if callable(notify):
-            notify("Linked plan is no longer visible in Plans", severity="warning")
 
     def _loaded_current_snapshot(self) -> bool:
         return (

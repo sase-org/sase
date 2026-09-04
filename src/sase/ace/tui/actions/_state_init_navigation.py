@@ -97,6 +97,13 @@ def init_navigation_state(self: Any) -> None:
     self._link_trail_guard = False
     self._link_trail_last_artifacts_selection = None
 
+    # Host-owned tri-state ``$`` link-follow coordinator state: a
+    # monotonic generation counter plus the single open transaction (if
+    # any) awaiting an authoritative pane outcome.
+    self._link_follow_generation = 0
+    self._link_follow_transaction = None
+    self._link_follow_dispatching = False
+
     # Cached graph index over ``_all_patches``; rebuilt only when the
     # list identity changes (see ``_get_patch_graph_index``).
     self._patch_graph_index = None

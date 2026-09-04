@@ -26,6 +26,7 @@ from .types import DEFAULT_FILES_SUBTAB as DEFAULT_FILES_SUBTAB
 from .types import FILES_PANE_IDS as FILES_PANE_IDS
 from .types import FILES_SUBTAB_ORDER as FILES_SUBTAB_ORDER
 from .types import FilesSubTab as FilesSubTab
+from .entry_navigation import LinkRequestState as LinkRequestState
 from .plans_pane import PlanRow as PlanRow
 from .patch_filter_bar import PatchFilterBar as PatchFilterBar
 from .types import artifacts_pane_key as artifacts_pane_key

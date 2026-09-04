@@ -13,6 +13,7 @@ from sase.core.artifact_relation_layout import (
     RelationRole,
 )
 
+from ...widgets.artifacts.entry_navigation import LinkRequestState
 from ._types import NavigationMixinBase
 
 
@@ -336,7 +337,7 @@ class TreeNavigationMixin(NavigationMixinBase):
             request = getattr(self, "_request_artifacts_entry", None)
             selected = False
             if callable(request):
-                selected = bool(request(target))
+                selected = request(target) is LinkRequestState.SELECTED
             if selected:
                 return
             pane = self._relation_navigator()

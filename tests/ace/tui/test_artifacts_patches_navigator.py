@@ -9,6 +9,7 @@ from sase.ace.testing.fixtures import DEFAULT_PATCHES
 from sase.ace.tui.widgets.artifacts.entry_navigation import (
     ArtifactEntryNavigator,
     ArtifactEntryTarget,
+    LinkRequestState,
 )
 from sase.ace.tui.widgets.artifacts.panes import ArtifactsPatchesPane
 from sase.ace.tui.widgets.artifacts.patch_entry import patch_row_target
@@ -69,8 +70,29 @@ async def test_request_entry_target_selects_immediately_since_patches_preload() 
     async with AcePage(initial_tab="patches") as page:
         pane = page.query_one_widget("#artifacts-patches-pane", ArtifactsPatchesPane)
         target = patch_row_target(DEFAULT_PATCHES[1])
-        assert pane.request_entry_target(target) is True
+        assert pane.request_entry_target(target) is LinkRequestState.SELECTED
         assert page.app.current_idx == 1  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_request_entry_target_reports_missing_for_unknown_target() -> None:
+    async with AcePage(initial_tab="patches") as page:
+        pane = page.query_one_widget("#artifacts-patches-pane", ArtifactsPatchesPane)
+        unknown = ArtifactEntryTarget(pane_id="patches", parts=("nope", "missing"))
+        assert pane.request_entry_target(unknown) is LinkRequestState.MISSING
+
+
+@pytest.mark.asyncio
+async def test_host_limit_query_adapter_reads_and_rewrites_the_app_query() -> None:
+    async with AcePage(initial_tab="patches") as page:
+        pane = page.query_one_widget("#artifacts-patches-pane", ArtifactsPatchesPane)
+        original = page.app._display_patch_query()  # type: ignore[attr-defined]
+        assert pane.host_limit_query() == original
+
+        pane.apply_host_limit_query("limit:all", grow=True)
+
+        assert page.app._display_patch_query() == "limit:all"  # type: ignore[attr-defined]
+        assert pane.host_limit_query() == "limit:all"
 
 
 @pytest.mark.asyncio
