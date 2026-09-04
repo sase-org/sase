@@ -69,16 +69,18 @@ def beads_query_schema() -> ArtifactQuerySchema:
             hint="+1, plan, bug, deps, notes, triage",
         ),
     )
-    _exact_string_fields = frozenset({"project", "bug", "label", "task_type"})
+    _exact_string_fields = frozenset({"id", "project", "bug", "label", "task_type"})
     string_fields = tuple(
         QueryFieldSpec(
             key=key,
             repeatable=True,
             negatable=True,
             exact_match=key in _exact_string_fields,
+            searchable=key == "id",
             hint=hint,
         )
         for key, hint in (
+            ("id", "bead id"),
             ("project", "project key or display name"),
             ("assignee", "assigned person or agent"),
             ("owner", "owner email or name"),
@@ -100,7 +102,7 @@ def beads_query_schema() -> ArtifactQuerySchema:
     )
     search_only_fields = tuple(
         QueryFieldSpec(key=key, filterable=False, searchable=True, hint="free text")
-        for key in ("id", "title", "body", "refs")
+        for key in ("title", "body", "refs")
     )
     return ArtifactQuerySchema(
         pane_id="beads",
@@ -109,6 +111,7 @@ def beads_query_schema() -> ArtifactQuerySchema:
         predicates=tuple(sorted(HOST_PREDICATES)),
         any_special=True,
         free_text_hint="id, title, body, refs (AND)",
+        identity_field="id",
     )
 
 

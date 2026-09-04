@@ -43,6 +43,7 @@ class CompiledQueryProfile:
     macros: tuple[QueryMacroSpec, ...]
     free_text_hint: str
     digest: str
+    identity_field: str | None = None
 
     def field(self, key: str) -> QueryFieldSpec | None:
         """Return the declared field named *key*, if any."""
@@ -115,6 +116,7 @@ def compile_query_profile(schema: ArtifactQuerySchema) -> CompiledQueryProfile:
         macros=macros,
         free_text_hint=schema.free_text_hint,
         digest=digest,
+        identity_field=schema.identity_field,
     )
 
 
@@ -236,6 +238,18 @@ def _validate(schema: ArtifactQuerySchema) -> None:
                 f"macro {macro.trigger}{macro.letter} targets undeclared "
                 f"field {macro.field!r}"
             )
+
+    if schema.identity_field is None:
+        return
+    if schema.identity_field not in field_keys:
+        raise QueryProfileError(
+            f"identity_field {schema.identity_field!r} is not a declared field"
+        )
+    spec = next(item for item in schema.fields if item.key == schema.identity_field)
+    if not spec.filterable:
+        raise QueryProfileError(
+            f"identity_field {schema.identity_field!r} must be filterable"
+        )
 
 
 __all__ = ["CompiledQueryProfile", "QueryProfileError", "compile_query_profile"]

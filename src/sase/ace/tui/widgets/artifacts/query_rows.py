@@ -367,6 +367,7 @@ def file_query_entry(
     fields: dict[str, object] = {
         "kind": row.kind,
         "origin": tuple(row.origins),
+        "id": row.logical_id,
         "project": tuple(dict.fromkeys(project_labels)),
         "agent": row.agents,
         "workflow": tuple(
@@ -439,6 +440,7 @@ def commit_query_entry(
             "until": (commit.timestamp,),
             "sidecar": repo_kind == "sidecar",
             "merges": "only" if commit.is_merge else "hide",
+            "sha": commit.full_id,
             "subject": commit.subject,
         },
         "searchable_text": commit.subject,

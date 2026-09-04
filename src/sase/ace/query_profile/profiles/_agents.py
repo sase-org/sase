@@ -195,6 +195,7 @@ def agents_query_schema() -> ArtifactQuerySchema:
         predicates=tuple(sorted(HOST_PREDICATES)),
         any_special=True,
         free_text_hint="name, label, text metadata (implicit AND)",
+        identity_field="name",
     )
 
 

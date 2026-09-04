@@ -31,6 +31,7 @@ FileCompletionKind = Literal[
     "agent",
     "workflow",
     "origin",
+    "id",
     "since",
     "until",
     "limit",
@@ -44,10 +45,11 @@ _FILTER_KEYS = (
     "agent",
     "workflow",
     "origin",
+    "id",
     "since",
     "until",
 )
-_REPEATABLE_KEYS = frozenset(("kind", "project", "agent", "workflow", "origin"))
+_REPEATABLE_KEYS = frozenset(("kind", "project", "agent", "workflow", "origin", "id"))
 _DATE_PATTERNS = (
     re.compile(r"^\d{4}-\d{2}-\d{2}$"),
     re.compile(r"^\d{4}-\d{2}$"),
@@ -71,6 +73,8 @@ class FilesFilterValues:
     excluded_workflows: tuple[str, ...] = ()
     origins: tuple[str, ...] = ()
     excluded_origins: tuple[str, ...] = ()
+    ids: tuple[str, ...] = ()
+    excluded_ids: tuple[str, ...] = ()
     since_text: str = ""
     excluded_since_text: str = ""
     until_text: str = ""
@@ -99,6 +103,8 @@ class FilesFilterValues:
                 self.excluded_workflows,
                 self.origins,
                 self.excluded_origins,
+                self.ids,
+                self.excluded_ids,
                 self.since_text,
                 self.excluded_since_text,
                 self.until_text,
@@ -211,6 +217,8 @@ def parse_files_filter_query(
         excluded_origins=tuple(
             value.casefold() for value in excluded_repeated["origin"]
         ),
+        ids=tuple(repeated["id"]),
+        excluded_ids=tuple(excluded_repeated["id"]),
         since_text=since_text,
         excluded_since_text=excluded_since_text,
         until_text=until_text,
@@ -235,6 +243,7 @@ def to_query_tokens(values: FilesFilterValues) -> tuple[str, ...]:
         ("agent", values.agents),
         ("workflow", values.workflows),
         ("origin", values.origins),
+        ("id", values.ids),
     ):
         tokens.extend(f"{key}:{quote_value(value, keyed=True)}" for value in entries)
         excluded_entries = getattr(values, f"excluded_{key}s")

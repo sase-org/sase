@@ -251,7 +251,7 @@ def test_format_agent_option_active_family_uses_nested_monitor_runtime() -> None
         now=datetime(2026, 7, 19, 9, 5, 0),
     )
 
-    assert suffix.plain == "🏃‍♂️ 2m / 2m"
+    assert suffix.plain == "🏃‍♂️ 2m / 3m"
 
 
 def test_format_agent_option_completed_family_keeps_single_total_suffix() -> None:

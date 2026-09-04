@@ -69,6 +69,7 @@ def patches_query_schema() -> ArtifactQuerySchema:
             "name, description, status, origin, project, refs, parent, "
             "pr_url, notes (implicit AND)"
         ),
+        identity_field="name",
     )
 
 

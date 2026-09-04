@@ -32,14 +32,15 @@ PlanCompletionKind = Literal[
     "status",
     "tier",
     "project",
+    "path",
     "since",
     "until",
     "limit",
     "text",
 ]
 
-_FILTER_KEYS = ("kind", "status", "tier", "project", "since", "until")
-_REPEATABLE_KEYS = frozenset(("kind", "status", "tier", "project"))
+_FILTER_KEYS = ("kind", "status", "tier", "project", "path", "since", "until")
+_REPEATABLE_KEYS = frozenset(("kind", "status", "tier", "project", "path"))
 _NEGATABLE_KEYS = _REPEATABLE_KEYS
 
 
@@ -55,6 +56,8 @@ class PlanFilterValues:
     excluded_tiers: tuple[str, ...] = ()
     projects: tuple[str, ...] = ()
     excluded_projects: tuple[str, ...] = ()
+    paths: tuple[str, ...] = ()
+    excluded_paths: tuple[str, ...] = ()
     since_text: str = ""
     until_text: str = ""
     since: int | None = None
@@ -76,6 +79,8 @@ class PlanFilterValues:
                 self.excluded_tiers,
                 self.projects,
                 self.excluded_projects,
+                self.paths,
+                self.excluded_paths,
                 self.since_text,
                 self.until_text,
                 self.since is not None,
@@ -166,6 +171,8 @@ def parse_plan_filter_query(
         excluded_tiers=tuple(excluded_repeated["tier"]),
         projects=tuple(repeated["project"]),
         excluded_projects=tuple(excluded_repeated["project"]),
+        paths=tuple(repeated["path"]),
+        excluded_paths=tuple(excluded_repeated["path"]),
         since_text=since_text,
         until_text=until_text,
         since=since,
@@ -184,6 +191,7 @@ def to_query_tokens(values: PlanFilterValues) -> tuple[str, ...]:
         ("status", values.statuses, values.excluded_statuses),
         ("tier", values.tiers, values.excluded_tiers),
         ("project", values.projects, values.excluded_projects),
+        ("path", values.paths, values.excluded_paths),
     ):
         tokens.extend(f"{key}:{quote_value(value, keyed=True)}" for value in entries)
         tokens.extend(

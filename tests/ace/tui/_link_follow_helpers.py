@@ -64,6 +64,8 @@ class _Pane:
         filter_session_open: bool = False,
         hydrate_fn: Callable[[str, str], HydrationResult] | None = None,
         install_fn: Callable[[object], ArtifactEntryTarget | None] | None = None,
+        query_profile: object | None = None,
+        identity_row: object | None = None,
     ) -> None:
         self._targets = targets
         self.current = selected
@@ -72,6 +74,8 @@ class _Pane:
         self._resolver = resolver
         self._foldable = foldable
         self._probe = probe
+        self._query_profile = query_profile
+        self._identity_row = identity_row
         self.reveal_when = reveal_when
         self.applied_queries: list[tuple[str, bool]] = []
         self.expanded_folds: list[ArtifactEntryTarget] = []
@@ -161,6 +165,10 @@ class _Pane:
         if target is not None and target not in self._targets:
             self._targets = (*self._targets, target)
         return target
+
+    def host_query_row_for_target(self, target: ArtifactEntryTarget) -> object | None:
+        del target
+        return self._identity_row
 
     def host_query_probe(self, target: ArtifactEntryTarget) -> object | None:
         del target

@@ -78,7 +78,9 @@ class ArtifactQuerySchema:
     :data:`sase.ace.query_profile.registry.HOST_PREDICATES`; their sigils and
     matching behavior are host-owned, not schema-authored. ``any_special``
     enables the ``*`` "any predicate matches" shorthand and is only valid
-    when every host predicate kind is declared.
+    when every host predicate kind is declared. ``identity_field`` names the
+    filterable field an identity reveal rewrites through, or ``None`` when
+    the dialect has none.
     """
 
     pane_id: str
@@ -89,6 +91,7 @@ class ArtifactQuerySchema:
     any_special: bool = False
     macros: tuple[QueryMacroSpec, ...] = ()
     free_text_hint: str = ""
+    identity_field: str | None = None
 
 
 __all__ = [

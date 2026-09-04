@@ -16,13 +16,19 @@ def plans_query_schema() -> ArtifactQuerySchema:
 
     string_fields = tuple(
         QueryFieldSpec(
-            key=key, repeatable=True, negatable=True, exact_match=True, hint=hint
+            key=key,
+            repeatable=True,
+            negatable=True,
+            exact_match=True,
+            searchable=key == "path",
+            hint=hint,
         )
         for key, hint in (
             ("kind", "proposal, active, archive, plans, research"),
             ("status", "proposed or plan frontmatter status"),
             ("tier", "tale, epic, plan"),
             ("project", "project key or display name"),
+            ("path", "document path or provider identity"),
         )
     )
     date_fields = tuple(
@@ -31,7 +37,7 @@ def plans_query_schema() -> ArtifactQuerySchema:
     )
     search_only_fields = tuple(
         QueryFieldSpec(key=key, filterable=False, searchable=True, hint="free text")
-        for key in ("title", "body", "path")
+        for key in ("title", "body")
     )
     return ArtifactQuerySchema(
         pane_id="ref:plan",
@@ -40,6 +46,7 @@ def plans_query_schema() -> ArtifactQuerySchema:
         predicates=tuple(sorted(HOST_PREDICATES)),
         any_special=True,
         free_text_hint="title, body, path (AND)",
+        identity_field="path",
     )
 
 

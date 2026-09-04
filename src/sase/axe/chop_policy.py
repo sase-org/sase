@@ -149,19 +149,19 @@ def evaluate_chop_preflight(
         elif trigger.get("provider") == "fs":
             fs_snapshot = _fs_snapshot(trigger)
 
-        decision = evaluate_chop_decision(
-            {
-                "schema_version": CHOP_ENGINE_SCHEMA_VERSION,
-                "inhibit_if": chop.inhibit_if,
-                "trigger": trigger,
-                "changespecs": patches,  # legacy engine wire key
-                "agents": agents,
-                "git": git,
-                "fs": fs_snapshot,
-                "checkpoint": checkpoint_for_decision,
-                "now": timestamp,
-            }
-        )
+        request: dict[str, Any] = {
+            "schema_version": CHOP_ENGINE_SCHEMA_VERSION,
+            "inhibit_if": chop.inhibit_if,
+            "trigger": trigger,
+            "changespecs": patches,  # legacy engine wire key
+            "agents": agents,
+            "git": git,
+            "checkpoint": checkpoint_for_decision,
+            "now": timestamp,
+        }
+        if fs_snapshot is not None:
+            request["fs"] = fs_snapshot
+        decision = evaluate_chop_decision(request)
     except Exception as exc:
         return ChopPreflight(
             outcome="check_error",

@@ -70,10 +70,10 @@ def test_unknown_key() -> None:
 
 
 def test_search_only_field_renders_as_unknown_key() -> None:
-    # "id" is searchable but not filterable in the Beads profile, so
-    # `id:value` is invalid per the real parser too.
-    assert _classify_flat_query_tokens("id:5", _BEADS_PROFILE) == [
-        ("id:", "unknown_key"),
+    # "title" is searchable but not filterable in the Beads profile, so
+    # `title:value` is invalid per the real parser too.
+    assert _classify_flat_query_tokens("title:5", _BEADS_PROFILE) == [
+        ("title:", "unknown_key"),
         ("5", "property_value"),
     ]
 

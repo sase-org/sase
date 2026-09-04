@@ -38,9 +38,11 @@ def files_query_schema() -> ArtifactQuerySchema:
             repeatable=True,
             negatable=True,
             exact_match=True,
+            searchable=key == "id",
             hint=hint,
         )
         for key, hint in (
+            ("id", "logical file id"),
             ("project", "project key"),
             ("agent", "agent name"),
             ("workflow", "workflow name"),
@@ -66,6 +68,7 @@ def files_query_schema() -> ArtifactQuerySchema:
         predicates=tuple(sorted(HOST_PREDICATES)),
         any_special=True,
         free_text_hint="label, stored path, source path (AND)",
+        identity_field="id",
     )
 
 

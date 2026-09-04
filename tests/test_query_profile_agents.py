@@ -163,3 +163,4 @@ def test_agents_profile_search_only_fields_match_the_free_text_hint() -> None:
     assert search_only == {"label", "text"}
     assert set(profile.searchable_fields()) == {"name", "label", "text"}
     assert profile.free_text_hint == "name, label, text metadata (implicit AND)"
+    assert profile.identity_field == "name"

@@ -30,6 +30,7 @@ def test_beads_profile_filterable_fields_are_all_accepted_by_the_parser() -> Non
         "bug": "none",
         "label": "bug",
         "task_type": "flake",
+        "id": "sase-1",
         "since": "1d",
         "until": "1h",
     }
@@ -66,6 +67,7 @@ def test_beads_profile_string_fields_accept_arbitrary_values() -> None:
         if item.filterable and item.value_kind == "string"
     }
     assert string_keys == {
+        "id",
         "project",
         "assignee",
         "owner",
@@ -81,5 +83,8 @@ def test_beads_profile_string_fields_accept_arbitrary_values() -> None:
 def test_beads_profile_search_only_fields_match_the_free_text_hint() -> None:
     profile = compile_query_profile(beads_query_schema())
     search_only = {item.key for item in profile.fields if not item.filterable}
-    assert search_only == {"id", "title", "body", "refs"}
+    assert search_only == {"title", "body", "refs"}
     assert profile.free_text_hint == "id, title, body, refs (AND)"
+    assert profile.identity_field == "id"
+    assert profile.field("id").filterable is True
+    assert profile.field("id").exact_match is True

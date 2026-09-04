@@ -3,6 +3,12 @@
 from __future__ import annotations
 
 from sase.ace.query_history import QueryHistoryStacks
+from sase.ace.query_profile import (
+    beads_query_schema,
+    compile_query_profile,
+    procs_query_schema,
+)
+from sase.ace.tui.actions.link_follow import _link_follow_outcomes
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 
 from ._link_follow_helpers import _App, _Pane, _chip
@@ -42,6 +48,80 @@ def test_follow_prefers_fold_expansion_over_any_query_change() -> None:
         None,
         QueryHistoryStacks(prev=[], next=[]),
     )
+
+
+def test_follow_uses_identity_query_before_widening() -> None:
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    selected = ArtifactEntryTarget("beads", ("demo", "task", "sase-open"))
+    target = ArtifactEntryTarget("beads", ("demo", "task", "sase-closed"))
+    probe = _Probe(
+        {
+            "project:demo -status:closed": False,
+            "project:demo": True,
+            "-status:closed": False,
+        }
+    )
+    pane = _Pane(
+        targets=(selected,),
+        selected=selected,
+        query="project:demo -status:closed",
+        target_after_limit=target,
+        probe=probe,
+        query_profile=compile_query_profile(beads_query_schema()),
+        identity_row={"fields": {"id": "sase-closed"}},
+        reveal_when=lambda query: query.strip() == "id:sase-closed",
+    )
+    app = _App(
+        chips=(_chip("bead:sase-closed", target),),
+        panes={
+            "files": _Pane(targets=(origin,), selected=origin),
+            "beads": pane,
+        },
+    )
+    _link_follow_outcomes.clear()
+
+    app._follow_link_number(1)
+
+    assert pane.applied_queries == [("id:sase-closed", True)]
+    assert pane.selected_entry_target() == target
+    assert _link_follow_outcomes["identity"] == 1
+
+
+def test_follow_skips_identity_when_dialect_has_no_field() -> None:
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    selected = ArtifactEntryTarget("beads", ("demo", "task", "sase-open"))
+    target = ArtifactEntryTarget("beads", ("demo", "task", "sase-closed"))
+    probe = _Probe(
+        {
+            "project:demo -status:closed": False,
+            "project:demo": True,
+            "-status:closed": False,
+        }
+    )
+    pane = _Pane(
+        targets=(selected,),
+        selected=selected,
+        query="project:demo -status:closed",
+        target_after_limit=target,
+        probe=probe,
+        query_profile=compile_query_profile(procs_query_schema()),
+        identity_row={"fields": {"id": "sase-closed"}},
+        reveal_when=lambda query: (
+            "project:demo" in query and "-status:closed" not in query
+        ),
+    )
+    app = _App(
+        chips=(_chip("bead:sase-closed", target),),
+        panes={
+            "files": _Pane(targets=(origin,), selected=origin),
+            "beads": pane,
+        },
+    )
+
+    app._follow_link_number(1)
+
+    assert pane.applied_queries == [("project:demo limit:all", True)]
+    assert pane.selected_entry_target() == target
 
 
 def test_follow_widens_excluding_term_instead_of_neutral_query() -> None:

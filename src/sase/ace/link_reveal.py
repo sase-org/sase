@@ -8,9 +8,9 @@ advertise a way back (``^``) and detect when that way back has gone stale.
 
 The ladder prefers cheaper rungs first. Fold expansion mutates no query and
 pushes no history entry, so it runs before any rewrite even though an
-earlier epic sketch listed the ``limit:`` drop first. Identity reveal is a
-documented gap (phase ``sase-w3.5``) that the rung cursor is shaped for,
-not implemented here.
+earlier epic sketch listed the ``limit:`` drop first. Identity reveal builds
+the tightest query that names the row through the profile's declared
+identity field, then falls through to widening when a dialect has none.
 
 The lens is deliberately not a stored on/off flag. It is live for a pane
 whenever that pane's current canonical query still equals the query the
@@ -27,7 +27,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from sase.ace.query.limit_token import LimitTokenError, extract_limit
+from sase.ace.query.profile_evaluator import coerce_artifact_query_row
+from sase.ace.query.profile_evaluator_types import ArtifactQueryRowInput
 from sase.ace.query.profile_reference_support import ProfileQueryError
+from sase.ace.query_profile import CompiledQueryProfile
 from sase.ace.query_record import QueryRecord, current_profile_digest
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.query_profile_corpus_facade import (
@@ -35,7 +38,7 @@ from sase.core.query_profile_corpus_facade import (
     compile_artifact_query_index,
     evaluate_artifact_query_many,
 )
-from sase.filter_tokens import FilterQueryError, tokenize
+from sase.filter_tokens import FilterQueryError, quote_value, tokenize
 
 _BOOLEAN_WORDS = frozenset({"AND", "OR", "NOT"})
 
@@ -70,6 +73,31 @@ class HostQueryProbe:
         except (ProfileQueryError, LimitTokenError, Exception):
             return False
         return bool(result.matched_row_ids)
+
+
+def build_identity_reveal_query(
+    profile: CompiledQueryProfile,
+    row: ArtifactQueryRowInput,
+) -> str | None:
+    """Build the tightest query that names *row* through *profile*.
+
+    Returns ``None`` when the dialect declares no identity field, the
+    field is not filterable, or *row* has no usable value for it -- the
+    caller then falls through to widening rather than writing an empty
+    or unparseable query.
+    """
+    key = profile.identity_field
+    if not key:
+        return None
+    field = profile.field(key)
+    if field is None or not field.filterable:
+        return None
+    typed = coerce_artifact_query_row(profile, row)
+    values = typed.fields.get(key, ())
+    text = next((str(value) for value in values if str(value).strip()), "")
+    if not text:
+        return None
+    return f"{key}:{quote_value(text, keyed=True)}"
 
 
 def make_link_reveal(
@@ -232,6 +260,7 @@ __all__ = [
     "LinkReveal",
     "active_pane_link_reveal",
     "build_host_query_probe",
+    "build_identity_reveal_query",
     "is_link_reveal_active",
     "make_link_reveal",
     "minimal_widening_query",

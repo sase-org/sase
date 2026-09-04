@@ -7,6 +7,7 @@ from typing import Any
 from sase.ace.link_reveal import (
     HostQueryProbe,
     LinkReveal,
+    build_identity_reveal_query,
     is_link_reveal_active,
     make_link_reveal,
     minimal_widening_query,
@@ -21,6 +22,24 @@ RUNG_IDENTITY = 5
 RUNG_WIDEN = 6
 RUNG_NEUTRAL = 7
 RUNG_TOAST = 8
+
+_SUCCESS_OUTCOMES = {
+    RUNG_LIMIT: "fold",
+    RUNG_IDENTITY: "limit",
+    RUNG_WIDEN: "identity",
+    RUNG_NEUTRAL: "widen",
+    RUNG_TOAST: "neutral",
+}
+
+
+def selected_follow_outcome(rung: int) -> str:
+    """Return the outcome label for a SELECTED follow that advanced to *rung*.
+
+    *rung* is the next ladder step the transaction would try, so a follow
+    that never rewrote still sits at :data:`RUNG_FOLD` and counts as
+    ``select``.
+    """
+    return _SUCCESS_OUTCOMES.get(rung, "select")
 
 
 def pane_limit_query(pane: Any) -> str | None:
@@ -93,6 +112,8 @@ def try_reveal_rung(app: Any, pane: Any, transaction: Any, rung: int) -> bool:
         return bool(callable(expander) and expander(transaction.target))
     if rung == RUNG_LIMIT:
         return _reveal_drop_head_slice_limit(app, pane, transaction)
+    if rung == RUNG_IDENTITY:
+        return _reveal_identity_query(app, pane, transaction)
     if rung == RUNG_WIDEN:
         return _reveal_minimal_widening(app, pane, transaction)
     if rung == RUNG_NEUTRAL:
@@ -111,6 +132,18 @@ def _reveal_drop_head_slice_limit(app: Any, pane: Any, transaction: Any) -> bool
     if cap is None:
         return False
     return _commit_reveal_query(app, pane, transaction, _limit_all_query(remainder))
+
+
+def _reveal_identity_query(app: Any, pane: Any, transaction: Any) -> bool:
+    profile = getattr(pane, "_query_profile", None)
+    row_fn = getattr(pane, "host_query_row_for_target", None)
+    row = row_fn(transaction.target) if callable(row_fn) else None
+    if profile is None or row is None:
+        return False
+    rewritten = build_identity_reveal_query(profile, row)
+    if rewritten is None:
+        return False
+    return _commit_reveal_query(app, pane, transaction, rewritten)
 
 
 def _reveal_minimal_widening(app: Any, pane: Any, transaction: Any) -> bool:

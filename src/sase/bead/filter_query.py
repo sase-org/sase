@@ -49,6 +49,7 @@ BeadCompletionKind = Literal[
     "since",
     "until",
     "task_type",
+    "id",
     "limit",
     "text",
 ]
@@ -82,6 +83,7 @@ _FILTER_KEYS = (
     "since",
     "until",
     "task_type",
+    "id",
 )
 _REPEATABLE_KEYS = frozenset(_FILTER_KEYS)
 _NEGATABLE_KEYS = _REPEATABLE_KEYS
@@ -124,6 +126,8 @@ class BeadFilterValues:
     excluded_until_texts: tuple[str, ...] = ()
     task_types: tuple[str, ...] = ()
     excluded_task_types: tuple[str, ...] = ()
+    ids: tuple[str, ...] = ()
+    excluded_ids: tuple[str, ...] = ()
     since: int | None = None
     until: int | None = None
     excluded_since: tuple[int, ...] = ()
@@ -168,6 +172,8 @@ class BeadFilterValues:
                 self.excluded_until_texts,
                 self.task_types,
                 self.excluded_task_types,
+                self.ids,
+                self.excluded_ids,
                 self.since is not None,
                 self.until is not None,
                 self.excluded_since,
@@ -307,6 +313,8 @@ def parse_bead_filter_query(
         excluded_until_texts=excluded_until_texts,
         task_types=tuple(repeated["task_type"]),
         excluded_task_types=tuple(excluded_repeated["task_type"]),
+        ids=tuple(repeated["id"]),
+        excluded_ids=tuple(excluded_repeated["id"]),
         since=since,
         until=until,
         excluded_since=tuple(
@@ -351,6 +359,7 @@ def to_query_tokens(values: BeadFilterValues) -> tuple[str, ...]:
         ("since", values.since_texts, values.excluded_since_texts),
         ("until", values.until_texts, values.excluded_until_texts),
         ("task_type", values.task_types, values.excluded_task_types),
+        ("id", values.ids, values.excluded_ids),
     ):
         tokens.extend(f"{key}:{quote_value(value, keyed=True)}" for value in entries)
         tokens.extend(

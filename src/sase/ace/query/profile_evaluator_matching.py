@@ -124,6 +124,8 @@ def _match_text_field(
     if field.key == "sibling" and profile.pane_id == "patches":
         desired_text = strip_reverted_suffix(desired).casefold()
     haystack = tuple(str(value).casefold() for value in values)
+    if field.key == "sha":
+        return any(value.startswith(desired_text) for value in haystack)
     if field.value_kind == "enum" or field.exact_match:
         return desired_text in haystack
     return any(desired_text in value for value in haystack)

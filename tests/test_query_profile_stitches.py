@@ -39,6 +39,7 @@ def test_stitches_profile_filterable_fields_are_all_accepted_by_the_parser() -> 
         "sidecar": "true",
         "merges": "hide",
         "limit": "40",
+        "sha": "abc1234",
     }
     filterable_keys = {item.key for item in profile.fields if item.filterable}
     assert filterable_keys == set(sample_values)
@@ -49,13 +50,14 @@ def test_stitches_profile_filterable_fields_are_all_accepted_by_the_parser() -> 
 def test_stitches_profile_negatable_fields_match_the_parser() -> None:
     profile = compile_query_profile(stitches_query_schema())
     negatable = set(profile.negatable_fields())
-    assert negatable == {"repo", "author", "origin", "type"}
+    assert negatable == {"repo", "author", "origin", "type", "sha"}
     for key in negatable:
         value = {
             "repo": "myrepo",
             "author": "alice",
             "origin": "stitch",
             "type": "automatic",
+            "sha": "abc1234",
         }[key]
         parse_commit_filter_query(f"-{key}:{value}")  # must not raise
     for key in {item.key for item in profile.fields if item.filterable} - negatable:
@@ -66,6 +68,7 @@ def test_stitches_profile_negatable_fields_match_the_parser() -> None:
             "sidecar": "true",
             "merges": "hide",
             "limit": "40",
+            "sha": "abc1234",
         }[key]
         with pytest.raises(CommitFilterQueryError):
             parse_commit_filter_query(f"-{key}:{value}")
@@ -94,6 +97,9 @@ def test_stitches_profile_search_only_field_is_subject() -> None:
     search_only = {item.key for item in profile.fields if not item.filterable}
     assert search_only == {"subject"}
     assert profile.field("subject").searchable is True
+    assert profile.identity_field == "sha"
+    assert profile.field("sha").filterable is True
+    assert profile.field("sha").exact_match is False
 
 
 def test_host_owned_limit_is_not_a_row_field_except_on_stitches() -> None:

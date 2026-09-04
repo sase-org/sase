@@ -38,18 +38,28 @@ def test_provider_query_schema_derives_fields_from_the_notes_fixture() -> None:
         "status",
         "related",
         "family",
+        "path",
     }
     assert all(item.value_kind == "string" for item in profile.fields)
     assert all(item.searchable for item in profile.fields)
     assert all(item.negatable for item in profile.fields)
-    assert profile.free_text_hint == "family, related, status, title (AND)"
+    assert profile.identity_field == "path"
+    assert profile.free_text_hint == "family, related, status, title, path (AND)"
 
 
 def test_provider_query_schema_handles_missing_and_malformed_specs() -> None:
-    assert compile_query_profile(provider_query_schema("empty", None)).fields == ()
-    assert compile_query_profile(provider_query_schema("empty", {})).fields == ()
+    empty = compile_query_profile(provider_query_schema("empty", None))
+    assert {item.key for item in empty.fields} == {"path"}
+    assert compile_query_profile(provider_query_schema("empty", {})).identity_field == (
+        "path"
+    )
     malformed = {"ref": {"properties": "not-a-mapping"}}
-    assert compile_query_profile(provider_query_schema("bad", malformed)).fields == ()
+    assert {
+        item.key
+        for item in compile_query_profile(
+            provider_query_schema("bad", malformed)
+        ).fields
+    } == {"path"}
 
 
 def test_provider_query_schema_degrades_unknown_types_to_string() -> None:

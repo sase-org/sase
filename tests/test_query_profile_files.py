@@ -27,6 +27,7 @@ def test_files_profile_filterable_fields_are_all_accepted_by_the_parser() -> Non
         "origin": "created",
         "since": "2024-01-01",
         "until": "2024-02-01",
+        "id": "logical-1",
     }
     filterable_keys = {item.key for item in profile.fields if item.filterable}
     assert filterable_keys == set(sample_values)
@@ -44,6 +45,7 @@ def test_files_profile_negatable_fields_match_the_parser() -> None:
         "since",
         "until",
         "workflow",
+        "id",
     }
     for key, value in {
         "agent": "bob",
@@ -53,6 +55,7 @@ def test_files_profile_negatable_fields_match_the_parser() -> None:
         "since": "2024-01-01",
         "until": "2024-02-01",
         "workflow": "flow",
+        "id": "logical-1",
     }.items():
         parse_files_filter_query(f"-{key}:{value}")  # must not raise
     assert parse_files_filter_query("-freetext").excluded_text == ("freetext",)
@@ -72,3 +75,6 @@ def test_files_profile_search_only_fields_match_the_free_text_hint() -> None:
     search_only = {item.key for item in profile.fields if not item.filterable}
     assert search_only == {"label", "stored_path", "source_path"}
     assert profile.free_text_hint == "label, stored path, source path (AND)"
+    assert profile.identity_field == "id"
+    assert profile.field("id").filterable is True
+    assert profile.field("id").exact_match is True

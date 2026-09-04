@@ -158,7 +158,8 @@ def test_provider_contract_derives_query_profile_from_properties() -> None:
     profile = result.contract.query_profile
     assert profile.pane_id == "ref:notes"
     assert profile.boolean is False
-    assert {item.key for item in profile.fields} == {"title", "status"}
+    assert {item.key for item in profile.fields} == {"title", "status", "path"}
+    assert profile.identity_field == "path"
 
 
 def test_plan_provider_contract_uses_the_plans_query_profile() -> None:

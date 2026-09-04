@@ -41,6 +41,7 @@ CompletionKind = Literal[
     "author",
     "origin",
     "type",
+    "sha",
     "since",
     "until",
     "sidecar",
@@ -54,14 +55,15 @@ _FILTER_KEYS = (
     "author",
     "origin",
     "type",
+    "sha",
     "since",
     "until",
     "sidecar",
     "merges",
     "limit",
 )
-_REPEATABLE_KEYS = frozenset(("repo", "author", "origin", "type"))
-_NEGATABLE_KEYS = frozenset(("repo", "author", "origin", "type"))
+_REPEATABLE_KEYS = frozenset(("repo", "author", "origin", "type", "sha"))
+_NEGATABLE_KEYS = frozenset(("repo", "author", "origin", "type", "sha"))
 _NON_NEGATIVE_INTEGER_RE = re.compile(r"^\d+$")
 #: Canonical commit-origin values accepted by the ``origin:`` filter key.
 #: Mirrors ``sase.core.vcs_log_wire.CommitOrigin``.
@@ -89,6 +91,8 @@ class CommitLogFilterValues:
     until: TimeBound | None = None
     repos: tuple[str, ...] = ()
     excluded_repos: tuple[str, ...] = ()
+    shas: tuple[str, ...] = ()
+    excluded_shas: tuple[str, ...] = ()
     sidecar: bool = True
     merges: MergeVisibility = "hide"
     limit: int = UNLIMITED_COMMIT_LOG_LIMIT
@@ -123,6 +127,8 @@ def parse_commit_filter_query(
     """Parse a commit-filter query into validated filter values."""
     repos: list[str] = []
     excluded_repos: list[str] = []
+    shas: list[str] = []
+    excluded_shas: list[str] = []
     authors: list[str] = []
     excluded_authors: list[str] = []
     origins: list[CommitOrigin] = []
@@ -170,6 +176,8 @@ def parse_commit_filter_query(
             elif key == "origin":
                 origin_parts = [_parse_origin_value(part, token) for part in parts]
                 (excluded_origins if token.negated else origins).extend(origin_parts)
+            elif key == "sha":
+                (excluded_shas if token.negated else shas).extend(parts)
             else:
                 type_parts = [_parse_type_value(part, token) for part in parts]
                 (excluded_types if token.negated else types).extend(type_parts)
@@ -234,6 +242,8 @@ def parse_commit_filter_query(
         until=until,
         repos=tuple(repos),
         excluded_repos=tuple(excluded_repos),
+        shas=tuple(shas),
+        excluded_shas=tuple(excluded_shas),
         sidecar=sidecar,
         merges=merges,
         limit=limit,
@@ -252,6 +262,10 @@ def to_query_tokens(
     tokens.extend(f"repo:{quote_value(value, keyed=True)}" for value in values.repos)
     tokens.extend(
         f"-repo:{quote_value(value, keyed=True)}" for value in values.excluded_repos
+    )
+    tokens.extend(f"sha:{quote_value(value, keyed=True)}" for value in values.shas)
+    tokens.extend(
+        f"-sha:{quote_value(value, keyed=True)}" for value in values.excluded_shas
     )
     tokens.extend(
         f"author:{quote_value(value, keyed=True)}" for value in values.authors

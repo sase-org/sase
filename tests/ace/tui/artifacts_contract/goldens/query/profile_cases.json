@@ -223,7 +223,7 @@
         },
         "unknown:value": {
           "position": 0,
-          "message": "Unknown filter key 'unknown' (valid keys: assignee, bug, due, has, label, model, owner, project, since, size, status, task_type, tier, type, until) (at position 0)"
+          "message": "Unknown filter key 'unknown' (valid keys: assignee, bug, due, has, id, label, model, owner, project, since, size, status, task_type, tier, type, until) (at position 0)"
         },
         "type:": {
           "position": 0,
@@ -291,7 +291,7 @@
         },
         "unknown:value": {
           "position": 0,
-          "message": "Unknown filter key 'unknown' (valid keys: kind, project, since, status, tier, until) (at position 0)"
+          "message": "Unknown filter key 'unknown' (valid keys: kind, path, project, since, status, tier, until) (at position 0)"
         },
         "kind:": {
           "position": 0,
@@ -558,7 +558,7 @@
         },
         "unknown:value": {
           "position": 0,
-          "message": "Unknown filter key 'unknown' (valid keys: agent, kind, origin, project, since, until, workflow) (at position 0)"
+          "message": "Unknown filter key 'unknown' (valid keys: agent, id, kind, origin, project, since, until, workflow) (at position 0)"
         },
         "kind:": {
           "position": 0,
@@ -607,7 +607,7 @@
       "errors": {
         "unknown:value": {
           "position": 0,
-          "message": "Unknown filter key 'unknown' (valid keys: status, title) (at position 0)"
+          "message": "Unknown filter key 'unknown' (valid keys: path, status, title) (at position 0)"
         },
         "title:": {
           "position": 0,
@@ -615,7 +615,7 @@
         },
         "-unknown:value": {
           "position": 0,
-          "message": "Unknown filter key 'unknown' (valid keys: status, title) (at position 0)"
+          "message": "Unknown filter key 'unknown' (valid keys: path, status, title) (at position 0)"
         }
       }
     }

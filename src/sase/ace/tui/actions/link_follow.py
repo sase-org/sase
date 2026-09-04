@@ -3,7 +3,7 @@
 Missing-target follows walk a host-owned reveal ladder. Fold expansion
 runs before any query rewrite -- it is strictly cheaper and the phase's
 test invariant prefers it over a ``limit:`` drop -- then the head-slice
-drop, a reserved identity-reveal gap, minimal widening, and a blunt
+drop, an identity-field query, minimal widening, and a blunt
 ``limit:all`` neutral query. Every rewrite commits through the pane's
 host-query adapter so query history records exactly one ``^`` restore.
 
@@ -18,7 +18,9 @@ per transaction and never for a ref that failed to parse or route.
 from __future__ import annotations
 
 import asyncio
+from collections import Counter
 from dataclasses import dataclass, replace
+import logging
 from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
@@ -67,11 +69,11 @@ from ._link_follow_helpers import (
 )
 from ._link_follow_ladder import (
     RUNG_FOLD,
-    RUNG_IDENTITY,
     RUNG_TOAST,
     capture_query_origin,
     end_link_follow_pinning,
     pane_limit_query,
+    selected_follow_outcome,
     try_reveal_rung,
 )
 from .axe_display._loader_items import selected_axe_item_key
@@ -79,7 +81,21 @@ from .axe_display._loader_items import selected_axe_item_key
 if TYPE_CHECKING:
     from .axe_display._loader_state import AxeItemKey
 
+log = logging.getLogger(__name__)
+
 _LINK_TRAIL_MAX = 32
+_link_follow_outcomes: Counter[str] = Counter()
+
+
+def _record_link_follow_outcome(outcome: str) -> None:
+    """Count one follow resolution or failure class for debug logging."""
+    _link_follow_outcomes[outcome] += 1
+    log.debug(
+        "link-follow outcome=%s count=%d totals=%s",
+        outcome,
+        _link_follow_outcomes[outcome],
+        dict(_link_follow_outcomes),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -432,6 +448,7 @@ class LinkFollowMixin:
         """
         target = self._resolve_link_follow_target(ref, chip_target)
         if self._select_current_artifacts_target(target):
+            _record_link_follow_outcome("select")
             self._record_link_trail(origin)
             return
         project = target_project_scope(target)
@@ -506,11 +523,13 @@ class LinkFollowMixin:
             return  # keep the transaction open for a later report
         if state is LinkRequestState.SELECTED:
             self._link_follow_transaction = None
+            _record_link_follow_outcome(selected_follow_outcome(transaction.rung))
             self._finalize_selected_link_follow(transaction)
             return
         if state is LinkRequestState.FAILED:
             self._link_follow_transaction = None
             end_link_follow_pinning(self)
+            _record_link_follow_outcome("failed")
             self._notify_link_follow_failed(transaction)
             return
         self._handle_missing_link_follow(transaction)
@@ -523,9 +542,6 @@ class LinkFollowMixin:
         if pane is not None and not pane_is_loading(pane):
             rung = transaction.rung
             while rung < RUNG_TOAST:
-                if rung == RUNG_IDENTITY:
-                    rung += 1
-                    continue
                 if try_reveal_rung(self, pane, transaction, rung):
                     retried = replace(transaction, rung=rung + 1)
                     self._link_follow_transaction = retried
@@ -541,6 +557,7 @@ class LinkFollowMixin:
                 return
         self._link_follow_transaction = None
         end_link_follow_pinning(self)
+        _record_link_follow_outcome("missing")
         self._notify_missing_in_inventory(transaction.ref, transaction.target)
 
     def _begin_link_hydration(
@@ -856,6 +873,7 @@ class LinkFollowMixin:
         return None
 
     def _notify_dangling_link_ref(self, ref: str) -> None:
+        _record_link_follow_outcome("dangling")
         self.notify(  # type: ignore[attr-defined]
             f"No such artifact: {ref}",
             severity="warning",

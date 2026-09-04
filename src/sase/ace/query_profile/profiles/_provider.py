@@ -51,6 +51,16 @@ def provider_query_schema(
                     hint=f"declared {kind} property",
                 )
             )
+    if not any(item.key == "path" for item in fields):
+        fields.append(
+            QueryFieldSpec(
+                key="path",
+                exact_match=True,
+                searchable=True,
+                negatable=True,
+                hint="document path or provider identity",
+            )
+        )
     searchable_keys = tuple(item.key for item in fields if item.searchable)
     free_text_hint = f"{', '.join(searchable_keys)} (AND)" if searchable_keys else ""
     return ArtifactQuerySchema(
@@ -60,6 +70,7 @@ def provider_query_schema(
         predicates=tuple(sorted(HOST_PREDICATES)),
         any_special=True,
         free_text_hint=free_text_hint,
+        identity_field="path",
     )
 
 

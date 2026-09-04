@@ -76,6 +76,12 @@ def stitches_query_schema() -> ArtifactQuerySchema:
         ),
         QueryFieldSpec(key="limit", hint="row cap or all"),
         QueryFieldSpec(
+            key="sha",
+            repeatable=True,
+            negatable=True,
+            hint="commit SHA prefix",
+        ),
+        QueryFieldSpec(
             key="subject",
             filterable=False,
             searchable=True,
@@ -89,6 +95,7 @@ def stitches_query_schema() -> ArtifactQuerySchema:
         predicates=tuple(sorted(HOST_PREDICATES)),
         any_special=True,
         free_text_hint="subject terms (AND)",
+        identity_field="sha",
     )
 
 

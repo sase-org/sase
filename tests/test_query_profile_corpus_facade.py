@@ -238,6 +238,42 @@ def test_rust_facade_matches_python_reference_evaluator(
         assert rust_matched == reference_matched, query
 
 
+def test_sha_field_matches_prefix_not_mid_string_through_rust() -> None:
+    profile = compile_query_profile(stitches_query_schema())
+    index = compile_artifact_query_index(
+        pane_id="stitches",
+        generation=1,
+        profile=profile,
+        entries=(
+            {
+                "stable_id": "c1",
+                "fields": {"sha": "abcdef1234567890", "subject": "hi"},
+            },
+        ),
+    )
+    assert evaluate_artifact_query_many("sha:abcd", index).matched_row_ids == ("c1",)
+    assert evaluate_artifact_query_many("sha:cdef", index).matched_row_ids == ()
+    assert evaluate_artifact_query_many(
+        "sha:abcdef1234567890", index
+    ).matched_row_ids == ("c1",)
+
+
+def test_bead_id_field_is_exact_through_rust() -> None:
+    profile = compile_query_profile(beads_query_schema())
+    index = compile_artifact_query_index(
+        pane_id="beads",
+        generation=1,
+        profile=profile,
+        entries=(
+            {"stable_id": "open-task", "fields": {"id": "sase-1", "status": "open"}},
+            {"stable_id": "other", "fields": {"id": "sase-10", "status": "open"}},
+        ),
+    )
+    assert evaluate_artifact_query_many("id:sase-1", index).matched_row_ids == (
+        "open-task",
+    )
+
+
 def test_substring_vs_exact_field_match_mode_through_rust() -> None:
     """``assignee`` matches by substring; ``project`` requires an exact value."""
 

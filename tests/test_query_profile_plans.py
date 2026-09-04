@@ -23,6 +23,7 @@ def test_plans_profile_filterable_fields_are_all_accepted_by_the_parser() -> Non
         "project": "myproj",
         "since": "1d",
         "until": "1h",
+        "path": "docs/demo.md",
     }
     filterable_keys = {item.key for item in profile.fields if item.filterable}
     assert filterable_keys == set(sample_values)
@@ -49,5 +50,8 @@ def test_plans_profile_since_until_are_not_repeatable() -> None:
 def test_plans_profile_search_only_fields_match_the_free_text_hint() -> None:
     profile = compile_query_profile(plans_query_schema())
     search_only = {item.key for item in profile.fields if not item.filterable}
-    assert search_only == {"title", "body", "path"}
+    assert search_only == {"title", "body"}
     assert profile.free_text_hint == "title, body, path (AND)"
+    assert profile.identity_field == "path"
+    assert profile.field("path").filterable is True
+    assert profile.field("path").exact_match is True

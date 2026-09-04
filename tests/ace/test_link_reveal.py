@@ -4,9 +4,19 @@ from __future__ import annotations
 
 from sase.ace.link_reveal import (
     LinkReveal,
+    build_identity_reveal_query,
     is_link_reveal_active,
     make_link_reveal,
     minimal_widening_query,
+)
+from sase.ace.query_profile import (
+    beads_query_schema,
+    compile_query_profile,
+    files_query_schema,
+    patches_query_schema,
+    plans_query_schema,
+    procs_query_schema,
+    stitches_query_schema,
 )
 from sase.ace.query_record import QueryRecord
 from sase.core.artifact_entry_target import ArtifactEntryTarget
@@ -120,3 +130,35 @@ def test_is_link_reveal_active_false_after_profile_digest_change() -> None:
     assert not is_link_reveal_active(
         reveal, pane_id="beads", current_canonical="limit:all"
     )
+
+
+def test_build_identity_reveal_query_quotes_each_pane() -> None:
+    cases = (
+        (beads_query_schema(), {"fields": {"id": "sase-123"}}, "id:sase-123"),
+        (
+            stitches_query_schema(),
+            {"fields": {"sha": "abcdef1234567890"}},
+            "sha:abcdef1234567890",
+        ),
+        (files_query_schema(), {"fields": {"id": "logical-1"}}, "id:logical-1"),
+        (
+            plans_query_schema(),
+            {"fields": {"path": "docs/my plan.md"}},
+            'path:"docs/my plan.md"',
+        ),
+        (patches_query_schema(), {"fields": {"name": "my-cl"}}, "name:my-cl"),
+    )
+    for schema, row, expected in cases:
+        profile = compile_query_profile(schema)
+        assert build_identity_reveal_query(profile, row) == expected
+
+
+def test_build_identity_reveal_query_none_when_dialect_lacks_field() -> None:
+    profile = compile_query_profile(procs_query_schema())
+    assert profile.identity_field is None
+    assert build_identity_reveal_query(profile, {"fields": {"name": "job"}}) is None
+
+
+def test_build_identity_reveal_query_none_when_row_has_no_value() -> None:
+    profile = compile_query_profile(beads_query_schema())
+    assert build_identity_reveal_query(profile, {"fields": {"status": "open"}}) is None

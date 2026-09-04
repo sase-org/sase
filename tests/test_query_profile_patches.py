@@ -27,6 +27,7 @@ def test_patches_profile_is_boolean_with_the_six_property_keys() -> None:
     assert all(
         item.value_kind == "string" for item in profile.fields if item.filterable
     )
+    assert profile.identity_field == "name"
 
 
 def test_patches_profile_searchable_fields_match_the_haystack() -> None:

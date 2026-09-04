@@ -40,6 +40,28 @@ def test_compile_rejects_enum_without_static_values() -> None:
         compile_query_profile(schema)
 
 
+def test_compile_rejects_unknown_identity_field() -> None:
+    schema = _minimal_schema(identity_field="missing")
+    with pytest.raises(QueryProfileError, match="identity_field"):
+        compile_query_profile(schema)
+
+
+def test_compile_rejects_non_filterable_identity_field() -> None:
+    schema = _minimal_schema(
+        fields=(QueryFieldSpec(key="alpha", filterable=False, searchable=True),),
+        identity_field="alpha",
+    )
+    with pytest.raises(QueryProfileError, match="filterable"):
+        compile_query_profile(schema)
+
+
+def test_identity_field_does_not_change_digest() -> None:
+    base = compile_query_profile(_minimal_schema())
+    marked = compile_query_profile(_minimal_schema(identity_field="alpha"))
+    assert base.digest == marked.digest
+    assert marked.identity_field == "alpha"
+
+
 def test_compile_rejects_negatable_non_filterable_field() -> None:
     schema = _minimal_schema(
         fields=(QueryFieldSpec(key="alpha", filterable=False, negatable=True),)
