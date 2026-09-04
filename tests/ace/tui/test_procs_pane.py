@@ -236,6 +236,140 @@ async def test_tasks_tab_kill_confirms_and_signals_store_row(
         )
 
 
+async def test_tasks_tab_kill_allows_dead_owner_store_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    running = task(
+        "run",
+        label="sync sase-42",
+        status="running",
+        age_seconds=3,
+        live_output="Syncing...\n",
+    )
+    running.store_backed = True
+    running.durable_proc_id = running.proc_id
+    running.session_id = "session-other"
+    running.session_live = False
+    signals: list[str] = []
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.procs_pane.kill_store_task",
+        lambda proc_id: signals.append(proc_id) or None,
+    )
+
+    async with ProcsTestApp(queue(running)).run_test() as pilot:
+        modal, _ = await open_procs_pane(pilot)
+
+        await pilot.press("K")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, ConfirmActionModal)
+
+        await pilot.press("y")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+        assert signals == ["run"]
+        assert cast(ProcsTestApp, pilot.app).notifications[-1] == (
+            "Killed: sync sase-42",
+            "information",
+        )
+
+
+async def test_tasks_tab_kill_finished_row_explains_itself() -> None:
+    success = task(
+        "ok",
+        label="mail sase-41",
+        status="success",
+        age_seconds=120,
+        output="Mailed PR\n",
+    )
+    success.store_backed = True
+    success.durable_proc_id = success.proc_id
+
+    async with ProcsTestApp(queue(success)).run_test() as pilot:
+        modal, _ = await open_procs_pane(pilot)
+
+        await pilot.press("K")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+        assert cast(ProcsTestApp, pilot.app).notifications[-1] == (
+            "Proc already finished",
+            "warning",
+        )
+
+
+async def test_tasks_tab_kill_session_local_row_explains_itself() -> None:
+    running = task(
+        "run",
+        label="sync sase-42",
+        status="running",
+        age_seconds=3,
+        live_output="Syncing...\n",
+    )
+
+    async with ProcsTestApp(queue(running)).run_test() as pilot:
+        modal, _ = await open_procs_pane(pilot)
+
+        await pilot.press("K")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+        assert cast(ProcsTestApp, pilot.app).notifications[-1] == (
+            "Session-local task; it cannot be killed from the Procs tab",
+            "warning",
+        )
+
+
+async def test_tasks_tab_kill_pending_row_explains_itself() -> None:
+    pending = task(
+        "run",
+        label="sync sase-42",
+        status="pending",
+        age_seconds=1,
+    )
+
+    async with ProcsTestApp(queue(pending)).run_test() as pilot:
+        modal, _ = await open_procs_pane(pilot)
+
+        await pilot.press("K")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+        assert cast(ProcsTestApp, pilot.app).notifications[-1] == (
+            "Proc is still submitting — try again in a moment",
+            "warning",
+        )
+
+
+async def test_tasks_tab_kill_shift_alias_matches_bare_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    running = task(
+        "run",
+        label="sync sase-42",
+        status="running",
+        age_seconds=3,
+        live_output="Syncing...\n",
+    )
+    running.store_backed = True
+    running.durable_proc_id = running.proc_id
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.procs_pane.kill_store_task",
+        lambda proc_id: None,
+    )
+
+    async with ProcsTestApp(queue(running)).run_test() as pilot:
+        await open_procs_pane(pilot)
+
+        await pilot.press("shift+k")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, ConfirmActionModal)
+
+
 async def test_tasks_tab_empty_state_and_empty_output_guards() -> None:
     async with ProcsTestApp(queue()).run_test() as pilot:
         _, pane = await open_procs_pane(pilot)

@@ -13,7 +13,7 @@ from textual.widgets import Label, Static
 from sase.ace.hints import build_editor_args
 
 from ..actions.clipboard import schedule_copy_delivery
-from ..proc_observer import ObservedProc
+from ..proc_observer import ObservedProc, proc_status_is_active
 from .procs_pane_render import (
     BodyCache,
     MonitorStatusChip,
@@ -155,7 +155,22 @@ class ProcsPaneActionsMixin(_MixinBase):
     def action_kill_task(self) -> None:
         """Kill the selected running task after confirmation."""
         task = self._get_selected_task()
-        if task is None or not is_active(task) or not task.store_backed:
+        if task is None:
+            return
+
+        if not (task.store_backed and proc_status_is_active(task.status)):
+            if not proc_status_is_active(task.status):
+                self.notify("Proc already finished", severity="warning")
+            elif task.status == "pending":
+                self.notify(
+                    "Proc is still submitting — try again in a moment",
+                    severity="warning",
+                )
+            else:
+                self.notify(
+                    "Session-local task; it cannot be killed from the Procs tab",
+                    severity="warning",
+                )
             return
 
         from .confirm_action_modal import ConfirmActionModal
