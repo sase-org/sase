@@ -5,7 +5,7 @@ from __future__ import annotations
 from sase.ace.query_history import QueryHistoryStacks
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 
-from .test_link_follow import _App, _Pane, _chip
+from ._link_follow_helpers import _App, _Pane, _chip
 
 
 class _Probe:

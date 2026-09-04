@@ -425,6 +425,8 @@ def normalize_owned_agent_name(
     owner = snapshot.owner
     if owner is None:
         return name
+    if not name:
+        return name
     binding = require_rust_binding("normalize_owned_agent_name")
     return str(
         binding(
@@ -581,6 +583,8 @@ def foreign_agent_owner_root(
     snapshot = identity or AgentIdentitySnapshot.current()
     owner = snapshot.owner
     if owner is None:
+        return None
+    if not name:
         return None
     binding = require_rust_binding("foreign_agent_owner_root")
     value = binding(

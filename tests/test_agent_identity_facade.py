@@ -389,6 +389,17 @@ def test_application_identity_policy_keeps_local_storage_bare() -> None:
     )
 
 
+def test_owned_name_helpers_are_total_on_empty_input() -> None:
+    identity = facade.AgentIdentitySnapshot(
+        facade.AgentOwnerIdentity("alice", "athena"),
+        ("athena",),
+    )
+
+    assert facade.foreign_agent_owner_root("", identity) is None
+    assert facade.normalize_owned_agent_name("", identity) == ""
+    assert facade.current_owner_agent_name_key("", identity) == ""
+
+
 def test_application_identity_policy_preserves_explicit_foreign_hoods() -> None:
     identity = facade.AgentIdentitySnapshot(
         facade.AgentOwnerIdentity("alice", "athena"),

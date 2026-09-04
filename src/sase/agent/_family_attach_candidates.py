@@ -219,16 +219,20 @@ def family_sase_plan(records: list[Any], parent_base: str) -> str | None:
     from sase.core.agent_identity_facade import current_owner_agent_name_key
 
     parent_key = current_owner_agent_name_key(parent_base)
+
+    def _key_matches(value: str | None, parent_key: str) -> bool:
+        if not value:
+            return False
+        return current_owner_agent_name_key(value) == parent_key
+
     family_records = [
         record
         for record in records
         if record.agent_meta is not None
         and (
-            current_owner_agent_name_key(record.agent_meta.agent_family or "")
-            == parent_key
-            or current_owner_agent_name_key(record.agent_meta.workflow_name or "")
-            == parent_key
-            or current_owner_agent_name_key(record.agent_meta.name or "") == parent_key
+            _key_matches(record.agent_meta.agent_family, parent_key)
+            or _key_matches(record.agent_meta.workflow_name, parent_key)
+            or _key_matches(record.agent_meta.name, parent_key)
         )
     ]
     family_records.sort(key=lambda record: record.timestamp, reverse=True)

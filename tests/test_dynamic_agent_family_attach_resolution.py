@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.agent._family_attach_candidates import family_sase_plan
 from sase.agent.family_attach import (
     FamilyAttachDirective,
     FamilyAttachError,
@@ -12,6 +13,7 @@ from sase.agent.family_attach import (
     resolve_family_attach_plan,
 )
 from sase.agent.launch_executor import LaunchExecutionContext
+from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from tests._dynamic_agent_family_attach_helpers import (
     _artifact_record,
     _in_batch_sibling,
@@ -504,3 +506,78 @@ def test_family_attach_sase_plan_env_only_for_code_with_parent_plan(
         assert "SASE_PLAN" not in env
     else:
         assert env["SASE_PLAN"] == expected_sase_plan
+
+
+def _configured_owner_identity() -> AgentIdentitySnapshot:
+    return AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena",),
+    )
+
+
+def test_family_attach_coder_resolves_when_snapshot_has_empty_agent_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.core.agent_identity_facade.AgentIdentitySnapshot.current",
+        _configured_owner_identity,
+    )
+    parent_plan = "sdd/plans/202609/foo.md"
+    _patch_attach_snapshot(
+        monkeypatch,
+        [
+            _artifact_record(
+                name="other",
+                agent_family=None,
+                timestamp="20260701010000",
+                artifact_dir="/tmp/sase/artifacts/ace-run/20260701010000",
+            ),
+            _artifact_record(
+                name="",
+                agent_family=None,
+                timestamp="20260701010001",
+                artifact_dir="/tmp/sase/artifacts/ace-run/20260701010001",
+            ),
+            _artifact_record(
+                name="foo",
+                timestamp="20260701010101",
+                sdd_plan_path=parent_plan,
+            ),
+        ],
+    )
+
+    plan = resolve_family_attach_plan(
+        FamilyAttachDirective(parent="foo", suffix="code"),
+        project_name="sase",
+    )
+
+    assert plan.agent_family_role == "code"
+    assert plan.agent_name == "foo--code"
+    assert plan.sase_plan == parent_plan
+
+
+def test_family_sase_plan_skips_empty_identity_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.core.agent_identity_facade.AgentIdentitySnapshot.current",
+        _configured_owner_identity,
+    )
+    matching_plan = "sdd/plans/202609/foo.md"
+    records = [
+        _artifact_record(
+            name="",
+            agent_family=None,
+            timestamp="20260701020202",
+            sdd_plan_path="sdd/plans/202609/unrelated.md",
+        ),
+        _artifact_record(
+            name="foo",
+            workflow_name="foo",
+            agent_family="foo",
+            timestamp="20260701010101",
+            sdd_plan_path=matching_plan,
+        ),
+    ]
+
+    assert family_sase_plan(records, "foo") == matching_plan
