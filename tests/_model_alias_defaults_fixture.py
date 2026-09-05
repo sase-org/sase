@@ -46,7 +46,7 @@ _FROZEN_ALIASES: dict[str, dict[str, str]] = {
         "description": "Frozen test description for large.",
     },
     XLARGE_MODEL_ALIAS_NAME: {
-        "target": "claude/opus@max || codex/gpt-5.6-sol@max",
+        "target": "(claude/opus@max | codex/gpt-5.6-sol@max) || grok/grok-4.6@xhigh",
         "description": "Frozen test description for xlarge.",
     },
 }

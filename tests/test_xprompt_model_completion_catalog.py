@@ -100,6 +100,13 @@ def test_model_completion_catalog_reflects_real_builtin_model_metadata(
     assert spark.aliases == ("gpt53spark",)
     assert spark.description == "Codex (gpt53spark)"
 
+    assert "gpt-6-astra" in model_entries
+
+    astra = model_entries["gpt-6-astra"]
+    assert astra.provider == "codex"
+    assert astra.aliases == ("astra",)
+    assert astra.description == "Codex (astra)"
+
 
 def test_model_completion_catalog_includes_agy_gemini_37_flash_variants(
     monkeypatch: pytest.MonkeyPatch,

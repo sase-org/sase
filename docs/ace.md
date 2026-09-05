@@ -3487,9 +3487,9 @@ Overrides are per-alias and per-launch-setting, and independent:
   alias is resolved. A size-specific phase or task override affects only that alias. An
   override on a selector-valued alias — a `|` load-balanced pool, `||` ordered fallback,
   or parenthesized `(A | B) || C` last-resort, such as the shipped `@xsmall`, `@small`,
-  `@medium` pools, the `@large` pool-with-tail, or the `@xlarge` ordered fallback —
-  suspends that alias's own rotation/fallback for a single concrete target until the
-  override expires or is cleared.
+  `@medium` pools, or the `@large`/`@xlarge` pool-with-tail — suspends that alias's own
+  rotation/fallback for a single concrete target until the override expires or is
+  cleared.
 - An override on **`epic lander`** or **`big epic lander`** affects only epic land
   agents below, or at/above, `bead.big_epic_phase_threshold`, independently of
   `default model` and of each other.
@@ -3543,9 +3543,8 @@ references, a temporary override on the alias they reference (`@large` and `@xla
 default) cascades into their effective resolution; overriding `epic lander` or
 `big epic lander` directly takes precedence over that nested reference. A temporary
 override on a selector-valued built-in size alias — the shipped `@xsmall`, `@small`, and
-`@medium` pools, the `@large` pool-with-tail, or the `@xlarge` ordered fallback —
-suspends only that alias's own rotation and does not cascade to any other alias or
-launch setting.
+`@medium` pools, or the `@large`/`@xlarge` pool-with-tail — suspends only that alias's
+own rotation and does not cascade to any other alias or launch setting.
 
 ### Persistent edits
 
@@ -3614,7 +3613,8 @@ fewer than two pool members or the live validation line reports an error.
   reference) inherits the same change.
 - Leave `@xlarge` implicit — xlarge phases, tasks, and threshold-selected epic landers
   (which reference `@xlarge` by default) all follow whichever candidate in its shipped
-  ordered fallback is currently selected.
+  `(claude/claude-fable-5@xhigh | codex/gpt-6-astra@xhigh) || grok/grok-4.6@xhigh`
+  last-resort is currently selected.
 - Highlight `@xsmall`, `e`, choose `Custom...`, enter
   `claude/haiku@minimal | codex/gpt-4.1-mini@low`, and confirm — xsmall phases and tasks
   round-robin across installed providers while the panel continues to show the next

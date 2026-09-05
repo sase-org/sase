@@ -40,6 +40,7 @@ def test_build_model_options_has_known_models() -> None:
     assert "claude-haiku-4-5" in ids
     assert "claude-fable-5" in ids
     assert "o3" in ids
+    assert "gpt-6-astra" in ids
     assert "gpt-5.6-sol" in ids
     assert "gpt-5.5" in ids
     assert "gpt-5.3-codex-spark" in ids

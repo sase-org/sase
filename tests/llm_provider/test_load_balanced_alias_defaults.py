@@ -181,9 +181,10 @@ def test_size_alias_pools_skip_unavailable_provider(
     assert (peeked.target, peeked.effort) == expected
 
 
-def test_xlarge_ordered_fallback_selects_available_provider(
+def test_xlarge_pool_skips_unavailable_member_before_last_resort(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A `(A | B) || C` last-resort skips an unavailable pool member first."""
     mock_provider_config(monkeypatch, {"provider": "claude"})
     monkeypatch.setattr(
         llm_config,

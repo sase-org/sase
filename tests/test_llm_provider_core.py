@@ -138,6 +138,7 @@ def test_config_provider_overrides_auto_detection(
 def test_resolve_model_provider_explicit_syntax() -> None:
     """Explicit provider/model syntax resolves correctly."""
     assert resolve_model_provider("codex/o3") == ("codex", "o3")
+    assert resolve_model_provider("codex/gpt-6-astra") == ("codex", "gpt-6-astra")
     assert resolve_model_provider("claude/opus") == ("claude", "opus")
     assert resolve_model_provider("claude/claude-opus-5") == (
         "claude",
@@ -180,6 +181,7 @@ def test_resolve_model_provider_implicit_mapping() -> None:
         "codex",
         "gpt-5.3-codex-spark",
     )
+    assert resolve_model_provider("gpt-6-astra") == ("codex", "gpt-6-astra")
     assert resolve_model_provider("gpt-5.6-sol") == ("codex", "gpt-5.6-sol")
     assert resolve_model_provider("gpt-5.5") == ("codex", "gpt-5.5")
     assert resolve_model_provider("gpt-5.3-codex") == ("codex", "gpt-5.3-codex")
@@ -229,6 +231,7 @@ def test_model_short_alias_map_contains_agy_entries() -> None:
 def test_model_short_alias_map_contains_codex_entries() -> None:
     """The aggregated alias map carries the codex plugin's entries."""
     aliases = model_short_alias_map()
+    assert aliases.get("gpt-6-astra") == "astra"
     assert aliases.get("codex-mini-latest") == "mini"
     assert aliases.get("gpt-5.6-sol") == "gpt56sol"
     assert aliases.get("gpt-5.5") == "gpt55"

@@ -12,6 +12,11 @@ from sase.llm_provider.config import (
     resolve_model_alias_with_effort,
     validate_model_alias_selector_value,
 )
+from sase.llm_provider.load_balancing import parse_model_alias_selector
+from sase.llm_provider.model_alias_policy import (
+    XLARGE_MODEL_ALIAS_NAME,
+    implicit_alias_targets,
+)
 from sase.llm_provider.registry import resolve_model_provider_with_effort
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
@@ -233,33 +238,21 @@ def test_launch_and_temporary_overrides_suspend_ordered_fallback(
     assert resolve_model_alias("@fallback", consume=True) == "claude/opus"
 
 
-@pytest.mark.parametrize(
-    ("available", "expected_target", "expected_effort"),
-    [
-        (
-            {"claude/opus", "codex/gpt-5.6-sol", "grok/grok-4.6"},
-            "claude/opus",
-            "max",
-        ),
-        (
-            {"codex/gpt-5.6-sol", "grok/grok-4.6"},
-            "codex/gpt-5.6-sol",
-            "max",
-        ),
-        (
-            {"grok/grok-4.6"},
-            "grok/grok-4.6",
-            "xhigh",
-        ),
-    ],
-)
-def test_shipped_xlarge_ordered_fallback_selects_by_availability(
+def test_shipped_xlarge_pool_uses_last_resort_grok(
     real_model_alias_defaults: None,
     monkeypatch: pytest.MonkeyPatch,
-    available: set[str],
-    expected_target: str,
-    expected_effort: str,
 ) -> None:
+    """The shipped `@xlarge` round-robins Fable/Astra, with Grok as last resort."""
+    selector = parse_model_alias_selector(
+        implicit_alias_targets()[XLARGE_MODEL_ALIAS_NAME]
+    )
+    assert selector is not None
+    assert selector.members == (
+        "claude/claude-fable-5@xhigh",
+        "codex/gpt-6-astra@xhigh",
+    )
+    assert selector.fallback_members == ("grok/grok-4.6@xhigh",)
+
     mock_provider_config(
         monkeypatch,
         {"provider": "claude", "model_aliases": {"builtin": {}}},
@@ -267,8 +260,24 @@ def test_shipped_xlarge_ordered_fallback_selects_by_availability(
     monkeypatch.setattr(
         llm_config,
         "_resolved_target_is_available",
-        lambda target: target in available,
+        lambda _target: True,
     )
+    for _ in range(4):
+        selected = resolve_model_alias("@xlarge", consume=True)
+        assert not selected.startswith("grok/")
 
-    resolved = resolve_model_alias_with_effort("@xlarge", consume=True)
-    assert (resolved.target, resolved.effort) == (expected_target, expected_effort)
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda target: target.startswith("codex/"),
+    )
+    only_codex = resolve_model_alias_with_effort("@xlarge", consume=True)
+    assert (only_codex.target, only_codex.effort) == ("codex/gpt-6-astra", "xhigh")
+
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda target: target.startswith("grok/"),
+    )
+    diverted = resolve_model_alias_with_effort("@xlarge", consume=True)
+    assert (diverted.target, diverted.effort) == ("grok/grok-4.6", "xhigh")
