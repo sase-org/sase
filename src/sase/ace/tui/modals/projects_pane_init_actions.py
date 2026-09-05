@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from textual.app import SuspendNotSupported
+
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion, TrackedProcResult
 from sase.ace.tui.session_proc_reporter import SessionProcReporter
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
@@ -29,6 +31,7 @@ from .projects_pane_init_payload import (
     bounded_output_tail,
     current_init_toast,
     parse_init_check_payload,
+    tty_blocked_projects,
 )
 
 if TYPE_CHECKING:
@@ -178,6 +181,35 @@ class ProjectsPaneInitActionsMixin(_MixinBase):
             return
         if decision.action == "apply":
             self._submit_init_apply(scope, payload)
+        elif decision.action == "terminal":
+            self._run_init_in_terminal(payload)
+
+    def _run_init_in_terminal(self, payload: InitCheckPayload) -> None:
+        blocked = tty_blocked_projects(payload)
+        if not blocked:
+            return
+        terminal_scope = InitScope.for_projects(
+            [project.name for project in blocked],
+            [project.display_name or project.name for project in blocked],
+        )
+        argv = terminal_scope.terminal_argv()
+        cwd = init_cwd()
+        self._set_status(f"Running `sase init` in terminal for {terminal_scope.label}…")
+        try:
+            with self.app.suspend():  # type: ignore[attr-defined]
+                subprocess.run(argv, cwd=cwd, check=False)
+        except (OSError, SuspendNotSupported) as exc:
+            message = f"Could not run `sase init` in terminal: {exc}"
+            self._set_status(message)
+            self.notify(message, severity="error")
+            return
+        message = f"Returned from terminal init for {terminal_scope.label}"
+        self._set_status(message)
+        if not self.is_mounted:
+            return
+        self.action_reload_projects()
+        if self._status_message == "Reloaded":
+            self._set_status(message)
 
     def _submit_init_apply(self, scope: InitScope, payload: InitCheckPayload) -> None:
         submit = getattr(self.app, "_submit_session_worker", None)

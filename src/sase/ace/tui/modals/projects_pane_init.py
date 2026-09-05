@@ -91,6 +91,14 @@ class InitScope:
         """Return ``sase init … --yes`` for this scope."""
         return sase_argv("init", *self.scope_flags, "--yes")
 
+    def terminal_argv(self) -> list[str]:
+        """Return plain ``sase init …`` for this scope, for the interactive valve.
+
+        No ``--yes``: the point of the terminal valve is the real ``[y/N/d]``
+        and TTY-only prompts, not another non-interactive run.
+        """
+        return sase_argv("init", *self.scope_flags)
+
 
 def init_cwd() -> Path:
     """Return the explicit cwd for init procs.

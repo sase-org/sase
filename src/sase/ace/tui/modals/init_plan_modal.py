@@ -23,14 +23,14 @@ from .init_plan_modal_rendering import (
     runnable_project_count,
 )
 from .projects_pane_init import InitScope
-from .projects_pane_init_payload import InitCheckPayload
+from .projects_pane_init_payload import InitCheckPayload, has_tty_blocked_projects
 
-InitPlanAction = Literal["apply"]
+InitPlanAction = Literal["apply", "terminal"]
 
 
 @dataclass(frozen=True, slots=True)
 class InitPlanDecision:
-    """Typed dismissal record. Phase ``valve`` widens ``action`` in place."""
+    """Typed dismissal record."""
 
     action: InitPlanAction
 
@@ -44,6 +44,7 @@ class InitPlanModal(ModalScreen[InitPlanDecision | None]):
         ("n", "cancel", "Cancel"),
         ("y", "confirm", "Confirm"),
         ("d", "toggle_diffs", "Toggle diffs"),
+        ("t", "run_in_terminal", "Run in terminal"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
     ]
@@ -58,6 +59,7 @@ class InitPlanModal(ModalScreen[InitPlanDecision | None]):
             ConfirmKind.DANGER if init_plan_is_danger(payload) else ConfirmKind.NEUTRAL
         )
         self._runnable = runnable_project_count(payload)
+        self._show_terminal = has_tty_blocked_projects(payload)
         self._title = init_plan_title(scope, payload)
 
     def compose(self) -> ComposeResult:
@@ -67,7 +69,7 @@ class InitPlanModal(ModalScreen[InitPlanDecision | None]):
         ) as dialog:
             dialog.border_title = self._build_border_title()
             dialog.border_subtitle = init_plan_border_subtitle(
-                show_diffs=self._show_diffs
+                show_diffs=self._show_diffs, show_terminal=self._show_terminal
             )
             with VerticalScroll(id="init-plan-preview-scroll") as preview_scroll:
                 preview_scroll.border_title = "Initialization plan"
@@ -80,6 +82,11 @@ class InitPlanModal(ModalScreen[InitPlanDecision | None]):
                 )
                 confirm.disabled = self._runnable == 0
                 yield confirm
+                if self._show_terminal:
+                    yield Button(
+                        "Run in terminal (t)",
+                        id="init-plan-terminal",
+                    )
                 yield Button(
                     "Cancel (n)",
                     id="init-plan-cancel",
@@ -150,7 +157,9 @@ class InitPlanModal(ModalScreen[InitPlanDecision | None]):
         try:
             self.query_one(
                 "#init-plan-container", Container
-            ).border_subtitle = init_plan_border_subtitle(show_diffs=self._show_diffs)
+            ).border_subtitle = init_plan_border_subtitle(
+                show_diffs=self._show_diffs, show_terminal=self._show_terminal
+            )
         except Exception:
             pass
         scroll = self._preview_scroll()
@@ -169,6 +178,11 @@ class InitPlanModal(ModalScreen[InitPlanDecision | None]):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+    def action_run_in_terminal(self) -> None:
+        if not self._show_terminal:
+            return
+        self.dismiss(InitPlanDecision(action="terminal"))
 
     def action_scroll_down(self) -> None:
         scroll = self._preview_scroll()
@@ -195,6 +209,8 @@ class InitPlanModal(ModalScreen[InitPlanDecision | None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "init-plan-confirm":
             self.action_confirm()
+        elif event.button.id == "init-plan-terminal":
+            self.action_run_in_terminal()
         else:
             self.action_cancel()
 

@@ -61,6 +61,18 @@ def test_multi_project_argv_preserves_request_order() -> None:
     assert scope.scope_flags == ("-p", "beta", "-p", "alpha")
 
 
+def test_terminal_argv_has_no_check_json_or_yes() -> None:
+    scope = InitScope.for_projects(("sase",), ("SASE",))
+
+    assert scope.terminal_argv() == ["sase", "init", "-p", "sase"]
+
+
+def test_terminal_argv_multi_project_preserves_request_order() -> None:
+    scope = InitScope.for_projects(("beta", "alpha"), ("Beta", "Alpha"))
+
+    assert scope.terminal_argv() == ["sase", "init", "-p", "beta", "-p", "alpha"]
+
+
 def test_scope_key_is_stable_under_reordering() -> None:
     first = InitScope.for_projects(("beta", "alpha"), ("Beta", "Alpha"))
     second = InitScope.for_projects(("alpha", "beta"), ("Alpha", "Beta"))

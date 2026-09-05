@@ -188,6 +188,53 @@ def test_tty_blocked_payload_annotates_blocker_and_disables_primary() -> None:
     assert init_plan_confirm_label(scope, payload) == "Nothing runnable"
     assert modal._runnable == 0
     assert modal._kind is ConfirmKind.NEUTRAL
+    assert modal._show_terminal is True
+
+
+def test_terminal_button_absent_without_tty_blockers() -> None:
+    scope = InitScope.for_projects(("sase",), ("sase",))
+    payload = _single_update_payload()
+    modal = InitPlanModal(scope, payload)
+
+    assert modal._show_terminal is False
+
+
+async def test_terminal_button_shown_and_dismisses_with_terminal_decision() -> None:
+    scope = InitScope.for_projects(("sase",), ("sase",))
+    payload = _tty_blocked_payload()
+    results: list[InitPlanDecision | None] = []
+    async with AcePage() as page:
+        modal = InitPlanModal(scope, payload)
+        page.app.push_screen(modal, results.append)
+        await page.expect_modal("InitPlanModal")
+        await page.wait_for(lambda _s: len(modal.query("#init-plan-terminal")) > 0)
+
+        terminal_button = modal.query_one("#init-plan-terminal", Button)
+        assert "Run in terminal" in str(terminal_button.label)
+        assert "t run in terminal" in (
+            modal.query_one("#init-plan-container").border_subtitle
+        )
+
+        await page.press("t")
+        await page.pause()
+        assert results == [InitPlanDecision(action="terminal")]
+
+
+async def test_terminal_key_is_noop_without_tty_blockers() -> None:
+    scope = InitScope.for_projects(("sase",), ("sase",))
+    payload = _single_update_payload()
+    results: list[InitPlanDecision | None] = []
+    async with AcePage() as page:
+        modal = InitPlanModal(scope, payload)
+        page.app.push_screen(modal, results.append)
+        await page.expect_modal("InitPlanModal")
+        await page.wait_for(lambda _s: len(modal.query("#init-plan-confirm")) > 0)
+        assert len(modal.query("#init-plan-terminal")) == 0
+
+        await page.press("t")
+        await page.pause()
+        assert results == []
+        assert page.app.screen is modal
 
 
 async def test_diff_toggle_shows_and_hides_unified_diff() -> None:

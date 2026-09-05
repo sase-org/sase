@@ -10,15 +10,58 @@ import pytest
 from sase.main.init_plan import INIT_CHECK_JSON_SCHEMA_VERSION
 from sase.ace.tui.modals.projects_pane_init_payload import (
     InitCheckPayloadError,
+    has_tty_blocked_projects,
     parse_init_check_payload,
+    tty_blocked_projects,
 )
 
 from .projects_pane_init_test_helpers import (
+    check_payload,
+    planner_row,
+    project_plan,
     raw_action,
     raw_document,
     raw_planner,
     raw_project,
 )
+
+
+def test_tty_blocked_projects_selects_only_requires_tty_holds() -> None:
+    blocked = project_plan(
+        "sase",
+        status="failed",
+        planners=(
+            planner_row(
+                "config",
+                has_changes=True,
+                runnable=False,
+                requires_tty=True,
+                blockers=["owner identity requires a TTY"],
+            ),
+        ),
+    )
+    drifted = project_plan(
+        "beta",
+        status="needs_attention",
+        planners=(planner_row("memory", has_changes=True),),
+    )
+    current = project_plan("gamma")
+    payload = check_payload(blocked, drifted, current, status="blocked")
+
+    assert tty_blocked_projects(payload) == (blocked,)
+    assert has_tty_blocked_projects(payload) is True
+
+
+def test_has_tty_blocked_projects_is_false_without_tty_blockers() -> None:
+    drifted = project_plan(
+        "beta",
+        status="needs_attention",
+        planners=(planner_row("memory", has_changes=True),),
+    )
+    payload = check_payload(drifted, status="drift")
+
+    assert tty_blocked_projects(payload) == ()
+    assert has_tty_blocked_projects(payload) is False
 
 
 def test_parse_current_payload(monkeypatch: pytest.MonkeyPatch) -> None:

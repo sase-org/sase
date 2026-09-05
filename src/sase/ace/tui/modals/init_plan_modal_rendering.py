@@ -85,10 +85,11 @@ def init_plan_is_danger(payload: InitCheckPayload) -> bool:
     return False
 
 
-def init_plan_border_subtitle(*, show_diffs: bool) -> str:
+def init_plan_border_subtitle(*, show_diffs: bool, show_terminal: bool = False) -> str:
     """Return the modal border subtitle for the current diff-toggle state."""
     diff = "d hide diffs" if show_diffs else "d diff"
-    return f"y run · {diff} · esc cancel"
+    terminal = " · t run in terminal" if show_terminal else ""
+    return f"y run · {diff}{terminal} · esc cancel"
 
 
 def init_plan_renderable(
