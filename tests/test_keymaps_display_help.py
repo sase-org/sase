@@ -322,7 +322,7 @@ def test_agents_help_lists_save_dismiss_marked_agents() -> None:
     assert ("S", "Bulk status change (marked Patches)") in cls_pairs
 
 
-def test_agents_help_advertises_clan_cleanup_chooser() -> None:
+def test_agents_help_advertises_cleanup_panel() -> None:
     reg = load_keymap_registry({})
     agent_pairs = {
         (key, label)
@@ -330,7 +330,7 @@ def test_agents_help_advertises_clan_cleanup_chooser() -> None:
         for key, label in bindings
     }
 
-    assert ("X", "Open cleanup panel (C: clan)") in agent_pairs
+    assert ("X", "Open cleanup panel") in agent_pairs
 
 
 def test_help_modal_lists_prompt_pane_focus_and_reorder() -> None:

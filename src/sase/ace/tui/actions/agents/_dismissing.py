@@ -103,7 +103,13 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         self, agents: list[Agent], *, empty_message: str
     ) -> None:
         """Dismiss all done/failed agents from a candidate list."""
+        from ._clan_cleanup import expand_clan_containers_for_cleanup
         from ._core import DISMISSABLE_STATUSES
+
+        agents = expand_clan_containers_for_cleanup(
+            agents,
+            self._agents_with_children,
+        )
 
         dismissable = [
             a

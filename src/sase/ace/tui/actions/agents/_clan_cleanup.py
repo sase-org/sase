@@ -53,4 +53,32 @@ def clan_members_for_container(
     ]
 
 
-__all__ = ["clan_members_for_container"]
+def expand_clan_containers_for_cleanup(
+    agents: list[Agent],
+    agents_with_children: list[Agent],
+) -> list[Agent]:
+    """Replace synthetic clan containers with their live members.
+
+    Folded clan members live in ``agents_with_children`` but not in the
+    visible Agents-tab list. Bulk dismiss/kill and cleanup-panel counts need
+    those members without selecting the suffix-less container itself.
+    """
+    expanded: list[Agent] = []
+    seen: set[tuple[object, str, str | None]] = set()
+
+    def add(agent: Agent) -> None:
+        if agent.identity in seen:
+            return
+        seen.add(agent.identity)
+        expanded.append(agent)
+
+    for agent in agents:
+        if agent.is_clan_container:
+            for member in clan_members_for_container(agent, agents_with_children):
+                add(member)
+            continue
+        add(agent)
+    return expanded
+
+
+__all__ = ["clan_members_for_container", "expand_clan_containers_for_cleanup"]

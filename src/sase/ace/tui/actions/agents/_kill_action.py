@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from ._kill_action_flow import AgentKillActionFlowMixin
-from ._kill_cleanup_clan import AgentCleanupClanMixin
 from ._kill_cleanup_panel import AgentCleanupPanelMixin
 from ._kill_cleanup_selection import AgentCleanupSelectionMixin
 from ._monitor_stop_flow import MonitorStopActionFlowMixin
@@ -26,7 +25,6 @@ TabName = Literal["artifacts", "agents", "axe"]
 
 class AgentKillMixin(
     AgentCleanupPanelMixin,
-    AgentCleanupClanMixin,
     AgentCleanupSelectionMixin,
     ProcShellDismissMixin,
     MonitorStopActionFlowMixin,

@@ -29,7 +29,13 @@ class AgentKillAllActionsMixin:
         self, agents: list[Agent], *, empty_message: str
     ) -> None:
         """Kill running and dismiss done agents from a candidate list."""
+        from ._clan_cleanup import expand_clan_containers_for_cleanup
         from ._core import DISMISSABLE_STATUSES
+
+        agents = expand_clan_containers_for_cleanup(
+            agents,
+            self._agents_with_children,  # type: ignore[attr-defined]
+        )
 
         from ._proc_shell_dismiss import (
             partition_proc_shells,

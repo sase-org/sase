@@ -40,7 +40,6 @@ class AgentCleanupModal(ModalScreen[AgentCleanupResult | None]):
         ("m", "marked", "Marked"),
         ("g", "group", "Group"),
         ("t", "tribe", "Tribe"),
-        ("C", "clan", "Clan"),
         ("c", "custom", "Custom"),
         ("enter", "choose_highlighted", "Choose"),
     ]
@@ -92,7 +91,7 @@ class AgentCleanupModal(ModalScreen[AgentCleanupResult | None]):
                 )
             yield Static(
                 "d/D dismiss completed  k/K kill running + dismiss completed  "
-                "m marked  g group  t tribe  C clan  c custom  q close",
+                "m marked  g group  t tribe  c custom  q close",
                 id="agent-cleanup-hints",
             )
 
@@ -119,9 +118,6 @@ class AgentCleanupModal(ModalScreen[AgentCleanupResult | None]):
 
     def action_tribe(self) -> None:
         self._choose("tribe")
-
-    def action_clan(self) -> None:
-        self._choose("clan")
 
     def action_custom(self) -> None:
         self._choose("custom")
@@ -179,7 +175,6 @@ class AgentCleanupModal(ModalScreen[AgentCleanupResult | None]):
         text.append(f"\n{self._state.marked_count} marked", style="cyan")
         text.append(f"  {self._state.group_count} in group", style="magenta")
         text.append(f"\n{self._state.tribe_count} tribe panels", style="dim")
-        text.append(f" · {self._state.clan_count} clans", style="dim cyan")
         return text
 
     @staticmethod
@@ -248,13 +243,6 @@ class AgentCleanupModal(ModalScreen[AgentCleanupResult | None]):
                 state.tribe_count > 0,
             ),
             _ActionRow(
-                "clan",
-                "C",
-                "Choose clan",
-                AgentCleanupModal._clan_detail(state),
-                state.clan_count > 0,
-            ),
-            _ActionRow(
                 "custom",
                 "c",
                 "Custom selection",
@@ -262,15 +250,6 @@ class AgentCleanupModal(ModalScreen[AgentCleanupResult | None]):
                 panel_cleanup_count > 0,
             ),
         ]
-
-    @staticmethod
-    def _clan_detail(state: AgentCleanupPanelState) -> str:
-        count = state.clan_count
-        plural = "clan" if count == 1 else "clans"
-        detail = f"{count} {plural} in {state.focused_panel_label}"
-        if state.focused_clan_label:
-            detail += f" · focused: {state.focused_clan_label}"
-        return detail
 
 
 __all__ = ["AgentCleanupModal"]

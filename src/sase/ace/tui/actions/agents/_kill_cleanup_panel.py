@@ -44,24 +44,16 @@ class AgentCleanupPanelMixin:
         from ._core import DISMISSABLE_STATUSES
         from ...modals import AgentCleanupPanelState
 
-        panel_agents = self._agents_in_focused_panel()  # type: ignore[attr-defined]
-        all_agents = list(self._agents)
-        clans = self._agent_cleanup_clans_in_focused_panel(panel_agents)  # type: ignore[attr-defined]
-        clan_targets = self._agent_cleanup_targets_from_candidates(panel_agents)
-        clan_target_wires = None
-        cleanable_clans: list[Agent] = []
-        if clans:
-            from sase.core.agent_cleanup_facade import agents_to_cleanup_targets
+        from ._clan_cleanup import expand_clan_containers_for_cleanup
 
-            clan_target_wires = agents_to_cleanup_targets(clan_targets)
-            for clan in clans:
-                plan = self._plan_clan_cleanup_container(  # type: ignore[attr-defined]
-                    clan,
-                    clan_targets,
-                    target_wires=clan_target_wires,
-                )
-                if plan.kill_items or plan.dismiss_items:
-                    cleanable_clans.append(clan)
+        panel_agents = expand_clan_containers_for_cleanup(
+            self._agents_in_focused_panel(),  # type: ignore[attr-defined]
+            self._agents_with_children,
+        )
+        all_agents = expand_clan_containers_for_cleanup(
+            list(self._agents),
+            self._agents_with_children,
+        )
 
         def running_count(agents: list[Agent]) -> int:
             return sum(
@@ -101,8 +93,6 @@ class AgentCleanupPanelMixin:
             marked_count=len(self._marked_agents),
             group_count=group_count,
             tribe_count=len(self._known_agent_cleanup_tribes()),
-            clan_count=len(cleanable_clans),
-            focused_clan_label=self._focused_cleanup_clan_label(clans),  # type: ignore[attr-defined]
         )
 
     def _run_agent_cleanup_panel_action(self, action: AgentCleanupAction) -> None:
@@ -131,9 +121,6 @@ class AgentCleanupPanelMixin:
             return
         if action == "tribe":
             self._open_tribe_cleanup_selector()  # type: ignore[attr-defined]
-            return
-        if action == "clan":
-            self._open_clan_cleanup_selector()  # type: ignore[attr-defined]
             return
         if action == "custom":
             self._open_custom_cleanup_selector()  # type: ignore[attr-defined]

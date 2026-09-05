@@ -1,4 +1,4 @@
-"""Keyboard-driven end-to-end coverage for clan cleanup."""
+"""Keyboard-driven end-to-end coverage for clan members on the cleanup panel."""
 
 from __future__ import annotations
 
@@ -43,9 +43,7 @@ def _clan_member(
     )
 
 
-async def test_clan_cleanup_keyboard_flow_partitions_and_updates_state(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def _clan_panel_agents() -> tuple[Agent, Agent, Agent, Agent]:
     alpha_running = _clan_member(
         "alpha.run",
         "alpha-run",
@@ -76,9 +74,69 @@ async def test_clan_cleanup_keyboard_flow_partitions_and_updates_state(
         generation="no-tribe-generation",
         tribe=None,
     )
-    agents = [alpha_running, alpha_done, review_done, no_tribe_done]
-    patch_startup_loaders(monkeypatch, agents=agents)
+    return alpha_running, alpha_done, review_done, no_tribe_done
 
+
+async def test_cleanup_panel_dismiss_completed_includes_clan_members(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    alpha_running, alpha_done, review_done, no_tribe_done = _clan_panel_agents()
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[alpha_running, alpha_done, review_done, no_tribe_done],
+    )
+    killed: list[Agent] = []
+
+    def kill_process(_self: AceApp, agent: Agent) -> bool:
+        killed.append(agent)
+        return True
+
+    monkeypatch.setattr(AceApp, "_kill_agent_process_group", kill_process)
+
+    async with AcePage(
+        query='"demo"',
+        patches=patches(),
+        initial_tab="agents",
+    ) as page:
+        await wait_for_startup(page)
+        assert page.app._panel_group.panel_keys == [None, "epic", "review"]
+
+        await page.press("J")
+        await page.wait_for(lambda _screen: page.app._panel_group.focused_key == "epic")
+        initial_dismissed = set(page.app._dismissed_agents)
+
+        await page.press("X")
+        await page.expect_modal("AgentCleanupModal")
+        await page.press("d")
+        await page.expect_modal("ConfirmDismissAllModal")
+        await page.press("y")
+        await page.expect_no_modal()
+        await page.wait_for(
+            lambda _screen: alpha_done.identity in page.app._dismissed_agents
+        )
+
+        dismissed_ids = page.app._dismissed_agents - initial_dismissed
+        untouched_ids = {
+            alpha_running.identity,
+            review_done.identity,
+            no_tribe_done.identity,
+        }
+        assert dismissed_ids == {alpha_done.identity}
+        assert killed == []
+        assert untouched_ids.isdisjoint(page.app._dismissed_agents)
+        assert untouched_ids <= {
+            agent.identity for agent in page.app._agents_with_children
+        }
+
+
+async def test_cleanup_panel_kill_and_dismiss_includes_clan_members(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    alpha_running, alpha_done, review_done, no_tribe_done = _clan_panel_agents()
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[alpha_running, alpha_done, review_done, no_tribe_done],
+    )
     killed: list[Agent] = []
     persistence_submissions: list[tuple[Any, ...]] = []
 
@@ -103,10 +161,7 @@ async def test_clan_cleanup_keyboard_flow_partitions_and_updates_state(
 
         await page.press("J")
         await page.wait_for(lambda _screen: page.app._panel_group.focused_key == "epic")
-
         initial_dismissed = set(page.app._dismissed_agents)
-        page.app._marked_agents = {agent.identity for agent in agents}
-        page.app._marked_agent_order = [agent.identity for agent in agents]
         notifications: list[tuple[str, str]] = []
         monkeypatch.setattr(
             page.app,
@@ -118,21 +173,8 @@ async def test_clan_cleanup_keyboard_flow_partitions_and_updates_state(
 
         await page.press("X")
         await page.expect_modal("AgentCleanupModal")
-        await page.press("C")
-        await page.expect_modal("AgentCleanupClanModal")
-        await page.press("space", "enter")
+        await page.press("k")
         await page.expect_modal("ConfirmKillAllModal")
-
-        confirm = page.app.screen
-        description = confirm.agent_description
-        assert "Clan: alpha" in description
-        assert "Kill: 1 sase agent" in description
-        assert "Dismiss: 1 sase agent" in description
-        assert "alpha.run" in description
-        assert "alpha.done" in description
-        assert "review.done" not in description
-        assert "no-tribe.done" not in description
-
         await page.press("y", "y")
         await page.expect_no_modal()
         await page.wait_for(
@@ -146,8 +188,6 @@ async def test_clan_cleanup_keyboard_flow_partitions_and_updates_state(
         untouched_ids = {review_done.identity, no_tribe_done.identity}
         assert {agent.identity for agent in killed} == {alpha_running.identity}
         assert page.app._dismissed_agents - initial_dismissed == selected_ids
-        assert page.app._marked_agents == set()
-        assert page.app._marked_agent_order == []
         assert selected_ids.isdisjoint(
             {agent.identity for agent in page.app._agents_with_children}
         )

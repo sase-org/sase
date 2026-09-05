@@ -4,9 +4,6 @@ from .add_property_modal import AddPropertyModal as AddPropertyModal
 from .add_xprompt_modal import AddXPromptModal as AddXPromptModal
 from .add_property_modal import AddableProperty as AddableProperty
 from .agent_cleanup_modal import AgentCleanupAction as AgentCleanupAction
-from .agent_cleanup_modal import AgentCleanupClanKey as AgentCleanupClanKey
-from .agent_cleanup_modal import AgentCleanupClanModal as AgentCleanupClanModal
-from .agent_cleanup_modal import AgentCleanupClanResult as AgentCleanupClanResult
 from .agent_cleanup_modal import AgentCleanupCustomModal as AgentCleanupCustomModal
 from .agent_cleanup_modal import AgentCleanupCustomResult as AgentCleanupCustomResult
 from .agent_cleanup_modal import AgentCleanupModal as AgentCleanupModal

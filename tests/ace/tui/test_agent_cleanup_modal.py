@@ -40,8 +40,6 @@ def _state(**overrides: Any) -> AgentCleanupPanelState:
         marked_count=2,
         group_count=5,
         tribe_count=2,
-        clan_count=3,
-        focused_clan_label="sase-72",
     )
     return replace(base, **overrides)
 
@@ -71,24 +69,11 @@ def test_agent_cleanup_modal_action_availability() -> None:
     assert rows["dismiss_all_done"].enabled is True
     assert rows["kill_all"].enabled is True
     assert rows["tribe"].enabled is True
-    assert rows["clan"].enabled is True
     assert rows["custom"].enabled is False
+    assert "clan" not in rows
 
 
-def test_agent_cleanup_modal_clan_row_context_and_availability() -> None:
-    modal = AgentCleanupModal(_state())
-    clan_row = next(row for row in modal._rows if row.action == "clan")
-
-    assert clan_row.enabled is True
-    assert clan_row.key == "C"
-    assert clan_row.detail == "3 clans in @fix · focused: sase-72"
-    assert "3 clans" in modal._context_block().plain
-
-    disabled = AgentCleanupModal(_state(clan_count=0, focused_clan_label=None))
-    assert next(row for row in disabled._rows if row.action == "clan").enabled is False
-
-
-async def test_agent_cleanup_modal_hints_include_final_clan_key_set() -> None:
+async def test_agent_cleanup_modal_hints_include_final_key_set() -> None:
     async with _TestApp().run_test() as pilot:
         modal = AgentCleanupModal(_state())
         pilot.app.push_screen(modal)
@@ -97,7 +82,7 @@ async def test_agent_cleanup_modal_hints_include_final_clan_key_set() -> None:
         hints = modal.query_one("#agent-cleanup-hints", Static)
         assert str(hints.content) == (
             "d/D dismiss completed  k/K kill running + dismiss completed  "
-            "m marked  g group  t tribe  C clan  c custom  q close"
+            "m marked  g group  t tribe  c custom  q close"
         )
 
 
