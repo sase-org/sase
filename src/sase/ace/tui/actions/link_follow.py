@@ -18,17 +18,13 @@ per transaction and never for a ref that failed to parse or route.
 from __future__ import annotations
 
 import asyncio
-from collections import Counter
-from dataclasses import dataclass, replace
-import logging
-from typing import TYPE_CHECKING, Any
+from dataclasses import replace
+from typing import Any
 
 from textual.events import Key
 from textual.widgets import Input
 
-from sase.ace.link_reveal import LinkReveal, is_link_reveal_active
-from sase.ace.query_record import QueryRecord
-from sase.core.artifact_entry_target import ArtifactEntryTarget
+from sase.ace.link_reveal import LinkReveal
 
 from ..modals.numbered_link_keys import (
     LINK_FOLLOW_PREFIX,
@@ -45,204 +41,30 @@ from ..relations.link_keys import (
     link_rail_items,
 )
 from ..relations.link_subject import selected_link_subject
-from ..tab_order import ARTIFACTS_TAB
-from ..widgets.artifacts.entry_navigation import (
-    HydrationOutcome,
-    HydrationResult,
-    LinkRequestState,
-)
 from ._link_follow_helpers import (
-    agent_matches_ref,
     artifact_link_add_enabled,
     artifact_link_index_drift_notice,
     cached_link_panel_staleness_notice,
-    chop_matches,
     combine_notices,
     link_chip_endpoints,
     link_panel_reveal_flags,
     pane_is_loading,
-    pane_label,
     readonly_link_source,
     remove_artifact_link,
     scope_label,
-    target_project_scope,
 )
-from ._link_follow_ladder import (
-    RUNG_FOLD,
-    RUNG_TOAST,
-    capture_query_origin,
-    end_link_follow_pinning,
-    pane_limit_query,
-    selected_follow_outcome,
-    try_reveal_rung,
+from ._link_follow_targets import LinkFollowTargetsMixin
+from ._link_follow_transaction import LinkFollowTransactionMixin
+from ._link_follow_trail_state import LinkFollowTrailStateMixin
+from ._link_follow_types import (
+    LinkFollowTransaction,
+    LinkTrailHop,
+    _link_follow_outcomes,
 )
-from .axe_display._loader_items import selected_axe_item_key
-
-if TYPE_CHECKING:
-    from .axe_display._loader_state import AxeItemKey
-
-log = logging.getLogger(__name__)
-
-_LINK_TRAIL_MAX = 32
-_link_follow_outcomes: Counter[str] = Counter()
 
 
-def _record_link_follow_outcome(outcome: str) -> None:
-    """Count one follow resolution or failure class for debug logging."""
-    _link_follow_outcomes[outcome] += 1
-    log.debug(
-        "link-follow outcome=%s count=%d totals=%s",
-        outcome,
-        _link_follow_outcomes[outcome],
-        dict(_link_follow_outcomes),
-    )
-
-
-@dataclass(frozen=True, slots=True)
-class LinkTrailHop:
-    """One successful link-follow origin, retained for future backtracking."""
-
-    tab: str
-    pane_key: str | None
-    origin: ArtifactEntryTarget | None
-    query_source: str | None
-    project_scope: str | None = None
-    axe_key: AxeItemKey | None = None
-    #: Lumberjack this hop's forward jump had to expand to reveal its chop,
-    #: recorded so walking back can put the AXE tree back the way it was.
-    axe_fold_expanded: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class _LinkFollowTransaction:
-    """One open ``$`` link-follow awaiting an authoritative pane outcome.
-
-    Registered before any pane is asked to resolve *target*, so a
-    synchronous completion (reported through the shared
-    :meth:`~.entry_navigation.ArtifactEntryNavigator._complete_entry_request`
-    seam) can be finalized safely. ``rung`` is the next ladder step to
-    try and only ever increases, so an authoritative ``MISSING`` cannot
-    retry a rung that already fired. ``hydrated`` marks that this
-    transaction (or the one it restarted from) already spent its one
-    targeted-hydration attempt, so a fetched row that still misses every
-    rung on re-entry reports absence instead of hydrating in a loop.
-    """
-
-    generation: int
-    ref: str
-    target: ArtifactEntryTarget
-    origin: LinkTrailHop
-    rung: int = RUNG_FOLD
-    origin_query: QueryRecord | None = None
-    origin_target: ArtifactEntryTarget | None = None
-    hydrated: bool = False
-
-
-class LinkFollowMixin:
-    """Resolve and follow addressable link-rail chips."""
-
-    current_tab: Any
-    current_idx: int
-    _pending_link_prefix: bool
-    _link_trail: list[LinkTrailHop]
-    _link_trail_forward: list[LinkTrailHop]
-    _link_trail_guard: bool
-    _link_follow_generation: int
-    _link_follow_transaction: _LinkFollowTransaction | None
-    _link_follow_dispatching: bool
-    _link_reveals: dict[str, LinkReveal]
-    _link_hydration_waiters: dict[tuple[str, str], int]
-    _link_hydration_in_flight: set[tuple[str, str]]
-
-    def action_follow_artifact_link(self) -> None:
-        """Arm ``$`` link selection, or follow the lead chip on ``$$``."""
-
-        if not self._link_follow_available():
-            clear_link_prefix(self, LINK_FOLLOW_PREFIX)
-            return
-        if getattr(self, LINK_FOLLOW_PREFIX.state_attr, False):
-            clear_link_prefix(self, LINK_FOLLOW_PREFIX)
-            self._follow_link_number(1)
-            return
-        arm_link_prefix(self, LINK_FOLLOW_PREFIX)
-
-    def _handle_link_prefix_key(self, event: Key) -> bool:
-        if not getattr(self, LINK_FOLLOW_PREFIX.state_attr, False):
-            if not self._link_follow_available():
-                return False
-        elif not self._link_follow_available():
-            clear_link_prefix(self, LINK_FOLLOW_PREFIX)
-            return False
-        return handle_link_prefix_key(
-            self,
-            event,
-            LINK_FOLLOW_PREFIX,
-            follow=self._follow_link_number,
-            on_double=lambda: self._follow_link_number(1),
-            on_zero=self._open_artifact_links_panel,
-        )
-
-    def _link_follow_available(self) -> bool:
-        if isinstance(getattr(self, "focused", None), Input):
-            return False
-        try:
-            available = getattr(self, "link_follow_available_for_selection", None)
-            if callable(available):
-                return bool(available())
-            return bool(self.link_edges_for_selection())  # type: ignore[attr-defined]
-        except Exception:
-            return False
-
-    def _follow_link_number(self, number: int) -> None:
-        if number < 1 or number > MAX_DIRECT_LINK_KEYS:
-            return
-        chips = self.link_edges_for_selection()  # type: ignore[attr-defined]
-        items = link_rail_items(tuple(chips))
-        if number > len(items):
-            return
-        self._follow_link_item(items[number - 1])
-
-    def _follow_link_item(self, item: LinkRailItem) -> None:
-        if item.count > 1:
-            self._open_artifact_links_panel(item)
-            return
-        self._follow_single_link_chip(item.chip)
-
-    def _follow_single_link_chip(self, chip: LinkChip) -> None:
-        parsed = parse_link_ref(chip.neighbor_ref)
-        if parsed is None:
-            self._notify_dangling_link_ref(chip.neighbor_ref)
-            return
-        kind, payload = parsed
-        origin = self._current_link_trail_origin()
-        # A new follow supersedes whatever the previous one left open, so a
-        # late resolution for it is ignored rather than producing a stale
-        # trail hop or toast.
-        self._cancel_link_follow_transaction()
-        self._link_trail_guard = True
-        try:
-            if kind == "chop":
-                expanded: list[str] = []
-                if self._follow_chop_link(payload, expanded=expanded):
-                    self._record_link_trail(
-                        replace(
-                            origin,
-                            axe_fold_expanded=expanded[0] if expanded else None,
-                        )
-                    )
-                return
-            if kind == "agent" and self._follow_loaded_agent(payload):
-                self._record_link_trail(origin)
-                return
-            target = chip.neighbor_target
-            if target is None:
-                target = target_for_ref_kind(kind, payload, project_hint=None)
-                if target is None:
-                    self._notify_dangling_link_ref(chip.neighbor_ref)
-                    return
-            self._follow_artifacts_target(chip.neighbor_ref, target, origin)
-        finally:
-            self._link_trail_guard = False
+class _LinkFollowPanelMixin:
+    """Open and handle the expanded links panel."""
 
     def _open_artifact_links_panel(
         self, scope_item: LinkRailItem | None = None
@@ -281,7 +103,7 @@ class LinkFollowMixin:
             if result is None:
                 return
             if result.action == "follow" and result.chip is not None:
-                self._follow_single_link_chip(result.chip)
+                self._follow_single_link_chip(result.chip)  # type: ignore[attr-defined]
                 return
             if result.action == "add":
                 add = getattr(self, "action_artifacts_link_marked", None)
@@ -387,507 +209,117 @@ class LinkFollowMixin:
             registry_attr="_link_rail_tasks",
         )
 
-    def _current_link_trail_origin(self) -> LinkTrailHop:
-        tab = str(getattr(self, "current_tab", ""))
-        pane_key: str | None = None
-        origin: ArtifactEntryTarget | None = None
-        query_source: str | None = None
-        project_scope: str | None = None
-        axe_key: AxeItemKey | None = None
-        if tab == ARTIFACTS_TAB:
-            pane_key = str(getattr(self, "current_artifacts_pane_key", ""))
-            pane = self._artifacts_entry_navigator()  # type: ignore[attr-defined]
-            if pane is not None:
-                origin = pane.selected_entry_target()
-                query_source = pane_limit_query(pane)
-            project_scope = getattr(self, "artifacts_project_scope", None)
-        elif tab == "agents":
-            agent = self._get_selected_agent()  # type: ignore[attr-defined]
-            name = getattr(agent, "agent_name", None) if agent is not None else None
-            if isinstance(name, str) and name:
-                origin = ArtifactEntryTarget("agents", (name,))
-        elif tab == "axe":
-            axe_key = selected_axe_item_key(
-                getattr(self, "_axe_items", []),
-                getattr(self, "current_idx", -1),
-            )
-        return LinkTrailHop(
-            tab=tab,
-            pane_key=pane_key or None,
-            origin=origin,
-            query_source=query_source,
-            project_scope=project_scope,
-            axe_key=axe_key,
-        )
 
-    def _record_link_trail(self, hop: LinkTrailHop) -> None:
-        trail = getattr(self, "_link_trail", None)
-        if not isinstance(trail, list):
-            trail = []
-            self._link_trail = trail
-        trail.append(hop)
-        if len(trail) > _LINK_TRAIL_MAX:
-            del trail[: len(trail) - _LINK_TRAIL_MAX]
-        forward = getattr(self, "_link_trail_forward", None)
-        if isinstance(forward, list):
-            forward.clear()
+class LinkFollowMixin(
+    _LinkFollowPanelMixin,
+    LinkFollowTrailStateMixin,
+    LinkFollowTargetsMixin,
+    LinkFollowTransactionMixin,
+):
+    """Resolve and follow addressable link-rail chips."""
 
-    def _follow_artifacts_target(
-        self,
-        ref: str,
-        chip_target: ArtifactEntryTarget,
-        origin: LinkTrailHop,
-    ) -> None:
-        """Resolve and dispatch one artifacts-pane follow to completion.
+    current_tab: Any
+    current_idx: int
+    _pending_link_prefix: bool
+    _link_trail: list[LinkTrailHop]
+    _link_trail_forward: list[LinkTrailHop]
+    _link_trail_guard: bool
+    _link_follow_generation: int
+    _link_follow_transaction: LinkFollowTransaction | None
+    _link_follow_dispatching: bool
+    _link_reveals: dict[str, LinkReveal]
+    _link_hydration_waiters: dict[tuple[str, str], int]
+    _link_hydration_in_flight: set[tuple[str, str]]
 
-        Handles the immediate same-pane fast path itself; every other case
-        opens a host-owned :class:`_LinkFollowTransaction` before touching the
-        destination pane, so a synchronous ``SELECTED``/``MISSING``/``FAILED``
-        report through the shared completion seam can finalize safely, and a
-        ``PENDING`` report leaves the transaction open for a later async one.
-        """
-        target = self._resolve_link_follow_target(ref, chip_target)
-        if self._select_current_artifacts_target(target):
-            _record_link_follow_outcome("select")
-            self._record_link_trail(origin)
+    def action_follow_artifact_link(self) -> None:
+        """Arm ``$`` link selection, or follow the lead chip on ``$$``."""
+
+        if not self._link_follow_available():
+            clear_link_prefix(self, LINK_FOLLOW_PREFIX)
             return
-        project = target_project_scope(target)
-        if project is not None and project != getattr(
-            self, "artifacts_project_scope", None
-        ):
-            self._set_artifacts_project_scope(  # type: ignore[attr-defined]
-                project,
-                picked=True,
-            )
-        if self.current_tab != ARTIFACTS_TAB:
-            self._save_current_tab_position()  # type: ignore[attr-defined]
-            self.current_tab = ARTIFACTS_TAB
-        generation = self._begin_link_follow_transaction(ref, target, origin)
-        state = self._request_artifacts_target(target, generation=generation)
-        self._handle_link_follow_outcome(generation, state)
-
-    def _begin_link_follow_transaction(
-        self,
-        ref: str,
-        target: ArtifactEntryTarget,
-        origin: LinkTrailHop,
-    ) -> int:
-        self._link_follow_generation += 1
-        generation = self._link_follow_generation
-        pane = self._artifacts_entry_navigator(  # type: ignore[attr-defined]
-            target.pane_id
-        )
-        origin_query, origin_target = capture_query_origin(self, pane, target.pane_id)
-        self._link_follow_transaction = _LinkFollowTransaction(
-            generation=generation,
-            ref=ref,
-            target=target,
-            origin=origin,
-            origin_query=origin_query,
-            origin_target=origin_target,
-        )
-        return generation
-
-    def _cancel_link_follow_transaction(self) -> None:
-        """Invalidate any open transaction so its later completion is ignored."""
-        self._link_follow_transaction = None
-        ender = getattr(self, "_end_collapsed_query_transitions", None)
-        if callable(ender):
-            ender()
-
-    def _complete_link_follow_request(
-        self,
-        generation: int | None,
-        state: LinkRequestState,
-    ) -> None:
-        """Shared completion seam entry point: reported by a pane's request.
-
-        A no-op while :attr:`_link_follow_dispatching` is set -- that means
-        this report arrived synchronously, reentrantly, from within the very
-        call that is about to receive *state* as a plain return value, so
-        the dispatching call site handles it directly instead.
-        """
-        if generation is None or self._link_follow_dispatching:
+        if getattr(self, LINK_FOLLOW_PREFIX.state_attr, False):
+            clear_link_prefix(self, LINK_FOLLOW_PREFIX)
+            self._follow_link_number(1)
             return
-        self._handle_link_follow_outcome(generation, state)
+        arm_link_prefix(self, LINK_FOLLOW_PREFIX)
 
-    def _handle_link_follow_outcome(
-        self,
-        generation: int,
-        state: LinkRequestState,
-    ) -> None:
-        transaction = self._link_follow_transaction
-        if transaction is None or transaction.generation != generation:
-            return  # a stale or already-finalized generation
-        if state is LinkRequestState.PENDING:
-            return  # keep the transaction open for a later report
-        if state is LinkRequestState.SELECTED:
-            self._link_follow_transaction = None
-            _record_link_follow_outcome(selected_follow_outcome(transaction.rung))
-            self._finalize_selected_link_follow(transaction)
-            return
-        if state is LinkRequestState.FAILED:
-            self._link_follow_transaction = None
-            end_link_follow_pinning(self)
-            _record_link_follow_outcome("failed")
-            self._notify_link_follow_failed(transaction)
-            return
-        self._handle_missing_link_follow(transaction)
-
-    def _handle_missing_link_follow(self, transaction: _LinkFollowTransaction) -> None:
-        """Walk the remaining reveal rungs, then hydrate or report absence."""
-        pane = self._artifacts_entry_navigator(  # type: ignore[attr-defined]
-            transaction.target.pane_id
-        )
-        if pane is not None and not pane_is_loading(pane):
-            rung = transaction.rung
-            while rung < RUNG_TOAST:
-                if try_reveal_rung(self, pane, transaction, rung):
-                    retried = replace(transaction, rung=rung + 1)
-                    self._link_follow_transaction = retried
-                    state = self._request_artifacts_target(
-                        transaction.target, generation=transaction.generation
-                    )
-                    self._handle_link_follow_outcome(transaction.generation, state)
-                    return
-                rung += 1
-            if not transaction.hydrated and self._begin_link_hydration(
-                pane, transaction
-            ):
-                return
-        self._link_follow_transaction = None
-        end_link_follow_pinning(self)
-        _record_link_follow_outcome("missing")
-        self._notify_missing_in_inventory(transaction.ref, transaction.target)
-
-    def _begin_link_hydration(
-        self,
-        pane: Any,
-        transaction: _LinkFollowTransaction,
-    ) -> bool:
-        """Start (or coalesce into) one blocking direct-lookup for *transaction*.
-
-        Keyed by (pane, ref) so a repeated request while a lookup is
-        already running never spawns a second one -- a newer generation
-        simply supersedes the old waiter by overwriting the map entry, so
-        whichever transaction is live when the single in-flight lookup
-        resolves is the one :meth:`_complete_link_hydration` applies it
-        to. Returns ``False`` when the pane has no direct source, the ref
-        cannot be parsed, or no event loop is available to run the
-        lookup, so the caller falls back to the honest toast.
-        """
-        hydrate = getattr(pane, "hydrate_ref", None)
-        if not callable(hydrate):
+    def _handle_link_prefix_key(self, event: Key) -> bool:
+        if not getattr(self, LINK_FOLLOW_PREFIX.state_attr, False):
+            if not self._link_follow_available():
+                return False
+        elif not self._link_follow_available():
+            clear_link_prefix(self, LINK_FOLLOW_PREFIX)
             return False
-        parsed = parse_link_ref(transaction.ref)
-        if parsed is None:
-            return False
-        kind, payload = parsed
-        pane_id = transaction.target.pane_id
-        key = (pane_id, transaction.ref)
-        self._link_follow_transaction = replace(transaction, hydrated=True)
-        waiters = self._link_hydration_waiters_map()
-        waiters[key] = transaction.generation
-        in_flight = self._link_hydration_in_flight_set()
-        if key in in_flight:
-            return True  # already running; the newer generation now owns it
-        from ..util.pump_tasks import spawn_pump_free_task
-
-        async def _runner() -> None:
-            try:
-                result = await asyncio.to_thread(hydrate, kind, payload)
-            except Exception as exc:  # noqa: BLE001 - mapped to FAILED below
-                result = HydrationResult(HydrationOutcome.FAILED, error=str(exc))
-            in_flight.discard(key)
-            self._complete_link_hydration(key, pane_id, result)
-
-        task = spawn_pump_free_task(
+        return handle_link_prefix_key(
             self,
-            _runner(),
-            name="sase-link-hydration",
-            registry_attr="_link_hydration_tasks",
+            event,
+            LINK_FOLLOW_PREFIX,
+            follow=self._follow_link_number,
+            on_double=lambda: self._follow_link_number(1),
+            on_zero=self._open_artifact_links_panel,
         )
-        if task is None:
-            del waiters[key]
+
+    def _link_follow_available(self) -> bool:
+        if isinstance(getattr(self, "focused", None), Input):
             return False
-        in_flight.add(key)
-        return True
+        try:
+            available = getattr(self, "link_follow_available_for_selection", None)
+            if callable(available):
+                return bool(available())
+            return bool(self.link_edges_for_selection())  # type: ignore[attr-defined]
+        except Exception:
+            return False
 
-    def _link_hydration_waiters_map(self) -> dict[tuple[str, str], int]:
-        waiters = getattr(self, "_link_hydration_waiters", None)
-        if not isinstance(waiters, dict):
-            waiters = {}
-            self._link_hydration_waiters = waiters
-        return waiters
-
-    def _link_hydration_in_flight_set(self) -> set[tuple[str, str]]:
-        in_flight = getattr(self, "_link_hydration_in_flight", None)
-        if not isinstance(in_flight, set):
-            in_flight = set()
-            self._link_hydration_in_flight = in_flight
-        return in_flight
-
-    def _complete_link_hydration(
-        self,
-        key: tuple[str, str],
-        pane_id: str,
-        result: HydrationResult,
-    ) -> None:
-        """Apply one resolved hydration lookup, unless it has been superseded.
-
-        Re-reads the live transaction rather than trusting anything
-        captured before the lookup's ``await`` -- cancellation, a second
-        follow, user navigation, or teardown may have replaced or cleared
-        it while the lookup ran off the pump.
-        """
-        waiters = self._link_hydration_waiters_map()
-        generation = waiters.pop(key, None)
-        transaction = self._link_follow_transaction
-        if (
-            transaction is None
-            or generation is None
-            or transaction.generation != generation
-            or transaction.ref != key[1]
-            or transaction.target.pane_id != pane_id
-        ):
-            return  # superseded by a later follow, cancellation, or teardown
-        if result.outcome is HydrationOutcome.FETCHED:
-            self._install_hydrated_link_row(pane_id, transaction, result.payload)
+    def _follow_link_number(self, number: int) -> None:
+        if number < 1 or number > MAX_DIRECT_LINK_KEYS:
             return
-        self._link_follow_transaction = None
-        end_link_follow_pinning(self)
-        if result.outcome is HydrationOutcome.ABSENT:
-            self._notify_dangling_link_ref(transaction.ref)
+        chips = self.link_edges_for_selection()  # type: ignore[attr-defined]
+        items = link_rail_items(tuple(chips))
+        if number > len(items):
             return
-        if result.outcome is HydrationOutcome.FAILED:
-            self._notify_link_follow_failed(transaction)
-            return
-        self._notify_missing_in_inventory(transaction.ref, transaction.target)
+        self._follow_link_item(items[number - 1])
 
-    def _install_hydrated_link_row(
-        self,
-        pane_id: str,
-        transaction: _LinkFollowTransaction,
-        payload: Any,
-    ) -> None:
-        """Merge one fetched row on the UI thread, then re-enter the ladder."""
-        pane = self._artifacts_entry_navigator(pane_id)  # type: ignore[attr-defined]
-        installer = (
-            getattr(pane, "install_hydrated_row", None) if pane is not None else None
-        )
-        new_target = installer(payload) if callable(installer) else None
-        if new_target is None:
-            self._link_follow_transaction = None
-            end_link_follow_pinning(self)
-            self._notify_link_follow_failed(transaction)
+    def _follow_link_item(self, item: LinkRailItem) -> None:
+        if item.count > 1:
+            self._open_artifact_links_panel(item)
             return
-        retried = replace(transaction, target=new_target, rung=RUNG_FOLD)
-        self._link_follow_transaction = retried
-        state = self._request_artifacts_target(
-            new_target, generation=transaction.generation
-        )
-        self._handle_link_follow_outcome(transaction.generation, state)
+        self._follow_single_link_chip(item.chip)
 
-    def _finalize_selected_link_follow(
-        self, transaction: _LinkFollowTransaction
-    ) -> None:
-        """Record the trail hop and refresh the rail exactly once."""
-        previous_guard = self._link_trail_guard
+    def _follow_single_link_chip(self, chip: LinkChip) -> None:
+        parsed = parse_link_ref(chip.neighbor_ref)
+        if parsed is None:
+            self._notify_dangling_link_ref(chip.neighbor_ref)
+            return
+        kind, payload = parsed
+        origin = self._current_link_trail_origin()
+        # A new follow supersedes whatever the previous one left open, so a
+        # late resolution for it is ignored rather than producing a stale
+        # trail hop or toast.
+        self._cancel_link_follow_transaction()
         self._link_trail_guard = True
         try:
-            self._record_link_trail(transaction.origin)
-            note = getattr(self, "_note_artifacts_selection_for_link_trail", None)
-            if callable(note):
-                # Sync the last-observed-selection baseline while guarded,
-                # so a later unguarded navigation doesn't mistake this
-                # follow's own landing for user navigation and wipe the
-                # hop just recorded above.
-                note()
+            if kind == "chop":
+                expanded: list[str] = []
+                if self._follow_chop_link(payload, expanded=expanded):
+                    self._record_link_trail(
+                        replace(
+                            origin,
+                            axe_fold_expanded=expanded[0] if expanded else None,
+                        )
+                    )
+                return
+            if kind == "agent" and self._follow_loaded_agent(payload):
+                self._record_link_trail(origin)
+                return
+            target = chip.neighbor_target
+            if target is None:
+                target = target_for_ref_kind(kind, payload, project_hint=None)
+                if target is None:
+                    self._notify_dangling_link_ref(chip.neighbor_ref)
+                    return
+            self._follow_artifacts_target(chip.neighbor_ref, target, origin)
         finally:
-            self._link_trail_guard = previous_guard
-        end_link_follow_pinning(self)
-        pane = self._artifacts_entry_navigator(  # type: ignore[attr-defined]
-            transaction.target.pane_id
-        )
-        current = pane_limit_query(pane) or ""
-        reveal = getattr(self, "_link_reveals", {}).get(transaction.target.pane_id)
-        if is_link_reveal_active(
-            reveal,
-            pane_id=transaction.target.pane_id,
-            current_canonical=current,
-        ):
-            self.notify(  # type: ignore[attr-defined]
-                f"Revealed {transaction.ref} — press ^ to restore your query",
-            )
-        self.refresh_link_rail()  # type: ignore[attr-defined]
-
-    def _notify_link_follow_failed(self, transaction: _LinkFollowTransaction) -> None:
-        self.notify(  # type: ignore[attr-defined]
-            f"Failed to load {pane_label(transaction.target)} for {transaction.ref}",
-            severity="error",
-        )
-
-    def _resolve_link_follow_target(
-        self,
-        ref: str,
-        chip_target: ArtifactEntryTarget,
-    ) -> ArtifactEntryTarget:
-        """Address *ref* by this pane's own row identity; *chip_target* is a hint.
-
-        ``chip_target`` was synthesized at chip-build time from the ref's
-        kind alone (:func:`target_for_ref_kind`) and can name a row identity
-        the destination pane never uses -- it is reliable about which pane
-        owns the ref, unreliable about which row. The destination pane's own
-        :meth:`~.entry_navigation.ArtifactEntryNavigator.entry_target_for_ref`
-        resolves the real row from its unfiltered snapshot; ``chip_target``
-        survives only as the fallback when that pane has no answer, so a
-        same-pane visible row still fast-paths through unchanged.
-        """
-        parsed = parse_link_ref(ref)
-        if parsed is None:
-            return chip_target
-        kind, payload = parsed
-        routed = target_for_ref_kind(kind, payload, project_hint=None)
-        pane_id = routed.pane_id if routed is not None else chip_target.pane_id
-        pane = self._artifacts_entry_navigator(pane_id)  # type: ignore[attr-defined]
-        resolver = (
-            getattr(pane, "entry_target_for_ref", None) if pane is not None else None
-        )
-        resolved = resolver(kind, payload) if callable(resolver) else None
-        return resolved if resolved is not None else chip_target
-
-    def _select_current_artifacts_target(self, target: ArtifactEntryTarget) -> bool:
-        if self.current_tab != ARTIFACTS_TAB:
-            return False
-        pane = self._artifacts_entry_navigator()  # type: ignore[attr-defined]
-        if pane is None or target not in pane.entry_targets():
-            return False
-        if not pane.select_entry_target(target):
-            return False
-        sync = getattr(self, "_sync_active_artifacts_entry_state", None)
-        if callable(sync):
-            sync()
-        return True
-
-    def _request_artifacts_target(
-        self,
-        target: ArtifactEntryTarget,
-        *,
-        generation: int | None = None,
-    ) -> LinkRequestState:
-        """Dispatch one pane request without the completion seam reentering.
-
-        ``_link_follow_dispatching`` marks this call's extent so a
-        synchronous report through :meth:`_complete_link_follow_request` is a
-        no-op; the resolved state returned here is what the caller (this
-        method's own caller, not the pane) uses to finalize instead.
-        """
-        request = getattr(self, "_request_artifacts_entry", None)
-        if not callable(request):
-            pane = self._artifacts_entry_navigator(target.pane_id)  # type: ignore[attr-defined]
-            if pane is not None and pane.selected_entry_target() == target:
-                return LinkRequestState.SELECTED
-            return LinkRequestState.MISSING
-        self._link_follow_dispatching = True
-        try:
-            return request(target, generation=generation)
-        finally:
-            self._link_follow_dispatching = False
-
-    def _follow_loaded_agent(self, payload: str) -> bool:
-        agents = getattr(self, "_agents", ())
-        for idx, agent in enumerate(agents):
-            if agent_matches_ref(agent, payload):
-                self._save_current_tab_position()  # type: ignore[attr-defined]
-                self.current_tab = "agents"
-                self.current_idx = idx
-                self._agents_last_idx = idx  # type: ignore[attr-defined]
-                self._agents_last_identity = agent.identity  # type: ignore[attr-defined]
-                self._refresh_current_tab()  # type: ignore[attr-defined]
-                self.refresh_link_rail()  # type: ignore[attr-defined]
-                return True
-        return False
-
-    def _follow_chop_link(
-        self,
-        payload: str,
-        *,
-        expanded: list[str] | None = None,
-    ) -> bool:
-        lumberjack, sep, base_chop = payload.partition("/")
-        if not sep or not lumberjack or not base_chop:
-            self._notify_dangling_link_ref(f"chop:{payload}")
-            return False
-        if self._expand_lumberjack_for_chop(lumberjack) and expanded is not None:
-            expanded.append(lumberjack)
-        idx = self._find_chop_index(lumberjack, base_chop)
-        if idx is None:
-            self._notify_dangling_link_ref(f"chop:{payload}")
-            return False
-        self._save_current_tab_position()  # type: ignore[attr-defined]
-        self.current_tab = "axe"
-        self.current_idx = idx
-        self._axe_last_idx = idx  # type: ignore[attr-defined]
-        self._axe_last_item_key = selected_axe_item_key(  # type: ignore[attr-defined]
-            self._axe_items,  # type: ignore[attr-defined]
-            idx,
-        )
-        self._refresh_current_tab()  # type: ignore[attr-defined]
-        self.refresh_link_rail()  # type: ignore[attr-defined]
-        return True
-
-    def _expand_lumberjack_for_chop(self, lumberjack: str) -> bool:
-        """Reveal *lumberjack*'s chops, reporting whether that changed the fold.
-
-        ``expand`` advances at most one rung, so a single ``collapse`` is the
-        exact inverse -- which is what makes the ``Ctrl+O`` undo in
-        :mod:`.link_trail` faithful rather than approximate.
-        """
-        changed = self._step_lumberjack_fold(lumberjack, expand=True)
-        build = getattr(self, "_build_axe_items", None)
-        if callable(build):
-            build()
-        return changed
-
-    def _step_lumberjack_fold(self, lumberjack: str, *, expand: bool) -> bool:
-        manager = getattr(self, "_axe_fold_manager", None)
-        if manager is None:
-            return False
-        key = f"lumberjack:{lumberjack}"
-        return bool(manager.expand(key) if expand else manager.collapse(key))
-
-    def collapse_lumberjack_after_link_trail(self, lumberjack: str) -> None:
-        """Undo one :meth:`_expand_lumberjack_for_chop` step."""
-        self._step_lumberjack_fold(lumberjack, expand=False)
-        build = getattr(self, "_build_axe_items", None)
-        if callable(build):
-            build()
-
-    def _find_chop_index(self, lumberjack: str, base_chop: str) -> int | None:
-        items = getattr(self, "_axe_items", ())
-        snapshots = getattr(self, "_axe_chop_snapshots", {})
-        for idx, item in enumerate(items):
-            if not chop_matches(item, snapshots, lumberjack, base_chop):
-                continue
-            return idx
-        return None
-
-    def _notify_dangling_link_ref(self, ref: str) -> None:
-        _record_link_follow_outcome("dangling")
-        self.notify(  # type: ignore[attr-defined]
-            f"No such artifact: {ref}",
-            severity="warning",
-        )
-
-    def _notify_missing_in_inventory(
-        self,
-        ref: str,
-        target: ArtifactEntryTarget | None,
-    ) -> None:
-        self.notify(  # type: ignore[attr-defined]
-            f"{pane_label(target)} has no {ref} in its inventory",
-            severity="warning",
-        )
+            self._link_trail_guard = False
 
 
 __all__ = ["LinkFollowMixin", "LinkTrailHop"]
