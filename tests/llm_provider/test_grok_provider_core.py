@@ -22,6 +22,10 @@ from sase.llm_provider.registry import (
     provider_cli_status_color_map,
     resolve_model_provider,
 )
+from sase.llm_provider.retry_config import (
+    find_retry_config_for_error,
+    is_retryable_error,
+)
 from sase.llm_provider.types import LLMInvocationError, LLMInvocationOptions
 
 GROK_STREAM_FIXTURES = Path(__file__).parents[1] / "fixtures" / "grok_stream"
@@ -39,6 +43,17 @@ _GROK_CONTROL_FLAGS = (
     "--no-ask-user",
     "--no-auto-update",
     "--no-leader",
+)
+
+# Captured live from ace(run)-260904_135714 (grok-4.6, effort xhigh, turn 55):
+# the Grok Build CLI aborted the whole session with exit code 1 and this
+# internal-error JSON payload on stderr.
+_GROK_MAX_TOKENS_TRUNCATION_ERROR = (
+    "Error running LLM provider command (exit code 1)\n"
+    "Error: Internal error: {\n"
+    '  "message": "response truncated by max_tokens",\n'
+    '  "error_kind": "max_tokens_truncation"\n'
+    "}"
 )
 
 
@@ -183,7 +198,27 @@ def test_grok_retry_config_uses_xai_specific_patterns() -> None:
     assert config.max_retries == 3
     assert config.wait_times == [60, 300, 1800]
     assert config.preserve_workspace is True
-    assert all("xai" in pattern.lower() for pattern in config.error_patterns)
+    xai_patterns = {
+        "xAI API error",
+        "xAI rate limit",
+        "xAI server error",
+        "xAI upstream request failed",
+    }
+    assert xai_patterns.issubset(config.error_patterns)
+
+
+def test_grok_retry_config_retries_max_tokens_truncation() -> None:
+    config = GrokProvider().llm_default_retry_config()
+    assert "max_tokens_truncation" in config.error_patterns
+    assert "response truncated by max_tokens" in config.error_patterns
+    assert is_retryable_error(_GROK_MAX_TOKENS_TRUNCATION_ERROR, config) is True
+
+
+def test_grok_max_tokens_truncation_error_found_via_cross_provider_lookup() -> None:
+    """Guards the lookup path `handle_workflow_error` actually uses."""
+    config = find_retry_config_for_error(_GROK_MAX_TOKENS_TRUNCATION_ERROR)
+    assert config is not None
+    assert is_retryable_error(_GROK_MAX_TOKENS_TRUNCATION_ERROR, config) is True
 
 
 def test_grok_provider_resolve_model_name_maps_both_tiers_to_grok_46() -> None:

@@ -161,6 +161,13 @@ class GrokProvider(LLMProvider):
             ProviderRetryConfig,
         )
 
+        # "max_tokens_truncation" / "response truncated by max_tokens" are
+        # captured live from a run that died mid-session (2026-09-04,
+        # ace(run)-260904_135714, grok-4.6 xhigh, turn 55) when the CLI
+        # aborted with exit code 1 and an internal-error JSON payload whose
+        # error_kind was "max_tokens_truncation". Both anchors are kept: the
+        # machine error_kind key and the prose message, in case a future CLI
+        # build drops one but keeps the other.
         return ProviderRetryConfig(
             max_retries=3,
             error_patterns=[
@@ -168,6 +175,8 @@ class GrokProvider(LLMProvider):
                 "xAI rate limit",
                 "xAI server error",
                 "xAI upstream request failed",
+                "max_tokens_truncation",
+                "response truncated by max_tokens",
             ],
             wait_times=[60, 300, 1800],
             continuation_prompt=_RETRY_CONTINUATION_NUDGE,
