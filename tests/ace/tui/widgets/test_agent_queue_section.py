@@ -130,7 +130,7 @@ def test_queue_field_renders_front_label_and_section_requires_real_position(
     tz_divergence: None,
 ) -> None:
     now = datetime(2026, 7, 25, 8, 5, 0)
-    monkeypatch.setattr("sase.ace.tui.models.agent_time.local_now", lambda: now)
+    monkeypatch.setattr("sase.ace.tui.models._agent_time_wait.local_now", lambda: now)
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_queue_section.local_now",
         lambda: now,
@@ -151,7 +151,7 @@ def test_queue_ladder_renders_duration_value(
     tz_divergence: None,
 ) -> None:
     now = datetime(2026, 7, 25, 8, 5, 0)
-    monkeypatch.setattr("sase.ace.tui.models.agent_time.local_now", lambda: now)
+    monkeypatch.setattr("sase.ace.tui.models._agent_time_wait.local_now", lambda: now)
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_queue_section.local_now",
         lambda: now,
