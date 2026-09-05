@@ -787,6 +787,14 @@ axe:
       chops:
         - name: hook_checks
           script: sase_chop_hook_checks
+          trigger:
+            provider: fs
+            max_quiet: "120s"
+            paths:
+              - path: projects
+                glob: "*/*.sase"
+              - path: projects
+                glob: "*/*.gp"
           description: |-
             Complete finished hooks and start stale ones, with zombie detection
 
@@ -795,6 +803,14 @@ axe:
             zombie_timeout_seconds become ZOMBIE, while terminal Patches may finish hooks but cannot start new ones.
         - name: mentor_checks
           script: sase_chop_mentor_checks
+          trigger:
+            provider: fs
+            max_quiet: "120s"
+            paths:
+              - path: projects
+                glob: "*/*.sase"
+              - path: projects
+                glob: "*/*.gp"
           description: |-
             Start mentor workflows once all hook prerequisites are met
 
@@ -803,6 +819,14 @@ axe:
             workflows, and review-ineligible or terminal Patches are skipped.
         - name: workflow_checks
           script: sase_chop_workflow_checks
+          trigger:
+            provider: fs
+            max_quiet: "120s"
+            paths:
+              - path: projects
+                glob: "*/*.sase"
+              - path: projects
+                glob: "*/*.gp"
           description: |-
             Complete finished CRS/fix-hook workflows and start stale ones
 
@@ -811,6 +835,12 @@ axe:
             budget with mentors, so a full runner pool defers work instead of queueing it.
         - name: pending_checks_poll
           script: sase_chop_pending_checks_poll
+          trigger:
+            provider: fs
+            max_quiet: "120s"
+            paths:
+              - path: checks
+                glob: "*/*.txt"
           description: |-
             Poll background is_cl_submitted and critique_comments checks for results
 
@@ -819,6 +849,14 @@ axe:
             pr_submitted_checks and comment_checks launch the remote checks.
         - name: comment_zombie_checks
           script: sase_chop_comment_zombie_checks
+          trigger:
+            provider: fs
+            max_quiet: "120s"
+            paths:
+              - path: projects
+                glob: "*/*.sase"
+              - path: projects
+                glob: "*/*.gp"
           description: |-
             Mark comment threads older than zombie_timeout as ZOMBIE
 
@@ -827,6 +865,14 @@ axe:
             pending_checks_poll applies their results.
         - name: suffix_transforms
           script: sase_chop_suffix_transforms
+          trigger:
+            provider: fs
+            max_quiet: "120s"
+            paths:
+              - path: projects
+                glob: "*/*.sase"
+              - path: projects
+                glob: "*/*.gp"
           description: |-
             Strip stale suffixes from older proposals and update mail-readiness markers
 
@@ -835,12 +881,23 @@ axe:
             repairs stored suffix state and never launches hooks or agents.
         - name: orphan_cleanup
           script: sase_chop_orphan_cleanup
+          trigger:
+            provider: fs
+            max_quiet: "120s"
+            paths:
+              - path: projects
+                glob: "*/*.sase"
+              - path: projects
+                glob: "*/*.gp"
           description: |-
             Release workspace claims orphaned by reverted PRs with dead PIDs
 
             Reads all Patches and workspace claims, regardless of the axe query, then releases unpinned claims tied
             to Reverted Patches when their owning PID is absent or dead. Live claims and pinned workspaces are left
             untouched.
+        # stale_running_cleanup keeps the default `always` trigger: its actual input is
+        # process liveness (a dead PID), which has no filesystem proxy to watch - a claim's
+        # owning process can die without any project spec, claim, or artifact file changing.
         - name: stale_running_cleanup
           script: sase_chop_stale_running_cleanup
           description: |-
@@ -861,6 +918,12 @@ axe:
       chops:
         - name: bead_claim_checks
           script: sase_chop_bead_claim_checks
+          trigger:
+            provider: fs
+            max_quiet: "120s"
+            paths:
+              - path: projects
+                glob: "*/artifacts/ace-run/*"
           description: |-
             Acquire missing bead claims for live pre-launch agents and release claims held by dead ones
 
@@ -891,6 +954,12 @@ axe:
             per-role backoff keep one unhealthy clone from stalling the rest.
         - name: wait_checks
           script: sase_chop_wait_checks
+          trigger:
+            provider: fs
+            max_quiet: "120s"
+            paths:
+              - path: projects
+                glob: "*/artifacts/ace-run/*"
           description: |-
             Resolve agent wait dependencies and write ready.json when satisfied
 

@@ -192,15 +192,32 @@ High-frequency hook lifecycle management:
 | `orphan_cleanup`        | Release workspace claims for dead processes   |
 | `stale_running_cleanup` | Release workspace claims from dead processes  |
 
+Every chop above except `stale_running_cleanup` ships with an `fs` trigger so an idle
+tick costs a handful of `stat()` calls instead of a subprocess spawn: the six
+Patch-driven chops watch every enabled project's ProjectSpec file
+(`paths: [{path: projects, glob: "*/*.sase"}, {path: projects, glob: "*/*.gp"}]`), and
+`pending_checks_poll` watches the sharded `~/.sase/checks/` output directory. Each
+carries `max_quiet: "120s"`, so a missed observation only delays a fire by up to two
+minutes. `stale_running_cleanup` keeps the default `always` trigger: its actual input is
+process liveness (a claim's owning PID dying), which has no filesystem proxy — a dead
+PID does not touch any project, claim, or artifact file.
+
 ### waits (10-second interval)
 
 Fast-polling agent dependency resolution:
 
 | Chop                | Description                                                            |
 | ------------------- | ---------------------------------------------------------------------- |
+| `bead_claim_checks` | Acquire/release bead claims for pre-launch agents                      |
 | `epic_launch_flush` | Flush planner completions orphaned by unsettled epic launches          |
 | `sidecar_auto_sync` | Fetch/fast-forward opted-in primary sidecar clones (plans, beads, ...) |
 | `wait_checks`       | Resolve successful agent and closed-bead waits; write `ready.json`     |
+
+`bead_claim_checks` and `wait_checks` both ship with an `fs` trigger watching the
+agent-artifact tree (`paths: [{path: projects, glob: "*/artifacts/ace-run/*"}]`,
+`max_quiet: "120s"`), so an idle tick only re-scans when a project gains a new agent
+artifact. `epic_launch_flush` and `sidecar_auto_sync` are untouched by that guard; they
+already throttle via `run_every: "30s"`.
 
 `wait_checks` unblocks a named dependency when the newest matching agent, or the newest
 matching workflow root and all of its children, has a successful terminal `done.json`
