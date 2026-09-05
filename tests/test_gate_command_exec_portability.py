@@ -12,7 +12,9 @@ no-``/proc`` branch explicitly instead of relying on the host to lack it.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import sys
 import threading
 from pathlib import Path
 
@@ -20,6 +22,7 @@ import pytest
 
 from sase.notification_gates import command_runner
 from sase.notification_gates.command_runner import run_owned_command
+from sase.notification_gates.entrypoints import python_gate_command_script
 from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import open_regular_nofollow
 
@@ -74,6 +77,37 @@ def test_streamed_owned_command_runs_where_proc_is_absent(tmp_path: Path) -> Non
 
     assert completed.returncode == 0
     assert lines == [("stdout", '{"answer":"yes"}')]
+
+
+def test_python_gate_command_script_reexecs_as_python_with_quoted_interpreter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The shell header must still parse after Python re-opens the script."""
+    interpreter = tmp_path / "python with ' quote"
+    interpreter.symlink_to(sys.executable)
+    monkeypatch.setattr(sys, "executable", str(interpreter))
+    script = python_gate_command_script(
+        "import json\n"
+        "import sys\n"
+        "print(json.dumps({\n"
+        "    'argv': sys.argv[1:],\n"
+        "    'stdin': json.loads(sys.stdin.read()),\n"
+        "}, sort_keys=True))\n"
+    )
+    bundle, digest = _command_bundle(tmp_path / "bundle", script)
+
+    completed = run_owned_command(
+        bundle,
+        ("commands/proceed", "alpha", "two words"),
+        expected_hash=digest,
+        input_data={"answer": "yes"},
+    )
+
+    assert completed.returncode == 0, completed.stderr.decode()
+    assert json.loads(completed.stdout) == {
+        "argv": ["alpha", "two words"],
+        "stdin": {"answer": "yes"},
+    }
 
 
 @pytest.mark.usefixtures("without_proc")
