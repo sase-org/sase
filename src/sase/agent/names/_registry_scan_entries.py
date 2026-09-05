@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import Any
 
-from sase.agent.names._common import extract_auto_name_prefix
+from sase.agent.names._common import extract_auto_name_prefix, strip_dismissed_prefix
 from sase.agent.names._registry_entries import (
     imported_v1_entry_provenance,
     imported_v2_entry_provenance,
@@ -21,6 +23,8 @@ from sase.core.agent_identity_facade import (
     localize_imported_agent_name,
     present_agent_name,
 )
+
+_HISTORICAL_V1_MACHINE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
 
 def add_owner_names(
@@ -277,21 +281,32 @@ def _localize_v2_payload_name(
 
 
 def _localize_v1_payload_name(name: str, source_machine: str) -> str | None:
-    from sase.agents_sync.io import (
-        AgentsSyncFormatError,
-        validate_machine,
-        validate_qualified_name,
+    if _HISTORICAL_V1_MACHINE_RE.fullmatch(source_machine) is None:
+        return None
+    if source_machine.startswith(".") or "\x00" in source_machine:
+        return None
+    qualified = (
+        name if name.startswith(f"{source_machine}.") else f"{source_machine}.{name}"
     )
+    if not _safe_historical_path_component(qualified):
+        return None
+    core_name = strip_dismissed_prefix(qualified)
+    if (
+        not core_name.startswith(f"{source_machine}.")
+        or core_name == f"{source_machine}."
+    ):
+        return None
+    return qualified
 
-    try:
-        machine = validate_machine(source_machine)
-    except AgentsSyncFormatError:
-        return None
-    qualified = name if name.startswith(f"{machine}.") else f"{machine}.{name}"
-    try:
-        return validate_qualified_name(qualified, machine)
-    except AgentsSyncFormatError:
-        return None
+
+def _safe_historical_path_component(value: object) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    if value in {".", ".."} or value.startswith("."):
+        return False
+    if "\x00" in value or "/" in value or "\\" in value:
+        return False
+    return value == Path(value).name
 
 
 def source_owner_from_payload(

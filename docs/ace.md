@@ -1351,13 +1351,10 @@ refreshes still stay on the visible-inbox path. Use `sase agent index status --j
 a lightweight check that does not scan source artifacts, `sase agent index verify` to
 compare the index with source artifacts, and `sase agent index gc` to rebuild the index
 and dismissed projection. Use the Agents-tab leader command `,y` when you want an
-immediate full-history refresh from source artifacts. If historical agent imports wrote
-future-dated artifacts or dismissed bundles, `sase agent index repair` reports that
-imported state (dry run by default) and `-a`/`--apply` removes it and rebuilds the
-affected projections; locally produced records are never touched. Normal SQLite deletes
-never reclaim disk space; `sase agent index vacuum` reports freelist pages and dismissed
-row counts, and `-a`/`--apply` compacts the index file with `VACUUM` (dry run by
-default; this never removes or alters a row).
+immediate full-history refresh from source artifacts. Normal SQLite deletes never
+reclaim disk space; `sase agent index vacuum` reports freelist pages and dismissed row
+counts, and `-a`/`--apply` compacts the index file with `VACUUM` (dry run by default;
+this never removes or alters a row).
 
 The dismissed projection that hides agents from the visible inbox is rebuilt from the
 in-memory dismissed set _unioned with every dismissed-bundle summary_. Reviving an agent

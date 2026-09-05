@@ -1,28 +1,11 @@
 """Shared helpers for completed-agent loaders."""
 
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 from sase.ace.revert_agent import agent_is_reverted
 
 from ..agent import Agent
-
-
-@lru_cache(maxsize=1_024)
-def completed_import_transaction(project_key: str, transaction_key: str) -> bool:
-    from sase.agents_sync.v2_importer import import_transaction_is_complete
-
-    return import_transaction_is_complete(project_key, transaction_key)
-
-
-def import_transaction_is_visible(
-    project_key: str,
-    transaction_key: object,
-) -> bool:
-    if not isinstance(transaction_key, str) or not transaction_key:
-        return True
-    return completed_import_transaction(project_key, transaction_key)
 
 
 def enrich_agent_revert_state(agent: Agent, artifact_dir: str | Path | None) -> None:

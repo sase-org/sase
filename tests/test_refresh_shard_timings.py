@@ -79,7 +79,10 @@ def test_build_shard_timings_retains_the_slowest_files_and_means_the_rest(
 ) -> None:
     files = [f"tests/test_{index:02d}.py" for index in range(6)]
     _write_test_files(tmp_path, files)
-    durations = {path: float(20 - index) for index, path in enumerate(files)}
+    removed_file = "tests/deleted.py"
+    durations = {
+        path: float(20 - index) for index, path in enumerate([removed_file, *files])
+    }
     write_timings(
         tmp_path / "recordings",
         durations,
@@ -101,6 +104,7 @@ def test_build_shard_timings_retains_the_slowest_files_and_means_the_rest(
     assert payload["host"] == "ci"
     assert payload["measured_file_count"] == 6
     assert set(payload["durations"]) == set(files[:3])
+    assert removed_file not in payload["durations"]
     omitted_mean = sum(durations[path] for path in files[3:]) / 3
     assert payload["default_duration"] == round(omitted_mean, 4)
 

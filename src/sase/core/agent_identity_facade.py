@@ -87,18 +87,6 @@ class AgentOwnershipClassification(StrEnum):
     USERNAME_UNKNOWN_V1 = "username_unknown_v1"
 
 
-class LegacyV1GroupOwnershipClassification(StrEnum):
-    OWNER_OBSERVED = "owner_observed"
-    FOREIGN = "foreign"
-
-
-@dataclass(frozen=True, slots=True)
-class LegacyV1GroupOwnershipEvidence:
-    v2_hood_published: bool
-    proven_entry_count: int
-    total_entry_count: int
-
-
 class AgentFamilyNameKind(StrEnum):
     SOLO = "solo"
     MEMBER = "member"
@@ -134,26 +122,6 @@ class _ValidatedAgentRelationshipSummary:
     global_name_order: tuple[str, ...]
     container_order: tuple[str, ...]
     relationship_order: tuple[int, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class _RewrittenAgentRelationshipBatch:
-    schema_version: int
-    owner: AgentOwnerIdentity
-    runs: tuple[Mapping[str, Any], ...]
-    containers: tuple[Mapping[str, Any], ...]
-    relationships: tuple[Mapping[str, Any], ...]
-
-
-@dataclass(frozen=True, slots=True)
-class _ProjectedAgentRelationshipGraph:
-    schema_version: int
-    source_owner: AgentOwnerIdentity
-    destination_owner: AgentOwnerIdentity
-    registry_namespace_root: str | None
-    runs: tuple[Mapping[str, Any], ...]
-    containers: tuple[Mapping[str, Any], ...]
-    relationships: tuple[Mapping[str, Any], ...]
 
 
 _DISMISSED_PREFIX_RE = re.compile(r"^(\d{6}\.)(.+)$")
@@ -315,11 +283,6 @@ def validate_agent_username(username: str) -> None:
     binding(username)
 
 
-def validate_owner_root(root: str) -> None:
-    binding = require_rust_binding("validate_owner_root")
-    binding(root)
-
-
 def validate_new_agent_name(
     name: str,
     identity: AgentIdentitySnapshot | None = None,
@@ -348,7 +311,7 @@ def validate_agent_owner(owner: AgentOwnerIdentity) -> None:
     binding(payload["username"], payload["machine_name"])
 
 
-def classify_agent_ownership(
+def _classify_agent_ownership(
     source: AgentSourceOwnerIdentity,
     target: AgentOwnerIdentity,
 ) -> AgentOwnershipClassification:
@@ -360,23 +323,6 @@ def classify_agent_ownership(
         source.username,
     )
     return AgentOwnershipClassification(str(value))
-
-
-def classify_legacy_v1_group_ownership(
-    group_machine_name: str,
-    target: AgentOwnerIdentity,
-    evidence: LegacyV1GroupOwnershipEvidence,
-) -> LegacyV1GroupOwnershipClassification:
-    binding = require_rust_binding("classify_legacy_v1_group_ownership")
-    value = binding(
-        group_machine_name,
-        target.username,
-        target.machine_name,
-        evidence.v2_hood_published,
-        evidence.proven_entry_count,
-        evidence.total_entry_count,
-    )
-    return LegacyV1GroupOwnershipClassification(str(value))
 
 
 def normalize_agent_archive_name(name: str) -> str:
@@ -478,7 +424,7 @@ def classify_imported_agent_owner(
     snapshot = identity or AgentIdentitySnapshot.current()
     if snapshot.owner is None:
         return AgentOwnershipClassification.USERNAME_UNKNOWN_V1
-    return classify_agent_ownership(source, snapshot.owner)
+    return _classify_agent_ownership(source, snapshot.owner)
 
 
 def present_agent_name(
@@ -743,58 +689,6 @@ def validate_agent_relationship_batch(
     )
 
 
-def rewrite_agent_relationship_batch(
-    batch: Mapping[str, Any],
-    destination_ids: Mapping[str, str],
-) -> _RewrittenAgentRelationshipBatch:
-    binding = require_rust_binding("rewrite_agent_relationship_batch")
-    payload: Mapping[str, Any] = binding(
-        dict(batch),
-        dict(destination_ids),
-    )
-    return _RewrittenAgentRelationshipBatch(
-        schema_version=int(payload["schema_version"]),
-        owner=_owner_from_mapping(payload["owner"]),
-        runs=tuple(dict(value) for value in payload["runs"]),
-        containers=tuple(dict(value) for value in payload["containers"]),
-        relationships=tuple(dict(value) for value in payload["relationships"]),
-    )
-
-
-def project_agent_relationship_graph(
-    batch: Mapping[str, Any],
-    destination_ids: Mapping[str, str],
-    *,
-    source_owner: AgentOwnerIdentity,
-    destination_owner: AgentOwnerIdentity,
-    identity: AgentIdentitySnapshot | None = None,
-) -> _ProjectedAgentRelationshipGraph:
-    binding = require_rust_binding("project_agent_relationship_graph")
-    snapshot = identity or AgentIdentitySnapshot(destination_owner)
-    payload: Mapping[str, Any] = binding(
-        dict(batch),
-        dict(destination_ids),
-        source_owner.username,
-        source_owner.machine_name,
-        destination_owner.username,
-        destination_owner.machine_name,
-        list(_known_owner_roots(snapshot)),
-    )
-    return _ProjectedAgentRelationshipGraph(
-        schema_version=int(payload["schema_version"]),
-        source_owner=_owner_from_mapping(payload["source_owner"]),
-        destination_owner=_owner_from_mapping(payload["destination_owner"]),
-        registry_namespace_root=(
-            str(payload["registry_namespace_root"])
-            if payload.get("registry_namespace_root") is not None
-            else None
-        ),
-        runs=tuple(dict(value) for value in payload["runs"]),
-        containers=tuple(dict(value) for value in payload["containers"]),
-        relationships=tuple(dict(value) for value in payload["relationships"]),
-    )
-
-
 def _owner_from_mapping(value: Any) -> AgentOwnerIdentity:
     payload: Mapping[str, Any] = value
     return AgentOwnerIdentity(
@@ -820,7 +714,6 @@ __all__ = [
     "agent_local_hood",
     "agent_name_ancestors",
     "agent_name_in_hood",
-    "classify_agent_ownership",
     "classify_imported_agent_owner",
     "current_owner_agent_name_key",
     "current_owner_agent_name_lookup_candidates",
@@ -835,11 +728,8 @@ __all__ = [
     "parse_agent_family_name",
     "present_agent_name",
     "present_imported_agent_name",
-    "project_agent_relationship_graph",
-    "rewrite_agent_relationship_batch",
     "validate_agent_owner",
     "validate_agent_relationship_batch",
     "validate_agent_username",
     "validate_new_agent_name",
-    "validate_owner_root",
 ]

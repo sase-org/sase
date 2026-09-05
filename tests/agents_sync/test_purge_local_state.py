@@ -7,18 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.agents_sync.incoming_cache_metadata import cache_id_for
-from sase.agents_sync.incoming_cache_paths import (
-    cache_objects_dir,
-    cache_staging_dir,
-)
-from sase.agents_sync.incoming_cache_receipts import (
-    read_project_receipts,
-    write_import_receipt,
-)
-from sase.agents_sync.models import AgentHoodImportReceipt
 from sase.agents_sync.purge_local_state import purge_local_import_state
-from sase.agents_sync.v2_import_storage import imports_root
 from sase.core.agent_types import AgentType
 from sase.core.dismissed_agents_facade import (
     load_dismissed_agents,
@@ -73,37 +62,40 @@ def _seed_bundle(state: Path, timestamp: str, *, artifacts_dir: Path) -> Path:
     return path
 
 
-def _receipt(
-    *,
-    source_owner_kind: str,
-    source_username: str | None,
-    source_machine: str,
-) -> AgentHoodImportReceipt:
-    hood_digest = "a" * 64
-    cache_id = cache_id_for(
-        project_key="proj",
-        project="Project",
-        format_version=1 if source_owner_kind == "username_unknown_v1" else 2,
-        source_owner_kind=source_owner_kind,  # type: ignore[arg-type]
-        source_username=source_username,
-        source_machine=source_machine,
-        top_hood="crew",
-        hood_digest=hood_digest,
+def _imports_root(projects: Path, project_key: str) -> Path:
+    return projects / project_key / "agents_sync_imports"
+
+
+def _cache_objects_dir(state: Path) -> Path:
+    return state / "agents_sync" / "cache" / "objects"
+
+
+def _cache_staging_dir(state: Path) -> Path:
+    return state / "agents_sync" / "cache" / "staging"
+
+
+def _receipts_dir(state: Path) -> Path:
+    return state / "agents_sync" / "receipts"
+
+
+def _seed_receipts(state: Path) -> Path:
+    path = _receipts_dir(state) / "proj.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "project_key": "proj",
+                "project": "Project",
+                "receipts": [
+                    {"source_owner_kind": "username_unknown_v1"},
+                    {"source_owner_kind": "exact"},
+                ],
+            }
+        ),
+        encoding="utf-8",
     )
-    return AgentHoodImportReceipt(
-        project_key="proj",
-        project="Project",
-        source_owner_kind=source_owner_kind,  # type: ignore[arg-type]
-        source_username=source_username,
-        source_machine=source_machine,
-        top_hood="crew",
-        hood_digest=hood_digest,
-        cache_id=cache_id,
-        fetched_ref="refs/remotes/origin/main",
-        fetched_sha="b" * 40,
-        cache_created_at=1.0,
-        applied_at=2.0,
-    )
+    return path
 
 
 def _seed_full_closure(state: Path, projects: Path) -> dict[str, Path]:
@@ -135,34 +127,22 @@ def _seed_full_closure(state: Path, projects: Path) -> dict[str, Path]:
             (AgentType.RUNNING, "proj", "20260601140000"),
         }
     )
-    write_import_receipt(
-        _receipt(
-            source_owner_kind="username_unknown_v1",
-            source_username=None,
-            source_machine="zeus",
-        )
-    )
-    write_import_receipt(
-        _receipt(
-            source_owner_kind="exact",
-            source_username="bob",
-            source_machine="mars",
-        )
-    )
+    receipts = _seed_receipts(state)
 
-    journal_dir = imports_root("proj") / "journals"
+    import_root = _imports_root(projects, "proj")
+    journal_dir = import_root / "journals"
     journal_dir.mkdir(parents=True)
     (journal_dir / "txn.json").write_text("{}", encoding="utf-8")
-    staging_dir = imports_root("proj") / "stage" / "txn"
+    staging_dir = import_root / "stage" / "txn"
     staging_dir.mkdir(parents=True)
     (staging_dir / "file.txt").write_text("staged", encoding="utf-8")
 
-    cache_objects_dir().mkdir(parents=True, exist_ok=True)
-    (cache_objects_dir() / "somecache").mkdir()
-    (cache_objects_dir() / "somecache" / "metadata.json").write_text(
+    _cache_objects_dir(state).mkdir(parents=True, exist_ok=True)
+    (_cache_objects_dir(state) / "somecache").mkdir()
+    (_cache_objects_dir(state) / "somecache" / "metadata.json").write_text(
         "{}", encoding="utf-8"
     )
-    cache_staging_dir().mkdir(parents=True, exist_ok=True)
+    _cache_staging_dir(state).mkdir(parents=True, exist_ok=True)
 
     return {
         "v1_dir": v1_dir,
@@ -171,6 +151,8 @@ def _seed_full_closure(state: Path, projects: Path) -> dict[str, Path]:
         "v2_chat": v2_chat,
         "bundle": bundle,
         "local_dir": local_dir,
+        "import_root": import_root,
+        "receipts": receipts,
     }
 
 
@@ -192,8 +174,11 @@ def test_dry_run_reports_full_closure_without_mutation(
     assert outcome.dismissed_identities == (
         (AgentType.RUNNING, "proj", "20260601120000"),
     )
-    assert outcome.import_dirs == (imports_root("proj"),)
-    assert set(outcome.cache_dirs) == {cache_objects_dir(), cache_staging_dir()}
+    assert outcome.import_dirs == (seeded["import_root"],)
+    assert set(outcome.cache_dirs) == {
+        _cache_objects_dir(state),
+        _cache_staging_dir(state),
+    }
     assert len(outcome.receipt_files) == 1
     assert outcome.errors == ()
     assert not outcome.is_empty
@@ -203,9 +188,9 @@ def test_dry_run_reports_full_closure_without_mutation(
     assert seeded["v2_dir"].is_dir()
     assert seeded["bundle"].is_file()
     assert seeded["local_dir"].is_dir()
-    assert imports_root("proj").is_dir()
-    assert cache_objects_dir().is_dir()
-    assert len(read_project_receipts("proj")) == 2
+    assert seeded["import_root"].is_dir()
+    assert _cache_objects_dir(state).is_dir()
+    assert seeded["receipts"].is_file()
 
 
 def test_apply_removes_full_closure_and_leaves_local_state_untouched(
@@ -228,11 +213,11 @@ def test_apply_removes_full_closure_and_leaves_local_state_untouched(
     assert not seeded["v2_chat"].exists()
     assert not seeded["bundle"].exists()
     assert seeded["local_dir"].is_dir()
-    assert not imports_root("proj").exists()
-    assert not cache_objects_dir().exists()
-    assert not cache_staging_dir().exists()
+    assert not seeded["import_root"].exists()
+    assert not _cache_objects_dir(state).exists()
+    assert not _cache_staging_dir(state).exists()
 
-    assert read_project_receipts("proj") == ()
+    assert not seeded["receipts"].exists()
 
     dismissed = load_dismissed_agents()
     assert (AgentType.RUNNING, "proj", "20260601140000") in dismissed

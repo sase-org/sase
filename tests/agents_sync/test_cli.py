@@ -16,7 +16,6 @@ from sase.agents_sync.models import (
 )
 from sase.main.parser import create_parser
 from sase.agents_sync.purge_local_state import PurgeLocalStateOutcome
-from sase.agents_sync.v1_forget_import import V1ForgetImportOutcome
 
 
 def test_parser_accepts_repeatable_project_and_check_refresh() -> None:
@@ -272,28 +271,6 @@ def test_repair_manifest_dispatches_before_check_and_reports_diagnostics(
     repair.assert_called_once_with(("proj",))
 
 
-def test_names_forget_import_parser_accepts_machine_positional_and_options() -> None:
-    dry_run = create_parser().parse_args(["agent", "names", "forget-import", "zeus"])
-    apply = create_parser().parse_args(
-        [
-            "agent",
-            "names",
-            "forget-import",
-            "zeus",
-            "--transport",
-            "v1",
-            "--json",
-            "--apply",
-        ]
-    )
-
-    assert dry_run.names_subcommand == "forget-import"
-    assert dry_run.machine == "zeus"
-    assert dry_run.apply is False
-    assert dry_run.transport == "v1"
-    assert apply.apply and apply.json
-
-
 def test_names_bare_usage_lists_both_subcommands(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -303,32 +280,8 @@ def test_names_bare_usage_lists_both_subcommands(
 
     assert exc_info.value.code == 1
     output = capsys.readouterr().out
-    assert "forget-import" in output
     assert "migrate-auto" in output
     assert "purge-local-state" in output
-
-
-def test_names_forget_import_cli_dispatches_and_reports_json(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    outcome = V1ForgetImportOutcome("zeus", True)
-    args = argparse.Namespace(
-        names_subcommand="forget-import",
-        machine="zeus",
-        apply=False,
-        json=True,
-    )
-    with patch(
-        "sase.agents_sync.v1_forget_import.forget_v1_import",
-        return_value=outcome,
-    ):
-        with pytest.raises(SystemExit) as exc_info:
-            handle_agents_names(args)
-
-    assert exc_info.value.code == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["machine"] == "zeus"
-    assert payload["mode"] == "dry-run"
 
 
 def test_names_purge_local_state_parser_accepts_apply_and_json() -> None:

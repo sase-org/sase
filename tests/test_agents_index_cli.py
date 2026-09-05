@@ -10,7 +10,6 @@ from unittest.mock import patch
 import pytest
 
 from sase.agents.cli_index import handle_agents_index
-from sase.agents.index_repair import _ImportedStateRepairPlan
 from sase.core.agent_cleanup_wire import AgentCleanupIdentityWire
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexStatusWire,
@@ -289,37 +288,6 @@ def test_index_unknown_subcommand_prints_maintenance_usage(
 
     assert excinfo.value.code == 1
     assert (
-        "Usage: sase agent index {gc,rebuild,repair,status,vacuum,verify}"
+        "Usage: sase agent index {gc,rebuild,status,vacuum,verify}"
         in capsys.readouterr().out
     )
-
-
-def test_index_repair_is_dry_run_by_default(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    plan = _ImportedStateRepairPlan(
-        artifacts=(Path("/tmp/projects/proj/artifacts/ace-run/20990102030405"),),
-        bundles=(Path("/tmp/dismissed_bundles/209901/20990102030405.json"),),
-        dismissed_identities=frozenset(),
-        journals=(),
-        registry_names=("ghost",),
-        transaction_keys=frozenset(),
-    )
-    with (
-        patch(
-            "sase.agents.index_repair.plan_imported_state_repair",
-            return_value=plan,
-        ),
-        patch("sase.agents.index_repair.apply_imported_state_repair") as apply_repair,
-    ):
-        handle_agents_index(_index_args("repair"))
-
-    apply_repair.assert_not_called()
-    assert json.loads(capsys.readouterr().out) == {
-        "applied": False,
-        "artifacts": 1,
-        "bundles": 1,
-        "index_rows": 1,
-        "journals": 0,
-        "registry_entries": 1,
-    }

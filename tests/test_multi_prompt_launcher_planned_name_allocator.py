@@ -10,7 +10,11 @@ import pytest
 
 from tests._agent_names_fixtures import make_agent
 from tests._multi_prompt_launcher_launch_helpers import spawn_result_with_planned_name
-from sase.agent.names import AgentNameBaseReservedError, lookup_registered_name
+from sase.agent.names import (
+    AgentNameBaseReservedError,
+    lookup_registered_name,
+    rebuild_name_registry,
+)
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 from sase.agent.multi_prompt_references import PlannedNameAllocator
 from sase.core.agent_identity_facade import (
@@ -73,19 +77,25 @@ def test_allocator_fails_fast_on_a_reserved_owner_namespace_base(
     every token for a base beneath one looked identically available, so the
     per-token retry loop in ``_allocate_template_name`` never terminated.
     """
-    from sase.agent.names import claim_imported_registered_name_v2
-
     _configure_machine(monkeypatch)
     artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"
 
     with patch.object(Path, "home", return_value=tmp_path):
-        claim_imported_registered_name_v2(
-            AgentOwnerIdentity("alice", "zeus"),
-            "alice.zeus.worker",
+        make_agent(
+            tmp_path,
+            "proj",
+            "run0",
             "zeus.worker",
-            artifacts_root / "run0",
-            digest="a" * 64,
+            extra_meta={
+                "imported_source_owner": {
+                    "username": "alice",
+                    "machine_name": "zeus",
+                },
+                "canonical_global_name": "alice.zeus.worker",
+                "imported_snapshot_digest": "a" * 64,
+            },
         )
+        rebuild_name_registry()
         assert lookup_registered_name("zeus")["container_kind"] == "owner_namespace"
 
         allocator = PlannedNameAllocator()

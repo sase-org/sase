@@ -12,11 +12,9 @@ from . import _done_filesystem_loaders as _filesystem_loaders
 from ._done_common import (
     commit_record_key as _commit_record_key,
     commit_results_marker_exists as _commit_results_marker_exists,
-    completed_import_transaction as _completed_import_transaction,
     done_extra_files as _done_extra_files,
     enrich_agent_revert_state as _enrich_agent_revert_state,
     enrich_missing_commit_metadata as _enrich_missing_commit_metadata,
-    import_transaction_is_visible as _import_transaction_is_visible,
     merge_commit_records as _merge_commit_records,
     single_commit_record_from_metadata as _single_commit_record_from_metadata,
 )
@@ -51,11 +49,9 @@ __all__ = [
     "_build_done_agent_from_record",
     "_commit_record_key",
     "_commit_results_marker_exists",
-    "_completed_import_transaction",
     "_done_extra_files",
     "_enrich_agent_revert_state",
     "_enrich_missing_commit_metadata",
-    "_import_transaction_is_visible",
     "_is_done_record",
     "_iter_artifact_workflow_dirs",
     "_load_done_agent_for_dir",

@@ -10,7 +10,6 @@ from pathlib import Path
 import signal
 import threading
 
-from sase.agents_sync.bundles import repository_root
 from sase.agents_sync.commit_publication_transaction import (
     DrainResult,
     PublicationTransactionHooks,
@@ -30,6 +29,7 @@ from sase.agents_sync.publication_outbox import (
     list_agent_publications,
     update_agent_publications,
 )
+from sase.agents_sync.repository_inspection import repository_root
 from sase.agents_sync.targets import resolve_sync_targets
 from sase.config import require_agent_owner_identity
 from sase.core.agent_identity_facade import (

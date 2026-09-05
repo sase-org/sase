@@ -142,8 +142,7 @@ moves them to this archive only with `--write`.
 Existing top-level v1 `manifest.json` and `agents/<machine-qualified-name>` bundles are
 left untouched. Sync can still read those records for compatibility, but it no longer
 creates, refreshes, imports, or retires v1 transport data. Historical local imports can
-still be removed with `sase agent names forget-import` when their full legacy closure is
-superseded, or swept entirely (every transport, every machine) with
+be swept entirely (every transport, every machine) with
 `sase agent names purge-local-state`.
 
 ## Scope and reconciliation
@@ -447,7 +446,6 @@ V1's top-level manifest and `agents/<machine-qualified-name>` files remain in pl
 read-only. A v1 row has no trustworthy username owner, a shared machine token alone is
 never proof of ownership, and v1 cannot reconstruct the complete transactional family
 and relationship state guaranteed by v2. Current sync and status commands do not import
-or retire v1 transport data. Already-imported local legacy history can be removed with
-`sase agent names forget-import` after the command confirms the import closure is fully
-superseded, or purged in full (imports of any transport, any machine, plus journals, the
-incoming cache, and receipts) with `sase agent names purge-local-state`.
+or retire v1 transport data. Already-imported local legacy history can be purged in full
+(imports of any transport and any machine, plus historical import staging,
+incoming-cache directories, and receipts) with `sase agent names purge-local-state`.

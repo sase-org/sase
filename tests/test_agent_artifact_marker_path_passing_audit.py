@@ -8,18 +8,6 @@ from tests._agent_artifact_marker_audit_helpers import (
 )
 
 _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
-    "src/sase/agents_sync/bundles.py:_create_imported_artifact": PathPassingReview(
-        lifecycle_coverage=(
-            "Publishes imported agent_meta.json and done.json together, then "
-            "refreshes the Tier 1 artifact index for the new artifact directory."
-        ),
-    ),
-    "src/sase/agents_sync/bundles.py:_refresh_imported_artifact": PathPassingReview(
-        lifecycle_coverage=(
-            "Rewrites imported agent_meta.json and done.json, then refreshes "
-            "the Tier 1 artifact index for the same artifact directory."
-        ),
-    ),
     "src/sase/agent/_family_promotion.py:promote_agent_to_family": PathPassingReview(
         lifecycle_coverage=(
             "Atomically rewrites agent_meta.json and immediately refreshes the "
@@ -66,6 +54,13 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
                 "locate the runner output log for the TUI fallback."
             ),
         )
+    ),
+    "src/sase/ace/tui/models/_loaders/_meta_enrichment_filesystem.py:enrich_agent_from_meta": PathPassingReview(
+        exemption=(
+            "Read-only model enrichment: plan_path.json and agent_meta.json are "
+            "inspected only to populate display fields on an already discovered "
+            "agent row."
+        ),
     ),
     (
         "src/sase/ace/tui/models/_loaders/_workflow_loaders.py:"

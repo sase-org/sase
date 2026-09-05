@@ -6,7 +6,7 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
-from sase.agents_sync.bundles import (
+from sase.agents_sync.repository_inspection import (
     commit_markers,
     commit_record,
     is_primary_root,

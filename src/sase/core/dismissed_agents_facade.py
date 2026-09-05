@@ -79,12 +79,6 @@ def upsert_bundle_summary(root: Path, path: Path, bundle: dict[str, Any]) -> boo
     return impl(root, path, bundle)
 
 
-def validate_dismissed_agent_bundle(bundle: dict[str, Any]) -> None:
-    from sase.ace.tui.models.agent import Agent
-
-    Agent.from_bundle_dict(dict(bundle))
-
-
 __all__ = [
     "archive_index_exists",
     "dismissed_agent_groups_dir",
@@ -95,5 +89,4 @@ __all__ = [
     "persist_dismissed_agents",
     "rebuild_dismissed_bundle_index",
     "upsert_bundle_summary",
-    "validate_dismissed_agent_bundle",
 ]

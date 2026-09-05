@@ -23,10 +23,7 @@ from sase.agent.names._registry_entries import (
     entry_has_other_owner as _entry_has_other_owner,
     owner_from_artifact_name as _owner_from_artifact_name,
 )
-from sase.agent.names._registry_mutations import (
-    ImportedV2RegistryClaim,
-    RegistryMutationOperations,
-)
+from sase.agent.names._registry_mutations import RegistryMutationOperations
 from sase.agent.names.registry_freshness import (
     agent_name_registry_freshness_token,
     invalidate_agent_name_registry_freshness,
@@ -51,8 +48,6 @@ from sase.agent.names._registry_store import (
 )
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
-    AgentOwnerIdentity,
-    LegacyV1GroupOwnershipClassification,
     current_owner_agent_name_lookup_candidates,
     present_agent_name,
 )
@@ -168,88 +163,6 @@ def claim_registered_name(
         name,
         claiming_dir,
         replace_existing=replace_existing,
-    )
-
-
-def claim_imported_registered_name(
-    name: str,
-    source_machine: str,
-    claiming_dir: str | Path,
-    *,
-    digest: str,
-    target_owner: AgentOwnerIdentity | None = None,
-    group_ownership: LegacyV1GroupOwnershipClassification = (
-        LegacyV1GroupOwnershipClassification.FOREIGN
-    ),
-) -> None:
-    """Claim an exact foreign machine-qualified imported agent name.
-
-    Imported names deliberately bypass local qualification: a previously
-    unknown hood such as ``zeus.worker`` must remain exactly that spelling,
-    rather than becoming ``<local>.zeus.worker``. The source machine must
-    match the durable prefix, and only the same imported owner may refresh its
-    digest.
-    """
-
-    _registry_mutations.claim_imported_registered_name(
-        _mutation_operations(),
-        name,
-        source_machine,
-        claiming_dir,
-        digest=digest,
-        target_owner=target_owner,
-        group_ownership=group_ownership,
-    )
-
-
-def claim_imported_registered_name_v2(
-    source_owner: AgentOwnerIdentity,
-    canonical_global_name: str,
-    localized_name: str,
-    claiming_dir: str | Path,
-    *,
-    digest: str,
-) -> None:
-    """Claim an imported name with explicit v2 owner provenance."""
-    _registry_mutations.claim_imported_registered_name_v2(
-        _mutation_operations(),
-        source_owner,
-        canonical_global_name,
-        localized_name,
-        claiming_dir,
-        digest=digest,
-    )
-
-
-def preflight_imported_registered_names_v2(
-    claims: Sequence[ImportedV2RegistryClaim],
-    *,
-    identity: AgentIdentitySnapshot | None = None,
-    adopted_v1_artifact_dirs: frozenset[Path] = frozenset(),
-) -> None:
-    """Validate an entire imported v2 claim batch without registry writes."""
-
-    _registry_mutations.preflight_imported_registered_names_v2(
-        _mutation_operations(),
-        claims,
-        identity=identity,
-        adopted_v1_artifact_dirs=adopted_v1_artifact_dirs,
-    )
-
-
-def claim_imported_registered_names_v2(
-    claims: Sequence[ImportedV2RegistryClaim],
-    *,
-    identity: AgentIdentitySnapshot | None = None,
-    adopted_v1_artifact_dirs: frozenset[Path] = frozenset(),
-) -> None:
-    """Persist an entire imported v2 run/container claim batch atomically."""
-
-    _registry_mutations.claim_imported_registered_names_v2(
-        _mutation_operations(),
-        claims,
-        identity=identity,
-        adopted_v1_artifact_dirs=adopted_v1_artifact_dirs,
     )
 
 

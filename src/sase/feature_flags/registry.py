@@ -26,7 +26,6 @@ class FeatureFlag(StrEnum):
     provider_drain = "provider_drain"
     ref_sync_gesture = "ref_sync_gesture"
     typed_launch_units = "typed_launch_units"
-    v1_import_retired = "v1_import_retired"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
@@ -76,15 +75,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         kind="beta",
         description="Beta gate for typed launch units, %if, and %proc.",
         bead="sase-s7",
-    ),
-    FeatureFlag.v1_import_retired: FeatureFlagDefinition(
-        key=FeatureFlag.v1_import_retired,
-        kind="sunset",
-        description=(
-            "The legacy v1 agents-sync import leg is sunset: v1 payloads "
-            "stay readable as evidence but are never imported."
-        ),
-        bead="sase-wc",
     ),
 }
 

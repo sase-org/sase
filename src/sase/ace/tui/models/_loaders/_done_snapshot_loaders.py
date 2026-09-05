@@ -14,11 +14,9 @@ from sase.monitor_status import (
 )
 
 from ._done_common import (
-    completed_import_transaction,
     done_extra_files,
     enrich_agent_revert_state,
     enrich_missing_commit_metadata,
-    import_transaction_is_visible,
 )
 from ._meta_enrichment import (
     enrich_agent_from_meta_wire,
@@ -47,11 +45,6 @@ def build_done_agent_from_record(
         return None
     done = record.done
     if done is None:
-        return None
-    if not import_transaction_is_visible(
-        record.project_name,
-        done.imported_transaction_key,
-    ):
         return None
     timestamp_str = record.timestamp
     start_time = parse_timestamp_14_digit(timestamp_str)
@@ -247,7 +240,6 @@ def load_done_agents_from_snapshot(
     Iterates pre-walked artifact records from a single
     :class:`AgentArtifactScanWire` instead of re-walking the filesystem.
     """
-    completed_import_transaction.cache_clear()
     agents: list[Agent] = []
     for record in snapshot.records:
         if not is_done_record(record):

@@ -1,28 +1,19 @@
 """Dry-run-first purge of every locally materialized agents-sync import.
 
-The legacy v1 forget-import escape hatch (see ``v1_forget_import.py``) removes
-one machine's fully-superseded legacy v1 closure at a time. This module
-generalizes that pattern into one explicit sweep that purges every locally
-materialized import closure regardless of transport, source machine, or
-project: imported artifacts, chat files, dismissed bundles and identities,
-import journals and staging, the incoming cache, and import receipts.
+This command is the compatibility owner for historical local import state:
+imported artifacts, chat files, dismissed bundles and identities, import
+journals and staging, incoming cache payloads, and import receipts.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import shutil
 from typing import Any
 
-from sase.agents_sync.incoming_cache_paths import (
-    cache_objects_dir,
-    cache_staging_dir,
-    receipts_dir,
-)
 from sase.agents_sync.inventory_io import is_imported
-from sase.agents_sync.v2_import_history import read_json_object
-from sase.agents_sync.v2_import_storage import imports_root
 from sase.core.agent_artifact_index_lifecycle import (
     delete_agent_artifact_index_artifacts,
     sync_dismissed_agent_artifact_index,
@@ -39,9 +30,14 @@ from sase.core.dismissed_agents_facade import (
     persist_dismissed_agents as save_dismissed_agents,
     rebuild_dismissed_bundle_index,
 )
-from sase.core.paths import sase_projects_dir
+from sase.core.paths import sase_home, sase_projects_dir
 
 _IMPORT_ORIGINS = frozenset({"import_v1", "import_v2"})
+_AGENTS_SYNC_STATE_DIR = "agents_sync"
+_CACHE_OBJECTS_RELATIVE = ("cache", "objects")
+_CACHE_STAGING_RELATIVE = ("cache", "staging")
+_IMPORT_DIR_NAME = "agents_sync_imports"
+_RECEIPTS_DIR_NAME = "receipts"
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,7 +151,7 @@ def _scan_closure() -> _Closure:
                     chat_path = Path(raw_chat_path).expanduser()
                     if chat_path.name.startswith("imported-") and chat_path.is_file():
                         chat_files.append(chat_path)
-            import_dir = imports_root(project_key)
+            import_dir = _imports_root(project_key)
             if import_dir.is_dir():
                 import_dirs.append(import_dir)
 
@@ -174,9 +170,9 @@ def _scan_closure() -> _Closure:
             dismissed_identities.add(identity)
 
     cache_dirs = tuple(
-        path for path in (cache_objects_dir(), cache_staging_dir()) if path.is_dir()
+        path for path in (_cache_objects_dir(), _cache_staging_dir()) if path.is_dir()
     )
-    receipts_root = receipts_dir()
+    receipts_root = _receipts_dir()
     receipt_files = (
         tuple(sorted(receipts_root.glob("*.json"))) if receipts_root.is_dir() else ()
     )
@@ -206,6 +202,34 @@ def _bundle_identity(bundle: dict[str, Any], raw_suffix: str) -> AgentIdentity |
     except ValueError:
         return None
     return (typed_agent_type, cl_name, raw_suffix)
+
+
+def _imports_root(project_key: str) -> Path:
+    return sase_projects_dir() / project_key / _IMPORT_DIR_NAME
+
+
+def _cache_objects_dir() -> Path:
+    return sase_home().joinpath(_AGENTS_SYNC_STATE_DIR, *_CACHE_OBJECTS_RELATIVE)
+
+
+def _cache_staging_dir() -> Path:
+    return sase_home().joinpath(_AGENTS_SYNC_STATE_DIR, *_CACHE_STAGING_RELATIVE)
+
+
+def _receipts_dir() -> Path:
+    return sase_home() / _AGENTS_SYNC_STATE_DIR / _RECEIPTS_DIR_NAME
+
+
+def read_json_object(path: Path) -> dict[str, Any] | None:
+    value = _read_json(path)
+    return value if isinstance(value, dict) else None
+
+
+def _read_json(path: Path) -> object | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
 
 
 def _apply_closure(closure: _Closure) -> PurgeLocalStateOutcome:

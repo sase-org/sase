@@ -39,9 +39,6 @@ def handle_agents_index(args: argparse.Namespace) -> None:
     if sub == "rebuild":
         _handle_agents_index_rebuild(args)
         return
-    if sub == "repair":
-        _handle_agents_index_repair(args)
-        return
     if sub == "status":
         _handle_agents_index_status(args)
         return
@@ -52,7 +49,7 @@ def handle_agents_index(args: argparse.Namespace) -> None:
         _handle_agents_index_verify(args)
         return
 
-    Console().print("Usage: sase agent index {gc,rebuild,repair,status,vacuum,verify}")
+    Console().print("Usage: sase agent index {gc,rebuild,status,vacuum,verify}")
     raise SystemExit(1)
 
 
@@ -197,50 +194,6 @@ def _handle_agents_index_vacuum(args: argparse.Namespace) -> None:
         f"{update.freelist_pages_after:,} pages "
         f"({index_path})"
     )
-
-
-def _handle_agents_index_repair(args: argparse.Namespace) -> None:
-    """Repair future-dated state written by historical agent imports."""
-    from sase.agents.index_repair import (
-        apply_imported_state_repair,
-        plan_imported_state_repair,
-    )
-
-    projects_root, index_path = _agent_index_paths(args)
-    plan = plan_imported_state_repair(projects_root)
-    applied = bool(getattr(args, "apply", False))
-    payload: dict[str, Any] = {
-        "applied": applied,
-        **plan.counts(),
-    }
-    if applied:
-        payload.update(apply_imported_state_repair(plan, index_path=index_path))
-
-    if getattr(args, "json", False):
-        print(json.dumps(payload, sort_keys=True))
-        return
-
-    console = Console()
-    action = (
-        "[bold green]Repair applied[/bold green]"
-        if applied
-        else "[bold yellow]Dry run — no changes made[/bold yellow]"
-    )
-    console.print(action)
-    labels = (
-        ("Artifacts", "artifacts"),
-        ("Bundles", "bundles"),
-        ("Index rows", "index_rows"),
-        ("Registry entries", "registry_entries"),
-        ("Journals", "journals"),
-    )
-    for label, key in labels:
-        console.print(f"  {label:<18} [bold]{payload[key]}[/bold]")
-    if not applied and any(payload[key] for _, key in labels):
-        console.print(
-            "\nRun [bold]sase agent index repair --apply[/bold] "
-            "to remove this imported state."
-        )
 
 
 def _agent_index_status_payload(

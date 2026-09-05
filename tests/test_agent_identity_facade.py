@@ -51,45 +51,6 @@ def _batch() -> dict[str, Any]:
     }
 
 
-def _owned_batch(owner: facade.AgentOwnerIdentity) -> dict[str, Any]:
-    owner_payload = {"username": owner.username, "machine_name": owner.machine_name}
-    return {
-        "schema_version": 2,
-        "owner": owner_payload,
-        "runs": [
-            {
-                "source_run_id": "run-1",
-                "global_name": f"{owner.username}.{owner.machine_name}.crew",
-                "owner": owner_payload,
-            },
-            {
-                "source_run_id": "run-2",
-                "global_name": f"{owner.username}.{owner.machine_name}.crew--code",
-                "owner": owner_payload,
-            },
-        ],
-        "containers": [
-            {
-                "kind": "family",
-                "global_name": f"{owner.username}.{owner.machine_name}.crew",
-                "owner": owner_payload,
-                "member_source_run_ids": ["run-1", "run-2"],
-            }
-        ],
-        "relationships": [
-            {
-                "kind": "wait",
-                "source_run_id": "run-2",
-                "target": {
-                    "kind": "source_run_id",
-                    "source_run_id": "run-1",
-                },
-                "required": True,
-            }
-        ],
-    }
-
-
 def test_facade_delegates_every_operation_with_static_binding_names(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -97,10 +58,8 @@ def test_facade_delegates_every_operation_with_static_binding_names(
     owner = {"username": "alice", "machine_name": "athena"}
 
     results: dict[str, Any] = {
-        "validate_owner_root": None,
         "validate_owned_agent_name": None,
         "classify_agent_ownership": "exact_owner",
-        "classify_legacy_v1_group_ownership": "owner_observed",
         "normalize_agent_archive_name": "foo",
         "globalize_agent_name": "alice.athena.foo",
         "normalize_owned_agent_name": "foo",
@@ -141,28 +100,6 @@ def test_facade_delegates_every_operation_with_static_binding_names(
             "container_order": ["family:alice.athena.foo"],
             "relationship_order": [0],
         },
-        "rewrite_agent_relationship_batch": {
-            "schema_version": 2,
-            "owner": owner,
-            "runs": [{"destination_run_id": "dest-1"}],
-            "containers": [],
-            "relationships": [],
-        },
-        "project_agent_relationship_graph": {
-            "schema_version": 2,
-            "source_owner": owner,
-            "destination_owner": owner,
-            "registry_namespace_root": None,
-            "runs": [
-                {
-                    "source_run_id": "run-1",
-                    "destination_run_id": "dest-1",
-                    "localized_name": "foo",
-                }
-            ],
-            "containers": [],
-            "relationships": [],
-        },
     }
 
     def lookup(name: str) -> Callable[..., Any]:
@@ -179,23 +116,10 @@ def test_facade_delegates_every_operation_with_static_binding_names(
 
     facade.validate_agent_username("alice")
     facade.validate_agent_owner(target)
-    facade.validate_owner_root("athena")
     facade.validate_new_agent_name("foo", identity)
     assert (
-        facade.classify_agent_ownership(source, target)
+        facade.classify_imported_agent_owner(source, identity)
         is facade.AgentOwnershipClassification.EXACT_OWNER
-    )
-    assert (
-        facade.classify_legacy_v1_group_ownership(
-            "athena",
-            target,
-            facade.LegacyV1GroupOwnershipEvidence(
-                v2_hood_published=False,
-                proven_entry_count=1,
-                total_entry_count=2,
-            ),
-        )
-        is facade.LegacyV1GroupOwnershipClassification.OWNER_OBSERVED
     )
     assert facade.normalize_agent_archive_name("260722.foo") == "foo"
     assert facade.globalize_agent_name("foo", target) == "alice.athena.foo"
@@ -217,30 +141,12 @@ def test_facade_delegates_every_operation_with_static_binding_names(
         "member-code"
     )
     assert facade.validate_agent_relationship_batch(_batch()).run_count == 2
-    assert (
-        facade.rewrite_agent_relationship_batch(
-            _batch(), {"run-1": "dest-1", "run-2": "dest-2"}
-        ).runs[0]["destination_run_id"]
-        == "dest-1"
-    )
-    assert (
-        facade.project_agent_relationship_graph(
-            _batch(),
-            {"run-1": "dest-1", "run-2": "dest-2"},
-            source_owner=target,
-            destination_owner=target,
-            identity=identity,
-        ).runs[0]["localized_name"]
-        == "foo"
-    )
 
     assert [name for name, _args in calls] == [
         "validate_agent_username",
         "validate_agent_owner",
-        "validate_owner_root",
         "validate_owned_agent_name",
         "classify_agent_ownership",
-        "classify_legacy_v1_group_ownership",
         "normalize_agent_archive_name",
         "globalize_agent_name",
         "normalize_owned_agent_name",
@@ -252,61 +158,7 @@ def test_facade_delegates_every_operation_with_static_binding_names(
         "agent_name_ancestors",
         "agent_link_target",
         "validate_agent_relationship_batch",
-        "rewrite_agent_relationship_batch",
-        "project_agent_relationship_graph",
     ]
-
-
-@pytest.mark.parametrize(
-    (
-        "group_machine_name",
-        "v2_hood_published",
-        "proven_entry_count",
-        "expected",
-    ),
-    [
-        (machine, published, proven, expected)
-        for machine, machine_matches in (("athena", True), ("zeus", False))
-        for published in (False, True)
-        for proven in (0, 1, 3)
-        for expected in (
-            facade.LegacyV1GroupOwnershipClassification.OWNER_OBSERVED
-            if machine_matches and (published or proven > 0)
-            else facade.LegacyV1GroupOwnershipClassification.FOREIGN,
-        )
-    ],
-)
-def test_legacy_v1_group_ownership_integration_matrix(
-    group_machine_name: str,
-    v2_hood_published: bool,
-    proven_entry_count: int,
-    expected: facade.LegacyV1GroupOwnershipClassification,
-) -> None:
-    assert (
-        facade.classify_legacy_v1_group_ownership(
-            group_machine_name,
-            facade.AgentOwnerIdentity("alice", "athena"),
-            facade.LegacyV1GroupOwnershipEvidence(
-                v2_hood_published=v2_hood_published,
-                proven_entry_count=proven_entry_count,
-                total_entry_count=3,
-            ),
-        )
-        is expected
-    )
-
-
-def test_legacy_v1_group_ownership_rejects_impossible_evidence() -> None:
-    with pytest.raises(ValueError, match="proven entry count 2 exceeds total"):
-        facade.classify_legacy_v1_group_ownership(
-            "athena",
-            facade.AgentOwnerIdentity("alice", "athena"),
-            facade.LegacyV1GroupOwnershipEvidence(
-                v2_hood_published=False,
-                proven_entry_count=2,
-                total_entry_count=1,
-            ),
-        )
 
 
 def test_owner_family_and_localization_integration() -> None:
@@ -561,51 +413,12 @@ def test_current_snapshot_known_owner_roots_are_deduplicated_union(
     )
 
 
-def test_relationship_validation_and_rewrite_integration() -> None:
+def test_relationship_validation_integration() -> None:
     summary = facade.validate_agent_relationship_batch(_batch())
     assert summary.schema_version == 2
     assert summary.run_order == ("run-1", "run-2")
-
-    rewritten = facade.rewrite_agent_relationship_batch(
-        _batch(),
-        {"run-1": "dest-1", "run-2": "dest-2"},
-    )
-    assert rewritten.runs[0]["source_run_id"] == "run-1"
-    assert rewritten.runs[0]["destination_run_id"] == "dest-1"
-    assert rewritten.relationships[0]["source_destination_run_id"] == "dest-2"
-    assert rewritten.relationships[0]["target"]["destination_run_id"] == "dest-1"
 
     malformed = _batch()
     malformed["owner"] = {"username": "Alice", "machine_name": "athena"}
     with pytest.raises(ValueError, match="invalid username"):
         facade.validate_agent_relationship_batch(malformed)
-
-    with pytest.raises(ValueError, match="missing source run ID 'run-2'"):
-        facade.rewrite_agent_relationship_batch(
-            _batch(),
-            {"run-1": "dest-1"},
-        )
-
-
-def test_graph_projection_integration_uses_typed_owner_roots() -> None:
-    source = facade.AgentOwnerIdentity("bob", "zeus")
-    destination = facade.AgentOwnerIdentity("alice", "athena")
-    identity = facade.AgentIdentitySnapshot(destination, (), ("bob.zeus",))
-
-    projected = facade.project_agent_relationship_graph(
-        _owned_batch(source),
-        {"run-1": "dest-1", "run-2": "dest-2"},
-        source_owner=source,
-        destination_owner=destination,
-        identity=identity,
-    )
-
-    assert projected.registry_namespace_root == "bob.zeus"
-    assert [row["localized_name"] for row in projected.runs] == [
-        "bob.zeus.crew",
-        "bob.zeus.crew--code",
-    ]
-    assert projected.containers[0]["localized_name"] == "bob.zeus.crew"
-    assert projected.relationships[0]["source_destination_run_id"] == "dest-2"
-    assert projected.relationships[0]["target"]["destination_run_id"] == "dest-1"
-    assert projected.relationships[0]["target"]["localized_name"] == "bob.zeus.crew"

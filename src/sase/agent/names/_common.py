@@ -43,10 +43,6 @@ class ImportedNameCollisionError(NameCollisionError):
         super().__init__(f"imported agent name '{name}' collides: {reason}")
 
 
-class ImportedNamespaceOwnedLocallyError(ImportedNameCollisionError):
-    """An imported legacy namespace is already held by local-origin entries."""
-
-
 # Auto-name prefix: the lowercase letter/digit segment before the first ``.``
 # in an agent name or workflow name. The base is intentionally restricted to
 # names reachable by the auto-name sequence

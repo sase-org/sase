@@ -9,9 +9,7 @@ import subprocess
 import pytest
 
 from sase.agents_sync import git_sync
-from sase.agents_sync.git import noninteractive_git_env, run_git
-from sase.agents_sync.git_objects import LocalGitObjectReader
-from sase.agents_sync.incoming_detection import capture_fetched_agent_updates
+from sase.agents_sync.git import _noninteractive_git_env, run_git
 from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.v2_io import apply_payload_atomic
@@ -222,58 +220,6 @@ def test_payload_commit_force_stages_user_ignored_hood(
     assert git(sidecar, "rev-parse", "HEAD").stdout.strip() == head
 
 
-def test_owner_manifest_missing_file_diagnostic_names_ignore_rule(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    remote, seed, sidecar = setup_repo(tmp_path)
-    manifest = seed / "users" / "alice" / "machines" / "athena" / "manifest.json"
-    manifest.parent.mkdir(parents=True)
-    manifest.write_text(
-        json.dumps(
-            {
-                "schema_version": 2,
-                "owner": {"username": "alice", "machine_name": "athena"},
-                "project": {"key": "proj", "name": "Project"},
-                "hoods": {
-                    "gz": {
-                        "digest": "a" * 64,
-                        "files": ["agents/alice.athena.gz/README.md"],
-                        "run_count": 1,
-                        "family_count": 0,
-                    }
-                },
-            }
-        )
-        + "\n"
-    )
-    git(seed, "add", str(manifest.relative_to(seed)))
-    git(seed, "commit", "-m", "publish manifest without ignored hood")
-    git(seed, "push")
-    git(sidecar, "pull")
-    excludes = tmp_path / "global-excludes"
-    excludes.write_text("*.gz\n")
-    git(sidecar, "config", "core.excludesFile", str(excludes))
-    ignored_readme = sidecar / "agents" / "alice.athena.gz" / "README.md"
-    ignored_readme.parent.mkdir()
-    ignored_readme.write_text("# Stranded hood\n")
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
-
-    report = capture_fetched_agent_updates(
-        target(tmp_path, remote, sidecar),
-        AgentOwnerIdentity("alice", "athena"),
-        reader=LocalGitObjectReader(sidecar),
-        now=1.0,
-    )
-
-    assert len(report.diagnostics) == 1
-    diagnostic = report.diagnostics[0]
-    assert "owner manifest references 'agents/alice.athena.gz/README.md'" in diagnostic
-    assert "missing from commit" in diagnostic
-    assert "local ignore rule:" in diagnostic
-    assert "*.gz" in diagnostic
-
-
 def test_non_fast_forward_recomputes_and_retries_push_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -377,7 +323,7 @@ def test_pull_rebase_conflict_is_aborted_cleanly(
 def test_network_git_environment_is_noninteractive() -> None:
     original = {"PATH": "/bin", "GIT_TERMINAL_PROMPT": "1"}
 
-    env = noninteractive_git_env(original)
+    env = _noninteractive_git_env(original)
 
     assert env["GIT_TERMINAL_PROMPT"] == "0"
     assert "BatchMode=yes" in env["GIT_SSH_COMMAND"]

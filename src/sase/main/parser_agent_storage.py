@@ -162,39 +162,6 @@ def register_agent_index_parser(agents_sub: argparse._SubParsersAction) -> None:
         default=None,
         help="Projects artifact root (default: ~/.sase/projects)",
     )
-    repair_parser = index_sub.add_parser(
-        "repair",
-        help="Purge invalid future-dated state from historical agent imports",
-        description=(
-            "Find future-dated imported artifacts, dismissed bundles, index and "
-            "name-registry rows, and import journals. The command is a dry run "
-            "unless --apply is provided."
-        ),
-    )
-    repair_parser.add_argument(
-        "-a",
-        "--apply",
-        action="store_true",
-        help="Apply the repair (default: report candidates without changing state)",
-    )
-    repair_parser.add_argument(
-        "-i",
-        "--index-path",
-        default=None,
-        help="SQLite index path (default: ~/.sase/agent_artifact_index.sqlite)",
-    )
-    repair_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Emit a machine-readable JSON object",
-    )
-    repair_parser.add_argument(
-        "-p",
-        "--projects-root",
-        default=None,
-        help="Projects artifact root (default: ~/.sase/projects)",
-    )
     vacuum_parser = index_sub.add_parser(
         "vacuum",
         help="Report or reclaim freelist space in the persistent artifact index",
@@ -279,39 +246,6 @@ def register_agent_names_parser(agents_sub: argparse._SubParsersAction) -> None:
     )
     names_sub = names_parser.add_subparsers(
         dest="names_subcommand", help="Name maintenance subcommands"
-    )
-    forget_import_parser = names_sub.add_parser(
-        "forget-import",
-        help="Remove a machine's fully-superseded legacy v1 import closure",
-        description=(
-            "Remove one machine's legacy v1 imported artifacts, chat files, "
-            "dismissed bundles, dismissed identities, and import receipts. "
-            "The command is a dry run unless --apply is given, in which case "
-            "it deletes that closure and rebuilds the agent-name registry."
-        ),
-    )
-    forget_import_parser.add_argument(
-        "machine",
-        help="Legacy v1 source machine name to forget",
-    )
-    forget_import_parser.add_argument(
-        "-a",
-        "--apply",
-        action="store_true",
-        help="Apply the removal (default: report the closure without changing state)",
-    )
-    forget_import_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Emit a machine-readable JSON object",
-    )
-    forget_import_parser.add_argument(
-        "-t",
-        "--transport",
-        choices=("v1",),
-        default="v1",
-        help="Legacy transport to forget (default: v1)",
     )
     migrate_auto_parser = names_sub.add_parser(
         "migrate-auto",

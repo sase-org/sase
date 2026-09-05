@@ -34,17 +34,6 @@ from tests._agent_artifact_marker_audit_helpers import (
 )
 
 _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
-    "src/sase/agents_sync/bundles.py:_create_imported_artifact": Review(
-        mutation_calls=("os.replace", "rmtree", "unlink"),
-        lifecycle_calls=(_UPDATE_INDEX,),
-    ),
-    "src/sase/agents_sync/v2_import_transactions.py:prepare_transaction": Review(
-        mutation_calls=("rmtree",),
-        exemption=(
-            "Removes only the transaction-owned staging directory before "
-            "restaging; marker payloads are not published from this context."
-        ),
-    ),
     (
         "src/sase/ace/tui/actions/agents/_directive_persistence.py:_patch_agent_meta"
     ): Review(

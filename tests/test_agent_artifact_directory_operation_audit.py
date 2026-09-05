@@ -31,27 +31,6 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "and rebuilds the artifact index after the batch."
         ),
     ),
-    "src/sase/agents/index_repair.py:_remove_artifacts": DirOpReview(
-        batched_by=(
-            BatchedCoverage(
-                caller_context=(
-                    "src/sase/agents/index_repair.py:apply_imported_state_repair"
-                ),
-                helper_call="_remove_artifacts",
-                lifecycle_call=_DELETE_INDEX,
-            ),
-        ),
-    ),
-    "src/sase/agents/index_repair.py:_remove_journals_and_staging": DirOpReview(
-        exemption=(
-            "Removes only the selected import transaction's staging directory "
-            "after deleting its journal so recovery cannot resurrect the "
-            "future-dated imported state; it is not an agent artifact directory."
-        ),
-    ),
-    "src/sase/agents_sync/bundles.py:_create_imported_artifact": DirOpReview(
-        lifecycle_calls=("update_agent_artifact_index_for_marker_mutation",),
-    ),
     "src/sase/agents_sync/git_sync_ops.py:ensure_agents_clone": DirOpReview(
         exemption=(
             "Atomically publishes a freshly cloned agents sidecar checkout and "
@@ -59,29 +38,8 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "artifact directory."
         ),
     ),
-    "src/sase/agents_sync/incoming_cache_storage.py:prune_project_cache": DirOpReview(
-        exemption=(
-            "Enumerates and removes only immutable incoming-sync cache objects "
-            "under SASE_HOME/agents_sync/cache/objects after preserving pending, "
-            "receipt, and recent superseded evidence; these are not local agent "
-            "artifact directories."
-        ),
-    ),
-    "src/sase/agents_sync/incoming_cache_storage.py:publish_cache_object": DirOpReview(
-        exemption=(
-            "Atomically promotes a validated incoming-sync cache staging directory "
-            "and removes only that task-owned staging path; neither path is a "
-            "local agent artifact directory."
-        ),
-    ),
-    "src/sase/agents_sync/incoming_cache_storage.py:validate_unpublished_cache_payload": (
-        DirOpReview(
-            exemption=(
-                "Creates and removes only a transient incoming-sync validation "
-                "directory under SASE_HOME/agents_sync/cache/staging, not a local "
-                "agent artifact directory."
-            ),
-        )
+    "src/sase/agents_sync/purge_local_state.py:_apply_closure": DirOpReview(
+        lifecycle_calls=(_DELETE_INDEX,),
     ),
     "src/sase/dev_update/prebuild_producer.py:produce_prebuild": DirOpReview(
         exemption=(
@@ -96,36 +54,11 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "SASE_HOME/cache/rust-prebuild, not agent artifact directories."
         ),
     ),
-    "src/sase/agents_sync/v1_forget_import.py:_apply_closure": DirOpReview(
-        lifecycle_calls=(_DELETE_INDEX,),
-    ),
     "src/sase/agents_sync/v2_io.py:apply_payload_atomic": DirOpReview(
         exemption=(
             "Atomically promotes validated owner-sharded payload files inside "
             "an agents sidecar and removes only its task-owned staging and "
             "rollback directories, never a local agent artifact directory."
-        ),
-    ),
-    (
-        "src/sase/agents_sync/v2_import_transactions.py:apply_and_finalize_transaction"
-    ): DirOpReview(
-        exemption=(
-            "Removes only the completed transaction's staging directory after "
-            "artifact and dismissed-index lifecycle updates have finished."
-        ),
-    ),
-    "src/sase/agents_sync/v2_import_transactions.py:prepare_transaction": DirOpReview(
-        exemption=(
-            "Removes only a stale transaction-owned staging directory before "
-            "restaging; it does not remove a local agent artifact directory."
-        ),
-    ),
-    (
-        "src/sase/agents_sync/v2_import_transactions.py:recover_v2_import_transactions"
-    ): DirOpReview(
-        exemption=(
-            "Rolls back only the transaction-owned staging directory for a "
-            "prepared journal; applied transactions resume normal finalization."
         ),
     ),
     "src/sase/agent/names/_wipe.py:_remove_artifact_dirs": DirOpReview(

@@ -14,11 +14,9 @@ from sase.monitor_status import (
 )
 
 from ._done_common import (
-    completed_import_transaction,
     done_extra_files,
     enrich_agent_revert_state,
     enrich_missing_commit_metadata,
-    import_transaction_is_visible,
 )
 from ._json_cache import load_json_cached
 from ._meta_enrichment import (
@@ -79,16 +77,6 @@ def load_done_agent_for_dir(
     try:
         data = load_json_cached(done_file)
         parsed_path = parse_agent_artifact_path(artifact_dir)
-        project_key = (
-            parsed_path.project_name
-            if parsed_path is not None
-            else artifact_dir.parents[2].name
-        )
-        if not import_transaction_is_visible(
-            project_key,
-            data.get("imported_transaction_key"),
-        ):
-            return None
 
         project_file = data.get("project_file")
         if not project_file and parsed_path is not None:
@@ -279,7 +267,6 @@ def load_done_agents(
     from ._json_cache import get_loader_executor, is_loader_executor_shutdown_error
 
     projects_dir = sase_projects_dir()
-    completed_import_transaction.cache_clear()
 
     if not projects_dir.exists():
         return []

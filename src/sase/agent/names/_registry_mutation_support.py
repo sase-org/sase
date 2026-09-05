@@ -11,7 +11,6 @@ from typing import Any, NoReturn, Protocol
 from sase.agent.names._registry_entries import local_entry_provenance
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
-    AgentOwnerIdentity,
 )
 
 
@@ -65,109 +64,6 @@ def local_artifact_entry(
     )
     entry.update(local_entry_provenance(name, identity))
     return entry
-
-
-def entry_source_owner(entry: Mapping[str, Any]) -> AgentOwnerIdentity | None:
-    """Return the explicit source owner stored on an imported entry."""
-    value = entry.get("source_owner")
-    if not isinstance(value, Mapping):
-        return None
-    username = value.get("username")
-    machine_name = value.get("machine_name")
-    if not isinstance(username, str) or not isinstance(machine_name, str):
-        return None
-    return AgentOwnerIdentity(username, machine_name)
-
-
-def ensure_import_namespace_available(
-    entries: Mapping[str, Any],
-    *,
-    source_root: str,
-    source_owner: AgentOwnerIdentity | None,
-    destination_name: str,
-    local_owner: AgentOwnerIdentity | None = None,
-) -> None:
-    """Reject a foreign hood if any existing spelling belongs elsewhere."""
-    from sase.agent.names._common import (
-        ImportedNameCollisionError,
-        ImportedNamespaceOwnedLocallyError,
-    )
-
-    foreign_username = (
-        source_owner.username
-        if source_owner is not None and source_owner.username == source_root
-        else None
-    )
-    for stored_name, raw_entry in entries.items():
-        if stored_name != source_root and not stored_name.startswith(f"{source_root}."):
-            continue
-        if not isinstance(raw_entry, dict):
-            raise ImportedNameCollisionError(
-                destination_name,
-                reason=f"owner namespace '{source_root}' contains invalid state",
-            )
-        if raw_entry.get("container_kind") == "owner_namespace":
-            existing_owner = entry_source_owner(raw_entry)
-            if existing_owner == source_owner:
-                continue
-            if (
-                foreign_username is not None
-                and existing_owner is not None
-                and existing_owner.username == foreign_username
-                and raw_entry.get("namespace_kind") == "foreign_username"
-            ):
-                continue
-            if (
-                existing_owner is None
-                and raw_entry.get("namespace_kind") == "sibling_machine"
-                and (source_owner is None or source_owner.machine_name == source_root)
-            ):
-                continue
-            if source_owner is None and raw_entry.get("namespace_kind") in {
-                "legacy_source_machine",
-                "sibling_machine",
-            }:
-                continue
-            if (
-                source_owner is not None
-                and existing_owner is None
-                and raw_entry.get("namespace_kind") == "legacy_source_machine"
-                and source_owner.machine_name == source_root
-            ):
-                continue
-        elif source_owner is not None:
-            existing_owner = entry_source_owner(raw_entry)
-            if existing_owner == source_owner or (
-                foreign_username is not None
-                and existing_owner is not None
-                and existing_owner.username == foreign_username
-            ):
-                continue
-            if (
-                raw_entry.get("origin") == "import_v1"
-                and raw_entry.get("legacy_source_machine") == source_owner.machine_name
-            ):
-                continue
-        elif source_owner is None and (
-            raw_entry.get("origin") == "import_v1"
-            and raw_entry.get("legacy_source_machine") == source_root
-        ):
-            continue
-        error_type = (
-            ImportedNamespaceOwnedLocallyError
-            if (
-                raw_entry.get("origin") == "local"
-                and local_owner is not None
-                and source_owner is None
-                and source_root == local_owner.machine_name
-            )
-            else ImportedNameCollisionError
-        )
-        raise error_type(
-            destination_name,
-            reason=f"owner namespace '{source_root}' is already occupied",
-            existing=raw_entry,
-        )
 
 
 def ensure_local_namespace_available(

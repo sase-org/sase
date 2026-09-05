@@ -9,10 +9,9 @@ import pytest
 from sase.agents_sync import status
 from sase.agents_sync.io import atomic_write_json
 from sase.agents_sync.models import (
-    STATUS_SCHEMA_VERSION,
-    AgentsManifest,
     ProjectSyncStatus,
     ProjectTarget,
+    STATUS_SCHEMA_VERSION,
     SyncStatusSnapshot,
     TargetSelection,
 )
@@ -29,7 +28,7 @@ def _target(tmp_path: Path) -> ProjectTarget:
     primary.mkdir()
     repo = tmp_path / "agents"
     (repo / ".git").mkdir(parents=True)
-    atomic_write_json(repo / "manifest.json", AgentsManifest().to_json_dict())
+    atomic_write_json(repo / "manifest.json", {"schema_version": 1, "agents": {}})
     return ProjectTarget(
         "proj",
         "Project",

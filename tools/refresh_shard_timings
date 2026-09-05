@@ -158,18 +158,20 @@ def build_shard_timings(
             "`just check-full` at least once before refreshing"
         )
 
-    ranked = sorted(table.durations.items(), key=lambda item: (-item[1], item[0]))
+    root = repo_root or REPO_ROOT
+    current_files = set(discover_test_files(root))
+    current_durations = {
+        path: seconds for path, seconds in table.durations.items() if path in current_files
+    }
+    if not current_durations:
+        raise ShardTimingsRefreshError(
+            f"no recorded timing data in {directory} for current test files; "
+            "run `just test` or `just check-full` at least once before refreshing"
+        )
+
+    ranked = sorted(current_durations.items(), key=lambda item: (-item[1], item[0]))
     retained = ranked[:limit]
     omitted = ranked[limit:]
-
-    if retained:
-        slowest_path = retained[-1][0]
-        root = repo_root or REPO_ROOT
-        if not (root / slowest_path).is_file():
-            raise ShardTimingsRefreshError(
-                "refusing a stale source table: its slowest retained file "
-                f"{slowest_path!r} no longer exists"
-            )
 
     if omitted:
         default_duration = sum(seconds for _, seconds in omitted) / len(omitted)
@@ -183,7 +185,7 @@ def build_shard_timings(
         "schema": SHARD_TIMINGS_SCHEMA,
         "generated_at": stamp.astimezone(UTC).isoformat(),
         "host": recording_host() if host is None else host,
-        "measured_file_count": len(table.durations),
+        "measured_file_count": len(current_durations),
         "default_duration": round(default_duration, 4),
         "durations": {path: round(seconds, 1) for path, seconds in retained},
     }
