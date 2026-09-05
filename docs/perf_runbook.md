@@ -18,10 +18,20 @@ Success criteria (idle, no agent work):
 | signal                        | budget                                              |
 | ----------------------------- | --------------------------------------------------- |
 | sase sustained CPU            | < 0.4 cores                                         |
-| chop subprocess spawns        | < 10/min across every lumberjack                    |
+| chop subprocess spawns        | < 25/min across every lumberjack                    |
 | representative chop import    | < 0.2s / < 400 modules                              |
 | idle ace                      | < 10% of a core, ~0 stall-watchdog records / 30 min |
 | idle axe collector file opens | near zero when nothing changed                      |
+
+The spawn budget sits on a floor no fs trigger can remove: `stale_running_cleanup`'s
+real input is process liveness (a dead PID touches no file), so it stays on the `always`
+trigger in both the hooks (5s) and checks (300s) lanes — ~12/min at full idle on its
+own. The rest of the shipped-config floor is `max_quiet: 120s` re-fires from the nine
+fs-guarded chops (~4.5/min), the `run_every: 30s` waits-lane pair (~4/min), and the ≥60s
+always-trigger lanes (~2/min): ≈ 22/min total. At the post-diet import cost (< 0.2s per
+boot) that floor is well under a tenth of a core, which is why the budget is a low spawn
+_rate_, not zero; a periodic proc-liveness cache could shave the `stale_running_cleanup`
+term but has not been worth new machinery.
 
 Deterministic regression floors live in tests, not wall-clock CI:
 
@@ -82,12 +92,14 @@ for jack in sorted(root.iterdir()):
 PY
 ```
 
-A quiet host after the diet should show `sase axe status` **Chop load** in the low
-single-digit spawns/min (often 0.0 between `max_quiet` re-fires), last tick `0 spawned`
-for fs-guarded lanes, and `refresh.auto_tick` records with `surfaces_reloaded=0` (or
-only `axe`/`notifications` when those tokens actually moved) and `axe_file_opens` near
-zero. If spawn rate is high again, check whether shipped chops lost their `fs` trigger
-in `src/sase/default_config.yml`, or whether `ace_refresh_tokens` is off.
+A quiet host after the diet should show `sase axe status` **Chop load** at or below the
+~22/min shipped-config floor — fs-guarded chops contribute 0.0 between `max_quiet`
+re-fires and their lanes report last tick `0 spawned`, while ~12/min of the floor is
+`stale_running_cleanup` and is expected — and `refresh.auto_tick` records with
+`surfaces_reloaded=0` (or only `axe`/`notifications` when those tokens actually moved)
+and `axe_file_opens` near zero. If spawn rate is well above the floor, check whether
+shipped chops lost their `fs` trigger in `src/sase/default_config.yml`, or whether
+`ace_refresh_tokens` is off.
 
 ## Suite test-cost gate
 
