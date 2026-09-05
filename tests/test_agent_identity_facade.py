@@ -59,13 +59,11 @@ def test_facade_delegates_every_operation_with_static_binding_names(
 
     results: dict[str, Any] = {
         "validate_owned_agent_name": None,
-        "classify_agent_ownership": "exact_owner",
         "normalize_agent_archive_name": "foo",
         "globalize_agent_name": "alice.athena.foo",
         "normalize_owned_agent_name": "foo",
         "globalize_owned_agent_name": "alice.athena.foo",
         "foreign_agent_owner_root": None,
-        "localize_agent_name": "foo",
         "parse_owned_agent_name": {
             "owner_root": None,
             "local_name": "foo--code",
@@ -111,28 +109,15 @@ def test_facade_delegates_every_operation_with_static_binding_names(
 
     monkeypatch.setattr(facade, "require_rust_binding", lookup)
     target = facade.AgentOwnerIdentity("alice", "athena")
-    source = facade.AgentSourceOwnerIdentity.v2(target)
     identity = facade.AgentIdentitySnapshot(target, (), ("athena", "alice.athena"))
 
     facade.validate_agent_username("alice")
     facade.validate_agent_owner(target)
     facade.validate_new_agent_name("foo", identity)
-    assert (
-        facade.classify_imported_agent_owner(source, identity)
-        is facade.AgentOwnershipClassification.EXACT_OWNER
-    )
     assert facade.normalize_agent_archive_name("260722.foo") == "foo"
     assert facade.globalize_agent_name("foo", target) == "alice.athena.foo"
     assert facade.normalize_owned_agent_name("alice.athena.foo", identity) == "foo"
     assert facade.globalize_owned_agent_name("foo", identity) == "alice.athena.foo"
-    assert (
-        facade.localize_imported_agent_name(
-            "alice.athena.foo",
-            source,
-            identity,
-        )
-        == "foo"
-    )
     assert facade.parse_agent_family_name("foo--code", identity).member_role == "code"
     assert facade.agent_local_hood("foo.bar", identity) == "foo"
     assert facade.agent_name_in_hood("foo.bar", "foo", identity)
@@ -146,12 +131,10 @@ def test_facade_delegates_every_operation_with_static_binding_names(
         "validate_agent_username",
         "validate_agent_owner",
         "validate_owned_agent_name",
-        "classify_agent_ownership",
         "normalize_agent_archive_name",
         "globalize_agent_name",
         "normalize_owned_agent_name",
         "globalize_owned_agent_name",
-        "localize_agent_name",
         "parse_owned_agent_name",
         "agent_local_hood",
         "agent_name_in_hood",
@@ -161,37 +144,19 @@ def test_facade_delegates_every_operation_with_static_binding_names(
     ]
 
 
-def test_owner_family_and_localization_integration() -> None:
+def test_facade_does_not_expose_import_planner_identity_api() -> None:
+    for name in [
+        "AgentOwnershipClassification",
+        "AgentSourceOwnerIdentity",
+        "classify_imported_agent_owner",
+        "localize_imported_agent_name",
+    ]:
+        assert not hasattr(facade, name), name
+
+
+def test_owner_family_integration() -> None:
     target = facade.AgentOwnerIdentity("alice", "athena")
     identity = facade.AgentIdentitySnapshot(target)
-    cases = [
-        (
-            facade.AgentSourceOwnerIdentity.v2(target),
-            "alice.athena.foo",
-            "foo",
-        ),
-        (
-            facade.AgentSourceOwnerIdentity("zeus", "alice"),
-            "alice.zeus.foo",
-            "zeus.foo",
-        ),
-        (
-            facade.AgentSourceOwnerIdentity("athena", "bob"),
-            "bob.athena.foo",
-            "bob.athena.foo",
-        ),
-        (
-            facade.AgentSourceOwnerIdentity.username_unknown_v1("zeus"),
-            "zeus.foo",
-            "zeus.foo",
-        ),
-    ]
-    for source, global_name, expected in cases:
-        assert (
-            facade.localize_imported_agent_name(global_name, source, identity)
-            == expected
-        )
-
     assert (
         facade.globalize_agent_name("260722.foo.bar--code", target)
         == "alice.athena.foo.bar--code"

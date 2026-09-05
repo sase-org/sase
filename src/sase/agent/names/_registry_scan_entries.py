@@ -15,12 +15,8 @@ from sase.agent.names._registry_entries import (
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     AgentOwnerIdentity,
-    AgentOwnershipClassification,
-    AgentSourceOwnerIdentity,
-    classify_imported_agent_owner,
     globalize_agent_name,
     globalize_owned_agent_name,
-    localize_imported_agent_name,
     present_agent_name,
 )
 
@@ -262,22 +258,32 @@ def _localize_v2_payload_name(
     source_owner: AgentOwnerIdentity,
     identity: AgentIdentitySnapshot,
 ) -> str | None:
-    source = AgentSourceOwnerIdentity.v2(source_owner)
-    classification = classify_imported_agent_owner(source, identity)
-    if classification is AgentOwnershipClassification.EXACT_OWNER:
+    destination = identity.owner
+    if destination is None:
+        try:
+            return globalize_agent_name(name, source_owner)
+        except ValueError:
+            return None
+    if source_owner == destination:
         return name
+    same_user = source_owner.username == destination.username
     root = (
         f"{source_owner.machine_name}."
-        if classification is AgentOwnershipClassification.SAME_USER_OTHER_MACHINE
+        if same_user
         else f"{source_owner.username}.{source_owner.machine_name}."
     )
     if name.startswith(root):
         return name
-    global_name = globalize_agent_name(name, source_owner)
     try:
-        return localize_imported_agent_name(global_name, source, identity)
+        global_name = globalize_agent_name(name, source_owner)
     except ValueError:
         return None
+    if same_user:
+        source_root = f"{source_owner.username}.{source_owner.machine_name}."
+        if not global_name.startswith(source_root):
+            return None
+        return f"{source_owner.machine_name}.{global_name[len(source_root) :]}"
+    return global_name
 
 
 def _localize_v1_payload_name(name: str, source_machine: str) -> str | None:

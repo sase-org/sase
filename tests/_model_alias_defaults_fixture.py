@@ -16,7 +16,10 @@ from types import MappingProxyType
 import pytest
 import yaml  # type: ignore[import-untyped]
 
-from sase.llm_provider.load_balancing import parse_model_alias_selector
+from sase.llm_provider.load_balancing import (
+    concatenated_selector_members,
+    parse_model_alias_selector,
+)
 from sase.llm_provider import model_alias_policy
 from sase.llm_provider.model_alias_policy import (
     LARGE_MODEL_ALIAS_NAME,
@@ -77,7 +80,9 @@ def _selector_member_details(raw: str) -> tuple[tuple[str, str | None], ...]:
     selector = parse_model_alias_selector(raw)
     if selector is None:
         return ()
-    return tuple(split_model_effort(member) for member in selector.members)
+    return tuple(
+        split_model_effort(member) for member in concatenated_selector_members(selector)
+    )
 
 
 FROZEN_SELECTOR_MEMBER_DETAILS: Mapping[str, tuple[tuple[str, str | None], ...]] = (

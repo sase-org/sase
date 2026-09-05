@@ -54,14 +54,14 @@ def test_size_alias_helpers() -> None:
 def test_size_aliases_own_selector_targets() -> None:
     targets = implicit_alias_targets()
 
-    for alias in ("xsmall", "small", "medium", "large"):
+    for alias in ("xsmall", "small", "medium", "large", "xlarge"):
         selector = parse_model_alias_selector(targets[alias])
         assert selector is not None
         assert selector.mode == "round_robin"
 
     selector = parse_model_alias_selector(targets["xlarge"])
     assert selector is not None
-    assert selector.mode == "fallback"
+    assert selector.fallback_members == ("grok/grok-4.6@xhigh",)
 
 
 def test_configured_size_alias_resolves_to_configured_target(

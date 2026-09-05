@@ -1,8 +1,8 @@
 """Typed Python boundary for explicit agent identity and relationships.
 
-All parsing, ownership classification, validation, graph checks, and ID
-rewriting live in :mod:`sase_core_rs`. This module only converts dataclasses
-and mappings at the application boundary.
+All parsing, validation, graph checks, and ID rewriting live in
+:mod:`sase_core_rs`. This module only converts dataclasses and mappings at the
+application boundary.
 """
 
 from __future__ import annotations
@@ -23,20 +23,6 @@ from sase.core.rust import require_rust_binding
 class AgentOwnerIdentity:
     username: str
     machine_name: str
-
-
-@dataclass(frozen=True, slots=True)
-class AgentSourceOwnerIdentity:
-    machine_name: str
-    username: str | None = None
-
-    @classmethod
-    def v2(cls, owner: AgentOwnerIdentity) -> AgentSourceOwnerIdentity:
-        return cls(machine_name=owner.machine_name, username=owner.username)
-
-    @classmethod
-    def username_unknown_v1(cls, machine_name: str) -> AgentSourceOwnerIdentity:
-        return cls(machine_name=machine_name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,13 +64,6 @@ class _ParsedOwnedAgentName:
     hood: str
     family_name: str
     member_role: str | None
-
-
-class AgentOwnershipClassification(StrEnum):
-    EXACT_OWNER = "exact_owner"
-    SAME_USER_OTHER_MACHINE = "same_user_other_machine"
-    OTHER_USER = "other_user"
-    USERNAME_UNKNOWN_V1 = "username_unknown_v1"
 
 
 class AgentFamilyNameKind(StrEnum):
@@ -311,20 +290,6 @@ def validate_agent_owner(owner: AgentOwnerIdentity) -> None:
     binding(payload["username"], payload["machine_name"])
 
 
-def _classify_agent_ownership(
-    source: AgentSourceOwnerIdentity,
-    target: AgentOwnerIdentity,
-) -> AgentOwnershipClassification:
-    binding = require_rust_binding("classify_agent_ownership")
-    value = binding(
-        source.machine_name,
-        target.username,
-        target.machine_name,
-        source.username,
-    )
-    return AgentOwnershipClassification(str(value))
-
-
 def normalize_agent_archive_name(name: str) -> str:
     binding = require_rust_binding("normalize_agent_archive_name")
     return str(binding(name))
@@ -338,23 +303,6 @@ def globalize_agent_name(
     return str(binding(local_name, owner.username, owner.machine_name))
 
 
-def _localize_agent_name(
-    global_name: str,
-    source: AgentSourceOwnerIdentity,
-    target: AgentOwnerIdentity,
-) -> str:
-    binding = require_rust_binding("localize_agent_name")
-    return str(
-        binding(
-            global_name,
-            source.machine_name,
-            target.username,
-            target.machine_name,
-            source.username,
-        )
-    )
-
-
 def normalize_owned_agent_name(
     name: str,
     identity: AgentIdentitySnapshot | None = None,
@@ -364,8 +312,8 @@ def normalize_owned_agent_name(
     Bare names remain exact.  The current machine-qualified and early fully
     qualified spellings are accepted as compatibility inputs and normalized
     to the same bare semantic name.  Foreign spellings are not localized by
-    this function; imports must use :func:`localize_imported_agent_name` with
-    an explicit source owner.
+    this function; imported rows localize names where their explicit
+    source-owner provenance is processed.
     """
     snapshot = identity or AgentIdentitySnapshot.current()
     owner = snapshot.owner
@@ -402,29 +350,6 @@ def globalize_owned_agent_name(
             list(_known_owner_roots(snapshot)),
         )
     )
-
-
-def localize_imported_agent_name(
-    global_name: str,
-    source: AgentSourceOwnerIdentity,
-    identity: AgentIdentitySnapshot | None = None,
-) -> str:
-    """Localize one imported name using its explicit source provenance."""
-    snapshot = identity or AgentIdentitySnapshot.current()
-    if snapshot.owner is None:
-        return global_name
-    return _localize_agent_name(global_name, source, snapshot.owner)
-
-
-def classify_imported_agent_owner(
-    source: AgentSourceOwnerIdentity,
-    identity: AgentIdentitySnapshot | None = None,
-) -> AgentOwnershipClassification:
-    """Classify explicit imported provenance against the selected owner."""
-    snapshot = identity or AgentIdentitySnapshot.current()
-    if snapshot.owner is None:
-        return AgentOwnershipClassification.USERNAME_UNKNOWN_V1
-    return _classify_agent_ownership(source, snapshot.owner)
 
 
 def present_agent_name(
@@ -708,13 +633,10 @@ __all__ = [
     "AgentFamilyNameKind",
     "AgentIdentitySnapshot",
     "AgentOwnerIdentity",
-    "AgentOwnershipClassification",
-    "AgentSourceOwnerIdentity",
     "agent_link_target",
     "agent_local_hood",
     "agent_name_ancestors",
     "agent_name_in_hood",
-    "classify_imported_agent_owner",
     "current_owner_agent_name_key",
     "current_owner_agent_name_lookup_candidates",
     "foreign_agent_owner_root",
@@ -722,7 +644,6 @@ __all__ = [
     "globalize_owned_agent_name",
     "imported_owner_badge_label",
     "imported_source_owner_from_mapping",
-    "localize_imported_agent_name",
     "normalize_owned_agent_name",
     "normalize_agent_archive_name",
     "parse_agent_family_name",

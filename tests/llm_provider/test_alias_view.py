@@ -124,7 +124,7 @@ def test_size_aliases_are_first_and_user_aliases_are_ordered(
     assert names.index("alpha") < names.index("zeta")
 
 
-def test_xlarge_view_uses_ordered_fallback_availability(
+def test_xlarge_view_uses_pool_availability_before_last_resort(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
@@ -139,9 +139,10 @@ def test_xlarge_view_uses_ordered_fallback_availability(
     assert (xlarge.provider, xlarge.model, xlarge.effort) == (
         frozen_selector_provider_model_effort("xlarge", 1)
     )
-    assert xlarge.selector_mode == "fallback"
+    assert xlarge.selector_mode == "round_robin"
     selected = next(member for member in xlarge.selector_members if member.selected)
     assert selected.provider == "codex"
+    assert selected.last_resort is False
 
 
 def test_configured_retired_coder_alias_is_user_owned_when_custom(
