@@ -143,7 +143,8 @@ Existing top-level v1 `manifest.json` and `agents/<machine-qualified-name>` bund
 left untouched. Sync can still read those records for compatibility, but it no longer
 creates, refreshes, imports, or retires v1 transport data. Historical local imports can
 still be removed with `sase agent names forget-import` when their full legacy closure is
-superseded.
+superseded, or swept entirely (every transport, every machine) with
+`sase agent names purge-local-state`.
 
 ## Scope and reconciliation
 
@@ -448,4 +449,5 @@ never proof of ownership, and v1 cannot reconstruct the complete transactional f
 and relationship state guaranteed by v2. Current sync and status commands do not import
 or retire v1 transport data. Already-imported local legacy history can be removed with
 `sase agent names forget-import` after the command confirms the import closure is fully
-superseded.
+superseded, or purged in full (imports of any transport, any machine, plus journals, the
+incoming cache, and receipts) with `sase agent names purge-local-state`.

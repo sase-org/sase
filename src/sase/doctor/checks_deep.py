@@ -13,6 +13,7 @@ from sase.doctor.checks_deep_terminal import (
     check_tmux_version,
     check_truecolor,
 )
+from sase.doctor.checks_deep_purge_local_state import check_local_import_state
 from sase.doctor.checks_deep_xprompt_lsp import check_xprompt_lsp
 
 if TYPE_CHECKING:
@@ -27,6 +28,13 @@ def deep_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             group="state",
             title="Agent artifact index verify",
             runner=check_agent_index_verify,
+            deep=True,
+        ),
+        CheckSpec(
+            id="state.imported_local_state",
+            group="state",
+            title="Imported local state",
+            runner=check_local_import_state,
             deep=True,
         ),
         CheckSpec(

@@ -13,9 +13,13 @@ def _agents_sync_state_root() -> Path:
     return sase_home() / "agents_sync"
 
 
+def receipts_dir() -> Path:
+    return _agents_sync_state_root() / "receipts"
+
+
 def receipts_path(project_key: str) -> Path:
     safe = metadata_component(project_key, "project key")
-    return _agents_sync_state_root() / "receipts" / f"{safe}.json"
+    return receipts_dir() / f"{safe}.json"
 
 
 def cache_objects_dir() -> Path:

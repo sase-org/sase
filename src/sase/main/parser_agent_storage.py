@@ -329,3 +329,27 @@ def register_agent_names_parser(agents_sub: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Emit a machine-readable JSON object",
     )
+    purge_local_state_parser = names_sub.add_parser(
+        "purge-local-state",
+        help="Purge every locally materialized agents-sync import closure",
+        description=(
+            "Remove every locally materialized import closure regardless of "
+            "transport or source machine: imported artifacts, chat files, "
+            "dismissed bundles, dismissed identities, import journals and "
+            "staging, the incoming cache, and import receipts. The command is "
+            "a dry run unless --apply is given, in which case it deletes that "
+            "closure and rebuilds the agent-name registry."
+        ),
+    )
+    purge_local_state_parser.add_argument(
+        "-a",
+        "--apply",
+        action="store_true",
+        help="Apply the purge (default: report the closure without changing state)",
+    )
+    purge_local_state_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON object",
+    )

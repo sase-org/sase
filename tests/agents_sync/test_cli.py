@@ -15,6 +15,7 @@ from sase.agents_sync.models import (
     SyncStatusSnapshot,
 )
 from sase.main.parser import create_parser
+from sase.agents_sync.purge_local_state import PurgeLocalStateOutcome
 from sase.agents_sync.v1_forget_import import V1ForgetImportOutcome
 
 
@@ -304,6 +305,7 @@ def test_names_bare_usage_lists_both_subcommands(
     output = capsys.readouterr().out
     assert "forget-import" in output
     assert "migrate-auto" in output
+    assert "purge-local-state" in output
 
 
 def test_names_forget_import_cli_dispatches_and_reports_json(
@@ -327,3 +329,36 @@ def test_names_forget_import_cli_dispatches_and_reports_json(
     payload = json.loads(capsys.readouterr().out)
     assert payload["machine"] == "zeus"
     assert payload["mode"] == "dry-run"
+
+
+def test_names_purge_local_state_parser_accepts_apply_and_json() -> None:
+    dry_run = create_parser().parse_args(["agent", "names", "purge-local-state"])
+    apply = create_parser().parse_args(
+        ["agent", "names", "purge-local-state", "--json", "--apply"]
+    )
+
+    assert dry_run.names_subcommand == "purge-local-state"
+    assert dry_run.apply is False
+    assert apply.apply and apply.json
+
+
+def test_names_purge_local_state_cli_dispatches_and_reports_json(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    outcome = PurgeLocalStateOutcome(True)
+    args = argparse.Namespace(
+        names_subcommand="purge-local-state",
+        apply=False,
+        json=True,
+    )
+    with patch(
+        "sase.agents_sync.purge_local_state.purge_local_import_state",
+        return_value=outcome,
+    ):
+        with pytest.raises(SystemExit) as exc_info:
+            handle_agents_names(args)
+
+    assert exc_info.value.code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["mode"] == "dry-run"
+    assert payload["artifact_dirs"] == []
