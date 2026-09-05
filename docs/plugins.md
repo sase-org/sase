@@ -277,12 +277,12 @@ Axe restarted (pid 12345) to load the updated code.
   Updates tab, `U` updates that installed plugin and `m` switches install mode.
   Pane-wide `u` still runs only the SASE core + plugins update, while pane-wide `A`
   deliberately targets the current supported agent-CLI inventory. Global `,U` opens the
-  Update panel from cached snapshots. Lowercase `e` / `s` / `p` / `a` choose Everything,
-  SASE, providers, or agents and then confirm with `y`/`n`; capital `E` / `S` / `P` /
-  `A` plan the same scopes and skip only that confirmation after a runnable preview
-  succeeds. The providers leg is still snapshot-gated: it includes only provider names
-  from the latest completed automatic check, revalidates them live, and never guesses or
-  privileges manual-only providers.
+  Update panel from cached snapshots. Lowercase `e` / `s` / `p` choose Everything, SASE,
+  or providers and then confirm with `y`/`n`; capital `E` / `S` / `P` plan the same
+  scopes and skip only that confirmation after a runnable preview succeeds. The
+  providers leg is still snapshot-gated: it includes only provider names from the latest
+  completed automatic check, revalidates them live, and never guesses or privileges
+  manual-only providers.
 - **`-n|--dry-run`** prints the exact `uv` command or editable-checkout plan that would
   run and exits `0` without changing anything. uv itself has no dry-run, so sase
   resolves and prints the managed plan itself.

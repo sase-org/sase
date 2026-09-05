@@ -358,9 +358,9 @@ shows a live row count.
   reason, canonical vendor docs URL, and the last result.
 
 The always-visible header above the list shows either the all-current banner or a digest
-(update counts per source, cache age, install mode, an offline badge, and the
-agents-sync chip) plus a line per failed source; it never renders "all current" while
-any enabled source is unknown or failed.
+(update counts per source, cache age, install mode, and an offline badge) plus a line
+per failed source; it never renders "all current" while any enabled source is unknown or
+failed.
 
 The Plugins rows stay visually consistent with the CLI by reusing the same catalog
 loader and Rich renderables. They are split into **Built-in** and **Community**
@@ -386,19 +386,21 @@ SASE/plugin updates, amber `↑ N *` when `sase-core-rs` requires a Rust rebuild
 tooltip spells out both counts plus any manual-only CLI updates. Clicking the badge
 opens this tab without mutating anything.
 
-The global `,U` action opens the **Update panel** from already-fetched update and
-agents-sync snapshots (no Admin Center, no live inventory load). Lowercase `e` / `s` /
-`p` / `a` (or `⏎` / mouse on the highlighted row) choose Everything, SASE, providers, or
-agents and still require the final `y`/`n` confirmation. Capital `E` / `S` / `P` / `A`
-plan the same scopes and skip only that confirmation after a runnable preview succeeds;
-failed or already-current previews still do not mutate. The providers and agents legs
-still capture provider names and pending incoming hood cache items from the latest
-completed automatic snapshots and never add a newly discovered provider or a
-subsequently fetched hood to that invocation. Safe commands run sequentially; Homebrew,
-non-writable npm, and unknown-provenance installs remain visible with manual guidance.
-The pane-wide `u` remains SASE/core/plugins-only, pane-wide `A` remains the deliberate
-action for the current agent-CLI inventory, and pane-wide `a` performs an explicit
-full-network sync of all enabled agents repositories.
+The global `,U` action opens the **Update panel** from already-fetched SASE and provider
+snapshots (no Admin Center, no live inventory load). Lowercase `e` / `s` / `p` (or `⏎` /
+mouse on the highlighted row) choose Everything, SASE, or providers and still require
+the final `y`/`n` confirmation. Capital `E` / `S` / `P` plan the same scopes and skip
+only that confirmation after a runnable preview succeeds; failed or already-current
+previews still do not mutate. The providers leg still captures provider names from the
+latest completed automatic snapshot and never adds a newly discovered provider to that
+invocation. Safe commands run sequentially; Homebrew, non-writable npm, and
+unknown-provenance installs remain visible with manual guidance. The pane-wide `u`
+remains SASE/core/plugins-only, pane-wide `A` remains the deliberate action for the
+current agent-CLI inventory, and pane-wide `a` runs a tracked agents-sidecar publication
+sync: it publishes and reconciles this machine's own agent hoods for every enabled
+project and is not part of the comprehensive update. See
+[Agent Hood Synchronization](agents_sidecar.md#commands-and-status) for that command's
+behavior.
 
 Admin Center mutations **preview first**, and long confirmation panes scroll with
 `Ctrl+D` / `Ctrl+U`. The Update panel's capital shortcuts are the documented exception:
@@ -407,21 +409,18 @@ actions show the exact `uv` command or editable-checkout plan. When commit previ
 enabled and a comparable range is available, confirmations for core and installed-plugin
 **updates** load incoming commits by repository in the background; install, uninstall,
 and mode-switch confirmations do not claim a commit range. An Everything confirmation
-from `,U` groups SASE, Agent CLI, and **Cached agent hoods** work into labeled sections
-with update/current/skipped glyphs, counts, and commands (home paths display as `~/`).
-The cached-hood section is runnable only when captured incoming hoods from other owners
-exist, and it lists their exact projects and hood counts. The tracked proc runs Agent
-CLI commands first, the SASE/core/plugin leg second, and cached agents integration last,
-reporting independent partial failures. `A` previews every exact agent-CLI command and
-every skip with its reason and docs URL; it uses the marked subset from anywhere in the
-pane, otherwise it targets every safely updatable installed CLI. Agent-CLI commands
-execute sequentially as one tracked proc and refresh the browser without restarting ACE;
-new agent launches naturally use the updated binaries. Installable plugins use `I` /
-`Space` marks, while updatable agent CLIs use `Space`, in one shared mark set; `Esc`
-clears every mark, of either kind and regardless of the active filter, before closing.
-All slow work runs off the event loop. Core/plugin code changes retain the existing
-automatic ACE/axe restart behavior after the other legs finish. The context-sensitive
-keymaps are:
+from `,U` groups SASE and Agent CLI work into labeled sections with update/current/
+skipped glyphs, counts, and commands (home paths display as `~/`). The tracked proc runs
+Agent CLI commands first and the SASE/core/plugin leg second, reporting independent
+partial failures. `A` previews every exact agent-CLI command and every skip with its
+reason and docs URL; it uses the marked subset from anywhere in the pane, otherwise it
+targets every safely updatable installed CLI. Agent-CLI commands execute sequentially as
+one tracked proc and refresh the browser without restarting ACE; new agent launches
+naturally use the updated binaries. Installable plugins use `I` / `Space` marks, while
+updatable agent CLIs use `Space`, in one shared mark set; `Esc` clears every mark, of
+either kind and regardless of the active filter, before closing. All slow work runs off
+the event loop. Core/plugin code changes retain the existing automatic ACE/axe restart
+behavior after the other legs finish. The context-sensitive keymaps are:
 
 | Key                 | Action                                                                                                      |
 | ------------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -433,7 +432,7 @@ keymaps are:
 | `x`                 | Uninstall the highlighted plugin (only when installed)                                                      |
 | `u`                 | Run `sase update` for SASE core plus all installed plugins                                                  |
 | `A`                 | Update marked agent CLIs from anywhere, or every safely updatable installed agent CLI otherwise             |
-| `a`                 | Full-network sync every enabled agents repository and drain publication retries                             |
+| `a`                 | Publish and reconcile every enabled agents repository, draining queued publication retries                  |
 | `U`                 | Update the highlighted installed plugin when that row has an update available                               |
 | `m`                 | Switch install mode (PyPI managed ↔ dev editable; the `sase update --to` analog)                            |
 | `r`                 | Refresh — refetch the catalog and latest versions (the `-r/--refresh` analog)                               |
@@ -2069,9 +2068,9 @@ out or `visibility: private` to retain it with a private remote policy. Project-
 `default_linked_repos: false` suppresses both implicit managed-project entries.
 `sase repo init` can create and seed the agents remote only after its separate
 default-no consent prompt. Successful agent commit/PR workflows publish the committing
-hood, while `sase agent sync` imports shared history and reconciles every locally
-commit-eligible hood through the stable machine-level clone. See
-[Agent Hood Synchronization](agents_sidecar.md) before enabling a public remote.
+hood, while `sase agent sync` publishes every locally commit-eligible hood through the
+stable machine-level clone. See [Agent Hood Synchronization](agents_sidecar.md) before
+enabling a public remote.
 
 The deprecated `linked_repos` and `sibling_repos` keys are still accepted as aliases
 during the compatibility window. Canonical `repos.linked` entries take precedence over

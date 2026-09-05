@@ -275,14 +275,6 @@ rather than dropped silently. This read tolerance does not relax write validatio
 generated solo, family, and clan names must still satisfy the current strict naming
 rules.
 
-## Shared History Import Retirement
-
-`sase agent sync` no longer imports remote hoods into local agent history. The agents
-sidecar remains the publication and browsing surface for each owner's exported hoods,
-and existing imported local records remain readable until they are explicitly removed by
-the supported legacy-import cleanup commands. Status checks likewise report sidecar Git
-state and publication diagnostics only; they do not maintain an incoming-hood cache.
-
 ## Commands and status
 
 `sase agent sync` has separate mutating publication and read-only status modes.

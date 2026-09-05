@@ -6,9 +6,14 @@ summary:
   stay readable as v2-adoption matcher evidence but are never materialized as new
   imported artifacts.
 metadata:
-  status: accepted
+  status: superseded
   decided: 2026-09-03
+  superseded_by: decisions/agents-sync-publish-only
 ---
+
+> _Superseded:_ epic sase-ws deleted the v1 import leg described below outright, closed
+> the `v1_import_retired` flag bead, and left the module publish-only. See
+> [[decisions/agents-sync-publish-only]].
 
 **Claim.** The v1 agents-sync import leg is gated behind the `v1_import_retired` sunset
 flag (default on, bead `sase-wc`). The gate lives inside
