@@ -14,7 +14,10 @@ import sys
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal
 
-from sase.notification_gates.entrypoints import gate_command_entrypoint
+from sase.notification_gates.entrypoints import (
+    gate_command_entrypoint,
+    python_gate_command_script,
+)
 from sase.plugins._required_gate_preview import (
     plugins_required_presentation_note,
     render_plugins_required_preview,
@@ -214,15 +217,13 @@ def plugins_required_gate_command_script(
     """
     if option_id == PLUGINS_REQUIRED_INSTALL_OPTION_ID:
         names = list(requirements)
-        return (
-            f"#!{sys.executable}\n"
+        return python_gate_command_script(
             "from sase.plugins.required_gate import "
             "execute_plugins_required_gate_command\n"
             "raise SystemExit(execute_plugins_required_gate_command("
             f"{option_id!r}, {names!r}))\n"
         )
-    return (
-        f"#!{sys.executable}\n"
+    return python_gate_command_script(
         "from sase.plugins.required_gate import "
         "execute_plugins_required_gate_command\n"
         f"raise SystemExit(execute_plugins_required_gate_command({option_id!r}))\n"

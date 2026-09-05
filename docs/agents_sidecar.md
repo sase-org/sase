@@ -141,9 +141,9 @@ moves them to this archive only with `--write`.
 
 Existing top-level v1 `manifest.json` and `agents/<machine-qualified-name>` bundles are
 left untouched. Sync can still read those records for compatibility, but it no longer
-creates or refreshes v1 transport data. `sase agent retire-v1` is the only path that
-removes them, and only under the explicit evidence gate described in
-[Legacy v1 limitations](#legacy-v1-limitations).
+creates, refreshes, imports, or retires v1 transport data. Historical local imports can
+still be removed with `sase agent names forget-import` when their full legacy closure is
+superseded.
 
 ## Scope and reconciliation
 
@@ -275,45 +275,19 @@ rather than dropped silently. This read tolerance does not relax write validatio
 generated solo, family, and clan names must still satisfy the current strict naming
 rules.
 
-## Importing shared history
+## Shared History Import Retirement
 
-A mutating sync also imports shared v2 hoods into local, project-scoped history. Each
-owner hood is an independent package. Before writing local state, SASE validates its
-owner manifest, snapshot and referenced-file digests, bounded paths and payloads,
-portable metadata, relationship graph, and permanent-name claims. A malformed owner or
-hood is reported as quarantined and is not imported; validation can continue for
-unrelated packages.
-
-A valid remote run becomes a terminal historical artifact and dismissed-agent bundle,
-not a live process. Source `active`, `waiting`, and `stopped` states appear locally as
-`STOPPED`; a source failure remains `FAILED`; other terminal states appear as `DONE`.
-Available prompts, chats, commits, restart metadata, and family/clan/wait/retry
-relationships are retained. A sequential family is also recorded as one stable
-saved-family group, so the normal ACE family-revival flow can relaunch it directly:
-press `R` in the Agents tab and choose the group labeled **Agents sidecar**. The preview
-retains role order, parent mapping, raw prompts, model/provider/reasoning settings, and
-conditional localized names. Refreshing that family preserves its existing revival
-timestamp and count.
-
-Imports are transactional per hood. SASE prepares the complete local artifact, dismissed
-bundle, saved-family record, and permanent-name claims as a staged transaction, then
-applies and finalizes it under a project import lock. Loaders ignore a transaction until
-it is complete. A later v2 import pass discards an interrupted prepared transaction or
-finishes one that had begun applying. Re-importing the same snapshot is a no-op; a new
-digest refreshes the existing imported records. When the package describes the current
-owner and SASE can match a local run by durable ID or primary commit evidence, it treats
-that run as already observed instead of creating a duplicate. Because a modern
-`SASE_AGENT` tag names a sase agent, commit evidence is matched at sase-agent
-granularity: both the tag value and each expected run's global name are projected to
-their sase agent before comparison, so a family member's commit still proves that member
-ran. An exact member-name match is also still accepted, so legacy member-tagged commits
-remain valid evidence.
+`sase agent sync` no longer imports remote hoods into local agent history. The agents
+sidecar remains the publication and browsing surface for each owner's exported hoods,
+and existing imported local records remain readable until they are explicitly removed by
+the supported legacy-import cleanup commands. Status checks likewise report sidecar Git
+state and publication diagnostics only; they do not maintain an incoming-hood cache.
 
 ## Commands and status
 
-There are three deliberately separate modes.
+`sase agent sync` has separate mutating publication and read-only status modes.
 
-Run a full-duplex network reconciliation for all enabled projects:
+Run a network publication reconciliation for all enabled projects:
 
 ```bash
 sase agent sync
@@ -321,36 +295,25 @@ sase agent sync -p project-alias -p another-project
 ```
 
 The repository transaction acquires a bounded lock, fetches and pulls with rebase,
-imports validated shared v2 history and optional legacy v1 bundles, drains any
-outstanding agent-hood outbox requests, performs v2 publication for locally owned hoods,
-rebuilds deterministic indexes, commits with the full owner identity, and pushes. Only
-after that agents-sidecar transaction completes does SASE drain queued Referenced By
-requests into their artifact sidecars. The commit workflow has a separate earlier
-prompt-archive step: it publishes that archive and drains the resulting back-reference
-requests before it proceeds to agent-hood publication. In both cases, the prompt's
-agents-sidecar publication completes before its back-reference drain begins.
+publishes eligible locally owned hoods, restores deferred prompt archives, rebuilds
+deterministic indexes, commits with the full owner identity, pushes, and drains queued
+Referenced By requests into their artifact sidecars. The commit workflow has a separate
+earlier prompt-archive step: it publishes that archive and drains the resulting
+back-reference requests before it proceeds to agent-hood publication. In both cases, the
+prompt's agents-sidecar publication completes before its back-reference drain begins.
 `sase agent sync` is the explicit recovery command for queued requests a commit could
 not immediately resolve and the full-reconciliation command for hoods with no recent
 commit. A non-fast-forward rejection triggers one pull/recompute/commit/push retry.
 Conflicted rebases are aborted and reported; a failure in one project does not prevent
-the others from running. Import preflight indexes local artifacts once per project sync
-and reuses that view across every incoming hood and run. Exact-owner preflight also
-indexes matching `SASE_AGENT` commit evidence across local project checkouts, so cleaned
-runs are observed instead of re-imported. Interrupted transaction recovery runs once per
-project pass, v1 compatibility lookup scans artifacts once, and imported dismissed
-bundles update their summary index incrementally. The Updates pane's `a` action is the
-ACE equivalent for all enabled projects.
+the others from running. The Updates pane's `a` action is the ACE equivalent for all
+enabled projects.
 
-Use `--json` to audit the complete schema-version-2 result. In addition to the legacy
-`integrated`, `refreshed`, `exported`, and `export_refreshed` fields, each project
-reports `hoods_imported`, `hoods_import_refreshed`, `hoods_import_unchanged`,
-`hoods_quarantined`, `families_imported`, and `runs_imported`, plus the corresponding v2
-publication counts and diagnostics. The default table is intentionally compact:
-`IMPORTED` is the changed legacy-v1 import count, `V1` is the changed legacy-v1
-publication count, and `HOODS` / `RUNS` report v2 publication—not v2 import— totals.
-ACE's tracked-task lines likewise do not currently include the v2 import fields, so a
-project that only imports or refreshes v2 history can be summarized there as `current`;
-use the CLI's `--json` result to audit those imports.
+Use `--json` to audit the complete schema-version-2 result. Each project reports the
+legacy publication counters (`exported`, `export_refreshed`) plus v2 publication counts
+(`hoods_published`, `hoods_refreshed`, `hoods_unchanged`, `families_published`,
+`runs_published`), push/commit state, and diagnostics. The default table is compact:
+`V1` is the changed legacy-v1 publication count, and `HOODS` / `RUNS` report v2
+publication totals.
 
 Commit-triggered agent-hood publication uses a durable outbox at
 `~/.sase/projects/<project-key>/agents-publication-outbox.json`, keyed by
@@ -407,8 +370,7 @@ The command reports every removed hood or Referenced By request and its terminal
 then continues the normal full sync for the selected projects. Both `--drop-retired` and
 `--retry-quarantined` mutate the outbox and are rejected with `--check`.
 
-Periodic detection and the equivalent CLI status checks maintain
-`~/.sase/agents_sync/status_snapshot.json` and validated incoming-hood cache objects:
+CLI status checks maintain `~/.sase/agents_sync/status_snapshot.json`:
 
 ```bash
 sase agent sync --check
@@ -418,17 +380,14 @@ sase agent sync --check --json
 
 Neither check mode imports agent history, publishes local hoods, changes the sidecar
 worktree, commits, or pushes. Without `--refresh`, `--check` does not run Git or scan
-local agent artifacts: it reconciles persisted incoming-hood entries against import
-receipts and rewrites the status snapshot while carrying forward previously recorded Git
-counts. Those diagnostic counts can therefore be absent or stale.
+local agent artifacts: it rewrites cached project status with publication outbox
+diagnostics and carries forward previously recorded Git ahead/behind counts. Those
+counts can therefore be absent or stale.
 
-`--check --refresh` is the networked detection path. It fetches remote refs, validates
-the fetched agents commit without checking it out, stores independently valid incoming
-hoods from other owners in the local incoming cache, and recomputes ahead and behind
-counts. Exact-current-owner hoods — including owner-observed legacy v1 groups — are
-observed but do not become pending updates. `--refresh` is rejected unless `--check` is
-also present. Use `--json` to inspect cached `pending_updates`, quarantine diagnostics,
-and the fetched ref and commit.
+`--check --refresh` fetches remote refs and recomputes ahead and behind counts without
+checking out remote content. `--refresh` is rejected unless `--check` is also present.
+Use `--json` to inspect project state, cached ahead/behind counts, last fetch time,
+errors, details, and publication `quarantine_diagnostics`.
 
 ## ACE integration
 
@@ -455,13 +414,9 @@ Textual event loop.
   remaining outbox entry; inspect the managed SDD sync log instead.
 - A missing sidecar reports `not_created`; run `sase repo init` interactively if you
   intend to publish this scope.
-- A malformed legacy v1 manifest is quarantined and skipped with a diagnostic. A
-  malformed v2 owner manifest, snapshot, or referenced digest is quarantined from
-  import; full v2 publication still validates all shared authority and may fail that
-  project's reconciliation rather than overwrite corrupt data.
-- An interrupted v2 local import stays invisible until complete. A subsequent v2 import
-  pass performs journal recovery; in the normal case, rerunning a mutating sync supplies
-  that pass. Use `--json` to inspect recovery or quarantine diagnostics.
+- A malformed published v2 owner manifest, snapshot, or referenced digest is ignored
+  while deterministic indexes are rebuilt; publication still validates the current
+  owner's authority files before committing.
 - A queued agent-hood publication failure leaves the primary commit successful, with a
   warning naming the recovery command, and a durable retry request under the project's
   SASE state. Fix credentials/connectivity, then run `sase agent sync -p <project>` for
@@ -470,9 +425,9 @@ Textual event loop.
   not create another primary commit.
 - If an ordinary retry reports a quarantined publication request, fix the item-specific
   cause and run `sase agent sync --retry-quarantined -p <project>`. For a hood request,
-  rerun `sase agent sync --check --json` afterward and confirm that no publication
-  quarantine diagnostic remains; for a Referenced By request, confirm that the mutating
-  sync reports no remaining referenced-by diagnostic.
+  rerun `sase agent sync --check --json` afterward and confirm that no
+  `quarantine_diagnostics` entry remains; for a Referenced By request, confirm that the
+  mutating sync reports no remaining referenced-by diagnostic.
 - A post-publication Referenced By failure currently reuses the generic warning that
   says prompt-archive publication was deferred. In this case that wording is misleading:
   the prompt archive was already pushed. Inspect the Referenced By diagnostic and outbox
@@ -488,43 +443,9 @@ Textual event loop.
 ## Legacy v1 limitations
 
 V1's top-level manifest and `agents/<machine-qualified-name>` files remain in place and
-read-only. A v1 row has no trustworthy username owner. SASE therefore treats it as
-foreign/unknown by default, imports it through the compatibility path when valid, and
-never republishes it as locally owned v2 data. A shared machine token alone is never
-proof of ownership, and v1 cannot reconstruct the complete transactional family and
-relationship state guaranteed by v2.
-
-### Owner-observed v1 groups
-
-A v1 manifest group whose machine token matches the current owner's machine is
-reclassified as **owner-observed** — this machine's own history rather than incoming
-work — when either kind of first-party evidence holds:
-
-- the current owner's v2 manifest already publishes that hood, or
-- an entry in the group matches a local non-imported artifact by timestamp and
-  machine-qualified name and shares a commit SHA, compared with prefix-aware equivalence
-  so an abbreviated local marker matches a full sidecar SHA.
-
-Owner-observed groups count as exact-owner, never enter the incoming cache, never light
-the badge, and are recorded `unchanged` instead of imported. Both the cached `,U` leg
-and full sync share that verdict, neither writes an import receipt for such a group, and
-the name registry rejects an owner-machine legacy claim as a backstop. Everything else
-stays foreign, including any v1 group on a different machine and any same-machine group
-with no evidence.
-
-### Retiring this machine's v1 payload
-
-`sase agent retire-v1` removes the current machine's legacy-v1 payload once the owner's
-v2 manifest fully covers it:
-
-```bash
-sase agent retire-v1
-sase agent retire-v1 -p project-alias --json
-sase agent retire-v1 --apply
-```
-
-It is a dry run unless `--apply` is supplied, refuses and prints the uncovered hoods
-when any current-machine v1 hood is missing from the owner's v2 manifest, and removes
-only this machine's rows — another machine's v1 entries and bundles are left in place.
-`--apply` commits and pushes through the same locked sync transaction as ordinary
-publication, and Git history keeps the removed payload recoverable.
+read-only. A v1 row has no trustworthy username owner, a shared machine token alone is
+never proof of ownership, and v1 cannot reconstruct the complete transactional family
+and relationship state guaranteed by v2. Current sync and status commands do not import
+or retire v1 transport data. Already-imported local legacy history can be removed with
+`sase agent names forget-import` after the command confirms the import closure is fully
+superseded.

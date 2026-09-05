@@ -144,7 +144,10 @@ def test_guarded_exec_reader_lock_does_not_leak_to_inheriting_child(
                 lock_stat = lock_path.stat()
                 lock_key = (lock_stat.st_dev, lock_stat.st_ino)
                 lock_fds = []
-                for name in os.listdir("/proc/self/fd"):
+                fd_dir = Path("/proc/self/fd")
+                if not fd_dir.exists():
+                    fd_dir = Path("/dev/fd")
+                for name in os.listdir(fd_dir):
                     try:
                         fd = int(name)
                         st = os.fstat(fd)

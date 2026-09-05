@@ -9,9 +9,12 @@ legacy bare-PID behavior on platforms where that evidence cannot be read.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+import re
+import subprocess
 from pathlib import Path
 
 _PROC_ROOT = Path("/proc")
+_SUBPROCESS_POPEN = subprocess.Popen
 
 
 def _current_boot_id() -> str:
@@ -23,6 +26,8 @@ def _current_boot_id() -> str:
             .strip()
         )
     except OSError:
+        if _can_use_darwin_fallback():
+            return _darwin_boot_id()
         return ""
 
 
@@ -31,6 +36,10 @@ def process_identity_token(pid: int) -> str:
     try:
         stat = (_PROC_ROOT / str(pid) / "stat").read_text(encoding="utf-8")
     except OSError:
+        if _can_use_darwin_fallback():
+            start_ticks = _darwin_process_start_ticks(pid)
+            if start_ticks is not None:
+                return f"{_current_boot_id()}:{start_ticks}"
         return ""
     close_paren = stat.rfind(")")
     if close_paren < 0:
@@ -109,8 +118,73 @@ def current_boot_time_utc() -> datetime | None:
         uptime_text = (_PROC_ROOT / "uptime").read_text(encoding="utf-8")
         uptime_seconds = float(uptime_text.split()[0])
     except (IndexError, OSError, ValueError):
+        if _can_use_darwin_fallback():
+            boot_seconds = _darwin_boot_seconds()
+            if boot_seconds is not None:
+                return datetime.fromtimestamp(boot_seconds, UTC)
         return None
     return datetime.now(UTC) - timedelta(seconds=uptime_seconds)
+
+
+def _can_use_darwin_fallback() -> bool:
+    return _PROC_ROOT == Path("/proc") and not _PROC_ROOT.exists()
+
+
+def _darwin_boot_id() -> str:
+    boot_seconds = _darwin_boot_seconds()
+    return f"darwin-{boot_seconds}" if boot_seconds is not None else ""
+
+
+def _darwin_boot_seconds() -> int | None:
+    result = _run_text_command(["sysctl", "-n", "kern.boottime"])
+    if result is None:
+        return None
+    returncode, stdout = result
+    if returncode != 0:
+        return None
+    match = re.search(r"sec = (\d+)", stdout)
+    if match is None:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+
+def _darwin_process_start_ticks(pid: int) -> int | None:
+    result = _run_text_command(["ps", "-o", "lstart=", "-p", str(pid)])
+    if result is None:
+        return None
+    returncode, stdout = result
+    if returncode != 0:
+        return None
+    raw = stdout.strip()
+    if not raw:
+        return None
+    try:
+        started = datetime.strptime(raw, "%a %b %d %H:%M:%S %Y")
+    except ValueError:
+        return None
+    return int(started.timestamp())
+
+
+def _run_text_command(argv: list[str]) -> tuple[int, str] | None:
+    try:
+        process = _SUBPROCESS_POPEN(
+            argv,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            stdout, _stderr = process.communicate(timeout=1.0)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
+            return None
+    except Exception:  # noqa: BLE001 - process identity is best-effort metadata
+        return None
+    return process.returncode, stdout
 
 
 __all__ = [

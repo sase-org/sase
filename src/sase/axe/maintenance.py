@@ -10,13 +10,13 @@ from pathlib import Path
 from typing import Any
 
 from sase.ace.hooks.processes import is_process_running
+from sase.core.process_identity import process_identity_token
 from sase.core.time import get_timezone
 
 from . import state as axe_state
 
 MAINTENANCE_FILENAME = "maintenance.json"
 DEFAULT_STALE_SECONDS = 24 * 60 * 60
-_PROC_BOOT_ID_PATH = Path("/proc/sys/kernel/random/boot_id")
 
 
 def _maintenance_path() -> Path:
@@ -136,23 +136,17 @@ def clear_stale_maintenance(
 
 
 def _process_identity(pid: int) -> dict[str, Any] | None:
-    """Return a Linux process identity that changes when a PID is recycled."""
+    """Return a process identity that changes when a PID is recycled."""
+    token = process_identity_token(pid)
+    boot_id, separator, ticks_text = token.partition(":")
+    if not separator:
+        return None
     try:
-        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
-        close_paren = stat.rfind(")")
-        if close_paren < 0:
-            return None
-        # The tail starts at field 3 (state); process start time is field 22.
-        fields = stat[close_paren + 1 :].split()
-        start_ticks = int(fields[19])
-    except (IndexError, OSError, ValueError):
+        start_ticks = int(ticks_text)
+    except ValueError:
         return None
 
     identity: dict[str, Any] = {"start_ticks": start_ticks}
-    try:
-        boot_id = _PROC_BOOT_ID_PATH.read_text(encoding="utf-8").strip()
-    except OSError:
-        boot_id = ""
     if boot_id:
         identity["boot_id"] = boot_id
     return identity

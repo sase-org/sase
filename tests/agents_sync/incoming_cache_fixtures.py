@@ -7,6 +7,7 @@ all build the same seeded sidecar remote and patch the same target resolution.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 import subprocess
 
@@ -14,11 +15,14 @@ import pytest
 
 from sase.agents_sync import incoming_integration, status
 from sase.agents_sync.git import run_git
+from sase.agents_sync.git_objects import LocalGitObjectReader
+from sase.agents_sync.incoming_detection import capture_fetched_agent_updates
 from sase.agents_sync.inventory import InventoryRun, ProjectHoodInventory
 from sase.agents_sync.io import _compute_bundle_digest, atomic_write_json
 from sase.agents_sync.models import (
     AgentBundle,
     AgentsManifest,
+    CapturedIncomingHood,
     CommitRecord,
     ManifestEntry,
     PortableAgentMetadata,
@@ -37,6 +41,31 @@ FOREIGN_OWNERS = (
     AgentOwnerIdentity("alice", "zeus"),
     AgentOwnerIdentity("bob", "athena"),
 )
+
+
+@dataclass(frozen=True, slots=True)
+class IncomingCacheStatus:
+    """Test-only projection of incoming capture details after status dropped them."""
+
+    project_key: str
+    project: str
+    pending_updates: tuple[CapturedIncomingHood, ...]
+    validated_foreign_count: int
+    exact_owner_count: int
+    quarantine_diagnostics: tuple[str, ...]
+    owner_v2_hoods: tuple[str, ...]
+
+    @property
+    def pending_foreign_count(self) -> int:
+        return len(self.pending_updates)
+
+
+@dataclass(frozen=True, slots=True)
+class IncomingCacheSnapshot:
+    """Test-only snapshot returned by incoming-cache capture fixtures."""
+
+    checked_at: float
+    projects: tuple[IncomingCacheStatus, ...]
 
 
 def git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -230,8 +259,8 @@ def refresh(
     *,
     network_calls: list[str],
     now: float,
-) -> status.SyncStatusSnapshot:
-    """Run a refreshing status pass, recording the network ops it performs."""
+) -> IncomingCacheSnapshot:
+    """Capture incoming-cache evidence, recording the network ops it performs."""
 
     def runner(
         cwd: Path,
@@ -244,8 +273,32 @@ def refresh(
             network_calls.append(op)
         return run_git(cwd, args, network=network, op=op)
 
-    return status.get_agents_sync_status(
-        refresh=True,
-        now=now,
-        git_runner=runner,
+    fetched = runner(
+        target.sidecar_path,
+        ["fetch", "--prune", "origin"],
+        network=True,
+        op="agents_sync.status_fetch",
+    )
+    fetched.check_returncode()
+    with LocalGitObjectReader(target.sidecar_path, git_runner=runner) as reader:
+        report = capture_fetched_agent_updates(
+            target,
+            LOCAL_OWNER,
+            reader=reader,
+            now=now,
+        )
+    assert report is not None
+    return IncomingCacheSnapshot(
+        now,
+        (
+            IncomingCacheStatus(
+                target.project_key,
+                target.project,
+                report.pending_updates,
+                report.validated_foreign_count,
+                report.exact_owner_count,
+                report.diagnostics,
+                report.owner_v2_hoods,
+            ),
+        ),
     )

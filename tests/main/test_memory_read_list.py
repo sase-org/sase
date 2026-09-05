@@ -37,7 +37,7 @@ def test_memory_list_dashboard_renders_inventory_statuses(tmp_path: Path) -> Non
         file=output,
         force_terminal=False,
         color_system=None,
-        width=120,
+        width=240,
     )
 
     _render_memory_inventory(inventory, console=console, project_name="demo")

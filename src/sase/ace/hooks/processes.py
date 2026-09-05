@@ -3,6 +3,7 @@
 import os
 import re
 import signal
+import subprocess
 from collections.abc import Callable
 
 from ..patch import (
@@ -15,6 +16,8 @@ from ..patch import (
     extract_pid_from_agent_suffix,
 )
 from .timestamps import get_current_timestamp
+
+_SUBPROCESS_POPEN = subprocess.Popen
 
 
 def _try_kill_process_group(pid: int) -> bool:
@@ -62,9 +65,33 @@ def is_process_running(pid: int) -> bool:
                 if line.startswith("State:"):
                     return "Z" not in line
     except (FileNotFoundError, PermissionError, OSError):
-        pass
+        state = _ps_process_state(pid)
+        if state is not None:
+            return bool(state) and "Z" not in state
 
     return True
+
+
+def _ps_process_state(pid: int) -> str | None:
+    """Return a portable process state from ``ps`` when ``/proc`` is absent."""
+    try:
+        process = _SUBPROCESS_POPEN(
+            ["ps", "-o", "stat=", "-p", str(pid)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            stdout, _stderr = process.communicate(timeout=1.0)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
+            return None
+    except Exception:  # noqa: BLE001 - process liveness is best-effort metadata
+        return None
+    if process.returncode != 0:
+        return ""
+    return stdout.strip()
 
 
 def kill_running_hook_processes(

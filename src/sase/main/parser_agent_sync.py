@@ -5,50 +5,16 @@ from __future__ import annotations
 import argparse
 
 
-def register_agent_retire_v1_parser(agents_sub: argparse._SubParsersAction) -> None:
-    """Register the 'sase agent retire-v1' subcommand."""
-    retire_v1_parser = agents_sub.add_parser(
-        "retire-v1",
-        help="Safely retire this machine's legacy-v1 sidecar payload",
-        description=(
-            "Preview retirement of this machine's legacy-v1 agents-sidecar "
-            "payload. Retirement is refused unless the current owner's v2 "
-            "manifest covers every v1 hood. The command is a dry run unless "
-            "--apply is explicitly supplied."
-        ),
-    )
-    retire_v1_parser.add_argument(
-        "-a",
-        "--apply",
-        action="store_true",
-        help="Remove the covered payload, then commit and push through agents sync",
-    )
-    retire_v1_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Emit a stable machine-readable JSON report",
-    )
-    retire_v1_parser.add_argument(
-        "-p",
-        "--project",
-        action="append",
-        default=[],
-        help="Limit to a project name or alias (repeatable)",
-    )
-
-
 def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
     """Register the 'sase agent sync' subcommand."""
     sync_parser = agents_sub.add_parser(
         "sync",
-        help="Run full-duplex agent-sidecar sync or inspect cached incoming status",
+        help="Publish local agent hoods and inspect sidecar git status",
         description=(
-            "Without flags, fetch and reconcile enabled agents sidecars, import "
-            "foreign history, drain publication retries, publish locally "
-            "commit-eligible hoods, and push. --check is local and network-free; "
-            "--check --refresh fetches and validates incoming remote hoods without "
-            "importing or publishing them."
+            "Without flags, pull enabled agents sidecars, publish locally "
+            "commit-eligible hoods, restore deferred prompt archives, push, and "
+            "drain publication retries. --check is local and network-free; "
+            "--check --refresh fetches remote refs before computing ahead/behind."
         ),
     )
     sync_parser.add_argument(
@@ -56,8 +22,8 @@ def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
         "--check",
         action="store_true",
         help=(
-            "Reconcile cached incoming status and receipts without network, "
-            "import, publication, commit, or push"
+            "Read cached sidecar status and publication diagnostics without "
+            "network, publication, commit, or push"
         ),
     )
     sync_parser.add_argument(
@@ -87,11 +53,12 @@ def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
         "--refresh",
         action="store_true",
         help=(
-            "With --check, fetch remote refs and validate/cache incoming hoods "
-            "without importing them"
+            "With --check, fetch remote refs before computing sidecar "
+            "ahead/behind counts"
         ),
     )
     sync_parser.add_argument(
+        "-g",
         "--repair-digests",
         action="store_true",
         help=(

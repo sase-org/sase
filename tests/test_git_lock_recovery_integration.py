@@ -378,8 +378,15 @@ def test_git_checkout_with_lock_recovery(
     lock_path = git_index_lock_path(temp_repo)
     assert lock_path is not None
 
-    # Create initial commit on master
+    # Create initial commit on the repo's default branch
     _make_commit(temp_repo, "Initial")
+    base_branch = subprocess.run(
+        ["git", "branch", "--show-current"],
+        cwd=temp_repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
 
     # Create a feature branch
     subprocess.run(
@@ -390,9 +397,9 @@ def test_git_checkout_with_lock_recovery(
     )
     _make_commit(temp_repo, "Feature work")
 
-    # Back to master for checkout test
+    # Back to the default branch for checkout test
     subprocess.run(
-        ["git", "checkout", "master"],
+        ["git", "checkout", base_branch],
         cwd=temp_repo,
         capture_output=True,
         check=True,

@@ -12,6 +12,7 @@ from typing import Any
 from sase.agent.launch_preview import LAUNCH_PREVIEW_FILE
 from sase.agent.launch_request_response import dispatch_approved_launch_request
 from sase.agent.launch_request_types import ApprovedLaunchDispatchResult
+from sase.notification_gates.entrypoints import python_gate_command_script
 
 
 def execute_launch_gate_command(
@@ -254,8 +255,7 @@ def launch_gate_spec(
 
 def launch_gate_command_script(option_id: str) -> str:
     """Return the only command wrapper accepted by the launch adapter."""
-    return (
-        f"#!{sys.executable}\n"
+    return python_gate_command_script(
         "from sase.agent.launch_request import execute_launch_gate_command\n"
         f"raise SystemExit(execute_launch_gate_command({option_id!r}))\n"
     )

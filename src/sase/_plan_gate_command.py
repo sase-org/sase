@@ -6,7 +6,10 @@ import json
 import sys
 from pathlib import Path
 
-from sase.notification_gates.entrypoints import gate_command_entrypoint
+from sase.notification_gates.entrypoints import (
+    gate_command_entrypoint,
+    python_gate_command_script,
+)
 
 from ._plan_gate_metadata import plan_gate_option_ids
 from ._plan_gate_shared import (
@@ -21,8 +24,7 @@ from ._plan_gate_shared import (
 
 def plan_gate_command_script(option_id: str) -> str:
     """Return the hashed adapter-owned command wrapper for *option_id*."""
-    return (
-        f"#!{sys.executable}\n"
+    return python_gate_command_script(
         "from sase.plan_gate import execute_plan_gate_command\n"
         f"raise SystemExit(execute_plan_gate_command({option_id!r}))\n"
     )

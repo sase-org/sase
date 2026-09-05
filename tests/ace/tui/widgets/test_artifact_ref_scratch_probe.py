@@ -36,7 +36,8 @@ def test_report_names_emfile_when_descriptors_are_exhausted() -> None:
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     held: list[int] = []
     try:
-        limit = len(os.listdir("/proc/self/fd")) + _HEADROOM
+        fd_dir = "/proc/self/fd" if os.path.exists("/proc/self/fd") else "/dev/fd"
+        limit = len(os.listdir(fd_dir)) + _HEADROOM
         resource.setrlimit(resource.RLIMIT_NOFILE, (limit, hard))
         while True:
             try:

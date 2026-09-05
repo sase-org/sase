@@ -18,7 +18,6 @@ from sase.agents_sync.git_sync_ops import (
 )
 from sase.agents_sync.models import (
     ExportCounts,
-    IntegrationCounts,
     ProjectTarget,
     SyncOutcome,
 )
@@ -29,7 +28,7 @@ _PROMPT_ARCHIVE_PATHS = ("prompts", "artifacts")
 
 IntegrateExportPass = Callable[
     [ProjectTarget, Path, AgentOwnerIdentity, GitRunner],
-    tuple[IntegrationCounts, ExportCounts],
+    ExportCounts,
 ]
 
 
@@ -86,8 +85,8 @@ def _sync_project_transaction(
         )
 
     try:
-        integrated, exported = integrate_export_pass(target, repo, owner, git_runner)
-    except Exception as exc:  # noqa: BLE001 - project-scoped format/import error
+        exported = integrate_export_pass(target, repo, owner, git_runner)
+    except Exception as exc:  # noqa: BLE001 - project-scoped publication error
         return _error(target, str(exc), pulled=True)
 
     committed_result = commit_agents_payload_if_dirty(
@@ -97,12 +96,7 @@ def _sync_project_transaction(
         extra_paths=_PROMPT_ARCHIVE_PATHS,
     )
     if isinstance(committed_result, str):
-        return _error(
-            target,
-            committed_result,
-            pulled=True,
-            **_v2_import_outcome_counts(integrated),
-        )
+        return _error(target, committed_result, pulled=True)
     committed = committed_result
     should_push = committed or agents_ahead_count(repo, git_runner) > 0
     if not should_push:
@@ -110,8 +104,6 @@ def _sync_project_transaction(
             target.project_key,
             target.project,
             pulled=True,
-            integrated=integrated.integrated,
-            refreshed=integrated.refreshed,
             exported=exported.exported,
             export_refreshed=exported.refreshed,
             hoods_published=exported.hoods_published,
@@ -119,12 +111,6 @@ def _sync_project_transaction(
             hoods_unchanged=exported.hoods_unchanged,
             families_published=exported.families_published,
             runs_published=exported.runs_published,
-            hoods_imported=integrated.hoods_imported,
-            hoods_import_refreshed=integrated.hoods_refreshed,
-            hoods_import_unchanged=integrated.hoods_unchanged,
-            hoods_quarantined=integrated.hoods_quarantined,
-            families_imported=integrated.families_imported,
-            runs_imported=integrated.runs_imported,
             committed=False,
             diagnostics=exported.diagnostics,
         )
@@ -140,8 +126,6 @@ def _sync_project_transaction(
             target.project_key,
             target.project,
             pulled=True,
-            integrated=integrated.integrated,
-            refreshed=integrated.refreshed,
             exported=exported.exported,
             export_refreshed=exported.refreshed,
             hoods_published=exported.hoods_published,
@@ -149,12 +133,6 @@ def _sync_project_transaction(
             hoods_unchanged=exported.hoods_unchanged,
             families_published=exported.families_published,
             runs_published=exported.runs_published,
-            hoods_imported=integrated.hoods_imported,
-            hoods_import_refreshed=integrated.hoods_refreshed,
-            hoods_import_unchanged=integrated.hoods_unchanged,
-            hoods_quarantined=integrated.hoods_quarantined,
-            families_imported=integrated.families_imported,
-            runs_imported=integrated.runs_imported,
             committed=committed,
             pushed=True,
             push_attempts=1,
@@ -165,8 +143,6 @@ def _sync_project_transaction(
             target,
             agents_git_error("git push failed", pushed),
             pulled=True,
-            integrated=integrated.integrated,
-            refreshed=integrated.refreshed,
             exported=exported.exported,
             export_refreshed=exported.refreshed,
             hoods_published=exported.hoods_published,
@@ -177,7 +153,6 @@ def _sync_project_transaction(
             committed=committed,
             push_attempts=1,
             diagnostics=exported.diagnostics,
-            **_v2_import_outcome_counts(integrated),
         )
 
     if committed:
@@ -194,7 +169,6 @@ def _sync_project_transaction(
                 ),
                 pulled=True,
                 push_attempts=1,
-                **_v2_import_outcome_counts(integrated),
             )
 
     cleanup_error = _clean_sync_worktree(repo, git_runner)
@@ -204,7 +178,6 @@ def _sync_project_transaction(
             cleanup_error,
             pulled=True,
             push_attempts=1,
-            **_v2_import_outcome_counts(integrated),
         )
     repulled = pull_agents_rebase(repo, git_runner, "agents_sync.retry_pull")
     if repulled.returncode != 0:
@@ -214,19 +187,15 @@ def _sync_project_transaction(
             agents_git_error("git pull --rebase retry failed", repulled, cleanup),
             pulled=True,
             push_attempts=1,
-            **_v2_import_outcome_counts(integrated),
         )
     try:
-        retry_integrated, retry_exported = integrate_export_pass(
-            target, repo, owner, git_runner
-        )
+        retry_exported = integrate_export_pass(target, repo, owner, git_runner)
     except Exception as exc:  # noqa: BLE001 - project-scoped retry error
         return _error(
             target,
             f"sync recompute after push rejection failed: {exc}",
             pulled=True,
             push_attempts=1,
-            **_v2_import_outcome_counts(integrated),
         )
     retry_commit_result = commit_agents_payload_if_dirty(
         repo,
@@ -240,7 +209,6 @@ def _sync_project_transaction(
             retry_commit_result,
             pulled=True,
             push_attempts=1,
-            **_v2_import_outcome_counts(integrated),
         )
     retry_committed = retry_commit_result
     retry_push = git_runner(
@@ -257,8 +225,6 @@ def _sync_project_transaction(
             target,
             agents_git_error("git push retry failed", retry_push),
             pulled=True,
-            integrated=max(integrated.integrated, retry_integrated.integrated),
-            refreshed=max(integrated.refreshed, retry_integrated.refreshed),
             exported=max(exported.exported, retry_exported.exported),
             export_refreshed=max(exported.refreshed, retry_exported.refreshed),
             hoods_published=max(
@@ -278,29 +244,11 @@ def _sync_project_transaction(
             committed=retry_committed,
             push_attempts=2,
             diagnostics=all_diagnostics,
-            hoods_imported=max(
-                integrated.hoods_imported, retry_integrated.hoods_imported
-            ),
-            hoods_import_refreshed=max(
-                integrated.hoods_refreshed, retry_integrated.hoods_refreshed
-            ),
-            hoods_import_unchanged=max(
-                integrated.hoods_unchanged, retry_integrated.hoods_unchanged
-            ),
-            hoods_quarantined=max(
-                integrated.hoods_quarantined, retry_integrated.hoods_quarantined
-            ),
-            families_imported=max(
-                integrated.families_imported, retry_integrated.families_imported
-            ),
-            runs_imported=max(integrated.runs_imported, retry_integrated.runs_imported),
         )
     return SyncOutcome(
         target.project_key,
         target.project,
         pulled=True,
-        integrated=max(integrated.integrated, retry_integrated.integrated),
-        refreshed=max(integrated.refreshed, retry_integrated.refreshed),
         exported=max(exported.exported, retry_exported.exported),
         export_refreshed=max(exported.refreshed, retry_exported.refreshed),
         hoods_published=max(exported.hoods_published, retry_exported.hoods_published),
@@ -314,36 +262,11 @@ def _sync_project_transaction(
         pushed=True,
         push_attempts=2,
         diagnostics=all_diagnostics,
-        hoods_imported=max(integrated.hoods_imported, retry_integrated.hoods_imported),
-        hoods_import_refreshed=max(
-            integrated.hoods_refreshed, retry_integrated.hoods_refreshed
-        ),
-        hoods_import_unchanged=max(
-            integrated.hoods_unchanged, retry_integrated.hoods_unchanged
-        ),
-        hoods_quarantined=max(
-            integrated.hoods_quarantined, retry_integrated.hoods_quarantined
-        ),
-        families_imported=max(
-            integrated.families_imported, retry_integrated.families_imported
-        ),
-        runs_imported=max(integrated.runs_imported, retry_integrated.runs_imported),
     )
 
 
 def _error(target: ProjectTarget, error: str, **kwargs: Any) -> SyncOutcome:
     return SyncOutcome(target.project_key, target.project, error=error, **kwargs)
-
-
-def _v2_import_outcome_counts(integrated: IntegrationCounts) -> dict[str, int]:
-    return {
-        "hoods_imported": integrated.hoods_imported,
-        "hoods_import_refreshed": integrated.hoods_refreshed,
-        "hoods_import_unchanged": integrated.hoods_unchanged,
-        "hoods_quarantined": integrated.hoods_quarantined,
-        "families_imported": integrated.families_imported,
-        "runs_imported": integrated.runs_imported,
-    }
 
 
 __all__ = ["IntegrateExportPass", "sync_project_locked"]

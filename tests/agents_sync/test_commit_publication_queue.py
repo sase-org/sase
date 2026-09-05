@@ -15,7 +15,6 @@ from sase.agents_sync.git import run_git
 from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import (
-    IntegrationCounts,
     ProjectTarget,
     TargetSelection,
 )
@@ -108,11 +107,6 @@ def test_failed_targeted_publish_cleans_uncommitted_payload(
     )
     monkeypatch.setattr(
         commit_publication,
-        "integrate_agent_imports_with_receipts",
-        lambda *_args, **_kwargs: IntegrationCounts(),
-    )
-    monkeypatch.setattr(
-        commit_publication,
         "build_project_hood_inventory",
         lambda *_args, **_kwargs: ProjectHoodInventory(owner, "proj", ()),
     )
@@ -171,7 +165,6 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
         tuple(object() for _ in range(5_000)),  # type: ignore[arg-type]
     )
     build_calls = 0
-    integration_calls = 0
     published: list[tuple[str, ProjectHoodInventory]] = []
     updated: list[tuple[tuple[str, str], ...]] = []
     acknowledged: list[tuple[tuple[str, str], ...]] = []
@@ -189,11 +182,6 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
     monkeypatch.setattr(
         commit_publication, "list_agent_publications", list_publications
     )
-
-    def integrate(*_args, **_kwargs):
-        nonlocal integration_calls
-        integration_calls += 1
-        return IntegrationCounts()
 
     def build(*_args, **_kwargs):
         nonlocal build_calls
@@ -215,11 +203,6 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
         path.write_bytes(v2_json_bytes(manifest.to_json_dict()))
         return V2PublicationCounts(hoods_published=1)
 
-    monkeypatch.setattr(
-        commit_publication,
-        "integrate_agent_imports_with_receipts",
-        integrate,
-    )
     monkeypatch.setattr(commit_publication, "build_project_hood_inventory", build)
     monkeypatch.setattr(commit_publication, "publish_agent_hood", publish)
     monkeypatch.setattr(
@@ -273,7 +256,6 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
     assert pulled == 1
     assert commit_checks == 1
     assert ahead_checks == 1
-    assert integration_calls == 1
     assert build_calls == 1
     assert [hood for hood, _inventory in published] == list(hoods)
     assert all(seen_inventory is inventory for _hood, seen_inventory in published)
@@ -296,10 +278,6 @@ def test_mixed_queue_publishes_good_items_and_quarantines_only_bad_item(
     monkeypatch.setattr(
         "sase.agents_sync.commit_publication.require_agent_owner_identity",
         lambda: owner,
-    )
-    monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.integrate_agent_imports_with_receipts",
-        lambda *_args, **_kwargs: IntegrationCounts(),
     )
     for hood, revision in (("good", "a" * 40), ("bad", "b" * 40)):
         enqueue_agent_publication(
@@ -415,11 +393,6 @@ def test_no_publishable_runs_retries_once_then_retires(
     )
     monkeypatch.setattr(
         commit_publication,
-        "integrate_agent_imports_with_receipts",
-        lambda *_args, **_kwargs: IntegrationCounts(),
-    )
-    monkeypatch.setattr(
-        commit_publication,
         "build_project_hood_inventory",
         lambda *_args, **_kwargs: ProjectHoodInventory(owner, "proj", ()),
     )
@@ -506,11 +479,6 @@ def test_repeated_format_publication_failure_retires_and_doctor_says_drop(
     assert queued.attempts == 0
     assert queued.created_at == old_now
 
-    monkeypatch.setattr(
-        commit_publication,
-        "integrate_agent_imports_with_receipts",
-        lambda *_args, **_kwargs: IntegrationCounts(),
-    )
     monkeypatch.setattr(
         commit_publication,
         "build_project_hood_inventory",

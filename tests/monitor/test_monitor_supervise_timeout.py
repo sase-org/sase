@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -157,7 +158,7 @@ def test_run_supervisor_chatty_command_does_not_hit_idle_timeout(
     tmp_path: Path,
 ) -> None:
     command = (
-        f'{sys.executable} -u -c "import sys, time; '
+        f'{shlex.quote(sys.executable)} -u -c "import sys, time; '
         "[(sys.stdout.write('tick\\\\n'), sys.stdout.flush(), time.sleep(0.05)) "
         'for _ in range(4)]"'
     )
@@ -194,7 +195,7 @@ def test_run_supervisor_quiet_command_without_idle_timeout_completes(
 
 def test_run_supervisor_survives_invalid_utf8_output(tmp_path: Path) -> None:
     command = (
-        f'{sys.executable} -c "import sys, time; '
+        f'{shlex.quote(sys.executable)} -c "import sys, time; '
         "sys.stdout.buffer.write(b'bad\\\\xff\\\\n'); "
         'sys.stdout.flush(); time.sleep(30)"'
     )

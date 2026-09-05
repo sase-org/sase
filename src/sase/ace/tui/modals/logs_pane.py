@@ -128,6 +128,7 @@ class LogsPane(PaneEntryJumpMixin, CopyModeForwardingMixin, Vertical):
         self._error_target = error_target
         self._focus_scroll_retries = 0
         self._bottom_scroll_retries = 0
+        self._bottom_scroll_last_max_y: int | None = None
         self._selected_index = restore_selection_by_identity(
             self._sources,
             prior_identity=self._bookmark.identity,
@@ -402,18 +403,29 @@ class LogsPane(PaneEntryJumpMixin, CopyModeForwardingMixin, Vertical):
         self._scroll_detail_end()
 
     def _scroll_detail_end(self) -> None:
-        """Jump to the current bottom, retrying while layout still reports 0."""
+        """Jump to the bottom, retrying while layout's bottom is still moving."""
         try:
             scroll = self.query_one("#log-detail-scroll", VerticalScroll)
             retries = self._bottom_scroll_retries
-            if int(scroll.max_scroll_y) == 0 and retries < 3:
+            previous_max_y = self._bottom_scroll_last_max_y
+            max_scroll_y = int(scroll.max_scroll_y)
+            scroll.scroll_end(animate=False, force=True, immediate=True)
+            at_bottom = int(scroll.scroll_y) == int(scroll.max_scroll_y)
+            if retries < 6 and (
+                retries == 0
+                or max_scroll_y == 0
+                or previous_max_y != max_scroll_y
+                or not at_bottom
+            ):
                 self._bottom_scroll_retries = retries + 1
+                self._bottom_scroll_last_max_y = int(scroll.max_scroll_y)
                 scroll.call_after_refresh(self._scroll_detail_end)
                 return
             self._bottom_scroll_retries = 0
-            self._force_scroll_detail_to(scroll.max_scroll_y)
+            self._bottom_scroll_last_max_y = None
         except Exception:
             self._bottom_scroll_retries = 0
+            self._bottom_scroll_last_max_y = None
 
     def _scroll_detail_home(self) -> None:
         try:

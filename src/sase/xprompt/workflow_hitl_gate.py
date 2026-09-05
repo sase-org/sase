@@ -11,7 +11,10 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from sase.notification_gates.entrypoints import gate_command_entrypoint
+from sase.notification_gates.entrypoints import (
+    gate_command_entrypoint,
+    python_gate_command_script,
+)
 from sase.notification_gates.models import GateError
 from sase.xprompt.workflow_executor_types import HITLResult
 
@@ -331,8 +334,7 @@ def _translate_workflow_hitl_response(response: Mapping[str, Any]) -> HITLResult
 
 def _hitl_gate_command_script(option_id: str) -> str:
     """Return the adapter-owned command wrapper for a HITL option."""
-    return (
-        f"#!{sys.executable}\n"
+    return python_gate_command_script(
         "from sase.xprompt.workflow_hitl_gate import execute_hitl_gate_command\n"
         f"raise SystemExit(execute_hitl_gate_command({option_id!r}))\n"
     )

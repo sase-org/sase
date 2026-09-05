@@ -95,7 +95,6 @@ def _emit_sync_outcomes(
 def _render_outcomes(outcomes: tuple[SyncOutcome, ...]) -> None:
     table = Table(title="Agent Sync", header_style="bold cyan")
     table.add_column("PROJECT", style="bold")
-    table.add_column("IMPORTED", justify="right")
     table.add_column("V1", justify="right")
     table.add_column("HOODS", justify="right")
     table.add_column("RUNS", justify="right")
@@ -110,7 +109,6 @@ def _render_outcomes(outcomes: tuple[SyncOutcome, ...]) -> None:
             result = Text("synchronized", style="green")
         table.add_row(
             outcome.project,
-            str(outcome.integrated + outcome.refreshed),
             str(outcome.exported + outcome.export_refreshed),
             str(outcome.hoods_published + outcome.hoods_refreshed),
             str(outcome.runs_published),

@@ -7,8 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from sase.core.agent_identity_facade import AgentOwnerIdentity
-
 BUNDLE_SCHEMA_VERSION = 1
 CACHE_SCHEMA_VERSION = 1
 MANIFEST_SCHEMA_VERSION = 1
@@ -329,8 +327,6 @@ class SyncOutcome:
     project_key: str
     project: str
     pulled: bool = False
-    integrated: int = 0
-    refreshed: int = 0
     exported: int = 0
     export_refreshed: int = 0
     committed: bool = False
@@ -344,12 +340,6 @@ class SyncOutcome:
     hoods_unchanged: int = 0
     families_published: int = 0
     runs_published: int = 0
-    hoods_imported: int = 0
-    hoods_import_refreshed: int = 0
-    hoods_import_unchanged: int = 0
-    hoods_quarantined: int = 0
-    families_imported: int = 0
-    runs_imported: int = 0
     schema_version: int = SYNC_RESULT_SCHEMA_VERSION
 
     @property
@@ -362,8 +352,6 @@ class SyncOutcome:
             "project_key": self.project_key,
             "project": self.project,
             "pulled": self.pulled,
-            "integrated": self.integrated,
-            "refreshed": self.refreshed,
             "exported": self.exported,
             "export_refreshed": self.export_refreshed,
             "hoods_published": self.hoods_published,
@@ -371,12 +359,6 @@ class SyncOutcome:
             "hoods_unchanged": self.hoods_unchanged,
             "families_published": self.families_published,
             "runs_published": self.runs_published,
-            "hoods_imported": self.hoods_imported,
-            "hoods_import_refreshed": self.hoods_import_refreshed,
-            "hoods_import_unchanged": self.hoods_import_unchanged,
-            "hoods_quarantined": self.hoods_quarantined,
-            "families_imported": self.families_imported,
-            "runs_imported": self.runs_imported,
             "committed": self.committed,
             "pushed": self.pushed,
             "push_attempts": self.push_attempts,
@@ -398,21 +380,7 @@ class ProjectSyncStatus:
     last_fetch_time: float | None = None
     detail: str | None = None
     error: str | None = None
-    fetched_ref: str | None = None
-    fetched_sha: str | None = None
-    pending_updates: tuple[CapturedIncomingHood, ...] = ()
-    validated_foreign_count: int = 0
-    exact_owner_count: int = 0
     quarantine_diagnostics: tuple[str, ...] = ()
-    cache_updated_at: float | None = None
-    owner_v2_hoods: tuple[str, ...] = ()
-    owner_v2_identity: AgentOwnerIdentity | None = None
-
-    @property
-    def pending_foreign_count(self) -> int:
-        """Return the pure cached count consumed by the later ACE phase."""
-
-        return len(self.pending_updates)
 
     def to_json_dict(self) -> dict[str, object]:
         return {
@@ -424,34 +392,7 @@ class ProjectSyncStatus:
             "last_fetch_time": self.last_fetch_time,
             "detail": self.detail,
             "error": self.error,
-            "fetched_ref": self.fetched_ref,
-            "fetched_sha": self.fetched_sha,
-            "pending_updates": [
-                item.to_json_dict()
-                for item in sorted(
-                    self.pending_updates,
-                    key=lambda row: (
-                        row.source_owner_kind,
-                        row.source_username or "",
-                        row.source_machine,
-                        row.top_hood,
-                        row.cache_created_at,
-                    ),
-                )
-            ],
-            "validated_foreign_count": self.validated_foreign_count,
-            "exact_owner_count": self.exact_owner_count,
             "quarantine_diagnostics": list(self.quarantine_diagnostics),
-            "cache_updated_at": self.cache_updated_at,
-            "owner_v2_hoods": sorted(self.owner_v2_hoods),
-            "owner_v2_identity": (
-                {
-                    "username": self.owner_v2_identity.username,
-                    "machine_name": self.owner_v2_identity.machine_name,
-                }
-                if self.owner_v2_identity is not None
-                else None
-            ),
         }
 
 

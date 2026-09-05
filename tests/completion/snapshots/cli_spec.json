@@ -2113,70 +2113,6 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "3f31624169bf7eb6",
-            "hidden": false,
-            "mutex_groups": [],
-            "name": "retire-v1",
-            "options": [
-              {
-                "choices": null,
-                "dest": "help",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-h",
-                  "--help"
-                ],
-                "takes_value": false
-              },
-              {
-                "choices": null,
-                "dest": "apply",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-a",
-                  "--apply"
-                ],
-                "takes_value": false
-              },
-              {
-                "choices": null,
-                "dest": "json",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-j",
-                  "--json"
-                ],
-                "takes_value": false
-              },
-              {
-                "choices": null,
-                "dest": "project",
-                "hidden": false,
-                "kind": "project",
-                "repeatable": true,
-                "strings": [
-                  "-p",
-                  "--project"
-                ],
-                "takes_value": true
-              }
-            ],
-            "path": [
-              "agent",
-              "retire-v1"
-            ],
-            "positionals": [],
-            "subcommands": []
-          },
-          {
-            "aliases": [],
-            "default_child": null,
             "description_digest": "14b47962bf97a827",
             "hidden": false,
             "mutex_groups": [],
@@ -2348,7 +2284,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "910411144dd4824b",
+            "description_digest": "dedf30be2626cd19",
             "hidden": false,
             "mutex_groups": [],
             "name": "sync",
@@ -2432,6 +2368,7 @@
                 "kind": null,
                 "repeatable": false,
                 "strings": [
+                  "-g",
                   "--repair-digests"
                 ],
                 "takes_value": false

@@ -399,5 +399,6 @@ async def wait_for_startup(page: AcePage) -> None:
             and page.app._axe_first_load_done
             and not page.app._agent_detail_debouncer.is_pending
             and (expected_badge is None or _indicator_plain(page) == expected_badge)
-        )
+        ),
+        timeout=15.0,
     )

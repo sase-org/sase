@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from sase.agent.names._common import ImportedNamespaceOwnedLocallyError
-from sase.agents_sync import incoming_cache, incoming_integration, status
+from sase.agents_sync import incoming_cache, incoming_integration
 from sase.agents_sync.git import run_git
 from sase.agents_sync.models import CapturedIncomingHood, IntegrationCounts
 from sase.core.agent_identity_facade import AgentOwnerIdentity
@@ -74,7 +74,14 @@ def test_cached_integration_is_no_network_and_receipted(
     assert network_calls and all("fetch" not in op for op in network_calls)
     receipt = incoming_cache.read_project_receipts(PROJECT.key)[0]
     assert receipt.hood_digest == item.hood_digest
-    assert status.get_agents_sync_status().projects[0].pending_foreign_count == 1
+    pending, diagnostics = incoming_cache.reconcile_pending_items(
+        snapshot.projects[0].pending_updates,
+        project_key=PROJECT.key,
+        owner=LOCAL_OWNER,
+        owner_v2_hoods=snapshot.projects[0].owner_v2_hoods,
+    )
+    assert len(pending) == 1
+    assert diagnostics == ()
 
 
 def test_full_sync_import_pass_advances_foreign_receipts_only(
@@ -106,7 +113,14 @@ def test_full_sync_import_pass_advances_foreign_receipts_only(
         receipt.hood_digest in {item.hood_digest for item in current.pending_updates}
         for receipt in receipts
     )
-    assert status.get_agents_sync_status().projects[0].pending_foreign_count == 0
+    pending, diagnostics = incoming_cache.reconcile_pending_items(
+        current.pending_updates,
+        project_key=PROJECT.key,
+        owner=LOCAL_OWNER,
+        owner_v2_hoods=current.owner_v2_hoods,
+    )
+    assert pending == ()
+    assert diagnostics == ()
 
 
 def test_cached_integration_reports_stale_missing_quarantine_and_lock_busy(
@@ -317,9 +331,13 @@ def test_captured_sha_a_remains_integrable_after_newer_b_refresh(
         (item_a,),
         git_runner=no_network_runner,
     )
-    after = status.get_agents_sync_status(now=201.0)
+    after, diagnostics = incoming_cache.reconcile_pending_items(
+        second.projects[0].pending_updates,
+        project_key=PROJECT.key,
+        owner=LOCAL_OWNER,
+        owner_v2_hoods=second.projects[0].owner_v2_hoods,
+    )
 
     assert outcome[0].disposition == "applied"
-    assert any(
-        item.cache_id == item_b.cache_id for item in after.projects[0].pending_updates
-    )
+    assert diagnostics == ()
+    assert any(item.cache_id == item_b.cache_id for item in after)

@@ -514,7 +514,8 @@ async def test_y_then_label_copies_the_links_resolved_path(
         "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda value: copied.append(value) or True,
     )
-    app = SasePager(_path_link_document(Path("/tmp/target.py")))
+    target = Path("/tmp/target.py")
+    app = SasePager(_path_link_document(target))
     async with app.run_test(size=(80, 24)) as pilot:
         screen = _pager_screen(app)
         await pilot.pause()
@@ -527,7 +528,7 @@ async def test_y_then_label_copies_the_links_resolved_path(
         await pilot.pause(0.1)
         await pilot.pause(0.1)
 
-    assert copied == ["/tmp/target.py"]
+    assert copied == [str(target.resolve())]
     assert screen._pending_action == "follow"
 
 

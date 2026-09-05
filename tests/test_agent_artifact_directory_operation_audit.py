@@ -96,12 +96,6 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "SASE_HOME/cache/rust-prebuild, not agent artifact directories."
         ),
     ),
-    "src/sase/agents_sync/v1_retirement.py:_apply_v1_retirement": DirOpReview(
-        exemption=(
-            "Removes only evidence-covered legacy-v1 transport bundles inside "
-            "an agents sidecar checkout, not local agent artifact directories."
-        ),
-    ),
     "src/sase/agents_sync/v1_forget_import.py:_apply_closure": DirOpReview(
         lifecycle_calls=(_DELETE_INDEX,),
     ),

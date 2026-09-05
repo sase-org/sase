@@ -29,11 +29,6 @@ def handle_agent_command(args: argparse.Namespace) -> None:
         handle_agents_show(args)
         sys.exit(0)
 
-    if sub == "retire-v1":
-        from sase.agents.cli_retire_v1 import handle_agents_retire_v1
-
-        sys.exit(handle_agents_retire_v1(args))
-
     if sub == "sync":
         from sase.agents.cli_sync import handle_agents_sync
 
@@ -116,7 +111,6 @@ def handle_agent_command(args: argparse.Namespace) -> None:
     print(
         "Usage: sase agent "
         "{archive,artifacts,drain,index,kill,list,names,persist-cleanup,"
-        "persist-directive,prompts,restart,"
-        "retire-v1,revert,search,show,sync,tribe,wait}"
+        "persist-directive,prompts,restart,revert,search,show,sync,tribe,wait}"
     )
     sys.exit(1)

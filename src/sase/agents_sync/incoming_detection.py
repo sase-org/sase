@@ -118,7 +118,7 @@ def capture_fetched_agent_updates(
 ) -> _IncomingCaptureReport | None:
     """Capture every independently valid foreign hood at one fetched commit."""
     try:
-        return _capture_fetched_agent_updates(
+        return _capture_fetched_agent_updates_impl(
             target,
             owner,
             reader=reader,
@@ -131,7 +131,7 @@ def capture_fetched_agent_updates(
         return None
 
 
-def _capture_fetched_agent_updates(
+def _capture_fetched_agent_updates_impl(
     target: ProjectTarget,
     owner: AgentOwnerIdentity,
     *,

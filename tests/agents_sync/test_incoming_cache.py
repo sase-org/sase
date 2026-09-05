@@ -1,21 +1,19 @@
-"""Capture, reconcile, and prune behavior of the incoming-cache status pass."""
+"""Capture, reconcile, and prune behavior of the incoming-cache pass."""
 
 from __future__ import annotations
 
-from dataclasses import replace
 import json
 from pathlib import Path
 import subprocess
 
 import pytest
 
-from sase.agents_sync import incoming_cache, status
+from sase.agents_sync import incoming_cache
 from sase.agents_sync.git_objects import LocalGitObjectReader
 from sase.agents_sync.incoming_detection import (
     IncomingCaptureProgress,
     capture_fetched_agent_updates,
 )
-from sase.core.agent_identity_facade import AgentOwnerIdentity
 
 from tests.agents_sync.incoming_cache_fixtures import (
     LOCAL_OWNER,
@@ -72,18 +70,14 @@ def test_refresh_captures_only_foreign_hoods_without_checkout_mutation(
     assert repeated.projects[0].pending_updates == current.pending_updates
     assert metadata.read_bytes() == original_metadata
     assert metadata.stat().st_mtime_ns == original_mtime
-
-    def no_git(
-        _cwd: Path,
-        args: list[str],
-        *,
-        network: bool = False,
-        op: str = "",
-    ) -> subprocess.CompletedProcess[str]:
-        raise AssertionError(f"short status must not run Git: {args}")
-
-    short = status.get_agents_sync_status(now=101.0, git_runner=no_git)
-    assert short.projects[0].pending_updates == current.pending_updates
+    pending, diagnostics = incoming_cache.reconcile_pending_items(
+        current.pending_updates,
+        project_key=current.project_key,
+        owner=LOCAL_OWNER,
+        owner_v2_hoods=current.owner_v2_hoods,
+    )
+    assert pending == current.pending_updates
+    assert diagnostics == ()
 
 
 def test_refresh_uses_one_cat_file_session_for_fetched_payloads(
@@ -208,47 +202,33 @@ def test_cached_reconcile_drops_owner_covered_v1_without_git_and_prunes_object(
     )
     assert object_path.is_dir()
 
-    def no_git(
-        _cwd: Path,
-        args: list[str],
-        *,
-        network: bool = False,
-        op: str = "",
-    ) -> subprocess.CompletedProcess[str]:
-        raise AssertionError(f"cached reconcile must not run Git: {args}")
-
-    wrong_owner = replace(
-        current,
-        owner_v2_hoods=("legacy",),
-        owner_v2_identity=AgentOwnerIdentity("bob", "athena"),
+    still_foreign, diagnostics = incoming_cache.reconcile_pending_items(
+        current.pending_updates,
+        project_key=current.project_key,
+        owner=LOCAL_OWNER,
+        owner_v2_hoods=(),
     )
-    status._write_agents_sync_status_snapshot(
-        status.SyncStatusSnapshot(100.0, (wrong_owner,))
-    )
-    still_foreign = status.get_agents_sync_status(now=100.5, git_runner=no_git)
-    assert any(
-        item.cache_id == legacy.cache_id
-        for item in still_foreign.projects[0].pending_updates
-    )
+    assert any(item.cache_id == legacy.cache_id for item in still_foreign)
+    assert diagnostics == ()
     assert object_path.is_dir()
 
-    persisted = replace(
-        still_foreign.projects[0],
+    reconciled, diagnostics = incoming_cache.reconcile_pending_items(
+        still_foreign,
+        project_key=current.project_key,
+        owner=LOCAL_OWNER,
         owner_v2_hoods=("legacy",),
-        owner_v2_identity=LOCAL_OWNER,
     )
-    status._write_agents_sync_status_snapshot(
-        status.SyncStatusSnapshot(100.5, (persisted,))
+    repeated, repeated_diagnostics = incoming_cache.reconcile_pending_items(
+        reconciled,
+        project_key=current.project_key,
+        owner=LOCAL_OWNER,
+        owner_v2_hoods=("legacy",),
     )
-    reconciled = status.get_agents_sync_status(now=101.0, git_runner=no_git)
-    repeated = status.get_agents_sync_status(now=102.0, git_runner=no_git)
 
-    assert all(
-        item.format_version == 2 for item in reconciled.projects[0].pending_updates
-    )
-    assert (
-        repeated.projects[0].pending_updates == reconciled.projects[0].pending_updates
-    )
+    assert all(item.format_version == 2 for item in reconciled)
+    assert repeated == reconciled
+    assert diagnostics == ()
+    assert repeated_diagnostics == ()
     assert not object_path.exists()
 
 
@@ -276,7 +256,7 @@ def test_owner_v2_manifest_extra_key_prevents_same_machine_v1_pending_import(
     )
 
 
-def test_refresh_prunes_owner_v1_objects_after_old_status_schema_is_discarded(
+def test_refresh_prunes_owner_v1_objects_after_owner_v2_coverage(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -290,10 +270,6 @@ def test_refresh_prunes_owner_v1_objects_after_old_status_schema_is_discarded(
     object_path = (
         tmp_path / "state" / "agents_sync" / "cache" / "objects" / legacy.cache_id
     )
-    snapshot_path = tmp_path / "state" / "agents_sync" / "status_snapshot.json"
-    stale_snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
-    stale_snapshot["schema_version"] = status.STATUS_SCHEMA_VERSION - 1
-    snapshot_path.write_text(json.dumps(stale_snapshot), encoding="utf-8")
 
     publish_owner(seed_target_for(target, seed), LOCAL_OWNER, suffix="5", hood="legacy")
     commit_and_push(seed, "publish v2 owner coverage")

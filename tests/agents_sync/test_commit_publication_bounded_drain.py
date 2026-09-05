@@ -10,7 +10,7 @@ import pytest
 from sase.agents_sync import commit_publication, git_sync
 from sase.agents_sync.commit_publication import publish_committed_agent_hood
 from sase.agents_sync.git import run_git
-from sase.agents_sync.models import IntegrationCounts, TargetSelection
+from sase.agents_sync.models import TargetSelection
 from sase.agents_sync.publication_outbox import list_agent_publications
 from sase.agents_sync.v2_io import owner_manifest_path, v2_json_bytes
 from sase.agents_sync.v2_models import (
@@ -58,11 +58,6 @@ def _configure_target(
         commit_publication,
         "require_agent_owner_identity",
         lambda: owner,
-    )
-    monkeypatch.setattr(
-        commit_publication,
-        "integrate_agent_imports_with_receipts",
-        lambda *_args, **_kwargs: IntegrationCounts(),
     )
     return target, remote
 

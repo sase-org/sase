@@ -10,7 +10,7 @@ import pytest
 
 from sase.agents_sync import git_sync
 from sase.agents_sync.git import run_git
-from sase.agents_sync.models import IntegrationCounts, ProjectTarget
+from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.v2_models import V2PublicationCounts
 
 
@@ -73,11 +73,6 @@ def patch_payload_pass(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     """Patch the integration/export pass to write a small v2 payload."""
 
     calls: list[int] = []
-    monkeypatch.setattr(
-        git_sync,
-        "integrate_agent_imports_with_receipts",
-        lambda *_args, **_kwargs: IntegrationCounts(),
-    )
 
     def reconcile(
         _target: ProjectTarget,

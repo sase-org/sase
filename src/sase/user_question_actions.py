@@ -10,7 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.notification_gates.entrypoints import gate_command_entrypoint
+from sase.notification_gates.entrypoints import (
+    gate_command_entrypoint,
+    python_gate_command_script,
+)
 
 QUESTION_COMMAND_PATH = "commands/submit"
 QUESTION_OPTION_ID = "submit"
@@ -433,8 +436,7 @@ def execute_user_question_gate_command() -> int:
 
 def question_gate_command_script() -> str:
     """Return the only command wrapper accepted by the question adapter."""
-    return (
-        f"#!{sys.executable}\n"
+    return python_gate_command_script(
         "from sase.user_question_actions import execute_user_question_gate_command\n"
         "raise SystemExit(execute_user_question_gate_command())\n"
     )

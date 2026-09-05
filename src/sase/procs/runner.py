@@ -19,6 +19,7 @@ from .models import (
     TUI_PROC_KIND,
     Proc,
 )
+from .identity import supervisor_is_alive
 from .request import ProcSubmitRequest
 from .service import (
     ProcControlError,
@@ -159,6 +160,11 @@ def wait_for_proc(
         if now >= next_reconcile_at:
             proc = _reconcile_wait_target(proc)
             if proc.status in TERMINAL_PROC_STATUSES:
+                current_log = _read_retained_log(Path(proc.log_path))
+                new_text = _new_log_text(seen_log, current_log)
+                seen_log = current_log
+                if on_line is not None:
+                    buffered = _emit_complete_lines(buffered + new_text, on_line)
                 if on_line is not None and buffered:
                     on_line(buffered.rstrip("\r"))
                 return proc
@@ -273,6 +279,8 @@ def _legacy_supervisor_process_matches(proc: Proc) -> bool:
     pid = proc.pid
     if pid is None or not is_process_running(pid):
         return False
+    if proc.supervisor_id:
+        return supervisor_is_alive(pid, proc.supervisor_id)
     try:
         argv = [
             value.decode("utf-8", errors="replace")
@@ -280,7 +288,7 @@ def _legacy_supervisor_process_matches(proc: Proc) -> bool:
             if value
         ]
     except OSError:
-        return True
+        return False
     try:
         module_index = argv.index("-m")
         proc_id_index = argv.index("--proc-id")

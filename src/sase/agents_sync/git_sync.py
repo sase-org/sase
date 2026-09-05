@@ -25,13 +25,9 @@ from sase.agents_sync.git_sync_ops import (
     pull_agents_rebase,
 )
 from sase.agents_sync.git_sync_transaction import sync_project_locked
-from sase.agents_sync.incoming_integration import (
-    integrate_agent_imports_with_receipts,
-)
 from sase.agents_sync.inventory import build_project_hood_inventory
 from sase.agents_sync.models import (
     ExportCounts,
-    IntegrationCounts,
     ProjectTarget,
     SyncOutcome,
 )
@@ -306,7 +302,7 @@ def _sync_project_locked(
         repo: Path,
         pass_owner: AgentOwnerIdentity,
         pass_git_runner: GitRunner,
-    ) -> tuple[IntegrationCounts, ExportCounts]:
+    ) -> ExportCounts:
         return _integrate_export_pass(
             pass_target,
             repo,
@@ -330,18 +326,10 @@ def _integrate_export_pass(
     git_runner: GitRunner,
     *,
     deferred_prompts: _DeferredPromptWork | None = None,
-) -> tuple[IntegrationCounts, ExportCounts]:
+) -> ExportCounts:
     identity = AgentIdentitySnapshot(owner)
-    # Import recovery can claim many historical names. Keep one registry
-    # snapshot alive across the pass instead of rebuilding the artifact-backed
-    # registry for every recovered transaction.
+    # Keep one registry snapshot alive across inventory and publication.
     with name_registry_load_session():
-        integrated = integrate_agent_imports_with_receipts(
-            target,
-            repo,
-            owner,
-            git_runner=git_runner,
-        )
         inventory = build_project_hood_inventory(
             target,
             identity,
@@ -370,11 +358,10 @@ def _integrate_export_pass(
         # failures the final pass left behind.
         deferred_prompts.failures.clear()
         deferred_prompts.failures.update(prompt_failures)
-    return integrated, ExportCounts(
+    return ExportCounts(
         diagnostics=tuple(
             dict.fromkeys(
                 (
-                    *integrated.diagnostics,
                     *published.diagnostics,
                     *prompt_failures.values(),
                 )

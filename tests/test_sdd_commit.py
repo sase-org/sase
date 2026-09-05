@@ -346,10 +346,17 @@ def test_commit_sdd_files_refuses_unmerged_index_without_mutation(
     subprocess.run(
         ["git", "commit", "-m", "base"], cwd=repo, check=True, capture_output=True
     )
+    base_branch = subprocess.run(
+        ["git", "branch", "--show-current"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
     subprocess.run(["git", "checkout", "-b", "other"], cwd=repo, check=True)
     shared.write_text("other\n", encoding="utf-8")
     subprocess.run(["git", "commit", "-am", "other"], cwd=repo, check=True)
-    subprocess.run(["git", "checkout", "master"], cwd=repo, check=True)
+    subprocess.run(["git", "checkout", base_branch], cwd=repo, check=True)
     shared.write_text("master\n", encoding="utf-8")
     subprocess.run(["git", "commit", "-am", "master"], cwd=repo, check=True)
     merged = subprocess.run(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -211,7 +212,19 @@ def _wait_for_process_exit(pid: int) -> None:
 
 
 def _ppid(pid: int) -> int:
-    for line in Path(f"/proc/{pid}/status").read_text(encoding="utf-8").splitlines():
+    try:
+        lines = Path(f"/proc/{pid}/status").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        result = subprocess.run(
+            ["ps", "-o", "ppid=", "-p", str(pid)],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return int(result.stdout.strip())
+        raise AssertionError(f"no PPid for {pid}") from None
+    for line in lines:
         if line.startswith("PPid:"):
             return int(line.split()[1])
     raise AssertionError(f"no PPid for {pid}")

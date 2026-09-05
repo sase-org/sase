@@ -23,6 +23,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import IO, Any
 
+from sase.core.process_identity import process_identity_matches, process_identity_token
 from tests._suite_gate_env import holder_max_hold, holder_stale_timeout
 from tests._suite_gate_progress import read_progress_sidecar
 
@@ -65,7 +66,7 @@ def load_holder_state(metadata: str, directory: Path | None) -> dict[str, Any] |
         granted = int(parsed.get("granted", 1))
         heartbeat = float(parsed.get("heartbeat", started))
         starttime = parsed.get("starttime")
-        if starttime is not None:
+        if starttime is not None and not isinstance(starttime, str):
             starttime = int(starttime)
     except (KeyError, TypeError, ValueError, json.JSONDecodeError):
         return None
@@ -126,8 +127,13 @@ def holder_reclaim_reason(
     )
 
 
-def process_starttime(pid: int) -> int | None:
-    """Return ``pid``'s boot-relative start time, which makes a pid unambiguous."""
+def process_starttime(pid: int) -> str | None:
+    """Return a process identity token that makes ``pid`` unambiguous."""
+    return process_identity_token(pid) or None
+
+
+def _linux_process_start_ticks(pid: int) -> int | None:
+    """Return ``pid``'s boot-relative start ticks from Linux ``/proc``."""
     try:
         stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
     except OSError:
@@ -146,10 +152,14 @@ def _signal_holder(pid: int, starttime: object, signum: int) -> bool:
     """Signal ``pid`` only if it is still the same process that took the grant."""
     if pid <= 0 or pid == os.getpid():
         return False
-    live_starttime = process_starttime(pid)
-    if live_starttime is None:
-        return False
-    if starttime is not None and int(starttime) != live_starttime:
+    if isinstance(starttime, str) and ":" in starttime:
+        if not process_identity_matches(pid, starttime):
+            return False
+    elif starttime is not None:
+        live_starttime = _linux_process_start_ticks(pid)
+        if live_starttime is None or int(starttime) != live_starttime:
+            return False
+    elif process_starttime(pid) is None:
         return False
     try:
         os.kill(pid, signum)

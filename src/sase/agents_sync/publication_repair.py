@@ -26,7 +26,6 @@ from sase.agents_sync.git_sync_transaction import sync_project_locked
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import (
     ExportCounts,
-    IntegrationCounts,
     ProjectTarget,
     SyncOutcome,
 )
@@ -283,11 +282,11 @@ def _repair_manifest_pass(
     repo: Path,
     owner: AgentOwnerIdentity,
     _git_runner: GitRunner,
-) -> tuple[IntegrationCounts, ExportCounts]:
+) -> ExportCounts:
     payload, report = _repair_owner_manifest(target, repo, owner)
     if payload:
         apply_payload_atomic(repo, payload)
-    return IntegrationCounts(), ExportCounts(diagnostics=report)
+    return ExportCounts(diagnostics=report)
 
 
 def repair_agent_owner_manifests(
@@ -339,11 +338,11 @@ def _repair_pass(
     repo: Path,
     owner: AgentOwnerIdentity,
     _git_runner: GitRunner,
-) -> tuple[IntegrationCounts, ExportCounts]:
+) -> ExportCounts:
     payload, resigned = repair_owner_hood_digests(target, repo, owner)
     if payload:
         apply_payload_atomic(repo, payload)
-    return IntegrationCounts(), ExportCounts(diagnostics=resigned)
+    return ExportCounts(diagnostics=resigned)
 
 
 def repair_agent_hood_digests(

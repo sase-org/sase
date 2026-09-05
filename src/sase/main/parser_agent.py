@@ -21,7 +21,6 @@ from sase.main.parser_agent_storage import (
     register_agent_names_parser,
 )
 from sase.main.parser_agent_sync import (
-    register_agent_retire_v1_parser,
     register_agent_sync_parser,
 )
 from sase.main.parser_agent_tribe import register_agent_tribe_parser
@@ -38,7 +37,6 @@ _AGENT_SUBCOMMAND_ORDER = (
     "persist-directive",
     "prompts",
     "restart",
-    "retire-v1",
     "revert",
     "search",
     "show",
@@ -71,7 +69,6 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
     register_agent_drain_parser(agents_sub)
     register_agent_kill_parser(agents_sub)
     register_agent_show_parser(agents_sub)
-    register_agent_retire_v1_parser(agents_sub)
     register_agent_sync_parser(agents_sub)
     register_agent_tribe_parser(agents_sub)
     register_agent_archive_parser(agents_sub)

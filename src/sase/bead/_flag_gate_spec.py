@@ -26,7 +26,10 @@ from sase.bead.flag_gate_input import (
 from sase.bead.snooze_time import SnoozeTimeError
 from sase.bead.task_gate import apply_task_type_gate_presentation, bounded_gate_title
 from sase.feature_flags.references import FlagCallSite, flag_call_sites_payload
-from sase.notification_gates.entrypoints import gate_command_entrypoint
+from sase.notification_gates.entrypoints import (
+    gate_command_entrypoint,
+    python_gate_command_script,
+)
 from sase.task_type_gate_presentation import (
     TaskTypeGateDisplay,
     resolve_task_type_gate_display,
@@ -314,8 +317,7 @@ def flag_triage_gate_command_script(option_id: str) -> str:
     is persisted into every gate bundle and revalidated byte for byte; the
     facade keeps that path stable no matter where the entrypoint lives.
     """
-    return (
-        f"#!{sys.executable}\n"
+    return python_gate_command_script(
         "from sase.bead.flag_gate import execute_flag_triage_gate_command\n"
         f"raise SystemExit(execute_flag_triage_gate_command({option_id!r}))\n"
     )

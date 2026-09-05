@@ -35,7 +35,6 @@ class DrainResult:
 class PublicationTransactionHooks:
     """Facade-owned operations used by the extracted transaction engine."""
 
-    integrate_imports: Callable[..., object]
     build_inventory: Callable[..., ProjectHoodInventory]
     publish_hood: Callable[..., object]
     update_publications: Callable[..., object]
@@ -70,12 +69,6 @@ def publish_queued_transaction(
 
     identity = AgentIdentitySnapshot(owner)
     with name_registry_load_session():
-        hooks.integrate_imports(
-            target,
-            target.sidecar_path,
-            owner,
-            git_runner=git_runner,
-        )
         inventory = hooks.build_inventory(
             target,
             identity,

@@ -10,9 +10,7 @@ from sase.agents_sync.models import SyncOutcome
 def _agents_sync_outcome_changed(outcome: SyncOutcome) -> bool:
     """Return whether a successful outcome changed shared agent data."""
     return bool(
-        outcome.integrated
-        or outcome.refreshed
-        or outcome.exported
+        outcome.exported
         or outcome.export_refreshed
         or outcome.hoods_published
         or outcome.hoods_refreshed
@@ -31,9 +29,6 @@ def agents_sync_outcome_line(outcome: SyncOutcome) -> str:
     details: list[str] = []
     if outcome.pulled:
         details.append("pulled")
-    imported = outcome.integrated + outcome.refreshed
-    if imported:
-        details.append(f"imported {imported}")
     exported = outcome.exported + outcome.export_refreshed
     if exported:
         details.append(f"exported {exported} legacy bundles")

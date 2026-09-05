@@ -97,7 +97,6 @@ def test_agent_search_parser_and_help_are_complete_and_sorted() -> None:
         "persist-directive",
         "prompts",
         "restart",
-        "retire-v1",
         "revert",
         "search",
         "show",

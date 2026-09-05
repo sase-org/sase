@@ -7,11 +7,6 @@ import subprocess
 import pytest
 
 from sase.agents_sync import status
-from sase.agents_sync.git_objects import FetchedAgentsCommit
-from sase.agents_sync.incoming_detection import (
-    _IncomingCaptureReport,
-    capture_fetched_agent_updates,
-)
 from sase.agents_sync.io import atomic_write_json
 from sase.agents_sync.models import (
     STATUS_SCHEMA_VERSION,
@@ -205,18 +200,6 @@ def test_explicit_refresh_fetches_once_and_updates_cached_diagnostics(
     cache = tmp_path / "status.json"
     calls: list[tuple[tuple[str, ...], bool]] = []
     _patch_selection(monkeypatch, target)
-    monkeypatch.setattr(
-        status,
-        "capture_fetched_agent_updates",
-        lambda *_args, **_kwargs: _IncomingCaptureReport(
-            FetchedAgentsCommit("refs/remotes/origin/main", "a" * 40),
-            (),
-            2,
-            1,
-            (),
-            1000.0,
-        ),
-    )
 
     def runner(
         _cwd: Path,
@@ -247,9 +230,8 @@ def test_explicit_refresh_fetches_once_and_updates_cached_diagnostics(
     current = snapshot.projects[0]
     assert (current.ahead, current.behind) == (2, 3)
     assert "unexported_agents" not in current.to_json_dict()
-    assert current.fetched_sha == "a" * 40
-    assert current.validated_foreign_count == 2
-    assert current.exact_owner_count == 1
+    assert "pending_updates" not in current.to_json_dict()
+    assert "validated_foreign_count" not in current.to_json_dict()
 
 
 def test_refresh_aborts_before_git_when_shutdown_is_requested(
@@ -258,7 +240,6 @@ def test_refresh_aborts_before_git_when_shutdown_is_requested(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
     target = _target(tmp_path)
-    owner = AgentOwnerIdentity("alice", "athena")
     prior = ProjectSyncStatus(
         "proj",
         "Project",
@@ -282,7 +263,6 @@ def test_refresh_aborts_before_git_when_shutdown_is_requested(
 
     refreshed = status._refresh_project_status(
         target,
-        owner,
         prior=prior,
         checked_at=1000.0,
         git_runner=runner,
@@ -291,54 +271,7 @@ def test_refresh_aborts_before_git_when_shutdown_is_requested(
     )
 
     assert calls == []
-    assert refreshed == status._reconcile_project_status(target, owner, prior)
-
-
-def test_capture_aborts_before_next_object_read(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from sase.agents_sync import incoming_detection
-
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
-    monkeypatch.setattr(incoming_detection, "read_project_receipts", lambda _key: ())
-    target = _target(tmp_path)
-    checks = 0
-    object_reads: list[str] = []
-
-    class _Reader:
-        def resolve_fetched_commit(self) -> FetchedAgentsCommit:
-            return FetchedAgentsCommit("refs/remotes/origin/main", "a" * 40)
-
-        def manifest_paths(self, _sha: str) -> tuple[str, ...]:
-            return ("manifest.json",)
-
-        def read_bytes(
-            self,
-            _sha: str,
-            relative: str,
-            *,
-            maximum: int,
-        ) -> bytes:
-            del maximum
-            object_reads.append(relative)
-            return b"{}"
-
-    def shutdown_requested() -> bool:
-        nonlocal checks
-        checks += 1
-        return checks >= 4
-
-    report = capture_fetched_agent_updates(
-        target,
-        AgentOwnerIdentity("alice", "athena"),
-        reader=_Reader(),  # type: ignore[arg-type]
-        now=1000.0,
-        shutdown_requested=shutdown_requested,
-    )
-
-    assert report is None
-    assert object_reads == []
+    assert refreshed == status._reconcile_project_status(target, prior)
 
 
 def test_revalidate_only_never_runs_git(
@@ -427,6 +360,46 @@ def test_status_decoder_rejects_non_finite_times(tmp_path: Path) -> None:
     )
 
     assert status._read_agents_sync_status_snapshot(path=cache) is None
+
+
+def test_status_decoder_ignores_legacy_import_fields(tmp_path: Path) -> None:
+    cache = tmp_path / "status.json"
+    payload = SyncStatusSnapshot(
+        1.0,
+        (
+            ProjectSyncStatus(
+                "proj",
+                "Project",
+                "ready",
+                1,
+                2,
+                last_fetch_time=0.5,
+            ),
+        ),
+    ).to_json_dict()
+    payload["projects"][0].update(
+        {
+            "fetched_ref": "refs/remotes/origin/main",
+            "fetched_sha": "a" * 40,
+            "pending_updates": [{"legacy": "ignored"}],
+            "validated_foreign_count": 3,
+            "exact_owner_count": 1,
+            "cache_updated_at": 0.75,
+            "owner_v2_hoods": ["worker"],
+            "owner_v2_identity": {
+                "username": "alice",
+                "machine_name": "athena",
+            },
+        }
+    )
+    cache.write_text(json.dumps(payload), encoding="utf-8")
+
+    snapshot = status._read_agents_sync_status_snapshot(path=cache)
+
+    assert snapshot is not None
+    current = snapshot.projects[0]
+    assert (current.ahead, current.behind) == (1, 2)
+    assert not hasattr(current, "pending_updates")
 
 
 def test_status_decoder_discards_previous_schema_version(tmp_path: Path) -> None:

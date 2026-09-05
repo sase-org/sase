@@ -10,7 +10,6 @@ from sase.agents_sync.commit_publication import publish_committed_agent_hood
 from sase.agents_sync.git import run_git
 from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.models import (
-    IntegrationCounts,
     ProjectTarget,
     TargetSelection,
 )
@@ -43,10 +42,6 @@ def test_push_failure_is_queued_and_next_commit_drains_idempotently(
     monkeypatch.setattr(
         "sase.agents_sync.commit_publication.require_agent_owner_identity",
         lambda: owner,
-    )
-    monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.integrate_agent_imports_with_receipts",
-        lambda *_args, **_kwargs: IntegrationCounts(),
     )
 
     def publish(_target, repo, _agent, **_kwargs):
@@ -138,11 +133,6 @@ def test_publication_request_records_the_committing_lane(
         commit_publication,
         "require_agent_owner_identity",
         lambda: owner,
-    )
-    monkeypatch.setattr(
-        commit_publication,
-        "integrate_agent_imports_with_receipts",
-        lambda *_args, **_kwargs: IntegrationCounts(),
     )
     monkeypatch.setattr(
         commit_publication,

@@ -19,6 +19,7 @@ from tests._run_pytest_fixtures import (
     isolate_run_pytest_environment,  # noqa: F401 (registers autouse env-isolation fixture)
     load_run_pytest,
 )
+from tests._suite_gate_env import FDS_ENV
 
 
 pytestmark = pytest.mark.contract
@@ -104,9 +105,12 @@ def test_main_prepares_governed_environment_and_descriptors_before_exec(
         observed["governed"] = runner.os.environ.get("SASE_TEST_GATE_GOVERNED")
         observed["workflow"] = runner.os.environ.get("SASE_COMMIT_METHOD")
         observed["tmpdir"] = runner.os.environ.get("TMPDIR")
-        observed["inheritable"] = [
-            runner.os.get_inheritable(fd) for fd in _token_descriptors(tmp_path)
+        fds = [
+            int(value)
+            for value in runner.os.environ.get(FDS_ENV, "").split(",")
+            if value
         ]
+        observed["inheritable"] = [runner.os.get_inheritable(fd) for fd in fds]
         raise ExecCalled
 
     monkeypatch.setattr(runner.os, "execv", _execv)
@@ -361,15 +365,3 @@ def test_main_ace_page_group_isolation_rejects_extra_pytest_args(
 
     assert result == int(pytest.ExitCode.USAGE_ERROR)
     assert "runs its manifest exactly" in capsys.readouterr().err
-
-
-def _token_descriptors(directory: Path) -> list[int]:
-    descriptors: list[int] = []
-    for descriptor_path in Path("/proc/self/fd").iterdir():
-        try:
-            target = descriptor_path.readlink()
-        except OSError:
-            continue
-        if target.parent == directory and target.name.startswith("token-"):
-            descriptors.append(int(descriptor_path.name))
-    return sorted(descriptors)

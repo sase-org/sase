@@ -12,10 +12,8 @@ from sase.agents_sync import git_sync
 from sase.agents_sync.git import noninteractive_git_env, run_git
 from sase.agents_sync.git_objects import LocalGitObjectReader
 from sase.agents_sync.incoming_detection import capture_fetched_agent_updates
-from sase.agents_sync.models import (
-    IntegrationCounts,
-    ProjectTarget,
-)
+from sase.agents_sync.inventory import ProjectHoodInventory
+from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.v2_io import apply_payload_atomic
 from sase.agents_sync.v2_models import V2PublicationCounts
 from sase.core.agent_identity_facade import AgentOwnerIdentity
@@ -33,7 +31,7 @@ def test_default_sync_lock_timeout_waits_briefly() -> None:
     assert git_sync.DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS == 10.0
 
 
-def test_full_sync_reuses_one_name_registry_load_session(
+def test_full_sync_reuses_one_name_registry_load_session_for_publication(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -49,9 +47,13 @@ def test_full_sync_reuses_one_name_registry_load_session(
 
     monkeypatch.setattr(git_sync, "name_registry_load_session", _Session)
 
-    def integrate(*_args: object, **_kwargs: object) -> IntegrationCounts:
-        events.append("integrate")
-        return IntegrationCounts()
+    def build_inventory(
+        _target: ProjectTarget,
+        _identity: object,
+        **_kwargs: object,
+    ) -> ProjectHoodInventory:
+        events.append("inventory")
+        return ProjectHoodInventory(AgentOwnerIdentity("alice", "athena"), "proj", ())
 
     def reconcile(
         *_args: object,
@@ -62,8 +64,8 @@ def test_full_sync_reuses_one_name_registry_load_session(
 
     monkeypatch.setattr(
         git_sync,
-        "integrate_agent_imports_with_receipts",
-        integrate,
+        "build_project_hood_inventory",
+        build_inventory,
     )
     monkeypatch.setattr(
         git_sync,
@@ -78,7 +80,7 @@ def test_full_sync_reuses_one_name_registry_load_session(
         run_git,
     )
 
-    assert events == ["enter", "integrate", "reconcile", "exit"]
+    assert events == ["enter", "inventory", "reconcile", "exit"]
 
 
 def test_full_sync_transaction_commits_and_pushes_only_payload(
@@ -154,11 +156,6 @@ def test_full_sync_failure_after_payload_write_restores_clean_tree(
 ) -> None:
     remote, _seed, sidecar = setup_repo(tmp_path)
     sync_target = target(tmp_path, remote, sidecar)
-    monkeypatch.setattr(
-        git_sync,
-        "integrate_agent_imports_with_receipts",
-        lambda *_args, **_kwargs: IntegrationCounts(),
-    )
 
     def fail_after_write(
         _target: ProjectTarget,
@@ -367,12 +364,6 @@ def test_pull_rebase_conflict_is_aborted_cleanly(
     git(intruder, "add", "conflict.txt")
     git(intruder, "commit", "-m", "remote ahead")
     git(intruder, "push")
-    monkeypatch.setattr(
-        git_sync,
-        "integrate_agent_imports_with_receipts",
-        lambda *_args, **_kwargs: pytest.fail("integration must not run"),
-    )
-
     outcome = git_sync._sync_project(sync_target, "athena", git_runner=run_git)
 
     assert outcome.error is not None

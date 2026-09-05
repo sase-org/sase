@@ -22,7 +22,10 @@ from sase.bead._stale_cleanup_gate_preview import (
     stale_cleanup_project_label,
 )
 from sase.bead._task_gate_preview import bounded_gate_title
-from sase.notification_gates.entrypoints import gate_command_entrypoint
+from sase.notification_gates.entrypoints import (
+    gate_command_entrypoint,
+    python_gate_command_script,
+)
 
 BeadStaleCleanupAction = Literal["close"]
 
@@ -198,8 +201,7 @@ def bead_stale_cleanup_gate_command_script(bead_count: int) -> str:
     lives. *bead_count* is baked in so the command is bounded by the roster
     it was built for.
     """
-    return (
-        f"#!{sys.executable}\n"
+    return python_gate_command_script(
         "from sase.bead.stale_cleanup_gate import "
         "execute_bead_stale_cleanup_gate_command\n"
         f"raise SystemExit(execute_bead_stale_cleanup_gate_command({bead_count}))\n"

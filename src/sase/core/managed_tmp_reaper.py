@@ -108,6 +108,11 @@ class _ManagedTmpReapResult:
 _TOP_LEVEL_BUCKET = "<root>"
 """Bucket name for stray entries sitting directly in the managed root."""
 
+_UNSAFE_REAP_ROOTS = frozenset(
+    Path(path).resolve() for path in ("/", "/tmp", "/var/tmp")
+)
+"""Resolved broad roots whose children can never all be assumed disposable."""
+
 
 def reap_managed_tmpdir(
     root: Path | None = None,
@@ -185,9 +190,7 @@ def _validated_reap_root(root: Path) -> Path:
     """Reject broad roots whose children cannot all be assumed disposable."""
     resolved = root.expanduser().resolve()
     cwd = Path.cwd().resolve()
-    if resolved in {Path("/"), Path("/tmp"), Path("/var/tmp")} or (
-        resolved == cwd or resolved in cwd.parents
-    ):
+    if resolved in _UNSAFE_REAP_ROOTS or (resolved == cwd or resolved in cwd.parents):
         raise ValueError(
             f"managed SASE temp root must be a dedicated directory, not {resolved}"
         )

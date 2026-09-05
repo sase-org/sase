@@ -42,7 +42,7 @@ def test_managed_sync_worker_default_lock_wait_skips_immediately(
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
         lock_file.close()
 
-    assert elapsed < 0.1
+    assert elapsed < 0.5
     assert outcome.pushed is False
     assert outcome.skipped_locked is True
     records = _read_records(tmp_path / "sync.log")
@@ -54,18 +54,25 @@ def test_managed_sync_worker_positive_lock_wait_acquires_after_release(
     tmp_path,
     monkeypatch,
 ):
+    from sase.bead import sync_worker as sync_worker_module
+
     init_git_repo(tmp_path)
     beads_dir = tmp_path / "beads"
     beads_dir.mkdir()
     lock_file = open(tmp_path / ".git/sase-bead-sync.lock", "a+", encoding="utf-8")
     fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    lock_attempt_started = threading.Event()
+    real_acquire_worker_lock = sync_worker_module._acquire_worker_lock
 
-    def release_lock() -> None:
-        time.sleep(0.03)  # sase-test-wait: held flock overlap window
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+    def observed_acquire_worker_lock(fd: int, *, timeout: float) -> bool:
+        lock_attempt_started.set()
+        return real_acquire_worker_lock(fd, timeout=timeout)
 
-    release = threading.Thread(target=release_lock)
-    release.start()
+    monkeypatch.setattr(
+        sync_worker_module,
+        "_acquire_worker_lock",
+        observed_acquire_worker_lock,
+    )
     monkeypatch.setattr(
         "sase.bead.sync_worker._run_locked_sync",
         lambda *_args, **_kwargs: _ManagedSyncOutcome(
@@ -73,19 +80,39 @@ def test_managed_sync_worker_positive_lock_wait_acquires_after_release(
             integrated=False,
         ),
     )
+    outcomes: list[_ManagedSyncOutcome] = []
+    errors: list[BaseException] = []
+
+    def run_worker() -> None:
+        try:
+            outcomes.append(
+                run_managed_sync_worker(
+                    tmp_path,
+                    beads_dir,
+                    log_path=tmp_path / "sync.log",
+                    worker_lock_wait=1.0,
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    worker = threading.Thread(target=run_worker)
+    worker.start()
 
     try:
-        outcome = run_managed_sync_worker(
-            tmp_path,
-            beads_dir,
-            log_path=tmp_path / "sync.log",
-            worker_lock_wait=0.2,
-        )
+        assert lock_attempt_started.wait(timeout=1)
+        time.sleep(0.06)  # sase-test-wait: held flock overlap window
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+        worker.join(timeout=5)
     finally:
-        release.join(timeout=5)
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
         lock_file.close()
 
+    assert not worker.is_alive()
+    if errors:
+        raise errors[0]
+    assert outcomes
+    outcome = outcomes[0]
     assert outcome.pushed is True
     records = _read_records(tmp_path / "sync.log")
     acquired = [

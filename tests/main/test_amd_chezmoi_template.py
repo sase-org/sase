@@ -60,6 +60,15 @@ def test_render_chezmoi_h1_template_requires_h1_and_titles() -> None:
 
 @pytest.mark.skipif(shutil.which("chezmoi") is None, reason="chezmoi not installed")
 def test_chezmoi_execute_template_renders_per_hostname() -> None:
+    help_result = subprocess.run(
+        ["chezmoi", "execute-template", "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if "--override-data" not in help_result.stdout:
+        pytest.skip("chezmoi execute-template lacks --override-data")
+
     content = "# fallback title\n\nBody.\n"
     rendered, error = render_chezmoi_h1_template(
         content,

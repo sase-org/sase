@@ -182,6 +182,20 @@ def patch_alias_views(
         models_panel_provider_state, "build_alias_views", lambda *a, **k: views
     )
     monkeypatch.setattr(
+        models_panel_provider_state, "get_active_provider_disables", lambda *_: {}
+    )
+    monkeypatch.setattr(
+        models_panel_provider_state, "build_provider_routing_statuses", lambda *_: ()
+    )
+    monkeypatch.setattr(
+        models_panel_provider_state, "provider_cli_status_color_map", lambda: {}
+    )
+    monkeypatch.setattr(
+        models_panel_provider_state,
+        "get_big_epic_phase_threshold",
+        lambda: models_panel_provider_state.DEFAULT_BIG_EPIC_PHASE_THRESHOLD,
+    )
+    monkeypatch.setattr(
         "sase.llm_provider.alias_view.model_alias_bucket_description",
         lambda name: (bucket_descriptions or {}).get(name),
     )

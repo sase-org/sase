@@ -262,7 +262,11 @@ def _spawn_unpublished_lock_holder(lock_path: Path) -> subprocess.Popen[str]:
             "import time",
             "fd = os.open(sys.argv[1], os.O_CREAT | os.O_RDWR, 0o600)",
             "fcntl.flock(fd, fcntl.LOCK_EX)",
-            "print(os.getpid(), flush=True)",
+            "pid = os.getpid()",
+            "os.ftruncate(fd, 0)",
+            "os.write(fd, f'{pid}\\n'.encode())",
+            "os.fsync(fd)",
+            "print(pid, flush=True)",
             "time.sleep(30)",
         ]
     )

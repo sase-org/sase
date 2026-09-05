@@ -17,9 +17,6 @@ from sase.agents_sync.commit_publication_transaction import (
     publish_queued_transaction,
 )
 from sase.agents_sync.git import GitRunner, run_git
-from sase.agents_sync.incoming_integration import (
-    integrate_agent_imports_with_receipts,
-)
 from sase.agents_sync.inventory import (
     build_project_hood_inventory,
 )
@@ -446,7 +443,6 @@ def _publish_queued_locked(
             git_runner,
             requests,
             hooks=PublicationTransactionHooks(
-                integrate_imports=integrate_agent_imports_with_receipts,
                 build_inventory=build_project_hood_inventory,
                 publish_hood=publish_agent_hood,
                 update_publications=update_agent_publications,

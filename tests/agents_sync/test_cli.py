@@ -8,7 +8,6 @@ import pytest
 
 from sase.agents.cli_names import handle_agents_names
 from sase.agents.cli_sync import handle_agents_sync
-from sase.agents.cli_retire_v1 import handle_agents_retire_v1
 from sase.agents_sync.models import (
     STATUS_SCHEMA_VERSION,
     ProjectSyncStatus,
@@ -17,7 +16,6 @@ from sase.agents_sync.models import (
 )
 from sase.main.parser import create_parser
 from sase.agents_sync.v1_forget_import import V1ForgetImportOutcome
-from sase.agents_sync.v1_retirement import V1RetirementOutcome
 
 
 def test_parser_accepts_repeatable_project_and_check_refresh() -> None:
@@ -28,18 +26,6 @@ def test_parser_accepts_repeatable_project_and_check_refresh() -> None:
     assert args.agent_subcommand == "sync"
     assert args.check and args.refresh and args.json
     assert args.project == ["one", "two"]
-
-
-def test_retire_v1_parser_is_dry_run_by_default_with_explicit_apply() -> None:
-    dry_run = create_parser().parse_args(["agent", "retire-v1", "-p", "one"])
-    apply = create_parser().parse_args(
-        ["agent", "retire-v1", "--apply", "--json", "--project", "one"]
-    )
-
-    assert dry_run.agent_subcommand == "retire-v1"
-    assert dry_run.apply is False
-    assert dry_run.project == ["one"]
-    assert apply.apply and apply.json
 
 
 def test_parser_rejects_refresh_without_check() -> None:
@@ -103,7 +89,7 @@ def test_sync_help_distinguishes_full_cached_and_refresh_modes() -> None:
 
     assert "drain publication retries" in help_text
     assert "--check is local and network-free" in help_text
-    assert "validate/cache incoming hoods without importing them" in help_text
+    assert "computing ahead/behind" in help_text
 
 
 def test_agent_help_keeps_bare_list_delegation_and_sorted_commands() -> None:
@@ -204,7 +190,6 @@ def test_mutating_sync_pretty_table_reports_counts_and_result(
             "proj",
             "Project",
             pulled=True,
-            integrated=1,
             exported=2,
             committed=True,
             pushed=True,
@@ -284,30 +269,6 @@ def test_repair_manifest_dispatches_before_check_and_reports_diagnostics(
     assert payload["projects"][0]["diagnostics"] == ["foo: recovered"]
     assert exit_code == 0
     repair.assert_called_once_with(("proj",))
-
-
-def test_retire_v1_cli_reports_refusal_and_exits_nonzero(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    outcome = V1RetirementOutcome(
-        "proj",
-        "Project",
-        True,
-        manifest_entries=("athena.missing",),
-        payload_paths=("manifest.json", "agents/athena.missing"),
-        uncovered_hoods=("missing",),
-    )
-    args = argparse.Namespace(project=[], apply=False, json=False)
-    with patch(
-        "sase.agents.cli_retire_v1.retire_v1_payloads",
-        return_value=(outcome,),
-    ):
-        exit_code = handle_agents_retire_v1(args)
-
-    output = capsys.readouterr().out
-    assert "REFUSED" in output
-    assert "missing" in output
-    assert exit_code == 1
 
 
 def test_names_forget_import_parser_accepts_machine_positional_and_options() -> None:

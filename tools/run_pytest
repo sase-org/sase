@@ -442,7 +442,7 @@ def _configured_pytest_tmpdir() -> Path:
     if not scratch_root.is_absolute():
         scratch_root = REPO_ROOT / scratch_root
     resolved = scratch_root.resolve()
-    broad_roots = {Path("/"), Path("/tmp"), Path("/var/tmp")}
+    broad_roots = frozenset(Path(path).resolve() for path in ("/", "/tmp", "/var/tmp"))
     if (
         resolved in broad_roots
         or resolved == REPO_ROOT
@@ -1210,7 +1210,9 @@ def main(argv: list[str] | None = None) -> int:
         # recording stays on below -- per-test seconds are just as valid from
         # a shard as from the whole lane, and shards are the only recorder
         # some hosts (a fresh CI runner) ever see.
-        full_lane_args = [] if shard_spec is not None else _full_lane_recording_args(mode)
+        full_lane_args = (
+            [] if shard_spec is not None else _full_lane_recording_args(mode)
+        )
         pytest_args = [*full_lane_args, *pytest_args]
         timings_args = _timings_pytest_args(mode)
         pytest_args = [*timings_args, *pytest_args]

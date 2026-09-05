@@ -254,9 +254,13 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         yyyymm=yyyymm,
     )
 
-    if store.is_in_tree or should_copy:
-        Path(plan_path).parent.mkdir(parents=True, exist_ok=True)
-        Path(plan_path).write_text(plan_content, encoding="utf-8")
+    # Mark plan as done with the structured frontmatter writer instead of
+    # shelling out to sed; BSD and GNU sed differ on in-place editing syntax.
+    from sase.sdd.frontmatter import set_frontmatter_fields
+
+    plan_content = set_frontmatter_fields(plan_content, {"status": "done"})
+    Path(plan_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(plan_path).write_text(plan_content, encoding="utf-8")
 
     plan_ref = format_sase_plan_tag_value(
         plan_path,
@@ -279,13 +283,6 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
     message = payload.get("message", "")
     payload["message"] = update_trailing_commit_tags(
         message, {"PLAN": plan_value}, remove_keys={"PLAN"}
-    )
-
-    # Mark plan as done
-    subprocess.run(
-        ["sed", "-i", "s/^status: wip$/status: done/", plan_path],
-        check=False,
-        capture_output=True,
     )
 
     # Store-backed plans must be committed after their status transition.  For a

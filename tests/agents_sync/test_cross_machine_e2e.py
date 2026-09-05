@@ -163,7 +163,7 @@ def _artifact_names(home: Path) -> set[str]:
     }
 
 
-def test_three_identities_converge_and_localize_through_non_fast_forward_race(
+def test_three_identities_publish_through_non_fast_forward_race(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -240,7 +240,7 @@ def test_three_identities_converge_and_localize_through_non_fast_forward_race(
     assert zeus.push_attempts == 2
     assert zeus.pushed
     assert zeus.hoods_published + zeus.hoods_refreshed == 1, zeus.to_json_dict()
-    assert _artifact_names(zeus_home) == {"builder", "athena.worker"}
+    assert _artifact_names(zeus_home) == {"builder"}
 
     monkeypatch.setenv("SASE_HOME", str(alice_home))
     _seed_agent("reviewer", "20260722030303")
@@ -252,14 +252,10 @@ def test_three_identities_converge_and_localize_through_non_fast_forward_race(
     assert alice.error is None, alice.error
     assert alice.pushed
     assert alice.hoods_published + alice.hoods_refreshed == 1, alice
-    assert _artifact_names(alice_home) == {
-        "reviewer",
-        "bbugyi200.athena.worker",
-        "bbugyi200.zeus.builder",
-    }
+    assert _artifact_names(alice_home) == {"reviewer"}
 
-    # The exact-owner snapshot is observed, not duplicated. Foreign names use
-    # the conditional machine/user prefixes dictated by the owner matrix.
+    # Full sync is publication-only; it observes foreign snapshots without
+    # localizing them into this machine's artifact directory.
     monkeypatch.setenv("SASE_HOME", str(athena_home))
     athena_final = git_sync._sync_project(
         athena_target,
@@ -267,11 +263,7 @@ def test_three_identities_converge_and_localize_through_non_fast_forward_race(
         git_runner=run_git,
     )
     assert athena_final.error is None, athena_final.error
-    assert _artifact_names(athena_home) == {
-        "worker",
-        "zeus.builder",
-        "alice.athena.reviewer",
-    }
+    assert _artifact_names(athena_home) == {"worker"}
 
     verify = tmp_path / "verify"
     _clone(tmp_path, remote, verify)

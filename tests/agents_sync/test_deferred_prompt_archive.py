@@ -17,7 +17,6 @@ import pytest
 
 from sase.agents_sync import git_sync
 from sase.agents_sync.models import (
-    IntegrationCounts,
     ProjectTarget,
     TargetSelection,
 )
@@ -151,11 +150,6 @@ def _stub_full_sync(
         lambda _projects: TargetSelection((target,), ()),
     )
     monkeypatch.setattr(git_sync, "require_agent_owner_identity", lambda: _OWNER)
-    monkeypatch.setattr(
-        git_sync,
-        "integrate_agent_imports_with_receipts",
-        lambda *_args, **_kwargs: IntegrationCounts(),
-    )
     monkeypatch.setattr(
         git_sync,
         "build_project_hood_inventory",

@@ -112,6 +112,7 @@ def test_simultaneous_leases_never_exceed_pool(
 ) -> None:
     monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
     start = threading.Barrier(6)
+    release = threading.Event()
     state_lock = threading.Lock()
     active_tokens = 0
     maximum_active_tokens = 0
@@ -124,10 +125,17 @@ def test_simultaneous_leases_never_exceed_pool(
         with state_lock:
             active_tokens += grant
             maximum_active_tokens = max(maximum_active_tokens, active_tokens)
-        time.sleep(0.03)  # sase-test-wait: suite-token overlap window
-        with state_lock:
-            active_tokens -= grant
-        lease.release()
+            if maximum_active_tokens == 4:
+                release.set()
+        deadline = time.monotonic() + 1.0
+        try:
+            while not release.wait(0.01):  # sase-test-wait: suite-token overlap poll
+                if time.monotonic() >= deadline:
+                    break
+        finally:
+            with state_lock:
+                active_tokens -= grant
+            lease.release()
 
     threads = [threading.Thread(target=_hold_tokens) for _ in range(6)]
     for thread in threads:

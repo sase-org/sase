@@ -164,6 +164,7 @@ def test_mirror_rebuild_and_fallback_export_do_not_resurrect_removed_edge(
             ).fetchone()
             is not None
         )
+        project._close_connection()
         project.remove_dependencies(source_id, [first_id])
         db_mtime_ns = (beads_dir / "beads.db").stat().st_mtime_ns
         os.utime(
