@@ -2,7 +2,12 @@
 
 from typing import Literal
 
-from ...keymaps import BUILTIN_MODE_NAMES, KeymapRegistry, key_display_name
+from ...keymaps import (
+    BUILTIN_MODE_NAMES,
+    KeymapRegistry,
+    key_display_name,
+    split_key_alternatives,
+)
 from ..numbered_link_keys import NUMBERED_LINK_HELP_KEYS
 
 TabName = Literal["artifacts", "agents", "axe"]
@@ -100,6 +105,42 @@ ADMIN_CENTER_UPDATES_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("r / o", "Refresh / offline mode"),
     ],
 )
+
+
+def _primary_key_display(key: str) -> str:
+    """Return the display form of a configured key's first alternative."""
+
+    return key_display_name(split_key_alternatives(key)[0])
+
+
+def admin_center_projects_section(
+    km: KeymapRegistry,
+) -> tuple[str, list[tuple[str, str]]]:
+    """Build the Admin Center Projects keybinding section from configured keys."""
+
+    p = km.projects
+    d = _primary_key_display
+    return (
+        "Admin Center Projects",
+        [
+            (f"{d(p.next_option)} / {d(p.prev_option)}", "Move through projects"),
+            (d(p.focus_filter), "Filter the current sub-tab"),
+            (
+                f"{d(p.cycle_subtab_reverse)} / {d(p.cycle_subtab)}",
+                "Previous / next sub-tab",
+            ),
+            (d(p.initialize_project), "Initialize marked or highlighted"),
+            (d(p.initialize_all_projects), "Initialize every enabled project"),
+            (
+                f"{d(p.toggle_project_mark)} / {d(p.clear_project_marks)}",
+                "Mark / unmark all",
+            ),
+            (f"{d(p.enable_project)} / {d(p.disable_project)}", "Enable / disable"),
+            (d(p.set_current_project), "Make highlighted project current"),
+            (d(p.default_project_action), "Default lifecycle action"),
+            (d(p.reload), "Reload records or inventory"),
+        ],
+    )
 
 
 def sk(keys: dict[str, str | dict[str, str]], name: str) -> str:

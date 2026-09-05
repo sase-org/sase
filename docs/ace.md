@@ -2902,6 +2902,8 @@ and warnings. Telemetry-only directories and linked-repo backing records cannot 
 | `[` / `]` | Cycle Projects, Repos, and Workspaces sub-tabs                      |
 | `r` / `w` | Show repos or workspaces pre-filtered to the highlighted project    |
 | `Enter`   | Run the highlighted project's default lifecycle action              |
+| `i`       | Initialize the marked set, or the highlighted project if unmarked   |
+| `I`       | Initialize every enabled project (`sase init --all`)                |
 | `m` / `u` | Toggle one mark / clear all marks                                   |
 | `e` / `A` | Edit the ProjectSpec / aliases                                      |
 | `a` / `d` | Enable / disable the highlighted project or marked set              |
@@ -2915,8 +2917,25 @@ and warnings. Telemetry-only directories and linked-repo backing records cannot 
 
 `c` requires the highlighted project to be enabled and launchable; pressing it on a
 project that is already current, disabled, or not launchable reports why in the status
-line instead of starting a write. All Projects-tab keys, including `c`, are configurable
-under [`ace.keymaps.projects`](configuration.md#acekeymaps).
+line instead of starting a write. All Projects-tab keys, including `c`, `i`, and `I`,
+are configurable under [`ace.keymaps.projects`](configuration.md#acekeymaps).
+
+### Initialize from the Projects tab
+
+`i` initializes the marked set, or the highlighted project when nothing is marked.
+Disabled and system-managed rows in the mark set are dropped with a status message; if
+nothing remains, ACE warns and submits nothing. `I` always means the canonical
+`sase init --all` inventory: marks, filter, and highlight are ignored.
+
+Either key sets a status line immediately, then plans off-thread with
+`sase init … --check --json`. When every target is already current, ACE toasts that and
+does not open a modal. Otherwise an initialization-plan preview shows the exact apply
+argv, per-planner rows with the CLI's glyph vocabulary, and warnings and blockers
+verbatim. The memory step may commit and push generated project memory; that warning is
+shown with the same prominence as the CLI prompt. Confirm runs exactly one
+`sase init … --yes` proc into the Procs tab and refreshes the pane in place. If the plan
+has TTY-only blockers, `t` suspends ACE into interactive `sase init` for the blocked
+subset. `Enter` still means enable; initialization is never implicit.
 
 The current project — the same one the top-bar `+<project>` chip names — is marked on
 three surfaces at once, all in that project's accent color: a `+` in the row table's

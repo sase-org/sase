@@ -6,6 +6,7 @@ from .binding_common import (
     ADMIN_CENTER_UPDATES_SECTION,
     PROMPT_INPUT_SECTION,
     admin_center_opener_help_label,
+    admin_center_projects_section,
     Sections,
     custom_mode_sections,
     key_sequence_display,
@@ -488,6 +489,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
     sections.append(memory_panel_section(km))
     sections.append(snippets_panel_section(km))
     sections.append(ADMIN_CENTER_TASKS_SECTION)
+    sections.append(admin_center_projects_section(km))
     sections.append(ADMIN_CENTER_UPDATES_SECTION)
     sections.append(
         (

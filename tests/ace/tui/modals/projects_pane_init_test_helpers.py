@@ -110,6 +110,119 @@ def check_payload(
     )
 
 
+def single_update_payload() -> InitCheckPayload:
+    """One drifted project with a memory update and a unified diff."""
+    return check_payload(
+        project_plan(
+            "sase",
+            display_name="sase",
+            status="needs_attention",
+            planners=(
+                planner_row("config", label="Config", summary="Current"),
+                planner_row(
+                    "memory",
+                    label="Memory",
+                    summary="1 update",
+                    has_changes=True,
+                    actions=(
+                        action_row(
+                            "sase/task_types.json",
+                            operation="update",
+                            added=96,
+                            removed=0,
+                            diff_lines=(
+                                "--- sase/task_types.json",
+                                "+++ sase/task_types.json",
+                                "@@ -1,0 +1,3 @@",
+                                "+{",
+                                '+  "bug": {},',
+                                "+}",
+                            ),
+                        ),
+                    ),
+                ),
+                planner_row("repo", label="Repos", summary="Current"),
+                planner_row("skills", label="Skills", summary="Current"),
+            ),
+        )
+    )
+
+
+def mixed_all_payload() -> InitCheckPayload:
+    """Canonical ``--all`` mix: drift, current, and unavailable."""
+    return check_payload(
+        project_plan(
+            "alpha",
+            status="needs_attention",
+            planners=(
+                planner_row(
+                    "memory",
+                    summary="1 update",
+                    has_changes=True,
+                    actions=(action_row(operation="update", added=1),),
+                ),
+            ),
+        ),
+        project_plan("beta"),
+        project_plan("gamma"),
+        project_plan(
+            "gone",
+            display_name="Gone",
+            status="failed",
+            unavailable_reason="primary workspace is unavailable: /gone",
+            planners=(),
+        ),
+        status="blocked",
+    )
+
+
+def danger_payload() -> InitCheckPayload:
+    """Overwrite action that trips the danger confirm variant."""
+    return check_payload(
+        project_plan(
+            "sase",
+            status="needs_attention",
+            planners=(
+                planner_row(
+                    "memory",
+                    summary="1 overwrite",
+                    has_changes=True,
+                    actions=(
+                        action_row(
+                            "AGENTS.md",
+                            operation="overwrite",
+                            added=2,
+                            removed=2,
+                        ),
+                    ),
+                ),
+            ),
+        )
+    )
+
+
+def tty_blocked_payload() -> InitCheckPayload:
+    """TTY-held plan that offers the run-in-terminal valve."""
+    return check_payload(
+        project_plan(
+            "sase",
+            status="failed",
+            planners=(
+                planner_row(
+                    "config",
+                    summary="choose a machine identity",
+                    has_changes=True,
+                    runnable=False,
+                    requires_tty=True,
+                    blockers=["owner identity requires a TTY"],
+                    actions=(action_row(operation="create"),),
+                ),
+            ),
+        ),
+        status="blocked",
+    )
+
+
 def raw_action(
     path: str = "sase/memory.md",
     *,

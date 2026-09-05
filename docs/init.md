@@ -66,6 +66,10 @@ held the project back, and per-planner rows with label, summary, change and runn
 flags, a `requires_tty` marker, warnings, blockers, and actions (including `new_content`
 so a consumer can render full diffs). `--json` requires `--check`.
 
+The [Admin Center Projects tab](ace.md#initialize-from-the-projects-tab) can drive the
+same flow: `i` initializes the marked or highlighted projects and `I` initializes every
+enabled project.
+
 Use `-M, --enable-project-memory` to create or update the current project's
 `sase/sase.yml` with `is_sase_managed: true` before normal initialization. The
 compatibility spelling remains, but the marker now authorizes SASE management of the

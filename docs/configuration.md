@@ -283,9 +283,9 @@ The Projects tab is an inventory and lifecycle surface with three clickable sub-
 - **Projects** lists true projects—projects backed by their own main ProjectSpec,
   excluding `home` and internal linked-repo backing records. Enabled and disabled rows
   appear together with VCS kind, claim, workspace, repo, and warning counts. `a` / `d`
-  enable or disable, `r` / `w` cross-navigate to the selected project's inventories, and
-  the established mark, alias, edit, force, and confirmed-delete actions remain
-  available.
+  enable or disable, `i` / `I` initialize the marked or highlighted set or every enabled
+  project, `r` / `w` cross-navigate to the selected project's inventories, and the
+  established mark, alias, edit, force, and confirmed-delete actions remain available.
 - **Repos** lists primary, sidecar, linked, and opened external repos for enabled
   projects by default. It reports checkout presence, source/config metadata,
   `auto_clone`, environment names, and SDD storage mode.
@@ -1156,6 +1156,8 @@ value may list more than one key, separated by commas:
 | `pick_project`               | `p`                    | Open the shared project picker on the Repos or Workspaces sub-tab. |
 | `clear_project_filter`       | `escape`               | Clear an inventory project filter.                                 |
 | `set_current_project`        | `c`                    | Make the highlighted project [current](ace.md#current-project).    |
+| `initialize_project`         | `i`                    | Initialize the highlighted project or marked set.                  |
+| `initialize_all_projects`    | `I`                    | Initialize every enabled project (`sase init --all`).              |
 
 Like gate, statistics, and memory keys, Projects-tab keys are scoped to the pane and may
 overlap app-level bindings.

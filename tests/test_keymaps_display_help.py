@@ -129,6 +129,43 @@ def test_admin_center_help_summary_fits_and_documents_the_opener_toggle() -> Non
         assert "Admin Center: 1-6 jump, # back" in labels
 
 
+def test_help_lists_admin_center_projects_init_keys() -> None:
+    """Every main-tab help surface lists the Projects ``i`` / ``I`` init keys."""
+    reg = load_keymap_registry({})
+
+    for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
+        titles = {title for title, _bindings in sections}
+        pairs = {
+            (key, label) for _section, bindings in sections for key, label in bindings
+        }
+        assert "Admin Center Projects" in titles
+        assert ("i", "Initialize marked or highlighted") in pairs
+        assert ("I", "Initialize every enabled project") in pairs
+
+
+def test_help_projects_init_keys_follow_configured_bindings() -> None:
+    """Rebound Projects init keys appear in help instead of the defaults."""
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "projects": {
+                    "initialize_project": "f7",
+                    "initialize_all_projects": "f8",
+                }
+            }
+        }
+    )
+
+    for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
+        pairs = {
+            (key, label) for _section, bindings in sections for key, label in bindings
+        }
+        assert ("f7", "Initialize marked or highlighted") in pairs
+        assert ("f8", "Initialize every enabled project") in pairs
+        assert ("i", "Initialize marked or highlighted") not in pairs
+        assert ("I", "Initialize every enabled project") not in pairs
+
+
 def test_leader_prefix_override_updates_repeat_last_help_display() -> None:
     """Leader-mode help displays the configured prefix for repeat_last."""
     reg = load_keymap_registry(

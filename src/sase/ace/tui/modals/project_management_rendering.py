@@ -295,13 +295,15 @@ def hints_text(
         key_display_name(key)
         for key in (keymaps.cycle_subtab_reverse, keymaps.cycle_subtab)
     )
-    # This line already overflows 120 columns, so the leading segments are
-    # kept short enough that adding the jump key displaces nothing that used
-    # to be visible.
+    # This line already overflows 120 columns. ``i init  I init all`` is
+    # inserted early; the rare ``F force after block`` recovery hint is
+    # dropped to make room and remains in key help and docs.
     base = (
         f"{move_keys} move  {jump_key} jump  "
         f"{key_display_name(keymaps.focus_filter)} filter  "
         f"{subtab_keys} sub-tab  "
+        f"{key_display_name(keymaps.initialize_project)} init  "
+        f"{key_display_name(keymaps.initialize_all_projects)} init all  "
         f"{key_display_name(keymaps.default_project_action)} enable  "
         f"{key_display_name(keymaps.show_project_repos)} repos  "
         f"{key_display_name(keymaps.show_project_workspaces)} workspaces  "
@@ -312,7 +314,6 @@ def hints_text(
         f"{key_display_name(keymaps.enable_project)} enable  "
         f"{key_display_name(keymaps.disable_project)} disable  "
         f"{key_display_name(keymaps.delete_project)} delete  "
-        f"{key_display_name(keymaps.force_current_state_change)} force after block  "
         f"{key_display_name(keymaps.reload)} reload  "
         f"{key_display_name(keymaps.set_current_project)} current"
     )
