@@ -81,6 +81,24 @@ def test_glob_watch_spec_matches_shallow_entries_only(tmp_path: Path) -> None:
     assert with_match != baseline
 
 
+def test_glob_watch_spec_reflects_matched_directory_child_count(
+    tmp_path: Path,
+) -> None:
+    watched_dir = tmp_path / "state"
+    watched_dir.mkdir()
+    matched_dir = watched_dir / "202601"
+    matched_dir.mkdir()
+
+    spec = {"path": str(watched_dir), "glob": "*"}
+    baseline, error = _compute_fs_trigger_token([spec])
+    assert error is None
+
+    (matched_dir / "child").mkdir()
+    changed, error = _compute_fs_trigger_token([spec])
+    assert error is None
+    assert changed != baseline
+
+
 def test_relative_watch_path_resolves_against_sase_home(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

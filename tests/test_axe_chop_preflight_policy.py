@@ -31,6 +31,8 @@ from tests.axe_chop_runner_helpers import make_script
 
 pytest_plugins = ["tests.axe_chop_runner_fixtures"]
 
+_LIST_RUNNING_AGENTS = "sase.axe.chop_policy.list_running_agents"
+
 
 def _context_with_patches(
     tmp_path: Path,
@@ -181,7 +183,7 @@ def test_agent_runners_guard_skips_scheduled_run_and_records_reason(
         holds_runner_slot=True,
     )
 
-    with patch("sase.axe.chop_policy.list_running_agents", return_value=[active]):
+    with patch(_LIST_RUNNING_AGENTS, return_value=[active]):
         skipped = run_configured_chop_once(
             lumberjack_name="checks",
             chop=chop,
@@ -217,7 +219,7 @@ def test_agent_runners_guard_fires_at_or_below_max_and_force_bypasses(
         holds_runner_slot=False,
     )
 
-    with patch("sase.axe.chop_policy.list_running_agents", return_value=[parked]):
+    with patch(_LIST_RUNNING_AGENTS, return_value=[parked]):
         below_max = evaluate_chop_preflight(
             lumberjack_name="checks",
             chop=ChopConfig(
@@ -229,7 +231,7 @@ def test_agent_runners_guard_fires_at_or_below_max_and_force_bypasses(
             scheduled=True,
         )
 
-    with patch("sase.axe.chop_policy.list_running_agents", return_value=[slot_holder]):
+    with patch(_LIST_RUNNING_AGENTS, return_value=[slot_holder]):
         at_max = evaluate_chop_preflight(
             lumberjack_name="checks",
             chop=ChopConfig(
@@ -265,7 +267,7 @@ def test_agent_snapshots_only_emit_runner_slot_for_agent_runners_guard() -> None
         holds_runner_slot=True,
     )
 
-    with patch("sase.axe.chop_policy.list_running_agents", return_value=[active]):
+    with patch(_LIST_RUNNING_AGENTS, return_value=[active]):
         clan_rows = _agent_snapshots([{"provider": "agent_clan"}])
         runner_rows = _agent_snapshots([{"provider": "agent_runners"}])
 
@@ -312,7 +314,7 @@ def test_agent_runner_snapshot_count_matches_admission_count(
     with patch("sase.agent.running_listing.is_process_alive", return_value=True):
         listed = _running_from_snapshot(_agent_snapshot(tmp_path, records))
 
-    with patch("sase.axe.chop_policy.list_running_agents", return_value=listed):
+    with patch(_LIST_RUNNING_AGENTS, return_value=listed):
         rows = _agent_snapshots([{"provider": "agent_runners"}])
 
     assert sum(bool(row["holds_runner_slot"]) for row in rows) == (
@@ -334,7 +336,7 @@ def test_agent_clan_guard_uses_canonical_active_metadata_and_force_bypasses(
         agent_clan="toobig-3",
     )
 
-    with patch("sase.axe.chop_policy.list_running_agents", return_value=[active]):
+    with patch(_LIST_RUNNING_AGENTS, return_value=[active]):
         skipped = evaluate_chop_preflight(
             lumberjack_name="checks",
             chop=chop,
@@ -397,7 +399,7 @@ def test_active_clan_guard_precedes_launched_run_dedupe_and_force_bypasses(
             "sase.axe.chop_runner_script.finalize_launched_chop_runs",
             return_value=0,
         ),
-        patch("sase.axe.chop_policy.list_running_agents", return_value=[active]),
+        patch(_LIST_RUNNING_AGENTS, return_value=[active]),
     ):
         skipped = run_configured_chop_once(
             lumberjack_name="checks",
@@ -442,7 +444,7 @@ def test_agent_clan_guard_does_not_infer_clan_from_dotted_name(
         agent_clan=None,
     )
 
-    with patch("sase.axe.chop_policy.list_running_agents", return_value=[active]):
+    with patch(_LIST_RUNNING_AGENTS, return_value=[active]):
         decision = evaluate_chop_preflight(
             lumberjack_name="checks",
             chop=chop,
