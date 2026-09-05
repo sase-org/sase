@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
 
 CLAN_SUMMARY_MAX_BYTES = 32 * 1024
 CLAN_SUMMARY_TIMEOUT_SECONDS = 20.0
+CLAN_SUMMARY_KILL_GRACE_SECONDS = 3.0
 CLAN_SUMMARY_STDERR_LOG = "clan_summary_stderr.log"
 DEFAULT_CLAN_SUMMARY_ATTEMPT_LABEL = "directive-extraction"
 POST_WORKSPACE_PREPARATION_ATTEMPT_LABEL = "post-workspace-preparation"
@@ -382,23 +383,46 @@ def _stderr_tail(stderr_text: str, *, max_lines: int = 8) -> str:
 
 
 def _kill_process(process: subprocess.Popen[bytes]) -> None:
+    """SIGTERM the process group, then SIGKILL leftovers after a short grace."""
+    _signal_process_group(process, signal.SIGTERM, fallback_kill=False)
     try:
-        if os.name == "posix":
-            os.killpg(process.pid, signal.SIGKILL)
-        else:
-            process.kill()
-    except OSError:
-        try:
-            process.kill()
-        except OSError:
-            pass
+        process.wait(timeout=CLAN_SUMMARY_KILL_GRACE_SECONDS)
+        return
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    _signal_process_group(process, signal.SIGKILL, fallback_kill=True)
     try:
         process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
+    except (OSError, subprocess.TimeoutExpired):
         pass
 
 
+def _signal_process_group(
+    process: subprocess.Popen[bytes],
+    sig: int,
+    *,
+    fallback_kill: bool,
+) -> None:
+    try:
+        if os.name == "posix":
+            os.killpg(process.pid, sig)
+            return
+        if fallback_kill:
+            process.kill()
+        else:
+            process.terminate()
+    except OSError:
+        try:
+            if fallback_kill:
+                process.kill()
+            else:
+                process.terminate()
+        except OSError:
+            pass
+
+
 __all__ = [
+    "CLAN_SUMMARY_KILL_GRACE_SECONDS",
     "CLAN_SUMMARY_MAX_BYTES",
     "CLAN_SUMMARY_STDERR_LOG",
     "CLAN_SUMMARY_TIMEOUT_SECONDS",

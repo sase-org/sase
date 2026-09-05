@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import signal
+import time
 from pathlib import Path
 
 import pytest
@@ -195,3 +197,100 @@ def test_generic_plan_summary_entry_point_uses_epic_environment_fallback(
     assert "▸ PLAN · epic · 1 phase" in rendered.plain
     assert "Title: Approved implementation" in rendered.plain
     assert "Implement the requested change" in rendered.plain
+
+
+def _spy_killpg(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    signals: list[int] = []
+    real_killpg = os.killpg
+
+    def spy_killpg(pid: int, sig: int) -> None:
+        signals.append(sig)
+        real_killpg(pid, sig)
+
+    monkeypatch.setattr("sase.axe.clan_summary_script.os.killpg", spy_killpg)
+    return signals
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process-group SIGTERM/SIGKILL")
+def test_timed_out_summary_script_exits_on_sigterm_without_sigkill(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    write_script(
+        workspace_dir / "make_summary",
+        "import signal\n"
+        "import sys\n"
+        "import time\n"
+        "signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))\n"
+        "time.sleep(30)\n",
+    )
+    monkeypatch.setattr(
+        "sase.axe.clan_summary_script.CLAN_SUMMARY_TIMEOUT_SECONDS",
+        0.4,
+    )
+    monkeypatch.setattr(
+        "sase.axe.clan_summary_script.CLAN_SUMMARY_KILL_GRACE_SECONDS",
+        2.0,
+    )
+    signals = _spy_killpg(monkeypatch)
+    started = time.monotonic()
+
+    meta = extract_clan_meta(
+        tmp_path,
+        "summary_script=./make_summary",
+        monkeypatch,
+    )
+
+    elapsed = time.monotonic() - started
+    assert "clan_summary" not in meta
+    assert signal.SIGTERM in signals
+    assert signal.SIGKILL not in signals
+    assert elapsed < 2.0
+    artifact = (tmp_path / "artifacts" / CLAN_SUMMARY_STDERR_LOG).read_text(
+        encoding="utf-8"
+    )
+    assert "outcome: timeout" in artifact
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process-group SIGTERM/SIGKILL")
+def test_timed_out_summary_script_escalates_to_sigkill_when_sigterm_is_ignored(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    write_script(
+        workspace_dir / "make_summary",
+        "import signal\n"
+        "import time\n"
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "time.sleep(30)\n",
+    )
+    monkeypatch.setattr(
+        "sase.axe.clan_summary_script.CLAN_SUMMARY_TIMEOUT_SECONDS",
+        0.4,
+    )
+    monkeypatch.setattr(
+        "sase.axe.clan_summary_script.CLAN_SUMMARY_KILL_GRACE_SECONDS",
+        0.3,
+    )
+    signals = _spy_killpg(monkeypatch)
+    started = time.monotonic()
+
+    meta = extract_clan_meta(
+        tmp_path,
+        "summary_script=./make_summary",
+        monkeypatch,
+    )
+
+    elapsed = time.monotonic() - started
+    assert "clan_summary" not in meta
+    assert signal.SIGTERM in signals
+    assert signal.SIGKILL in signals
+    assert elapsed >= 0.3
+    artifact = (tmp_path / "artifacts" / CLAN_SUMMARY_STDERR_LOG).read_text(
+        encoding="utf-8"
+    )
+    assert "outcome: timeout" in artifact

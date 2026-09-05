@@ -98,6 +98,10 @@ def test_launch_claim_holds_store_lock_from_materialization_through_commit(
     )
     monkeypatch.setattr("sase.sdd.store.resolve_sdd_store", lambda *_args: store)
     monkeypatch.setattr(
+        "sase.sdd.store.ensure_sdd_kind_clone",
+        lambda *_args, **_kwargs: store.kind_root("beads"),
+    )
+    monkeypatch.setattr(
         "sase.bead.sync.publish_bead_claim",
         lambda *_args, **_kwargs: None,
     )

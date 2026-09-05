@@ -216,7 +216,13 @@ def test_wait_claim_release_and_launch_promotion_publish_to_remote(
         repo_root=canonical,
         remote_url=str(remote),
     )
-    with patch("sase.sdd.store.resolve_sdd_store", return_value=store):
+    with (
+        patch("sase.sdd.store.resolve_sdd_store", return_value=store),
+        patch(
+            "sase.sdd.store.ensure_sdd_kind_clone",
+            return_value=store.kind_root("beads"),
+        ),
+    ):
         promoted = claim_bead_for_agent_launch(
             agent_name="worker",
             bead_id=bead_id,

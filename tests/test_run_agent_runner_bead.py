@@ -252,7 +252,9 @@ def test_claim_helper_routes_split_store_commit_and_publish_to_beads_sidecar(
         )
 
     assert issue.assignee == "worker"
-    materialize.assert_not_called()
+    materialize.assert_called_once_with(
+        str(tmp_path), 2, "beads", strict=True, fresh=False
+    )
     commit.assert_called_once()
     assert commit.call_args.kwargs["paths"] == [beads]
     publish.assert_called_once_with(beads, bead_id, "worker")
@@ -319,7 +321,10 @@ def test_claim_helper_materializes_before_taking_store_lock(
     project_context = MagicMock()
     project_context.__enter__.return_value = project
 
-    def materialize(*_args, **_kwargs) -> Path:
+    materialize_kwargs: dict[str, object] = {}
+
+    def materialize(*_args, **kwargs) -> Path:
+        materialize_kwargs.update(kwargs)
         events.append("materialize")
         beads.mkdir(parents=True)
         return beads
@@ -351,6 +356,196 @@ def test_claim_helper_materializes_before_taking_store_lock(
 
     assert issue is expected_issue
     assert events == ["materialize", "lock"]
+    assert materialize_kwargs.get("fresh", False) is False
+
+
+def test_claim_helper_ensures_existing_store_before_taking_store_lock(
+    tmp_path: Path,
+) -> None:
+    plans = tmp_path / "sase" / "repos" / "plans"
+    beads = tmp_path / "sase" / "repos" / "beads"
+    beads.mkdir(parents=True)
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=plans,
+        repo_root=plans,
+        beads_dir=beads,
+    )
+    events: list[str] = []
+    expected_issue = MagicMock()
+    project = MagicMock()
+    project.claim_for_agent_launch.return_value = expected_issue
+    project.mutation_changed = True
+    project_context = MagicMock()
+    project_context.__enter__.return_value = project
+
+    def materialize(*_args, **_kwargs) -> Path:
+        events.append("materialize")
+        assert beads.is_dir()
+        return beads
+
+    @contextmanager
+    def lock(root: Path):
+        assert root.is_dir()
+        events.append("lock")
+        yield True
+
+    with (
+        patch("sase.sdd.store.resolve_sdd_store", return_value=store),
+        patch("sase.sdd.store.ensure_sdd_kind_clone", side_effect=materialize),
+        patch("sase.bead.sync.bead_store_write_lock", side_effect=lock),
+        patch(
+            "sase.bead.store_locator.open_bead_project_for_beads_dir",
+            return_value=project_context,
+        ),
+        patch("sase.sdd.files.commit_sdd_store_files", return_value=True),
+        patch("sase.bead.sync.publish_bead_claim"),
+    ):
+        issue = claim_bead_for_agent_launch(
+            agent_name="worker",
+            bead_id="sase-1",
+            workspace_dir=str(tmp_path),
+            workspace_num=2,
+            artifacts_dir=str(tmp_path / "artifacts"),
+        )
+
+    assert issue is expected_issue
+    assert events == ["materialize", "lock"]
+
+
+def test_claim_helper_retries_missing_issue_after_fresh_ensure(
+    tmp_path: Path,
+) -> None:
+    plans = tmp_path / "sase" / "repos" / "plans"
+    beads = tmp_path / "sase" / "repos" / "beads"
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=plans,
+        repo_root=plans,
+        beads_dir=beads,
+    )
+    events: list[str] = []
+    expected_issue = MagicMock()
+    project = MagicMock()
+    project.mutation_changed = True
+    project_context = MagicMock()
+    project_context.__enter__.return_value = project
+    show_calls = 0
+
+    def show(bead_id: str) -> MagicMock:
+        nonlocal show_calls
+        events.append("show")
+        show_calls += 1
+        if show_calls == 1:
+            raise KeyError(f"Issue not found: {bead_id}")
+        return MagicMock()
+
+    def claim(bead_id: str, agent_name: str) -> MagicMock:
+        events.append("claim")
+        return expected_issue
+
+    def materialize(*_args, **kwargs) -> Path:
+        events.append("fresh" if kwargs.get("fresh") else "ensure")
+        beads.mkdir(parents=True, exist_ok=True)
+        return beads
+
+    @contextmanager
+    def lock(root: Path):
+        assert root.is_dir()
+        events.append("lock")
+        yield True
+
+    def commit(*_args, **_kwargs) -> bool:
+        events.append("commit")
+        return True
+
+    project.show.side_effect = show
+    project.claim_for_agent_launch.side_effect = claim
+
+    with (
+        patch("sase.sdd.store.resolve_sdd_store", return_value=store),
+        patch("sase.sdd.store.ensure_sdd_kind_clone", side_effect=materialize),
+        patch("sase.bead.sync.bead_store_write_lock", side_effect=lock),
+        patch(
+            "sase.bead.store_locator.open_bead_project_for_beads_dir",
+            return_value=project_context,
+        ),
+        patch("sase.sdd.files.commit_sdd_store_files", side_effect=commit),
+        patch("sase.bead.sync.publish_bead_claim"),
+    ):
+        issue = claim_bead_for_agent_launch(
+            agent_name="worker",
+            bead_id="sase-1",
+            workspace_dir=str(tmp_path),
+            workspace_num=2,
+            artifacts_dir=str(tmp_path / "artifacts"),
+        )
+
+    assert issue is expected_issue
+    assert events == [
+        "ensure",
+        "lock",
+        "show",
+        "fresh",
+        "lock",
+        "show",
+        "claim",
+        "commit",
+    ]
+
+
+def test_claim_helper_fresh_retry_still_fails_when_bead_is_missing(
+    tmp_path: Path,
+) -> None:
+    plans = tmp_path / "sase" / "repos" / "plans"
+    beads = tmp_path / "sase" / "repos" / "beads"
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=plans,
+        repo_root=plans,
+        beads_dir=beads,
+    )
+    events: list[str] = []
+    project = MagicMock()
+    project_context = MagicMock()
+    project_context.__enter__.return_value = project
+
+    def show(bead_id: str) -> MagicMock:
+        events.append("show")
+        raise KeyError(f"Issue not found: {bead_id}")
+
+    def materialize(*_args, **kwargs) -> Path:
+        events.append("fresh" if kwargs.get("fresh") else "ensure")
+        beads.mkdir(parents=True, exist_ok=True)
+        return beads
+
+    @contextmanager
+    def lock(root: Path):
+        events.append("lock")
+        yield True
+
+    project.show.side_effect = show
+
+    with (
+        patch("sase.sdd.store.resolve_sdd_store", return_value=store),
+        patch("sase.sdd.store.ensure_sdd_kind_clone", side_effect=materialize),
+        patch("sase.bead.sync.bead_store_write_lock", side_effect=lock),
+        patch(
+            "sase.bead.store_locator.open_bead_project_for_beads_dir",
+            return_value=project_context,
+        ),
+        pytest.raises(RuntimeError, match=r"sase-1.*worker.*Issue not found: sase-1"),
+    ):
+        claim_bead_for_agent_launch(
+            agent_name="worker",
+            bead_id="sase-1",
+            workspace_dir=str(tmp_path),
+            workspace_num=2,
+            artifacts_dir=str(tmp_path / "artifacts"),
+        )
+
+    assert events == ["ensure", "lock", "show", "fresh", "lock", "show"]
+    project.claim_for_agent_launch.assert_not_called()
 
 
 def test_claim_helper_leaves_schema_two_sidecar_layout_unchanged(
@@ -380,7 +575,9 @@ def test_claim_helper_leaves_schema_two_sidecar_layout_unchanged(
         )
 
     assert issue.assignee == "worker"
-    materialize.assert_not_called()
+    materialize.assert_called_once_with(
+        str(tmp_path), 2, "beads", strict=True, fresh=False
+    )
     assert not (tmp_path / "sase" / "repos" / "beads").exists()
 
 

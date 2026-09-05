@@ -142,6 +142,10 @@ def test_rendered_epic_preclaims_make_runner_lifecycle_quiet_noops(
     with (
         patch("sase.sdd.store.resolve_sdd_store", return_value=store),
         patch(
+            "sase.sdd.store.ensure_sdd_kind_clone",
+            return_value=store.kind_root("beads"),
+        ),
+        patch(
             "sase.bead.sync.commit_bead_claim",
             side_effect=AssertionError("wait no-op must not commit"),
         ),
