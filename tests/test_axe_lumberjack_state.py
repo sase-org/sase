@@ -121,6 +121,12 @@ def test_lumberjack_metrics_defaults() -> None:
     assert metrics.chops_executed == 0
     assert metrics.total_updates == 0
     assert metrics.errors_encountered == 0
+    assert metrics.chops_spawned == 0
+    assert metrics.chops_no_op == 0
+    assert metrics.chops_skipped == {}
+    assert metrics.last_tick_spawns == 0
+    assert metrics.spawn_rate_per_minute == 0.0
+    assert metrics.no_op_ratio == 0.0
 
 
 # --- Log Paths ---

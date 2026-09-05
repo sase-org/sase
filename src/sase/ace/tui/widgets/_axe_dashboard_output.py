@@ -9,7 +9,7 @@ from textual.events import Resize
 from textual.widgets import Static
 
 from sase.axe.chop_report_render import render_section_rule
-from sase.axe.state import LumberjackStatus
+from sase.axe.state import LumberjackStatus, format_no_op_ratio
 
 from ..util.axe_log_renderer import SourceType, render_axe_output
 from ._axe_chop_result_card import render_cached_chop_card_and_report
@@ -301,6 +301,15 @@ class AxeOutputSection(Static):
             text.append(sep)
             text.append("Chops run: ", style="bold #87D7FF")
             text.append(f"{metrics.chops_executed}", style="#00D7AF")
+            text.append(sep)
+            text.append("Spawns/min: ", style="bold #87D7FF")
+            text.append(f"{metrics.spawn_rate_per_minute:.1f}", style="#00D7AF")
+            text.append(sep)
+            text.append("No-op: ", style="bold #87D7FF")
+            text.append(format_no_op_ratio(metrics), style="#00D7AF")
+            text.append(sep)
+            text.append("Skipped: ", style="bold #87D7FF")
+            text.append(str(metrics.skipped_total()), style="#00D7AF")
 
         text.append("\n\n")
 

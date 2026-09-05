@@ -71,6 +71,13 @@ serial app message pump. Reuse these established fixes; don't invent new paths.
     causes cursor jumps/freezes.
 13. **Respect activity gates.** Defer non-urgent refresh work while the user is
     mid-navigation (`NavigationGate`, 250 ms window) or typing in the prompt input.
+14. **Idle ticks skip unchanged surfaces.** With `ace_refresh_tokens` on (the default),
+    auto-refresh probes stat-only change tokens and reloads only drifted surfaces; do
+    not restore `not watcher_active ⇒ reload everything`. Per-tick counters are the
+    `refresh.auto_tick` span (`surfaces_reloaded`, `surfaces`, `axe_file_opens`) and
+    `axe.collect` events (`file_opens`) on `SASE_TUI_TRACE=1`. A quiet tick should
+    reload no surfaces and open near-zero axe files. Capture commands are in
+    `docs/perf_runbook.md` under Idle-host CPU diet.
 
 ## Measure, don't guess
 
@@ -85,7 +92,9 @@ Perceived causes are usually wrong; profile before and after.
 - `SASE_TUI_PERF=1` — per-j/k key-to-paint JSONL at `~/.sase/perf/tui_jk.jsonl`; target
   p95 < 16 ms on every tab.
 - `SASE_TUI_TRACE=1` — hot-path span JSONL at `~/.sase/perf/tui_trace.jsonl`
-  (`src/sase/ace/tui/util/trace.py`).
+  (`src/sase/ace/tui/util/trace.py`). Idle auto-refresh ticks emit `refresh.auto_tick`;
+  the axe collector emits `axe.collect` with `file_opens`.
 - Benches (p50/p95/max tables): `pytest -s -m slow tests/ace/tui/bench_tui_jk.py` and
   `pytest -s -m slow tests/perf/bench_tui_trace.py`. Full capture/compare recipes:
-  `docs/perf_runbook.md` and `tests/perf/README.md`.
+  `docs/perf_runbook.md` (including the idle-host CPU diet recipe) and
+  `tests/perf/README.md`.

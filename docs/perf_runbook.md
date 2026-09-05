@@ -5,6 +5,90 @@ This runbook explains how to capture and compare performance data for ACE, the
 performance overhaul (bead `sase-w.1`, `sdd/epics/202604/tui_perf_overhaul_1.md`), and
 later performance phases still rely on the tracing and benchmark harness described here.
 
+## Idle-host CPU diet
+
+An idle sase host (ace open, lumberjacks running, no agent work) used to burn roughly
+four cores: chop subprocesses at ~109 spawns/min, each paying ~0.6s of import tax, plus
+ace's unconditional full reconcile every `refresh_interval`. The idle-CPU-diet epic
+(`sase-wn`) turns ticks cheap instead of rare. Use this recipe when a host looks busy at
+rest again — it should take about five minutes.
+
+Success criteria (idle, no agent work):
+
+| signal                        | budget                                              |
+| ----------------------------- | --------------------------------------------------- |
+| sase sustained CPU            | < 0.4 cores                                         |
+| chop subprocess spawns        | < 10/min across every lumberjack                    |
+| representative chop import    | < 0.2s / < 400 modules                              |
+| idle ace                      | < 10% of a core, ~0 stall-watchdog records / 30 min |
+| idle axe collector file opens | near zero when nothing changed                      |
+
+Deterministic regression floors live in tests, not wall-clock CI:
+
+- chop-SDK import closure: `tests/test_chop_import_budget.py` (and
+  `tests/test_idle_cpu_diet_guardrails.py`)
+- zero-spawn idle tick for fs-guarded hooks-lane chops:
+  `tests/test_axe_default_chop_triggers.py` / `tests/test_idle_cpu_diet_guardrails.py`
+
+### Five-minute diagnosis
+
+```bash
+# 1. Fleet spawn rate and no-op ratio (reads lumberjack metrics.json)
+sase axe status
+sase axe lumberjack status
+
+# 2. Confirm the human overlay matches on-disk counters
+jq '{chops_spawned, chops_no_op, chops_skipped, last_tick_spawns, last_tick_skipped,
+     spawn_rate_per_minute, no_op_ratio}' \
+  ~/.sase/axe/lumberjacks/*/metrics.json
+
+# 3. Process CPU over a quiet minute (/proc deltas)
+pidof -x sase; ps -o pid,pcpu,pmem,comm -p $(pgrep -d, -f 'sase (ace|axe)')
+# sample twice, 60s apart:
+awk '{print $1,$14,$15}' /proc/$(pgrep -n -f 'sase ace')/stat; sleep 60; \
+awk '{print $1,$14,$15}' /proc/$(pgrep -n -f 'sase ace')/stat
+# utime+stime ticks / (HZ * elapsed) is cores used. On Linux HZ is usually 100.
+
+# 4. Stall-watchdog count over a 30-minute idle ace session
+jq -s 'map(select(.event=="tui_stall" or .event=="tui_hitch")) | length' \
+  ~/.sase/logs/tui_stalls.jsonl
+
+# 5. Per-tick ace counters (surfaces reloaded, axe collector file opens)
+SASE_TUI_TRACE=1 sase ace
+# quit after a few idle refresh intervals, then:
+jq -c 'select(.span=="refresh.auto_tick")' ~/.sase/perf/tui_trace.jsonl | tail
+jq -c 'select(.event=="axe.collect")' ~/.sase/perf/tui_trace.jsonl | tail
+
+# 6. Chop import cost (wall-clock; the test suite locks the module set, not time)
+python -X importtime -c "import sase.chops.sdk" 2>&1 | tail -1
+python -c "import sase.chops.sdk, sys; print(len(sys.modules))"
+
+# 7. Lumberjack run-history gap analysis (idle ticks should be skipped, not no_op)
+python - <<'PY'
+from pathlib import Path
+from datetime import datetime
+import json
+root = Path.home() / ".sase" / "axe" / "lumberjacks"
+for jack in sorted(root.iterdir()):
+    for chop in sorted((jack / "chops").glob("*")) if (jack / "chops").exists() else []:
+        index = chop / "index.json"
+        if not index.exists():
+            continue
+        ids = json.loads(index.read_text())[:8]
+        print(f"== {jack.name}/{chop.name} ==")
+        for run_id in ids:
+            meta = json.loads((chop / "runs" / f"{run_id}.json").read_text())
+            print(f"  {meta.get('started_at')} {meta.get('status')} {meta.get('reason')}")
+PY
+```
+
+A quiet host after the diet should show `sase axe status` **Chop load** in the low
+single-digit spawns/min (often 0.0 between `max_quiet` re-fires), last tick `0 spawned`
+for fs-guarded lanes, and `refresh.auto_tick` records with `surfaces_reloaded=0` (or
+only `axe`/`notifications` when those tokens actually moved) and `axe_file_opens` near
+zero. If spawn rate is high again, check whether shipped chops lost their `fs` trigger
+in `src/sase/default_config.yml`, or whether `ace_refresh_tokens` is off.
+
 ## Suite test-cost gate
 
 The repository-wide pytest cost harness is separate from ACE trace spans. Use it when a

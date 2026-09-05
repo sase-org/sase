@@ -11,6 +11,7 @@ from sase.feature_flags import FeatureFlag, current_flags
 from .._debug_leaks import debug_leaks_enabled, log_leak_snapshot
 from ..agents._notification_utils import request_notification_agents_refresh
 from ...util.pump_tasks import spawn_pump_free_task
+from ...util.trace import tui_trace
 from ._artifact_paths import agent_has_live_file_panel
 from ._constants import (
     AGENTS_LOAD_MIN_INTERVAL_SECONDS,
@@ -158,7 +159,19 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
 
     async def _run_auto_refresh_body(self) -> None:
         """Refresh dirty surfaces; always called from a pump-free task."""
+        reloaded: list[str] = []
+        axe_file_opens = 0
+        with tui_trace("refresh.auto_tick") as extra:
+            try:
+                axe_file_opens = await self._run_auto_refresh_surfaces(reloaded)
+            finally:
+                extra["surfaces_reloaded"] = len(reloaded)
+                extra["surfaces"] = ",".join(reloaded)
+                extra["axe_file_opens"] = axe_file_opens
 
+    async def _run_auto_refresh_surfaces(self, reloaded: list[str]) -> int:
+        """Run one auto-refresh pass, appending reloaded surface names."""
+        axe_file_opens = 0
         watcher_active = self._watcher_active()
         now_mono = time.monotonic()
         sanity_interval = float(
@@ -217,6 +230,8 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                     if refreshed:
                         self._dirty_axe = False
                         self._accept_surface_token("axe", current_tokens)
+                        reloaded.append("axe")
+                        axe_file_opens = self._axe_collector_file_opens()
             else:
                 # Narrow EventAutoRefreshMixin test doubles do not include the
                 # AXE loader mixin; production always takes the guarded path.
@@ -233,6 +248,8 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                     await load_axe()
                 self._dirty_axe = False
                 self._accept_surface_token("axe", current_tokens)
+                reloaded.append("axe")
+                axe_file_opens = self._axe_collector_file_opens()
 
         queued_agent_artifact_dirs = tuple(
             getattr(self, "_dirty_agent_artifact_dirs", ())
@@ -276,21 +293,22 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
             )
             self._dirty_notifications = False
             self._accept_surface_token("notifications", current_tokens)
+            reloaded.append("notifications")
 
         # Skip patch/agent refresh if the user is in a transient input
         # mode (hint bar or similar is active).
         if getattr(self, "_hint_mode_active", False):
-            return
+            return axe_file_opens
         if getattr(self, "_entry_jump_mode_active", False):
-            return
+            return axe_file_opens
         if getattr(self, "_panel_fold_hint_mode_active", False):
-            return
+            return axe_file_opens
         if getattr(self, "_accept_mode_active", False):
-            return
+            return axe_file_opens
 
         # Skip if a background agent load is already in progress
         if self._agents_loading:
-            return
+            return axe_file_opens
 
         # Notification-triggered targeting resolves against the newly
         # observed completions (roster first, then raw_suffix) and is
@@ -314,6 +332,7 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                 self._dirty_agents = False
                 self._last_agents_load_mono = time.monotonic()
                 self._accept_surface_token("agents", current_tokens)
+                reloaded.append("agents")
             elif not sanity_due and self.current_tab != "agents":
                 # Broad loads stay tab-gated. An off-tab delta that could
                 # not be applied (e.g. the delta consumer failed) leaves
@@ -340,6 +359,7 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                     self._clear_agent_artifact_delta_state()
                 self._dirty_agents = False
                 self._accept_surface_token("agents", current_tokens)
+                reloaded.append("agents")
         elif not new_agent_notification:
             self._refresh_selected_agent_file_panel()
 
@@ -369,12 +389,14 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                     await run_patches_refresh()
                     self._dirty_patches = False
                     self._accept_surface_token("patches", current_tokens)
+                    reloaded.append("patches")
             else:
                 # Narrow EventAutoRefreshMixin test doubles do not include the
                 # Patch loader mixin; production uses its overlap guard.
                 await self._reload_and_reposition_async()  # type: ignore[attr-defined]
                 self._dirty_patches = False
                 self._accept_surface_token("patches", current_tokens)
+                reloaded.append("patches")
         elif (
             self.current_tab == "artifacts"
             and getattr(self, "current_artifacts_subtab", "patches") != "patches"
@@ -386,6 +408,18 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
 
         if debug_leaks_enabled():
             log_leak_snapshot(self, source="auto_refresh")
+        return axe_file_opens
+
+    def _axe_collector_file_opens(self) -> int:
+        """Return this tick's axe-collector file-open count, if a cache exists."""
+        cache = getattr(self, "_axe_status_read_cache", None)
+        if cache is None:
+            return 0
+        stats = getattr(cache, "stats", None)
+        opens = getattr(stats, "file_opens", 0)
+        if isinstance(opens, int) and not isinstance(opens, bool):
+            return int(opens)
+        return 0
 
     def action_debug_leak_snapshot(self) -> None:
         """One-shot leak snapshot keybind gated by ``SASE_ACE_DEBUG_LEAKS=1``.

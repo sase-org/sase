@@ -10,9 +10,9 @@ time so home-directory redirection applies to every reader.
 import os
 import tempfile
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import sase.axe.state as _state
 from sase.core.state_write_guard import best_effort_test_state_write_allowed
@@ -20,6 +20,15 @@ from sase.core.state_write_guard import best_effort_test_state_write_allowed
 DEFAULT_LUMBERJACK_LOG_MAX_BYTES = 50 * 1024 * 1024
 DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS = 5 * 60
 _TRUNCATION_MARKER = b"[sase] lumberjack log truncated to most recent output\n"
+
+CHOP_SKIP_TRIGGER = "trigger"
+CHOP_SKIP_RUN_EVERY = "run_every"
+CHOP_SKIP_INHIBITED = "inhibited"
+CHOP_SKIP_REASONS = (
+    CHOP_SKIP_TRIGGER,
+    CHOP_SKIP_RUN_EVERY,
+    CHOP_SKIP_INHIBITED,
+)
 
 
 @dataclass
@@ -36,6 +45,11 @@ class LumberjackStatus:
     cycles_run: int = 0
     errors_encountered: int = 0
     uptime_seconds: int = 0
+    last_tick_spawns: int = 0
+    last_tick_skipped: int = 0
+    last_tick_no_ops: int = 0
+    spawn_rate_per_minute: float = 0.0
+    no_op_ratio: float = 0.0
 
 
 @dataclass
@@ -46,6 +60,98 @@ class LumberjackMetrics:
     chops_executed: int = 0
     total_updates: int = 0
     errors_encountered: int = 0
+    chops_spawned: int = 0
+    chops_no_op: int = 0
+    chops_skipped: dict[str, int] = field(default_factory=dict)
+    last_tick_spawns: int = 0
+    last_tick_skipped: int = 0
+    last_tick_no_ops: int = 0
+    last_tick_at: str | None = None
+    spawn_rate_per_minute: float = 0.0
+    no_op_ratio: float = 0.0
+
+    def record_skips(self, reason: str, count: int = 1) -> None:
+        """Increment one skip-reason bucket. Unknown reasons are still counted."""
+        if count <= 0:
+            return
+        self.chops_skipped[reason] = self.chops_skipped.get(reason, 0) + count
+
+    def skipped_total(self) -> int:
+        """Return the sum of every skip-reason bucket."""
+        return sum(self.chops_skipped.values())
+
+
+def format_no_op_ratio(metrics: LumberjackMetrics | None) -> str:
+    """Render no-op ratio as a percent, or ``n/a`` when nothing has spawned."""
+    if metrics is None or metrics.chops_spawned <= 0:
+        return "n/a"
+    return f"{metrics.no_op_ratio:.0%}"
+
+
+def format_lumberjack_chop_load(metrics: LumberjackMetrics | None) -> str:
+    """Compact spawn-rate / no-op / last-tick summary for status UIs."""
+    if metrics is None:
+        return "-"
+    return (
+        f"{metrics.spawn_rate_per_minute:.1f}/min"
+        f" · no-op={format_no_op_ratio(metrics)}"
+        f"\ntick {metrics.last_tick_spawns}/{metrics.last_tick_skipped}"
+        f"\nt={metrics.chops_skipped.get(CHOP_SKIP_TRIGGER, 0)}"
+        f" re={metrics.chops_skipped.get(CHOP_SKIP_RUN_EVERY, 0)}"
+        f" inh={metrics.chops_skipped.get(CHOP_SKIP_INHIBITED, 0)}"
+    )
+
+
+def _dataclass_from_mapping(cls: type[Any], data: dict[str, Any]) -> Any | None:
+    """Build ``cls`` from JSON, ignoring unknown keys so older readers stay safe."""
+    try:
+        allowed = {item.name for item in fields(cls)}
+        return cls(**{key: value for key, value in data.items() if key in allowed})
+    except TypeError:
+        return None
+
+
+def _coerce_lumberjack_metrics(metrics: LumberjackMetrics) -> LumberjackMetrics:
+    raw_skipped = metrics.chops_skipped
+    cleaned: dict[str, int] = {}
+    if isinstance(raw_skipped, dict):
+        for key, value in raw_skipped.items():
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                cleaned[str(key)] = value
+    metrics.chops_skipped = cleaned
+    for attr in ("spawn_rate_per_minute", "no_op_ratio"):
+        raw = getattr(metrics, attr)
+        if isinstance(raw, bool) or not isinstance(raw, int | float):
+            setattr(metrics, attr, 0.0)
+        else:
+            setattr(metrics, attr, float(raw))
+    for attr in (
+        "chops_spawned",
+        "chops_no_op",
+        "last_tick_spawns",
+        "last_tick_skipped",
+        "last_tick_no_ops",
+    ):
+        raw = getattr(metrics, attr)
+        if not isinstance(raw, int) or isinstance(raw, bool) or raw < 0:
+            setattr(metrics, attr, 0)
+    if metrics.last_tick_at is not None and not isinstance(metrics.last_tick_at, str):
+        metrics.last_tick_at = None
+    return metrics
+
+
+def _coerce_lumberjack_status(status: LumberjackStatus) -> LumberjackStatus:
+    for attr in ("last_tick_spawns", "last_tick_skipped", "last_tick_no_ops"):
+        raw = getattr(status, attr)
+        if not isinstance(raw, int) or isinstance(raw, bool) or raw < 0:
+            setattr(status, attr, 0)
+    for attr in ("spawn_rate_per_minute", "no_op_ratio"):
+        raw = getattr(status, attr)
+        if isinstance(raw, bool) or not isinstance(raw, int | float):
+            setattr(status, attr, 0.0)
+        else:
+            setattr(status, attr, float(raw))
+    return status
 
 
 def lumberjack_state_dir(name: str) -> Path:
@@ -154,12 +260,12 @@ def read_lumberjack_status(name: str) -> LumberjackStatus | None:
     """
     status_file = lumberjack_state_dir(name) / "status.json"
     data = _state.read_json(status_file)
-    if data is None:
+    if data is None or not isinstance(data, dict):
         return None
-    try:
-        return LumberjackStatus(**data)
-    except TypeError:
+    status = _dataclass_from_mapping(LumberjackStatus, data)
+    if status is None:
         return None
+    return _coerce_lumberjack_status(status)
 
 
 def write_lumberjack_metrics(name: str, metrics: LumberjackMetrics) -> None:
@@ -184,12 +290,12 @@ def read_lumberjack_metrics(name: str) -> LumberjackMetrics | None:
     """
     metrics_file = lumberjack_state_dir(name) / "metrics.json"
     data = _state.read_json(metrics_file)
-    if data is None:
+    if data is None or not isinstance(data, dict):
         return None
-    try:
-        return LumberjackMetrics(**data)
-    except TypeError:
+    metrics = _dataclass_from_mapping(LumberjackMetrics, data)
+    if metrics is None:
         return None
+    return _coerce_lumberjack_metrics(metrics)
 
 
 def write_chop_timestamps(name: str, timestamps: dict[str, str]) -> None:

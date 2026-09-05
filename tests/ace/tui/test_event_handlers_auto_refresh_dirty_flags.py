@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
 import time
 from pathlib import Path
@@ -449,6 +450,32 @@ async def test_debounce_bypassed_by_sanity_floor() -> None:
     app._last_full_sanity_refresh = time.monotonic() - FULL_SANITY_REFRESH_SECONDS - 1.0
     await app._run_auto_refresh()
     assert "agents" in app.refresh_calls
+
+
+@pytest.mark.asyncio
+async def test_auto_refresh_tick_emits_surface_reload_trace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Idle-diet per-tick counters land on the existing SASE_TUI_TRACE channel."""
+    from sase.ace.tui.util import trace
+
+    log = tmp_path / "tui_trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+    trace._context.clear()
+
+    app = _FakeApp(watcher_active=False)
+    app._probed_surface_tokens = _surface_token_snapshot(axe=2)
+    with override_flags(ace_refresh_tokens=True):
+        await app._run_auto_refresh()
+
+    rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
+    ticks = [row for row in rows if row.get("span") == "refresh.auto_tick"]
+    assert len(ticks) == 1
+    assert ticks[0]["surfaces_reloaded"] == 1
+    assert ticks[0]["surfaces"] == "axe"
+    assert ticks[0]["axe_file_opens"] == 0
 
 
 @pytest.mark.asyncio

@@ -219,8 +219,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Description: Read before changing anything that affects TUI performance or
   responsiveness (navigation, refresh, rendering, startup), and before diagnosing TUI
   freezes or stalls.
-- Lines: 91
-- Approx. tokens: 1417
+- Lines: 100
+- Approx. tokens: 1594
 
 ### `sase/memory/xprompts.md`
 
@@ -237,8 +237,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 10
 - Web descriptor notes: 3
-- Total lines: 1075
-- Total approx. tokens: 13684
+- Total lines: 1084
+- Total approx. tokens: 13861
 
 ## Commands
 

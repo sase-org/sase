@@ -353,6 +353,7 @@ def test_narrow_table_folds_without_dropping_lumberjack_contract_facts() -> None
         "started=",
         "age=",
         "chops=",
+        "load=",
         "alpha_check",
         "beta_check",
     ):

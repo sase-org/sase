@@ -76,6 +76,8 @@ class _ChopResult:
     # traceback (e.g. a subprocess exited nonzero), set this to a constant
     # placeholder rather than leaving it ``None``.
     traceback: str | None = None
+    skip_reason: str | None = None
+    no_op: bool = False
 
 
 class Lumberjack:
@@ -111,6 +113,8 @@ class Lumberjack:
         self._metrics = LumberjackMetrics()
         self._axe_metrics = AxeMetrics()
         self._check_runner = CheckCycleRunner(axe_config.query or None, self._log)
+        # Rolling (monotonic_ts, spawn_count) samples for spawn_rate_per_minute.
+        self._tick_spawn_window: list[tuple[float, int]] = []
         # Load persisted chop last-run timestamps for time-based run_every
         self._chop_timestamps: dict[str, datetime] = {}
         for chop_name, ts_str in read_chop_timestamps(name).items():
@@ -162,6 +166,9 @@ class Lumberjack:
                 f"pid: {maintenance.get('pid')})"
             )
             self._metrics.cycles_run += 1
+            self._record_tick_load(spawns=0, skipped=0, no_ops=0)
+            self._update_status()
+            self._update_metrics()
             AXE_CYCLES.labels(cycle_type=self.name).inc()
             AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(tick_duration)
             return
@@ -203,6 +210,7 @@ class Lumberjack:
 
         # Filter eligible chops by their optional cadence.
         eligible_chops: list[ChopConfig] = []
+        run_every_skips = 0
         for chop in self.config.chops:
             if not chop.enabled:
                 continue
@@ -211,6 +219,7 @@ class Lumberjack:
                 if last_run is not None:
                     elapsed = (now - last_run).total_seconds()
                     if elapsed < chop.run_every:
+                        run_every_skips += 1
                         continue
             eligible_chops.append(chop)
 
@@ -226,13 +235,27 @@ class Lumberjack:
 
         # Aggregate results in the main thread
         timestamps_dirty = False
+        tick_spawns = 0
+        tick_no_ops = 0
+        tick_skipped = run_every_skips
+        if run_every_skips:
+            self._metrics.record_skips("run_every", run_every_skips)
         for result in results:
             for line in result.log_lines:
                 self._log(line)
             if result.error is not None:
                 self._handle_error(result.chop_name, result.error, result.traceback)
+            if result.executed:
+                self._metrics.chops_spawned += 1
+                tick_spawns += 1
+                if result.no_op:
+                    self._metrics.chops_no_op += 1
+                    tick_no_ops += 1
             if result.executed and result.success:
                 self._metrics.chops_executed += 1
+            if result.skip_reason:
+                self._metrics.record_skips(result.skip_reason)
+                tick_skipped += 1
             if result.update_timestamp:
                 self._chop_timestamps[result.chop_name] = now
                 timestamps_dirty = True
@@ -250,6 +273,13 @@ class Lumberjack:
             )
 
         self._metrics.cycles_run += 1
+        self._record_tick_load(
+            spawns=tick_spawns,
+            skipped=tick_skipped,
+            no_ops=tick_no_ops,
+        )
+        self._update_status()
+        self._update_metrics()
         AXE_CYCLES.labels(cycle_type=self.name).inc()
         AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(tick_duration)
 
@@ -285,6 +315,7 @@ class Lumberjack:
                 success=True,
                 update_timestamp=chop.run_every is not None,
                 log_lines=log_lines,
+                no_op=outcome.status == "no_op",
             )
 
         if outcome.status == "skipped":
@@ -297,6 +328,7 @@ class Lumberjack:
                     chop.run_every is not None and outcome.advances_cadence
                 ),
                 log_lines=log_lines,
+                skip_reason=outcome.skip_reason or "inhibited",
             )
 
         if outcome.status in {"failure", "check_error", "action_failed"}:
@@ -409,8 +441,41 @@ class Lumberjack:
             cycles_run=self._metrics.cycles_run,
             errors_encountered=self._metrics.errors_encountered,
             uptime_seconds=uptime,
+            last_tick_spawns=self._metrics.last_tick_spawns,
+            last_tick_skipped=self._metrics.last_tick_skipped,
+            last_tick_no_ops=self._metrics.last_tick_no_ops,
+            spawn_rate_per_minute=self._metrics.spawn_rate_per_minute,
+            no_op_ratio=self._metrics.no_op_ratio,
         )
         write_lumberjack_status(status)
+
+    def _record_tick_load(
+        self,
+        *,
+        spawns: int,
+        skipped: int,
+        no_ops: int,
+    ) -> None:
+        """Update last-tick counters and the rolling one-minute spawn rate."""
+        now_mono = time.monotonic()
+        self._tick_spawn_window.append((now_mono, spawns))
+        cutoff = now_mono - 60.0
+        self._tick_spawn_window = [
+            sample for sample in self._tick_spawn_window if sample[0] >= cutoff
+        ]
+        total = sum(count for _, count in self._tick_spawn_window)
+        elapsed = now_mono - self._tick_spawn_window[0][0]
+        if elapsed < 1.0:
+            elapsed = 1.0
+        self._metrics.last_tick_spawns = spawns
+        self._metrics.last_tick_skipped = skipped
+        self._metrics.last_tick_no_ops = no_ops
+        self._metrics.last_tick_at = get_timestamp()
+        self._metrics.spawn_rate_per_minute = total * (60.0 / elapsed)
+        spawned = self._metrics.chops_spawned
+        self._metrics.no_op_ratio = (
+            self._metrics.chops_no_op / spawned if spawned else 0.0
+        )
 
     def _update_metrics(self) -> None:
         write_lumberjack_metrics(self.name, self._metrics)

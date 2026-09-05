@@ -30,7 +30,9 @@ from .config import (
     load_axe_config,
 )
 from .state import (
+    format_no_op_ratio,
     read_chop_run_log_tail,
+    read_lumberjack_metrics,
     read_lumberjack_status,
 )
 
@@ -374,12 +376,21 @@ def handle_axe_lumberjack_status(args: argparse.Namespace) -> None:
         any_status = True
         running = is_process_running(status.pid)
         state = "running" if running else "stopped (stale status)"
+        metrics = read_lumberjack_metrics(name)
+        load = ""
+        if metrics is not None:
+            load = (
+                f", spawns/min={metrics.spawn_rate_per_minute:.1f}"
+                f", no-op={format_no_op_ratio(metrics)}"
+                f", last tick={metrics.last_tick_spawns} spawned"
+                f"/{metrics.last_tick_skipped} skipped"
+            )
         print(
             f"{name}: {state} "
             f"(PID {status.pid}, "
             f"cycles={status.cycles_run}, "
             f"errors={status.errors_encountered}, "
-            f"uptime={status.uptime_seconds}s)"
+            f"uptime={status.uptime_seconds}s{load})"
         )
 
     if not any_status:

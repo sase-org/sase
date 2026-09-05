@@ -150,11 +150,17 @@ The top-level lifecycle state and health are separate:
 
 The summary shows the desired state with its source and timestamp; orchestrator live
 PIDs, lifecycle-lock state, and PID-file coherence; maintenance reason, owner, and age;
-hook and agent runner occupancy; and the newest lifecycle journal event. The lumberjack
-table is sorted by name and includes derived and reported state, process liveness, PID,
+hook and agent runner occupancy; the newest lifecycle journal event; and **Chop load**
+(fleet spawn rate, no-op ratio, and last-tick spawn/skip counts). The lumberjack table
+is sorted by name and includes derived and reported state, process liveness, PID,
 interval and staleness threshold, start and heartbeat times/ages, uptime, cycle and
-historical error counts, and configured chops. At narrow terminal widths those facts
-fold into a compact details column rather than being truncated.
+historical error counts, configured chops, and a **Load** column read from each
+lumberjack's `metrics.json` (spawns/min, no-op ratio, last-tick spawned/skipped, and
+per-reason skip buckets `t`/`re`/`inh` for trigger, run_every, inhibited). At narrow
+terminal widths those facts fold into a compact details column rather than being
+truncated. The schema-version-1 `--json` snapshot stays the portable health wire;
+spawn-rate numbers live in the on-disk lumberjack status/metrics JSON that the human
+view overlays.
 
 When the classifier reports issues or collection failure, an **Attention** panel
 preserves the issue order and lists deduplicated suggested commands. Exit codes are part

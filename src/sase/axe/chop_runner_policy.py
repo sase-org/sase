@@ -29,6 +29,18 @@ from .state import (
 _TRIGGER_PROVIDERS = frozenset({"always", "git.commits_since", "fs"})
 
 
+def _skip_reason_for_preflight(
+    preflight: ChopPreflight,
+) -> Literal["trigger", "inhibited"] | None:
+    """Classify a preflight skip as a trigger miss or an inhibit-if guard."""
+    if preflight.outcome != "skip":
+        return None
+    provider = (preflight.decision or {}).get("provider")
+    if isinstance(provider, str) and provider in _TRIGGER_PROVIDERS:
+        return "trigger"
+    return "inhibited"
+
+
 def append_once_per_summary(
     lumberjack_name: str,
     chop_name: str,
@@ -100,6 +112,7 @@ def record_preflight_outcome(
         chop_verbose=chop_verbose,
         reason=preflight.reason,
         advances_cadence=advances_cadence,
+        skip_reason=_skip_reason_for_preflight(preflight),
     )
 
 

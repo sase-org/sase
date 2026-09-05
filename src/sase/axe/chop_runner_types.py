@@ -49,6 +49,7 @@ class ChopRunOutcome:
     chop_verbose: bool = False
     reason: str | None = None
     advances_cadence: bool = True
+    skip_reason: Literal["trigger", "run_every", "inhibited"] | None = None
 
 
 class ChopNotFoundError(LookupError):

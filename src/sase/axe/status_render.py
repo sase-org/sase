@@ -12,6 +12,12 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from .state import (
+    LumberjackMetrics,
+    format_lumberjack_chop_load,
+    format_no_op_ratio,
+    read_lumberjack_metrics,
+)
 from .status_models import (
     AxeLumberjackState,
     AxeLumberjackStatus,
@@ -115,6 +121,10 @@ def _summary_panel(snapshot: AxeStatusSnapshot) -> Panel:
         "Latest event",
         Text(_lifecycle_event_summary(snapshot), overflow="fold"),
     )
+    summary.add_row(
+        "Chop load",
+        Text(_chop_load_summary(snapshot.lumberjacks), overflow="fold"),
+    )
     return Panel(
         summary,
         title="AXE Status",
@@ -208,8 +218,9 @@ def _wide_lumberjack_table(rows: list[AxeLumberjackStatus]) -> Table:
     table.add_column("Cycles", overflow="fold")
     table.add_column("Errors", overflow="fold")
     table.add_column("Chops", overflow="fold")
+    table.add_column("Load", overflow="fold")
     if not rows:
-        table.add_row(Text("No lumberjacks observed.", style="dim"), *[""] * 6)
+        table.add_row(Text("No lumberjacks observed.", style="dim"), *[""] * 7)
         return table
 
     for row in rows:
@@ -250,6 +261,7 @@ def _wide_lumberjack_table(rows: list[AxeLumberjackStatus]) -> Table:
             style="dim",
         )
         chops = Text("\n".join(row.configured_chops) or "-", overflow="fold")
+        load = Text(_lumberjack_load_text(row.name), overflow="fold")
         table.add_row(
             name,
             state,
@@ -258,6 +270,7 @@ def _wide_lumberjack_table(rows: list[AxeLumberjackStatus]) -> Table:
             cycles,
             str(row.errors_encountered),
             chops,
+            load,
         )
     return table
 
@@ -305,6 +318,8 @@ def _narrow_lumberjack_table(rows: list[AxeLumberjackStatus]) -> Table:
             f" · age={_format_age(row.start_age_seconds)}"
             "\n"
             f"chops={', '.join(row.configured_chops) or '-'}"
+            "\n"
+            f"load={_lumberjack_load_text(row.name).replace(chr(10), ' · ')}"
         )
         table.add_row(Text(row.name, overflow="fold"), details)
     return table
@@ -385,6 +400,47 @@ def _format_duration(seconds: int | None) -> str:
     days, remainder = divmod(seconds, 86400)
     hours = remainder // 3600
     return f"{days}d {hours:02d}h"
+
+
+def _lumberjack_metrics(name: str) -> LumberjackMetrics | None:
+    try:
+        return read_lumberjack_metrics(name)
+    except OSError:
+        return None
+
+
+def _lumberjack_load_text(name: str) -> str:
+    return format_lumberjack_chop_load(_lumberjack_metrics(name))
+
+
+def _chop_load_summary(lumberjacks: Iterable[AxeLumberjackStatus]) -> str:
+    total_rate = 0.0
+    total_spawned = 0
+    total_no_op = 0
+    last_spawns = 0
+    last_skipped = 0
+    found = False
+    for row in lumberjacks:
+        metrics = _lumberjack_metrics(row.name)
+        if metrics is None:
+            continue
+        found = True
+        total_rate += metrics.spawn_rate_per_minute
+        total_spawned += metrics.chops_spawned
+        total_no_op += metrics.chops_no_op
+        last_spawns += metrics.last_tick_spawns
+        last_skipped += metrics.last_tick_skipped
+    if not found:
+        return "no lumberjack metrics yet"
+    fake = LumberjackMetrics(
+        chops_spawned=total_spawned,
+        chops_no_op=total_no_op,
+        no_op_ratio=(total_no_op / total_spawned) if total_spawned else 0.0,
+    )
+    return (
+        f"{total_rate:.1f} spawns/min · no-op {format_no_op_ratio(fake)}"
+        f" · last tick {last_spawns} spawned / {last_skipped} skipped"
+    )
 
 
 def _placeholder(value: object | None) -> str:

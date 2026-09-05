@@ -127,6 +127,7 @@ def test_patch_guard_skips_scheduled_run_and_force_bypasses_it(
     )
 
     assert skipped.status == "skipped"
+    assert skipped.skip_reason == "inhibited"
     assert skipped.reason is not None and "fix_just_rollout" in skipped.reason
     assert marker.exists() is False
     assert skipped.run_id is not None
@@ -530,6 +531,7 @@ def test_git_commits_since_trigger_skip_still_advances_run_every_cadence(
         )
 
     assert outcome.status == "skipped"
+    assert outcome.skip_reason == "trigger"
     assert outcome.advances_cadence is True
 
 
@@ -557,4 +559,5 @@ def test_fs_trigger_skip_still_advances_run_every_cadence(
         )
 
     assert outcome.status == "skipped"
+    assert outcome.skip_reason == "trigger"
     assert outcome.advances_cadence is True
