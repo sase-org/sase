@@ -111,6 +111,18 @@ class _RecordingReporter:
         return subprocess.CompletedProcess(recorded, self.returncode, self.stdout, "")
 
 
+class _TimeoutReporter(_RecordingReporter):
+    def __init__(self) -> None:
+        super().__init__(stdout="")
+
+    def run(
+        self, argv: list[object], **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
+        recorded = [str(part) for part in argv]
+        self.runs.append((recorded, kwargs))
+        raise subprocess.TimeoutExpired(recorded, float(kwargs["timeout"]))
+
+
 def _install_submit(page: AcePage) -> list[tuple[tuple[Any, ...], dict[str, Any], Any]]:
     submitted: list[tuple[tuple[Any, ...], dict[str, Any], Any]] = []
 
@@ -366,6 +378,72 @@ async def test_initialize_all_ignores_marks_and_filter(
         ]
 
 
+async def test_marked_set_init_submits_one_ordered_check_and_apply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_panes(monkeypatch)
+    async with AcePage() as page:
+        submitted = _install_submit(page)
+        _center, pane = await _open_projects(page)
+        pane._marked_projects = {"alpha", "beta"}
+        pane.query_one("#projects-list", OptionList).focus()
+
+        await page.press("i")
+        await page.pause()
+
+        assert len(submitted) == 1
+        args, kwargs, handle = submitted[0]
+        assert args[0] == "init-check"
+        assert kwargs["dedup_key"] == "sase-init-check:alpha:beta"
+        assert kwargs["exclusive_scopes"] == ("sase-init",)
+        assert kwargs["cl_name"] == ""
+        reporter = _RecordingReporter(stdout=_current_json(), returncode=0)
+        args[1](reporter)
+        assert reporter.runs[0][0] == [
+            "sase",
+            "init",
+            "-p",
+            "alpha",
+            "-p",
+            "beta",
+            "--check",
+            "--json",
+        ]
+
+        payload = check_payload(
+            project_plan(
+                "alpha",
+                status="needs_attention",
+                planners=(planner_row("memory", has_changes=True),),
+            ),
+            project_plan(
+                "beta",
+                status="needs_attention",
+                planners=(planner_row("memory", has_changes=True),),
+            ),
+        )
+        kwargs["on_complete"](_completion(handle.proc_id, payload))
+        await page.expect_modal("InitPlanModal")
+        await page.press("y")
+        await page.wait_for(lambda _s: len(submitted) == 2)
+
+        apply_args, _apply_kwargs, _apply_handle = submitted[1]
+        apply_reporter = _RecordingReporter(
+            stdout="Initialization summary: 2 initialized\n",
+            returncode=0,
+        )
+        apply_args[1](apply_reporter)
+        assert apply_reporter.runs[0][0] == [
+            "sase",
+            "init",
+            "-p",
+            "alpha",
+            "-p",
+            "beta",
+            "--yes",
+        ]
+
+
 async def test_i_filters_disabled_marks_and_submits_nothing_when_only_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -448,6 +526,106 @@ async def test_second_activation_uses_real_collision_path(
         )
         assert pane._status_message == "A project initialization is already running."
         gate.set()
+
+
+async def test_apply_completion_refresh_preserves_selected_project(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    records = [
+        make_project_record("alpha", state="enabled"),
+        make_project_record("beta", state="enabled"),
+    ]
+    _patch_panes(monkeypatch, records=records)
+    async with AcePage() as page:
+        submitted = _install_submit(page)
+        _center, pane = await _open_projects(page)
+        option_list = pane.query_one("#projects-list", OptionList)
+        option_list.highlighted = 1
+        await page.pause()
+        assert pane._selected_project_name() == "beta"
+
+        await page.press("i")
+        await page.pause()
+        args, kwargs, handle = submitted[0]
+        payload = _drift_payload("beta")
+        kwargs["on_complete"](_completion(handle.proc_id, payload))
+        await page.expect_modal("InitPlanModal")
+        await page.press("y")
+        await page.wait_for(lambda _s: len(submitted) == 2)
+
+        records[:] = [
+            make_project_record("beta", state="enabled"),
+            make_project_record("alpha", state="enabled"),
+        ]
+        apply_args, apply_kwargs, apply_handle = submitted[1]
+        apply_reporter = _RecordingReporter(
+            stdout="Initialization summary: 1 initialized\n",
+            returncode=0,
+        )
+        apply_result = apply_args[1](apply_reporter)
+        apply_kwargs["on_complete"](
+            _completion(
+                apply_handle.proc_id,
+                apply_result.payload,
+                proc_type="init-apply",
+                message=apply_result.message,
+            )
+        )
+        await page.pause()
+
+        assert pane._selected_project_name() == "beta"
+        assert option_list.highlighted == 0
+        assert "Initialized 1" in pane._status_message
+
+
+async def test_apply_timeout_surfaces_failure_and_refreshes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_panes(monkeypatch)
+    async with AcePage() as page:
+        submitted = _install_submit(page)
+        notices: list[tuple[str, str]] = []
+        original_notify = page.app.notify
+
+        def capture(message: str, **kwargs: Any) -> None:
+            notices.append((message, str(kwargs.get("severity", "information"))))
+            original_notify(message, **kwargs)
+
+        page.app.notify = capture  # type: ignore[method-assign]
+        _center, pane = await _open_projects(page)
+
+        await page.press("i")
+        await page.pause()
+        args, kwargs, handle = submitted[0]
+        payload = _drift_payload("alpha")
+        kwargs["on_complete"](_completion(handle.proc_id, payload))
+        await page.expect_modal("InitPlanModal")
+        await page.press("y")
+        await page.wait_for(lambda _s: len(submitted) == 2)
+
+        apply_args, apply_kwargs, apply_handle = submitted[1]
+        timeout_reporter = _TimeoutReporter()
+        apply_result = apply_args[1](timeout_reporter)
+        apply_kwargs["on_complete"](
+            _completion(
+                apply_handle.proc_id,
+                apply_result.payload,
+                success=False,
+                proc_type="init-apply",
+                message=apply_result.message,
+                error=apply_result.error,
+            )
+        )
+        await page.pause()
+
+        assert apply_result.payload is not None
+        assert apply_result.payload.kind == "failure"
+        assert any(
+            "timed out" in message and severity == "error"
+            for message, severity in notices
+        )
+        assert "timed out" in pane._status_message
+        assert pane._selected_project_name() == "alpha"
 
 
 async def test_terminal_valve_suspends_runs_scoped_argv_and_reloads(
