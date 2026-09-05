@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panel_index import (
@@ -19,10 +19,6 @@ _DISMISSABLE = {
     "TALE DONE",
     "EPIC CREATED",
 }
-
-#: A reference time well inside STARTING_ROW_HIDE_GRACE_SECONDS of every
-#: fixture's fixed start_time, so STARTING rows hide deterministically.
-_WITHIN_GRACE_WINDOW = datetime(2026, 4, 25, 12, 0, 30)
 
 
 def _agent(
@@ -89,7 +85,6 @@ def test_starting_agents_keep_keys_but_are_hidden_from_panel_slices() -> None:
     index = build_agent_panel_index(
         [a0, a1, a2, a3],
         dismissable_statuses=_DISMISSABLE,
-        now=_WITHIN_GRACE_WINDOW,
     )
 
     assert index.keys_per_agent == [None, "alpha", "alpha", "beta"]
@@ -118,9 +113,7 @@ def test_top_level_total_includes_hidden_starting_but_not_children() -> None:
         raw_suffix=None, status="STARTING", parent_timestamp="parent"
     )
     agents = [parent, starting, child, starting_child]
-    index = build_agent_panel_index(
-        agents, dismissable_statuses=_DISMISSABLE, now=_WITHIN_GRACE_WINDOW
-    )
+    index = build_agent_panel_index(agents, dismissable_statuses=_DISMISSABLE)
 
     assert index.non_child_indices == [0]
     assert index.hidden_starting_indices == [1]
@@ -198,36 +191,51 @@ def test_slice_for_unknown_key_returns_empty_slice() -> None:
     assert empty.global_to_local == {}
 
 
-def test_starting_row_past_grace_window_renders_instead_of_hiding() -> None:
-    """A STARTING row outlives the grace window and must stop being a phantom.
+def test_starting_rows_stay_hidden_at_every_age() -> None:
+    """A STARTING row is always hidden, regardless of ``start_time`` age.
 
-    Regression test for the permanent-``1 starting`` bug: a claim row whose
-    artifacts dir never resolves stays STARTING forever, and unconditionally
-    hiding STARTING rows turned that into an invisible headline count. Once
-    a STARTING row is older than STARTING_ROW_HIDE_GRACE_SECONDS it must
-    render as a normal, selectable row instead — and the headline total
-    (top_level_total) must not change just because the row moved from the
-    hidden bucket to the rendered one.
+    Regression test for a count-only contract violation: a claim row whose
+    artifacts dir never resolves used to age out of hiding and reappear as a
+    normal, selectable row — reintroducing the phantom node the ``<N>
+    starting`` headline count exists to replace. Status is the only signal;
+    age, a missing ``start_time``, and a ``start_time`` in the future must
+    never expose the row.
     """
-    start = datetime(2026, 4, 25, 12, 0, 0)
-    within_window = _agent(raw_suffix="fresh", status="STARTING", start_time=start)
-    past_window = _agent(raw_suffix="stale", status="STARTING", start_time=start)
-    agents = [within_window, past_window]
-
-    hidden_index = build_agent_panel_index(
-        agents,
-        dismissable_statuses=_DISMISSABLE,
-        now=datetime(2026, 4, 25, 12, 0, 30),
+    now = datetime(2026, 4, 25, 12, 0, 30)
+    recent = _agent(raw_suffix="recent", status="STARTING", start_time=now)
+    boundary = _agent(
+        raw_suffix="boundary",
+        status="STARTING",
+        start_time=now - timedelta(seconds=120),
     )
-    assert hidden_index.hidden_starting_indices == [0, 1]
-    assert hidden_index.non_child_indices == []
-    assert hidden_index.top_level_total == 2
-
-    rendered_index = build_agent_panel_index(
-        agents,
-        dismissable_statuses=_DISMISSABLE,
-        now=datetime(2026, 4, 25, 12, 2, 30),
+    stale = _agent(
+        raw_suffix="stale", status="STARTING", start_time=now - timedelta(hours=6)
     )
-    assert rendered_index.hidden_starting_indices == []
-    assert rendered_index.non_child_indices == [0, 1]
-    assert rendered_index.top_level_total == 2
+    missing_time = _agent(raw_suffix="missing", status="STARTING", start_time=None)
+    future = _agent(
+        raw_suffix="future", status="STARTING", start_time=now + timedelta(hours=1)
+    )
+    agents = [recent, boundary, stale, missing_time, future]
+
+    index = build_agent_panel_index(agents, dismissable_statuses=_DISMISSABLE)
+
+    assert index.hidden_starting_indices == [0, 1, 2, 3, 4]
+    assert index.non_child_indices == []
+    assert index.panels == {}
+    assert index.top_level_total == 5
+
+
+def test_non_starting_rows_render_regardless_of_start_time_age() -> None:
+    """Non-STARTING controls stay selectable with old or missing timestamps."""
+    now = datetime(2026, 4, 25, 12, 0, 30)
+    old_running = _agent(
+        raw_suffix="old", status="RUNNING", start_time=now - timedelta(hours=6)
+    )
+    no_start_time = _agent(raw_suffix="no-start", status="WAIT", start_time=None)
+    agents = [old_running, no_start_time]
+
+    index = build_agent_panel_index(agents, dismissable_statuses=_DISMISSABLE)
+
+    assert index.hidden_starting_indices == []
+    assert index.non_child_indices == [0, 1]
+    assert index.top_level_total == 2

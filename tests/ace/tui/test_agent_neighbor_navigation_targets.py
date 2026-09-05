@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sase.ace.tui.modals import AgentNeighborModal
 from sase.ace.tui.models import filter_agents_by_fold_state
 from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
@@ -542,6 +544,8 @@ def test_folded_clan_neighbor_excludes_starting_and_dismissed_members() -> None:
         generation="one",
     )
     starting.status = "STARTING"
+    # An old start_time must not resurrect the row as a neighbor target.
+    starting.start_time = datetime(2020, 1, 1, 0, 0, 0)
     dismissed = _clan_member(
         "foo.dismissed",
         clan="reviewers",

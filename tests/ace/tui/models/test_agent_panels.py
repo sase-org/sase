@@ -217,6 +217,34 @@ def test_rendered_no_tribe_row_with_starting_row_shows_no_tribe_panel() -> None:
     assert group.focused_key is None
 
 
+def test_starting_only_tribe_merged_mode_excludes_rows_from_default_panel() -> None:
+    """Merged mode has a single ``@default`` panel, but STARTING rows stay out of it."""
+    agents = [
+        _agent(suffix="a", tribe="alpha", status="STARTING", start_time=local_now()),
+        _agent(suffix="b", tribe="beta", status="STARTING", start_time=None),
+    ]
+
+    group = AgentPanelGroup.from_agents(agents, merge_tribe_panels=True)
+
+    assert group.panel_keys == [None]
+    assert agents_for_panel(agents, None, merge_tribe_panels=True) == []
+
+
+def test_stale_and_missing_start_time_starting_rows_stay_hidden() -> None:
+    """A STARTING row never earns a tribe panel, no matter its start_time age."""
+    stale = datetime(2020, 1, 1, 0, 0, 0)
+    agents = [
+        _agent(suffix="a", tribe="alpha", status="STARTING", start_time=stale),
+        _agent(suffix="b", tribe="beta", status="STARTING", start_time=None),
+        _agent(suffix="c", tribe="gamma", status="RUNNING"),
+    ]
+
+    group = AgentPanelGroup.from_agents(agents)
+
+    assert group.panel_keys == ["gamma"]
+    assert group.focused_key == "gamma"
+
+
 def test_workflow_child_inherits_parent_tribe_without_empty_no_tribe_panel() -> None:
     parent = _agent(suffix="parent", tribe="fix", name="parent")
     child = _agent(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -110,6 +111,7 @@ def test_visible_agent_completion_agents_falls_back_when_no_widgets(
         agent_name="starting",
         raw_suffix="260624_120031",
         status="STARTING",
+        start_time=datetime(2020, 1, 1, 0, 0, 0),
     )
     second = _agent(tmp_path, agent_name="second", raw_suffix="260624_120032")
     app = _CompletionApp([first, hidden_starting, second], None)
@@ -265,6 +267,7 @@ def test_visible_agent_completion_agents_preserves_non_clan_visibility(
         agent_name="eligible.starting",
         raw_suffix="260624_120072",
         status="STARTING",
+        start_time=None,
         agent_clan="crew",
         agent_clan_generation="generation",
     )

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
+
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.core.time import local_now
 from sase.ace.tui.widgets._agent_list_styling import (
@@ -109,7 +111,17 @@ def test_by_status_mode_emits_status_bucket_banners() -> None:
     ]
 
 
-def test_by_status_mode_hides_starting_bucket() -> None:
+_STARTING_START_TIMES = pytest.mark.parametrize(
+    "starting_start_time",
+    [local_now(), datetime(2020, 1, 1, 0, 0, 0), None],
+    ids=["fresh", "stale", "missing"],
+)
+
+
+@_STARTING_START_TIMES
+def test_by_status_mode_hides_starting_bucket(
+    starting_start_time: datetime | None,
+) -> None:
     widget = AgentList()
     widget.update_list(
         [
@@ -131,7 +143,7 @@ def test_by_status_mode_hides_starting_bucket() -> None:
             make_agent(
                 cl_name="starting",
                 status="STARTING",
-                start_time=local_now(),
+                start_time=starting_start_time,
             ),
             make_agent(
                 cl_name="running",
@@ -160,12 +172,17 @@ def test_by_status_mode_hides_starting_bucket() -> None:
     assert all("starting" not in option.prompt.plain for option in widget._options)  # type: ignore[union-attr]
 
 
-def test_standard_mode_hides_starting_agent_rows() -> None:
+@_STARTING_START_TIMES
+def test_standard_mode_hides_starting_agent_rows(
+    starting_start_time: datetime | None,
+) -> None:
     widget = AgentList()
     widget.update_list(
         [
             make_agent(
-                cl_name="hidden-start", status="STARTING", start_time=local_now()
+                cl_name="hidden-start",
+                status="STARTING",
+                start_time=starting_start_time,
             ),
             make_agent(cl_name="visible-run", status="RUNNING"),
         ],

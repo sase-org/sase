@@ -14,6 +14,10 @@ from sase.ace.tui.models.agent_panel_index import AgentPanelIndex
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.core.time import local_now
 
+#: Sentinel distinguishing "use the default start_time" from an explicit
+#: ``start_time=None`` (a STARTING row with no ``start_time`` at all).
+_DEFAULT_START_TIME = object()
+
 
 def _agent(
     *,
@@ -26,13 +30,17 @@ def _agent(
     agent_family_role: str | None = None,
     plan_chain_root: bool = False,
     clan: str | None = None,
+    start_time: datetime | None | object = _DEFAULT_START_TIME,
 ) -> Agent:
+    resolved_start_time = (
+        local_now() if start_time is _DEFAULT_START_TIME else start_time
+    )
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="cl",
         project_file="/r/p/p.sase",
         status=status,
-        start_time=local_now(),
+        start_time=resolved_start_time,  # type: ignore[arg-type]
         agent_name="alpha",
         tribe=tribe,
         raw_suffix=suffix,
@@ -235,17 +243,20 @@ def test_non_child_position_is_o1_lookup() -> None:
 
 
 def test_sync_panel_group_snaps_selection_off_hidden_starting_row() -> None:
-    agents = [
-        _agent(suffix="starting", status="STARTING"),
-        _agent(suffix="running", status="RUNNING"),
-    ]
-    bare = _Bare(agents)
-    bare.current_idx = 0
+    for starting_start_time in (local_now(), datetime(2020, 1, 1, 0, 0, 0), None):
+        agents = [
+            _agent(
+                suffix="starting", status="STARTING", start_time=starting_start_time
+            ),
+            _agent(suffix="running", status="RUNNING"),
+        ]
+        bare = _Bare(agents)
+        bare.current_idx = 0
 
-    bare._sync_panel_group()
+        bare._sync_panel_group()
 
-    assert bare.current_idx == 1
-    assert bare._panel_group.panel_keys == [None]
+        assert bare.current_idx == 1
+        assert bare._panel_group.panel_keys == [None]
 
 
 class _RecordingInfoPanel:
@@ -420,6 +431,70 @@ def test_info_panel_total_counts_lone_hidden_starting_agent() -> None:
     assert info_panel.position == (0, 0)
     # (unread, asking, starting, running, waiting, failed, read, total)
     assert info_panel.counts == (0, 0, 1, 0, 0, 0, 0, 1)
+
+
+def test_info_panel_total_counts_stay_coherent_at_every_starting_age() -> None:
+    """Counts must not depend on how old (or absent) a STARTING start_time is.
+
+    A lone starting agent always yields zero selectable rows, a starting
+    count of 1, and a headline total of 1 — with a visible running agent
+    added, one selectable row, a starting count of 1, and a headline total
+    of 2.
+    """
+    stale = datetime(2020, 1, 1, 0, 0, 0)
+    for starting_start_time in (stale, None):
+        lone_bare = _Bare(
+            [
+                _agent(
+                    suffix="starting", status="STARTING", start_time=starting_start_time
+                )
+            ]
+        )
+        lone_bare.current_idx = -1
+        lone_info_panel = _run_info_panel(lone_bare)
+        assert lone_info_panel.position == (0, 0)
+        assert lone_info_panel.counts == (0, 0, 1, 0, 0, 0, 0, 1)
+
+        with_running_bare = _Bare(
+            [
+                _agent(
+                    suffix="starting", status="STARTING", start_time=starting_start_time
+                ),
+                _agent(suffix="running", status="RUNNING"),
+            ]
+        )
+        with_running_bare.current_idx = -1
+        with_running_info_panel = _run_info_panel(with_running_bare)
+        assert with_running_info_panel.position == (0, 1)
+        assert with_running_info_panel.counts == (0, 0, 1, 1, 0, 0, 0, 2)
+
+
+def test_real_status_transition_reveals_previously_hidden_starting_row() -> None:
+    """A genuine STARTING→RUNNING transition, not age, is what reveals a row.
+
+    Replacing the loaded agent list (the normal refresh-invalidation path)
+    with a same-identity agent whose status flipped from an old ``STARTING``
+    to ``RUNNING`` must make the row appear exactly once, drop the starting
+    count to zero, and leave the headline total unchanged.
+    """
+    stale = datetime(2020, 1, 1, 0, 0, 0)
+    starting_agent = _agent(suffix="flipping", status="STARTING", start_time=stale)
+    bare = _Bare([starting_agent])
+    bare.current_idx = -1
+
+    before = _run_info_panel(bare)
+    assert before.position == (0, 0)
+    assert before.counts == (0, 0, 1, 0, 0, 0, 0, 1)
+
+    running_agent = _agent(suffix="flipping", status="RUNNING", start_time=stale)
+    assert running_agent.identity == starting_agent.identity
+    bare._agents = [running_agent]
+    bare.current_idx = 0
+
+    after = _run_info_panel(bare)
+    assert after.position == (1, 1)
+    assert after.counts == (0, 0, 0, 1, 0, 0, 0, 1)
+    assert bare._get_selected_agent() is running_agent
 
 
 def test_info_panel_projects_parallel_family_member_statuses() -> None:

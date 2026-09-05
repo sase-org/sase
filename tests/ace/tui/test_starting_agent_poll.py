@@ -11,12 +11,15 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from sase.ace.tui.actions.agents._loading_refresh import AgentLoadingRefreshMixin
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_panel_index import build_agent_panel_index
 
 
 @dataclass
@@ -256,6 +259,46 @@ def test_stuck_starting_agent_does_not_grow_cache(tmp_path: Path) -> None:
     app._poll_starting_agent_transitions()
     assert app._starting_poll_meta_cache == {}, (
         "cache must shrink when no STARTING agent remains"
+    )
+
+
+def test_old_starting_agent_stays_a_real_index_polling_candidate(
+    tmp_path: Path,
+) -> None:
+    """An old STARTING row remains eligible for the marker poll.
+
+    ``hidden_starting_indices`` no longer depends on how old the row's
+    ``start_time`` is (regression coverage for the removed grace window):
+    a real ``AgentPanelIndex`` built from an old STARTING agent still hides
+    it, and the poll still nudges a refresh for it exactly as it would for
+    a fresh claim.
+    """
+    real_agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="cl-old",
+        project_file="/r/p/p.sase",
+        status="STARTING",
+        start_time=datetime(2020, 1, 1, 0, 0, 0),
+        agent_name="old-starting",
+        raw_suffix="old-starting",
+    )
+    real_index = build_agent_panel_index([real_agent], dismissable_statuses=set())
+    assert real_index.hidden_starting_indices == [0]
+
+    artifacts_dir = tmp_path / "old-starting-agent"
+    meta_path = artifacts_dir / "agent_meta.json"
+    _write_marker(meta_path, "{}")
+
+    app = _PollApp()
+    agent = _FakeAgent(identity_key="cl-old", artifacts_dir=str(artifacts_dir))
+    app._agents = [agent]  # type: ignore[list-item]
+    app._panel_index = _FakePanelIndex(
+        hidden_starting_indices=real_index.hidden_starting_indices
+    )
+
+    app._poll_starting_agent_transitions()
+    assert len(app._scheduled) == 1, (
+        "an old STARTING row must still be polled for its real transition"
     )
 
 
