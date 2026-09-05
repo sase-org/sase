@@ -61,6 +61,8 @@ class PromptHit:
         cancelled: Local: the entry's cancelled flag. Archive: ``None``.
         also_in_local: ``True`` on an archive hit when a local entry with the same
             ``text_sha256`` was collapsed into it during de-duplication.
+        render_record: Private local-history rendering snapshot used by ``full``
+            output. It is excluded from equality, ranking, and JSON payloads.
     """
 
     source: PromptSource
@@ -75,6 +77,11 @@ class PromptHit:
     tags: tuple[str, ...] = ()
     cancelled: bool | None = None
     also_in_local: bool = False
+    render_record: object | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
 
     @property
     def text_chars(self) -> int:

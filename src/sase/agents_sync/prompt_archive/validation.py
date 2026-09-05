@@ -10,6 +10,10 @@ import re
 from typing import Any, Literal, cast
 from urllib.parse import unquote, urlsplit
 
+from sase.core.prompt_archive_facade import (
+    PromptArchiveDocument,
+    prompt_archive_inventory,
+)
 from sase.core.prompt_artifact_staging import (
     PROMPT_ARTIFACT_MANIFEST_NAME,
     PromptArtifactRecord,
@@ -17,10 +21,8 @@ from sase.core.prompt_artifact_staging import (
 from sase.core.rust import require_rust_binding
 from sase.sdd._paths import has_month_dirs, is_month_dir_name
 from sase.sdd.plan_header_block import (
-    PlanHeaderDisposition,
     PlanHeaderSection,
     PlanHeaderSectionKind,
-    parse_plan_header_block,
 )
 from sase.sdd.plan_refs import PLAN_REFERENCE_PREFIX
 
@@ -116,27 +118,24 @@ def validate_prompt_archive(
     referenced_artifacts: set[Path] = set()
     agents_by_month: dict[str, set[str]] = {}
 
-    for path in _prompt_paths(root, month):
-        prompt, sections, parse_error = _read_prompt(path)
-        relpath = path.relative_to(root).as_posix()
-        prompt_month = path.parent.name
+    for document in prompt_archive_inventory(root, month=month):
+        prompt = document.body
+        sections = document.sections
+        parse_error = document.parse_error
+        relpath = document.relpath
+        prompt_month = document.month
+        path = document.path
         plan = _section(sections, PlanHeaderSectionKind.PLAN)
         agents = _section(sections, PlanHeaderSectionKind.AGENTS)
         artifacts = _section(sections, PlanHeaderSectionKind.ARTIFACTS)
         agent_labels = tuple(entry.label for entry in agents.entries) if agents else ()
         agents_by_month.setdefault(prompt_month, set()).update(agent_labels)
         files.append(
-            _PromptArchiveFile(
-                path=path,
-                relpath=relpath,
-                month=prompt_month,
-                name=path.stem,
-                title=_document_title(prompt, path.stem),
-                plan_label=plan.label if plan is not None else None,
-                plan_target=plan.target if plan is not None else None,
-                agent_labels=agent_labels,
-                artifact_count=len(artifacts.entries) if artifacts is not None else 0,
-                parse_error=parse_error,
+            _archive_file_from_document(
+                document,
+                plan=plan,
+                agents=agents,
+                artifacts=artifacts,
             )
         )
         if parse_error is not None:
@@ -219,7 +218,10 @@ def list_prompt_archive_files(
 ) -> tuple[_PromptArchiveFile, ...]:
     """Return prompt inventory without validating counterpart repositories."""
 
-    return validate_prompt_archive(repo, month=month).files
+    return tuple(
+        _archive_file_from_document(document)
+        for document in prompt_archive_inventory(repo, month=month)
+    )
 
 
 def resolve_prompt_archive_file(
@@ -250,13 +252,31 @@ def resolve_prompt_archive_file(
     return candidates[0]
 
 
-def _prompt_paths(root: Path, month: str | None) -> tuple[Path, ...]:
-    prompts_root = root / "prompts"
-    pattern = f"{month}/*.md" if month is not None else "*/*.md"
-    return tuple(
-        path
-        for path in sorted(prompts_root.glob(pattern))
-        if path.name != "README.md" and path.parent.name != "README.md"
+def _archive_file_from_document(
+    document: PromptArchiveDocument,
+    *,
+    plan: PlanHeaderSection | None = None,
+    agents: PlanHeaderSection | None = None,
+    artifacts: PlanHeaderSection | None = None,
+) -> _PromptArchiveFile:
+    if plan is None:
+        plan = _section(document.sections, PlanHeaderSectionKind.PLAN)
+    if agents is None:
+        agents = _section(document.sections, PlanHeaderSectionKind.AGENTS)
+    if artifacts is None:
+        artifacts = _section(document.sections, PlanHeaderSectionKind.ARTIFACTS)
+    agent_labels = tuple(entry.label for entry in agents.entries) if agents else ()
+    return _PromptArchiveFile(
+        path=document.path,
+        relpath=document.relpath,
+        month=document.month,
+        name=document.name,
+        title=_document_title(document.body, document.name),
+        plan_label=plan.label if plan is not None else None,
+        plan_target=plan.target if plan is not None else None,
+        agent_labels=agent_labels,
+        artifact_count=len(artifacts.entries) if artifacts is not None else 0,
+        parse_error=document.parse_error,
     )
 
 
@@ -266,19 +286,6 @@ def _artifact_paths(root: Path, month: str | None) -> tuple[Path, ...]:
     return tuple(
         path for path in sorted(artifacts_root.glob(pattern)) if path.is_file()
     )
-
-
-def _read_prompt(
-    path: Path,
-) -> tuple[str, tuple[PlanHeaderSection, ...], str | None]:
-    try:
-        document = path.read_text(encoding="utf-8")
-        parsed = parse_plan_header_block(document)
-    except (OSError, UnicodeError, RuntimeError, ValueError) as exc:
-        return "", (), str(exc) or type(exc).__name__
-    if parsed.disposition is PlanHeaderDisposition.INVALID:
-        return parsed.body, parsed.sections, parsed.reason or "invalid prompt header"
-    return parsed.body, parsed.sections, None
 
 
 def _section(

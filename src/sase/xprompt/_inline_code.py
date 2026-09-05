@@ -6,6 +6,11 @@ from collections.abc import Callable, Iterable
 from functools import cache
 from typing import Any
 
+from ._utf8_offsets import (
+    byte_offsets_to_character_offsets as _byte_offsets_to_character_offsets,
+    character_offsets_to_byte_offsets as _character_offsets_to_byte_offsets,
+)
+
 
 def inline_code_spans(
     text: str,
@@ -27,28 +32,31 @@ def inline_code_spans(
             (int(start), int(end)) for start, end in _scanner()(text, character_masks)
         ]
 
-    character_to_byte = _character_to_byte_offsets(text)
+    character_to_byte = _character_offsets_to_byte_offsets(
+        text,
+        _range_endpoints(character_masks),
+    )
     byte_masks = [
         (character_to_byte[start], character_to_byte[end])
         for start, end in character_masks
     ]
     byte_ranges = _scanner()(text, byte_masks)
-    byte_to_character = {
-        byte_offset: character_offset
-        for character_offset, byte_offset in enumerate(character_to_byte)
-    }
+    if not byte_ranges:
+        return []
+    byte_to_character = _byte_offsets_to_character_offsets(
+        text,
+        _range_endpoints((int(start), int(end)) for start, end in byte_ranges),
+    )
     return [
         (byte_to_character[int(start)], byte_to_character[int(end)])
         for start, end in byte_ranges
     ]
 
 
-def _character_to_byte_offsets(text: str) -> list[int]:
-    offsets = [0]
-    byte_offset = 0
-    for character in text:
-        byte_offset += len(character.encode("utf-8"))
-        offsets.append(byte_offset)
+def _range_endpoints(ranges: Iterable[tuple[int, int]]) -> list[int]:
+    offsets: list[int] = []
+    for start, end in ranges:
+        offsets.extend((start, end))
     return offsets
 
 

@@ -1,5 +1,25 @@
 # Performance Recipes
 
+## Prompt Search
+
+Measure fresh-process `sase prompt search` on disposable synthetic prompt stores:
+
+```bash
+just bench-prompt-search
+```
+
+The default corpus uses 5,000 archived prompts and 8,000 local history entries with
+Unicode text, many fenced code blocks, long tail-only matches, metadata-only hits,
+cross-source duplicates, and artifact-heavy archive headers. The harness runs compact,
+JSON, and full output across `all`, `archive`, and `local` source selections for common,
+rare-tail, and no-match queries, captures output bytes, and prints phase medians for
+imports/root resolution, archive loading, local loading, matching, rendering, elapsed
+time, and peak memory. Use smaller counts while iterating, for example:
+
+```bash
+just bench-prompt-search --archive-count 100 --local-count 150 --runs 1
+```
+
 ## Plugins Catalog Scale
 
 Measure the Updates tab's Plugins rows (and the shared fetch/enrich paths behind them)

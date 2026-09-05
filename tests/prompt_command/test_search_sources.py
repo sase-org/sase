@@ -8,12 +8,14 @@ from pathlib import Path
 import pytest
 
 from sase.history.prompt_store import PromptEntry, save_prompt_history
+import sase.prompt.search.sources as search_sources
 from sase.prompt.search.model import PromptHit, PromptSource
 from sase.prompt.search.sources import (
     collect_prompt_hits,
     load_archive_prompt_hits,
     load_local_prompt_hits,
 )
+from sase.history.prompt_metadata import summarize_prompt_for_search
 
 
 def _sha256(text: str) -> str:
@@ -131,6 +133,128 @@ def test_archive_tags_combine_frontmatter_and_body(tmp_path: Path) -> None:
 
     assert set(hit.tags) == {"review", "auth", "widget"}
     assert sum(tag.casefold() == "review" for tag in hit.tags) == 1
+
+
+def test_archive_search_frontmatter_fast_path_skips_yaml_parser(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write(
+        tmp_path / "prompts/202604/simple.md",
+        _archive_prompt(
+            "simple body",
+            frontmatter=(
+                "sha256: abc\n"
+                "last_used: '260512_143000'\n"
+                "prompt_tags:\n"
+                "  - review\n"
+                "  - auth\n"
+            ),
+        ),
+    )
+
+    def fail_parse_frontmatter(content: str) -> object:
+        raise AssertionError("simple search frontmatter should not use PyYAML")
+
+    monkeypatch.setattr(
+        search_sources,
+        "parse_frontmatter",
+        fail_parse_frontmatter,
+    )
+
+    hit = load_archive_prompt_hits(tmp_path)[0]
+
+    assert hit.text_sha256 == "abc"
+    assert hit.date == "260512_143000"
+    assert hit.tags == ("review", "auth")
+
+
+def test_archive_search_frontmatter_falls_back_for_complex_yaml(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write(
+        tmp_path / "prompts/202604/complex.md",
+        _archive_prompt(
+            "complex body",
+            frontmatter=("sha256: abc\nextra:\n  owner: test\nprompt_tags: [review]\n"),
+        ),
+    )
+    calls = 0
+    original = search_sources.parse_frontmatter
+
+    def counted_parse_frontmatter(content: str) -> object:
+        nonlocal calls
+        calls += 1
+        return original(content)
+
+    monkeypatch.setattr(search_sources, "parse_frontmatter", counted_parse_frontmatter)
+
+    hit = load_archive_prompt_hits(tmp_path)[0]
+
+    assert calls == 1
+    assert hit.tags == ("review",)
+
+
+def test_archive_search_does_not_run_archive_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write(
+        tmp_path / "prompts/202604/search_only.md",
+        _archive_prompt(
+            "Search should see this prompt without checking artifact bytes.",
+            artifacts=("missing.txt",),
+        ),
+    )
+
+    def fail_validation(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("search must not call validate_prompt_archive")
+
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.validation.validate_prompt_archive",
+        fail_validation,
+    )
+
+    hits = load_archive_prompt_hits(tmp_path)
+
+    assert [hit.id for hit in hits] == ["search_only"]
+    assert hits[0].artifact_count == 1
+
+
+def test_search_sources_reuse_one_metadata_summary_per_prompt(
+    tmp_path: Path,
+    history_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write(
+        tmp_path / "prompts/202604/archived.md",
+        _archive_prompt("Archived #review body"),
+    )
+    save_prompt_history(
+        [
+            PromptEntry(
+                text="Local #review body",
+                timestamp="260601_090000",
+                last_used="260601_090000",
+            )
+        ]
+    )
+    calls: list[str] = []
+
+    def counted(text: str) -> object:
+        calls.append(text)
+        return summarize_prompt_for_search(text)
+
+    monkeypatch.setattr(
+        "sase.prompt.search.sources.summarize_prompt_for_search",
+        counted,
+    )
+
+    hits = collect_prompt_hits([PromptSource.ARCHIVE, PromptSource.LOCAL], tmp_path)
+
+    assert len(hits) == 2
+    assert calls == ["Archived #review body", "Local #review body"]
 
 
 @pytest.mark.usefixtures("history_file")

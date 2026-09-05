@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from typing import Any
+
+from sase.xprompt import _inline_code
 from sase.xprompt._directive_alt import split_prompt_for_alternatives
 from sase.xprompt._fenced_blocks import (
     protect_fenced_blocks,
@@ -68,6 +71,43 @@ def test_inline_scanner_converts_unicode_offsets_at_binding_boundary() -> None:
     assert inline_code_spans(text) == [(1, 4), (5, 8)]
     assert _sources(text, inline_code_spans(text)) == ["`值`", "`ß`"]
     assert inline_code_spans(text, masked_ranges=[(1, 4)]) == [(5, 8)]
+
+
+def test_inline_scanner_batches_unicode_offset_conversion(monkeypatch: Any) -> None:
+    character_calls: list[list[int]] = []
+    byte_calls: list[list[int]] = []
+    real_character_convert = _inline_code._character_offsets_to_byte_offsets
+    real_byte_convert = _inline_code._byte_offsets_to_character_offsets
+    text = "é " + " ".join(f"`值{i}`" for i in range(20))
+    masked = (text.index("`值0`"), text.index("`值0`") + len("`值0`"))
+
+    def counted_character(text: str, offsets: Any) -> dict[int, int]:
+        values = list(offsets)
+        character_calls.append(values)
+        return real_character_convert(text, values)
+
+    def counted_byte(text: str, offsets: Any) -> dict[int, int]:
+        values = list(offsets)
+        byte_calls.append(values)
+        return real_byte_convert(text, values)
+
+    monkeypatch.setattr(
+        _inline_code,
+        "_character_offsets_to_byte_offsets",
+        counted_character,
+    )
+    monkeypatch.setattr(
+        _inline_code,
+        "_byte_offsets_to_character_offsets",
+        counted_byte,
+    )
+
+    spans = inline_code_spans(text, masked_ranges=[masked])
+
+    assert len(spans) == 19
+    assert character_calls == [[masked[0], masked[1]]]
+    assert len(byte_calls) == 1
+    assert len(byte_calls[0]) == len(spans) * 2
 
 
 def test_launch_masks_reference_and_directive_argument_backticks() -> None:

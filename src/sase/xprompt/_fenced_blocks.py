@@ -11,6 +11,10 @@ from dataclasses import dataclass
 from functools import cache
 from typing import Any
 
+from ._utf8_offsets import (
+    byte_offsets_to_character_offsets as _byte_offsets_to_character_offsets,
+)
+
 
 _PLACEHOLDER_PREFIX = "\x00XPF_"
 _PLACEHOLDER_SUFFIX = "\x00"
@@ -90,7 +94,9 @@ def fenced_block_details(text: str) -> list[_FencedBlockDetails]:
     rows = _details_scanner()(text)
     if not isinstance(rows, list):
         return []
-    return [_details_from_wire(text, row) for row in rows if isinstance(row, dict)]
+    dict_rows = [row for row in rows if isinstance(row, dict)]
+    mapping = _byte_offsets_to_character_offsets(text, _row_byte_offsets(dict_rows))
+    return [_details_from_wire(row, mapping) for row in dict_rows]
 
 
 def unprotect_fenced_blocks(text: str, blocks: list[str]) -> str:
@@ -109,43 +115,53 @@ def unprotect_fenced_blocks(text: str, blocks: list[str]) -> str:
     return text
 
 
-def _details_from_wire(text: str, row: dict[str, Any]) -> _FencedBlockDetails:
+def _details_from_wire(
+    row: dict[str, Any],
+    byte_to_character: dict[int, int],
+) -> _FencedBlockDetails:
     return _FencedBlockDetails(
-        block_range=_pair(text, row.get("block_range")),
-        opening_fence=_pair(text, row.get("opening_fence")),
-        info_string=_optional_pair(text, row.get("info_string")),
-        content_range=_pair(text, row.get("content_range")),
-        closing_fence=_optional_pair(text, row.get("closing_fence")),
+        block_range=_pair(row.get("block_range"), byte_to_character),
+        opening_fence=_pair(row.get("opening_fence"), byte_to_character),
+        info_string=_optional_pair(row.get("info_string"), byte_to_character),
+        content_range=_pair(row.get("content_range"), byte_to_character),
+        closing_fence=_optional_pair(row.get("closing_fence"), byte_to_character),
     )
 
 
-def _optional_pair(text: str, raw: Any) -> tuple[int, int] | None:
+def _row_byte_offsets(rows: list[dict[str, Any]]) -> list[int]:
+    offsets: list[int] = []
+    for row in rows:
+        for key in (
+            "block_range",
+            "opening_fence",
+            "info_string",
+            "content_range",
+            "closing_fence",
+        ):
+            raw = row.get(key)
+            if isinstance(raw, list) and len(raw) == 2:
+                offsets.extend((int(raw[0]), int(raw[1])))
+    return offsets
+
+
+def _optional_pair(
+    raw: Any,
+    byte_to_character: dict[int, int],
+) -> tuple[int, int] | None:
     if raw is None:
         return None
-    return _pair(text, raw)
+    return _pair(raw, byte_to_character)
 
 
-def _pair(text: str, raw: Any) -> tuple[int, int]:
+def _pair(raw: Any, byte_to_character: dict[int, int]) -> tuple[int, int]:
     if not isinstance(raw, list) or len(raw) != 2:
         return (0, 0)
-    return _byte_range_to_character(text, int(raw[0]), int(raw[1]))
-
-
-def _byte_range_to_character(text: str, start: int, end: int) -> tuple[int, int]:
-    if text.isascii():
-        return start, end
-    mapping = _byte_to_character(text)
-    return mapping.get(start, start), mapping.get(end, end)
-
-
-def _byte_to_character(text: str) -> dict[int, int]:
-    mapping: dict[int, int] = {}
-    byte_offset = 0
-    for character_offset, character in enumerate(text):
-        mapping[byte_offset] = character_offset
-        byte_offset += len(character.encode("utf-8"))
-    mapping[byte_offset] = len(text)
-    return mapping
+    start = int(raw[0])
+    end = int(raw[1])
+    return (
+        byte_to_character.get(start, start),
+        byte_to_character.get(end, end),
+    )
 
 
 @cache

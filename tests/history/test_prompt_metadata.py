@@ -10,6 +10,7 @@ from sase.history.prompt_metadata import (
     clean_prompt_preview,
     summarize_prompt_for_list,
     summarize_prompt_for_preview,
+    summarize_prompt_for_search,
 )
 
 
@@ -61,6 +62,40 @@ def test_summarize_prompt_for_list_uses_underscore_vcs_basename() -> None:
     assert summary.project_ref_display == "beads"
     assert summary.xprompts == ()
     assert summary.clean_preview == "Fix parser"
+
+
+def test_summarize_prompt_for_search_keeps_preview_when_workflows_fail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_workflows() -> frozenset[str]:
+        raise RuntimeError("workflow metadata unavailable")
+
+    monkeypatch.setattr("sase.workspace_provider.get_workflow_names", fail_workflows)
+    prompt_metadata.known_workflow_names.cache_clear()
+
+    summary = summarize_prompt_for_search("#research Investigate history metadata")
+
+    assert summary.clean_preview == "Investigate history metadata"
+    assert summary.xprompts == ()
+
+
+def test_summarize_prompt_for_search_skips_literal_scan_without_controls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_scan(text: str, blocks: list[str]) -> str:
+        raise AssertionError("plain search metadata should not protect literal zones")
+
+    monkeypatch.setattr(prompt_metadata, "protect_fenced_blocks", fail_scan)
+
+    summary = summarize_prompt_for_search(
+        "Plain searchable title\n"
+        "```python\n"
+        "# a code comment is not an xprompt reference\n"
+        "```\n"
+    )
+
+    assert summary.clean_preview == "Plain searchable title"
+    assert summary.xprompts == ()
 
 
 def test_clean_prompt_preview_ignores_control_tokens_inside_fences() -> None:

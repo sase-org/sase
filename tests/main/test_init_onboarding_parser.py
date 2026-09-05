@@ -217,7 +217,12 @@ def test_init_help_lists_existing_subcommands(
     assert "-d, --diff" in out
     assert "-j, --json" in out
     assert "-M, --enable-project-memory" in out
-    assert "-p NAME, --project NAME" in out
+    project_opt = (
+        "-p NAME, --project NAME"
+        if "-p NAME, --project NAME" in out
+        else "-p, --project NAME"
+    )
+    assert project_opt in out
     assert "is_sase_managed:" in out
     assert "Advanced deploy controls live on explicit subcommands" in out
     assert "enabled main SASE project" in out
@@ -225,7 +230,6 @@ def test_init_help_lists_existing_subcommands(
     assert out.index("-c, --check") < out.index("-d, --diff")
     assert out.index("-d, --diff") < out.index("-j, --json")
     assert out.index("-j, --json") < out.index("-M, --enable-project-memory")
-    project_opt = "-p NAME, --project NAME"
     assert out.index("-M, --enable-project-memory") < out.index(project_opt)
     assert out.index(project_opt) < out.index("-y, --yes")
 

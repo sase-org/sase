@@ -29,7 +29,9 @@ from rich.console import Console
 from rich.text import Text
 
 from sase.history.prompt import (
+    PromptHistoryRecord,
     PromptSelectorError,
+    list_prompt_records,
     resolve_prompt_selector,
 )
 from sase.agents.cli_prompts import resolve_prompt_archive_root
@@ -421,13 +423,14 @@ def _render_full(result: PromptSearchResult, *, use_color: bool) -> None:
         console.print(f'No prompts match "{result.query}".', soft_wrap=True)
         return
 
+    local_resolver = _LocalRecordResolver()
     for index, match in enumerate(result.matches):
         if index:
             console.print(_DIVIDER, style="dim", soft_wrap=True)
         console.print(_full_header(match.hit), soft_wrap=True)
         console.print()
         if match.hit.source is PromptSource.LOCAL:
-            _render_full_local(match.hit)
+            _render_full_local(match.hit, local_resolver)
         else:
             _render_full_archive(console, match, result.query)
 
@@ -446,16 +449,30 @@ def _full_header(hit: PromptHit) -> Text:
     return line
 
 
-def _render_full_local(hit: PromptHit) -> None:
+class _LocalRecordResolver:
+    """Resolve synthetic local hits with one prompt-history load."""
+
+    def __init__(self) -> None:
+        self._records: list[PromptHistoryRecord] | None = None
+
+    def resolve(self, selector: str) -> PromptHistoryRecord:
+        if self._records is None:
+            self._records = list_prompt_records(include_cancelled=True)
+        return resolve_prompt_selector(selector, records=self._records)
+
+
+def _render_full_local(hit: PromptHit, resolver: _LocalRecordResolver) -> None:
     """Render a local hit by reusing ``sase prompt show``'s markdown verbatim.
 
-    The hit's ``id`` is the ``ph_<sha>`` selector ``prompt show`` already
-    accepts, so re-resolving the record and reusing :func:`render_prompt_markdown`
-    keeps the local full output byte-identical to ``prompt show -f markdown``. If
-    the entry vanished mid-run the body text is printed rather than crashing.
+    Normal search hits carry the loaded prompt-history record, so rendering uses
+    no additional history IO. Synthetic callers that lack the snapshot fall back
+    to one cached selector resolution for the whole render operation.
     """
+    if isinstance(hit.render_record, PromptHistoryRecord):
+        sys.stdout.write(render_prompt_markdown(hit.render_record))
+        return
     try:
-        record = resolve_prompt_selector(hit.id)
+        record = resolver.resolve(hit.id)
     except PromptSelectorError:
         text = humanize_vcs_refs_in_text(hit.text)
         sys.stdout.write(text if text.endswith("\n") else text + "\n")

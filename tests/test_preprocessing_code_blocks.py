@@ -3,6 +3,7 @@
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+from sase.xprompt import _fenced_blocks
 from sase.llm_provider.preprocessing import preprocess_prompt, preprocess_prompt_late
 from sase.xprompt._fenced_blocks import (
     fenced_block_details,
@@ -121,6 +122,32 @@ def test_fenced_block_details_expose_live_unclosed_content_to_eof() -> None:
     assert details.closing_fence is None
     assert details.content_range == (len("```py\n"), len(prompt))
     assert details.block_range == (0, len(prompt))
+
+
+def test_fenced_block_details_batch_converts_unicode_offsets(
+    monkeypatch: Any,
+) -> None:
+    calls: list[list[int]] = []
+    real_convert = _fenced_blocks._byte_offsets_to_character_offsets
+
+    def counted(text: str, offsets: Any) -> dict[int, int]:
+        values = list(offsets)
+        calls.append(values)
+        return real_convert(text, values)
+
+    monkeypatch.setattr(
+        _fenced_blocks,
+        "_byte_offsets_to_character_offsets",
+        counted,
+    )
+    prompt = ("é before\n```python title=demo\nprint('値')\n```\nafter\n") * 25
+
+    details = fenced_block_details(prompt)
+
+    assert len(details) == 25
+    assert len(calls) == 1
+    assert len(calls[0]) <= len(details) * 10
+    assert all(prompt[slice(*detail.opening_fence)] == "```" for detail in details)
 
 
 def _passthrough(x: str, **_kw: Any) -> str:

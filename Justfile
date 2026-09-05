@@ -1123,6 +1123,10 @@ bench-agent-scan *args: _setup
 bench-agent-launch *args: _setup
     {{ venv_bin }}/python tests/perf/bench_agent_launch.py {{ args }}
 
+# Run the fresh-process prompt-search benchmark on disposable synthetic stores.
+bench-prompt-search *args: _setup
+    {{ venv_bin }}/python tests/perf/bench_prompt_search.py {{ args }}
+
 # Run the Rust-backed agent-launch regression check against the Phase 1 baseline.
 launch-perf-check *args: _setup
     @printf "\n---------- Agent launch regression floor (sase-1r.9) ----------\n"

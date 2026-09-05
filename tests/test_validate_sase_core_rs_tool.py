@@ -136,6 +136,20 @@ def test_validate_sase_core_rs_requires_fenced_code_bindings() -> None:
         )
 
 
+def test_validate_sase_core_rs_requires_prompt_archive_bindings() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {
+        "prompt_archive_inventory",
+        "prompt_archive_inventory_wire_schema_version",
+    }
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+
 def test_validate_sase_core_rs_requires_telemetry_bindings() -> None:
     validator = load_validate_sase_core_rs()
     telemetry_bindings = {

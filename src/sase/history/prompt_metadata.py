@@ -46,6 +46,14 @@ class PromptPreviewSummary:
 
 
 @dataclass(frozen=True)
+class _PromptSearchMetadata:
+    """Lexical metadata needed by prompt search."""
+
+    xprompts: tuple[str, ...]
+    clean_preview: str
+
+
+@dataclass(frozen=True)
 class _DirectiveToken:
     """Known directive occurrence with enough span data for cleanup."""
 
@@ -53,6 +61,16 @@ class _DirectiveToken:
     start: int
     end: int
     suffix: str
+
+
+@dataclass(frozen=True)
+class _PromptControlScan:
+    """One protected-text scan shared by prompt metadata projections."""
+
+    protected: str
+    fenced_blocks: list[str]
+    directives: tuple[_DirectiveToken, ...]
+    refs: list[XPromptReference]
 
 
 _DIRECTIVE_RE = re.compile(_DIRECTIVE_PATTERN, re.MULTILINE)
@@ -81,36 +99,24 @@ def known_workflow_names() -> frozenset[str]:
 
 def summarize_prompt_for_list(text: str) -> PromptListSummary:
     """Return compact metadata and cleaned preview text for a history row."""
-    fenced_blocks: list[str] = []
-    protected = protect_fenced_blocks(text, fenced_blocks)
-    directives = _scan_known_directives(protected)
-    refs = iter_xprompt_references(protected)
+    scan = _scan_prompt_controls(text)
     workflow_names = known_workflow_names()
     vcs_tag = _extract_vcs_tag(text)
     project_prefix, project_ref_display = _project_columns(vcs_tag, workflow_names)
-    intervals = [(directive.start, directive.end) for directive in directives]
-    intervals.extend((ref.start, ref.end) for ref in refs)
 
     return PromptListSummary(
         project_prefix=project_prefix,
         project_ref_display=project_ref_display,
-        xprompts=_embedded_xprompt_chips(refs, workflow_names),
-        directive_token=_directive_summary_token(directives),
-        clean_preview=_clean_preview_from_protected(
-            protected,
-            fenced_blocks,
-            intervals,
-        ),
+        xprompts=_embedded_xprompt_chips(scan.refs, workflow_names),
+        directive_token=_directive_summary_token(scan.directives),
+        clean_preview=_clean_preview_from_scan(scan),
     )
 
 
 def summarize_prompt_for_preview(text: str) -> PromptPreviewSummary:
     """Return detailed metadata for the highlighted prompt preview."""
-    fenced_blocks: list[str] = []
-    protected = protect_fenced_blocks(text, fenced_blocks)
+    scan = _scan_prompt_controls(text)
     workflow_names = known_workflow_names()
-    refs = iter_xprompt_references(protected)
-    directives = _scan_known_directives(protected)
 
     # Exercise the full directive extractor for preview-only metadata so any
     # current parser behavior stays represented here. Historical prompts can
@@ -123,20 +129,73 @@ def summarize_prompt_for_preview(text: str) -> PromptPreviewSummary:
 
     return PromptPreviewSummary(
         vcs_tag=_extract_vcs_tag(text),
-        xprompts=_embedded_xprompt_refs(refs, workflow_names),
-        directives=_preview_directive_tokens(directives),
+        xprompts=_embedded_xprompt_refs(scan.refs, workflow_names),
+        directives=_preview_directive_tokens(scan.directives),
+    )
+
+
+def summarize_prompt_for_search(text: str) -> _PromptSearchMetadata:
+    """Return search title/tag metadata from one lexical scan."""
+    if not _search_needs_control_scan(text):
+        return _PromptSearchMetadata(
+            xprompts=(),
+            clean_preview=_plain_clean_preview(text),
+        )
+
+    scan = _scan_prompt_controls(text)
+    try:
+        xprompts = _embedded_xprompt_chips(scan.refs, known_workflow_names())
+    except Exception:
+        xprompts = ()
+    return _PromptSearchMetadata(
+        xprompts=xprompts,
+        clean_preview=_clean_preview_from_scan(scan),
     )
 
 
 def clean_prompt_preview(text: str) -> str:
     """Strip prompt control tokens and return a collapsed first-line preview."""
+    return _clean_preview_from_scan(_scan_prompt_controls(text))
+
+
+def _scan_prompt_controls(text: str) -> _PromptControlScan:
+    """Protect literal zones and scan prompt control tokens once."""
     fenced_blocks: list[str] = []
     protected = protect_fenced_blocks(text, fenced_blocks)
     directives = _scan_known_directives(protected)
     refs = iter_xprompt_references(protected)
-    intervals = [(directive.start, directive.end) for directive in directives]
-    intervals.extend((ref.start, ref.end) for ref in refs)
-    return _clean_preview_from_protected(protected, fenced_blocks, intervals)
+    return _PromptControlScan(
+        protected=protected,
+        fenced_blocks=fenced_blocks,
+        directives=directives,
+        refs=refs,
+    )
+
+
+def _search_needs_control_scan(text: str) -> bool:
+    """Return whether search metadata may need protected prompt-control parsing."""
+    if "#" in text and iter_xprompt_references(text):
+        return True
+    if "%" in text and _scan_known_directives(text):
+        return True
+    return False
+
+
+def _plain_clean_preview(text: str) -> str:
+    stripped = text.strip()
+    if not stripped:
+        return ""
+    return " ".join(stripped.splitlines()[0].split())
+
+
+def _clean_preview_from_scan(scan: _PromptControlScan) -> str:
+    intervals = [(directive.start, directive.end) for directive in scan.directives]
+    intervals.extend((ref.start, ref.end) for ref in scan.refs)
+    return _clean_preview_from_protected(
+        scan.protected,
+        scan.fenced_blocks,
+        intervals,
+    )
 
 
 def _scan_known_directives(protected: str) -> tuple[_DirectiveToken, ...]:

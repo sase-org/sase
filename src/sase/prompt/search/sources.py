@@ -9,20 +9,32 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Iterable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from sase.agents_sync.prompt_archive.validation import list_prompt_archive_files
+from sase.core.prompt_archive_facade import (
+    PromptArchiveDocument,
+    prompt_archive_inventory,
+)
 from sase.history.prompt import list_prompt_records
-from sase.history.prompt_metadata import clean_prompt_preview, summarize_prompt_for_list
+from sase.history.prompt_metadata import summarize_prompt_for_search
 from sase.prompt.search.dates import resolve_archive_date
 from sase.prompt.search.model import PromptHit, PromptSource
-from sase.sdd.frontmatter import parse_frontmatter
-from sase.sdd.plan_header_block import parse_plan_header_block
+from sase.sdd.frontmatter import frontmatter_span, parse_frontmatter
+from sase.sdd.plan_header_block import PlanHeaderSection, PlanHeaderSectionKind
 
 _USER_TAGS_KEY = "prompt_tags"
 _TAG_SIGILS = "#@"
+_SEARCH_FRONTMATTER_KEYS = frozenset(
+    {"sha256", "timestamp", "last_used", _USER_TAGS_KEY}
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _SearchTextMetadata:
+    title: str
+    tags: tuple[str, ...]
 
 
 def collect_prompt_hits(
@@ -51,47 +63,41 @@ def load_archive_prompt_hits(archive_root: Path) -> list[PromptHit]:
 
     root = archive_root.expanduser().resolve(strict=False)
     hits: list[PromptHit] = []
-    for archived in list_prompt_archive_files(root):
-        hit = _load_archive_file(
-            archived.path,
-            root,
-            plan=archived.plan_label,
-            artifact_count=archived.artifact_count,
-        )
+    for document in prompt_archive_inventory(root):
+        hit = _load_archive_document(document, root)
         if hit is not None:
             hits.append(hit)
     return hits
 
 
-def _load_archive_file(
-    path: Path,
+def _load_archive_document(
+    document: PromptArchiveDocument,
     archive_root: Path,
-    *,
-    plan: str | None,
-    artifact_count: int,
 ) -> PromptHit | None:
-    """Parse one canonical archive file, tolerating an unreadable entry."""
+    """Adapt one parsed archive document, tolerating an unreadable entry."""
 
-    try:
-        content = path.read_text(encoding="utf-8")
-        text = parse_plan_header_block(content).body.strip()
-    except (OSError, UnicodeError, RuntimeError, ValueError):
+    if document.parse_error is not None:
         return None
 
-    frontmatter, _, _ = parse_frontmatter(content)
-    locator = path.stem
+    content = document.content
+    text = document.body.strip()
+    frontmatter = _search_frontmatter(content)
+    locator = document.name
+    metadata = _derive_metadata(text, locator)
+    plan = _section(document.sections, PlanHeaderSectionKind.PLAN)
+    artifacts = _section(document.sections, PlanHeaderSectionKind.ARTIFACTS)
     recorded_sha = _str_or_none(frontmatter.get("sha256"))
     return PromptHit(
         source=PromptSource.ARCHIVE,
         id=locator,
         text=text,
-        title=_derive_title(text, locator),
-        date=resolve_archive_date(frontmatter, path),
+        title=metadata.title,
+        date=resolve_archive_date(frontmatter, document.path),
         text_sha256=recorded_sha or _sha256(text),
-        path=_relative_path(path, archive_root),
-        plan=plan,
-        artifact_count=artifact_count,
-        tags=_archive_tags(frontmatter, text),
+        path=_relative_path(document.path, archive_root),
+        plan=plan.label if plan is not None else None,
+        artifact_count=len(artifacts.entries) if artifacts is not None else 0,
+        tags=_archive_tags(frontmatter, metadata.tags),
         cancelled=None,
         also_in_local=False,
     )
@@ -107,19 +113,21 @@ def load_local_prompt_hits() -> list[PromptHit]:
 
 def _local_hit(record: Any) -> PromptHit:
     text = record.text
+    metadata = _derive_metadata(text, record.id)
     return PromptHit(
         source=PromptSource.LOCAL,
         id=record.id,
         text=text,
-        title=_derive_title(text, record.id),
+        title=metadata.title,
         date=record.last_used,
         text_sha256=record.text_sha256,
         path=None,
         plan=None,
         artifact_count=None,
-        tags=_body_tags(text),
+        tags=metadata.tags,
         cancelled=record.cancelled,
         also_in_local=False,
+        render_record=record,
     )
 
 
@@ -146,24 +154,139 @@ def _dedup_hits(
     return result
 
 
-def _derive_title(text: str, fallback: str) -> str:
+def _derive_metadata(text: str, fallback: str) -> _SearchTextMetadata:
     try:
-        title = clean_prompt_preview(text)
+        summary = summarize_prompt_for_search(text)
+        title = summary.clean_preview
+        tags = _dedup_tags(summary.xprompts)
     except Exception:
         title = " ".join(text.split())
-    return title or fallback
+        tags = ()
+    return _SearchTextMetadata(title=title or fallback, tags=tags)
 
 
-def _archive_tags(frontmatter: dict[str, Any], text: str) -> tuple[str, ...]:
-    return _dedup_tags([*_frontmatter_tags(frontmatter), *_body_tags(text)])
+def _archive_tags(
+    frontmatter: dict[str, Any],
+    body_tags: tuple[str, ...],
+) -> tuple[str, ...]:
+    return _dedup_tags([*_frontmatter_tags(frontmatter), *body_tags])
 
 
-def _body_tags(text: str) -> tuple[str, ...]:
-    try:
-        summary = summarize_prompt_for_list(text)
-    except Exception:
-        return ()
-    return _dedup_tags(summary.xprompts)
+def _search_frontmatter(content: str) -> dict[str, Any]:
+    parsed = _simple_search_frontmatter(content)
+    if parsed is not None:
+        return parsed
+    frontmatter, _, _ = parse_frontmatter(content)
+    return frontmatter
+
+
+def _simple_search_frontmatter(content: str) -> dict[str, Any] | None:
+    """Parse the simple archive fields prompt search reads, or request fallback."""
+    end = frontmatter_span(content)
+    if end is None:
+        return {}
+
+    frontmatter: dict[str, Any] = {}
+    lines = content[4:end].splitlines()
+    index = 0
+    while index < len(lines):
+        raw_line = lines[index]
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            index += 1
+            continue
+        if raw_line[:1].isspace() or ":" not in raw_line:
+            return None
+
+        key, raw_value = raw_line.split(":", 1)
+        key = key.strip()
+        if key not in _SEARCH_FRONTMATTER_KEYS:
+            return None
+        if key == _USER_TAGS_KEY:
+            tags, index = _simple_prompt_tags(lines, index, raw_value)
+            if tags is None:
+                return None
+            frontmatter[key] = tags
+            continue
+
+        value = _simple_yaml_scalar(raw_value)
+        if value is None:
+            return None
+        frontmatter[key] = value
+        index += 1
+    return frontmatter
+
+
+def _simple_prompt_tags(
+    lines: list[str],
+    index: int,
+    raw_value: str,
+) -> tuple[list[str] | str | None, int]:
+    value = raw_value.strip()
+    if value:
+        if value.startswith("[") and value.endswith("]"):
+            values = _simple_yaml_list(value[1:-1])
+            return values, index + 1
+        scalar = _simple_yaml_scalar(raw_value)
+        return scalar, index + 1
+
+    tags: list[str] = []
+    index += 1
+    while index < len(lines):
+        raw_line = lines[index]
+        stripped = raw_line.strip()
+        if not stripped:
+            index += 1
+            continue
+        if not raw_line[:1].isspace():
+            break
+        if not stripped.startswith("- "):
+            return None, index
+        scalar = _simple_yaml_scalar(stripped[1:])
+        if scalar is None:
+            return None, index
+        tags.append(scalar)
+        index += 1
+    return tags, index
+
+
+def _simple_yaml_list(raw: str) -> list[str] | None:
+    if not raw.strip():
+        return []
+    values: list[str] = []
+    for part in raw.split(","):
+        value = _simple_yaml_scalar(part)
+        if value is None:
+            return None
+        values.append(value)
+    return values
+
+
+def _simple_yaml_scalar(raw: str) -> str | None:
+    value = raw.strip()
+    if not value:
+        return ""
+    value = _strip_simple_comment(value)
+    if not value:
+        return ""
+    if value[0] in "[{|>}*&!":
+        return None
+    if value[0] == "'":
+        if len(value) < 2 or value[-1] != "'":
+            return None
+        return value[1:-1].replace("''", "'")
+    if value[0] == '"':
+        if len(value) < 2 or value[-1] != '"' or "\\" in value:
+            return None
+        return value[1:-1]
+    return value
+
+
+def _strip_simple_comment(value: str) -> str:
+    marker = value.find(" #")
+    if marker == -1:
+        return value
+    return value[:marker].rstrip()
 
 
 def _frontmatter_tags(frontmatter: dict[str, Any]) -> list[str]:
@@ -207,3 +330,10 @@ def _str_or_none(value: Any) -> str | None:
 
 def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _section(
+    sections: tuple[PlanHeaderSection, ...],
+    kind: PlanHeaderSectionKind,
+) -> PlanHeaderSection | None:
+    return next((section for section in sections if section.kind is kind), None)

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.prompt.search import sources as search_sources
 from sase.prompt.cli_search import handle_prompt_search
 from sase.prompt.cli_show import handle_prompt_show
 
@@ -260,6 +261,53 @@ def test_full_local_matches_prompt_show_markdown(
     handle_prompt_search(_ns("auth", source="local", format="full"))
     full_out = capsys.readouterr().out
     assert show_md in full_out
+
+
+@pytest.mark.parametrize(
+    ("limit", "expected_rendered"),
+    [
+        (1, 1),
+        (20, 20),
+        (0, 25),
+    ],
+)
+def test_full_local_renders_loaded_records_without_extra_history_loads(
+    repo: Path,
+    history_file: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    limit: int,
+    expected_rendered: int,
+) -> None:
+    _seed(
+        *(_entry(f"auth prompt {index}", f"260601_{index:06d}") for index in range(25))
+    )
+    list_calls = 0
+    real_list = search_sources.list_prompt_records
+
+    def counted_list(*args: object, **kwargs: object) -> object:
+        nonlocal list_calls
+        list_calls += 1
+        return real_list(*args, **kwargs)
+
+    def fail_late_history_load(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("full render should use loaded local records")
+
+    monkeypatch.setattr(search_sources, "list_prompt_records", counted_list)
+    monkeypatch.setattr(
+        "sase.prompt.cli_search.list_prompt_records",
+        fail_late_history_load,
+    )
+    monkeypatch.setattr(
+        "sase.prompt.cli_search.resolve_prompt_selector",
+        fail_late_history_load,
+    )
+
+    handle_prompt_search(_ns("auth", source="local", format="full", limit=limit))
+    out = capsys.readouterr().out
+
+    assert list_calls == 1
+    assert out.count("# Prompt ") == expected_rendered
 
 
 def test_full_divides_consecutive_hits(

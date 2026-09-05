@@ -10,7 +10,10 @@ import pytest
 import sase_core_rs
 
 from sase.agents_sync.prompt_archive import validation as prompt_validation
-from sase.agents_sync.prompt_archive.validation import validate_prompt_archive
+from sase.agents_sync.prompt_archive.validation import (
+    list_prompt_archive_files,
+    validate_prompt_archive,
+)
 
 
 def _prompt_document(
@@ -101,6 +104,32 @@ def test_clean_archive_validates_without_diagnostics(tmp_path: Path) -> None:
 
     assert validation.ok
     assert validation.issues == ()
+
+
+def test_prompt_archive_listing_does_not_hash_artifact_payloads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "agents"
+    _write_prompt(
+        repo,
+        _prompt_document(
+            artifact_target="../../artifacts/202608/aaaaaaaaaaaa-trace.txt"
+        ),
+    )
+    artifact = repo / "artifacts/202608/aaaaaaaaaaaa-trace.txt"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("payload", encoding="utf-8")
+
+    def fail_hash(_path: Path) -> str:
+        raise AssertionError("plain inventory must not hash artifact payloads")
+
+    monkeypatch.setattr(prompt_validation, "_sha256", fail_hash)
+
+    files = list_prompt_archive_files(repo)
+
+    assert len(files) == 1
+    assert files[0].artifact_count == 1
 
 
 def test_xprompt_style_body_links_are_validated_as_ordinary_markdown(
