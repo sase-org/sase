@@ -77,6 +77,10 @@ class AxeLoaderState:
     # configured chops). Mirrors the per-attribute caches above for
     # callers that prefer a single object.
     _axe_lumberjack_snapshots: dict[str, LumberjackSnapshot]
+    _axe_status_read_cache: Any
+    _axe_tailed_chops: set[tuple[str, str]]
+    _axe_status_refresh_want_full: bool
+    _axe_status_refresh_want_all_tails: bool
     # Per-chop view offset for Ctrl+N / Ctrl+P run-history navigation.
     _axe_chop_run_offsets: dict[tuple[str, str], int]
     # Debouncer for axe detail-panel refresh on j/k navigation.

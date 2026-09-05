@@ -83,6 +83,7 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
 
         # Derive current view from selected item
         self._derive_axe_view_from_selection()
+        self._axe_ensure_selected_chop_tails()
 
         try:
             axe_info = self.query_one("#axe-info-panel", AxeInfoPanel)  # type: ignore[attr-defined]

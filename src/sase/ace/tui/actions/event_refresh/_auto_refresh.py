@@ -189,6 +189,7 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         # watcher is active and nothing about axe has changed.
         if _should_refresh("_dirty_axe", "axe"):
             run_axe_refresh = getattr(self, "_run_axe_status_refresh", None)
+            axe_full = sanity_due or self.current_tab == "axe"
             if callable(run_axe_refresh):
                 if not getattr(
                     self, "_axe_status_refresh_running", False
@@ -197,13 +198,39 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                     "_axe_status_refresh_scheduled",
                     False,
                 ):
-                    if await run_axe_refresh():
+                    if callable_accepts_kwarg(
+                        run_axe_refresh, "include_full_snapshots"
+                    ):
+                        if callable_accepts_kwarg(
+                            run_axe_refresh, "tail_all_chop_logs"
+                        ):
+                            refreshed = await run_axe_refresh(
+                                include_full_snapshots=axe_full,
+                                tail_all_chop_logs=sanity_due,
+                            )
+                        else:
+                            refreshed = await run_axe_refresh(
+                                include_full_snapshots=axe_full,
+                            )
+                    else:
+                        refreshed = await run_axe_refresh()
+                    if refreshed:
                         self._dirty_axe = False
                         self._accept_surface_token("axe", current_tokens)
             else:
                 # Narrow EventAutoRefreshMixin test doubles do not include the
                 # AXE loader mixin; production always takes the guarded path.
-                await self._load_axe_status_async()  # type: ignore[attr-defined]
+                load_axe = self._load_axe_status_async  # type: ignore[attr-defined]
+                if callable_accepts_kwarg(load_axe, "include_full_snapshots"):
+                    if callable_accepts_kwarg(load_axe, "tail_all_chop_logs"):
+                        await load_axe(
+                            include_full_snapshots=axe_full,
+                            tail_all_chop_logs=sanity_due,
+                        )
+                    else:
+                        await load_axe(include_full_snapshots=axe_full)
+                else:
+                    await load_axe()
                 self._dirty_axe = False
                 self._accept_surface_token("axe", current_tokens)
 

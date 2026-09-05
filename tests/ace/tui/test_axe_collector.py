@@ -358,3 +358,238 @@ def test_collector_records_empty_history_for_missing_chops() -> None:
         data = collect_axe_status_data()
 
     assert data.chop_snapshots[("hooks", "only")].runs == []
+
+
+def test_collector_summary_mode_skips_chop_history_and_log_tails() -> None:
+    """Off-tab ticks keep header fields and skip the ~600-file chop walk."""
+    config = _FakeAxeConfig({"hooks": _lj_cfg("hooks", ["fast"])})
+
+    with (
+        patch(
+            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
+        ) as get_proc,
+        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
+            return_value="axe log\n",
+        ) as axe_log_reader,
+        patch("sase.axe.config.load_axe_config", return_value=config),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_status",
+            return_value=_make_status("hooks"),
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_metrics",
+            return_value=_make_metrics(),
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_log_tail",
+            return_value="hooks log\n",
+        ) as jack_log_reader,
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run_index",
+            return_value=["20260511T100100_000000"],
+        ) as run_index_reader,
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run",
+            return_value=_make_run_entry("hooks", "fast", "20260511T100100_000000"),
+        ) as run_reader,
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run_log_tail",
+            return_value="run output\n",
+        ) as run_log_reader,
+        patch(
+            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+        ),
+    ):
+        proc = get_proc.return_value
+        proc.is_axe_running.return_value = False
+        proc.get_axe_status.return_value = None
+
+        data = collect_axe_status_data(include_full_snapshots=False)
+
+    assert data.include_full_snapshots is False
+    assert data.lumberjack_names == ["hooks"]
+    assert data.lumberjack_chop_names == {"hooks": ["fast"]}
+    assert data.chop_snapshots == {}
+    assert data.lumberjack_snapshots["hooks"].chops == []
+    assert data.axe_output == ""
+    assert data.lumberjack_log_tails["hooks"] == ""
+    run_index_reader.assert_not_called()
+    run_reader.assert_not_called()
+    run_log_reader.assert_not_called()
+    jack_log_reader.assert_not_called()
+    axe_log_reader.assert_not_called()
+
+
+def test_collector_reuses_cached_run_json_across_ticks() -> None:
+    """A second collect of unchanged run records performs zero JSON parses."""
+    from sase.ace.tui.actions.axe_display import AxeStatusReadCache
+
+    config = _FakeAxeConfig({"hooks": _lj_cfg("hooks", ["fast"])})
+    run_id = "20260511T100100_000000"
+    cache = AxeStatusReadCache()
+
+    with (
+        patch(
+            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
+        ) as get_proc,
+        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
+            return_value="",
+        ),
+        patch("sase.axe.config.load_axe_config", return_value=config),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_status",
+            return_value=None,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_metrics",
+            return_value=None,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_log_tail",
+            return_value="",
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run_index",
+            return_value=[run_id],
+        ) as run_index_reader,
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run",
+            return_value=_make_run_entry("hooks", "fast", run_id),
+        ) as run_reader,
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run_log_tail",
+            return_value="run output\n",
+        ) as run_log_reader,
+        patch(
+            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+        ),
+    ):
+        proc = get_proc.return_value
+        proc.is_axe_running.return_value = False
+        proc.get_axe_status.return_value = None
+
+        first = collect_axe_status_data(cache=cache)
+        second = collect_axe_status_data(cache=cache)
+
+    assert first.stats.run_json_parses == 1
+    assert second.stats.run_json_parses == 0
+    assert second.stats.run_json_cache_hits == 1
+    assert second.stats.run_index_reads == 0
+    assert run_index_reader.call_count == 1
+    assert run_reader.call_count == 1
+    assert run_log_reader.call_count == 1
+    assert [r.entry.run_id for r in second.chop_snapshots[("hooks", "fast")].runs] == [
+        run_id
+    ]
+
+
+def test_collector_tails_only_requested_chop_run_logs() -> None:
+    """Per-run log tails are skipped for chops that are not being rendered."""
+    config = _FakeAxeConfig({"hooks": _lj_cfg("hooks", ["fast", "slow"])})
+    fast_id = "20260511T100100_000000"
+    slow_id = "20260511T100200_000000"
+
+    def _fake_run_index(lj: str, chop: str) -> list[str]:
+        if (lj, chop) == ("hooks", "fast"):
+            return [fast_id]
+        if (lj, chop) == ("hooks", "slow"):
+            return [slow_id]
+        return []
+
+    def _fake_read_run(_lj: str, _chop: str, run_id: str) -> ChopRunEntry | None:
+        return _make_run_entry("hooks", "fast" if run_id == fast_id else "slow", run_id)
+
+    def _fake_read_run_log(_lj: str, _chop: str, run_id: str, _lines: int) -> str:
+        return f"{run_id} output\n"
+
+    with (
+        patch(
+            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
+        ) as get_proc,
+        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
+            return_value="",
+        ),
+        patch("sase.axe.config.load_axe_config", return_value=config),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_status",
+            return_value=None,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_metrics",
+            return_value=None,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_log_tail",
+            return_value="",
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run_index",
+            side_effect=_fake_run_index,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run",
+            side_effect=_fake_read_run,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run_log_tail",
+            side_effect=_fake_read_run_log,
+        ) as run_log_reader,
+        patch(
+            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+        ),
+    ):
+        proc = get_proc.return_value
+        proc.is_axe_running.return_value = False
+        proc.get_axe_status.return_value = None
+
+        data = collect_axe_status_data(
+            tail_chop_keys=frozenset({("hooks", "fast")}),
+        )
+
+    assert data.chop_snapshots[("hooks", "fast")].runs[0].output_tail == (
+        f"{fast_id} output\n"
+    )
+    assert data.chop_snapshots[("hooks", "slow")].runs[0].output_tail == ""
+    assert run_log_reader.call_count == 1
+    assert data.tailed_chop_keys == frozenset({("hooks", "fast")})
+
+
+def test_axe_collector_kwargs_off_tab_skip_full_snapshots() -> None:
+    """Auto-refresh on a non-Axe tab asks the collector for header fields only."""
+    from sase.ace.tui.actions.axe_display import AxeStatusReadCache
+    from sase.ace.tui.actions.axe_display._loader_refresh import (
+        AxeDisplayRefreshMixin,
+    )
+
+    class _App:
+        current_tab = "agents"
+        _axe_first_load_done = True
+        _axe_status_read_cache = AxeStatusReadCache()
+        _axe_chop_selection = ("hooks", "fast")
+
+        def _derive_axe_view_from_selection(self) -> None:
+            return None
+
+        _axe_collector_kwargs = AxeDisplayRefreshMixin._axe_collector_kwargs
+
+    app = _App()
+    off_tab = app._axe_collector_kwargs()
+    assert off_tab["include_full_snapshots"] is False
+    assert off_tab["tail_chop_keys"] == frozenset()
+
+    app.current_tab = "axe"
+    on_tab = app._axe_collector_kwargs()
+    assert on_tab["include_full_snapshots"] is True
+    assert on_tab["tail_chop_keys"] == frozenset({("hooks", "fast")})
+
+    sanity = app._axe_collector_kwargs(
+        include_full_snapshots=True, tail_all_chop_logs=True
+    )
+    assert sanity["include_full_snapshots"] is True
+    assert sanity["tail_chop_keys"] is None

@@ -65,6 +65,12 @@ def init_late_startup_state(
     self._axe_lumberjack_chop_names = {}
     self._axe_chop_snapshots = {}
     self._axe_lumberjack_snapshots = {}
+    from .axe_display._read_cache import AxeStatusReadCache
+
+    self._axe_status_read_cache = AxeStatusReadCache()
+    self._axe_tailed_chops = set()
+    self._axe_status_refresh_want_full = False
+    self._axe_status_refresh_want_all_tails = False
 
     # Per-chop run-history view offset for Ctrl+N / Ctrl+P navigation.
     # 0 == newest. Absent entry means "follow newest" - a newer recorded

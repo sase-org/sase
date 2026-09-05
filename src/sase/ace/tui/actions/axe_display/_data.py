@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import types
 from datetime import datetime
+from functools import partial
 from typing import Literal
 
 from sase.axe import config as axe_config
@@ -16,6 +17,11 @@ from sase.axe.state import (
     ChopRunEntry,
     LumberjackMetrics,
     LumberjackStatus,
+    axe_output_log_path,
+    chop_index_path,
+    chop_run_log_path,
+    chop_run_meta_path,
+    lumberjack_log_path,
     read_chop_run,
     read_chop_run_index,
     read_chop_run_log_tail,
@@ -36,6 +42,7 @@ from ...bgcmd import (
     read_slot_output_tail,
 )
 from ...util.trace import trace_event
+from ._read_cache import AxeCollectorStats, AxeStatusReadCache
 
 # Type alias for tab names
 TabName = Literal["artifacts", "agents", "axe"]
@@ -156,6 +163,14 @@ class AxeCollectedData:
     # any caller that prefers a single per-lumberjack object.
     lumberjack_snapshots: dict[str, LumberjackSnapshot]
     degraded_status: AxeStatusDegradation | None = None
+    # False when this payload is a header-only tick (Axe tab not visible
+    # and not a sanity reconcile). Apply keeps the previous chop snapshots.
+    include_full_snapshots: bool = True
+    # Chop keys whose per-run logs were requested this tick.
+    tailed_chop_keys: frozenset[tuple[str, str]] = dataclasses.field(
+        default_factory=frozenset
+    )
+    stats: AxeCollectorStats = dataclasses.field(default_factory=AxeCollectorStats)
 
 
 def _invalid_config_status(
@@ -193,20 +208,44 @@ def collect_chop_snapshot(
     target_key: str | None = None,
     interval_seconds: int | None = None,
     interval_source: Literal["runtime", "config"] | None = None,
+    cache: AxeStatusReadCache | None = None,
+    tail_run_logs: bool = True,
 ) -> ChopSnapshot:
     """Read a chop's bounded run history from disk into a snapshot.
 
     Returns an empty ``runs`` list when no history has been recorded.
     Run metadata that fails to parse is skipped so a single corrupt file
     cannot break the rest of the cache.
+
+    Run JSON is reused across ticks when ``(path, mtime_ns, size)`` is
+    unchanged. Per-run log tails are read only when ``tail_run_logs`` is
+    true (or a previous tail is already cached).
     """
+    read_cache = cache if cache is not None else AxeStatusReadCache()
     runs: list[ChopRunSnapshot] = []
-    for run_id in read_chop_run_index(lumberjack_name, chop_name):
-        entry = read_chop_run(lumberjack_name, chop_name, run_id)
+    run_ids = read_cache.get_or_load_json(
+        chop_index_path(lumberjack_name, chop_name),
+        lambda: read_chop_run_index(lumberjack_name, chop_name),
+        kind="index",
+    )
+    for run_id in run_ids:
+        entry = read_cache.get_or_load_json(
+            chop_run_meta_path(lumberjack_name, chop_name, run_id),
+            partial(read_chop_run, lumberjack_name, chop_name, run_id),
+            kind="run",
+        )
         if entry is None:
             continue
-        tail = read_chop_run_log_tail(
-            lumberjack_name, chop_name, run_id, _CHOP_RUN_TAIL_LINES
+        tail = read_cache.get_or_load_tail(
+            chop_run_log_path(lumberjack_name, chop_name, run_id),
+            partial(
+                read_chop_run_log_tail,
+                lumberjack_name,
+                chop_name,
+                run_id,
+                _CHOP_RUN_TAIL_LINES,
+            ),
+            want=tail_run_logs,
         )
         runs.append(ChopRunSnapshot(entry=entry, output_tail=tail))
     overrun: ChopOverrun | None = None
@@ -260,12 +299,28 @@ def _positive_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
-def collect_axe_status_data() -> AxeCollectedData:
+def collect_axe_status_data(
+    *,
+    cache: AxeStatusReadCache | None = None,
+    include_full_snapshots: bool = True,
+    tail_chop_keys: frozenset[tuple[str, str]] | None = None,
+) -> AxeCollectedData:
     """Collect axe status data via disk I/O (thread-safe, no app state mutation).
+
+    ``include_full_snapshots`` is the Axe-tab / sanity path: chop run
+    history, lumberjack log tails, and axe/bgcmd output. Other tabs pass
+    False and receive header fields only (running flag, status, metrics,
+    lumberjack/chop names, bgcmd slot info).
+
+    ``tail_chop_keys`` limits per-run log tails to the chops currently
+    rendered. None tails every recorded run (tests and sanity reconcile).
 
     Returns:
         Collected axe status data ready to be applied to the app.
     """
+    read_cache = cache if cache is not None else AxeStatusReadCache()
+    read_cache.begin_tick()
+
     proc = get_axe_process_module()
     axe_running = proc.is_axe_running()
 
@@ -287,7 +342,14 @@ def collect_axe_status_data() -> AxeCollectedData:
                 pass
         axe_metrics = read_metrics()
 
-    axe_output = read_output_log_tail(500)
+    if include_full_snapshots:
+        axe_output = read_cache.get_or_load_tail(
+            axe_output_log_path(),
+            lambda: read_output_log_tail(500),
+            want=True,
+        )
+    else:
+        axe_output = ""
 
     # Load lumberjack config so we can iterate configured chops per
     # lumberjack — not just the lumberjack names — and populate the
@@ -310,10 +372,18 @@ def collect_axe_status_data() -> AxeCollectedData:
     lumberjack_chop_names: dict[str, list[str]] = {}
     chop_snapshots: dict[tuple[str, str], ChopSnapshot] = {}
     lumberjack_snapshots: dict[str, LumberjackSnapshot] = {}
+    tailed_chop_keys: frozenset[tuple[str, str]] = frozenset()
     for name in lumberjack_names:
         status = read_lumberjack_status(name)
         metrics = read_lumberjack_metrics(name)
-        log_tail = read_lumberjack_log_tail(name, 500)
+        if include_full_snapshots:
+            log_tail = read_cache.get_or_load_tail(
+                lumberjack_log_path(name),
+                partial(read_lumberjack_log_tail, name, 500),
+                want=True,
+            )
+        else:
+            log_tail = ""
         interval_seconds, interval_source = _effective_interval(
             status, config.lumberjacks[name].interval
         )
@@ -328,6 +398,9 @@ def collect_axe_status_data() -> AxeCollectedData:
         chop_names: list[str] = []
         chops_for_jack: list[ChopSnapshot] = []
         for chop_cfg in chops_cfg:
+            chop_names.append(chop_cfg.name)
+            if not include_full_snapshots:
+                continue
             script = chop_cfg.script_name
             resolved = (
                 discover_chop_script(
@@ -343,6 +416,7 @@ def collect_axe_status_data() -> AxeCollectedData:
                 if resolved is not None
                 else "missing"
             )
+            chop_key = (name, chop_cfg.name)
             snap = collect_chop_snapshot(
                 name,
                 chop_cfg.name,
@@ -358,9 +432,12 @@ def collect_axe_status_data() -> AxeCollectedData:
                 target_key=chop_cfg.target_key or None,
                 interval_seconds=interval_seconds,
                 interval_source=interval_source,
+                cache=read_cache,
+                tail_run_logs=(
+                    True if tail_chop_keys is None else chop_key in tail_chop_keys
+                ),
             )
-            chop_names.append(chop_cfg.name)
-            chop_snapshots[(name, chop_cfg.name)] = snap
+            chop_snapshots[chop_key] = snap
             chops_for_jack.append(snap)
         overrun_chop_count = sum(
             1
@@ -386,6 +463,13 @@ def collect_axe_status_data() -> AxeCollectedData:
             intermittent_chop_count=intermittent_chop_count,
         )
 
+    if include_full_snapshots:
+        tailed_chop_keys = (
+            frozenset(chop_snapshots)
+            if tail_chop_keys is None
+            else frozenset(tail_chop_keys)
+        )
+
     # Load bgcmd state
     active_slots = get_active_slots()
     bgcmd_slots: list[tuple[int, BackgroundCommandInfo]] = []
@@ -402,9 +486,22 @@ def collect_axe_status_data() -> AxeCollectedData:
                 bgcmd_details[slot] = BgCmdSnapshot(
                     info=info,
                     running=running,
-                    output_tail=read_slot_output_tail(slot, 500),
+                    output_tail=(
+                        read_slot_output_tail(slot, 500)
+                        if include_full_snapshots
+                        else ""
+                    ),
                 )
 
+    stats = read_cache.snapshot_stats()
+    trace_event(
+        "axe.collect",
+        include_full_snapshots=include_full_snapshots,
+        run_json_parses=stats.run_json_parses,
+        run_index_reads=stats.run_index_reads,
+        log_tail_reads=stats.log_tail_reads,
+        file_opens=stats.file_opens,
+    )
     return AxeCollectedData(
         axe_running=axe_running,
         axe_status=axe_status,
@@ -420,4 +517,7 @@ def collect_axe_status_data() -> AxeCollectedData:
         chop_snapshots=chop_snapshots,
         lumberjack_snapshots=lumberjack_snapshots,
         degraded_status=degraded_status,
+        include_full_snapshots=include_full_snapshots,
+        tailed_chop_keys=tailed_chop_keys,
+        stats=stats,
     )

@@ -317,3 +317,48 @@ def test_apply_axe_status_data_reconciles_pinned_offsets() -> None:
     app._apply_axe_status_data(data)
 
     assert app._axe_chop_run_offsets[("hooks", "fast")] == 2
+
+
+def test_apply_summary_payload_preserves_chop_snapshots() -> None:
+    """Off-tab header ticks must not wipe the last full chop-history cache."""
+    app = _Fake([_run_snap("r1")])
+    previous = app._axe_chop_snapshots[("hooks", "fast")]
+    app._axe_output = "stale axe\n"
+    app._axe_lumberjack_log_tails["hooks"] = "stale jack\n"
+    data = AxeCollectedData(
+        axe_running=True,
+        axe_status=None,
+        axe_metrics=None,
+        axe_output="new axe log\n",
+        lumberjack_names=["hooks"],
+        bgcmd_slots=[],
+        lumberjack_statuses={"hooks": _status()},
+        lumberjack_metrics={"hooks": LumberjackMetrics(chops_executed=9)},
+        lumberjack_log_tails={"hooks": "new log\n"},
+        bgcmd_details={},
+        lumberjack_chop_names={"hooks": ["fast"]},
+        chop_snapshots={},
+        lumberjack_snapshots={},
+        include_full_snapshots=False,
+    )
+
+    def _noop(*_a: Any, **_kw: Any) -> None:
+        return None
+
+    app._maybe_end_startup_stopwatch = _noop  # type: ignore[attr-defined]
+    app._set_axe_starting = _noop  # type: ignore[attr-defined]
+    app._set_axe_restarting = _noop  # type: ignore[attr-defined]
+    app._set_axe_stopping = _noop  # type: ignore[attr-defined]
+    app._update_axe_keybinding = _noop  # type: ignore[attr-defined]
+    app._update_bgcmd_count = _noop  # type: ignore[attr-defined]
+    app._build_axe_items = _noop  # type: ignore[attr-defined]
+
+    app._apply_axe_status_data(data)
+
+    assert app._axe_chop_snapshots[("hooks", "fast")] is previous
+    assert app._axe_output == "stale axe\n"
+    assert app._axe_lumberjack_log_tails["hooks"] == "stale jack\n"
+    assert app._axe_lumberjack_metrics["hooks"].chops_executed == 9
+    jack_metrics = app._axe_lumberjack_snapshots["hooks"].metrics
+    assert jack_metrics is not None
+    assert jack_metrics.chops_executed == 9

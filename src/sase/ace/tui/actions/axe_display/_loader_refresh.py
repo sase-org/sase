@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 from sase.axe.state import (
     LumberjackMetrics,
     LumberjackStatus,
@@ -27,14 +29,63 @@ from ._data import (
     collect_chop_snapshot,
 )
 from ._loader_items import AxeDisplayItemsMixin
+from ._read_cache import AxeStatusReadCache
+
+
+class _AxeCollectorKwargs(TypedDict):
+    cache: AxeStatusReadCache
+    include_full_snapshots: bool
+    tail_chop_keys: frozenset[tuple[str, str]] | None
 
 
 class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
     """Mixin providing AXE data collection and cache refreshes."""
 
+    def _axe_collector_kwargs(
+        self,
+        *,
+        include_full_snapshots: bool | None = None,
+        tail_all_chop_logs: bool = False,
+    ) -> _AxeCollectorKwargs:
+        """Return keyword arguments for :func:`collect_axe_status_data`."""
+        first_load_pending = not getattr(self, "_axe_first_load_done", True)
+        if include_full_snapshots is None:
+            include_full_snapshots = (
+                getattr(self, "current_tab", "axe") == "axe" or first_load_pending
+            )
+        cache = getattr(self, "_axe_status_read_cache", None)
+        if cache is None:
+            cache = AxeStatusReadCache()
+            self._axe_status_read_cache = cache
+        tail_chop_keys: frozenset[tuple[str, str]] | None
+        if not include_full_snapshots:
+            tail_chop_keys = frozenset()
+        elif tail_all_chop_logs:
+            tail_chop_keys = None
+        elif getattr(self, "current_tab", "axe") == "axe":
+            derive = getattr(self, "_derive_axe_view_from_selection", None)
+            if callable(derive):
+                derive()
+            chop_sel = getattr(self, "_axe_chop_selection", None)
+            tail_chop_keys = (
+                frozenset({chop_sel}) if chop_sel is not None else frozenset()
+            )
+        else:
+            tail_chop_keys = frozenset()
+        return {
+            "cache": cache,
+            "include_full_snapshots": include_full_snapshots,
+            "tail_chop_keys": tail_chop_keys,
+        }
+
     def _load_axe_status(self) -> None:
         """Load axe status from disk and update display."""
-        data = collect_axe_status_data()
+        kwargs = self._axe_collector_kwargs(include_full_snapshots=True)
+        data = collect_axe_status_data(
+            cache=kwargs["cache"],
+            include_full_snapshots=kwargs["include_full_snapshots"],
+            tail_chop_keys=kwargs["tail_chop_keys"],
+        )
         self._apply_axe_status_data(data)
 
     def _apply_axe_status_data(self, data: AxeCollectedData) -> None:
@@ -73,7 +124,6 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
 
         self._axe_status = data.axe_status
         self._axe_metrics = data.axe_metrics
-        self._axe_output = data.axe_output
         self._axe_degraded_status = data.degraded_status
 
         # Apply lumberjack names
@@ -90,16 +140,43 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
         # so that navigation renders from memory rather than from disk.
         self._axe_lumberjack_statuses = data.lumberjack_statuses
         self._axe_lumberjack_metrics = data.lumberjack_metrics
-        self._axe_lumberjack_log_tails = data.lumberjack_log_tails
-        self._axe_bgcmd_details = data.bgcmd_details
         # Apply chop-history caches. The sidebar (Phase 3) and the
         # chop-run dashboard (Phase 4) read from these without disk I/O.
         self._axe_lumberjack_chop_names = data.lumberjack_chop_names
-        # Translate any pinned run-history offsets to keep the user looking
-        # at the same run_id when new runs arrive at the head of history.
-        self._reconcile_chop_run_offsets(data.chop_snapshots)
-        self._axe_chop_snapshots = data.chop_snapshots
-        self._axe_lumberjack_snapshots = data.lumberjack_snapshots
+        if data.include_full_snapshots:
+            self._axe_output = data.axe_output
+            self._axe_lumberjack_log_tails = data.lumberjack_log_tails
+            self._axe_bgcmd_details = data.bgcmd_details
+            # Translate any pinned run-history offsets to keep the user looking
+            # at the same run_id when new runs arrive at the head of history.
+            self._reconcile_chop_run_offsets(data.chop_snapshots)
+            self._axe_chop_snapshots = data.chop_snapshots
+            self._axe_lumberjack_snapshots = data.lumberjack_snapshots
+            tailed = getattr(self, "_axe_tailed_chops", None)
+            if tailed is None:
+                self._axe_tailed_chops = set()
+                tailed = self._axe_tailed_chops
+            tailed.update(data.tailed_chop_keys)
+        else:
+            merged_bgcmd = dict(getattr(self, "_axe_bgcmd_details", {}))
+            for slot, snap in data.bgcmd_details.items():
+                existing = merged_bgcmd.get(slot)
+                if existing is not None and not snap.output_tail:
+                    snap.output_tail = existing.output_tail
+                    if snap.info is None:
+                        snap.info = existing.info
+                merged_bgcmd[slot] = snap
+            active_slots = {slot for slot, _ in data.bgcmd_slots}
+            self._axe_bgcmd_details = {
+                slot: snap
+                for slot, snap in merged_bgcmd.items()
+                if slot in active_slots
+            }
+            for name, jack in getattr(self, "_axe_lumberjack_snapshots", {}).items():
+                if name in data.lumberjack_statuses:
+                    jack.status = data.lumberjack_statuses[name]
+                if name in data.lumberjack_metrics:
+                    jack.metrics = data.lumberjack_metrics[name]
 
         self._update_bgcmd_count()
         self._build_axe_items()
@@ -111,15 +188,30 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
         # Update keybinding footer for all tabs (X binding changes label)
         self._update_axe_keybinding()  # type: ignore[attr-defined]
 
-    async def _load_axe_status_async(self) -> None:
+    async def _load_axe_status_async(
+        self,
+        *,
+        include_full_snapshots: bool | None = None,
+        tail_all_chop_logs: bool = False,
+    ) -> None:
         """Load axe status with disk I/O in a background thread."""
         import asyncio
 
-        data = await asyncio.to_thread(collect_axe_status_data)
+        kwargs = self._axe_collector_kwargs(
+            include_full_snapshots=include_full_snapshots,
+            tail_all_chop_logs=tail_all_chop_logs,
+        )
+        data = await asyncio.to_thread(
+            collect_axe_status_data,
+            cache=kwargs["cache"],
+            include_full_snapshots=kwargs["include_full_snapshots"],
+            tail_chop_keys=kwargs["tail_chop_keys"],
+        )
         self._apply_axe_status_data(data)
 
     def _schedule_axe_async_refresh(self) -> None:
         """Schedule an async axe status reload without blocking."""
+        self._axe_status_refresh_want_full = True
         if getattr(self, "_axe_status_refresh_running", False):
             self._axe_status_refresh_pending = True
             return
@@ -139,15 +231,37 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
         if task is None:
             self._axe_status_refresh_scheduled = False
 
-    async def _run_axe_status_refresh(self) -> bool:
-        """Run one guarded full AXE refresh and coalesce a trailing request."""
+    async def _run_axe_status_refresh(
+        self,
+        *,
+        include_full_snapshots: bool | None = None,
+        tail_all_chop_logs: bool = False,
+    ) -> bool:
+        """Run one guarded AXE refresh and coalesce a trailing request."""
         self._axe_status_refresh_scheduled = False
         if getattr(self, "_axe_status_refresh_running", False):
+            if include_full_snapshots:
+                self._axe_status_refresh_want_full = True
+            if tail_all_chop_logs:
+                self._axe_status_refresh_want_all_tails = True
             self._axe_status_refresh_pending = True
             return False
+        want_full = bool(getattr(self, "_axe_status_refresh_want_full", False))
+        want_all_tails = bool(
+            getattr(self, "_axe_status_refresh_want_all_tails", False)
+        )
+        self._axe_status_refresh_want_full = False
+        self._axe_status_refresh_want_all_tails = False
+        if include_full_snapshots:
+            want_full = True
+        if tail_all_chop_logs:
+            want_all_tails = True
         self._axe_status_refresh_running = True
         try:
-            await self._load_axe_status_async()
+            await self._load_axe_status_async(
+                include_full_snapshots=True if want_full else include_full_snapshots,
+                tail_all_chop_logs=want_all_tails,
+            )
             return True
         finally:
             self._axe_status_refresh_running = False
@@ -191,6 +305,7 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
             description_body = existing.description_body if existing is not None else ""
 
             def _read_chop() -> ChopSnapshot:
+                cache = getattr(self, "_axe_status_read_cache", None)
                 if existing is None:
                     return collect_chop_snapshot(
                         lj_name,
@@ -198,6 +313,8 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
                         description,
                         description_summary=description_summary,
                         description_body=description_body,
+                        cache=cache,
+                        tail_run_logs=True,
                     )
                 return collect_chop_snapshot(
                     lj_name,
@@ -214,6 +331,8 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
                     target_key=existing.target_key,
                     interval_seconds=existing.interval_seconds,
                     interval_source=existing.interval_source,
+                    cache=cache,
+                    tail_run_logs=True,
                 )
 
             snap = await asyncio.to_thread(_read_chop)
@@ -224,6 +343,11 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
             # across the targeted refresh.
             self._reconcile_chop_run_offsets({(lj_name, chop_name): snap})
             self._axe_chop_snapshots[(lj_name, chop_name)] = snap
+            tailed = getattr(self, "_axe_tailed_chops", None)
+            if tailed is None:
+                self._axe_tailed_chops = set()
+                tailed = self._axe_tailed_chops
+            tailed.add((lj_name, chop_name))
             jack_snap = self._axe_lumberjack_snapshots.get(lj_name)
             if jack_snap is not None:
                 jack_snap.chops = [
@@ -322,6 +446,34 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
             if getattr(self, "_axe_targeted_refresh_pending", False):
                 self._axe_targeted_refresh_pending = False
                 self._schedule_targeted_axe_refresh()
+
+    def _axe_ensure_selected_chop_tails(self) -> None:
+        """Fetch per-run log tails for a newly selected chop.
+
+        Full-fleet ticks only tail the currently rendered chop. Selecting a
+        different chop between ticks would otherwise paint empty output until
+        the next collect, so the first visit schedules a targeted refresh.
+        """
+        chop_sel = getattr(self, "_axe_chop_selection", None)
+        if chop_sel is None:
+            return
+        tailed = getattr(self, "_axe_tailed_chops", None)
+        if tailed is None:
+            self._axe_tailed_chops = set()
+            tailed = self._axe_tailed_chops
+        if chop_sel in tailed:
+            return
+        snap = getattr(self, "_axe_chop_snapshots", {}).get(chop_sel)
+        if snap is None or not snap.runs:
+            tailed.add(chop_sel)
+            return
+        run_idx = self._axe_resolve_chop_run_offset(chop_sel)
+        selected = snap.runs[max(0, min(run_idx, len(snap.runs) - 1))]
+        if selected.output_tail:
+            tailed.add(chop_sel)
+            return
+        tailed.add(chop_sel)
+        self._schedule_targeted_axe_refresh()
 
     def _axe_selected_chop_has_running_run(self) -> bool:
         """Return True when the selected chop's newest cached run is active.
