@@ -27,6 +27,7 @@ from ._meta_enrichment_common import (
     parse_utc_to_local,
     parse_linked_repos,
     pending_question_status_from_marker,
+    pending_review_window_active,
     plan_enrichment_status,
     refresh_agent_plan_path,
     valid_meta_tribe,
@@ -366,22 +367,44 @@ def enrich_agent_from_meta(
     # a submitted plan is waiting on manual review; agents still drafting a
     # plan, or using an auto-approval path, keep their current active display
     # state until later markers take over.
-    if data.get("plan") and agent.status in ACTIVE_ENRICHMENT_STATUSES:
+    if data.get("plan"):
         plan_approved = bool(data.get("plan_approved"))
+        raw_plan_action = data.get("plan_action")
+        plan_action = raw_plan_action if isinstance(raw_plan_action, str) else None
         plan_submitted = has_plan_submission_marker(data.get("plan_submitted_at"))
-        plan_status = plan_enrichment_status(
-            plan_approved=plan_approved,
-            plan_action=data.get("plan_action"),
-            plan_submitted=plan_submitted,
-            auto_approved=meta_auto_approved,
-            plan_tier=(
-                cached_plan_tier(data.get("plan_path"))
-                if plan_submitted and not plan_approved and not meta_auto_approved
-                else None
-            ),
-        )
-        if plan_status is not None:
-            agent.status = plan_status
+        eligible = agent.status in ACTIVE_ENRICHMENT_STATUSES
+        if not eligible and agent.status == "DONE":
+            raw_gate_id = data.get("gate_id")
+            raw_gate_member_agent_name = data.get("gate_member_agent_name")
+            eligible = pending_review_window_active(
+                plan_submitted=plan_submitted,
+                plan_approved=plan_approved,
+                plan_action=plan_action,
+                auto_approved=meta_auto_approved,
+                gate_id=raw_gate_id if isinstance(raw_gate_id, str) else None,
+                gate_member_agent_name=(
+                    raw_gate_member_agent_name
+                    if isinstance(raw_gate_member_agent_name, str)
+                    else None
+                ),
+                stopped_at=stopped_at if isinstance(stopped_at, str) else None,
+                has_done_marker=(Path(artifacts_dir) / "done.json").exists(),
+                pid=agent.pid,
+            )
+        if eligible:
+            plan_status = plan_enrichment_status(
+                plan_approved=plan_approved,
+                plan_action=plan_action,
+                plan_submitted=plan_submitted,
+                auto_approved=meta_auto_approved,
+                plan_tier=(
+                    cached_plan_tier(data.get("plan_path"))
+                    if plan_submitted and not plan_approved and not meta_auto_approved
+                    else None
+                ),
+            )
+            if plan_status is not None:
+                agent.status = plan_status
 
     apply_monitor_meta(
         agent,

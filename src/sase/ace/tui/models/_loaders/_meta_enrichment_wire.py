@@ -25,6 +25,7 @@ from ._meta_enrichment_common import (
     parse_utc_to_local,
     parse_linked_repos,
     pending_question_status_for_request_path,
+    pending_review_window_active,
     plan_enrichment_status,
     refresh_agent_plan_path,
     wire_meta_has_wait_directive,
@@ -40,6 +41,7 @@ def enrich_agent_from_meta_wire(
     *,
     plan_path_marker: str | None = None,
     workflow_child: bool = False,
+    has_done_marker: bool = False,
 ) -> None:
     """Snapshot-aware mirror of :func:`enrich_agent_from_meta`.
 
@@ -250,21 +252,42 @@ def enrich_agent_from_meta_wire(
             pending_question.request_path
         )
 
-    if meta.plan and agent.status in ACTIVE_ENRICHMENT_STATUSES:
+    if meta.plan:
         plan_submitted = bool(meta.plan_submitted_at)
-        plan_status = plan_enrichment_status(
-            plan_approved=meta.plan_approved,
-            plan_action=meta.plan_action,
-            plan_submitted=plan_submitted,
-            auto_approved=meta_auto_approved,
-            plan_tier=(
-                cached_plan_tier(meta.plan_path)
-                if plan_submitted and not meta.plan_approved and not meta_auto_approved
-                else None
-            ),
-        )
-        if plan_status is not None:
-            agent.status = plan_status
+        eligible = agent.status in ACTIVE_ENRICHMENT_STATUSES
+        if not eligible and agent.status == "DONE":
+            # The wire projection only exposes gate_id/gate_member_agent_name
+            # for shell rows, not the creator's own record, so those two
+            # window conditions are tolerantly treated as absent here; the
+            # stopped_at/done-marker/pid-liveness conditions still bound the
+            # window (see pending_review_window_active docstring).
+            eligible = pending_review_window_active(
+                plan_submitted=plan_submitted,
+                plan_approved=meta.plan_approved,
+                plan_action=meta.plan_action,
+                auto_approved=meta_auto_approved,
+                gate_id=None,
+                gate_member_agent_name=None,
+                stopped_at=meta.stopped_at,
+                has_done_marker=has_done_marker,
+                pid=agent.pid,
+            )
+        if eligible:
+            plan_status = plan_enrichment_status(
+                plan_approved=meta.plan_approved,
+                plan_action=meta.plan_action,
+                plan_submitted=plan_submitted,
+                auto_approved=meta_auto_approved,
+                plan_tier=(
+                    cached_plan_tier(meta.plan_path)
+                    if plan_submitted
+                    and not meta.plan_approved
+                    and not meta_auto_approved
+                    else None
+                ),
+            )
+            if plan_status is not None:
+                agent.status = plan_status
 
     shell = meta.family_shell
     monitor_shell = shell if shell is not None and shell.kind == "monitor" else None

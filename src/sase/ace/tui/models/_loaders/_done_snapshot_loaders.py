@@ -156,6 +156,7 @@ def build_done_agent_from_record(
         plan_path_marker=(
             record.plan_path.plan_path if record.plan_path is not None else None
         ),
+        has_done_marker=record.has_done_marker,
     )
     done_shell = done.family_shell
     done_monitor_shell = (

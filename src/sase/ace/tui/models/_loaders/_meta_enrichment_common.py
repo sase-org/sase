@@ -26,6 +26,7 @@ from sase.plan_chain import (
 )
 
 from ....agent_tribes import InvalidTribeError, validate_tribe_name
+from ....hooks.processes import is_process_running
 from ._json_cache import load_json_cached
 from ..agent import Agent, LinkedRepoMetadata
 
@@ -394,6 +395,46 @@ def plan_enrichment_status(
         return pending_plan_status_for_tier(plan_tier)
 
     return None
+
+
+def pending_review_window_active(
+    *,
+    plan_submitted: bool,
+    plan_approved: bool,
+    plan_action: str | None,
+    auto_approved: bool,
+    gate_id: str | None,
+    gate_member_agent_name: str | None,
+    stopped_at: str | None,
+    has_done_marker: bool,
+    pid: int | None,
+) -> bool:
+    """Whether a finalized ``DONE`` row is still in the propose-to-gate window.
+
+    A planner's runner rewrites its workflow markers to ``completed`` (hence
+    ``DONE``) the moment a plan is submitted, before the review gate shell
+    exists to carry the pending status itself. This predicate reopens
+    pending-review enrichment for that row while the handoff is still in
+    flight. It is self-healing: any settled row (approved, actioned,
+    auto-approved, handed to a gate, stopped, or already carrying a done
+    marker) or one whose runner has died stays ineligible, so no historical
+    or orphaned row is ever reclassified.
+    """
+    if not plan_submitted:
+        return False
+    if plan_approved or plan_action:
+        return False
+    if auto_approved:
+        return False
+    if gate_id or gate_member_agent_name:
+        return False
+    if stopped_at:
+        return False
+    if has_done_marker:
+        return False
+    if pid is None or not is_process_running(pid):
+        return False
+    return True
 
 
 def pending_question_status_for_request_path(request_path: object) -> str:

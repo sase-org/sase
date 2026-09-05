@@ -282,6 +282,7 @@ def load_workflow_agents_from_snapshot(
                 record.waiting,
                 record.pending_question,
                 plan_path_marker=plan_path,
+                has_done_marker=record.has_done_marker,
             )
         else:
             enrich_agent_from_meta(agent, entry.artifacts_dir)
@@ -434,6 +435,7 @@ def _build_workflow_agent_steps_for_record(
                         else None
                     ),
                     workflow_child=True,
+                    has_done_marker=record.has_done_marker,
                 )
             else:
                 enrich_agent_from_meta(
