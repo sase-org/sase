@@ -499,6 +499,59 @@ def test_periodic_check_revalidates_stale_ttl_snapshot_without_compute(
     assert calls == [{"revalidate_only": True}]
 
 
+def test_forced_check_recomputes_even_when_snapshot_is_fresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    status = _status(count=0)
+    calls: list[dict[str, object]] = []
+
+    def get_status(**kwargs: object) -> UpdateStatus:
+        calls.append(dict(kwargs))
+        return status
+
+    monkeypatch.setattr(update_toast, "get_cached_update_status", get_status)
+
+    result = update_toast._get_automatic_update_status(
+        update_toast._UpdateToastConfig(recompute_interval_seconds=3600.0),
+        periodic=True,
+        force=True,
+        now=100.0,
+    )
+
+    assert result == status
+    assert calls == [{"ttl_seconds": 0.0}]
+
+
+def test_forced_scheduled_check_updates_cached_status_with_disabled_ui(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    status = _status(count=0)
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(
+            startup_toast=False,
+            indicator=False,
+            prebuild_rust=False,
+        ),
+    )
+
+    def get_status(**kwargs: object) -> UpdateStatus:
+        calls.append(dict(kwargs))
+        return status
+
+    monkeypatch.setattr(update_toast, "get_cached_update_status", get_status)
+    app = _AutomaticCheckApp()
+
+    app._schedule_automatic_update_check(periodic=True, force=True)
+    app.workers[0][0]()
+
+    assert calls == [{"ttl_seconds": 0.0}]
+    assert app._automatic_update_status is status
+    assert app._automatic_update_check_in_flight is False
+
+
 def test_periodic_check_recomputes_when_configured_interval_elapses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -90,15 +90,21 @@ class UpdateToastMixin:
         """Handle a timer tick using only mounted UI and in-memory state."""
         self._schedule_automatic_update_check(periodic=True)
 
-    def _schedule_automatic_update_check(self, *, periodic: bool) -> None:
+    def _schedule_automatic_update_check(
+        self, *, periodic: bool, force: bool = False
+    ) -> None:
         """Schedule one guarded automatic update worker."""
         if getattr(self, "_automatic_update_check_in_flight", False):
             return
 
         self._automatic_update_check_in_flight = True
         worker_fn: Any = self._run_startup_update_toast_check
-        if periodic:
-            worker_fn = partial(self._run_startup_update_toast_check, periodic=True)
+        if periodic or force:
+            worker_fn = partial(
+                self._run_startup_update_toast_check,
+                periodic=periodic,
+                force=force,
+            )
         try:
             self.run_worker(  # type: ignore[attr-defined]
                 cast(Any, worker_fn),
@@ -111,12 +117,17 @@ class UpdateToastMixin:
             self._automatic_update_check_in_flight = False
             log.debug("Failed to schedule automatic update-status check", exc_info=True)
 
-    def _run_startup_update_toast_check(self, *, periodic: bool = False) -> None:
+    def _run_startup_update_toast_check(
+        self, *, periodic: bool = False, force: bool = False
+    ) -> None:
         """Run an automatic cached update-status check in a worker thread."""
         scheduled = getattr(self, "_automatic_update_check_in_flight", False)
         result: _AutomaticUpdateCheckResult | None = None
         try:
-            result = self._compute_automatic_update_check(periodic=periodic)
+            result = self._compute_automatic_update_check(
+                periodic=periodic,
+                force=force,
+            )
         except Exception:
             log.debug("Automatic update-status check failed", exc_info=True)
         finally:
@@ -137,17 +148,23 @@ class UpdateToastMixin:
         self,
         *,
         periodic: bool,
+        force: bool = False,
     ) -> _AutomaticUpdateCheckResult | None:
         """Compute one automatic update result without touching mounted widgets."""
         config = _load_update_toast_config()
         status_required = (
-            config.prebuild_rust
+            force
+            or config.prebuild_rust
             or config.indicator
             or (config.startup_toast and not periodic)
         )
         if not status_required:
             return None
-        status = _get_automatic_update_status(config, periodic=periodic)
+        status = _get_automatic_update_status(
+            config,
+            periodic=periodic,
+            force=force,
+        )
         if status is None:
             return None
 
@@ -157,8 +174,8 @@ class UpdateToastMixin:
             except Exception:
                 log.debug("Failed to schedule Rust prebuild", exc_info=True)
 
-        ui_enabled = config.indicator or config.startup_toast
-        if periodic and not config.indicator:
+        ui_enabled = force or config.indicator or config.startup_toast
+        if periodic and not (force or config.indicator):
             ui_enabled = False
         if not ui_enabled:
             return None
@@ -342,9 +359,12 @@ def _get_automatic_update_status(
     config: _UpdateToastConfig,
     *,
     periodic: bool,
+    force: bool = False,
     now: float | None = None,
 ) -> UpdateStatus | None:
     """Load automatic status with separate startup and periodic cadences."""
+    if force:
+        return get_cached_update_status(ttl_seconds=0.0)
     if not periodic:
         return get_cached_update_status(ttl_seconds=config.check_ttl_seconds)
 

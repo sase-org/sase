@@ -49,7 +49,7 @@ class UpdateRunActionsMixin:
         self._refresh_open_update_panel(rechecking=True)
         schedule_update = getattr(self, "_schedule_automatic_update_check", None)
         if callable(schedule_update):
-            schedule_update(periodic=True)
+            schedule_update(periodic=True, force=True)
 
     def _refresh_open_update_panel(self, *, rechecking: bool | None = None) -> None:
         """Rebuild the active Update panel from cached snapshots; otherwise no-op."""

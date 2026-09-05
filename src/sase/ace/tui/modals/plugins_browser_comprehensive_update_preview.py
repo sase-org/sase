@@ -168,8 +168,6 @@ def _plan_sase_leg(
 ) -> tuple[DevUpdatePreview | None, bool, str | None]:
     if UpdateLeg.SASE not in selected:
         return None, False, None
-    if _sase_is_cached_current(inputs.cached_status):
-        return None, True, None
     install = inputs.uv_tool
     if isinstance(install, NotUvToolInstall):
         return None, False, str(NotAUvToolInstallError(install))
@@ -180,7 +178,13 @@ def _plan_sase_leg(
             already_refreshed_roots=frozenset(already_refreshed_roots),
         )
         blocker = sase_preview.error
+        if blocker is None and sase_preview.plan is None:
+            if _sase_is_cached_current(inputs.cached_status):
+                return None, True, None
+            return sase_preview, False, None
         if blocker is None and sase_preview.plan is not None:
+            if _plan_is_fresh_current(sase_preview):
+                return None, True, None
             plan_blocker = dev_update_blocking_reason(sase_preview.plan)
             managed_can_proceed = bool(
                 sase_preview.managed_argv and not sase_preview.plan.actionable_roots
@@ -190,6 +194,35 @@ def _plan_sase_leg(
     except Exception as exc:  # noqa: BLE001 - preserve independently valid legs.
         return None, False, error_text(exc)
     return sase_preview, False, blocker
+
+
+def _plan_is_fresh_current(preview: DevUpdatePreview) -> bool:
+    """Return whether a fresh plan proves editable roots are current.
+
+    Cached evidence may gate what is shown, but only a fresh fetch may conclude
+    "current" for editable checkouts.
+    """
+    plan = preview.plan
+    if plan is None:
+        return False
+    if (
+        plan.actionable_roots
+        or plan.actionable
+        or plan.reconcile_steps
+        or preview.managed_argv
+    ):
+        return False
+    current_roots = {
+        root.git_root
+        for root in plan.roots
+        if root.status == "skipped"
+        and root.ahead == 0
+        and root.behind == 0
+        and root.fetch_error is None
+    }
+    if len(current_roots) != len(plan.roots):
+        return False
+    return all(package.git_root in current_roots for package in plan.skipped)
 
 
 def _sase_is_cached_current(status: UpdateStatus | None) -> bool:

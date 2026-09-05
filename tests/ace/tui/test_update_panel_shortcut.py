@@ -50,12 +50,14 @@ class _ShortcutHarness(UpdateRunActionsMixin, BaseActionsMixin):
 class _PanelHarness(UpdateRunActionsMixin):
     def __init__(self) -> None:
         self.screen: object | None = None
-        self.update_checks: list[bool] = []
+        self.update_checks: list[dict[str, bool]] = []
         self._automatic_update_status = None
         self._automatic_update_check_in_flight = False
 
-    def _schedule_automatic_update_check(self, *, periodic: bool) -> None:
-        self.update_checks.append(periodic)
+    def _schedule_automatic_update_check(
+        self, *, periodic: bool, force: bool = False
+    ) -> None:
+        self.update_checks.append({"periodic": periodic, "force": force})
         self._automatic_update_check_in_flight = True
 
 
@@ -139,7 +141,7 @@ def test_recheck_marks_panel_busy_and_schedules_existing_checks(
 
     assert isinstance(harness.screen, UpdatePanel)
     assert harness.screen._state.rechecking is True
-    assert harness.update_checks == [True]
+    assert harness.update_checks == [{"periodic": True, "force": True}]
 
 
 def test_refresh_noops_when_the_panel_is_not_the_active_screen(

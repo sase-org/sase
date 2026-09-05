@@ -26,9 +26,11 @@ from sase.ace.tui.update_preview_inputs import (
     collect_update_preview_inputs,
 )
 from sase.ace.update_scope import ALL_LEGS, UpdateLeg, UpdateScope
+from sase.dev_update.models import DevUpdatePlan
 from sase.updates import UpdateSourceStatus, UpdateStatus
 from sase.uv_tool.detect import NotUvToolInstall, NotUvToolReason
 from tests.ace.tui._plugins_browser_pane_helpers import _agent_cli_statuses
+from tests.ace.tui._plugins_browser_pane_update_helpers import _dev_plan
 
 _PREVIEW_MOD = "sase.ace.tui.modals.plugins_browser_comprehensive_update_preview"
 _INPUTS_MOD = "sase.ace.tui.update_preview_inputs"
@@ -53,6 +55,26 @@ def _current_status() -> UpdateStatus:
         core_source=UpdateSourceStatus.success(1.0),
         plugin_source=UpdateSourceStatus.success(1.0),
     )
+
+
+def _fresh_current_dev_plan() -> DevUpdatePlan:
+    plan = _dev_plan(status="skipped")
+    package = replace(
+        plan.packages[0],
+        reason="already current",
+        latest_version=plan.packages[0].current_version,
+        ahead=0,
+        behind=0,
+        fetch_error=None,
+    )
+    root = replace(
+        plan.roots[0],
+        reason="already current",
+        ahead=0,
+        behind=0,
+        fetch_error=None,
+    )
+    return replace(plan, packages=(package,), roots=(root,), reconcile_steps=())
 
 
 def _section_titles(preview: ComprehensiveUpdatePreview) -> list[str]:
@@ -200,19 +222,103 @@ def test_build_preview_providers_scope_omits_other_legs(
     assert _section_titles(preview) == ["Agent CLIs"]
 
 
-def test_cached_current_status_skips_sase_planner(
+def test_cached_current_status_still_runs_sase_planner_for_editables(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        f"{_PREVIEW_MOD}.make_sase_dev_update_preview",
-        lambda *_args, **_kwargs: pytest.fail("cached current must skip planner"),
-    )
+    plan = _dev_plan()
+    make_calls: list[tuple[object, dict[str, object]]] = []
+
+    def _make(receipt: object, **kwargs: object) -> DevUpdatePreview:
+        make_calls.append((receipt, dict(kwargs)))
+        return DevUpdatePreview(plan=plan, subject="sase")
+
+    monkeypatch.setattr(f"{_PREVIEW_MOD}.make_sase_dev_update_preview", _make)
 
     preview = build_comprehensive_update_preview(
         ComprehensiveUpdateRequest(()),
         _inputs(cached_status=_current_status()),
     )
 
+    assert make_calls == [(None, {"already_refreshed_roots": frozenset()})]
+    assert preview.sase_current is False
+    assert preview.sase_runnable is True
+    assert preview.sase_preview is not None
+    assert preview.sase_preview.plan is plan
+
+
+def test_fresh_current_sase_plan_reports_current_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        f"{_PREVIEW_MOD}.make_sase_dev_update_preview",
+        lambda _receipt, **_kwargs: DevUpdatePreview(
+            plan=_fresh_current_dev_plan(),
+            subject="sase",
+        ),
+    )
+
+    preview = build_comprehensive_update_preview(
+        ComprehensiveUpdateRequest((), UpdateScope.SASE),
+        _inputs(cached_status=_current_status()),
+    )
+    notes: list[tuple[str, str]] = []
+
+    handle_comprehensive_noop(
+        preview,
+        notify=lambda message, *, severity="information": notes.append(
+            (message, severity)
+        ),
+    )
+
+    assert preview.sase_current is True
+    assert preview.sase_runnable is False
+    assert preview.sase_blocker is None
+    assert notes == [
+        (
+            "SASE, core, and plugins in the captured update are already current.",
+            "information",
+        )
+    ]
+
+
+def test_non_currency_sase_noop_keeps_blocking_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        f"{_PREVIEW_MOD}.make_sase_dev_update_preview",
+        lambda _receipt, **_kwargs: DevUpdatePreview(
+            plan=_dev_plan(status="skipped"),
+            subject="sase",
+        ),
+    )
+
+    preview = build_comprehensive_update_preview(
+        ComprehensiveUpdateRequest((), UpdateScope.SASE),
+        _inputs(cached_status=_current_status()),
+    )
+
+    assert preview.sase_current is False
+    assert preview.sase_runnable is False
+    assert preview.sase_blocker == "sase-github: checkout has local changes"
+
+
+def test_cached_current_managed_only_preview_keeps_current_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    make_calls: list[object] = []
+    monkeypatch.setattr(
+        f"{_PREVIEW_MOD}.make_sase_dev_update_preview",
+        lambda receipt, **_kwargs: (
+            make_calls.append(receipt) or DevUpdatePreview(plan=None, subject="sase")
+        ),
+    )
+
+    preview = build_comprehensive_update_preview(
+        ComprehensiveUpdateRequest((), UpdateScope.SASE),
+        _inputs(cached_status=_current_status()),
+    )
+
+    assert make_calls == [None]
     assert preview.sase_current is True
     assert preview.sase_runnable is False
     assert preview.sase_preview is None
