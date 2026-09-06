@@ -34,6 +34,7 @@ class CommitCheckpoint:
     commit_sha: str | None = None
     commit_tree: str | None = None
     publication_agent: str | None = None
+    no_commit_dispatched: bool = False
     cs_name: str | None = None
     entry_id: str | None = None
     completed_steps: list[str] = field(default_factory=list)

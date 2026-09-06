@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
+
 
 def explicit_parent_resolves(parent_name: str) -> bool:
     """Return whether ``parent_name`` is a known Patch in this project.
@@ -24,7 +26,7 @@ def explicit_parent_resolves(parent_name: str) -> bool:
 def is_conflict_state(provider: object, cwd: str) -> bool:
     """Return whether the working tree appears to be in a merge-conflict state."""
     try:
-        if provider.is_sync_in_progress(cwd):  # type: ignore[attr-defined]
+        if provider.is_sync_in_progress(cwd) is True:  # type: ignore[attr-defined]
             return True
     except NotImplementedError:
         pass
@@ -32,7 +34,11 @@ def is_conflict_state(provider: object, cwd: str) -> bool:
         pass
     try:
         conflicted = provider.get_conflicted_files(cwd)  # type: ignore[attr-defined]
-        if conflicted:
+        if (
+            isinstance(conflicted, Collection)
+            and not isinstance(conflicted, (str, bytes))
+            and len(conflicted) > 0
+        ):
             return True
     except NotImplementedError:
         pass

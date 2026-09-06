@@ -26,6 +26,7 @@ def _make_cp(**overrides: object) -> CommitCheckpoint:
         "reserved_name": "my-cl_1",
         "parent_cl_name": "parent-cl",
         "dispatch_result": "abc123",
+        "no_commit_dispatched": True,
         "cs_name": "my-cl_1",
         "entry_id": "42",
         "completed_steps": ["dispatch", "write_result_marker"],
@@ -53,6 +54,7 @@ def test_save_and_load_round_trip(tmp_path: Path) -> None:
     assert loaded.reserved_name == cp.reserved_name
     assert loaded.parent_cl_name == cp.parent_cl_name
     assert loaded.dispatch_result == cp.dispatch_result
+    assert loaded.no_commit_dispatched is True
     assert loaded.cs_name == cp.cs_name
     assert loaded.entry_id == cp.entry_id
     assert loaded.completed_steps == cp.completed_steps
@@ -78,6 +80,27 @@ def test_load_returns_none_for_unknown_version(tmp_path: Path) -> None:
     )
 
     assert checkpoint.checkpoint_load(str(target)) is None
+
+
+def test_load_uses_default_for_legacy_no_commit_dispatched_key(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "legacy.json"
+    target.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "method": "create_commit",
+                "payload": {"message": "fix: bug"},
+                "cwd": "/tmp/work",
+            }
+        )
+    )
+
+    loaded = checkpoint.checkpoint_load(str(target))
+
+    assert loaded is not None
+    assert loaded.no_commit_dispatched is False
 
 
 def test_get_checkpoint_path_uses_artifacts_dir(

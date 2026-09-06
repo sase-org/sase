@@ -284,6 +284,7 @@ def dispatch_commit_decisions(
             current_result=current_result,
         )
         repaired_conflict = False
+        repaired_without_commit = False
         if not rescued_bounds_failure:
             if stitch.returncode == EXIT_CODE_CONFLICT:
                 attempts[0] = FinalizerAttemptWire(
@@ -291,7 +292,7 @@ def dispatch_commit_decisions(
                     status="failed",
                     diagnostic_code="commit_conflict",
                 )
-                current_result = resolve_commit_conflict(
+                repair_result = resolve_commit_conflict(
                     repo,
                     context,
                     provider=provider,
@@ -306,7 +307,9 @@ def dispatch_commit_decisions(
                     before_markers=before_markers,
                     attempt_id=consumed_attempt,
                 )
+                current_result = repair_result.invoke_result
                 repaired_conflict = True
+                repaired_without_commit = repair_result.resolved_without_commit
             elif stitch.returncode != 0:
                 message_text = stitch_failure_message(repo, stitch)
                 attempts[0] = FinalizerAttemptWire(
@@ -332,6 +335,9 @@ def dispatch_commit_decisions(
             marker for marker in markers if marker_matches_repo(marker, repo)
         ]
         if not repo_markers:
+            if repaired_without_commit:
+                state = prepare_dirty_state(project_dir, artifacts)
+                continue
             message_text = (
                 f"sase stitch create completed for {repo.name}, but no "
                 "commit_results.json entry was recorded"

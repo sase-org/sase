@@ -32,6 +32,7 @@ from sase.finalizers.executor import FinalizerExecutionContext
 from sase.llm_provider.commit_finalizer_artifacts import artifact_root
 from sase.llm_provider.commit_finalizer_git import (
     dirty_path_fingerprints,
+    git_changed_files,
     normalize_path,
 )
 from sase.llm_provider.commit_finalizer_git_status import git_head_commit_id
@@ -44,6 +45,14 @@ _CONFLICT_PROMPT_FILENAME = "conflict_repair_prompt.md"
 _CONFLICT_RESPONSE_FILENAME = "conflict_repair_response.md"
 _ARTIFACT_LABEL_RE = re.compile(r"[^A-Za-z0-9._-]+")
 _MAX_STREAM_CHARS = 4000
+
+
+@dataclass(frozen=True)
+class _ConflictRepairResult:
+    """Outcome from one conflict repair and resume attempt."""
+
+    invoke_result: InvokeResult
+    resolved_without_commit: bool = False
 
 
 def run_stitch_create(
@@ -96,7 +105,7 @@ def resolve_commit_conflict(
     evidence: list[FinalizerOutcomeEvidenceWire],
     before_markers: Sequence[Mapping[str, Any]],
     attempt_id: int,
-) -> InvokeResult:
+) -> _ConflictRepairResult:
     """Run the one-shot conflict-repair turn and resume the same stitch."""
 
     if _conflict_repair_spent(context.artifacts_dir):
@@ -134,7 +143,7 @@ def resolve_commit_conflict(
             FinalizerOutcomeEvidenceWire(kind="conflict_repair", value="success")
         )
         evidence.extend(marker_evidence(repaired_markers[-1]))
-        return current_result
+        return _ConflictRepairResult(invoke_result=current_result)
     resumed = resume_runner(repo, context)
     record_stitch_artifacts(
         context, "commit", attempt_id, resumed, label="conflict-repair"
@@ -180,10 +189,49 @@ def resolve_commit_conflict(
             ),
             invoke_result=current_result,
         )
-    evidence.append(
-        FinalizerOutcomeEvidenceWire(kind="conflict_repair", value="success")
+    resumed_markers = [
+        marker
+        for marker in new_commit_markers(
+            before_markers,
+            load_commit_results(artifact_root(context.artifacts_dir)),
+        )
+        if marker_matches_repo(marker, repo)
+    ]
+    if resumed_markers:
+        evidence.append(
+            FinalizerOutcomeEvidenceWire(kind="conflict_repair", value="success")
+        )
+        return _ConflictRepairResult(invoke_result=current_result)
+    if _repo_is_settled_after_repair(repo, provider=provider):
+        evidence.append(
+            FinalizerOutcomeEvidenceWire(
+                kind="conflict_repair", value="resolved_without_commit"
+            )
+        )
+        evidence.append(
+            FinalizerOutcomeEvidenceWire(
+                kind="head_sha", value=git_head_commit_id(repo.path)
+            )
+        )
+        return _ConflictRepairResult(
+            invoke_result=current_result,
+            resolved_without_commit=True,
+        )
+    message_text = (
+        f"sase stitch create --resume completed for {repo.name}, but no "
+        "commit_results.json entry was recorded and the repository is not clean"
     )
-    return current_result
+    raise BuiltinCommitFinalizerError(
+        message_text,
+        result=failed_result(
+            "commit",
+            "missing_commit_result",
+            message_text,
+            attempts=attempts,
+            evidence=evidence,
+        ),
+        invoke_result=current_result,
+    )
 
 
 def load_commit_results(artifacts: Path | None) -> list[dict[str, Any]]:
@@ -236,6 +284,28 @@ def marker_evidence(
             )
         )
     return evidence
+
+
+def _repo_is_settled_after_repair(
+    repo: DirtyRepo,
+    *,
+    provider: Any,
+) -> bool:
+    try:
+        if provider.is_sync_in_progress(repo.path):  # type: ignore[attr-defined]
+            return False
+    except NotImplementedError:
+        pass
+    except Exception:
+        return False
+    try:
+        if provider.get_conflicted_files(repo.path):  # type: ignore[attr-defined]
+            return False
+    except NotImplementedError:
+        pass
+    except Exception:
+        return False
+    return not git_changed_files(repo.path)
 
 
 def record_stitch_artifacts(

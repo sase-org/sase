@@ -56,10 +56,120 @@ def test_resume_returns_failed_on_subject_mismatch(
         cwd=str(tmp_path), payload={"message": "feat: original\n\nbody"}
     )
 
-    assert CommitWorkflow.resume() == RunResult.FAILED
+    with patch(
+        "sase.workflows.commit.workflow_resume.git_changed_files",
+        return_value=["src/app.py"],
+    ):
+        assert CommitWorkflow.resume() == RunResult.FAILED
     # Checkpoint preserved so the user can inspect / clean up manually.
     assert (artifacts_dir / "commit_state.json").exists()
     provider.finalize_commit.assert_not_called()
+
+
+@patch(PROVIDER_TARGET)
+def test_resume_no_commit_dispatched_clean_repo_finishes_without_tracking(
+    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+) -> None:
+    provider = make_resume_provider(head_subject="feat: unrelated")
+    mock_get.return_value = provider
+
+    save_resume_checkpoint(
+        cwd=str(tmp_path),
+        payload={"message": "fix: original"},
+        no_commit_dispatched=True,
+    )
+
+    with (
+        patch(
+            "sase.workflows.commit.workflow_resume.git_changed_files",
+            return_value=[],
+        ),
+        patch("sase.workflows.commit.workflow.write_result_marker") as mock_marker,
+        patch("sase.workflows.commit.workflow.append_commits_entry") as mock_append,
+        patch("sase.workflows.commit.workflow.run_after_commit_hook") as mock_after,
+    ):
+        assert CommitWorkflow.resume() == RunResult.OK
+
+    provider.finalize_commit.assert_not_called()
+    mock_after.assert_not_called()
+    mock_marker.assert_not_called()
+    mock_append.assert_not_called()
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(PROVIDER_TARGET)
+def test_resume_legacy_subject_mismatch_clean_repo_finishes_without_tracking(
+    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+) -> None:
+    provider = make_resume_provider(head_subject="feat: already upstream")
+    mock_get.return_value = provider
+
+    save_resume_checkpoint(
+        cwd=str(tmp_path),
+        payload={"message": "fix: original"},
+    )
+
+    with (
+        patch(
+            "sase.workflows.commit.workflow_resume.git_changed_files",
+            return_value=[],
+        ),
+        patch("sase.workflows.commit.workflow.write_result_marker") as mock_marker,
+    ):
+        assert CommitWorkflow.resume() == RunResult.OK
+
+    provider.finalize_commit.assert_not_called()
+    mock_marker.assert_not_called()
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(PROVIDER_TARGET)
+def test_resume_no_commit_dispatched_dirty_repo_fails_and_deletes_checkpoint(
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    provider = make_resume_provider(head_subject="feat: unrelated")
+    mock_get.return_value = provider
+
+    save_resume_checkpoint(
+        cwd=str(tmp_path),
+        payload={"message": "fix: original"},
+        no_commit_dispatched=True,
+    )
+
+    with patch(
+        "sase.workflows.commit.workflow_resume.git_changed_files",
+        return_value=["src/app.py"],
+    ):
+        assert CommitWorkflow.resume() == RunResult.FAILED
+
+    provider.finalize_commit.assert_not_called()
+    assert "Re-run `sase stitch create` from scratch" in capsys.readouterr().out
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(PROVIDER_TARGET)
+def test_resume_legacy_subject_mismatch_dirty_repo_still_fails_closed(
+    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+) -> None:
+    provider = make_resume_provider(head_subject="feat: something else")
+    mock_get.return_value = provider
+
+    save_resume_checkpoint(
+        cwd=str(tmp_path),
+        payload={"message": "fix: original"},
+    )
+
+    with patch(
+        "sase.workflows.commit.workflow_resume.git_changed_files",
+        return_value=["src/app.py"],
+    ):
+        assert CommitWorkflow.resume() == RunResult.FAILED
+
+    provider.finalize_commit.assert_not_called()
+    assert (artifacts_dir / "commit_state.json").exists()
 
 
 @patch(PROVIDER_TARGET)

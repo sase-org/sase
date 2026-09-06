@@ -133,10 +133,43 @@ class CommitWorkflow(BaseWorkflow):
             return RunResult.FAILED
 
         cwd = os.getcwd()
+        provider = None
+        provider_lookup_error: Exception | None = None
+        try:
+            provider = get_vcs_provider(cwd)
+        except Exception as exc:
+            provider_lookup_error = exc
+        else:
+            if _is_conflict_state(provider, cwd):
+                checkpoint_save(
+                    CommitCheckpoint(
+                        method=self._method,
+                        payload=self._payload,
+                        cwd=cwd,
+                        no_commit_dispatched=True,
+                    )
+                )
+                _log_commit_failed(self._method, "sync_conflict")
+                VCS_OPERATIONS.labels(
+                    provider=getattr(provider, "_provider_name", "unknown"),
+                    operation="commit_conflict_detected",
+                    status="pre_existing",
+                ).inc()
+                print_status(
+                    f"{self._method} cannot start: the repository already has "
+                    "an in-progress rebase/merge left by a previous "
+                    "operation. No commit was created. Resolve or abort the "
+                    "in-progress operation, then run "
+                    "`sase stitch create --resume`.",
+                    "warning",
+                )
+                return RunResult.CONFLICT
 
         if self._payload.get("exclude"):
-            exclude_provider = get_vcs_provider(cwd)
-            if not exclude_provider.supports_commit_excludes():
+            if provider is None:
+                assert provider_lookup_error is not None
+                raise provider_lookup_error
+            if not provider.supports_commit_excludes():
                 from sase.vcs_provider._registry import detect_vcs
 
                 provider_name = detect_vcs(cwd) or "unknown"
@@ -214,7 +247,9 @@ class CommitWorkflow(BaseWorkflow):
         elif self._method == "create_commit":
             apply_tracked_commit_tags(self._payload)
 
-        provider = get_vcs_provider(cwd)
+        if provider is None:
+            assert provider_lookup_error is not None
+            raise provider_lookup_error
         dispatch = getattr(provider, self._method)
 
         # Resolve Patch name and project file for COMMITS entries and diff
@@ -247,6 +282,9 @@ class CommitWorkflow(BaseWorkflow):
         ok, result = dispatch(self._payload, cwd)
         if not ok:
             if _is_conflict_state(provider, cwd):
+                if _classify_dispatch_failure(result) == "no_staged_changes":
+                    cp.no_commit_dispatched = True
+                    checkpoint_save(cp)
                 _log_commit_failed(self._method, "sync_conflict")
                 VCS_OPERATIONS.labels(
                     provider=getattr(provider, "_provider_name", "unknown"),

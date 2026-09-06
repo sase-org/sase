@@ -30,8 +30,9 @@ def test_run_detects_conflict_and_returns_conflict_code(
     mock_get: MagicMock, artifacts_dir: Path
 ) -> None:
     provider = make_provider(
-        dispatch_result=(False, "merge conflict"), is_conflict=True
+        dispatch_result=(False, "merge conflict"), is_conflict=False
     )
+    provider.is_sync_in_progress.side_effect = [False, True]
     mock_get.return_value = provider
 
     payload: dict[str, Any] = {"message": "fix: bug", "files": ["a.py"]}
@@ -46,6 +47,55 @@ def test_run_detects_conflict_and_returns_conflict_code(
     assert loaded.completed_steps == []
     assert loaded.payload == payload
     assert loaded.method == "create_commit"
+    assert loaded.no_commit_dispatched is False
+
+
+@patch(_PROVIDER_TARGET)
+def test_run_refuses_pre_existing_conflict_before_hooks_and_dispatch(
+    mock_get: MagicMock, artifacts_dir: Path
+) -> None:
+    provider = make_provider(dispatch_result=(True, "abc123"), is_conflict=True)
+    mock_get.return_value = provider
+
+    wf = CommitWorkflow({"message": "fix: bug"}, "create_commit")
+
+    with (
+        patch("sase.workflows.commit.workflow.handle_beads") as mock_beads,
+        patch("sase.workflows.commit.workflow.handle_sase_plan") as mock_plan,
+        patch(
+            "sase.workflows.commit.workflow.run_before_commit_hook",
+            return_value=True,
+        ) as mock_before_hook,
+    ):
+        assert wf.run() == RunResult.CONFLICT
+
+    mock_beads.assert_not_called()
+    mock_plan.assert_not_called()
+    mock_before_hook.assert_not_called()
+    provider.create_commit.assert_not_called()
+    loaded = checkpoint.checkpoint_load(str(artifacts_dir / "commit_state.json"))
+    assert loaded is not None
+    assert loaded.no_commit_dispatched is True
+    assert loaded.completed_steps == []
+
+
+@patch(_PROVIDER_TARGET)
+def test_no_staged_changes_conflict_checkpoint_marks_no_commit_dispatched(
+    mock_get: MagicMock, artifacts_dir: Path
+) -> None:
+    provider = make_provider(
+        dispatch_result=(False, "No staged changes to commit"), is_conflict=False
+    )
+    provider.is_sync_in_progress.side_effect = [False, True]
+    mock_get.return_value = provider
+
+    wf = CommitWorkflow({"message": "fix: bug"}, "create_commit")
+
+    assert wf.run() == RunResult.CONFLICT
+
+    loaded = checkpoint.checkpoint_load(str(artifacts_dir / "commit_state.json"))
+    assert loaded is not None
+    assert loaded.no_commit_dispatched is True
 
 
 @patch(_PROVIDER_TARGET)
@@ -197,8 +247,9 @@ def test_pre_dispatch_checkpoint_has_post_mutation_payload_for_pr(
 ) -> None:
     """Checkpoint payload reflects PR prefix / tags applied before dispatch."""
     provider = make_provider(
-        dispatch_result=(False, "merge conflict"), is_conflict=True
+        dispatch_result=(False, "merge conflict"), is_conflict=False
     )
+    provider.is_sync_in_progress.side_effect = [False, True]
     mock_get.return_value = provider
 
     payload: dict[str, Any] = {"name": "feat", "message": "feat: x"}
@@ -306,8 +357,9 @@ def test_pre_dispatch_checkpoint_written_before_dispatch(
 ) -> None:
     """The first save() is the pre-dispatch snapshot with no completed steps."""
     provider = make_provider(
-        dispatch_result=(False, "merge conflict"), is_conflict=True
+        dispatch_result=(False, "merge conflict"), is_conflict=False
     )
+    provider.is_sync_in_progress.side_effect = [False, True]
     mock_get.return_value = provider
 
     saves_before_dispatch: list[list[str]] = []

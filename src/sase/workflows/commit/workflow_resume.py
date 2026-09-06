@@ -6,6 +6,7 @@ import os
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from sase.llm_provider.commit_finalizer_git_status import git_changed_files
 from sase.output import print_status
 from sase.telemetry.metrics import VCS_OPERATIONS
 from sase.workflows.commit.checkpoint import CommitCheckpoint
@@ -62,9 +63,21 @@ def resume_commit_workflow(
 
     expected_subject = (cp.payload.get("message", "").splitlines() or [""])[0].strip()
     actual_subject = _get_head_subject(provider, cp.cwd)
-    if expected_subject and (
-        actual_subject is None or actual_subject.strip() != expected_subject
-    ):
+    subject_mismatch = bool(
+        expected_subject
+        and (actual_subject is None or actual_subject.strip() != expected_subject)
+    )
+    if cp.no_commit_dispatched or subject_mismatch:
+        dirty_paths = git_changed_files(cp.cwd)
+        if cp.no_commit_dispatched or not dirty_paths:
+            return _finish_no_commit_resume(
+                cp,
+                checkpoint_delete,
+                provider_name,
+                dirty_paths=dirty_paths,
+            )
+
+    if subject_mismatch:
         print_status(
             "Could not find the expected commit at HEAD (subject mismatch). "
             "Re-run sase stitch create from scratch.",
@@ -140,6 +153,44 @@ def resume_commit_workflow(
         provider=provider_name,
         operation="commit_resume",
         status="ok",
+    ).inc()
+    return RunResult.OK
+
+
+def _finish_no_commit_resume(
+    cp: CommitCheckpoint,
+    checkpoint_delete: Callable[[], None],
+    provider_name: str,
+    *,
+    dirty_paths: list[str],
+) -> RunResult:
+    """Complete a checkpoint whose original dispatch never produced a commit."""
+    if dirty_paths:
+        print_status(
+            "The original stitch never created a commit, and the repository "
+            "still has stageable changes: "
+            + ", ".join(dirty_paths)
+            + ". Re-run `sase stitch create` from scratch.",
+            "error",
+        )
+        checkpoint_delete()
+        VCS_OPERATIONS.labels(
+            provider=provider_name,
+            operation="commit_resume",
+            status="never_committed_dirty",
+        ).inc()
+        return RunResult.FAILED
+
+    print_status(
+        "Checkpointed stitch has nothing to finish: no commit was created, "
+        "or its changes were already upstream.",
+        "success",
+    )
+    checkpoint_delete()
+    VCS_OPERATIONS.labels(
+        provider=provider_name,
+        operation="commit_resume",
+        status="no_commit_needed",
     ).inc()
     return RunResult.OK
 

@@ -207,6 +207,118 @@ def test_conflict_repair_followup_commit_uses_repair_declaration(
     )
 
 
+def test_conflict_repair_resume_without_marker_succeeds_when_repo_settled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    dirty = _repo(repo_path, changed_files=("src/app.py",))
+    changed_files: list[str] = []
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="resolved")
+    provider.is_sync_in_progress.return_value = False
+    provider.get_conflicted_files.return_value = []
+    monkeypatch.setattr(
+        "sase.finalizers.commit_repair.git_changed_files",
+        lambda _path: list(changed_files),
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.commit_repair.git_head_commit_id",
+        lambda _path: "h" * 40,
+    )
+
+    def stitch_runner(
+        _repo_arg: DirtyRepo,
+        _message: str,
+        _excludes: Sequence[str],
+        _context_arg: FinalizerExecutionContext,
+    ) -> StitchCommandResult:
+        return StitchCommandResult(returncode=EXIT_CODE_CONFLICT)
+
+    def resume_runner(
+        _repo_arg: DirtyRepo,
+        _context_arg: FinalizerExecutionContext,
+    ) -> StitchCommandResult:
+        return StitchCommandResult(returncode=0, stdout="nothing to finish\n")
+
+    result = _dispatch(
+        repo=dirty,
+        artifacts=artifacts,
+        changed_files=changed_files,
+        stitch_runner=stitch_runner,
+        resume_runner=resume_runner,
+        provider=provider,
+    )
+
+    assert any(
+        item.kind == "conflict_repair" and item.value == "resolved_without_commit"
+        for item in result.evidence
+    )
+    assert any(
+        item.kind == "head_sha" and item.value == "h" * 40 for item in result.evidence
+    )
+    assert not (artifacts / "commit_results.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("sync_in_progress", "conflicted_files", "changed_files"),
+    [
+        (True, [], []),
+        (False, ["src/app.py"], []),
+        (False, [], ["src/app.py"]),
+    ],
+)
+def test_conflict_repair_resume_without_marker_fails_when_repo_unsettled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    sync_in_progress: bool,
+    conflicted_files: list[str],
+    changed_files: list[str],
+) -> None:
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    dirty = _repo(repo_path, changed_files=("src/app.py",))
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="resolved")
+    provider.is_sync_in_progress.return_value = sync_in_progress
+    provider.get_conflicted_files.return_value = conflicted_files
+    monkeypatch.setattr(
+        "sase.finalizers.commit_repair.git_changed_files",
+        lambda _path: list(changed_files),
+    )
+
+    def stitch_runner(
+        _repo_arg: DirtyRepo,
+        _message: str,
+        _excludes: Sequence[str],
+        _context_arg: FinalizerExecutionContext,
+    ) -> StitchCommandResult:
+        return StitchCommandResult(returncode=EXIT_CODE_CONFLICT)
+
+    def resume_runner(
+        _repo_arg: DirtyRepo,
+        _context_arg: FinalizerExecutionContext,
+    ) -> StitchCommandResult:
+        return StitchCommandResult(returncode=0, stdout="nothing to finish\n")
+
+    with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
+        _dispatch(
+            repo=dirty,
+            artifacts=artifacts,
+            changed_files=changed_files,
+            stitch_runner=stitch_runner,
+            resume_runner=resume_runner,
+            provider=provider,
+        )
+
+    assert exc_info.value.code == "missing_commit_result"
+
+
 def test_conflict_repair_residue_without_declaration_fails_actionably(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

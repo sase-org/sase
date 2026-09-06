@@ -52,6 +52,7 @@ def save_resume_checkpoint(
     dispatch_result: str | None = None,
     publication_agent: str | None = None,
     primary_revision: str | None = None,
+    no_commit_dispatched: bool = False,
 ) -> checkpoint.CommitCheckpoint:
     """Persist a resume checkpoint with concise test-friendly defaults."""
     cp = checkpoint.CommitCheckpoint(
@@ -66,6 +67,7 @@ def save_resume_checkpoint(
         dispatch_result=dispatch_result,
         publication_agent=publication_agent,
         primary_revision=primary_revision,
+        no_commit_dispatched=no_commit_dispatched,
     )
     checkpoint.checkpoint_save(cp)
     return cp
