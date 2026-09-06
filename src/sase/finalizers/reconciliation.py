@@ -28,9 +28,11 @@ from sase.finalizers.commit_types import (
 from sase.finalizers.ledger import InstanceLedger
 from sase.llm_provider.commit_finalizer_git import (
     auto_commit_done_sdd_plan_status,
+    auto_commit_sdd_bead_reprojection_candidate,
     auto_commit_sdd_prompt_qa_candidate,
     dirty_path_fingerprints,
     normalize_path,
+    sdd_bead_reprojection_auto_commit_candidates,
     sdd_prompt_qa_auto_commit_candidates,
 )
 from sase.llm_provider.commit_finalizer_git_paths import normalize_status_path
@@ -66,6 +68,7 @@ class PreparedCommitDirtyState:
     dirty_state: DirtyState
     done_plan_auto_committed: bool = False
     sdd_prompt_qa_auto_committed: bool = False
+    sdd_bead_projection_auto_committed: bool = False
     sdd_store_auto_committed: bool = False
     artifact_links_auto_committed: bool = False
     bead_publication_error: str | None = None
@@ -87,6 +90,11 @@ def prepare_commit_dirty_state(
         normalize_path(repo.path): dict(dirty_path_fingerprints(repo.path))
         for repo in dirty_before.repos
     }
+    _, bead_projection_auto_committed = auto_commit_sdd_bead_reprojection_if_possible(
+        project_dir,
+        dirty_before,
+        artifacts,
+    )
     bead_sync = auto_commit_separate_sdd_store_if_possible(project_dir, artifacts)
     dirty_state = collect_dirty_state(project_dir, artifact_root=artifacts)
     dirty_state, qa_auto_committed = auto_commit_external_sdd_prompt_qa_if_possible(
@@ -110,6 +118,7 @@ def prepare_commit_dirty_state(
         dirty_state=dirty_state,
         done_plan_auto_committed=done_auto_committed,
         sdd_prompt_qa_auto_committed=qa_auto_committed,
+        sdd_bead_projection_auto_committed=bead_projection_auto_committed,
         sdd_store_auto_committed=bead_sync.committed,
         artifact_links_auto_committed=links_auto_committed,
         bead_publication_error=bead_sync.publication_error,
@@ -311,6 +320,40 @@ def auto_commit_done_plan_status_if_possible(
     return refreshed, True
 
 
+def auto_commit_sdd_bead_reprojection_if_possible(
+    project_dir: str,
+    dirty_state: DirtyState,
+    artifact_root: Path | None,
+) -> tuple[DirtyState, bool]:
+    """Best-effort safety net for proven beads ``issues.jsonl`` reprojections."""
+
+    candidates = sdd_bead_reprojection_auto_commit_candidates(dirty_state)
+    if not candidates:
+        return dirty_state, False
+
+    committed_any = False
+    for candidate in candidates:
+        try:
+            committed_any = (
+                auto_commit_sdd_bead_reprojection_candidate(
+                    candidate,
+                    artifacts_dir=artifact_root,
+                )
+                or committed_any
+            )
+        except Exception:
+            _logger.warning(
+                "Failed to auto-commit beads-sidecar issues.jsonl reprojection in %s",
+                candidate.repo_dir,
+                exc_info=True,
+            )
+
+    if not committed_any:
+        return dirty_state, False
+    refreshed = collect_dirty_state(project_dir, artifact_root=artifact_root)
+    return refreshed, True
+
+
 def auto_commit_external_sdd_prompt_qa_if_possible(
     project_dir: str,
     dirty_state: DirtyState,
@@ -366,6 +409,7 @@ def clean_result_reason(
     done_plan_auto_committed: bool,
     sdd_prompt_qa_auto_committed: bool,
     sdd_store_auto_committed: bool,
+    sdd_bead_projection_auto_committed: bool = False,
     artifact_links_auto_committed: bool = False,
 ) -> str:
     """Classify a clean commit outcome after machine-owned auto-commits."""
@@ -375,6 +419,8 @@ def clean_result_reason(
         auto_committed.append("done_plan_status")
     if sdd_prompt_qa_auto_committed:
         auto_committed.append("sdd_prompt_qa")
+    if sdd_bead_projection_auto_committed:
+        auto_committed.append("sdd_bead_projection")
     if sdd_store_auto_committed:
         auto_committed.append("sdd_store")
     if artifact_links_auto_committed:
@@ -629,6 +675,7 @@ __all__ = [
     "PreparedCommitDirtyState",
     "auto_commit_done_plan_status_if_possible",
     "auto_commit_external_sdd_prompt_qa_if_possible",
+    "auto_commit_sdd_bead_reprojection_if_possible",
     "auto_commit_separate_sdd_store_if_possible",
     "clean_result_reason",
     "pre_reconciliation_dirty_state",

@@ -113,6 +113,9 @@ from sase.finalizers.reconciliation import (
     auto_commit_external_sdd_prompt_qa_if_possible as _auto_commit_external_sdd_prompt_qa_if_possible,
 )
 from sase.finalizers.reconciliation import (
+    auto_commit_sdd_bead_reprojection_if_possible as _auto_commit_sdd_bead_reprojection_if_possible,
+)
+from sase.finalizers.reconciliation import (
     auto_commit_separate_sdd_store_if_possible as _auto_commit_separate_sdd_store_if_possible,
 )
 from sase.finalizers.reconciliation import clean_result_reason as _clean_result_reason
@@ -148,6 +151,7 @@ _PUBLIC_API_REFS = (
     _authenticate_finalizer_plan,
     _auto_commit_done_plan_status_if_possible,
     _auto_commit_external_sdd_prompt_qa_if_possible,
+    _auto_commit_sdd_bead_reprojection_if_possible,
     _auto_commit_separate_sdd_store_if_possible,
     _clean_result_reason,
     _commit_finalizer_pass_prompt_filename,

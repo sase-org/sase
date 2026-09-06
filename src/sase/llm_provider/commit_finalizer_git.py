@@ -13,7 +13,9 @@ from __future__ import annotations
 
 from .commit_finalizer_git_autocommit import (
     auto_commit_done_sdd_plan_status,
+    auto_commit_sdd_bead_reprojection_candidate,
     auto_commit_sdd_prompt_qa_candidate,
+    sdd_bead_reprojection_auto_commit_candidates,
     sdd_prompt_qa_auto_commit_candidates,
 )
 from .commit_finalizer_git_paths import (
@@ -35,6 +37,7 @@ from .commit_finalizer_git_status import (
 
 __all__ = [
     "auto_commit_done_sdd_plan_status",
+    "auto_commit_sdd_bead_reprojection_candidate",
     "auto_commit_sdd_prompt_qa_candidate",
     "changed_files_from_git_status",
     "dirty_path_fingerprints",
@@ -45,6 +48,7 @@ __all__ = [
     "is_prompt_archive_path",
     "normalize_path",
     "progress_fingerprint",
+    "sdd_bead_reprojection_auto_commit_candidates",
     "sdd_prompt_qa_auto_commit_candidates",
     "split_pre_existing_changed_files",
 ]
