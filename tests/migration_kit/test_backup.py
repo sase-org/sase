@@ -115,6 +115,25 @@ def test_apply_backs_up_sqlite_with_verified_integrity(source_root: Path) -> Non
     assert sqlite_member["hot_copy"] is True
 
 
+def test_apply_reports_corrupted_sqlite_source(source_root: Path) -> None:
+    corrupt = source_root / "corrupt.sqlite"
+    conn = sqlite3.connect(corrupt)
+    conn.execute("CREATE TABLE t (x INTEGER)")
+    for value in range(200):
+        conn.execute("INSERT INTO t VALUES (?)", (value,))
+    conn.commit()
+    conn.close()
+    size = corrupt.stat().st_size
+    with open(corrupt, "r+b") as stream:
+        stream.seek(size - 50)
+        stream.write(b"\xff" * 20)
+
+    outcome = capture_backup(source_root, apply=True)
+
+    assert not outcome.ok
+    assert any("integrity_check failed" in error for error in outcome.errors)
+
+
 def test_refuses_when_free_space_is_insufficient(
     source_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
