@@ -20,6 +20,7 @@ from sase.ace.tui.actions.agent_workflow._launch_records import (
     has_pending_launch_kill,
     latest_live_launch_record,
     push_launch_record,
+    rename_launch_record_proc_id,
     stamp_launch_record_failure,
     stamp_launch_record_results,
 )
@@ -268,6 +269,85 @@ def test_kill_pending_survives_result_stamp() -> None:
 
     assert record.state is LaunchRecordState.KILL_PENDING
     assert record.results["p1"] == (_result("demo"),)
+
+
+def test_rename_launch_record_proc_id_rewrites_all_proc_keyed_state() -> None:
+    timer = object()
+    app = SimpleNamespace()
+    record = push_launch_record(
+        app,
+        proc_ids=("pending-one", "pending-two"),
+        prompt="shared",
+        context=_context("bulk"),
+        submitted_prompts={
+            "pending-one": "first prompt",
+            "pending-two": "second prompt",
+        },
+    )
+    assert record is not None
+    record.results["pending-one"] = (_result("one"),)
+    record.failed_proc_ids.add("pending-one")
+    record.handled_result_keys.add("result-key")
+    record.kill_failed_result_keys.add("failed-result-key")
+    record.kill_in_progress_result_keys.add("in-progress-result-key")
+    app._pending_launch_kill_timers = {
+        ("pending-one", "pending-two"): timer,
+    }
+
+    renamed = rename_launch_record_proc_id(app, "pending-one", "durable-one")
+
+    assert renamed is record
+    assert record.proc_ids == ("durable-one", "pending-two")
+    assert list(record.submitted_prompts) == ["durable-one", "pending-two"]
+    assert record.submitted_prompts["durable-one"] == "first prompt"
+    assert record.results == {"durable-one": (_result("one"),)}
+    assert record.failed_proc_ids == {"durable-one"}
+    assert app._pending_launch_kill_timers == {
+        ("durable-one", "pending-two"): timer,
+    }
+    assert record.handled_result_keys == {"result-key"}
+    assert record.kill_failed_result_keys == {"failed-result-key"}
+    assert record.kill_in_progress_result_keys == {"in-progress-result-key"}
+
+
+def test_rename_launch_record_proc_id_rekeys_bulk_slots_independently() -> None:
+    app = SimpleNamespace()
+    record = push_launch_record(
+        app,
+        proc_ids=("pending-one", "pending-two"),
+        prompt="shared",
+        context=_context("bulk"),
+        submitted_prompts={
+            "pending-one": "first prompt",
+            "pending-two": "second prompt",
+        },
+    )
+    assert record is not None
+
+    rename_launch_record_proc_id(app, "pending-two", "durable-two")
+    rename_launch_record_proc_id(app, "pending-one", "durable-one")
+
+    assert record.proc_ids == ("durable-one", "durable-two")
+    assert list(record.submitted_prompts.values()) == ["first prompt", "second prompt"]
+
+
+def test_rename_launch_record_proc_id_without_owner_is_noop() -> None:
+    app = SimpleNamespace()
+    record = push_launch_record(
+        app,
+        proc_ids=("pending-one",),
+        prompt="prompt",
+        context=_context(),
+        submitted_prompts={"pending-one": "prompt"},
+    )
+    assert record is not None
+    timer = object()
+    app._pending_launch_kill_timers = {("pending-one",): timer}
+
+    assert rename_launch_record_proc_id(app, "missing", "durable") is None
+    assert record.proc_ids == ("pending-one",)
+    assert record.submitted_prompts == {"pending-one": "prompt"}
+    assert app._pending_launch_kill_timers == {("pending-one",): timer}
 
 
 def test_has_pending_launch_kill_tracks_kill_pending_records() -> None:

@@ -135,8 +135,13 @@ class _DeferredKillApp(KillAndEditLastLaunchMixin, LaunchProcMixin):
         self, delay: float, callback: Callable[[], None], name: str = ""
     ) -> Any:
         timer = SimpleNamespace(
-            stop=lambda: None, callback=callback, delay=delay, name=name
+            stopped=False, callback=callback, delay=delay, name=name
         )
+
+        def stop() -> None:
+            timer.stopped = True
+
+        timer.stop = stop
         self.timers.append(timer)
         return timer
 

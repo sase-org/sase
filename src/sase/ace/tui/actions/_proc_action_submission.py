@@ -50,6 +50,7 @@ class ProcSubmissionActionsMixin(ProcObserverActionsMixin):
         workspace_claim: Mapping[str, Any] | None = None,
         duplicate_message: str | None = None,
         on_complete: Callable[[TrackedProcCompletion[Any]], None] | None = None,
+        on_handle: Callable[[str, str], None] | None = None,
         reload_on_complete: bool = True,
         notify_on_complete: bool = True,
         on_settled: Callable[[], None] | None = None,
@@ -132,6 +133,7 @@ class ProcSubmissionActionsMixin(ProcObserverActionsMixin):
             on_complete=on_complete,
             reload_on_complete=reload_on_complete,
             notify_on_complete=notify_on_complete,
+            on_handle=on_handle,
             on_settled=on_settled,
             workspace_claim=workspace_claim,
         )

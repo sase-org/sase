@@ -51,6 +51,14 @@ class ProcCompletionActionsMixin(ProcSubmissionActionsMixin):
                     operation=result.handle.operation,
                     result_path=result.handle.result_path,
                 )
+            if config is not None and config.on_handle is not None:
+                try:
+                    config.on_handle(placeholder_id, result.handle.proc_id)
+                except Exception:
+                    log.exception(
+                        "Durable proc %s handle callback failed",
+                        result.handle.proc_id,
+                    )
             return
 
         proc_result = result.result or TrackedProcResult(

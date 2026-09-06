@@ -149,6 +149,33 @@ def launch_record_for_proc_id(app: object, proc_id: str) -> LaunchRecord | None:
     return None
 
 
+def rename_launch_record_proc_id(
+    app: object,
+    old_proc_id: str,
+    new_proc_id: str,
+) -> LaunchRecord | None:
+    """Replace a submit-time proc id with its durable id across launch state."""
+    record = launch_record_for_proc_id(app, old_proc_id)
+    if record is None or old_proc_id == new_proc_id:
+        return record
+
+    old_proc_ids = record.proc_ids
+    record.proc_ids = tuple(
+        new_proc_id if proc_id == old_proc_id else proc_id for proc_id in old_proc_ids
+    )
+    _rename_mapping_key(record.submitted_prompts, old_proc_id, new_proc_id)
+    _rename_mapping_key(record.results, old_proc_id, new_proc_id)
+    if old_proc_id in record.failed_proc_ids:
+        record.failed_proc_ids.remove(old_proc_id)
+        record.failed_proc_ids.add(new_proc_id)
+
+    timers = getattr(app, "_pending_launch_kill_timers", None)
+    if isinstance(timers, dict) and old_proc_ids in timers:
+        timer = timers.pop(old_proc_ids)
+        timers[record.proc_ids] = timer
+    return record
+
+
 _ANY_OPERATION = object()
 
 
@@ -207,6 +234,21 @@ def _refresh_launch_record_state(record: LaunchRecord) -> None:
     record.state = LaunchRecordState.IN_FLIGHT
 
 
+def _rename_mapping_key[T](
+    mapping: dict[str, T],
+    old_key: str,
+    new_key: str,
+) -> None:
+    """Rename one string key without moving its insertion-order position."""
+    if old_key not in mapping or old_key == new_key:
+        return
+    items = [
+        (new_key if key == old_key else key, value) for key, value in mapping.items()
+    ]
+    mapping.clear()
+    mapping.update(items)
+
+
 def _unique_nonempty_proc_ids(proc_ids: Sequence[str]) -> tuple[str, ...]:
     seen: set[str] = set()
     normalized: list[str] = []
@@ -230,6 +272,7 @@ __all__ = [
     "launch_record_for_proc_id",
     "push_launch_record",
     "record_procs_are_terminal",
+    "rename_launch_record_proc_id",
     "release_resolved_launch_action",
     "release_kill_pending_launch_record",
     "stamp_launch_record_failure",

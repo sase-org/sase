@@ -74,6 +74,14 @@ class LaunchProcMixin:
         """
         from ..agent_durable import submit_agent_launch
 
+        def on_handle(old_proc_id: str, new_proc_id: str) -> None:
+            prompts = getattr(self, "_launch_submitted_prompts", None)
+            if prompts is not None and old_proc_id in prompts:
+                prompts[new_proc_id] = prompts.pop(old_proc_id)
+            from ._launch_records import rename_launch_record_proc_id
+
+            rename_launch_record_proc_id(self, old_proc_id, new_proc_id)
+
         workflow = (dedup_key or "").removeprefix("launch:") or uuid4().hex
         proc_info = submit_agent_launch(
             self,
@@ -84,6 +92,7 @@ class LaunchProcMixin:
             display_name=display_name,
             extra_payload=extra_payload,
             on_complete=self._on_launch_proc_complete,
+            on_handle=on_handle,
         )
         if proc_info is not None and submitted_prompt is not None:
             prompts = getattr(self, "_launch_submitted_prompts", None)

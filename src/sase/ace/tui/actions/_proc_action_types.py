@@ -55,5 +55,6 @@ class ProcCallbackConfig:
     on_complete: Callable[[TrackedProcCompletion[Any]], None] | None
     reload_on_complete: bool
     notify_on_complete: bool
+    on_handle: Callable[[str, str], None] | None = None
     on_settled: Callable[[], None] | None = None
     workspace_claim: Mapping[str, Any] | None = None

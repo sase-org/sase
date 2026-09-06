@@ -98,14 +98,13 @@ def register_pending_launch_kill(
         return
     set_timer = getattr(app, "set_timer", None)
     timer = None
-    proc_ids = record.proc_ids
     if callable(set_timer):
         timer = set_timer(
             PENDING_LAUNCH_KILL_TIMEOUT_SECONDS,
-            lambda: _pending_launch_kill_timed_out(app, proc_ids),
+            lambda: _pending_launch_kill_timed_out(app, record),
             name="pending-launch-kill-timeout",
         )
-    timers[proc_ids] = timer
+    timers[record.proc_ids] = timer
     _execute_deferred_kill_for_results(
         app,
         record,
@@ -116,13 +115,8 @@ def register_pending_launch_kill(
         _finish_pending_launch_kill(app, record)
 
 
-def _pending_launch_kill_timed_out(app: object, proc_ids: tuple[str, ...]) -> None:
+def _pending_launch_kill_timed_out(app: object, record: LaunchRecord) -> None:
     """Abandon auto-kill after the in-flight budget and release parked launches."""
-    if not proc_ids:
-        return
-    record = launch_record_for_proc_id(app, proc_ids[0])
-    if record is None or record.proc_ids != proc_ids:
-        return
     if record.state is not LaunchRecordState.KILL_PENDING:
         return
     _stop_pending_kill_timer(app, record)

@@ -103,6 +103,7 @@ def submit_agent_launch(
     display_name: str,
     extra_payload: Mapping[str, Any] | None = None,
     on_complete: Callable[[TrackedProcCompletion[Any]], None] | None = None,
+    on_handle: Callable[[str, str], None] | None = None,
 ) -> Any:
     """Submit ``sase run`` through the durable adapter.
 
@@ -131,6 +132,7 @@ def submit_agent_launch(
         cl_name=cl_name,
         project_file=project_file,
         on_complete=on_complete,
+        on_handle=on_handle,
         reload_on_complete=False,
         notify_on_complete=False,
     )
