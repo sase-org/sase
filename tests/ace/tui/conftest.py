@@ -7,6 +7,7 @@ import pytest
 from textual.pilot import Pilot
 
 from sase.ace.testing import settle as settle_helpers
+from sase.ace.tui.actions import link_follow
 from sase.ace.tui.util import shutdown
 from sase.project_display_names import ProjectRefDisplaySnapshot
 from tests.ace.tui._logs_pane_helpers import log_dir as log_dir
@@ -17,6 +18,13 @@ def _reset_ace_shutdown_signal() -> Iterator[None]:
     shutdown._shutdown_signal.reset_for_tests()
     yield
     shutdown._shutdown_signal.reset_for_tests()
+
+
+@pytest.fixture(autouse=True)
+def _reset_link_follow_outcome_counts() -> Iterator[None]:
+    link_follow._link_follow_outcomes.clear()
+    yield
+    link_follow._link_follow_outcomes.clear()
 
 
 @pytest.fixture(autouse=True)

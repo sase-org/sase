@@ -88,13 +88,13 @@ def _render_options_key(options: object) -> tuple[object, ...]:
 
 _SEGMENT_CACHE_MAX_ENTRIES = 32
 _HIGHLIGHT_CACHE_MAX_ENTRIES = 24
-_segments_by_content_and_style: OrderedDict[
+_segment_cache_by_content_and_style: OrderedDict[
     tuple[str, tuple[object, ...]], tuple[Segment, ...]
 ] = OrderedDict()
-_measurements_by_content_and_style: OrderedDict[
+_measurement_cache_by_content_and_style: OrderedDict[
     tuple[str, tuple[object, ...]], Measurement
 ] = OrderedDict()
-_highlight_by_content: OrderedDict[tuple[object, ...], Text] = OrderedDict()
+_highlight_cache_by_content: OrderedDict[tuple[object, ...], Text] = OrderedDict()
 
 
 def _bounded_store(
@@ -134,13 +134,13 @@ def _bind_syntax_highlight_cache(syntax: Syntax, content_digest: str) -> None:
         line_range: tuple[int | None, int | None] | None = None,
     ) -> Text:
         key = _syntax_highlight_key(syntax, content_digest, line_range)
-        cached = _highlight_by_content.get(key)
+        cached = _highlight_cache_by_content.get(key)
         if cached is not None:
-            _highlight_by_content.move_to_end(key)
+            _highlight_cache_by_content.move_to_end(key)
             return cached
         highlighted = original(code, line_range)
         _bounded_store(
-            _highlight_by_content,
+            _highlight_cache_by_content,
             key,
             highlighted,
             _HIGHLIGHT_CACHE_MAX_ENTRIES,
@@ -199,11 +199,11 @@ class CachedRenderable:
         cached = self._segments_by_options.get(style_key)
         if cached is None:
             shared_key = (self._digest, style_key)
-            cached = _segments_by_content_and_style.get(shared_key)
+            cached = _segment_cache_by_content_and_style.get(shared_key)
             if cached is None:
                 cached = tuple(console.render(self._renderable, options=options))
                 _bounded_store(
-                    _segments_by_content_and_style,
+                    _segment_cache_by_content_and_style,
                     shared_key,
                     cached,
                     _SEGMENT_CACHE_MAX_ENTRIES,
@@ -214,8 +214,8 @@ class CachedRenderable:
         else:
             self._segments_by_options.move_to_end(style_key)
             shared_key = (self._digest, style_key)
-            if shared_key in _segments_by_content_and_style:
-                _segments_by_content_and_style.move_to_end(shared_key)
+            if shared_key in _segment_cache_by_content_and_style:
+                _segment_cache_by_content_and_style.move_to_end(shared_key)
         yield from cached
 
     def __rich_measure__(
@@ -225,11 +225,11 @@ class CachedRenderable:
         cached = self._measurements_by_options.get(style_key)
         if cached is None:
             shared_key = (self._digest, style_key)
-            cached = _measurements_by_content_and_style.get(shared_key)
+            cached = _measurement_cache_by_content_and_style.get(shared_key)
             if cached is None:
                 cached = Measurement.get(console, options, self._renderable)
                 _bounded_store(
-                    _measurements_by_content_and_style,
+                    _measurement_cache_by_content_and_style,
                     shared_key,
                     cached,
                     _SEGMENT_CACHE_MAX_ENTRIES,

@@ -10,6 +10,7 @@ from tests._models_panel_helpers import (
     make_alias_view,
     make_long_pool_views,
     patch_alias_views,
+    wait_for_snapshot_idle,
 )
 
 
@@ -29,6 +30,7 @@ async def test_panel_preferred_width_fits_production_description(monkeypatch) ->
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
+        await wait_for_snapshot_idle(pilot, panel)
         container = panel.query_one("#models-panel-container", Container)
         description = panel.query_one("#models-panel-description", Static)
         assert container.region.width == 110
@@ -61,6 +63,7 @@ async def test_panel_long_pool_description_fits_at_preferred_width(
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
+        await wait_for_snapshot_idle(pilot, panel)
         container = panel.query_one("#models-panel-container", Container)
         option_list = panel.query_one("#models-panel-list", OptionList)
         description = panel.query_one("#models-panel-description", Static)
@@ -90,6 +93,7 @@ async def test_panel_short_description_keeps_four_row_minimum(monkeypatch) -> No
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
+        await wait_for_snapshot_idle(pilot, panel)
         description = panel.query_one("#models-panel-description", Static)
 
         highlight_row(panel, "worker_0")
@@ -108,6 +112,7 @@ async def test_panel_long_pool_description_fits_at_narrow_viewport(
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
+        await wait_for_snapshot_idle(pilot, panel)
         container = panel.query_one("#models-panel-container", Container)
         option_list = panel.query_one("#models-panel-list", OptionList)
         description = panel.query_one("#models-panel-description", Static)
