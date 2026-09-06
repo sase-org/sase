@@ -194,28 +194,40 @@ async def test_notification_jump_pilot_keeps_modal_open_and_moves_highlight() ->
 
 
 def test_notification_jump_mode_consumes_g_and_capital_g_without_scrolling() -> None:
-    """Jump hints intercept g/G before the detail-pane scroll bindings see them."""
+    """Jump hints intercept g/G before detail-pane scroll bindings see them."""
     notifications = [
-        _make_notification(f"n{i}", action="JumpToAgent") for i in range(3)
+        _make_notification(f"n{i}", action="JumpToAgent") for i in range(43)
     ]
     modal = NotificationModal(notifications)
     _wire_fake_option_list(modal, highlighted_index=0)
     modal._display_file = MagicMock()  # type: ignore[method-assign]
     modal.dismiss = MagicMock()  # type: ignore[method-assign]
+    modal.action_scroll_file_top = MagicMock()  # type: ignore[method-assign]
+    modal.action_scroll_file_bottom = MagicMock()  # type: ignore[method-assign]
 
     modal.action_jump_to_entry()
+    hints = modal.jump_hints_by_key()
+    lower_target = next(idx for idx, hint in hints.items() if hint == "g")
+    upper_target = next(idx for idx, hint in hints.items() if hint == "G")
+    assert lower_target != upper_target
+
     lower_event = _KeyEvent(key="g", character="g")
     modal.on_key(lower_event)  # type: ignore[arg-type]
 
     assert lower_event.prevented is True
     assert lower_event.stopped is True
+    assert modal._get_selected_index() == lower_target
 
     modal.action_jump_to_entry()
-    upper_event = _KeyEvent(key="G", character="G")
+    upper_event = _KeyEvent(key="g", character="G")
     modal.on_key(upper_event)  # type: ignore[arg-type]
 
     assert upper_event.prevented is True
     assert upper_event.stopped is True
+    assert modal._get_selected_index() == upper_target
+    modal.action_scroll_file_top.assert_not_called()
+    modal.action_scroll_file_bottom.assert_not_called()
+    modal.dismiss.assert_not_called()
 
 
 def test_notification_two_character_hint_waits_and_cleans_up() -> None:

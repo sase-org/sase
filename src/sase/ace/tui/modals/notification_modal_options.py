@@ -285,12 +285,16 @@ class NotificationOptionMixin(KeyedPaneEntryJumpMixin[int]):
             footer.update(DEFAULT_HINT_TEXT)
 
     def on_key(self: Any, event: events.Key) -> None:
-        """Intercept jump-mode keypresses before modal bindings run."""
-        if not self.jump_mode_active:
+        """Intercept case-sensitive keys before modal bindings run."""
+        if self.jump_mode_active:
+            key = normalize_jump_key(event.key, event.character)
+            if self.handle_jump_key(key):
+                event.prevent_default()
+                event.stop()
             return
 
-        key = normalize_jump_key(event.key, event.character)
-        if self.handle_jump_key(key):
+        if event.key in {"G", "shift+g"} or event.character == "G":
+            self.action_scroll_file_bottom()
             event.prevent_default()
             event.stop()
 

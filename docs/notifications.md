@@ -41,6 +41,10 @@ relative age (`sent today 13:18:42 · 4m ago`), tiered as `today HH:MM:SS` /
 | `S`                 | Toggle the active tab between sectioned and newest-first rows               |
 | `Esc` / `q`         | Close modal                                                                 |
 
+The detail-pane scroll keys work with either the notification list or detail pane
+focused. Apostrophe jump mode consumes hint keys first, so `g` and `G` select matching
+jump hints while hints are visible instead of scrolling the detail pane.
+
 Plan, launch, question, task-triage, flag-triage, snooze, and stale-cleanup
 notifications require confirmation (`y` / `n`) before dismissal to prevent accidental
 loss of pending decisions. The same `y` / `n` confirmation is used for bulk dismissal
