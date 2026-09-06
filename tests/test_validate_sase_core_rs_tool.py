@@ -123,6 +123,36 @@ def test_validate_sase_core_rs_requires_feature_flag_state_bindings() -> None:
         )
 
 
+def test_validate_sase_core_rs_requires_fleet_contract_bindings() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {
+        "fleet_contract_schema_version",
+        "fleet_installation_identity_load",
+        "fleet_installation_identity_ensure",
+        "fleet_installation_identity_rotate",
+        "fleet_installation_identity_migrate",
+        "fleet_logical_locator_key",
+        "fleet_instance_locator_key",
+        "fleet_associate_owner_display_name",
+        "fleet_project_resolved_agent_summary",
+        "fleet_project_resolved_agent_detail",
+        "fleet_validate_resolved_agent_summary",
+        "fleet_count_logical_agents",
+        "fleet_classify_cursor_replay",
+        "fleet_operation_payload_fingerprint",
+        "fleet_decide_operation_replay",
+        "fleet_validate_connection_plan",
+        "fleet_classify_runtime_duration",
+        "fleet_classify_cache_freshness",
+    }
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+
 def test_validate_sase_core_rs_requires_inline_code_binding() -> None:
     validator = load_validate_sase_core_rs()
 
