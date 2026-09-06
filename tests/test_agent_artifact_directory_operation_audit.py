@@ -111,6 +111,15 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "detached deletion; neither path is an agent artifact directory."
         ),
     ),
+    "src/sase/migration_kit/restore.py:_swap_into_place": DirOpReview(
+        exemption=(
+            "Moves a migration-kit declared source root aside (never deleting "
+            "it) and swaps in a staged restore copy from the cutover backup "
+            "root; operates only on the kit's declared roots and its own "
+            "cutover staging tree outside SASE_HOME, never an agent artifact "
+            "directory."
+        ),
+    ),
     "src/sase/main/workspace_handler_migration.py:handle_migrate": DirOpReview(
         exemption=(
             "Moves a workspace checkout directory under a managed root, not an "

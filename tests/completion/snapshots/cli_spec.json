@@ -12666,6 +12666,180 @@
       {
         "aliases": [],
         "default_child": null,
+        "description_digest": "9038fac89bfcf11d",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "migrate",
+        "options": [
+          {
+            "choices": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false
+          }
+        ],
+        "path": [
+          "migrate"
+        ],
+        "positionals": [],
+        "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "57294b349aa7ca56",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "backup",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "apply",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-a",
+                  "--apply"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "secondary",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-s",
+                  "--secondary"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "migrate",
+              "backup"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "root",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "<root>",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "8f0ceeffabdfa96a",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "restore",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "apply",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-a",
+                  "--apply"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "root",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-r",
+                  "--root"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "migrate",
+              "restore"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "backup_id",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "<backup-id>",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          }
+        ]
+      },
+      {
+        "aliases": [],
+        "default_child": null,
         "description_digest": "21bb2f9d8459efb7",
         "hidden": false,
         "mutex_groups": [],

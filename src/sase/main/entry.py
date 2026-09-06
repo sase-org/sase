@@ -336,6 +336,12 @@ def main() -> NoReturn:
 
         handle_memory_command(args)
 
+    # --- migrate ---
+    if args.command == "migrate":
+        from .migrate_handler import handle_migrate_command
+
+        handle_migrate_command(args)
+
     # --- mobile ---
     if args.command == "mobile":
         from .mobile_handler import handle_mobile_command
