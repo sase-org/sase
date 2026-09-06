@@ -22,9 +22,9 @@ not deploy generated skills from an unlanded source revision.
 ### Commit First, Then Deploy
 
 The chezmoi destination is global and shared by every workspace, so deploying from a
-dirty or unmerged tree deploys content that exists in no sase commit and reverts
-whatever another agent deployed. After changing a skill source file in
-`src/sase/xprompts/skills/`:
+dirty or unmerged tree deploys content that exists in no landed source revision in the
+sase repo and reverts whatever another agent deployed. After changing a skill source
+file in `src/sase/xprompts/skills/`:
 
 1. Preview while iterating with `sase skill init --diff` or `--dry-run` (read-only; no
    guard applies).
@@ -44,10 +44,11 @@ when you know the destination is stale.
 
 ## CLI/Skill Contract Synchronization
 
-Any change to `sase commit` CLI arguments must include same-turn updates to:
+Any change to `sase stitch create` CLI arguments must include same-turn updates to:
 
 - In-repo callers/wrappers that invoke the changed arguments
-- Relevant skill `SKILL.md` files that document or demonstrate those arguments
+- Generated skill sources and provider `SKILL.md` files that document or demonstrate
+  those arguments
 - Tests validating both CLI parsing and skill invocation examples
 
 ## Commit Skills per Runtime
