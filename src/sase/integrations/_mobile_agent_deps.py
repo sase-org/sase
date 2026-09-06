@@ -45,9 +45,21 @@ def kill_named_agent(name: str, *, exact_name: bool) -> KillResult:
     )
 
 
-def list_all_agents() -> list[RunningAgentInfo]:
-    return _facade_override("list_all_agents", _real_list_all_agents)()
+def list_all_agents(
+    *,
+    project: str | None = None,
+) -> list[RunningAgentInfo]:
+    override = _facade_override("list_all_agents", _real_list_all_agents)
+    if override is not _real_list_all_agents:
+        return override()
+    return _real_list_all_agents(project=project)
 
 
-def list_running_agents() -> list[RunningAgentInfo]:
-    return _facade_override("list_running_agents", _real_list_running_agents)()
+def list_running_agents(
+    *,
+    project: str | None = None,
+) -> list[RunningAgentInfo]:
+    override = _facade_override("list_running_agents", _real_list_running_agents)
+    if override is not _real_list_running_agents:
+        return override()
+    return _real_list_running_agents(project=project)

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from sase import project_display_names as pdn
 from sase.integrations import mobile_agents
+from sase.integrations import _mobile_agent_deps as mobile_agent_deps
 from sase.integrations.mobile_agents import _list_mobile_agents
 from tests._mobile_agents_fixtures import _agent, _known_project
 from tests._project_display_case import ProjectDisplayCase
@@ -91,6 +92,34 @@ def test_list_mobile_agents_filters_and_limits(monkeypatch, tmp_path: Path) -> N
 
     assert payload["total_count"] == 1
     assert [agent["name"] for agent in payload["agents"]] == ["alpha"]
+
+
+def test_list_mobile_agents_pushes_project_to_shared_listing(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    _known_project(tmp_path, "sase")
+    calls: list[str | None] = []
+
+    def fake_list_running_agents(
+        *,
+        project: str | None = None,
+    ):
+        calls.append(project)
+        return [_agent(tmp_path, project=project or "other")]
+
+    monkeypatch.setattr(
+        mobile_agent_deps,
+        "_real_list_running_agents",
+        fake_list_running_agents,
+    )
+
+    payload = _list_mobile_agents({"schema_version": 1, "project": "sase"})
+
+    assert calls == ["sase"]
+    assert payload["total_count"] == 1
+    assert payload["agents"][0]["project"] == "sase"
 
 
 def test_list_mobile_agents_projects_starting_agent(

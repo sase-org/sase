@@ -51,7 +51,11 @@ _KILLABLE_ACTIVE_STATUSES = frozenset(
 def list_mobile_agents(request: dict[str, Any] | None = None) -> dict[str, Any]:
     """Return mobile-shaped agent summaries for running/recent agents."""
     parsed = parse_list_request(request or {})
-    agents = list_all_agents() if parsed.include_recent else list_running_agents()
+    agents = (
+        list_all_agents(project=parsed.project)
+        if parsed.include_recent
+        else list_running_agents(project=parsed.project)
+    )
     agents = filter_agents(agents, parsed)
     total_count = len(agents)
     if parsed.limit is not None:

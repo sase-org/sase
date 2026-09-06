@@ -17,6 +17,7 @@ from sase.agent.status_buckets import (
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
+    AgentArtifactScanWire,
 )
 from sase.core.paths import sase_projects_dir
 from sase.core.runner_slots import runner_slot_queue_display_key
@@ -53,7 +54,14 @@ def agent_list_entries(
     project: str | None = None,
 ) -> list[AgentListEntry]:
     """Return rich agent list entries for active and optionally recent agents."""
-    agents = list_all_agents() if include_recent else list_running_agents()
+    if project:
+        agents = (
+            list_all_agents(project=project)
+            if include_recent
+            else list_running_agents(project=project)
+        )
+    else:
+        agents = list_all_agents() if include_recent else list_running_agents()
     # The listing layer has already filtered to live roots plus slot-relevant
     # family children and carries exact source-record occupancy. The status
     # fallback preserves compatibility for integrations that construct
@@ -71,7 +79,11 @@ def agent_list_entries(
         if snapshot is not None
         else {}
     )
-    child_summaries = _children_by_parent_timestamp(project=project) if agents else {}
+    child_summaries = (
+        _children_by_parent_timestamp(snapshot=snapshot, project=project)
+        if agents
+        else {}
+    )
     entries: list[AgentListEntry] = []
     for agent in agents:
         timestamp = artifact_timestamp(agent)
@@ -175,14 +187,17 @@ def _holds_runner_slot(agent: RunningAgentInfo) -> bool:
 
 
 def _children_by_parent_timestamp(
-    *, project: str | None = None
+    *,
+    snapshot: AgentArtifactScanWire | None = None,
+    project: str | None = None,
 ) -> dict[tuple[str, str], _AgentChildrenSummary]:
-    from sase.core.agent_scan_facade import scan_agent_artifacts
+    if snapshot is None:
+        from sase.core.agent_scan_facade import scan_agent_artifacts
 
-    snapshot = scan_agent_artifacts(
-        sase_projects_dir(),
-        _CHILD_SUMMARY_SCAN_OPTIONS,
-    )
+        snapshot = scan_agent_artifacts(
+            sase_projects_dir(),
+            _CHILD_SUMMARY_SCAN_OPTIONS,
+        )
     counts: dict[tuple[str, str], Counter[str]] = {}
     for record in snapshot.records:
         meta = record.agent_meta

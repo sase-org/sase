@@ -404,3 +404,72 @@ def test_agent_list_entries_names_parallel_child_blocking_waiter(
     child_payload = _agent_to_json(by_name["epic--phase"])
     assert child_payload["parent_agent_name"] == "epic"
     assert child_payload["agent_family"] == "epic"
+
+
+def test_agent_list_entries_reuses_listing_snapshot_for_child_summary(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    parent_ts = "20260717120000"
+    child_ts = "20260717120001"
+    snapshot = AgentArtifactScanWire(
+        schema_version=4,
+        projects_root=str(tmp_path),
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[
+            record(
+                timestamp=parent_ts,
+                artifact_dir=str(tmp_path / "proj" / "ace-run" / parent_ts),
+                agent_meta=AgentMetaWire(
+                    name="parent",
+                    pid=1234,
+                    run_started_at="2026-07-17T12:00:00-04:00",
+                ),
+            ),
+            record(
+                timestamp=child_ts,
+                artifact_dir=str(tmp_path / "proj" / "ace-run" / child_ts),
+                agent_meta=AgentMetaWire(
+                    name="child",
+                    parent_timestamp=parent_ts,
+                    status_bucket="Failed",
+                ),
+                has_done_marker=True,
+                done=DoneMarkerWire(outcome="failed"),
+            ),
+        ],
+    )
+    scans = 0
+
+    def fake_scan_agent_artifacts(
+        _projects_root: Path,
+        _options: AgentArtifactScanOptionsWire | None = None,
+    ) -> AgentArtifactScanWire:
+        nonlocal scans
+        scans += 1
+        return snapshot
+
+    monkeypatch.setattr(
+        "sase.core.agent_scan_facade.default_agent_artifact_index_path",
+        lambda: tmp_path / "missing.sqlite",
+    )
+    monkeypatch.setattr(
+        "sase.core.agent_scan_facade.scan_agent_artifacts",
+        fake_scan_agent_artifacts,
+    )
+    monkeypatch.setattr(
+        "sase.agent.listing_snapshot.sase_projects_dir",
+        lambda: tmp_path,
+    )
+    monkeypatch.setattr(
+        "sase.agent.running_listing.is_process_alive",
+        lambda *_args: True,
+    )
+
+    entries = agent_list_entries(project="sase")
+
+    assert scans == 1
+    assert [entry.name for entry in entries] == ["parent"]
+    assert entries[0].children.count == 1
+    assert entries[0].children.status_counts == (("Failed", 1),)

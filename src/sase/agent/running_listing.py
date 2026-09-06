@@ -1,11 +1,18 @@
 """Snapshot-backed listing of active and recently completed agents."""
 
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterable, Mapping
+from typing import Literal
 
+from sase.agent.listing_snapshot import (
+    AgentListingLoadState,
+    listing_trace,
+    listing_snapshot,
+    snapshot_trace_bytes,
+)
 from sase.agent.names import is_process_alive
 from sase.agent.status_buckets import EPIC_APPROVED_STATUS, valid_status_bucket
 from sase.core.agent_clan_context import (
@@ -17,11 +24,9 @@ from sase.core.agent_clan_context import (
 )
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
-    AgentArtifactScanOptionsWire,
     AgentArtifactScanWire,
     AgentClanContextWire,
 )
-from sase.core.paths import sase_projects_dir
 from sase.core.runner_slots import (
     group_records_by_runner_slot_family,
     is_root_user_agent_record,
@@ -101,33 +106,38 @@ class _RunningAgentListing(list[RunningAgentInfo]):
         values: list[RunningAgentInfo],
         *,
         artifact_snapshot: AgentArtifactScanWire,
+        listing_state: AgentListingLoadState | None = None,
     ) -> None:
         super().__init__(values)
         self.artifact_snapshot = artifact_snapshot
+        self.listing_state = listing_state
+
+
+@dataclass
+class _ListingDecodeCounters:
+    liveness_checks: int = 0
 
 
 _DONE_AGENTS_CAP_PER_PROJECT = 50
 
-# Only the running/done CLI listing needs ace-run records. Skipping prompt
-# step markers avoids the per-directory glob the facade would otherwise do.
-_LISTING_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
-    include_prompt_step_markers=False,
-    only_workflow_dirs=("ace-run",),
-)
 
-
-def _scan_listing_snapshot() -> AgentArtifactScanWire:
-    """Acquire one ace-run snapshot for the CLI listing call sites."""
-    # Local import: ``sase.core.agent_scan_facade`` pulls in the TUI loader
-    # chain at import time (for the shared mtime cache), which transitively
-    # imports ``sase.agent`` again. A module-level import here would
-    # circle back through ``sase.agent.__init__`` and fail during startup.
-    from sase.core.agent_scan_facade import scan_agent_artifacts
-
-    return scan_agent_artifacts(
-        sase_projects_dir(),
-        _LISTING_SCAN_OPTIONS,
+def _finish_decode_trace(
+    extra: dict[str, Any],
+    *,
+    snapshot: AgentArtifactScanWire,
+    result_count: int,
+    counters: _ListingDecodeCounters,
+) -> None:
+    extra.update(
+        {
+            "record_count": len(snapshot.records),
+            "result_count": result_count,
+            "liveness_checks": counters.liveness_checks,
+        }
     )
+    snapshot_bytes = snapshot_trace_bytes(snapshot)
+    if snapshot_bytes is not None:
+        extra["decode_bytes"] = snapshot_bytes
 
 
 def _format_duration(seconds: int) -> str:
@@ -186,6 +196,8 @@ def _record_is_live(record: AgentArtifactRecordWire) -> bool:
 
 def _runner_slot_holder_dirs(
     records: Iterable[AgentArtifactRecordWire],
+    *,
+    record_is_live: Callable[[AgentArtifactRecordWire], bool] = _record_is_live,
 ) -> frozenset[str]:
     """Return the artifact_dir of each shell credited with holding a slot.
 
@@ -201,7 +213,7 @@ def _runner_slot_holder_dirs(
     for group in group_records_by_runner_slot_family(records).values():
         serial_holder: str | None = None
         for candidate in group:
-            if not is_runner_slot_occupying_record(candidate, _record_is_live):
+            if not is_runner_slot_occupying_record(candidate, record_is_live):
                 continue
             meta = candidate.agent_meta
             if meta is not None and meta.agent_family_parallel:
@@ -311,6 +323,7 @@ def _running_info_from_running_record(
     workspace_cache: dict[str, list],
     clan_contexts: Mapping[ClanContextKey, AgentClanContextWire],
     holder_dirs: frozenset[str],
+    record_is_live: Callable[[AgentArtifactRecordWire], bool] = _record_is_live,
 ) -> RunningAgentInfo | None:
     """Adapt a snapshot record into RunningAgentInfo, or skip via current filters."""
     meta = record.agent_meta
@@ -320,7 +333,7 @@ def _running_info_from_running_record(
     if wf_state is not None and not wf_state.appears_as_agent:
         return None
 
-    if not _record_is_live(record):
+    if not record_is_live(record):
         return None
 
     status = active_status_for_record(record)
@@ -404,19 +417,36 @@ def _running_info_from_running_record(
 
 def _running_from_snapshot(
     snapshot: AgentArtifactScanWire,
+    *,
+    counters: _ListingDecodeCounters | None = None,
 ) -> list[RunningAgentInfo]:
     """Build the running-agent list from *snapshot* using current Python filters."""
+    record_is_live: Callable[[AgentArtifactRecordWire], bool] = _record_is_live
+    if counters is not None:
+
+        def counted_record_is_live(record: AgentArtifactRecordWire) -> bool:
+            counters.liveness_checks += 1
+            return _record_is_live(record)
+
+        record_is_live = counted_record_is_live
+
     now = datetime.now(get_timezone())
     workspace_cache: dict[str, list] = {}
     clan_contexts = clan_context_by_key(snapshot.clan_context)
-    holder_dirs = _runner_slot_holder_dirs(snapshot.records)
+    holder_dirs = _runner_slot_holder_dirs(
+        snapshot.records,
+        record_is_live=record_is_live,
+    )
     pairs: list[tuple[str, RunningAgentInfo]] = []
 
     for record in snapshot.records:
         is_root = is_root_user_agent_record(record)
         if (
             not is_root
-            and not _is_visible_runner_slot_child(record)
+            and not _is_visible_runner_slot_child(
+                record,
+                record_is_live=record_is_live,
+            )
             and not _is_visible_monitor_record(record)
         ):
             continue
@@ -426,6 +456,7 @@ def _running_from_snapshot(
             now=now,
             workspace_cache=workspace_cache,
             clan_contexts=clan_contexts,
+            record_is_live=record_is_live,
         )
         if info is None:
             continue
@@ -435,7 +466,11 @@ def _running_from_snapshot(
     return [info for _, info in pairs]
 
 
-def _is_visible_runner_slot_child(record: AgentArtifactRecordWire) -> bool:
+def _is_visible_runner_slot_child(
+    record: AgentArtifactRecordWire,
+    *,
+    record_is_live: Callable[[AgentArtifactRecordWire], bool] = _record_is_live,
+) -> bool:
     """Return whether a non-root slot participant needs its own active row.
 
     Visibility follows *occupancy*, not admission eligibility: a serial
@@ -450,7 +485,7 @@ def _is_visible_runner_slot_child(record: AgentArtifactRecordWire) -> bool:
     meta = record.agent_meta
     if meta is None or not meta.parent_timestamp:
         return False
-    if is_runner_slot_occupying_record(record, _record_is_live):
+    if is_runner_slot_occupying_record(record, record_is_live):
         return True
     return bool(
         is_runner_slot_user_agent_record(record)
@@ -648,7 +683,12 @@ def _done_from_snapshot(
     return [info for _, info in pairs]
 
 
-def list_running_agents() -> list[RunningAgentInfo]:
+def list_running_agents(
+    *,
+    project: str | None = None,
+    index_freshness: Literal["cached", "revalidate"] = "cached",
+    requested_limit: int | None = None,
+) -> list[RunningAgentInfo]:
     """List all currently running agents across all projects.
 
     Consumes one :func:`sase.core.agent_scan_facade.scan_agent_artifacts`
@@ -656,15 +696,33 @@ def list_running_agents() -> list[RunningAgentInfo]:
     (slot-relevant family-child projection, hidden-workflow skip, PID liveness), and
     returns most-recent-first.
     """
-    snapshot = _scan_listing_snapshot()
+    snapshot, state = listing_snapshot(
+        project=project,
+        index_freshness=index_freshness,
+        requested_limit=requested_limit,
+    )
+    counters = _ListingDecodeCounters()
+    with listing_trace("agent_listing.decode", mode="running") as extra:
+        running = _running_from_snapshot(snapshot, counters=counters)
+        _finish_decode_trace(
+            extra,
+            snapshot=snapshot,
+            result_count=len(running),
+            counters=counters,
+        )
     return _RunningAgentListing(
-        _running_from_snapshot(snapshot),
+        running,
         artifact_snapshot=snapshot,
+        listing_state=state,
     )
 
 
 def list_all_agents(
-    *, cap_per_project: int = _DONE_AGENTS_CAP_PER_PROJECT
+    *,
+    cap_per_project: int = _DONE_AGENTS_CAP_PER_PROJECT,
+    project: str | None = None,
+    index_freshness: Literal["cached", "revalidate"] = "cached",
+    requested_limit: int | None = None,
 ) -> _RunningAgentListing:
     """List running agents plus recently-completed DONE/FAILED agents.
 
@@ -677,10 +735,23 @@ def list_all_agents(
         A list of RunningAgentInfo, sorted by start time (most recent
         first). Running agents always precede completed agents.
     """
-    snapshot = _scan_listing_snapshot()
-    running = _running_from_snapshot(snapshot)
-    done = _done_from_snapshot(snapshot, cap_per_project=cap_per_project)
+    snapshot, state = listing_snapshot(
+        project=project,
+        index_freshness=index_freshness,
+        requested_limit=requested_limit,
+    )
+    counters = _ListingDecodeCounters()
+    with listing_trace("agent_listing.decode", mode="all") as extra:
+        running = _running_from_snapshot(snapshot, counters=counters)
+        done = _done_from_snapshot(snapshot, cap_per_project=cap_per_project)
+        _finish_decode_trace(
+            extra,
+            snapshot=snapshot,
+            result_count=len(running) + len(done),
+            counters=counters,
+        )
     return _RunningAgentListing(
         running + done,
         artifact_snapshot=snapshot,
+        listing_state=state,
     )
