@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from sase.bead._stream_integrity import prepare_event_streams_for_commit
-from sase.bead import conflict_resolver
+from sase.bead import conflict_resolver_git
 from sase.bead.config import save_config
 from sase.bead.conflict_resolver import _git_add, resolve_bead_conflicts
 from sase.bead.model import IssueType
@@ -482,7 +482,7 @@ def test_failed_conflict_probe_is_not_reported_as_clean(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _init_repo(tmp_path)
-    real_run_git = conflict_resolver._run_git
+    real_run_git = conflict_resolver_git._run_git
 
     def fail_conflict_probe(
         cwd: Path, args: list[str]
@@ -496,7 +496,7 @@ def test_failed_conflict_probe_is_not_reported_as_clean(
             )
         return real_run_git(cwd, args)
 
-    monkeypatch.setattr(conflict_resolver, "_run_git", fail_conflict_probe)
+    monkeypatch.setattr(conflict_resolver_git, "_run_git", fail_conflict_probe)
 
     result = resolve_bead_conflicts(tmp_path)
 
@@ -731,7 +731,7 @@ def test_failed_stage_read_does_not_silently_drop_one_side(
 ) -> None:
     """An unreadable conflict stage is an error, not an empty stream."""
     contested, _quiet = _build_stream_conflict(tmp_path)
-    real_run_git = conflict_resolver._run_git
+    real_run_git = conflict_resolver_git._run_git
 
     def fail_stage_read(cwd: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
         if args[:1] == ["show"]:
@@ -740,7 +740,7 @@ def test_failed_stage_read_does_not_silently_drop_one_side(
             )
         return real_run_git(cwd, args)
 
-    monkeypatch.setattr(conflict_resolver, "_run_git", fail_stage_read)
+    monkeypatch.setattr(conflict_resolver_git, "_run_git", fail_stage_read)
 
     result = resolve_bead_conflicts(tmp_path, beads_dir=tmp_path / BEADS_DIRNAME)
 
