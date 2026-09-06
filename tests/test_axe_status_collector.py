@@ -113,6 +113,7 @@ def _patch_host(
     monkeypatch.setattr(collector, "list_lumberjack_names", lambda: [])
     monkeypatch.setattr(collector, "read_lumberjack_status", lambda _name: None)
     monkeypatch.setattr(collector, "read_lumberjack_pid", lambda _name: None)
+    monkeypatch.setattr(collector, "unsafe_axe_systemd_scope", lambda _pid: None)
     return cleanup_calls
 
 
@@ -283,6 +284,24 @@ def test_intentional_stop_and_fresh_state_remain_healthy(monkeypatch) -> None:
         "healthy",
         (),
     )
+
+
+def test_session_tied_orchestrator_scope_is_an_attention_issue(monkeypatch) -> None:
+    _patch_host(monkeypatch)
+    monkeypatch.setattr(
+        collector,
+        "unsafe_axe_systemd_scope",
+        lambda _pid: "tmux-spawn-example.scope",
+    )
+
+    snapshot = collector.collect_axe_status_snapshot(clock=lambda: NOW)
+
+    issue = snapshot.issues[-1]
+    assert issue.code == "orchestrator_session_scope"
+    assert issue.severity == "warning"
+    assert issue.subject == "100"
+    assert "will be killed" in issue.summary
+    assert issue.suggested_command == "sase axe restart"
 
 
 def test_desired_running_down_and_active_maintenance(monkeypatch) -> None:

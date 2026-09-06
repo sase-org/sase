@@ -5,11 +5,18 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from sase.axe.chop_doctor import build_chop_doctor_report
 from sase.axe.chop_inventory import collect_chop_inventory
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.axe.desired_state import AxeDesiredState
-from sase.doctor.checks_axe import _check_axe_chops, _check_axe_health
+from sase.axe.systemd_scope import unsafe_axe_systemd_scope
+from sase.doctor.checks_axe import (
+    _check_axe_chops,
+    _check_axe_health,
+    _check_axe_systemd_scope,
+)
 from sase.doctor.runner import DoctorContext
 
 
@@ -105,3 +112,80 @@ def test_axe_health_accepts_explicit_stop(monkeypatch) -> None:
 
     assert check.status == "OK"
     assert check.summary == "axe is explicitly stopped"
+
+
+@pytest.mark.parametrize(
+    ("cgroup", "has_systemd_run", "expected_scope"),
+    [
+        (
+            "0::/user.slice/user-1000.slice/user@1000.service/"
+            "app.slice/tmux-spawn-example.scope\n",
+            True,
+            "tmux-spawn-example.scope",
+        ),
+        (
+            "0::/user.slice/user-1000.slice/user@1000.service/"
+            "app.slice/sase-axe-123.scope\n",
+            True,
+            None,
+        ),
+        ("0::/user.slice/app.slice/sase-axe.scope\n", True, None),
+        (
+            "0::/user.slice/user-1000.slice/user@1000.service/"
+            "app.slice/tmux-spawn-example.scope\n",
+            False,
+            None,
+        ),
+        ("5:cpu:/legacy/session.scope\n", True, None),
+    ],
+)
+def test_unsafe_axe_systemd_scope_matrix(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    cgroup: str,
+    has_systemd_run: bool,
+    expected_scope: str | None,
+) -> None:
+    proc_root = tmp_path / "proc"
+    process_dir = proc_root / "123"
+    process_dir.mkdir(parents=True)
+    (process_dir / "cgroup").write_text(cgroup)
+    monkeypatch.setattr("sase.axe.systemd_scope.sys.platform", "linux")
+    monkeypatch.setattr(
+        "sase.axe.systemd_scope.shutil.which",
+        lambda _name: "/usr/bin/systemd-run" if has_systemd_run else None,
+    )
+
+    assert unsafe_axe_systemd_scope(123, proc_root=proc_root) == expected_scope
+
+
+def test_axe_systemd_scope_warns_for_session_scope(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_axe.probe_orchestrator",
+        lambda **_kwargs: SimpleNamespace(running_pid=123),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_axe.unsafe_axe_systemd_scope",
+        lambda _pid: "tmux-spawn-example.scope",
+    )
+
+    check = _check_axe_systemd_scope()
+
+    assert check.status == "WARN"
+    assert "will be killed" in check.details[0]
+    assert check.next_steps == ("Run `sase axe restart`.",)
+
+
+def test_axe_systemd_scope_passes_without_doomed_scope(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_axe.probe_orchestrator",
+        lambda **_kwargs: SimpleNamespace(running_pid=123),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_axe.unsafe_axe_systemd_scope",
+        lambda _pid: None,
+    )
+
+    check = _check_axe_systemd_scope()
+
+    assert check.status == "OK"

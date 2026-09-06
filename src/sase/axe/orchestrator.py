@@ -77,6 +77,7 @@ class Orchestrator:
             name: _LumberjackRestartState() for name in config.lumberjacks
         }
         self._running = True
+        self._shutdown_signal: int | None = None
 
     def _find_sase_executable(self) -> str:
         """Find the sase executable path.
@@ -380,9 +381,10 @@ class Orchestrator:
         except OSError:
             pass
 
-    def _handle_shutdown(self, _signum: int, _frame: object) -> None:
+    def _handle_shutdown(self, signum: int, _frame: object) -> None:
+        if self._shutdown_signal is None:
+            self._shutdown_signal = signum
         self._running = False
-        self._terminate_children()
 
     def _read_orchestrator_pid(self) -> int | None:
         pid_file = orchestrator_pid_file()
@@ -498,8 +500,8 @@ class Orchestrator:
                     time.sleep(1)
             except KeyboardInterrupt:
                 self._running = False
-                self._terminate_children()
             finally:
+                self._terminate_children()
                 # Wait for all children to exit (with escalation to SIGKILL)
                 deadline = time.monotonic() + 10
                 for _name, proc in self._children.items():
@@ -509,6 +511,23 @@ class Orchestrator:
                     except subprocess.TimeoutExpired:
                         proc.kill()
                         proc.wait(timeout=5)
+                if self._shutdown_signal is not None:
+                    try:
+                        signal_name = signal.Signals(self._shutdown_signal).name
+                    except ValueError:
+                        signal_name = f"signal {self._shutdown_signal}"
+                    pid = os.getpid()
+                    append_lifecycle_event(
+                        "stop",
+                        "terminated",
+                        source="signal",
+                        reason=(
+                            f"Orchestrator PID {pid} terminated by "
+                            f"{signal_name} ({self._shutdown_signal})."
+                        ),
+                        orchestrator_pid=pid,
+                        succeeded=True,
+                    )
                 self._remove_pid()
         finally:
             lifecycle_lock.clear_holder_pid()

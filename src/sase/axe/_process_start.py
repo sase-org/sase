@@ -26,6 +26,7 @@ from ._process_guard import (
 )
 from ._process_probe import get_pid_from_pid_files, probe_orchestrator
 from ._process_types import AxeOrchestratorProbe, AxeStartResult
+from .systemd_scope import wrap_axe_start_in_systemd_scope
 
 
 AXE_START_SOURCE_ENV = "SASE_AXE_START_SOURCE"
@@ -95,6 +96,7 @@ def start_axe_daemon_result(
     desired_state_source: str = "axe start",
     record_desired_state: bool = True,
     _allow_wedged_lock_recovery: bool = True,
+    _allow_systemd_scope: bool = True,
 ) -> AxeStartResult:
     """Start axe as a background daemon process and return a detailed result."""
     if axe_lifecycle_blocked_in_tests():
@@ -174,12 +176,17 @@ def start_axe_daemon_result(
             except AxeConfigError as exc:
                 return AxeStartResult(status="failed", message=str(exc))
 
-        cmd = _build_axe_start_command(config)
-        if cmd is None:
+        daemon_cmd = _build_axe_start_command(config)
+        if daemon_cmd is None:
             return AxeStartResult(
                 status="failed",
                 message="Could not find a `sase` executable to start axe.",
             )
+        if _allow_systemd_scope:
+            cmd, wrapped_in_systemd_scope = wrap_axe_start_in_systemd_scope(daemon_cmd)
+        else:
+            cmd = daemon_cmd
+            wrapped_in_systemd_scope = False
 
         log_dir = axe_state.axe_state_dir() / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -218,6 +225,14 @@ def start_axe_daemon_result(
 
     exit_code = process.poll()
     if exit_code is not None:
+        if wrapped_in_systemd_scope:
+            return start_axe_daemon_result(
+                config,
+                desired_state_source=desired_state_source,
+                record_desired_state=False,
+                _allow_wedged_lock_recovery=_allow_wedged_lock_recovery,
+                _allow_systemd_scope=False,
+            )
         return AxeStartResult(
             status="failed",
             message=f"Axe start process exited before publishing a PID (code {exit_code}).",

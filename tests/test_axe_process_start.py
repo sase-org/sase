@@ -18,6 +18,10 @@ from sase.axe._process_start import (
     _wait_for_daemon_start,
 )
 from sase.axe._process_types import AxeOrchestratorProbe
+from sase.axe.systemd_scope import (
+    AXE_SYSTEMD_SCOPE_DISABLE_ENV,
+    wrap_axe_start_in_systemd_scope,
+)
 from sase.axe.process import (
     AxeStartResult,
     restart_axe_daemon,
@@ -28,6 +32,12 @@ from sase.axe.process import (
 
 pytest_plugins = ("tests._axe_process_fixtures",)
 pytestmark = pytest.mark.usefixtures("allow_axe_lifecycle_in_tests")
+
+
+@pytest.fixture(autouse=True)
+def disable_systemd_scope_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep existing spawn tests independent of the host's systemd setup."""
+    monkeypatch.setenv(AXE_SYSTEMD_SCOPE_DISABLE_ENV, "1")
 
 
 def test_compose_axe_daemon_env_strips_agent_and_chop_context() -> None:
@@ -53,6 +63,94 @@ def test_compose_axe_daemon_env_strips_agent_and_chop_context() -> None:
         "SASE_AXE_START_SOURCE": "axe start",
     }
     assert environ["SASE_AGENT_NAME"] == "parent"
+
+
+def test_wraps_start_command_in_unique_systemd_user_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(AXE_SYSTEMD_SCOPE_DISABLE_ENV)
+    monkeypatch.setattr("sase.axe.systemd_scope.sys.platform", "linux")
+    monkeypatch.setattr(
+        "sase.axe.systemd_scope.shutil.which",
+        lambda name: "/usr/bin/systemd-run" if name == "systemd-run" else None,
+    )
+    monkeypatch.setattr("sase.axe.systemd_scope.os.getpid", lambda: 123)
+    monkeypatch.setattr("sase.axe.systemd_scope.time.time_ns", lambda: 456)
+    daemon_command = ["/usr/bin/sase", "axe", "start"]
+
+    command, wrapped = wrap_axe_start_in_systemd_scope(daemon_command)
+
+    assert wrapped is True
+    assert command == [
+        "/usr/bin/systemd-run",
+        "--user",
+        "--scope",
+        "--quiet",
+        "--collect",
+        "--unit=sase-axe-123-456",
+        "--description=SASE axe orchestrator",
+        "--",
+        *daemon_command,
+    ]
+
+
+def test_does_not_wrap_start_command_without_systemd_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(AXE_SYSTEMD_SCOPE_DISABLE_ENV)
+    monkeypatch.setattr("sase.axe.systemd_scope.sys.platform", "linux")
+    monkeypatch.setattr("sase.axe.systemd_scope.shutil.which", lambda _name: None)
+    daemon_command = ["/usr/bin/sase", "axe", "start"]
+
+    command, wrapped = wrap_axe_start_in_systemd_scope(daemon_command)
+
+    assert wrapped is False
+    assert command == daemon_command
+
+
+def test_retries_unwrapped_when_systemd_scope_exits_before_pid_publish(
+    monkeypatch: pytest.MonkeyPatch,
+    axe_config: AxeConfig,
+) -> None:
+    monkeypatch.delenv(AXE_SYSTEMD_SCOPE_DISABLE_ENV)
+    wrapped_process = MagicMock()
+    wrapped_process.poll.return_value = 1
+    fallback_process = MagicMock()
+    popen_calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def fake_popen(command: list[str], **kwargs: object) -> MagicMock:
+        popen_calls.append((command, kwargs))
+        return wrapped_process if len(popen_calls) == 1 else fallback_process
+
+    daemon_command = ["/usr/bin/sase", "axe", "start"]
+    scoped_command = ["/usr/bin/systemd-run", "--", *daemon_command]
+    with (
+        patch(
+            "sase.axe._process_start._build_axe_start_command",
+            return_value=daemon_command,
+        ),
+        patch(
+            "sase.axe._process_start.wrap_axe_start_in_systemd_scope",
+            return_value=(scoped_command, True),
+        ),
+        patch("sase.axe._process_start.subprocess.Popen", side_effect=fake_popen),
+        patch(
+            "sase.axe._process_start._wait_for_daemon_start",
+            side_effect=[None, 4321],
+        ),
+    ):
+        result = start_axe_daemon_result(axe_config, record_desired_state=False)
+
+    assert result.status == "started"
+    assert result.pid == 4321
+    assert [call[0] for call in popen_calls] == [scoped_command, daemon_command]
+    for _command, kwargs in popen_calls:
+        lock_fds = kwargs["pass_fds"]
+        assert isinstance(lock_fds, tuple)
+        assert len(lock_fds) == 1
+        env = kwargs["env"]
+        assert isinstance(env, dict)
+        assert env["SASE_AXE_LIFECYCLE_LOCK_FD"] == str(lock_fds[0])
 
 
 @patch("sase.axe._process_start.subprocess.Popen")

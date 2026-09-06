@@ -12,6 +12,7 @@ from sase.axe.chop_doctor import (
 )
 from sase.axe.desired_state import read_desired_state
 from sase.axe._process_probe import probe_orchestrator
+from sase.axe.systemd_scope import unsafe_axe_systemd_scope
 from sase.diagnostics import CheckSpec, DiagnosticCheck
 
 if TYPE_CHECKING:
@@ -34,6 +35,12 @@ def axe_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             group="axe",
             title="AXE chop diagnostics",
             runner=lambda: _check_axe_chops(context),
+        ),
+        CheckSpec(
+            id="axe.systemd_scope",
+            group="axe",
+            title="AXE systemd scope isolation",
+            runner=_check_axe_systemd_scope,
         ),
     )
 
@@ -82,6 +89,35 @@ def _check_axe_health() -> DiagnosticCheck:
             ),
             "orchestrator_pid": pid,
         },
+    )
+
+
+def _check_axe_systemd_scope() -> DiagnosticCheck:
+    """Warn when the live orchestrator will die with a launching session."""
+    pid = probe_orchestrator(cleanup=False).running_pid
+    scope = unsafe_axe_systemd_scope(pid) if pid is not None else None
+    if scope is None:
+        return DiagnosticCheck(
+            id="axe.systemd_scope",
+            group="axe",
+            status="OK",
+            title="AXE systemd scope isolation",
+            summary="axe has no detectable session-tied systemd scope",
+            data={"orchestrator_pid": pid, "systemd_scope": None},
+        )
+
+    return DiagnosticCheck(
+        id="axe.systemd_scope",
+        group="axe",
+        status="WARN",
+        title="AXE systemd scope isolation",
+        summary="axe orchestrator is attached to a session-tied systemd scope",
+        details=(
+            f"PID {pid} is in {scope} and will be killed when its launching "
+            "pane or session closes.",
+        ),
+        next_steps=("Run `sase axe restart`.",),
+        data={"orchestrator_pid": pid, "systemd_scope": scope},
     )
 
 

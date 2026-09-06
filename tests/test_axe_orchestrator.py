@@ -410,12 +410,12 @@ def test_run_writes_pid_and_releases_lifetime_lock(
 
 
 @patch("os.kill")
-def test_handle_shutdown_forwards_sigterm(
+def test_handle_shutdown_records_signal_without_process_work(
     mock_kill: MagicMock,
     temp_state_dir: Path,
     axe_config: AxeConfig,
 ) -> None:
-    """Test that _handle_shutdown forwards SIGTERM to all children."""
+    """The signal handler only records shutdown intent for the main loop."""
     orch = Orchestrator(axe_config)
     mock_proc1 = MagicMock()
     mock_proc1.pid = 100
@@ -428,12 +428,39 @@ def test_handle_shutdown_forwards_sigterm(
     orch._handle_shutdown(signal.SIGTERM, None)
 
     assert orch._running is False
-    # Should have called os.kill on both children
-    calls = mock_kill.call_args_list
-    pids_killed = {c[0][0] for c in calls}
-    assert pids_killed == {100, 200}
-    for c in calls:
-        assert c[0][1] == signal.SIGTERM
+    assert orch._shutdown_signal == signal.SIGTERM
+    mock_kill.assert_not_called()
+
+
+def test_signal_driven_run_journals_terminated_stop(
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    axe_config.lumberjacks = {}
+    orch = Orchestrator(axe_config)
+
+    def signal_shutdown(_seconds: float) -> None:
+        orch._handle_shutdown(signal.SIGTERM, None)
+
+    with (
+        patch("sase.axe.orchestrator.signal.signal"),
+        patch("sase.axe.orchestrator.init_telemetry"),
+        patch("sase.axe.orchestrator.reap_stale_log_rotation_temps"),
+        patch("sase.axe.orchestrator.time.sleep", side_effect=signal_shutdown),
+        patch("sase.axe.orchestrator.append_lifecycle_event") as append_event,
+    ):
+        assert orch.run() is True
+
+    stop_calls = [
+        call for call in append_event.call_args_list if call.args[0] == "stop"
+    ]
+    assert len(stop_calls) == 1
+    assert stop_calls[0].args[1] == "terminated"
+    assert stop_calls[0].kwargs["source"] == "signal"
+    assert stop_calls[0].kwargs["orchestrator_pid"] == os.getpid()
+    assert stop_calls[0].kwargs["succeeded"] is True
+    assert "SIGTERM" in stop_calls[0].kwargs["reason"]
+    assert str(os.getpid()) in stop_calls[0].kwargs["reason"]
 
 
 @patch("os.killpg")
