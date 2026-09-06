@@ -191,6 +191,25 @@ and selection. Returning through query history restores the exact previous query
 selection; the lens is derived from the live query, so it does not leave sticky state
 behind after the user moves on.
 
+`$` link-follow uses the same lens, but reaches it through a host-owned ordered ladder
+rather than a single rewrite: fold expansion, dropping the `limit:` head slice, an
+identity-field query, minimal widening, a neutral `limit:all`, and finally targeted
+hydration of a row the pane never loaded. See
+[The Reveal Ladder](ace.md#the-reveal-ladder) for the user-facing behavior.
+
+## Identity field
+
+Every pane dialect may name one **identity field** — the filterable field an identity
+reveal rewrites through to name a single row. The fixed panes use `name` (Patches and
+Agents), `id` (Beads and Files), `path` (Plans), and `sha` (Stitches).
+
+A provider does not declare its identity field. Every provider-derived dialect uses
+`path`, and the host injects a filterable, exact-match, negatable, searchable `path`
+field automatically when `ref.properties` does not already declare one. The compiler
+rejects an identity field that is not a declared field or is not filterable, so a
+dialect can never advertise a reveal it cannot perform. A dialect with no usable
+identity value for a row simply skips that rung and falls through to widening.
+
 ## Boundary
 
 A provider can declare relation and grouping facts, but it cannot install commands,

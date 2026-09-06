@@ -708,11 +708,11 @@ SASE TUI from a tmux artifact pane, and `q` closes the viewer.
 
 Videos are muted by default because SASE often runs on a remote host or inside tmux
 where the server audio device is not useful. Configure playback under
-`ace.artifact_viewer.video`:
+`ace.artifact_file_viewer.video`:
 
 ```yaml
 ace:
-  artifact_viewer:
+  artifact_file_viewer:
     video:
       audio: false
       loop: false

@@ -57,6 +57,7 @@ sections, environment variables, and CLI flags.
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
 - [Directory Sharding](#directory-sharding)
+- [Local State Cutover](#local-state-cutover)
 
 ## Config File Location
 
@@ -226,7 +227,7 @@ for layout, keys, confirmation, and self-disable recovery.
   history with them. `'` stays typable while the filter or path input holds focus. The
   detail pane shows the type, default, effective value, and the full provenance stack
   with the winning layer marked. Structured values (object maps and arrays of objects,
-  such as `ace.lumberjack` or [`repos`](#repos)) render as a multi-line,
+  such as `axe.lumberjacks` or [`repos`](#repos)) render as a multi-line,
   syntax-highlighted YAML block instead of a one-line JSON blob, while scalars and short
   flat lists keep their compact inline form.
 - **Edit** (`↵` or `e` on a field): a typed editor is generated from the schema — a
@@ -4127,10 +4128,11 @@ VCS, workspace, and LLM registries load provider entry points directly.
 
 ### State Root
 
-| Variable                  | Description                                                                                                                                                          |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SASE_HOME`               | Override the SASE state root. Defaults to `~/.sase`; project files, chats, artifacts, notifications, dismissed bundles, saved groups, and logs move under this root. |
-| `SASE_PROC_LOG_MAX_BYTES` | Maximum active proc-log segment size in bytes (default: 2 MiB); `0` disables rotation.                                                                               |
+| Variable                  | Description                                                                                                                                                                               |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_HOME`               | Override the SASE state root. Defaults to `~/.sase`; project files, chats, artifacts, notifications, dismissed bundles, saved groups, and logs move under this root.                      |
+| `SASE_PROC_LOG_MAX_BYTES` | Maximum active proc-log segment size in bytes (default: 2 MiB); `0` disables rotation.                                                                                                    |
+| `SASE_CUTOVER_BACKUP_DIR` | Root the [local state cutover kit](#local-state-cutover) writes backups, restores, and run journals under. Defaults to `~/cutover-backups` and must stay outside every SASE runtime root. |
 
 ### General
 
@@ -5645,3 +5647,95 @@ while writing index aliases, `verify` to check the current or manifest-backed st
 `rollback -m <manifest>` to reverse a migration when needed. Migration skips live
 artifact directories with `running.json`, refuses existing targets, and can be previewed
 with `--dry-run`.
+
+## Local State Cutover
+
+`sase migrate` is a temporary, offline kit for the canonical-only local-state cutover.
+It never runs automatically, no other SASE surface invokes it, and the whole command
+group is deleted once the cutover completes. Reach for it only when you are deliberately
+retiring legacy residue under `~/.sase`; nothing here is part of day-to-day operation.
+
+Every subcommand is a **dry run** unless `-a`/`--apply` is given, and every subcommand
+accepts `-j`/`--json` for a machine-readable object. Bare `sase migrate` delegates to
+`sase migrate list`.
+
+### Where The Kit Writes
+
+Backups, staged restores, and run journals live under the cutover backup root:
+`$SASE_CUTOVER_BACKUP_DIR` when set, otherwise `~/cutover-backups`. The root is created
+with mode `0700` on first use and is deliberately outside every SASE runtime root
+(`~/.sase`, `~/.local/state/sase`, and `~/sase` checkouts), so no discovery glob and no
+purge operation can ever reach a backup.
+
+| Path                           | Contents                                                              |
+| ------------------------------ | --------------------------------------------------------------------- |
+| `backups/<backup-id>/payload/` | The copied source tree, mirroring the backed-up root.                 |
+| `backups/<backup-id>/`         | `MANIFEST.json`, `SHA256SUMS`, and `provenance.json` for that backup. |
+| `restores/`                    | Staged restores, before an apply swaps one into place.                |
+| `runs/<run-id>/manifest.json`  | The planned operation, including any bound backup id.                 |
+| `runs/<run-id>/journal.jsonl`  | The append-only, fsynced record a resume replays.                     |
+| `runs/<run-id>/run.lock`       | The bounded lock `run` and `resume` take.                             |
+| `runs/<run-id>/receipt.json`   | The final receipt written once an applied run finishes.               |
+
+A backup id looks like `<host>-<YYYYMMDDTHHMMSS>-<random>`; a run is addressed by its
+run id.
+
+### The Operation Catalog
+
+The catalog is fixed — `sase migrate list` reports it along with whether each declared
+root is present on this machine.
+
+| Operation       | What it does                                                                                                                                | Backup required | Apply supported | Declared roots                                                                                               |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | --------------- | ------------------------------------------------------------------------------------------------------------ |
+| `import-purge`  | Wraps `sase agent names purge-local-state` behind a verified backup, then re-runs the import-state preview to verify.                       | yes             | yes             | `~/.sase/agents_sync`, `~/.sase/artifacts`, `~/.sase/chats`, `~/.sase/dismissed_bundles`, `~/.sase/projects` |
+| `lock-residue`  | Classifies code-swap lock files and refuses to archive any lock the current code still writes.                                              | no              | no (read-only)  | `~/.sase/locks`                                                                                              |
+| `procs-residue` | Parses residual `~/.sase/tasks` rows, reconciles them with canonical procs, and archives only a fully matched legacy tree.                  | yes             | yes             | `~/.sase/tasks`, `~/.sase/procs`                                                                             |
+| `state-residue` | Archives the legacy agent tribe file, `user_question`, `plan_approval`, and legacy `~/.xprompts` residue once canonical counterparts exist. | yes             | yes             | `~/.sase/agent_tags.json`, `~/.sase/plan_approval`, `~/.sase/user_question`, `~/.xprompts`                   |
+
+Each operation declares its own preconditions and rollback unit; `list --json` prints
+them verbatim. `lock-residue` reports a classification and never mutates anything, so it
+has no apply mode.
+
+### Backing Up And Restoring
+
+```bash
+sase migrate backup ~/.sase                                  # report what would be captured
+sase migrate backup ~/.sase --apply --secondary /mnt/backup  # capture, plus a second durable copy
+sase migrate restore <backup-id>                             # verify checksums, stage, and diff
+sase migrate restore <backup-id> --apply                     # swap the staged copy into place
+```
+
+A capture is quiescent-as-possible, checksummed, and SQLite-consistent: SQLite members
+are copied through the database's own backup API rather than as raw bytes, and the
+capture refuses to start unless free space covers the measured size with headroom. A dry
+run reports member counts, byte totals, and whether the destination is safely outside
+every runtime root.
+
+A restore verifies `SHA256SUMS` **before touching anything**, restores into a staging
+path under `restores/`, and reports the diff and ownership deltas against the live root.
+With `--apply`, the live root is renamed to a sibling
+`<name>.pre-restore-<YYYYMMDDTHHMMSS>` — never deleted — and the staged copy is moved
+into its place. `-r`/`--root` targets a different live root than the one that was backed
+up. The backup itself is never modified or deleted by a restore.
+
+### Planning, Running, And Verifying
+
+```bash
+sase migrate plan state-residue --backup-id <backup-id>  # write runs/<run-id>/manifest.json
+sase migrate run <manifest>                              # preflight only: digests, conflicts, backup record
+sase migrate run <manifest> --apply                      # execute, journaling every step
+sase migrate status                                      # every recorded run and its journal state
+sase migrate verify <run-id>                             # re-check post-conditions and fingerprints
+sase migrate resume <run-id> --apply                     # continue an interrupted run
+```
+
+`plan` mutates no source data: it writes a manifest plus an initial journal record and
+prints the manifest path. `run` without `--apply` checks source digests, conflicts, and
+the bound backup record; with `--apply` it executes under a durable journal and writes a
+receipt. `resume` replays the journal, re-checks source digests while the run has not
+started applying, and continues from the next resumable step. `run` and `resume` accept
+`-l`/`--lock-timeout-ms` to bound how long they wait for the run lock before refusing.
+
+`plan` and `list` accept `-r`/`--root` and `-d`/`--home` to resolve operation roots
+against a SASE home other than the live one, which is how the kit is rehearsed against a
+copy before it is pointed at real state.

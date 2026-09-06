@@ -350,14 +350,15 @@ not the configured monitor label or command. A live elapsed suffix shows while r
 or an exit-code / timeout badge once terminal. Monitor shells appear in the family
 roster and contribute to the family's total runtime (unlike a gate shell, whose window
 is a human wait and is excluded from that total), but — like workflow steps — they are
-not counted as agents in `sase stats` or tribe/clan summaries: a family with one agent
-and one monitor shell is a one-agent family that ran one command. A collapsed family or
-clan container row carries an amber `⚙N` badge for its running monitors and a grey `⚙N`
-badge for its finished ones, so both counts are visible without expanding the subtree;
-the two badges partition the subtree's monitors exactly, and a failed, timed-out, or
-lost monitor counts in the finished (grey) lane along with a clean completion. The tribe
-panel title aggregates both lanes across the whole tribe, so a fully collapsed panel
-still reports running and completed monitored work.
+not counted as agents in the [Statistics tab](ace.md#statistics-tab) or tribe/clan
+summaries: a family with one agent and one monitor shell is a one-agent family that ran
+one command. A collapsed family or clan container row carries an amber `⚙N` badge for
+its running monitors and a grey `⚙N` badge for its finished ones, so both counts are
+visible without expanding the subtree; the two badges partition the subtree's monitors
+exactly, and a failed, timed-out, or lost monitor counts in the finished (grey) lane
+along with a clean completion. The tribe panel title aggregates both lanes across the
+whole tribe, so a fully collapsed panel still reports running and completed monitored
+work.
 
 Selecting a monitor row keeps the ordinary agent header and renders a `MONITOR` detail
 section in place of the usual prompt and reply body. It shows the shell-highlighted

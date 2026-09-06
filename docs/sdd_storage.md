@@ -152,6 +152,22 @@ visibility; the default is no. Non-interactive input and `sase init --yes` canno
 this resource-specific authorization. Existing sidecars and non-explicit materialization
 consumers retain their normal provider-owned behavior.
 
+### First Launch On A New Machine
+
+A sase-managed project whose sidecars already exist remotely does not need an explicit
+`sase repo init` on every machine. When the first agent launches into a workspace that
+has no materialized store record, SASE connects this machine to the project's existing
+store and prints `Connected existing SDD sidecars for first use on this machine`. The
+step is **connect-only**: it never creates a repository, and it is a no-op when the
+project is not sase-managed, is not a project directory, already has a materialized
+record, or uses a provider policy that is not remote-backed.
+
+A required sidecar that does not exist remotely stops the launch with the remedy named
+directly — run `sase repo init` in the project root to create it — instead of an opaque
+clone failure. The agents sidecar is the one exception: a missing agents repository
+prints a warning naming it and continues with the remaining roles, because creating it
+needs the interactive authorization described above.
+
 Split initialization is a single record-last transaction:
 
 1. SASE serializes setup and preflights every enabled configured sidecar repository.

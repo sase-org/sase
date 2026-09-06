@@ -1700,25 +1700,24 @@ An eligible `%proc` unit dispatches natively once its waits and `%if` pass: the
 admission coordinator reserves a `proc-shell` (lifecycle `proc-shell`, origin
 `xprompt-proc`) and starts its detached supervisor. The supervisor then acquires an
 operational workspace lease when `workspace` is true, materializes the approved source
-as a private `0600` script, executes it by argv — `/bin/bash --noprofile --norc
-
-<script>` or the SASE interpreter plus that script, never shell interpolation — and
-releases the lease through the existing resumable settlement path on every terminal
-outcome. Execution and idle timeouts begin when the child starts, not while waits, the
-condition, or the workspace lease are pending. The child's environment inherits the
-detached supervisor's own ordinary tool environment — `PATH`, `HOME`, locale, and
-toolchain configuration — rather than a private hermetic one, so user-installed tools
-such as `just`, `uv`, and Cargo resolve exactly as they do outside the proc. Parent
-agent, chop, and artifact identity are scrubbed from that inherited environment, along
-with any stale `SASE_PROC_*` sidecar left over from an earlier proc, before the SASE
-interpreter directory is prefixed onto `PATH` and only the current documented proc
-context (`SASE_PROC_ID`, `SASE_PROC_LOG_PATH`, `SASE_PROC_SESSION_ID`, selected project,
-project file, and workspace number) is added; the proc never sets `SASE_AGENT` or
-another agent-artifact variable. The private script directory holds only the `0600`
-script and is not a replacement user home, and this scrubbing is not a filesystem or
-network sandbox — the child still runs with the supervisor's filesystem and network
-permissions. A stand-alone `%proc` unit never allocates an agent runner slot, family,
-`done.json`, or finalizer obligation.
+as a private `0600` script, executes it by argv —
+`/bin/bash --noprofile --norc <script>` or the SASE interpreter plus that script, never
+shell interpolation — and releases the lease through the existing resumable settlement
+path on every terminal outcome. Execution and idle timeouts begin when the child starts,
+not while waits, the condition, or the workspace lease are pending. The child's
+environment inherits the detached supervisor's own ordinary tool environment — `PATH`,
+`HOME`, locale, and toolchain configuration — rather than a private hermetic one, so
+user-installed tools such as `just`, `uv`, and Cargo resolve exactly as they do outside
+the proc. Parent agent, chop, and artifact identity are scrubbed from that inherited
+environment, along with any stale `SASE_PROC_*` sidecar left over from an earlier proc,
+before the SASE interpreter directory is prefixed onto `PATH` and only the current
+documented proc context (`SASE_PROC_ID`, `SASE_PROC_LOG_PATH`, `SASE_PROC_SESSION_ID`,
+selected project, project file, and workspace number) is added; the proc never sets
+`SASE_AGENT` or another agent-artifact variable. The private script directory holds only
+the `0600` script and is not a replacement user home, and this scrubbing is not a
+filesystem or network sandbox — the child still runs with the supervisor's filesystem
+and network permissions. A stand-alone `%proc` unit never allocates an agent runner
+slot, family, `done.json`, or finalizer obligation.
 
 In project context `workspace` defaults to `true` and an optional relative `cwd` is
 resolved beneath the leased checkout; `workspace="false"` opts out and requires an
@@ -2034,9 +2033,9 @@ while plan proposers become `--plan`. SASE then names the new member
 before the model sees the prompt. The positional suffix is a bare token: write
 `%i(reviewer, family=foo)`, not `%i(--reviewer, family=foo)`.
 
-Reserved suffixes (`plan`, `code`, `epic`, `commit`) select their built-in family
-roles and status labels. Numeric suffixes and `@` are feedback/Q&A rounds; `@` allocates
-the next free suffix. Other alphanumeric suffixes such as `reviewer` or `tester` are
+Reserved suffixes (`plan`, `code`, `epic`, `commit`) select their built-in family roles
+and status labels. Numeric suffixes and `@` are feedback/Q&A rounds; `@` allocates the
+next free suffix. Other alphanumeric suffixes such as `reviewer` or `tester` are
 allowed, preserve that open-set role in `agent_family_role` metadata, and use ordinary
 RUNNING/DONE status labels. See [Agent Clans, Families, and Tribes](agent_families.md)
 for attachment and agent-initiated launch behavior.
@@ -2168,9 +2167,9 @@ admission exemption currently applies to a serial successor launched after a gat
 handoff, even though the pending gate released that slot: the successor starts
 immediately and becomes the family's occupied slot. If other work filled the released
 capacity first, observed occupancy can temporarily exceed the cap. Immediate
-participating launches claim a slot before workspace preparation; dependency, time,
-and fork waiters remain uncounted until those prerequisites resolve. Workflow
-Python/bash steps and axe Patch runners hold none of these slots.
+participating launches claim a slot before workspace preparation; dependency, time, and
+fork waiters remain uncounted until those prerequisites resolve. Workflow Python/bash
+steps and axe Patch runners hold none of these slots.
 
 A modern `/sase_questions` handoff ends the asking agent and creates a processless
 `QUESTION` gate shell. Answering launches the next ordinary family member under the
@@ -2181,9 +2180,8 @@ initial admission and is not reapplied, while authored `priority=N` is retained.
 
 This temporary question pause does not make `%wait(runners=0)` exclusive. A
 drain-barrier launch may enter during the pause, and other work may still enter after
-that barrier is admitted whenever its own threshold permits. A modern question
-successor can then start under the serial-family exemption even while that work occupies
-capacity.
+that barrier is admitted whenever its own threshold permits. A modern question successor
+can then start under the serial-family exemption even while that work occupies capacity.
 
 Absolute time waits cannot be combined with duration waits or with each other.
 
@@ -2373,20 +2371,20 @@ hand-off still inlines the approved plan with `@` and does not share a body with
 `#coder` instead takes the approved plan file as its `plan_file` input, names it by its
 `YYYYmm/<name>.md` reference, and asks the agent to locate and read the plan itself (for
 example with `sase artifact read plan:<reference> "<reason>"`) rather than receiving it
-pre-inlined. The coder starts with a fresh context window;
-the plan file is the hand-off artifact and the coder does not inherit the planner's chat
-transcript. The coder prompt also carries a `%model:` directive. A model chosen at
-approval time (or a `%model:`/`%m` directive inside a custom coder prompt) wins. When no
-model is chosen, the follow-up validates the tale plan it will actually hand off and
-routes by that plan's size: `%model:@xsmall`, `%model:@small`, `%model:@medium`,
-`%model:@large`, or `%model:@xlarge`. Tale and commit approvals publish the reviewed
-plan to the durable archive before their response becomes terminal. The follow-up
-receives the canonical `plan:` reference and resolves it in its own workspace instead of
-depending on the approver's checkout path. If that required publication fails, SASE does
-not write the terminal response, so the approval stays pending and actionable. Legacy
-tale plans without size metadata normalize to `@medium`. The recorded follow-up metadata
-resolves the alias to the concrete model the coder actually launches with and keeps the
-size alias as `← @<size>` launch provenance in the coder's `Model:` field.
+pre-inlined. The coder starts with a fresh context window; the plan file is the hand-off
+artifact and the coder does not inherit the planner's chat transcript. The coder prompt
+also carries a `%model:` directive. A model chosen at approval time (or a `%model:`/`%m`
+directive inside a custom coder prompt) wins. When no model is chosen, the follow-up
+validates the tale plan it will actually hand off and routes by that plan's size:
+`%model:@xsmall`, `%model:@small`, `%model:@medium`, `%model:@large`, or
+`%model:@xlarge`. Tale and commit approvals publish the reviewed plan to the durable
+archive before their response becomes terminal. The follow-up receives the canonical
+`plan:` reference and resolves it in its own workspace instead of depending on the
+approver's checkout path. If that required publication fails, SASE does not write the
+terminal response, so the approval stays pending and actionable. Legacy tale plans
+without size metadata normalize to `@medium`. The recorded follow-up metadata resolves
+the alias to the concrete model the coder actually launches with and keeps the size
+alias as `← @<size>` launch provenance in the coder's `Model:` field.
 
 Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus
 recent approved and inferred rejected archived plans. Use the `id_prefix` from a

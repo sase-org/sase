@@ -133,7 +133,12 @@ highlighted entry, arrows or `Ctrl+N`/`Ctrl+P` move, and Esc closes it. `-` remo
 writable durable link and `+` creates a link from marked rows where that action is
 available. Projected links are read-only. Rows show relation direction, rationale,
 provenance, and missing targets; the panel shows a separate notice when the aggregate is
-stale.
+stale. Two glyphs pre-flag a row before you follow it, using the same resolution the
+follow path itself uses: `⊘` means the ref is dangling — no pane resolves it at all —
+and `↻` means the target exists but is not selectable in place, so following it will
+rewrite the destination pane's query. A destination pane that is still loading is not
+flagged, because "not in the result set yet" there is a loading artifact rather than a
+real reveal need. The `?` help modal lists both glyphs beside the link-follow keys.
 
 Link follows can cross tabs and keep a bounded 32-hop trail. `Ctrl+O` walks backward and
 `Ctrl+Shift+O` walks forward, restoring the tab, pane, project scope, query, selection,
@@ -141,6 +146,45 @@ and supported AXE fold state. If no link-trail hop is available, those keys reta
 current pane's normal jump-stack behavior. Ordinary navigation clears the link trail.
 See [Artifact Links](artifact_links.md#browsing-links-in-ace) for relation and
 projection details.
+
+#### The Reveal Ladder
+
+Following a link whose target is outside the destination pane's current result set does
+not fail. ACE owns one ordered ladder and walks it until the row is selectable,
+preferring the cheapest rung first:
+
+| Rung                | What it does                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Fold expansion      | Opens the fold hiding the row. Mutates no query and pushes no history entry, so it runs before any rewrite.         |
+| Drop the head slice | Rewrites the host-owned `limit:N` cap to `limit:all`, keeping every other term.                                     |
+| Identity reveal     | Rewrites to the tightest query that names the row through the pane's identity field, such as `id:` or `sha:`.       |
+| Minimal widening    | Drops only the terms that exclude the row, then appends `limit:all`.                                                |
+| Neutral query       | Replaces the query with a blunt `limit:all`.                                                                        |
+| Targeted hydration  | Fetches a row the pane never loaded at all directly from its source, off the message pump, then re-enters the fold. |
+
+Identity reveal is skipped when the pane's dialect declares no identity field or the row
+has no usable value for it. Minimal widening is skipped on the boolean dialects (Patches
+and Agents), where subtracting tokens from a boolean expression is not sound, and
+whenever the rewritten query fails to verify against the target row. Targeted hydration
+fires at most once per follow and never for a ref that failed to parse or route; it is
+what makes a deep-archive plan, a stitch outside the collection window, or a capped
+provider snapshot reachable.
+
+When every rung misses, ACE says so honestly rather than silently doing nothing:
+`No such artifact: <ref>` when nothing resolves the ref, and
+`<Pane> has no <ref> in its inventory` when the destination pane genuinely does not
+carry it.
+
+Each rewriting rung commits through the pane's host-query adapter, so query history
+records exactly one `^` restore for the whole follow. After a rewriting follow lands,
+ACE toasts `Revealed <ref> — press ^ to restore your query` and the pane's info header
+shows a reversible **lens chip** — `↩ Revealed <ref>` in the pane's accent color,
+followed by a dim `^ to return` naming the configured `prev_query` key rather than
+introducing a new binding. The lens is derived from the live query rather than stored as
+a flag: it is active only while the pane's canonical query is still exactly the query
+the reveal wrote and the pane's dialect has not changed. Editing the query yourself,
+walking query history with `^` / `_`, loading a saved query, or triggering a fresh
+reveal all end it with no separate clear step.
 
 ### Split Modes in Artifacts Panes
 
@@ -335,23 +379,43 @@ Agent uses the same persistent query row and the Boolean profile dialect shared 
 parentheses, plus free text over agent names and metadata. Its fields cover identity and
 lineage (`name`, `kind`, `family`, `clan`, `tribe`, `role`, `workflow`, `parent`,
 `project`), execution (`state`, `status`, `provider`, `model`, `attempt`), lifecycle
-booleans (`hidden`, `dismissed`, `revivable`, `attention`, `retry`), artifact links
-(`linked`, `relation`, `artifact`), start/finish bounds (`since`, `until`, `after`,
-`before`), and runtime bounds (`min`, `max`). Date bounds accept `Nh` / `Nd` / `Nw` /
-`Nm`, `today`, and `YYYY-MM-DD`, where `Nm` means months; runtime bounds accept seconds
-or `Ns` / `Nm` / `Nh` / `Nd`, where `Nm` means minutes. There are no sigils or macros.
-For example, `state:dismissed AND revivable:true`,
+booleans (`hidden`, `dismissed`, `revivable`, `attention`, `retry`), archive
+capabilities (`historically_viewable`, `durably_revivable`, `restartable`), artifact
+links (`linked`, `relation`, `artifact`), start/finish bounds (`since`, `until`,
+`after`, `before`), and runtime bounds (`min`, `max`). Date bounds accept `Nh` / `Nd` /
+`Nw` / `Nm`, `today`, and `YYYY-MM-DD`, where `Nm` means months; runtime bounds accept
+seconds or `Ns` / `Nm` / `Nh` / `Nd`, where `Nm` means minutes. There are no sigils or
+macros. For example, `state:dismissed AND revivable:true`,
 `provider:codex AND status:FAILED AND since:7d`, and `linked:true AND relation:read` are
 valid queries.
 
+The three archive-capability booleans describe what a dismissed row's persisted archive
+can actually support, rather than whether a bundle file merely exists:
+
+| Field                   | True when                                                                 |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `historically_viewable` | The archive holds enough data to inspect the run after the fact.          |
+| `durably_revivable`     | The archive holds enough data to restore the run.                         |
+| `restartable`           | The archive holds the prompt and model parameters needed to run it again. |
+
+`revivable:true` now means all of "dismissed", "backed by a readable top-level bundle",
+and `durably_revivable`, so the saved query the `w` action seeds
+(`state:dismissed AND revivable:true`) no longer lists rows whose archive cannot
+actually be restored. The revive modal shows the three capabilities as **Viewable**,
+**Revivable**, and **Restart** lines, plus a **Missing** line naming any unmet
+requirement, and reviving a row that lacks one is refused up front with
+`This archive record is not revivable: missing …` instead of failing at the last step.
+
 Stitches accepts singular `project:` plus `repo:`, `author:`, `origin:`, `type:`,
-`since:`, `until:`, `sidecar:`, `merges:`, and `limit:` and free text matched against
-the commit subject. `origin:` accepts `stitch`, `auto`, and `manual`, and is repeatable,
-comma-listable, and negatable like `repo:` and `author:`. `type:` is also repeatable,
-comma-listable, and negatable; it accepts `manual`, `automatic` (`auto` alias),
-`stitch`, `merge`, `patch`, and observed `SASE_TYPE` footer values.
-`merges:hide/show/only` controls merge-commit visibility exactly like
-`sase stitch list`'s `--merges` flag (see
+`sha:`, `since:`, `until:`, `sidecar:`, `merges:`, and `limit:` and free text matched
+against the commit subject. `sha:` is the pane's identity field: it is repeatable,
+comma-listable, and negatable, and it matches a **prefix** of the full commit id, so
+`sha:a1b2c3` selects that commit the way a git short SHA does. `origin:` accepts
+`stitch`, `auto`, and `manual`, and is repeatable, comma-listable, and negatable like
+`repo:` and `author:`. `type:` is also repeatable, comma-listable, and negatable; it
+accepts `manual`, `automatic` (`auto` alias), `stitch`, `merge`, `patch`, and observed
+`SASE_TYPE` footer values. `merges:hide/show/only` controls merge-commit visibility
+exactly like `sase stitch list`'s `--merges` flag (see
 [VCS Provider Reference](vcs.md#sase-stitch-list)). `project:` is not repeatable,
 comma-listable, or negatable because it selects the repository constellation before
 commits are collected. With no `project:` token, collection spans all projects. It
@@ -407,37 +471,44 @@ the unlimited synonym on every pane; `limit:0` is also accepted by the shared pa
 aggregate truncation metadata can still mark a count as capped without inventing an
 active query limit.
 
-Plans accepts `kind:`, `status:`, `tier:`, `project:`, `since:`, `until:`, and `limit:`
-plus free text matched across plan-document metadata and content. `kind:` accepts
+Plans accepts `kind:`, `status:`, `tier:`, `project:`, `path:`, `since:`, `until:`, and
+`limit:` plus free text matched across plan-document metadata and content. `path:` is
+the pane's identity field — the document path or provider identity, matched exactly and
+still searched by free text — and every other document-provider pane gains the same
+`path:` key when its declaration does not already define one. `kind:` accepts
 `proposal`, `active`, `archive`, and the document-sidecar roles present in the current
 scope, such as `plans`, `research`, or `designs`. `kind:archive` matches committed
 documents that are not linked from a live bead, while `kind:designs` narrows documents
 to that sidecar.
 
-Beads accepts repeatable `type:`, `task_type:`, `tier:`, `status:`, `size:`, `due:`,
-`project:`, `assignee:`, `owner:`, `model:`, `has:`, `bug:`, `label:`, `since:`, and
-`until:` terms, plus host-owned `limit:`. `task_type:` accepts catalog slugs plus
-`untyped` for legacy beads. Status values include the five stored states plus the
-derived `blocked`, `launched`, and `triage` states. `due:` accepts `live`, `soon`, or
-`due` and matches [flag beads](beads.md#flag-bead-lifecycle) — the dedicated
-feature-flag removal tasks — by how close they are to their removal thresholds. Other
-bead types have no due state, so a positive `due:` term hides them. `has:` accepts `+1`,
-`reopened`, `plan`, `bug`, `deps`, `notes`, and `triage`. `bug:` matches issue state,
-reference, relation, or project, with completion for `none`, `open`, `closed`, `stale`,
-`drift`, `mirrored`, and `referenced`; `label:` matches cached provider labels. Free
-text also searches cached external issue title, body, URL, and labels alongside the bead
-id, title, description, notes, design, references, and ownership metadata.
+Beads accepts repeatable `id:`, `type:`, `task_type:`, `tier:`, `status:`, `size:`,
+`due:`, `project:`, `assignee:`, `owner:`, `model:`, `has:`, `bug:`, `label:`, `since:`,
+and `until:` terms, plus host-owned `limit:`. `id:` is the pane's identity field: it
+matches a bead id exactly, and bead ids remain free-text searchable as well, so
+`id:sase-w3.2` pins one row while a bare `sase-w3` still matches by substring.
+`task_type:` accepts catalog slugs plus `untyped` for legacy beads. Status values
+include the five stored states plus the derived `blocked`, `launched`, and `triage`
+states. `due:` accepts `live`, `soon`, or `due` and matches
+[flag beads](beads.md#flag-bead-lifecycle) — the dedicated feature-flag removal tasks —
+by how close they are to their removal thresholds. Other bead types have no due state,
+so a positive `due:` term hides them. `has:` accepts `+1`, `reopened`, `plan`, `bug`,
+`deps`, `notes`, and `triage`. `bug:` matches issue state, reference, relation, or
+project, with completion for `none`, `open`, `closed`, `stale`, `drift`, `mirrored`, and
+`referenced`; `label:` matches cached provider labels. Free text also searches cached
+external issue title, body, URL, and labels alongside the bead id, title, description,
+notes, design, references, and ownership metadata.
 
-A leading unquoted `-` excludes a match. Stitches can exclude repositories, authors, and
-subject text; Beads and Plans can exclude their filter facets and free text. Exclusion
-wins when positive and negative constraints overlap: `repo:sase,plans -repo:plans`,
-`author:Ada -author:bot`, and `status:open -status:blocked` are all valid. A comma list
-negates the whole token, so `-repo:plans,research` excludes either repository. Date
-bounds and `limit:` cannot be negated. `sidecar:` is singular and accepts only `true` or
-`false`; canonical queries always render its explicit value. Quote the whole token to
-search for a literal leading minus (`"-repo:plans"`); quote only the excluded value to
-keep negation active (`-"generated rollout"`). Matching remains case-insensitive, and
-repository/project aliases work for both inclusion and exclusion.
+A leading unquoted `-` excludes a match. Stitches can exclude repositories, authors,
+commit SHAs, and subject text; Beads, Plans, and Files can exclude their filter facets
+and free text. Exclusion wins when positive and negative constraints overlap:
+`repo:sase,plans -repo:plans`, `author:Ada -author:bot`, and
+`status:open -status:blocked` are all valid. A comma list negates the whole token, so
+`-repo:plans,research` excludes either repository. Date bounds and `limit:` cannot be
+negated. `sidecar:` is singular and accepts only `true` or `false`; canonical queries
+always render its explicit value. Quote the whole token to search for a literal leading
+minus (`"-repo:plans"`); quote only the excluded value to keep negation active
+(`-"generated rollout"`). Matching remains case-insensitive, and repository/project
+aliases work for both inclusion and exclusion.
 
 A declared boolean field also takes a bare shorthand: an unquoted `key` token with no
 colon expands to `key:true`, and `-key` to `-key:true`. Quoting opts out, so `"key"`
@@ -750,22 +821,22 @@ copies — only its `Source` path reports `missing`.
 Files keeps its committed query visible in a persistent filter row, the same idle chrome
 Agent, Patches, Stitches, Beads, and Plans use. Press `f` or `/` to edit it. Filtering
 is purely in-memory over the loaded snapshot, so a query narrows thousands of rows
-without a re-query. Files accepts `kind:`, `project:`, `agent:`, `workflow:`, `origin:`,
-`since:`, `until:`, and host-owned `limit:`, plus free text matched against the label,
-logical path, stored path, source path, digest, and artifact id. Tokens from different
-facets combine with AND semantics, while comma-separated or repeated values within
-`kind:`, `project:`, `agent:`, `workflow:`, and `origin:` combine with OR semantics.
-`kind:` accepts the stored kinds `chat`, `plan`, `image`, `markdown`, `pdf`, and `file`;
-`origin:` accepts `ref`, `created`, and `capture`; `since:` and `until:` accept
-`YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or a relative `Nd` / `Nw` / `Nm` offset and may each
-appear once.
+without a re-query. Files accepts `id:`, `kind:`, `project:`, `agent:`, `workflow:`,
+`origin:`, `since:`, `until:`, and host-owned `limit:`, plus free text matched against
+the label, logical path, stored path, source path, digest, and artifact id. `id:` is the
+pane's identity field: it matches a logical file id exactly and stays free-text
+searchable too. Tokens from different facets combine with AND semantics, while
+comma-separated or repeated values within `id:`, `kind:`, `project:`, `agent:`,
+`workflow:`, and `origin:` combine with OR semantics. `kind:` accepts the stored kinds
+`chat`, `plan`, `image`, `markdown`, `pdf`, and `file`; `origin:` accepts `ref`,
+`created`, and `capture`; `since:` and `until:` accept `YYYY-MM-DD`, `YYYY-MM`,
+`YYYYMM`, or a relative `Nd` / `Nw` / `Nm` offset and may each appear once.
 
-Files-pane filters do not support negation; a leading `-` is rejected with an explicit
-error rather than excluding a match. `z` and the `kind:` token drive the same filter
-state: cycling with `z` closes an open edit session and sets `kind:` to the next stored
-kind actually present in the snapshot, wrapping back to All. A query listing several
-kinds is treated like All, so the next press selects the first present kind. When a
-filter hides every row, the pane says so and names the key that focuses the query row.
+`z` and the `kind:` token drive the same filter state: cycling with `z` closes an open
+edit session and sets `kind:` to the next stored kind actually present in the snapshot,
+wrapping back to All. A query listing several kinds is treated like All, so the next
+press selects the first present kind. When a filter hides every row, the pane says so
+and names the key that focuses the query row.
 
 ### Epic phase sizes across plan surfaces
 
@@ -1727,11 +1798,17 @@ Per-panel actions (kill, dismiss, expand, etc.) operate on whichever panel curre
 holds focus. Press `X` to open the cleanup panel: `d` dismisses completed agents in the
 focused panel, `D` dismisses completed agents across loaded panels, `k` cleans the
 focused panel, `K` cleans all loaded panels, `m` cleans marked agents, `g` cleans the
-focused group, `t` opens the tribe chooser, `C` opens the clan/member chooser scoped to
-the focused tribe, and lowercase `c` opens the custom selector. Whole-clan selections
-are planned by clan name and generation; member subsets and mixed selections use
-explicit agent identities. Both paths continue through the shared bulk-cleanup
-confirmation and execution flow.
+focused group, `t` opens the tribe chooser, and `c` opens the custom selector. `Enter`
+runs the highlighted row, and `Esc` or `q` closes the panel. Each row is disabled when
+it has no candidates, and its detail line reports how many agents it would affect.
+
+There is no separate clan chooser. A synthetic clan container row is never a cleanup
+target itself: every scope above expands it into the live members of its generation, so
+members folded away behind a collapsed clan are still reached by a panel, tribe, group,
+or marked cleanup. Loaded workflow children are pulled in when their parent is a
+candidate, proc-shell rows are skipped (dismiss those from the Agents tab instead), and
+identities are de-duplicated in Agents-tab order. Every scope then continues through the
+shared bulk-cleanup confirmation and execution flow.
 
 The `TRIBE` summary has four metadata detail levels, controlled by the same `zz`, `zZ`,
 `za`, and `zA` chords used for clan and family detail. From levels 1-3, `zZ` opens every
@@ -2118,6 +2195,17 @@ of the row — the provider name, the parentheses, and the model name each rende
 distinct shade from that provider's palette so multi-model fan-outs are easy to scan.
 Providers without a dedicated palette (anything outside the table above) fall back to a
 neutral purple palette and render no emoji badge.
+
+An agent that was materialized on this machine by the retired agents-sync import leg
+carries an **owner badge** — ` [<label>]` after its identity name — recording where it
+came from. A foreign machine belonging to you renders as just the machine name; another
+user's run renders as `username@machine`. The badge appears wherever an imported
+identity is named: agent rows, the revive modal, and neighbor pickers. Imported
+sequential families are also folded under one synthetic family-container row so members
+imported without their root still group as one family instead of scattering across the
+panel. Both are presentation over leftover local state; nothing imports new rows any
+more, and `sase agent names purge-local-state` removes the state that produces them (see
+[Agent Hood Synchronization](agents_sidecar.md#legacy-v1-limitations)).
 
 Workflow child rows for `python` and `bash` steps render a leading `❯` glyph plus the
 step name, styled with the matching step-type accent — bash amber, python green —
@@ -2933,6 +3021,13 @@ shown with the same prominence as the CLI prompt. Confirm runs exactly one
 `sase init … --yes` proc into the Procs tab and refreshes the pane in place. If the plan
 has TTY-only blockers, `t` suspends ACE into interactive `sase init` for the blocked
 subset. `Enter` still means enable; initialization is never implicit.
+
+The preview's own keys are listed on its border: `y` runs the plan, `d` toggles full
+file diffs on and off, `t` hands the run to a real terminal when the plan has TTY-only
+blockers (the row and key appear only then), and `Esc`, `q`, or `n` cancels. `Ctrl+D` /
+`Ctrl+U` scroll a long preview. The run button is disabled outright when no project in
+scope has a changed, runnable planner, and a plan whose runnable planners would
+overwrite or delete a file is styled as a danger confirmation rather than a neutral one.
 
 The current project — the same one the top-bar `+<project>` chip names — is marked on
 three surfaces at once, all in that project's accent color: a `+` in the row table's
@@ -6515,23 +6610,31 @@ press clears the filter and removes the bar.
 
 ### Keybindings
 
-| Key                 | Action                                       |
-| ------------------- | -------------------------------------------- |
-| `j` / `k`           | Navigate proc list                           |
-| `/`                 | Filter procs                                 |
-| `m`                 | Cycle the `monitor` filter                   |
-| `'`                 | Jump to a proc row via adaptive hints        |
-| `a`                 | Toggle scope: this session / all sessions    |
-| `K`                 | Kill selected running proc (durable or live) |
-| `Enter`             | Open the selected monitor's agent            |
-| `d`                 | Dismiss selected completed proc              |
-| `D`                 | Dismiss all completed procs                  |
-| `e`                 | Open proc output in `$EDITOR`                |
-| `y`                 | Copy proc output to clipboard                |
-| `Ctrl+D` / `Ctrl+U` | Scroll output pane down / up                 |
-| `g` / `G`           | Jump output pane to top/bottom               |
-| `Tab` / `Shift+Tab` | Switch Admin Center tabs                     |
-| `q` / `Esc`         | Close SASE Admin Center                      |
+| Key                 | Action                                    |
+| ------------------- | ----------------------------------------- |
+| `j` / `k`           | Navigate proc list                        |
+| `/`                 | Filter procs                              |
+| `m`                 | Cycle the `monitor` filter                |
+| `'`                 | Jump to a proc row via adaptive hints     |
+| `a`                 | Toggle scope: this session / all sessions |
+| `K`                 | Kill the selected active durable proc     |
+| `Enter`             | Open the selected monitor's agent         |
+| `d`                 | Dismiss selected completed proc           |
+| `D`                 | Dismiss all completed procs               |
+| `e`                 | Open proc output in `$EDITOR`             |
+| `y`                 | Copy proc output to clipboard             |
+| `Ctrl+D` / `Ctrl+U` | Scroll output pane down / up              |
+| `g` / `G`           | Jump output pane to top/bottom            |
+| `Tab` / `Shift+Tab` | Switch Admin Center tabs                  |
+| `q` / `Esc`         | Close SASE Admin Center                   |
+
+`K` and `D` also answer to `Shift+K` and `Shift+D`, matching the pane's existing
+`Shift+G` convention. `K` never silently does nothing: it kills any store-backed proc in
+an active state — including one whose owning session has died, which the kill path
+reconciles — and otherwise says why the selected row cannot be killed. A finished proc
+reports `Proc already finished`, a proc still being submitted reports
+`Proc is still submitting — try again in a moment`, and a session-local row that has no
+durable record reports that it cannot be killed from the Procs tab.
 
 ## Updates Tab
 
