@@ -1,772 +1,136 @@
 """Argument parser creation for the SASE CLI tool."""
 
+from __future__ import annotations
+
 import argparse
-import functools
-import gettext
-from collections.abc import Iterable, Sequence
-from importlib import import_module
-import os
-import sys
-from dataclasses import dataclass
-from typing import Any, overload, TextIO, TypeVar
 
-from rich.console import Console
-from rich.text import Text
-
-_NamespaceT = TypeVar("_NamespaceT")
-
-_RegistrarSpec = tuple[str, str]
-
-_GETTEXT_ENV_KEYS = ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG")
-_ORIGINAL_GETTEXT_FIND = gettext.find
-
-
-def _gettext_languages_key(languages: object) -> tuple[str, ...] | None:
-    if languages is None:
-        return None
-    if isinstance(languages, str):
-        return (languages,)
-    if isinstance(languages, Iterable):
-        return tuple(str(language) for language in languages)
-    return (str(languages),)
-
-
-@functools.lru_cache(maxsize=512)
-def _cached_gettext_find(
-    domain: str,
-    localedir: str | None,
-    languages: tuple[str, ...] | None,
-    locale_env: tuple[str | None, ...] | None,
-    all_matches: bool,
-) -> str | list[str] | None:
-    del locale_env
-    result = _ORIGINAL_GETTEXT_FIND(
-        domain,
-        localedir,
-        None if languages is None else list(languages),
-        all=all_matches,
-    )
-    if isinstance(result, list):
-        return list(result)
-    return result
-
-
-def _memoized_gettext_find(
-    domain: str,
-    localedir: str | None = None,
-    languages: object = None,
-    all: bool = False,  # noqa: A002 - mirrors gettext.find's public signature.
-) -> str | list[str] | None:
-    """Memoize locale catalog discovery while preserving gettext's inputs."""
-
-    language_key = _gettext_languages_key(languages)
-    locale_env = (
-        tuple(os.environ.get(key) for key in _GETTEXT_ENV_KEYS)
-        if language_key is None
-        else None
-    )
-    result = _cached_gettext_find(
-        domain,
-        localedir,
-        language_key,
-        locale_env,
-        bool(all),
-    )
-    if isinstance(result, list):
-        return list(result)
-    return result
-
-
-gettext.find = _memoized_gettext_find  # type: ignore[assignment]
-
-# Keep the command inventory and registrar routing in one lazy registry. Values are
-# module/function names instead of imported callables so ``create_parser(only=...)``
-# does not import unrelated command trees. Aliases share one registrar and are
-# deduplicated when the full parser is built.
-_COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
-    "ace": ("sase.main.parser_ace", "register_ace_parser"),
-    "agent": ("sase.main.parser_agent", "register_agent_parser"),
-    "agent-cli": ("sase.main.parser_agent_cli", "register_agent_cli_parser"),
-    "artifact": ("sase.main.parser_artifact", "register_artifact_parser"),
-    "artifact-file": ("sase.main.parser_artifact", "register_artifact_parser"),
-    "axe": ("sase.main.parser_ace", "register_axe_parser"),
-    "bead": ("sase.main.parser_bead", "register_bead_parser"),
-    # Legacy command alias for the patch parser.
-    "changespec": (
-        "sase.main.parser_patch",
-        "register_patch_parser",
-    ),
-    "chat": ("sase.main.parser_chat", "register_chat_parser"),
-    "comments": ("sase.main.parser_commands", "register_comments_parser"),
-    "completion": ("sase.main.parser_completion", "register_completion_parser"),
-    "config": ("sase.main.parser_commands", "register_config_parser"),
-    "core": ("sase.main.parser_core", "register_core_parser"),
-    "doctor": ("sase.main.parser_doctor", "register_doctor_parser"),
-    "editor": ("sase.main.parser_editor", "register_editor_parser"),
-    "file": ("sase.main.parser_commands", "register_file_parser"),
-    "file-history": ("sase.main.parser_commands", "register_file_history_parser"),
-    "file-hook": ("sase.main.parser_file_hook", "register_file_hook_parser"),
-    "final": ("sase.main.parser_final", "register_final_parser"),
-    "flag": ("sase.main.parser_flag", "register_flag_parser"),
-    "gate": ("sase.main.parser_gate", "register_gate_parser"),
-    "init": ("sase.main.parser_init", "register_init_parser"),
-    "launch": ("sase.main.parser_launch", "register_launch_parser"),
-    "logs": ("sase.main.parser_commands", "register_logs_parser"),
-    "lsp": ("sase.main.parser_commands", "register_lsp_parser"),
-    "memory": ("sase.main.parser_memory", "register_memory_parser"),
-    "migrate": ("sase.main.parser_migrate", "register_migrate_parser"),
-    "mobile": ("sase.main.parser_mobile", "register_mobile_parser"),
-    "monitor": ("sase.main.parser_monitor", "register_monitor_parser"),
-    "notify": ("sase.main.parser_commands", "register_notify_parser"),
-    "pager": ("sase.main.parser_pager", "register_pager_parser"),
-    "path": ("sase.main.parser_commands", "register_path_parser"),
-    "patch": ("sase.main.parser_patch", "register_patch_parser"),
-    "plan": ("sase.main.parser_plan", "register_plan_parser"),
-    "pipe": ("sase.main.parser_pipe", "register_pipe_parser"),
-    "plugin": ("sase.main.parser_plugin", "register_plugin_parser"),
-    "proc": ("sase.main.parser_proc", "register_proc_parser"),
-    "project": ("sase.main.parser_project", "register_project_parser"),
-    "prompt": ("sase.main.parser_prompt", "register_prompt_parser"),
-    "questions": ("sase.main.parser_commands", "register_questions_parser"),
-    "repo": ("sase.main.parser_repo", "register_repo_parser"),
-    "repro": ("sase.main.parser_repro", "register_repro_parser"),
-    "restore": ("sase.main.parser_commit", "register_restore_parser"),
-    "revert": ("sase.main.parser_commit", "register_revert_parser"),
-    "revive-log": ("sase.main.parser_commands", "register_revive_log_parser"),
-    "run": ("sase.main.parser_commands", "register_run_parser"),
-    "skill": ("sase.main.parser_skills", "register_skills_parser"),
-    "snippet": ("sase.main.parser_snippet", "register_snippet_parser"),
-    "stitch": ("sase.main.parser_stitch", "register_stitch_parser"),
-    # Legacy command alias for the proc parser.
-    "task": ("sase.main.parser_proc", "register_proc_parser"),
-    "telemetry": ("sase.main.parser_telemetry", "register_telemetry_parser"),
-    "tmux-agent": ("sase.main.parser_tmux_agent", "register_tmux_agent_parser"),
-    "update": ("sase.main.parser_update", "register_update_parser"),
-    "validate": ("sase.main.parser_validate", "register_validate_parser"),
-    "var": ("sase.main.parser_var", "register_var_parser"),
-    # Legacy command alias for the stitch parser.
-    "vcs": ("sase.main.parser_stitch", "register_stitch_parser"),
-    "version": ("sase.main.parser_version", "register_version_parser"),
-    "workspace": ("sase.main.parser_workspace", "register_workspace_parser"),
-    "xprompt": ("sase.main.parser_xprompt", "register_xprompt_parser"),
-}
-
-_OBSOLETE_DETACHED_PROC_MESSAGE = (
-    "all procs are detached; remove --detached (use --session none for no attribution)."
+from .parser_gettext import (
+    _GETTEXT_ENV_KEYS,
+    _ORIGINAL_GETTEXT_FIND,
+    cached_gettext_find,
+    gettext_languages_key,
+    install_memoized_gettext_find,
+    memoized_gettext_find,
 )
-_PROC_ALIASES = frozenset({"proc", "task"})
-_PROC_SUBCOMMANDS_WITH_LEGACY_DETACHED = frozenset({"list", "run"})
-
-
-_VALIDATION_FORMATTER: argparse.HelpFormatter | None = None
-
-
-def _shared_validation_formatter() -> argparse.HelpFormatter:
-    """Return one colorless formatter for construction-time help checks."""
-    global _VALIDATION_FORMATTER
-    formatter = _VALIDATION_FORMATTER
-    if formatter is None:
-        formatter = argparse.HelpFormatter(prog="sase")
-        set_color = getattr(formatter, "_set_color", None)
-        if callable(set_color):
-            set_color(False)
-        _VALIDATION_FORMATTER = formatter
-    return formatter
-
-
-class _SaseArgumentParser(argparse.ArgumentParser):
-    """Root parser with cross-option validation that argparse cannot express."""
-
-    def _get_validation_formatter(self) -> argparse.HelpFormatter:
-        """Reuse one colorless formatter while constructing the command tree.
-
-        Python 3.14 validates every help string through a per-parser formatter
-        whose ``_set_color`` path dominates ``create_parser``. Validation only
-        interpolates help templates, so a shared colorless formatter is enough.
-        ``format_help`` still uses ``_get_formatter`` and keeps TTY color.
-        """
-        return _shared_validation_formatter()
-
-    @overload
-    def parse_args(
-        self,
-        args: Iterable[str] | None = ...,
-        namespace: None = ...,
-    ) -> argparse.Namespace: ...
-
-    @overload
-    def parse_args(
-        self,
-        args: Iterable[str] | None,
-        namespace: _NamespaceT,
-    ) -> _NamespaceT: ...
-
-    @overload
-    def parse_args(self, *, namespace: _NamespaceT) -> _NamespaceT: ...
-
-    def parse_args(
-        self,
-        args: Iterable[str] | None = None,
-        namespace: Any = None,
-    ) -> Any:
-        raw_args = list(sys.argv[1:] if args is None else args)
-        raw_args = _normalize_bead_note_args(raw_args)
-        if _uses_obsolete_detached_proc_option(raw_args):
-            self.exit(2, f"{_OBSOLETE_DETACHED_PROC_MESSAGE}\n")
-        parsed, unknown = super().parse_known_args(raw_args, namespace)
-        if unknown:
-            if _is_bead_note_args(parsed):
-                parsed.text.extend(unknown)
-            else:
-                self.error(f"unrecognized arguments: {' '.join(unknown)}")
-        if (
-            getattr(parsed, "command", None) == "agent"
-            and getattr(parsed, "agent_subcommand", None) == "sync"
-            and getattr(parsed, "refresh", False)
-            and not getattr(parsed, "check", False)
-        ):
-            self.error("sase agent sync --refresh requires --check")
-        if (
-            getattr(parsed, "command", None) == "agent"
-            and getattr(parsed, "agent_subcommand", None) == "sync"
-            and getattr(parsed, "check", False)
-        ):
-            for flag, attribute in (
-                ("--drop-retired", "drop_retired"),
-                ("--retry-quarantined", "retry_quarantined"),
-            ):
-                if getattr(parsed, attribute, False):
-                    self.error(f"sase agent sync {flag} cannot be used with --check")
-        if (
-            getattr(parsed, "command", None) == "init"
-            and getattr(parsed, "json", False)
-            and not getattr(parsed, "check", False)
-        ):
-            self.error("sase init --json requires --check")
-        return parsed
-
-
-_BEAD_NOTE_VALUE_OPTIONS = frozenset(
-    {
-        "-a",
-        "--author",
-        "-e",
-        "--edit",
-        "-x",
-        "--remove",
-    }
+from .parser_registry import (
+    _COMMAND_REGISTRARS,
+    _RegistrarSpec,
+    parser_only_hint,
+    register_command_parsers,
 )
-_GLOBAL_VALUE_OPTIONS = frozenset(
-    {
-        "-f",
-        "--enable-feature",
-        "-F",
-        "--disable-feature",
-    }
+from .parser_root_args import (
+    _BEAD_NOTE_VALUE_OPTIONS,
+    _GLOBAL_VALUE_OPTIONS,
+    _NamespaceT,
+    _OBSOLETE_DETACHED_PROC_MESSAGE,
+    _PROC_ALIASES,
+    _PROC_SUBCOMMANDS_WITH_LEGACY_DETACHED,
+    _VALIDATION_FORMATTER,
+    SaseArgumentParser,
+    is_bead_note_args,
+    normalize_bead_note_args,
+    root_command_index,
+    shared_validation_formatter,
+    uses_obsolete_detached_proc_option,
+)
+from .parser_root_defaults import (
+    _DEFAULT_LIST_GROUP_DEST,
+    copy_parser_defaults,
+    default_list_subcommands,
+    default_list_delegation_notice,
+    sort_subcommand_help,
+)
+from .parser_root_help import (
+    _COMPACT_GLOBAL_OPTIONS,
+    _COMPACT_GLOBAL_OPTION_EXAMPLE,
+    _COMPACT_ROOT_COMMANDS,
+    _COMPACT_ROOT_EXAMPLES,
+    _COMPACT_ROOT_USAGE,
+    CompactRootCommand,
+    CompactRootHelpAction,
+    FullRootHelpAction,
+    compact_global_option_rows,
+    format_colored_compact_root_help,
+    format_compact_root_help,
+    print_compact_root_help,
+    root_subparser_action,
+    stream_supports_color,
+    validated_compact_root_commands,
 )
 
+install_memoized_gettext_find()
 
-def _is_bead_note_args(parsed: argparse.Namespace) -> bool:
-    return (
-        getattr(parsed, "command", None) == "bead"
-        and getattr(parsed, "bead_subcommand", None) == "note"
-        and isinstance(getattr(parsed, "text", None), list)
-    )
+_SaseArgumentParser = SaseArgumentParser
+_cached_gettext_find = cached_gettext_find
+_compact_global_option_rows = compact_global_option_rows
+_copy_parser_defaults = copy_parser_defaults
+_default_list_subcommands = default_list_subcommands
+_format_colored_compact_root_help = format_colored_compact_root_help
+_format_compact_root_help = format_compact_root_help
+_gettext_languages_key = gettext_languages_key
+_is_bead_note_args = is_bead_note_args
+_memoized_gettext_find = memoized_gettext_find
+_normalize_bead_note_args = normalize_bead_note_args
+_print_compact_root_help = print_compact_root_help
+_register_command_parsers = register_command_parsers
+_root_command_index = root_command_index
+_root_subparser_action = root_subparser_action
+_shared_validation_formatter = shared_validation_formatter
+_sort_subcommand_help = sort_subcommand_help
+_stream_supports_color = stream_supports_color
+_uses_obsolete_detached_proc_option = uses_obsolete_detached_proc_option
+_validated_compact_root_commands = validated_compact_root_commands
+_CompactRootCommand = CompactRootCommand
+_CompactRootHelpAction = CompactRootHelpAction
+_FullRootHelpAction = FullRootHelpAction
 
-
-def _normalize_bead_note_args(argv: list[str]) -> list[str]:
-    """Let ``sase bead note`` text appear after its option flags.
-
-    ``argparse`` does not intermix a ``nargs="*"`` positional with options
-    under subparsers, so collect the known note flags and move free-form text
-    before them.  The parser still owns validation and help rendering.
-    """
-
-    command_index = _root_command_index(argv)
-    if command_index is None or argv[command_index : command_index + 2] != [
-        "bead",
-        "note",
-    ]:
-        return argv
-
-    id_index = command_index + 2
-    if len(argv) <= id_index:
-        return argv
-
-    prefix = argv[: id_index + 1]
-    rest = argv[id_index + 1 :]
-    text: list[str] = []
-    options: list[str] = []
-    force_text = False
-    index = 0
-    while index < len(rest):
-        token = rest[index]
-        if force_text:
-            text.append(token)
-            index += 1
-            continue
-        if token == "--":
-            force_text = True
-            index += 1
-            continue
-        option_name = token.split("=", 1)[0]
-        if option_name in _BEAD_NOTE_VALUE_OPTIONS:
-            options.append(token)
-            if "=" not in token and index + 1 < len(rest):
-                options.append(rest[index + 1])
-                index += 2
-            else:
-                index += 1
-            continue
-        text.append(token)
-        index += 1
-    return [*prefix, *text, *options]
-
-
-def _root_command_index(argv: Sequence[str]) -> int | None:
-    index = 0
-    while index < len(argv):
-        token = argv[index]
-        if token in _GLOBAL_VALUE_OPTIONS:
-            index += 2
-            continue
-        if token.startswith("--enable-feature=") or token.startswith(
-            "--disable-feature="
-        ):
-            index += 1
-            continue
-        return index
-    return None
-
-
-def _uses_obsolete_detached_proc_option(argv: Sequence[str]) -> bool:
-    """Return whether proc/task argv uses the retired detached selector."""
-    if not argv or argv[0] not in _PROC_ALIASES:
-        return False
-
-    subcommand = "list"
-    option_start = 1
-    if len(argv) > 1 and not argv[1].startswith("-"):
-        subcommand = argv[1]
-        option_start = 2
-    if subcommand not in _PROC_SUBCOMMANDS_WITH_LEGACY_DETACHED:
-        return False
-
-    try:
-        option_end = argv.index("--", option_start)
-    except ValueError:
-        option_end = len(argv)
-    return any(token in {"-d", "--detached"} for token in argv[option_start:option_end])
-
-
-@dataclass(frozen=True)
-class _CompactRootCommand:
-    name: str
-    summary: str
-
-
-_COMPACT_ROOT_COMMANDS: tuple[_CompactRootCommand, ...] = (
-    _CompactRootCommand(
-        "doctor",
-        "Run read-only install, config, provider, project, and state diagnostics.",
-    ),
-    _CompactRootCommand(
-        "init",
-        "Check or initialize config, memory, repositories, and skills.",
-    ),
-    _CompactRootCommand(
-        "version",
-        "Show the exact SASE host, Rust core, and plugin packages loaded by this process.",
-    ),
-    _CompactRootCommand(
-        "ace",
-        "Open the interactive control surface for agents, projects, notifications, "
-        "automation, and Patches.",
-    ),
-    _CompactRootCommand(
-        "run",
-        "Launch or resume a coding-agent run from a prompt, xprompt, workflow, or history.",
-    ),
-    _CompactRootCommand(
-        "prompt",
-        "Inspect, search, replay, and curate previously submitted agent prompts.",
-    ),
-    _CompactRootCommand(
-        "agent",
-        "List, inspect, tag, or stop active and recent agent runs.",
-    ),
-    _CompactRootCommand(
-        "memory",
-        "Inspect loaded memory, review proposals, and audit reference memory activity.",
-    ),
-    _CompactRootCommand(
-        "patch",
-        "Inspect and maintain Patch lifecycle records, refs, and delta metadata.",
-    ),
-    _CompactRootCommand(
-        "bead",
-        "Manage git-portable issues, dependencies, planning beads, and executable epics.",
-    ),
-    _CompactRootCommand(
-        "project",
-        "List enabled projects, inspect the current project, and manage disabled work.",
-    ),
-    _CompactRootCommand(
-        "stitch",
-        "Dispatch a commit, proposal, or PR; show the stitch timeline.",
-    ),
-    _CompactRootCommand(
-        "workspace",
-        "Inspect, prepare, and repair numbered checkouts used by parallel agents.",
-    ),
+__all__ = (
+    "_BEAD_NOTE_VALUE_OPTIONS",
+    "_COMMAND_REGISTRARS",
+    "_COMPACT_GLOBAL_OPTIONS",
+    "_COMPACT_GLOBAL_OPTION_EXAMPLE",
+    "_COMPACT_ROOT_COMMANDS",
+    "_COMPACT_ROOT_EXAMPLES",
+    "_COMPACT_ROOT_USAGE",
+    "_DEFAULT_LIST_GROUP_DEST",
+    "_GETTEXT_ENV_KEYS",
+    "_GLOBAL_VALUE_OPTIONS",
+    "_NamespaceT",
+    "_OBSOLETE_DETACHED_PROC_MESSAGE",
+    "_ORIGINAL_GETTEXT_FIND",
+    "_PROC_ALIASES",
+    "_PROC_SUBCOMMANDS_WITH_LEGACY_DETACHED",
+    "_RegistrarSpec",
+    "_SaseArgumentParser",
+    "_VALIDATION_FORMATTER",
+    "_cached_gettext_find",
+    "_compact_global_option_rows",
+    "_copy_parser_defaults",
+    "_default_list_subcommands",
+    "_format_colored_compact_root_help",
+    "_format_compact_root_help",
+    "_gettext_languages_key",
+    "_is_bead_note_args",
+    "_memoized_gettext_find",
+    "_normalize_bead_note_args",
+    "_print_compact_root_help",
+    "_register_command_parsers",
+    "_root_command_index",
+    "_root_subparser_action",
+    "_shared_validation_formatter",
+    "_sort_subcommand_help",
+    "_stream_supports_color",
+    "_uses_obsolete_detached_proc_option",
+    "_validated_compact_root_commands",
+    "create_parser",
+    "default_list_delegation_notice",
+    "parser_only_hint",
 )
-
-_COMPACT_ROOT_EXAMPLES: tuple[str, ...] = (
-    "sase doctor",
-    "sase init -c",
-    'sase run "#git:home summarize this repository; do not change files"',
-    "sase ace",
-    "sase agent list",
-    "sase --full-help",
-)
-_COMPACT_ROOT_USAGE = "sase [-h] [-H] [-f <flag>] [-F <flag>] <command> [args...]"
-_COMPACT_GLOBAL_OPTIONS: tuple[tuple[str, str], ...] = (
-    (
-        "-f, --enable-feature <flag>",
-        "Enable a registered feature flag for this invocation",
-    ),
-    (
-        "-F, --disable-feature <flag>",
-        "Disable a registered feature flag for this invocation",
-    ),
-)
-_COMPACT_GLOBAL_OPTION_EXAMPLE = 'sase -f ref_sync_gesture run "..."'
-
-
-class _CompactRootHelpAction(argparse.Action):
-    """Print curated root help and exit."""
-
-    def __init__(self, option_strings: list[str], dest: str, **kwargs: Any) -> None:
-        super().__init__(
-            option_strings=option_strings,
-            dest=dest,
-            nargs=0,
-            default=argparse.SUPPRESS,
-            **kwargs,
-        )
-
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        values: object,
-        option_string: str | None = None,
-    ) -> None:
-        del namespace, values, option_string
-        _print_compact_root_help(parser, sys.stdout)
-        parser.exit()
-
-
-class _FullRootHelpAction(argparse.Action):
-    """Print exhaustive argparse root help and exit."""
-
-    def __init__(self, option_strings: list[str], dest: str, **kwargs: Any) -> None:
-        super().__init__(
-            option_strings=option_strings,
-            dest=dest,
-            nargs=0,
-            default=argparse.SUPPRESS,
-            **kwargs,
-        )
-
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        values: object,
-        option_string: str | None = None,
-    ) -> None:
-        del namespace, values, option_string
-        parser.print_help()
-        parser.exit()
-
-
-def _root_subparser_action(
-    parser: argparse.ArgumentParser,
-) -> argparse._SubParsersAction:
-    for action in parser._actions:
-        if isinstance(action, argparse._SubParsersAction):
-            return action
-    msg = "root parser has no subparser action"
-    raise AssertionError(msg)
-
-
-def _validated_compact_root_commands(
-    parser: argparse.ArgumentParser,
-) -> tuple[_CompactRootCommand, ...]:
-    subparser_action = _root_subparser_action(parser)
-    missing_commands = [
-        command.name
-        for command in _COMPACT_ROOT_COMMANDS
-        if command.name not in subparser_action.choices
-    ]
-    if missing_commands:
-        joined_commands = ", ".join(missing_commands)
-        msg = f"compact root help references unknown command(s): {joined_commands}"
-        raise AssertionError(msg)
-
-    return tuple(sorted(_COMPACT_ROOT_COMMANDS, key=lambda command: command.name))
-
-
-def _compact_global_option_rows() -> list[str]:
-    option_width = max(len(name) for name, _summary in _COMPACT_GLOBAL_OPTIONS)
-    return [
-        f"  {name:<{option_width}}  {summary}"
-        for name, summary in _COMPACT_GLOBAL_OPTIONS
-    ]
-
-
-def _format_compact_root_help(parser: argparse.ArgumentParser) -> str:
-    commands = _validated_compact_root_commands(parser)
-    command_width = max(len(command.name) for command in commands)
-    command_rows = [
-        f"  {command.name:<{command_width}}  {command.summary}" for command in commands
-    ]
-    example_rows = [f"  {example}" for example in _COMPACT_ROOT_EXAMPLES]
-    return "\n".join(
-        [
-            f"usage: {_COMPACT_ROOT_USAGE}",
-            "",
-            "SASE - Structured Agentic Software Engineering",
-            "",
-            "Global options:",
-            *_compact_global_option_rows(),
-            "",
-            f"  Example: {_COMPACT_GLOBAL_OPTION_EXAMPLE}",
-            "",
-            "Common commands:",
-            *command_rows,
-            "",
-            "Examples:",
-            *example_rows,
-            "",
-            "Use `sase <command> --help` for command-specific flags.",
-            "Use `sase --full-help` to show every command.",
-            "",
-        ]
-    )
-
-
-def _print_compact_root_help(parser: argparse.ArgumentParser, stream: TextIO) -> None:
-    if _stream_supports_color(stream):
-        console = Console(file=stream, force_terminal=True, highlight=False)
-        console.print(_format_colored_compact_root_help(parser), end="", soft_wrap=True)
-        return
-
-    parser._print_message(_format_compact_root_help(parser), stream)
-
-
-def _stream_supports_color(stream: TextIO) -> bool:
-    if os.environ.get("NO_COLOR") is not None or os.environ.get("TERM") == "dumb":
-        return False
-
-    isatty = getattr(stream, "isatty", None)
-    return bool(isatty is not None and isatty())
-
-
-def _format_colored_compact_root_help(parser: argparse.ArgumentParser) -> Text:
-    commands = _validated_compact_root_commands(parser)
-    command_width = max(len(command.name) for command in commands)
-    help_text = Text()
-
-    help_text.append("usage:", style="bold dim")
-    help_text.append(f" {_COMPACT_ROOT_USAGE}", style="dim")
-    help_text.append("\n\n")
-    help_text.append("SASE - Structured Agentic Software Engineering", style="bold")
-    help_text.append("\n\n")
-    help_text.append("Global options:", style="bold cyan")
-    help_text.append("\n")
-    option_width = max(len(name) for name, _summary in _COMPACT_GLOBAL_OPTIONS)
-    for name, summary in _COMPACT_GLOBAL_OPTIONS:
-        help_text.append("  ")
-        help_text.append(f"{name:<{option_width}}", style="bold green")
-        help_text.append("  ")
-        help_text.append(summary)
-        help_text.append("\n")
-    help_text.append("\n")
-    help_text.append("  Example: ")
-    help_text.append(_COMPACT_GLOBAL_OPTION_EXAMPLE, style="yellow")
-    help_text.append("\n\n")
-    help_text.append("Common commands:", style="bold cyan")
-    help_text.append("\n")
-    for command in commands:
-        help_text.append("  ")
-        help_text.append(f"{command.name:<{command_width}}", style="bold green")
-        help_text.append("  ")
-        help_text.append(command.summary)
-        help_text.append("\n")
-    help_text.append("\n")
-    help_text.append("Examples:", style="bold cyan")
-    help_text.append("\n")
-    for example in _COMPACT_ROOT_EXAMPLES:
-        help_text.append("  ")
-        help_text.append(example, style="yellow")
-        help_text.append("\n")
-    help_text.append("\n")
-    help_text.append("Use ", style="dim")
-    help_text.append("`sase <command> --help`", style="bold")
-    help_text.append(" for command-specific flags.", style="dim")
-    help_text.append("\n")
-    help_text.append("Use ", style="dim")
-    help_text.append("`sase --full-help`", style="bold")
-    help_text.append(" to show every command.", style="dim")
-    help_text.append("\n")
-    return help_text
-
-
-def _sort_subcommand_help(parser: argparse.ArgumentParser) -> None:
-    """Sort every subparser action by command name for stable help output."""
-    for action in parser._actions:
-        if not isinstance(action, argparse._SubParsersAction):
-            continue
-
-        sorted_choices = dict(sorted(action.choices.items()))
-        action.choices.clear()
-        action.choices.update(sorted_choices)
-        action._choices_actions.sort(key=lambda choice_action: choice_action.dest)
-
-        seen_child_parsers: set[int] = set()
-        for child_parser in action.choices.values():
-            child_id = id(child_parser)
-            if child_id in seen_child_parsers:
-                continue
-            seen_child_parsers.add(child_id)
-            _sort_subcommand_help(child_parser)
-
-
-def _copy_parser_defaults(
-    source_parser: argparse.ArgumentParser,
-    target_parser: argparse.ArgumentParser,
-) -> None:
-    """Copy defaults that parsing *source_parser* would add to a namespace."""
-    defaults = dict(source_parser._defaults)
-    for action in source_parser._actions:
-        if action.dest in (argparse.SUPPRESS, "help"):
-            continue
-        if isinstance(action, argparse._HelpAction):
-            continue
-        if isinstance(action, argparse._SubParsersAction):
-            continue
-        if not action.option_strings and action.nargs not in {"?", "*"}:
-            continue
-        if action.default is argparse.SUPPRESS:
-            continue
-        defaults.setdefault(action.dest, action.default)
-
-    if defaults:
-        target_parser.set_defaults(**defaults)
-
-
-# Private namespace attribute recording the command group (e.g. ``sase agent``)
-# that was implicitly defaulted to its ``list`` child because the user invoked
-# the group without choosing a subcommand. Absent or ``None`` means no implicit
-# delegation happened, so no runtime notice should be printed.
-_DEFAULT_LIST_GROUP_DEST = "_default_list_group"
-
-
-def _default_list_subcommands(parser: argparse.ArgumentParser) -> None:
-    """Default command groups with an exact ``list`` child to that child."""
-    for action in parser._actions:
-        if not isinstance(action, argparse._SubParsersAction):
-            continue
-
-        list_parser = action.choices.get("list")
-        if list_parser is not None and action.dest != argparse.SUPPRESS:
-            action.required = False
-            parser.set_defaults(**{action.dest: "list"})
-            _copy_parser_defaults(list_parser, parser)
-
-            # Choosing any explicit child clears the defaulted marker, so an
-            # explicit ``list`` (or non-``list``) command never looks defaulted.
-            seen_choice_parsers: set[int] = set()
-            for child_parser in action.choices.values():
-                if id(child_parser) in seen_choice_parsers:
-                    continue
-                seen_choice_parsers.add(id(child_parser))
-                child_parser.set_defaults(**{_DEFAULT_LIST_GROUP_DEST: None})
-
-            # Set last so it wins on the parent: a bare invocation of this group
-            # leaves this marker untouched and identifies the omitted group.
-            parser.set_defaults(**{_DEFAULT_LIST_GROUP_DEST: parser.prog})
-
-        seen_child_parsers: set[int] = set()
-        for child_parser in action.choices.values():
-            child_id = id(child_parser)
-            if child_id in seen_child_parsers:
-                continue
-            seen_child_parsers.add(child_id)
-            _default_list_subcommands(child_parser)
-
-
-def default_list_delegation_notice(args: argparse.Namespace) -> str | None:
-    """Return the delegation notice for a bare list-defaulted group, if any.
-
-    When a command group with an exact ``list`` child is invoked without a
-    subcommand, the parser records the group path in a private namespace
-    attribute. This returns a short notice explaining the implicit delegation,
-    or ``None`` when an explicit subcommand was chosen.
-    """
-    group = getattr(args, _DEFAULT_LIST_GROUP_DEST, None)
-    if not group:
-        return None
-    return f"No subcommand provided for '{group}'; delegating to '{group} list'."
-
-
-def parser_only_hint(argv: Sequence[str]) -> str | None:
-    """Return a safe narrow-parser hint for a complete command-line argv."""
-    if len(argv) < 2:
-        return None
-
-    candidate = argv[1]
-    if candidate.startswith("-") or candidate not in _COMMAND_REGISTRARS:
-        return None
-    return candidate
-
-
-def _register_command_parsers(
-    subparsers: argparse._SubParsersAction,
-    *,
-    only: str | None,
-) -> None:
-    specs: Iterable[_RegistrarSpec]
-    full_registrars: dict[str, Any] | None = None
-    if only is None:
-        from sase.main.parser_full_registrars import COMMAND_REGISTRARS_BY_NAME
-
-        specs = _COMMAND_REGISTRARS.values()
-        full_registrars = COMMAND_REGISTRARS_BY_NAME
-    else:
-        try:
-            specs = (_COMMAND_REGISTRARS[only],)
-        except KeyError:
-            raise ValueError(f"unknown top-level command: {only}") from None
-
-    registered: set[_RegistrarSpec] = set()
-    for spec in specs:
-        if spec in registered:
-            continue
-        registered.add(spec)
-        module_name, registrar_name = spec
-        if full_registrars is None:
-            registrar = getattr(import_module(module_name), registrar_name)
-        else:
-            registrar = full_registrars[registrar_name]
-        registrar(subparsers)
 
 
 def create_parser(*, only: str | None = None) -> argparse.ArgumentParser:
     """Create the full argument parser, or only one top-level command tree."""
-    parser = _SaseArgumentParser(
+    parser = SaseArgumentParser(
         add_help=False,
         description="SASE - Structured Agentic Software Engineering",
         prog="sase",
@@ -774,26 +138,25 @@ def create_parser(*, only: str | None = None) -> argparse.ArgumentParser:
     parser.add_argument(
         "-h",
         "--help",
-        action=_CompactRootHelpAction,
+        action=CompactRootHelpAction,
         help="show compact help and exit",
     )
     parser.add_argument(
         "-H",
         "--full-help",
-        action=_FullRootHelpAction,
+        action=FullRootHelpAction,
         help="show full command inventory and exit",
     )
     from .global_options import register_global_feature_flag_options
 
     register_global_feature_flag_options(parser)
 
-    # Top-level subparsers
     top_level_subparsers = parser.add_subparsers(
         dest="command", help="Available commands", required=True
     )
 
-    _register_command_parsers(top_level_subparsers, only=only)
+    register_command_parsers(top_level_subparsers, only=only)
 
-    _sort_subcommand_help(parser)
-    _default_list_subcommands(parser)
+    sort_subcommand_help(parser)
+    default_list_subcommands(parser)
     return parser
