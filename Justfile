@@ -336,6 +336,8 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-n4(get_usage_limit_config)" \
+        --epic-symbol "sase-x8(query_artifact_context)" \
+        --epic-symbol "sase-x8(ArtifactContextProducerGroup)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
