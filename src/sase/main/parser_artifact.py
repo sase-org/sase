@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 
+from sase.completion.compat import set_completion_compat_aliases
 from sase.core.artifact_file_types import ARTIFACT_FILE_KINDS
 from sase.main.parser_artifact_link import register_artifact_link_parser
 from sase.main.parser_bead import nonnegative_int
@@ -53,6 +54,7 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    set_completion_compat_aliases(artifact_parser, "artifact-file")
     artifact_subparsers = artifact_parser.add_subparsers(
         dest="artifact_subcommand",
         help="Artifact subcommands",

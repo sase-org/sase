@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from sase.cli_file_values import AT_PATH_PREFIX
+from sase.completion.compat import set_completion_compat_option_strings
 
 _AT_PATH_READS_IT = (
     f"{AT_PATH_PREFIX}<path> reads it from that file, "
@@ -186,13 +187,14 @@ def register_bead_create_parser(
         "--bug-id",
         help="Bug ID to pass when creating the attached Patch",
     )
-    parser.add_argument(
+    patch_option = parser.add_argument(
         "-c",
         "--patch",
         "--changespec",
         dest="patch",
         help="Attach a Patch name to a plan bead",
     )
+    set_completion_compat_option_strings(patch_option, "--changespec")
     parser.add_argument(
         "-d",
         "--description",

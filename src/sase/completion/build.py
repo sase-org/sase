@@ -5,6 +5,11 @@ from __future__ import annotations
 import argparse
 
 from sase import __version__
+from sase.completion.compat import (
+    get_completion_compat_aliases,
+    get_completion_compat_choices,
+    get_completion_compat_option_strings,
+)
 from sase.completion.kinds import resolve_value_kind
 from sase.completion.model import (
     CommandSpec,
@@ -60,7 +65,9 @@ def _build_command(
                 default_child = "list"
             continue
         if action.option_strings:
-            options.append(_build_option(action, command_path=path))
+            option = _build_option(action, command_path=path)
+            if option is not None:
+                options.append(option)
         else:
             positionals.append(_build_positional(action, command_path=path))
 
@@ -118,10 +125,16 @@ def _build_subcommands(
         primary = next((name for name in names if name in visible_choice_actions), None)
         if primary is None:
             continue
-        aliases = tuple(sorted(name for name in names if name != primary))
+        child_parser = parser_by_id[child_id]
+        compat_aliases = get_completion_compat_aliases(child_parser)
+        aliases = tuple(
+            sorted(
+                name for name in names if name != primary and name not in compat_aliases
+            )
+        )
         commands.append(
             _build_command(
-                parser_by_id[child_id],
+                child_parser,
                 name=primary,
                 path=parent_path + (primary,),
                 aliases=aliases,
@@ -135,11 +148,21 @@ def _build_subcommands(
 
 def _build_option(
     action: argparse.Action, *, command_path: tuple[str, ...]
-) -> OptionSpec:
+) -> OptionSpec | None:
     hidden = action.help == argparse.SUPPRESS
     choices = _resolved_choices(action)
+    compat_choices = get_completion_compat_choices(action)
+    if choices is not None and compat_choices:
+        choices = tuple(choice for choice in choices if choice not in compat_choices)
+    strings = tuple(
+        string
+        for string in action.option_strings
+        if string not in get_completion_compat_option_strings(action)
+    )
+    if not strings:
+        return None
     return OptionSpec(
-        strings=tuple(action.option_strings),
+        strings=strings,
         dest=action.dest,
         summary=_action_summary(action),
         takes_value=action.nargs != 0,

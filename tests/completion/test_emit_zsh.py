@@ -193,15 +193,15 @@ def test_aliases_are_completable_but_absent_from_describe() -> None:
     patch = _command(
         name="patch",
         path=("patch",),
-        aliases=("changespec",),  # legacy command alias
+        aliases=("aliascmd",),
         summary="Inspect patches",
     )
     script = emit_zsh(_spec(patch))
     block = _describe_block(script, label="sase commands")
     assert "'patch:Inspect patches'" in block
-    assert "changespec" not in block  # legacy command alias
-    assert "(patch|changespec) _sase_patch && ret=0" in script  # legacy command alias
-    assert "_sase_aliases=(changespec)" in script  # legacy command alias
+    assert "aliascmd" not in block
+    assert "(patch|aliascmd) _sase_patch && ret=0" in script
+    assert "_sase_aliases=(aliascmd)" in script
 
 
 def test_hidden_option_is_not_emitted() -> None:
@@ -283,12 +283,13 @@ def test_live_script_has_compdef_and_arguments(live_script: str) -> None:
     assert "helper-bridge" not in live_script
 
 
-def test_live_script_treats_changespec_as_alias(live_script: str) -> None:
+def test_live_script_omits_compat_changespec(live_script: str) -> None:
     block = _describe_block(live_script, label="sase commands")
     assert "changespec" not in block  # legacy command alias
     assert "patch:" in block
-    assert "changespec" in live_script  # legacy command alias
-    assert "(patch|changespec)" in live_script  # legacy command alias
+    assert "changespec" not in live_script  # legacy command alias
+    assert "--changespec" not in live_script  # legacy option alias
+    assert "(patch|changespec)" not in live_script  # legacy command alias
 
 
 def test_live_script_descriptions_fit_column(live_script: str) -> None:

@@ -30,8 +30,47 @@ def test_alias_collapses_changespec_into_patch() -> None:
     assert names == ["patch"]
 
     patch = _by_path(spec.root, ("patch",))
-    assert patch.aliases == ("changespec",)
+    assert patch.aliases == ()
     assert "changespec" not in {command.name for command in _all_commands(spec.root)}
+
+
+def test_compat_command_aliases_are_omitted_from_spec() -> None:
+    spec = build_spec()
+    names = {command.name for command in _all_commands(spec.root)}
+    assert _by_path(spec.root, ("patch",)).aliases == ()
+    assert _by_path(spec.root, ("proc",)).aliases == ()
+    assert _by_path(spec.root, ("stitch",)).aliases == ()
+    assert _by_path(spec.root, ("artifact",)).aliases == ()
+    assert "changespec" not in names  # legacy command alias
+    assert "task" not in names
+    assert "vcs" not in names
+    assert "artifact-file" not in names
+    assert {"patch", "proc", "stitch", "artifact"} <= names
+
+
+def test_compat_option_strings_are_omitted_from_spec() -> None:
+    spec = build_spec()
+    strings = {
+        option_string
+        for command in _all_commands(spec.root)
+        for option in command.options
+        for option_string in option.strings
+    }
+    assert "--patch" in strings
+    assert "--changespec" not in strings  # legacy option alias
+    assert "--cl" not in strings
+
+
+def test_ace_tab_omits_legacy_choices() -> None:
+    spec = build_spec()
+    ace = _by_path(spec.root, ("ace",))
+    tab = next(option for option in ace.options if option.dest == "tab")
+    assert tab.choices is not None
+    assert "artifacts" in tab.choices
+    assert "agents" in tab.choices
+    assert "axe" in tab.choices
+    assert "changespecs" not in tab.choices  # legacy tab alias
+    assert "patches" not in tab.choices
 
 
 def test_hidden_subcommands_are_absent() -> None:

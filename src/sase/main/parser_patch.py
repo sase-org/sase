@@ -5,6 +5,11 @@
 
 import argparse
 
+from sase.completion.compat import (
+    mark_patch_target_compat_option_strings,
+    set_completion_compat_aliases,
+)
+
 
 class _PatchTargetAction(argparse.Action):
     """Store canonical and legacy target names for Patch-target options."""
@@ -29,7 +34,7 @@ def _add_patch_target_argument(
     dest: str = "patch",
     required: bool = False,
 ) -> None:
-    parser.add_argument(
+    action = parser.add_argument(
         *option_strings,
         dest=dest,
         action=_PatchTargetAction,
@@ -37,6 +42,7 @@ def _add_patch_target_argument(
         help=help,
     )
     parser.set_defaults(patch=None, changespec=None)  # legacy parser destination
+    mark_patch_target_compat_option_strings(action)
 
 
 def register_patch_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -47,6 +53,7 @@ def register_patch_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Inspect and maintain Patches",
         description="Inspect and maintain Patch lifecycle records.",
     )
+    set_completion_compat_aliases(cs_parser, "changespec")
     cs_subparsers = cs_parser.add_subparsers(
         dest="patch_subcommand", help="Patch subcommands"
     )

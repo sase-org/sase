@@ -22,8 +22,9 @@ description:
 - Literal zones: fenced code and `%xprompts_enabled:false ... :true`. `$(cmd)` in args
   runs shell substitution. Bodies recurse.
 - Memory: every flat, non-README `sase/memory/<stem>.md` (or home equivalent) with
-  `type: short|long` auto-expands as `#memory/<stem>` (no opt-in, no bare-name alias);
-  project shadows home. No args, frontmatter stripped, no `## Children`, no
+  `type: core|reference` auto-expands as `#memory/<stem>` (no opt-in, no bare-name
+  alias); project shadows home. Legacy `type: short|long` still parse as
+  `core|reference`. No args, frontmatter stripped, no `## Children`, no
   `sase memory read` audit event. Ordinary xprompts/config/workflows cannot claim
   `memory/`.
 

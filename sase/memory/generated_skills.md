@@ -11,7 +11,10 @@ description:
 
 Chezmoi skill files (`SKILL.md`) are **generated**, not hand-edited. The source
 templates live in `src/sase/xprompts/skills/` and are rendered per-provider by
-`sase skill init`.
+`sase skill init`. Newly generated skills teach canonical commands; the
+compatibility-only `sase_changespecs` source has been retired, so the next
+`sase skill init` from a landed host revision should prune leftover provider copies. Do
+not deploy generated skills from an unlanded source revision.
 
 - Do NOT edit the chezmoi skill files directly — changes will be overwritten on the next
   generation

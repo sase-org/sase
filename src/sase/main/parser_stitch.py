@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from sase.commit_methods import METHOD_ALIASES, VALID_METHODS
+from sase.completion.compat import set_completion_compat_aliases
 from sase.main.parser_bead import nonnegative_int
 from sase.ops.cli import add_operation_io_flags
 from sase.vcs_log.dates import DATE_HELP
@@ -319,6 +320,7 @@ def register_stitch_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    set_completion_compat_aliases(stitch_parser, "vcs")
     stitch_sub = stitch_parser.add_subparsers(
         dest="stitch_subcommand",
         help="stitch subcommands",

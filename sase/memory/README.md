@@ -148,8 +148,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Description: Read when working with sase agent skills (aka xprompt skills), which are
   generated from source templates in the `src/sase/xprompts/skills/` and deployed to
   managed locations (my chezmoi repo, for example).
-- Lines: 70
-- Approx. tokens: 753
+- Lines: 73
+- Approx. tokens: 822
 
 ### `sase/memory/lint_and_test.md`
 
@@ -228,8 +228,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `AGENTS.md`
 - Description: Read before xprompts, prompt directives, or launching agents with git/gh
   VCS workflow blocks.
-- Lines: 113
-- Approx. tokens: 1694
+- Lines: 114
+- Approx. tokens: 1711
 
 ## Statistics
 
@@ -237,8 +237,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 10
 - Web descriptor notes: 3
-- Total lines: 1084
-- Total approx. tokens: 13861
+- Total lines: 1088
+- Total approx. tokens: 13947
 
 ## Commands
 

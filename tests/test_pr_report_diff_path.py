@@ -48,24 +48,38 @@ class TestPrReportStep:
             {
                 "result": "https://example.com/pr/1",
                 "message": "feat: X\n\nbody",
-                "changespec_name": "proj_cs_1",
+                "patch_name": "proj_cs_1",
+                "changespec_name": "legacy-name",
                 "diff_path": "/tmp/artifacts/commit_diff.diff",
             }
         )
         assert result["diff_path"] == "/tmp/artifacts/commit_diff.diff"
         assert result["meta_pr_url"] == "https://example.com/pr/1"
         assert result["meta_pr_header"] == "feat: X"
-        assert result["meta_changespec"] == "proj_cs_1"
+        assert result["meta_patch"] == "proj_cs_1"
+        assert "meta_changespec" not in result
 
     def test_no_diff_path_when_absent(self) -> None:
         result = _run_report_bash(
             {
                 "result": "https://example.com/pr/1",
                 "message": "feat: X",
-                "changespec_name": "proj_cs_1",
+                "patch_name": "proj_cs_1",
             }
         )
         assert "diff_path" not in result
+        assert result["meta_patch"] == "proj_cs_1"
+
+    def test_falls_back_to_changespec_name(self) -> None:
+        result = _run_report_bash(
+            {
+                "result": "https://example.com/pr/1",
+                "message": "feat: X",
+                "changespec_name": "legacy-name",
+            }
+        )
+        assert result["meta_patch"] == "legacy-name"
+        assert "meta_changespec" not in result
 
 
 class TestPrReportIsLastPostStep:

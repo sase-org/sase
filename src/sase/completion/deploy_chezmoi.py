@@ -13,7 +13,11 @@ import sase
 from sase.completion.emit_bash import emit_bash
 from sase.completion.emit_fish import emit_fish
 from sase.completion.emit_zsh import emit_zsh
-from sase.completion.install_stamp import InstallStamp, OWNER_CHEZMOI
+from sase.completion.install_stamp import (
+    InstallStamp,
+    OWNER_CHEZMOI,
+    portable_stamp_target,
+)
 from sase.completion.install_targets import SUPPORTED_SHELLS, script_path
 from sase.config.core import CHEZMOI_HOME
 from sase.content_layout import chezmoi_source_path
@@ -102,7 +106,7 @@ def _build_chezmoi_completion_plan(
             shell=shell,
             version=version_value,
             digest=digest,
-            target=str(target),
+            target=portable_stamp_target(target, home=home_path),
             timestamp=timestamp_value,
             owner=OWNER_CHEZMOI,
         )

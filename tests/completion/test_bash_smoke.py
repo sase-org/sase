@@ -95,7 +95,7 @@ def _plus_one_spec() -> CompletionSpec:
     patch = _command(
         name="patch",
         path=("patch",),
-        aliases=("changespec",),  # legacy command alias
+        aliases=("aliascmd",),
         summary="Inspect patches",
     )
     root = _command(
@@ -203,9 +203,9 @@ def test_root_offers_commands_but_not_alias(tmp_path: Path) -> None:
     assert "changespec" not in replies  # legacy command alias
 
 
-def test_alias_walks_to_patch_node(tmp_path: Path) -> None:
+def test_patch_walks_to_patch_node(tmp_path: Path) -> None:
     script = _write_script(tmp_path)
-    replies = _complete(script, ["sase", "changespec", "-"])  # legacy command alias
+    replies = _complete(script, ["sase", "patch", "-"])
     assert "--help" in replies or "-h" in replies
 
 

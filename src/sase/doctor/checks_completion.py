@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.completion.install import ShellInstallStatus, list_shell_statuses, zwc_path
-from sase.completion.install_stamp import InstallStamp, list_stamps
+from sase.completion.install_stamp import (
+    InstallStamp,
+    list_stamps,
+    resolve_stamp_target,
+)
 from sase.completion.install_targets import probe_zsh_comps
 from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
 
@@ -166,7 +169,7 @@ def _install_detail(row: ShellInstallStatus) -> str:
     path = row.path or "<unset>"
     extra = ""
     if row.shell == "zsh" and row.path:
-        extra = f" zwc={zwc_path(Path(row.path))}"
+        extra = f" zwc={zwc_path(resolve_stamp_target(row.path))}"
     return (
         f"{row.shell}: {row.status} path={path} zwc={row.zwc} "
         f"stamp={row.stamp_version} owner={row.owner or '—'}{extra}"
@@ -198,7 +201,7 @@ def _join_problems(problems: Sequence[str]) -> str:
 def _parent_display(target: str) -> str:
     from sase.core.paths import shorten_path
 
-    return shorten_path(str(Path(target).expanduser().parent))
+    return shorten_path(str(resolve_stamp_target(target).parent))
 
 
 def _check(

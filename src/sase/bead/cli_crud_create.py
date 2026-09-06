@@ -125,7 +125,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
     if changespec_bug_id and not changespec_name:
-        print("Error: --bug-id requires --patch/--changespec", file=sys.stderr)
+        print("Error: --bug-id requires --patch", file=sys.stderr)
         sys.exit(1)
     tier = BeadTier(args.tier) if getattr(args, "tier", None) else None
     if issue_type != IssueType.PLAN and tier is not None:

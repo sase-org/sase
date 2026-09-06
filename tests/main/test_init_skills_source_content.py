@@ -11,6 +11,24 @@ from sase.xprompt.loader_parsing import parse_yaml_front_matter
 from tests.main.init_skills_handler_helpers import collapse_whitespace
 
 
+def test_sase_changespecs_skill_source_is_retired() -> None:
+    skills_dir = get_sase_package_skills_dir()
+    assert not (skills_dir / "sase_changespecs.md").exists()
+    from sase.xprompt.loader import load_skills_from_package
+
+    assert "skill/sase_changespecs" not in load_skills_from_package()
+
+
+def test_sase_patches_skill_teaches_canonical_commands() -> None:
+    body = (get_sase_package_skills_dir() / "sase_patches.md").read_text(
+        encoding="utf-8"
+    )
+    assert "sase patch current -f markdown" in body
+    assert "sase patch search" in body
+    assert "sase changespec" not in body
+    assert "--changespec" not in body
+
+
 def test_gate_skill_sources_do_not_reference_v1_contract() -> None:
     """Generated gate guidance must use the query-driven v2 interface."""
     skills_dir = get_sase_package_skills_dir()

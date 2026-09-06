@@ -62,7 +62,7 @@ def register_config_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Trace mentor profile matching for a Patch",
     )
     config_mentor_match_parser.add_argument(
-        "changespec_name", help="NAME of the ChangeSpec to trace matching for"
+        "patch_name", help="NAME of the Patch to trace matching for"
     )
 
     # sase config migrate-keymap-actions

@@ -76,21 +76,24 @@ steps:
           out: dict[str, str] = {}
           result = d.get("result", "") or ""
           message = d.get("message", "") or ""
-          changespec_name = d.get("changespec_name", "") or ""
-          name = d.get("name", "") or ""
+          patch_name = (
+              d.get("patch_name", "")
+              or d.get("changespec_name", "")
+              or d.get("name", "")
+              or ""
+          )
           diff_path = d.get("diff_path", "") or ""
           if result:
               out["meta_new_commit"] = result
           if message:
               out["meta_commit_message"] = message
-          cs = changespec_name or name
-          if cs:
-              out["meta_changespec"] = cs
+          if patch_name:
+              out["meta_patch"] = patch_name
           if diff_path:
               out["diff_path"] = diff_path
           print(json.dumps(out))
     output:
       meta_new_commit: word
       meta_commit_message: text
-      meta_changespec: word
+      meta_patch: word
       diff_path: path

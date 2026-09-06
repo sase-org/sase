@@ -33,9 +33,35 @@ def test_build_plan_maps_scripts_and_stamps_to_chezmoi_source(tmp_path: Path) ->
     stamp_by_shell = {file.shell: file for file in plan.stamp_files}
     zsh_stamp = json.loads(stamp_by_shell["zsh"].text)
     assert zsh_stamp["owner"] == "chezmoi"
-    assert zsh_stamp["target"] == str(home / ".zfunc" / "_sase")
+    assert zsh_stamp["target"] == "~/.zfunc/_sase"
     assert stamp_by_shell["zsh"].source.relative_to(source).as_posix() == (
         "dot_sase/completion/stamp/zsh.json"
+    )
+
+
+def test_build_plan_stamps_are_home_independent(tmp_path: Path) -> None:
+    mac_home = tmp_path / "Users" / "bryan"
+    source = tmp_path / "chezmoi" / "home"
+
+    plan = _build_chezmoi_completion_plan(
+        source_root=source,
+        home=mac_home,
+        version="0.16.0",
+        timestamp="2026-08-21T12:00:00Z",
+    )
+
+    stamp_by_shell = {file.shell: file for file in plan.stamp_files}
+    for shell, file in stamp_by_shell.items():
+        payload = json.loads(file.text)
+        assert payload["target"].startswith("~/"), shell
+        assert "/Users/" not in payload["target"]
+        assert str(mac_home) not in payload["target"]
+    assert json.loads(stamp_by_shell["zsh"].text)["target"] == "~/.zfunc/_sase"
+    assert json.loads(stamp_by_shell["bash"].text)["target"] == (
+        "~/.local/share/bash-completion/completions/sase"
+    )
+    assert json.loads(stamp_by_shell["fish"].text)["target"] == (
+        "~/.config/fish/completions/sase.fish"
     )
 
 

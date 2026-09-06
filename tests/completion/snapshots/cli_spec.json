@@ -63,7 +63,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "45cedd4908615ee9",
+        "description_digest": "2b093a02c1d8db1d",
         "hidden": false,
         "mutex_groups": [],
         "name": "ace",
@@ -161,8 +161,6 @@
           {
             "choices": [
               "artifacts",
-              "changespecs",
-              "patches",
               "agents",
               "axe"
             ],
@@ -2903,9 +2901,7 @@
         ]
       },
       {
-        "aliases": [
-          "artifact-file"
-        ],
+        "aliases": [],
         "default_child": "list",
         "description_digest": "ef59f8f9de1b8dd0",
         "hidden": false,
@@ -5674,8 +5670,7 @@
                 "repeatable": false,
                 "strings": [
                   "-c",
-                  "--patch",
-                  "--changespec"
+                  "--patch"
                 ],
                 "takes_value": true
               },
@@ -9040,7 +9035,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "7211cebf31c39862",
+            "description_digest": "157d947afac520f5",
             "hidden": false,
             "mutex_groups": [],
             "name": "mentor-match",
@@ -9065,10 +9060,10 @@
             "positionals": [
               {
                 "choices": null,
-                "dest": "changespec_name",
+                "dest": "patch_name",
                 "is_remainder": false,
-                "kind": null,
-                "metavar": "changespec_name",
+                "kind": "patch",
+                "metavar": "patch_name",
                 "nargs": null
               }
             ],
@@ -14562,9 +14557,7 @@
         "subcommands": []
       },
       {
-        "aliases": [
-          "changespec"
-        ],
+        "aliases": [],
         "default_child": null,
         "description_digest": "30d6fc23250bafed",
         "hidden": false,
@@ -15050,9 +15043,7 @@
                     "repeatable": false,
                     "strings": [
                       "-p",
-                      "--patch",
-                      "-c",
-                      "--changespec"
+                      "--patch"
                     ],
                     "takes_value": true
                   }
@@ -15102,9 +15093,7 @@
                     "repeatable": false,
                     "strings": [
                       "-p",
-                      "--patch",
-                      "-c",
-                      "--changespec"
+                      "--patch"
                     ],
                     "takes_value": true
                   },
@@ -15169,9 +15158,7 @@
                     "repeatable": false,
                     "strings": [
                       "-p",
-                      "--patch",
-                      "-c",
-                      "--changespec"
+                      "--patch"
                     ],
                     "takes_value": true
                   }
@@ -15872,10 +15859,7 @@
                 "repeatable": false,
                 "strings": [
                   "-P",
-                  "--patch",
-                  "-c",
-                  "--cl",
-                  "--changespec"
+                  "--patch"
                 ],
                 "takes_value": true
               },
@@ -17611,9 +17595,7 @@
         ]
       },
       {
-        "aliases": [
-          "task"
-        ],
+        "aliases": [],
         "default_child": "list",
         "description_digest": "b27912a3f3363439",
         "hidden": false,
@@ -21285,9 +21267,7 @@
         ]
       },
       {
-        "aliases": [
-          "vcs"
-        ],
+        "aliases": [],
         "default_child": "list",
         "description_digest": "5e068494b4e6409d",
         "hidden": false,

@@ -16,6 +16,7 @@ from sase.completion.install_stamp import (
     OWNER_LOCAL,
     list_stamps,
     read_stamp,
+    resolve_stamp_target,
     stamp_is_chezmoi,
     stamp_owns_path,
     write_stamp,
@@ -437,7 +438,7 @@ def _refresh_stamped_completions(
                 )
             )
             continue
-        target_dir = Path(stamp.target).expanduser().parent
+        target_dir = resolve_stamp_target(stamp.target).parent
         try:
             # fpath probing is first-install only; it false-fails disposable dirs.
             result = installer(
@@ -503,7 +504,7 @@ def _status_for_shell(shell: str, *, running: str) -> ShellInstallStatus:
             stamp_version=None,
             owner=None,
         )
-    script = Path(stamp.target)
+    script = resolve_stamp_target(stamp.target)
     present = script.is_file()
     freshness = _zwc_freshness(shell, script)
     if not present:
@@ -518,7 +519,7 @@ def _status_for_shell(shell: str, *, running: str) -> ShellInstallStatus:
         shell=shell,
         generator=True,
         status=status,
-        path=str(script),
+        path=stamp.target,
         zwc=freshness,
         stamp_version=stamp.version,
         owner=stamp.owner,

@@ -49,6 +49,7 @@ NAME_TABLE: Final[dict[str, ValueKind]] = {
     "model": ValueKind.MODEL,
     "monitor_id": ValueKind.MONITOR,
     "patch": ValueKind.PATCH,
+    "patch_name": ValueKind.PATCH,
     "plan": ValueKind.PLAN,
     "plan_file": ValueKind.PATH,
     "plugin": ValueKind.PLUGIN,

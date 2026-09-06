@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from sase.completion.compat import set_completion_compat_aliases
+
 # Mirrors ``ACTIVE_PROC_STATUSES | TERMINAL_PROC_STATUSES`` in ``sase.procs``,
 # spelled out here so building the parser never imports the proc store.
 PROC_STATUS_CHOICES = ("pending", "running", "settling", "success", "error", "killed")
@@ -27,6 +29,7 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
             "`sase proc list`. `sase task` remains accepted as a legacy alias."
         ),
     )
+    set_completion_compat_aliases(proc_parser, "task")
     proc_sub = proc_parser.add_subparsers(
         dest="proc_subcommand",
         help="Proc subcommands",

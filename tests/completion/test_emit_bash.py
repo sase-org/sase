@@ -178,14 +178,14 @@ def test_aliases_are_matched_but_not_offered() -> None:
     patch = _command(
         name="patch",
         path=("patch",),
-        aliases=("changespec",),  # legacy command alias
+        aliases=("aliascmd",),
         summary="Inspect patches",
     )
     script = emit_bash(_spec(patch))
-    assert "changespec" not in _fn(script, "_sase_subs")  # legacy command alias
+    assert "aliascmd" not in _fn(script, "_sase_subs")
     assert "patch" in _fn(script, "_sase_subs")
     child = _fn(script, "_sase_child")
-    assert "changespec" in child  # legacy command alias
+    assert "aliascmd" in child
     assert "/patch" in child
 
 
@@ -247,9 +247,11 @@ def test_live_script_registers_and_hides_helper_bridge(live_script: str) -> None
     assert "__sase_candidates()" in live_script
 
 
-def test_live_script_treats_changespec_as_alias(live_script: str) -> None:
-    assert "changespec" not in _fn(live_script, "_sase_subs")  # legacy command alias
-    assert "changespec" in _fn(live_script, "_sase_child")  # legacy command alias
+def test_live_script_omits_compat_changespec(live_script: str) -> None:
+    assert "changespec" not in _fn(live_script, "_sase_subs")
+    assert "changespec" not in _fn(live_script, "_sase_child")  # legacy command alias
+    assert "changespec" not in live_script  # legacy command alias
+    assert "--changespec" not in live_script  # legacy option alias
     assert "/patch" in _fn(live_script, "_sase_child")
 
 

@@ -51,10 +51,11 @@ canonical path labels are:
 - `sase memory init`
 - `sase validate`
 
-The remaining labels describe frontmatter (`type: short | long`, `parent:`,
-`description:`), core (short) notes, `AGENTS.md`, provider shims (`CLAUDE.md`,
-`GEMINI.md`, `QWEN.md`, `OPENCODE.md`), reference (long) notes, audited reference
-fetching, agent context, regeneration, and the drift gate.
+The remaining labels describe frontmatter (`type: core | reference`, `parent:`,
+`description:`), core notes, `AGENTS.md`, provider shims (`CLAUDE.md`, `GEMINI.md`,
+`QWEN.md`, `OPENCODE.md`), reference notes, audited reference fetching, agent context,
+regeneration, and the drift gate. Legacy `type: short` and `type: long` still parse as
+core and reference.
 
 ## Post-Processing Record
 

@@ -178,13 +178,13 @@ def test_aliases_are_matched_but_not_offered() -> None:
     patch = _command(
         name="patch",
         path=("patch",),
-        aliases=("changespec",),  # legacy command alias
+        aliases=("aliascmd",),
         summary="Inspect patches",
     )
     script = emit_fish(_spec(patch))
     assert "-a 'patch'" in script
-    assert "-a 'changespec'" not in script  # legacy command alias
-    assert "'/|changespec'" in script  # legacy command alias
+    assert "-a 'aliascmd'" not in script
+    assert "'/|aliascmd'" in script
     assert "echo -n '/patch'" in script or "echo -n /patch" in script
 
 
@@ -234,10 +234,11 @@ def test_live_script_registers_and_hides_helper_bridge(live_script: str) -> None
     assert "helper-bridge" not in live_script
 
 
-def test_live_script_treats_changespec_as_alias(live_script: str) -> None:
-    assert "-a 'changespec'" not in live_script  # legacy command alias
+def test_live_script_omits_compat_changespec(live_script: str) -> None:
+    assert "-a 'changespec'" not in live_script
     assert "-a 'patch'" in live_script
-    assert "changespec" in live_script  # legacy command alias
+    assert "changespec" not in live_script  # legacy command alias
+    assert "--changespec" not in live_script  # legacy option alias
 
 
 def test_live_script_plus_one_quoted(live_script: str) -> None:

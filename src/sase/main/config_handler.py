@@ -48,12 +48,12 @@ def handle_config_command(args: argparse.Namespace) -> None:
         all_patches = find_all_patches()
         target = None
         for cs in all_patches:
-            if cs.name == args.changespec_name:
+            if cs.name == args.patch_name:
                 target = cs
                 break
 
         if target is None:
-            print(f"ChangeSpec not found: {args.changespec_name}")
+            print(f"Patch not found: {args.patch_name}")
             sys.exit(1)
 
         traces = trace_profile_matching(target)

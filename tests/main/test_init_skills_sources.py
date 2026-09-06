@@ -70,14 +70,6 @@ def _disable_prettier_for_skill_generation(
             ),
         ),
         (
-            "sase_changespecs",
-            (
-                "Compatibility reference for the legacy `/sase_changespecs` skill",
-                "Use `/sase_patches` for normal Patch work",
-                "sase changespec current -f markdown",
-            ),
-        ),
-        (
             "sase_patches",
             (
                 "sase patch current -f markdown",

@@ -117,10 +117,7 @@ def _check_patch_refs(context: DoctorContext) -> DiagnosticCheck:
         ),
         details=tuple(details[:_MAX_DETAIL_ROWS]),
         next_steps=(
-            (
-                "Review the named REFS entries with "
-                "`sase changespec ref list --resolve`.",
-            )
+            ("Review the named REFS entries with `sase patch ref list --resolve`.",)
             if problem_count
             else ()
         ),

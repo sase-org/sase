@@ -279,7 +279,7 @@ def test_create_rejects_bug_id_without_patch(
         bead_cli.handle_bead_create(args)
 
     assert excinfo.value.code == 1
-    assert "--bug-id requires --patch/--changespec" in capsys.readouterr().err
+    assert "--bug-id requires --patch" in capsys.readouterr().err
 
 
 def test_parser_accepts_model_on_create_short_and_long() -> None:

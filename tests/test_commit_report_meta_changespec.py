@@ -1,4 +1,4 @@
-"""Tests for meta_changespec and diff_path emission from the commit xprompt report step."""
+"""Tests for meta_patch and diff_path emission from the commit xprompt report step."""
 
 import json
 import os
@@ -41,9 +41,23 @@ def _run_report_python(commit_result: dict) -> dict[str, str]:
 
 
 class TestCommitReportMetaPatch:
-    """Verify meta_changespec is emitted from commit_result.json."""
+    """Verify meta_patch is emitted from commit_result.json."""
 
-    def test_emits_changespec_from_changespec_name(self) -> None:
+    def test_emits_patch_from_patch_name(self) -> None:
+        result = _run_report_python(
+            {
+                "result": "abc123",
+                "message": "fix: bug",
+                "patch_name": "proj_feat_1",
+                "changespec_name": "legacy-name",
+                "name": "feat-branch",
+            }
+        )
+        assert result["meta_patch"] == "proj_feat_1"
+        assert "meta_changespec" not in result
+        assert result["meta_new_commit"] == "abc123"
+
+    def test_falls_back_to_changespec_name(self) -> None:
         result = _run_report_python(
             {
                 "result": "abc123",
@@ -52,10 +66,10 @@ class TestCommitReportMetaPatch:
                 "name": "feat-branch",
             }
         )
-        assert result["meta_changespec"] == "proj_feat_1"
-        assert result["meta_new_commit"] == "abc123"
+        assert result["meta_patch"] == "proj_feat_1"
+        assert "meta_changespec" not in result
 
-    def test_falls_back_to_name_when_no_changespec_name(self) -> None:
+    def test_falls_back_to_name_when_no_patch_fields(self) -> None:
         result = _run_report_python(
             {
                 "result": "abc123",
@@ -64,9 +78,9 @@ class TestCommitReportMetaPatch:
                 "name": "feat-branch",
             }
         )
-        assert result["meta_changespec"] == "feat-branch"
+        assert result["meta_patch"] == "feat-branch"
 
-    def test_no_meta_changespec_when_both_empty(self) -> None:
+    def test_no_meta_patch_when_all_empty(self) -> None:
         result = _run_report_python(
             {
                 "result": "abc123",
@@ -75,19 +89,8 @@ class TestCommitReportMetaPatch:
                 "name": None,
             }
         )
+        assert "meta_patch" not in result
         assert "meta_changespec" not in result
-
-    def test_changespec_name_preferred_over_name(self) -> None:
-        """changespec_name takes priority over name."""
-        result = _run_report_python(
-            {
-                "result": "def456",
-                "message": "feat: new",
-                "changespec_name": "proj_cs_1",
-                "name": "branch-name",
-            }
-        )
-        assert result["meta_changespec"] == "proj_cs_1"
 
     def test_multiline_commit_message_preserved(self) -> None:
         """Full multi-line commit message passes through intact."""

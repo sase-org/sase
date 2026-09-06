@@ -4,6 +4,8 @@ import argparse
 
 from sase.ace.saved_queries import load_first_saved_query, load_last_query
 from sase.ace.tui.actions.event_refresh._constants import FULL_SANITY_REFRESH_SECONDS
+from sase.completion.compat import set_completion_compat_choices
+from sase.completion.shorten import set_completion_summary
 
 
 def _positive_int(value: str) -> int:
@@ -78,7 +80,7 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
         f"{int(FULL_SANITY_REFRESH_SECONDS)}). Missed watcher or token "
         "changes are still reconciled at least this often.",
     )
-    ace_parser.add_argument(
+    tab = ace_parser.add_argument(
         "-t",
         "--tab",
         choices=[
@@ -92,6 +94,8 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Tab to focus on startup; 'changespecs' and 'patches' remain legacy "
         "aliases for 'artifacts' (default: agents)",
     )
+    set_completion_compat_choices(tab, "changespecs", "patches")
+    set_completion_summary(tab, "Tab to focus on startup (default: agents)")
     ace_parser.add_argument(
         "-T",
         "--tmux",
