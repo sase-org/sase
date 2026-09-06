@@ -163,12 +163,13 @@ preferring the cheapest rung first:
 | Targeted hydration  | Fetches a row the pane never loaded at all directly from its source, off the message pump, then re-enters the fold. |
 
 Identity reveal is skipped when the pane's dialect declares no identity field or the row
-has no usable value for it. Minimal widening is skipped on the boolean dialects (Patches
-and Agents), where subtracting tokens from a boolean expression is not sound, and
-whenever the rewritten query fails to verify against the target row. Targeted hydration
-fires at most once per follow and never for a ref that failed to parse or route; it is
-what makes a deep-archive plan, a stitch outside the collection window, or a capped
-provider snapshot reachable.
+has no usable value for it. Minimal widening is skipped when the live query contains
+Boolean operators or grouping, because subtracting terms from that expression is not
+sound, and whenever the rewritten query fails to verify against the target row. A
+simple-token query can still use this rung even in the Patches or Agent pane. Targeted
+hydration fires at most once per follow and never for a ref that failed to parse or
+route; it is what makes a deep-archive plan, a stitch outside the collection window, or
+a capped provider snapshot reachable.
 
 When every rung misses, ACE says so honestly rather than silently doing nothing:
 `No such artifact: <ref>` when nothing resolves the ref, and
@@ -379,24 +380,30 @@ Agent uses the same persistent query row and the Boolean profile dialect shared 
 parentheses, plus free text over agent names and metadata. Its fields cover identity and
 lineage (`name`, `kind`, `family`, `clan`, `tribe`, `role`, `workflow`, `parent`,
 `project`), execution (`state`, `status`, `provider`, `model`, `attempt`), lifecycle
-booleans (`hidden`, `dismissed`, `revivable`, `attention`, `retry`), archive
-capabilities (`historically_viewable`, `durably_revivable`, `restartable`), artifact
-links (`linked`, `relation`, `artifact`), start/finish bounds (`since`, `until`,
-`after`, `before`), and runtime bounds (`min`, `max`). Date bounds accept `Nh` / `Nd` /
-`Nw` / `Nm`, `today`, and `YYYY-MM-DD`, where `Nm` means months; runtime bounds accept
-seconds or `Ns` / `Nm` / `Nh` / `Nd`, where `Nm` means minutes. There are no sigils or
-macros. For example, `state:dismissed AND revivable:true`,
+booleans (`hidden`, `dismissed`, `revivable`, `attention`, `retry`), archive links
+(`linked`, `relation`, `artifact`), start/finish bounds (`since`, `until`, `after`,
+`before`), and runtime bounds (`min`, `max`). Date bounds accept `Nh` / `Nd` / `Nw` /
+`Nm`, `today`, and `YYYY-MM-DD`, where `Nm` means months; runtime bounds accept seconds
+or `Ns` / `Nm` / `Nh` / `Nd`, where `Nm` means minutes. There are no sigils or macros.
+For example, `state:dismissed AND revivable:true`,
 `provider:codex AND status:FAILED AND since:7d`, and `linked:true AND relation:read` are
 valid queries.
 
-The three archive-capability booleans describe what a dismissed row's persisted archive
-can actually support, rather than whether a bundle file merely exists:
+The Agent catalog also derives three archive capabilities that describe what a dismissed
+row's persisted archive can actually support, rather than whether a bundle file merely
+exists:
 
 | Field                   | True when                                                                 |
 | ----------------------- | ------------------------------------------------------------------------- |
 | `historically_viewable` | The archive holds enough data to inspect the run after the fact.          |
 | `durably_revivable`     | The archive holds enough data to restore the run.                         |
 | `restartable`           | The archive holds the prompt and model parameters needed to run it again. |
+
+The query schema currently advertises those three field names, but the Agent query index
+does not populate their values. Consequently, both `historically_viewable:true` and
+`historically_viewable:false` (and the equivalent queries for the other two fields)
+return no rows. Inspect the revive modal for these per-row capabilities; use
+`revivable:true` when the goal is to find rows ACE can restore.
 
 `revivable:true` now means all of "dismissed", "backed by a readable top-level bundle",
 and `durably_revivable`, so the saved query the `w` action seeds
@@ -499,24 +506,30 @@ external issue title, body, URL, and labels alongside the bead id, title, descri
 notes, design, references, and ownership metadata.
 
 A leading unquoted `-` excludes a match. Stitches can exclude repositories, authors,
-commit SHAs, and subject text; Beads, Plans, and Files can exclude their filter facets
-and free text. Exclusion wins when positive and negative constraints overlap:
-`repo:sase,plans -repo:plans`, `author:Ada -author:bot`, and
-`status:open -status:blocked` are all valid. A comma list negates the whole token, so
-`-repo:plans,research` excludes either repository. Date bounds and `limit:` cannot be
-negated. `sidecar:` is singular and accepts only `true` or `false`; canonical queries
-always render its explicit value. Quote the whole token to search for a literal leading
-minus (`"-repo:plans"`); quote only the excluded value to keep negation active
+origins, types, commit SHAs, and subject text. Plans can exclude `kind:`, `status:`,
+`tier:`, `project:`, `path:`, and free text. Files and Beads can exclude every declared
+filter facet and free text, including `since:` and `until:`. Exclusion wins when
+positive and negative constraints overlap: `repo:sase,plans -repo:plans`,
+`author:Ada -author:bot`, and `status:open -status:blocked` are all valid. A comma list
+negates the whole token, so `-repo:plans,research` excludes either repository. Stitches
+and Plans do not allow negated date bounds; Files does, but permits each date key only
+once. Beads permits repeated and negated date bounds. `limit:` cannot be negated in any
+pane. Stitches' `project:`, `sidecar:`, and `merges:` fields are singular and cannot be
+negated; `sidecar:` accepts only `true` or `false`, and canonical queries always render
+its explicit value. Quote the whole token to search for a literal leading minus
+(`"-repo:plans"`); quote only the excluded value to keep negation active
 (`-"generated rollout"`). Matching remains case-insensitive, and repository/project
 aliases work for both inclusion and exclusion.
 
-A declared boolean field also takes a bare shorthand: an unquoted `key` token with no
-colon expands to `key:true`, and `-key` to `-key:true`. Quoting opts out, so `"key"`
-stays free text. Because the shorthand is purely lexical (it always canonicalizes to the
-long spelling), it costs no schema field and moves no compiled profile's digest, so no
-saved query is invalidated. Stitches' `sidecar` field is boolean, so this changes what a
-bare `sidecar` token means there: it now filters to `sidecar:true` instead of searching
-for the literal word in a commit subject. Quote it (`"sidecar"`) to search for the word.
+In the flat-token query grammar, a declared Boolean field also takes a bare shorthand:
+an unquoted `key` token with no colon expands to `key:true`, and `-key` to `-key:true`.
+Quoting opts out, so `"key"` stays free text. Because the shorthand is purely lexical
+(it always canonicalizes to the long spelling), it costs no schema field and moves no
+compiled profile's digest, so no saved query is invalidated. Stitches' `sidecar` field
+is Boolean, so a bare `sidecar` filters to `sidecar:true` instead of searching for the
+literal word in a commit subject; quote it (`"sidecar"`) to search for the word. The
+Agent pane uses the Boolean-expression grammar instead: write `revivable:true` there,
+because bare `revivable` remains a free-text term.
 
 ### Bead Pane
 
@@ -1800,15 +1813,20 @@ focused panel, `D` dismisses completed agents across loaded panels, `k` cleans t
 focused panel, `K` cleans all loaded panels, `m` cleans marked agents, `g` cleans the
 focused group, `t` opens the tribe chooser, and `c` opens the custom selector. `Enter`
 runs the highlighted row, and `Esc` or `q` closes the panel. Each row is disabled when
-it has no candidates, and its detail line reports how many agents it would affect.
+the loaded roster contributes no candidates. Its detail line is a candidate count, not a
+promise that every candidate can complete that action; the confirmation or planner may
+narrow the final set.
 
 There is no separate clan chooser. A synthetic clan container row is never a cleanup
 target itself: every scope above expands it into the live members of its generation, so
 members folded away behind a collapsed clan are still reached by a panel, tribe, group,
 or marked cleanup. Loaded workflow children are pulled in when their parent is a
-candidate, proc-shell rows are skipped (dismiss those from the Agents tab instead), and
-identities are de-duplicated in Agents-tab order. Every scope then continues through the
-shared bulk-cleanup confirmation and execution flow.
+candidate, and identities are de-duplicated in Agents-tab order. Proc-shell handling
+depends on the chosen scope: panel/global and marked/group bulk actions can dismiss a
+terminal proc shell but skip an active one with a warning, while tribe-planner and
+custom-selector cleanup omit proc shells. To stop an active stand-alone proc shell,
+select its row in the Agents tab and press `x`. Every scope then continues through its
+normal bulk-cleanup confirmation or planner flow.
 
 The `TRIBE` summary has four metadata detail levels, controlled by the same `zz`, `zZ`,
 `za`, and `zA` chords used for clan and family detail. From levels 1-3, `zZ` opens every
@@ -6610,31 +6628,36 @@ press clears the filter and removes the bar.
 
 ### Keybindings
 
-| Key                 | Action                                    |
-| ------------------- | ----------------------------------------- |
-| `j` / `k`           | Navigate proc list                        |
-| `/`                 | Filter procs                              |
-| `m`                 | Cycle the `monitor` filter                |
-| `'`                 | Jump to a proc row via adaptive hints     |
-| `a`                 | Toggle scope: this session / all sessions |
-| `K`                 | Kill the selected active durable proc     |
-| `Enter`             | Open the selected monitor's agent         |
-| `d`                 | Dismiss selected completed proc           |
-| `D`                 | Dismiss all completed procs               |
-| `e`                 | Open proc output in `$EDITOR`             |
-| `y`                 | Copy proc output to clipboard             |
-| `Ctrl+D` / `Ctrl+U` | Scroll output pane down / up              |
-| `g` / `G`           | Jump output pane to top/bottom            |
-| `Tab` / `Shift+Tab` | Switch Admin Center tabs                  |
-| `q` / `Esc`         | Close SASE Admin Center                   |
+| Key                 | Action                                             |
+| ------------------- | -------------------------------------------------- |
+| `j` / `k`           | Navigate proc list                                 |
+| `/`                 | Filter procs                                       |
+| `m`                 | Cycle the `monitor` filter                         |
+| `'`                 | Jump to a proc row via adaptive hints              |
+| `a`                 | Toggle scope: this session / all sessions          |
+| `K`                 | Request a kill for a selected active durable proc  |
+| `Enter`             | Open the selected monitor's agent                  |
+| `d`                 | Explain finished-proc retention (does not dismiss) |
+| `D`                 | Explain finished-proc retention (does not dismiss) |
+| `e`                 | Open proc output in `$EDITOR`                      |
+| `y`                 | Copy proc output to clipboard                      |
+| `Ctrl+D` / `Ctrl+U` | Scroll output pane down / up                       |
+| `g` / `G`           | Jump output pane to top/bottom                     |
+| `Tab` / `Shift+Tab` | Switch Admin Center tabs                           |
+| `q` / `Esc`         | Close SASE Admin Center                            |
 
 `K` and `D` also answer to `Shift+K` and `Shift+D`, matching the pane's existing
-`Shift+G` convention. `K` never silently does nothing: it kills any store-backed proc in
-an active state — including one whose owning session has died, which the kill path
-reconciles — and otherwise says why the selected row cannot be killed. A finished proc
-reports `Proc already finished`, a proc still being submitted reports
-`Proc is still submitting — try again in a moment`, and a session-local row that has no
-durable record reports that it cannot be killed from the Procs tab.
+`Shift+G` convention. `d` and `D` currently perform no dismissal; both explain that
+finished rows age out according to `procs.history_limit`.
+
+`K` opens a danger confirmation only for a store-backed row that ACE still considers
+active. The backend stops command/proc-shell records, including monitor supervisors. It
+refuses a TUI-owned record because only its owning ACE session may stop it, and a legacy
+record whose supervisor has died is reconciled to `error` rather than killed. Other
+ineligible rows explain why: a finished proc reports `Proc already finished`, a proc
+still being submitted reports `Proc is still submitting — try again in a moment`, and a
+session-local row with no durable record reports that it cannot be killed from the Procs
+tab.
 
 ## Updates Tab
 

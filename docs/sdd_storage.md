@@ -158,9 +158,10 @@ A sase-managed project whose sidecars already exist remotely does not need an ex
 `sase repo init` on every machine. When the first agent launches into a workspace that
 has no materialized store record, SASE connects this machine to the project's existing
 store and prints `Connected existing SDD sidecars for first use on this machine`. The
-step is **connect-only**: it never creates a repository, and it is a no-op when the
-project is not sase-managed, is not a project directory, already has a materialized
-record, or uses a provider policy that is not remote-backed.
+step is **remote-create-free**: it clones or adopts repositories that already exist and
+records the local materialization, but never creates a missing remote repository. It is
+a no-op when the project is not sase-managed, is not a project directory, already has a
+materialized record, or uses a provider policy that is not remote-backed.
 
 A required sidecar that does not exist remotely stops the launch with the remedy named
 directly — run `sase repo init` in the project root to create it — instead of an opaque

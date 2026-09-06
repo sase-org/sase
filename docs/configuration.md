@@ -4128,11 +4128,11 @@ VCS, workspace, and LLM registries load provider entry points directly.
 
 ### State Root
 
-| Variable                  | Description                                                                                                                                                                               |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SASE_HOME`               | Override the SASE state root. Defaults to `~/.sase`; project files, chats, artifacts, notifications, dismissed bundles, saved groups, and logs move under this root.                      |
-| `SASE_PROC_LOG_MAX_BYTES` | Maximum active proc-log segment size in bytes (default: 2 MiB); `0` disables rotation.                                                                                                    |
-| `SASE_CUTOVER_BACKUP_DIR` | Root the [local state cutover kit](#local-state-cutover) writes backups, restores, and run journals under. Defaults to `~/cutover-backups` and must stay outside every SASE runtime root. |
+| Variable                  | Description                                                                                                                                                                                                                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_HOME`               | Override the SASE state root. Defaults to `~/.sase`; project files, chats, artifacts, notifications, dismissed bundles, saved groups, and logs move under this root.                                                                                                                        |
+| `SASE_PROC_LOG_MAX_BYTES` | Maximum active proc-log segment size in bytes (default: 2 MiB); `0` disables rotation.                                                                                                                                                                                                      |
+| `SASE_CUTOVER_BACKUP_DIR` | Root the [local state cutover kit](#local-state-cutover) writes backups, restores, and run journals under. Defaults to `~/cutover-backups`; it must not be nested beneath `~/.sase`, `~/.local/state/sase`, or `~/sase`, and users of other runtime roots must keep it separate themselves. |
 
 ### General
 
@@ -5653,19 +5653,24 @@ with `--dry-run`.
 `sase migrate` is a temporary, offline kit for the canonical-only local-state cutover.
 It never runs automatically, no other SASE surface invokes it, and the whole command
 group is deleted once the cutover completes. Reach for it only when you are deliberately
-retiring legacy residue under `~/.sase`; nothing here is part of day-to-day operation.
+retiring legacy residue under `~/.sase` and `~/.xprompts`; nothing here is part of
+day-to-day operation.
 
-Every subcommand is a **dry run** unless `-a`/`--apply` is given, and every subcommand
-accepts `-j`/`--json` for a machine-readable object. Bare `sase migrate` delegates to
-`sase migrate list`.
+Every subcommand accepts `-j`/`--json` for a machine-readable object. Bare
+`sase migrate` delegates to `sase migrate list`. Only `backup`, `restore`, `run`, and
+`resume` accept `-a`/`--apply`. For those commands, `--apply` is the boundary for
+changing the source or live root, not a promise that the default mode performs no
+filesystem writes: `plan` persists control records, restore always creates a staging
+copy, and path resolution may create the cutover control directories.
 
 ### Where The Kit Writes
 
 Backups, staged restores, and run journals live under the cutover backup root:
 `$SASE_CUTOVER_BACKUP_DIR` when set, otherwise `~/cutover-backups`. The root is created
-with mode `0700` on first use and is deliberately outside every SASE runtime root
-(`~/.sase`, `~/.local/state/sase`, and `~/sase` checkouts), so no discovery glob and no
-purge operation can ever reach a backup.
+with mode `0700` on first use. SASE rejects a root equal to or nested beneath `~/.sase`,
+`~/.local/state/sase`, or `~/sase`. That check does not discover arbitrary custom
+runtime roots, so if `SASE_HOME` or a checkout lives elsewhere, choose an unrelated
+backup location yourself.
 
 | Path                           | Contents                                                              |
 | ------------------------------ | --------------------------------------------------------------------- |
@@ -5698,22 +5703,37 @@ has no apply mode.
 
 ### Backing Up And Restoring
 
+Treat the kit's “offline” label as an operator requirement. Before capturing a backup,
+stop ACE, AXE, agents, procs, and any other process that can write the source tree; the
+backup command does not stop writers or acquire a tree-wide lock. A safe sequence is:
+
+1. Stop writers, preview the backup, and then repeat it with `--apply` (preferably with
+   `--secondary`).
+2. Create the operation manifest with the verified backup id.
+3. Run the manifest without `--apply` to preflight it.
+4. Repeat `run` with `--apply`, then use `verify` and `status`.
+5. Use `resume --apply` only for an interrupted applied run.
+
 ```bash
 sase migrate backup ~/.sase                                  # report what would be captured
 sase migrate backup ~/.sase --apply --secondary /mnt/backup  # capture, plus a second durable copy
-sase migrate restore <backup-id>                             # verify checksums, stage, and diff
+sase migrate restore <backup-id>                             # verify, create a staging copy, and diff
 sase migrate restore <backup-id> --apply                     # swap the staged copy into place
 ```
 
-A capture is quiescent-as-possible, checksummed, and SQLite-consistent: SQLite members
-are copied through the database's own backup API rather than as raw bytes, and the
-capture refuses to start unless free space covers the measured size with headroom. A dry
-run reports member counts, byte totals, and whether the destination is safely outside
-every runtime root.
+An applied capture checksums its file members and copies SQLite databases through the
+database backup API rather than as raw bytes. Ordinary files are copied while the tree
+is being walked, which is why stopping writers matters. The capture refuses to start
+unless free space covers the measured size with 15 percent headroom. Without `--apply`,
+it reports member counts, byte totals, and whether the destination passes the three
+fixed root exclusions above; resolving that destination can still create the cutover
+root and `backups/` directory.
 
-A restore verifies `SHA256SUMS` **before touching anything**, restores into a staging
-path under `restores/`, and reports the diff and ownership deltas against the live root.
-With `--apply`, the live root is renamed to a sibling
+A restore first hashes regular and SQLite payload files against the hashes stored in
+`MANIFEST.json`. The backup also contains `SHA256SUMS`, but restore does not currently
+read that file. After verification, restore always copies the payload to a new staging
+path under `restores/` and reports the diff and ownership deltas against the live root,
+even without `--apply`. With `--apply`, an existing live root is renamed to a sibling
 `<name>.pre-restore-<YYYYMMDDTHHMMSS>` — never deleted — and the staged copy is moved
 into its place. `-r`/`--root` targets a different live root than the one that was backed
 up. The backup itself is never modified or deleted by a restore.
@@ -5731,10 +5751,11 @@ sase migrate resume <run-id> --apply                     # continue an interrupt
 
 `plan` mutates no source data: it writes a manifest plus an initial journal record and
 prints the manifest path. `run` without `--apply` checks source digests, conflicts, and
-the bound backup record; with `--apply` it executes under a durable journal and writes a
-receipt. `resume` replays the journal, re-checks source digests while the run has not
-started applying, and continues from the next resumable step. `run` and `resume` accept
-`-l`/`--lock-timeout-ms` to bound how long they wait for the run lock before refusing.
+the bound backup record; a refused preflight can append a refusal to the journal. With
+`--apply`, `run` executes under a durable journal and writes a receipt. `resume` replays
+the journal, re-checks source digests while the run has not started applying, and
+continues from the next resumable step. `run` and `resume` accept
+`-l`/`--lock-timeout-ms`; the bounded run lock is acquired only in apply mode.
 
 `plan` and `list` accept `-r`/`--root` and `-d`/`--home` to resolve operation roots
 against a SASE home other than the live one, which is how the kit is rehearsed against a
