@@ -104,13 +104,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
     ),
     (
         "src/sase/ace/tui/models/_loaders/_running_loaders.py:"
-        "load_running_home_agents_from_snapshot"
-    ): Review(
-        mutation_calls=("unlink",),
-        lifecycle_calls=(_UPDATE_INDEX,),
-    ),
-    (
-        "src/sase/ace/tui/models/_loaders/_running_loaders.py:load_running_home_agents"
+        "_release_stale_running_home_marker"
     ): Review(
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),

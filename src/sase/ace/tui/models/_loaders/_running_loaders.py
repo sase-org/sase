@@ -22,13 +22,26 @@ pending gate shell's claim, which carries its killed creator's PID by design
 and is held until the shell settles.
 """
 
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
-from sase.core.agent_scan_wire import AgentArtifactScanWire
+from sase.core.agent_scan_wire import (
+    AgentArtifactRecordShape,
+    AgentArtifactRecordWire,
+    AgentArtifactScanWire,
+    AgentMetaWire,
+    PendingQuestionMarkerWire,
+    PlanPathMarkerWire,
+    PromptStepMarkerWire,
+    WaitingMarkerWire,
+)
 from sase.core.paths import sase_projects_dir
 from sase.running_field import (
     WorkspaceClaim,
@@ -52,6 +65,70 @@ from .._timestamps import (
     parse_timestamp_from_workflow_name,
 )
 from ..agent import Agent, AgentType
+
+RunningAgentOrigin = Literal["local", "remote"]
+
+
+@dataclass(frozen=True)
+class RunningAgentContentHandle:
+    """Opaque content handle carried by resolved running-agent rows."""
+
+    origin: RunningAgentOrigin
+    opaque_id: str
+    local_artifact_dir: str | None = None
+    record_shape: AgentArtifactRecordShape = "full"
+
+    def __post_init__(self) -> None:
+        if self.origin == "remote" and self.local_artifact_dir is not None:
+            raise ValueError("remote running-agent handles must not expose local paths")
+
+
+@dataclass(frozen=True)
+class ResolvedRunningFieldClaim:
+    """Owner-resolved project RUNNING claim ready for presentation."""
+
+    project_file: str
+    workspace_num: int
+    workflow: str | None
+    cl_name: str
+    pid: int | None
+    normalized_timestamp: str | None
+    start_time: datetime | None
+    agent_type: AgentType
+    review_agent_workflow: bool = False
+
+
+@dataclass(frozen=True)
+class ResolvedRunningHomeAgentRecord:
+    """Owner-resolved home running marker ready for pure row construction."""
+
+    origin: RunningAgentOrigin
+    content_handle: RunningAgentContentHandle
+    project_file: str
+    timestamp: str
+    cl_name: str
+    pid: int | None = None
+    runner_is_live: bool = True
+    model: str | None = None
+    llm_provider: str | None = None
+    vcs_provider: str | None = None
+    workspace_dir: str | None = None
+    agent_meta: AgentMetaWire | None = None
+    waiting: WaitingMarkerWire | None = None
+    pending_question: PendingQuestionMarkerWire | None = None
+    plan_path: PlanPathMarkerWire | None = None
+    prompt_steps: tuple[PromptStepMarkerWire, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.origin != self.content_handle.origin:
+            raise ValueError("running-agent record origin must match its handle")
+        if self.origin == "remote":
+            if self.pid is not None:
+                raise ValueError("remote running-agent records must not expose PIDs")
+            if self.workspace_dir is not None:
+                raise ValueError(
+                    "remote running-agent records must not expose local workspaces"
+                )
 
 
 def _is_review_agent_workflow_claim(workflow: str | None) -> bool:
@@ -108,6 +185,16 @@ def _claim_pid_is_live(pid: int | None) -> bool:
     return pid is not None and is_process_running(pid)
 
 
+def _release_stale_running_home_marker(artifact_dir: Path) -> None:
+    """Best-effort cleanup for a dead local home-mode ``running.json`` marker."""
+    running_file = artifact_dir / "running.json"
+    try:
+        running_file.unlink(missing_ok=True)
+        update_agent_artifact_index_for_marker_mutation(artifact_dir)
+    except OSError:
+        pass
+
+
 def get_all_project_files() -> list[str]:
     """Get all project file paths across every lifecycle state.
 
@@ -152,8 +239,18 @@ def load_agents_from_running_field(
     Returns:
         List of Agent objects from RUNNING field claims.
     """
-    agents: list[Agent] = []
+    return load_agents_from_resolved_running_claims(
+        resolve_running_field_claims(project_files),
+        bug_by_cl_name,
+        cl_by_cl_name,
+    )
 
+
+def resolve_running_field_claims(
+    project_files: list[str],
+) -> list[ResolvedRunningFieldClaim]:
+    """Resolve local RUNNING claims, including owner-side stale cleanup."""
+    records: list[ResolvedRunningFieldClaim] = []
     for project_file in project_files:
         claims = get_claimed_workspaces(project_file)
         for claim in claims:
@@ -200,26 +297,167 @@ def load_agents_from_running_field(
             )
 
             cl_name = claim.cl_name or "unknown"
-            agent = Agent(
-                agent_type=agent_type,
-                cl_name=cl_name,
-                project_file=project_file,
-                status="STARTING",
-                start_time=start_time,
-                workspace_num=claim.workspace_num,
-                workflow=workflow_name,
-                pid=claim.pid,
-                runner_is_live=True,
-                # Use normalized timestamp as raw_suffix for prompt lookup
-                raw_suffix=normalized_ts,
-                bug=bug_by_cl_name.get(cl_name),
-                cl_num=cl_by_cl_name.get(cl_name),
+            records.append(
+                ResolvedRunningFieldClaim(
+                    project_file=project_file,
+                    workspace_num=claim.workspace_num,
+                    workflow=workflow_name,
+                    cl_name=cl_name,
+                    pid=claim.pid,
+                    normalized_timestamp=normalized_ts,
+                    start_time=start_time,
+                    agent_type=agent_type,
+                    review_agent_workflow=_is_review_agent_workflow_claim(
+                        claim.workflow
+                    ),
+                )
             )
-            enrich_agent_from_meta(agent, agent.get_artifacts_dir())
-            if _is_review_agent_workflow_claim(claim.workflow):
-                agent.tribe = REVIEW_AGENT_TRIBE
-            agents.append(agent)
 
+    return records
+
+
+def load_agents_from_resolved_running_claims(
+    records: Iterable[ResolvedRunningFieldClaim],
+    bug_by_cl_name: dict[str, str | None],
+    cl_by_cl_name: dict[str, str | None],
+) -> list[Agent]:
+    """Build Agent rows from already-resolved local RUNNING claims."""
+    agents: list[Agent] = []
+    for record in records:
+        agent = Agent(
+            agent_type=record.agent_type,
+            cl_name=record.cl_name,
+            project_file=record.project_file,
+            status="STARTING",
+            start_time=record.start_time,
+            workspace_num=record.workspace_num,
+            workflow=record.workflow,
+            pid=record.pid,
+            runner_is_live=True,
+            raw_suffix=record.normalized_timestamp,
+            bug=bug_by_cl_name.get(record.cl_name),
+            cl_num=cl_by_cl_name.get(record.cl_name),
+        )
+        enrich_agent_from_meta(agent, agent.get_artifacts_dir())
+        if record.review_agent_workflow:
+            agent.tribe = REVIEW_AGENT_TRIBE
+        agents.append(agent)
+    return agents
+
+
+def _local_running_home_handle(
+    record: AgentArtifactRecordWire,
+) -> RunningAgentContentHandle:
+    return RunningAgentContentHandle(
+        origin="local",
+        opaque_id=record.artifact_dir,
+        local_artifact_dir=record.artifact_dir,
+        record_shape=record.record_shape,
+    )
+
+
+def _resolved_home_record_from_wire(
+    record: AgentArtifactRecordWire,
+    *,
+    project_file: str,
+    origin: RunningAgentOrigin,
+    content_handle: RunningAgentContentHandle,
+    runner_is_live: bool = True,
+) -> ResolvedRunningHomeAgentRecord:
+    running = record.running
+    if running is None:
+        raise ValueError("running home record requires a running marker")
+    return ResolvedRunningHomeAgentRecord(
+        origin=origin,
+        content_handle=content_handle,
+        project_file=project_file,
+        timestamp=record.timestamp,
+        cl_name=running.cl_name or "~",
+        pid=running.pid if origin == "local" else None,
+        runner_is_live=runner_is_live,
+        model=running.model,
+        llm_provider=running.llm_provider,
+        vcs_provider=running.vcs_provider,
+        workspace_dir=running.workspace_dir if origin == "local" else None,
+        agent_meta=record.agent_meta,
+        waiting=record.waiting,
+        pending_question=record.pending_question,
+        plan_path=record.plan_path,
+        prompt_steps=tuple(record.prompt_steps),
+    )
+
+
+def resolve_running_home_records_from_snapshot(
+    snapshot: AgentArtifactScanWire,
+) -> list[ResolvedRunningHomeAgentRecord]:
+    """Resolve local home-mode running records and clean up stale markers."""
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
+
+    records: list[ResolvedRunningHomeAgentRecord] = []
+    home_project_file = preferred_project_spec_path(
+        str(sase_projects_dir() / "home"), "home"
+    )
+    for record in snapshot.records:
+        if record.project_name != "home":
+            continue
+        if record.workflow_dir_name != "ace-run":
+            continue
+        running = record.running
+        if running is None:
+            continue
+        if not _claim_pid_is_live(running.pid):
+            _release_stale_running_home_marker(Path(record.artifact_dir))
+            continue
+
+        records.append(
+            _resolved_home_record_from_wire(
+                record,
+                project_file=home_project_file,
+                origin="local",
+                content_handle=_local_running_home_handle(record),
+            )
+        )
+
+    return records
+
+
+def load_running_home_agents_from_resolved_records(
+    records: Iterable[ResolvedRunningHomeAgentRecord],
+) -> list[Agent]:
+    """Build Agent rows from owner-resolved home running records."""
+    agents: list[Agent] = []
+    for record in records:
+        if not record.runner_is_live:
+            continue
+        local_artifact_dir = record.content_handle.local_artifact_dir
+        agent = Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=record.cl_name,
+            project_file=record.project_file,
+            status="STARTING",
+            start_time=parse_timestamp_14_digit(record.timestamp),
+            workflow="ace(run)",
+            pid=record.pid,
+            runner_is_live=record.runner_is_live,
+            raw_suffix=record.timestamp,
+            model=record.model,
+            llm_provider=record.llm_provider,
+            vcs_provider=record.vcs_provider,
+            workspace_dir=record.workspace_dir,
+            record_shape=record.content_handle.record_shape,
+            index_record_dir=local_artifact_dir,
+        )
+        enrich_agent_from_meta_wire(
+            agent,
+            record.agent_meta,
+            record.waiting,
+            record.pending_question,
+            plan_path_marker=(
+                record.plan_path.plan_path if record.plan_path is not None else None
+            ),
+        )
+        enrich_agent_from_prompt_markers_wire(agent, list(record.prompt_steps))
+        agents.append(agent)
     return agents
 
 
@@ -234,62 +472,9 @@ def load_running_home_agents_from_snapshot(
     keep behavior parity, but the cleanup uses the absolute artifact
     path embedded in the record rather than rebuilding it.
     """
-    from sase.ace.patch.project_spec_path import preferred_project_spec_path
-
-    agents: list[Agent] = []
-    home_project_file = preferred_project_spec_path(
-        str(sase_projects_dir() / "home"), "home"
+    return load_running_home_agents_from_resolved_records(
+        resolve_running_home_records_from_snapshot(snapshot)
     )
-    for record in snapshot.records:
-        if record.project_name != "home":
-            continue
-        if record.workflow_dir_name != "ace-run":
-            continue
-        running = record.running
-        if running is None:
-            continue
-        pid = running.pid
-        if pid is None or not is_process_running(pid):
-            artifact_dir = Path(record.artifact_dir)
-            running_file = Path(record.artifact_dir) / "running.json"
-            try:
-                running_file.unlink(missing_ok=True)
-                update_agent_artifact_index_for_marker_mutation(artifact_dir)
-            except OSError:
-                pass
-            continue
-
-        start_time = parse_timestamp_14_digit(record.timestamp)
-        cl_name = running.cl_name or "~"
-        agent = Agent(
-            agent_type=AgentType.RUNNING,
-            cl_name=cl_name,
-            project_file=home_project_file,
-            status="STARTING",
-            start_time=start_time,
-            workflow="ace(run)",
-            pid=pid,
-            runner_is_live=True,
-            raw_suffix=record.timestamp,
-            model=running.model,
-            llm_provider=running.llm_provider,
-            vcs_provider=running.vcs_provider,
-            workspace_dir=running.workspace_dir,
-            record_shape=record.record_shape,
-            index_record_dir=record.artifact_dir,
-        )
-        enrich_agent_from_meta_wire(
-            agent,
-            record.agent_meta,
-            record.waiting,
-            record.pending_question,
-            plan_path_marker=(
-                record.plan_path.plan_path if record.plan_path is not None else None
-            ),
-        )
-        enrich_agent_from_prompt_markers_wire(agent, record.prompt_steps)
-        agents.append(agent)
-    return agents
 
 
 def load_running_home_agents() -> list[Agent]:
@@ -321,13 +506,9 @@ def load_running_home_agents() -> list[Agent]:
 
             # Verify PID is still running
             pid = data.get("pid")
-            if pid is None or not is_process_running(pid):
+            if not _claim_pid_is_live(pid):
                 # Process died - clean up the stale marker
-                try:
-                    running_file.unlink(missing_ok=True)
-                    update_agent_artifact_index_for_marker_mutation(artifact_dir)
-                except OSError:
-                    pass
+                _release_stale_running_home_marker(artifact_dir)
                 continue
 
             # Parse timestamp from artifact dir name (YYYYmmddHHMMSS)
