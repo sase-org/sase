@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -14,9 +13,26 @@ from sase.core.finalizer_wire import (
     FinalizerOutcomeEvidenceWire,
 )
 from sase.finalizers.commit_declaration import (
-    commit_decisions_for_instance,
     load_accepted_commit_declaration,
     repository_decision_id,
+)
+from sase.finalizers.commit_dispatch_followup import (
+    attempt_post_repair_follow_up as _attempt_post_repair_follow_up,
+    conflict_repair_dirty_after_stitch_message as _conflict_repair_dirty_after_stitch_message,
+    post_repair_declared_message as _post_repair_declared_message,
+    rescue_landed_commit_after_bounds_failure as _rescue_landed_commit_after_bounds_failure,
+    stitch_bounds_failure_code as _stitch_bounds_failure_code,
+)
+from sase.finalizers.commit_dispatch_types import (
+    BaselineRecordResolver,
+    CommitDispatchResult as _CommitDispatchResult,
+    DeferredRepoOutcome as _DeferredRepoOutcome,
+    PrepareDirtyState,
+    ProtectedPathResolver,
+    UnexpectedPathResolver,
+    merge_deferrals,
+    peek_attempt,
+    preflight_attempt,
 )
 from sase.finalizers.commit_repair import (
     load_commit_results,
@@ -44,50 +60,10 @@ from sase.finalizers.commit_validation import (
 from sase.finalizers.executor import FinalizerExecutionContext
 from sase.finalizers.ledger import FinalizerBudgetError, InstanceLedger
 from sase.finalizers.reconciliation import PreparedCommitDirtyState
-from sase.llm_provider.commit_finalizer_baseline import FinalizerBaselineRecord
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
 from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
 
-PrepareDirtyState = Callable[[str, Path | None], PreparedCommitDirtyState]
-ProtectedPathResolver = Callable[[Path | None, str], Sequence[str]]
-UnexpectedPathResolver = Callable[[str, Sequence[str]], list[str]]
-BaselineRecordResolver = Callable[[Path | None, str], FinalizerBaselineRecord | None]
-
-
-@dataclass(frozen=True)
-class _DeferredRepoOutcome:
-    """One repository whose accepted deferral skipped its stitch."""
-
-    repo: DirtyRepo
-    deferral: FinalizerDeferralWire
-
-
-@dataclass(frozen=True)
-class _CommitDispatchResult:
-    """State accumulated while dispatching accepted repository decisions."""
-
-    invoke_result: InvokeResult
-    state: PreparedCommitDirtyState
-    attempt_id: int | None
-    attempts: list[FinalizerAttemptWire]
-    evidence: list[FinalizerOutcomeEvidenceWire]
-    deferred: tuple[_DeferredRepoOutcome, ...] = ()
-    diagnostics: tuple[FinalizerDiagnosticWire, ...] = ()
-
-
-@dataclass(frozen=True)
-class _PostRepairFollowUpResult:
-    """Outcome from the single allowed post-repair follow-up stitch."""
-
-    remaining: list[str]
-    failure_reason: str | None = None
-
-
-_NO_FOLLOW_UP_DECLARATION = (
-    "the conflict-repair turn submitted no commit declaration for this repository"
-)
-_FOLLOW_UP_LOAD_FAILED = "the declaration could not be loaded"
 _FOLLOW_UP_STILL_DIRTY = "the follow-up commit still left these paths dirty"
 
 
@@ -394,6 +370,7 @@ def dispatch_commit_decisions(
                 unexpected_path_resolver=unexpected_path_resolver,
                 project_dir=project_dir,
                 current_result=current_result,
+                declaration_loader=load_accepted_commit_declaration,
             )
             remaining = follow_up.remaining
             if not remaining:
@@ -448,280 +425,20 @@ def dispatch_commit_decisions(
     )
 
 
-def _attempt_post_repair_follow_up(
-    repo: DirtyRepo,
-    protected: Sequence[str],
-    context: FinalizerExecutionContext,
-    instance_id: str,
-    attempt_id: int,
-    *,
-    attempts: list[FinalizerAttemptWire],
-    evidence: list[FinalizerOutcomeEvidenceWire],
-    diagnostics: list[FinalizerDiagnosticWire],
-    stitch_runner: StitchRunner,
-    unexpected_path_resolver: UnexpectedPathResolver,
-    project_dir: str,
-    current_result: InvokeResult,
-) -> _PostRepairFollowUpResult:
-    message, failure_reason = _post_repair_declared_message(
-        repo,
-        context,
-        instance_id,
-    )
-    if failure_reason is not None:
-        return _PostRepairFollowUpResult(
-            remaining=unexpected_path_resolver(repo.path, protected),
-            failure_reason=failure_reason,
-        )
-    assert message is not None
-
-    artifacts = (
-        Path(context.artifacts_dir) if context.artifacts_dir is not None else None
-    )
-    before_markers = load_commit_results(artifacts)
-    attempt_fields = stitch_attempt_input_fields(repo, message, protected)
-    attempt_fingerprint = stitch_attempt_fingerprint(attempt_fields)
-    stitch = stitch_runner(repo, message, protected, context)
-    follow_up_label = f"{repo.name}.post-repair"
-    record_stitch_artifacts(
-        context,
-        instance_id,
-        attempt_id,
-        stitch,
-        label=follow_up_label,
-        inputs={**attempt_fields, "fingerprint": attempt_fingerprint},
-    )
-    rescued_bounds_failure = _rescue_landed_commit_after_bounds_failure(
-        stitch,
-        repo=repo,
-        before_markers=before_markers,
-        artifacts=artifacts,
-        instance_id=instance_id,
-        attempt_id=attempt_id,
-        attempts=attempts,
-        evidence=evidence,
-        diagnostics=diagnostics,
-        current_result=current_result,
-    )
-    if not rescued_bounds_failure:
-        if stitch.returncode == EXIT_CODE_CONFLICT:
-            message_text = (
-                f"commit finalizer hit a second unresolved conflict in {repo.name}"
-            )
-            result = failed_result(
-                instance_id,
-                "second_unresolved_conflict",
-                message_text,
-                attempts=attempts,
-                evidence=evidence,
-            )
-            raise BuiltinCommitFinalizerError(
-                message_text,
-                result=result,
-                invoke_result=current_result,
-            )
-        if stitch.returncode != 0:
-            message_text = stitch_failure_message(repo, stitch)
-            attempts[0] = FinalizerAttemptWire(
-                attempt=attempt_id,
-                status="failed",
-                diagnostic_code="stitch_failed",
-            )
-            result = failed_result(
-                instance_id,
-                "stitch_failed",
-                message_text,
-                attempts=attempts,
-                evidence=evidence,
-            )
-            raise BuiltinCommitFinalizerError(
-                message_text,
-                result=result,
-                invoke_result=current_result,
-            )
-
-    markers = new_commit_markers(
-        before_markers,
-        load_commit_results(artifacts),
-    )
-    repo_markers = [marker for marker in markers if marker_matches_repo(marker, repo)]
-    if not repo_markers:
-        message_text = (
-            f"sase stitch create completed for {repo.name}, but no "
-            "commit_results.json entry was recorded"
-        )
-        result = failed_result(
-            instance_id,
-            "missing_commit_result",
-            message_text,
-            attempts=attempts,
-            evidence=evidence,
-        )
-        raise BuiltinCommitFinalizerError(
-            message_text,
-            result=result,
-            invoke_result=current_result,
-        )
-    evidence.append(
-        FinalizerOutcomeEvidenceWire(kind="conflict_repair_followup", value="success")
-    )
-    evidence.extend(marker_evidence(repo_markers[-1]))
-    reconcile_commit_file_hooks(
-        repo,
-        repo_markers[-1],
-        workspace_dir=project_dir,
-    )
-    remaining = unexpected_path_resolver(repo.path, protected)
-    if remaining:
-        return _PostRepairFollowUpResult(
-            remaining=remaining,
-            failure_reason=_FOLLOW_UP_STILL_DIRTY,
-        )
-    return _PostRepairFollowUpResult(remaining=[])
-
-
-def _post_repair_declared_message(
-    repo: DirtyRepo,
-    context: FinalizerExecutionContext,
-    instance_id: str,
-) -> tuple[str | None, str | None]:
-    try:
-        envelope, _accepted_context, _host_records, _accepted_deferrals = (
-            load_accepted_commit_declaration(context.artifacts_dir)
-        )
-    except Exception as exc:
-        return None, f"{_FOLLOW_UP_LOAD_FAILED}: {exc}"
-    decision = commit_decisions_for_instance(envelope, instance_id).get(
-        repository_decision_id(repo)
-    )
-    if not isinstance(decision, Mapping):
-        return None, _NO_FOLLOW_UP_DECLARATION
-    if str(decision.get("action")) != "commit":
-        return None, _NO_FOLLOW_UP_DECLARATION
-    message = str(decision.get("message", "")).strip()
-    if not message:
-        return None, _NO_FOLLOW_UP_DECLARATION
-    return message, None
-
-
-def _conflict_repair_dirty_after_stitch_message(
-    repo: DirtyRepo,
-    remaining: Sequence[str],
-    *,
-    primary_marker: Mapping[str, Any],
-    failure_reason: str,
-) -> str:
-    base = (
-        f"sase stitch create left uncommitted attributable paths in "
-        f"{repo.name}: " + ", ".join(remaining)
-    )
-    sha = primary_marker.get("commit_sha")
-    landed = (
-        f"The primary commit for {repo.name} already landed as {sha}."
-        if isinstance(sha, str) and sha
-        else (
-            f"The primary commit for {repo.name} already landed, but "
-            "commit_results.json did not include its commit sha."
-        )
-    )
-    return f"{base}. {landed} Follow-up commit status: {failure_reason}."
-
-
-def _stitch_bounds_failure_code(stitch: StitchCommandResult) -> str | None:
-    if stitch.timed_out:
-        return "stitch_timeout"
-    if stitch.stdout_truncated or stitch.stderr_truncated:
-        return "stitch_output_cap"
-    return None
-
-
-def _rescue_landed_commit_after_bounds_failure(
-    stitch: StitchCommandResult,
-    *,
-    repo: DirtyRepo,
-    before_markers: Sequence[Mapping[str, Any]],
-    artifacts: Path | None,
-    instance_id: str,
-    attempt_id: int,
-    attempts: list[FinalizerAttemptWire],
-    evidence: list[FinalizerOutcomeEvidenceWire],
-    diagnostics: list[FinalizerDiagnosticWire],
-    current_result: InvokeResult,
-) -> bool:
-    """Raise on a bounds failure with no marker; rescue when the commit landed.
-
-    Returns True when a matching ``commit_results.json`` marker proves the
-    commit already landed, so the caller should skip returncode failure
-    handling and continue with the normal marker-verification path.
-    """
-
-    code = _stitch_bounds_failure_code(stitch)
-    if code is None:
-        return False
-    markers = new_commit_markers(before_markers, load_commit_results(artifacts))
-    repo_markers = [marker for marker in markers if marker_matches_repo(marker, repo)]
-    if not repo_markers:
-        message_text = f"sase stitch create {code} for {repo.name}"
-        attempts[0] = FinalizerAttemptWire(
-            attempt=attempt_id,
-            status="failed",
-            diagnostic_code=code,
-        )
-        raise BuiltinCommitFinalizerError(
-            message_text,
-            result=failed_result(
-                instance_id,
-                code,
-                message_text,
-                attempts=attempts,
-                evidence=evidence,
-            ),
-            invoke_result=current_result,
-        )
-    diagnostics.append(
-        FinalizerDiagnosticWire(
-            code=f"{code}_after_commit",
-            severity="warning",
-            message=(
-                f"sase stitch create {code} for {repo.name}, but the commit "
-                "already landed before the process was killed"
-            ),
-            instance_id=instance_id,
-            attempt=attempt_id,
-        )
-    )
-    return True
-
-
-def merge_deferrals(
-    deferred: Sequence[_DeferredRepoOutcome],
-) -> FinalizerDeferralWire:
-    """Combine one dispatch's deferred repositories into one wire record.
-
-    The result wire carries a single typed reason, so a mixed-reason dispatch
-    keeps the first repository's reason; every deferred path across every
-    repository is still recorded, and the full per-repository detail lives in
-    the ``deferred_repo`` evidence entries.
-    """
-
-    reason = deferred[0].deferral.reason
-    paths: list[str] = []
-    seen: set[str] = set()
-    for item in deferred:
-        for path in item.deferral.paths:
-            if path not in seen:
-                seen.add(path)
-                paths.append(path)
-    return FinalizerDeferralWire(reason=reason, paths=paths)
-
-
-def preflight_attempt(ledger: InstanceLedger | None) -> int:
-    if ledger is None:
-        return 1
-    return ledger.allocate_attempt()
-
-
-def peek_attempt(ledger: InstanceLedger | None) -> int:
-    if ledger is None:
-        return 1
-    return ledger.next_attempt
+__all__ = [
+    "BaselineRecordResolver",
+    "PrepareDirtyState",
+    "ProtectedPathResolver",
+    "UnexpectedPathResolver",
+    "_CommitDispatchResult",
+    "_DeferredRepoOutcome",
+    "_attempt_post_repair_follow_up",
+    "_conflict_repair_dirty_after_stitch_message",
+    "_post_repair_declared_message",
+    "_rescue_landed_commit_after_bounds_failure",
+    "_stitch_bounds_failure_code",
+    "dispatch_commit_decisions",
+    "merge_deferrals",
+    "peek_attempt",
+    "preflight_attempt",
+]
