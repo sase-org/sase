@@ -25,6 +25,9 @@ FLEET_BINDINGS = {
     "fleet_project_resolved_agent_detail",
     "fleet_validate_resolved_agent_summary",
     "fleet_count_logical_agents",
+    "fleet_follow_record_key",
+    "fleet_reconcile_follow_records",
+    "fleet_count_focus_and_fleet",
     "fleet_classify_cursor_replay",
     "fleet_operation_payload_fingerprint",
     "fleet_decide_operation_replay",
@@ -49,7 +52,10 @@ def _origin(installation_id: str) -> dict[str, Any]:
 
 
 def _logical_locator(
-    installation_id: str, *, agent_id: str = "agent-1"
+    installation_id: str,
+    *,
+    agent_id: str = "agent-1",
+    family_id: str | None = "family-1",
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -59,7 +65,7 @@ def _logical_locator(
             "project_id": "sase-main",
         },
         "agent_id": agent_id,
-        "family_id": "family-1",
+        "family_id": family_id,
     }
 
 
@@ -171,6 +177,43 @@ def _summary_for_agent(
         revision=revision,
     )
     return _binding("fleet_project_resolved_agent_summary")(request)
+
+
+def _operation_key(operation_id: str = "op-1") -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "controller_id": "controller-1",
+        "operation_id": operation_id,
+    }
+
+
+def _follow_record(
+    logical: dict[str, Any],
+    *,
+    created_by: str,
+    state: str,
+    timestamp: float,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "logical_locator": copy.deepcopy(logical),
+        "logical_key": _binding("fleet_logical_locator_key")(logical),
+        "created_by": created_by,
+        "state": state,
+        "created_at_unix": timestamp,
+        "updated_at_unix": timestamp,
+        "activated_at_unix": timestamp if state == "active" else None,
+        "operation_key": _operation_key() if created_by == "dispatch" else None,
+    }
+
+
+def _tombstone(logical: dict[str, Any], timestamp: float) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "logical_locator": copy.deepcopy(logical),
+        "logical_key": _binding("fleet_logical_locator_key")(logical),
+        "unfollowed_at_unix": timestamp,
+    }
 
 
 def _assert_no_local_or_auth_data(value: Any) -> None:
@@ -375,6 +418,122 @@ def test_count_contract_deduplicates_current_instances_and_buckets() -> None:
                 "summaries": [running_new, ambiguous],
             }
         )
+
+
+def test_follow_reconciliation_promotes_and_honors_tombstones() -> None:
+    installation_id = _known_installation_id("a")
+    singleton = _logical_locator(installation_id, family_id=None)
+    family = _logical_locator(installation_id, family_id="family-1")
+    reconcile = _binding("fleet_reconcile_follow_records")
+
+    promoted = reconcile(
+        {
+            "schema_version": 1,
+            "records": [
+                _follow_record(
+                    singleton,
+                    created_by="explicit",
+                    state="active",
+                    timestamp=10.0,
+                )
+            ],
+            "tombstones": [],
+            "promotions": [{"schema_version": 1, "from": singleton, "to": family}],
+            "activations": [],
+            "now_unix": 12.0,
+        }
+    )
+    assert promoted["changed"] is True
+    assert len(promoted["records"]) == 1
+    assert promoted["records"][0]["logical_locator"] == family
+    assert promoted["records"][0]["updated_at_unix"] == 12.0
+    assert _binding("fleet_follow_record_key")(promoted["records"][0])
+
+    dispatch_pending = _follow_record(
+        family, created_by="dispatch", state="pending", timestamp=20.0
+    )
+    suppressed = reconcile(
+        {
+            "schema_version": 1,
+            "records": [dispatch_pending],
+            "tombstones": [_tombstone(family, 21.0)],
+            "promotions": [],
+            "activations": [
+                {
+                    "schema_version": 1,
+                    "logical_locator": family,
+                    "operation_key": _operation_key(),
+                    "activated_at_unix": 22.0,
+                }
+            ],
+            "now_unix": 22.0,
+        }
+    )
+    assert suppressed["records"] == []
+    assert suppressed["tombstones"][0]["logical_locator"] == family
+    assert any(
+        diagnostic["code"]
+        in {"follow_activation_tombstoned", "follow_tombstone_blocked"}
+        for diagnostic in suppressed["diagnostics"]
+    )
+
+
+def test_focus_fleet_counts_propagate_partial_hosts_without_summing_views() -> None:
+    local = _summary_for_agent(
+        _known_installation_id("a"), agent_id="local", run_id="run-1", revision=1
+    )
+    followed_remote = _summary_for_agent(
+        _known_installation_id("b"), agent_id="remote-a", run_id="run-1", revision=2
+    )
+    fleet_only = _summary_for_agent(
+        _known_installation_id("c"), agent_id="remote-b", run_id="run-1", revision=3
+    )
+
+    counts = _binding("fleet_count_focus_and_fleet")(
+        {
+            "schema_version": 1,
+            "local_summaries": [local],
+            "followed_remote_hosts": [
+                {
+                    "schema_version": 1,
+                    "origin": _origin(_known_installation_id("b")),
+                    "summaries": [followed_remote],
+                    "observed_at_unix": 2000.0,
+                    "freshness": "fresh",
+                }
+            ],
+            "fleet_hosts": [
+                {
+                    "schema_version": 1,
+                    "origin": _origin(_known_installation_id("b")),
+                    "summaries": [followed_remote],
+                    "observed_at_unix": 2000.0,
+                    "freshness": "fresh",
+                },
+                {
+                    "schema_version": 1,
+                    "origin": _origin(_known_installation_id("c")),
+                    "summaries": [fleet_only],
+                    "observed_at_unix": 1500.0,
+                    "freshness": "aging",
+                },
+                {
+                    "schema_version": 1,
+                    "origin": _origin(_known_installation_id("d")),
+                    "summaries": [],
+                    "observed_at_unix": None,
+                    "freshness": "unknown",
+                },
+            ],
+        }
+    )
+
+    assert counts["focus"]["counts"]["running"] == 2
+    assert counts["fleet"]["counts"]["running"] == 2
+    assert counts["focus"]["partial"] is False
+    assert counts["fleet"]["partial"] is True
+    assert counts["fleet"]["unknown_origins"] == [_known_installation_id("d")]
+    assert counts["fleet"]["observed_at_unix_max"] == 2000.0
 
 
 def test_cursor_operation_connection_and_time_contracts() -> None:
