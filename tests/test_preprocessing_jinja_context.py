@@ -2,7 +2,10 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from sase.llm_provider.preprocessing import preprocess_prompt_early
+from sase.xprompt.runtime_context import bind_runtime_template_vars
 
 
 class TestJinjaContextRendering:
@@ -47,6 +50,56 @@ class TestJinjaContextRendering:
             context={"wait_chats": ["~/.sase/chats/a.md", "~/.sase/chats/b.md"]},
         )
         assert "Transcripts: ~/.sase/chats/a.md,~/.sase/chats/b.md" in result.prompt
+
+    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    def test_wait_namespace_rendered_from_runtime_context(
+        self,
+        _mock_xprompt: object,
+    ) -> None:
+        """{{ wait.chats }} renders from the scoped runtime namespace."""
+
+        class Wait:
+            chats = ["~/.sase/chats/a.md"]
+
+        with bind_runtime_template_vars({"wait": Wait()}):
+            result = preprocess_prompt_early(
+                "Transcripts: {{ wait.chats | join(',') }}",
+                context={},
+            )
+
+        assert "Transcripts: ~/.sase/chats/a.md" in result.prompt
+
+    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    def test_context_input_overrides_runtime_wait_namespace(
+        self,
+        _mock_xprompt: object,
+    ) -> None:
+        """Declared context values retain precedence over runtime globals."""
+
+        class Wait:
+            chats = ["runtime"]
+
+        with bind_runtime_template_vars({"wait": Wait()}):
+            result = preprocess_prompt_early(
+                "Wait: {{ wait }}",
+                context={"wait": "input"},
+            )
+
+        assert "Wait: input" in result.prompt
+
+    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    def test_unknown_wait_member_raises_at_runtime(
+        self,
+        _mock_xprompt: object,
+    ) -> None:
+        """Unknown wait members retain StrictUndefined runtime behavior."""
+
+        class Wait:
+            chats: list[str] = []
+
+        with bind_runtime_template_vars({"wait": Wait()}):
+            with pytest.raises(Exception, match="no attribute 'missing'"):
+                preprocess_prompt_early("{{ wait.missing }}", context={})
 
     @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
     def test_wait_chats_not_in_context_raises(self, _mock_xprompt: object) -> None:

@@ -35,7 +35,11 @@ def build_jinja_completion_result(
     if ctx is None:
         return None
 
-    candidates = _candidates_for_prefix(ctx.prefix, tag_kind=ctx.tag_kind)
+    candidates = _candidates_for_prefix(
+        ctx.prefix,
+        tag_kind=ctx.tag_kind,
+        namespace=ctx.namespace,
+    )
     if not candidates:
         return JinjaCompletionResult(
             prefix=ctx.prefix,
@@ -62,8 +66,16 @@ def _candidates_for_prefix(
     prefix: str,
     *,
     tag_kind: str,
+    namespace: str | None,
 ) -> list[CompletionCandidate]:
     prefix_lower = prefix.lower()
+    if namespace is not None:
+        return _rows(
+            sorted(jinja_inspect.builtin_runtime_member_names(namespace)),
+            "variable",
+            prefix_lower,
+        )
+
     variables = sorted(
         jinja_inspect.known_toplevel_context() | jinja_inspect.builtin_runtime_names()
     )

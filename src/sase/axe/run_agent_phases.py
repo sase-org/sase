@@ -23,7 +23,11 @@ from sase.axe.run_agent_markers import (
     write_agent_meta,
 )
 from sase.axe.run_agent_refs import (
+    WaitDependencyResolution,
+    WaitRuntimeNamespace,
+    last_wait_resolution_or_chats,
     resolve_agent_refs_in_prompt,
+    resolve_wait_context,
     resolve_wait_chat_paths,
 )
 from sase.axe.run_agent_wait import (
@@ -363,7 +367,11 @@ __all__ = [
     "record_run_started_at",
     "record_stop_time",
     "resolve_agent_refs_in_prompt",
+    "resolve_wait_context",
     "resolve_wait_chat_paths",
+    "last_wait_resolution_or_chats",
+    "WaitDependencyResolution",
+    "WaitRuntimeNamespace",
     "wait_for_dependencies",
     "wait_for_runner_slot",
     "write_agent_meta",

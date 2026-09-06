@@ -20,6 +20,7 @@ from sase.axe.run_agent_directive_metadata import (
 from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
 from sase.axe.run_agent_phases import (
     claim_deferred_workspace,
+    last_wait_resolution_or_chats,
     persist_refreshed_clan_summary,
     resolve_agent_refs_in_prompt,
     resolve_wait_chat_paths,
@@ -180,6 +181,7 @@ def _build_exec_context(
     *,
     vcs_tag: str | None,
     wait_chats: list[str],
+    wait_context: Any,
     output_variable_namespaces: dict[str, Any],
 ) -> AgentExecContext:
     return AgentExecContext(
@@ -205,6 +207,7 @@ def _build_exec_context(
         local_xprompts=bootstrap.info.local_xprompts,
         multi_agent_prompt_file=os.environ.get(MULTI_AGENT_PROMPT_FILE_ENV),
         wait_chats=wait_chats,
+        wait_context=wait_context,
         output_variable_namespaces=output_variable_namespaces,
     )
 
@@ -230,6 +233,7 @@ def launch_agent_run(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None:
     wait_chats: list[str] = []
     if bootstrap.has_dependency_wait and info.wait_names:
         wait_chats = resolve_wait_chat_paths(info.wait_names)
+    wait_context = last_wait_resolution_or_chats(info.wait_names, wait_chats)
 
     state.prompt, vcs_tag = resolve_agent_refs_in_prompt(state.prompt)
 
@@ -262,6 +266,7 @@ def launch_agent_run(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None:
                 bootstrap,
                 vcs_tag=vcs_tag,
                 wait_chats=wait_chats,
+                wait_context=wait_context,
                 output_variable_namespaces=output_variable_namespaces,
             ),
             state.prompt,

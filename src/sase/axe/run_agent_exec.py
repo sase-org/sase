@@ -129,6 +129,20 @@ def _build_named_args(ctx: AgentExecContext) -> dict[str, Any]:
     return named_args
 
 
+def _build_wait_namespace(ctx: AgentExecContext) -> Any:
+    from sase.axe.run_agent_refs import (
+        WaitDependencyResolution,
+        WaitRuntimeNamespace,
+    )
+
+    resolution = getattr(ctx, "wait_context", None)
+    if not isinstance(resolution, WaitDependencyResolution):
+        resolution = WaitDependencyResolution.from_chats(
+            list(getattr(ctx, "wait_chats", []) or [])
+        )
+    return WaitRuntimeNamespace(resolution)
+
+
 def _handle_killed_iteration(
     ctx: AgentExecContext,
     state: LoopState,
@@ -201,6 +215,16 @@ def run_execution_loop(
     prompt: str,
 ) -> _AgentExecResult:
     """Run the agent workflow loop with retry, plan approval, and question handling."""
+    from sase.xprompt.runtime_context import bind_runtime_template_vars
+
+    with bind_runtime_template_vars({"wait": _build_wait_namespace(ctx)}):
+        return _run_execution_loop_bound(ctx, prompt)
+
+
+def _run_execution_loop_bound(
+    ctx: AgentExecContext,
+    prompt: str,
+) -> _AgentExecResult:
     from sase.xprompt.models import create_anonymous_workflow
     from sase.xprompt.workflow_runner import execute_workflow
 

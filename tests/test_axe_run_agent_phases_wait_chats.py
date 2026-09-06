@@ -5,7 +5,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.agent.names import NamedAgent
-from sase.axe.run_agent_phases import resolve_wait_chat_paths
+from sase.axe.run_agent_phases import (
+    WaitRuntimeNamespace,
+    resolve_wait_chat_paths,
+    resolve_wait_context,
+)
 from tests._agent_names_fixtures import make_agent
 
 
@@ -150,3 +154,63 @@ def test_resolve_wait_chat_paths_resolves_indexed_template(
     )
 
     assert resolve_wait_chat_paths(["build-@"]) == ["~/.sase/chats/build-4.md"]
+
+
+def test_resolve_wait_context_keeps_artifact_producer_without_chat(
+    tmp_path: Path,
+) -> None:
+    agent = _seed_done(tmp_path, "a", None)
+
+    with patch(
+        "sase.agent.names.resolve_resume_agent_name",
+        return_value=agent,
+    ):
+        context = resolve_wait_context(["a"])
+
+    assert context.chats == []
+    [entry] = context.entries
+    assert entry.wait_name == "a"
+    assert entry.agent_artifacts_dirs == (str(Path(agent.artifacts_dir).resolve()),)
+
+
+def test_wait_runtime_namespace_queries_artifacts_once(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    agent = _seed_done(tmp_path, "a", "~/.sase/chats/a.md")
+    calls: list[object] = []
+
+    with patch(
+        "sase.agent.names.resolve_resume_agent_name",
+        return_value=agent,
+    ):
+        context = resolve_wait_context(["a"])
+
+    def fake_query(groups: object) -> list[dict[str, object]]:
+        calls.append(groups)
+        return [{"wait_name": "a", "ref": "file:report"}]
+
+    monkeypatch.setattr(
+        "sase.core.artifact_context_query_facade.query_artifact_context",
+        fake_query,
+    )
+    namespace = WaitRuntimeNamespace(context)
+
+    assert namespace.chats == ["~/.sase/chats/a.md"]
+    assert namespace.artifacts == [{"wait_name": "a", "ref": "file:report"}]
+    assert namespace.artifacts == [{"wait_name": "a", "ref": "file:report"}]
+    assert len(calls) == 1
+
+
+def test_wait_runtime_namespace_empty_context_does_not_query(
+    monkeypatch,
+) -> None:
+    def fail_query(_groups: object) -> list[dict[str, object]]:
+        raise AssertionError("artifact query should not run")
+
+    monkeypatch.setattr(
+        "sase.core.artifact_context_query_facade.query_artifact_context",
+        fail_query,
+    )
+
+    assert WaitRuntimeNamespace(resolve_wait_context([])).artifacts == []

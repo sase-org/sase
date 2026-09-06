@@ -269,3 +269,18 @@ def test_jinja_soft_completion_includes_runtime_builtins(monkeypatch) -> None:
     assert suggestion is not None
     assert suggestion.completion_kind == "jinja"
     assert suggestion.display == "wait_chats"
+
+
+def test_jinja_soft_completion_includes_wait_namespace_members(monkeypatch) -> None:
+    monkeypatch.setattr(jinja_inspect, "known_toplevel_context", lambda: {"root"})
+
+    suggestion = build_prompt_soft_completion(
+        text="Hello {{ wait.art }}",
+        cursor_offset=len("Hello {{ wait.art"),
+        settings=PromptCompletionSettings(),
+        xprompt_entries=[],
+    )
+
+    assert suggestion is not None
+    assert suggestion.completion_kind == "jinja"
+    assert suggestion.display == "artifacts"

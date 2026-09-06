@@ -33,6 +33,7 @@ class AgentExecContext:
     local_xprompts: dict[str, Any]
     multi_agent_prompt_file: str | None = None
     wait_chats: list[str] = field(default_factory=list)
+    wait_context: Any | None = None
     output_variable_namespaces: dict[str, Any] = field(default_factory=dict)
     workflow_name: str = ""
 

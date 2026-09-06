@@ -814,13 +814,21 @@ Hello, {{ user }}.
 | `{{ _2 }}`                          | Second positional argument, etc.                                                                           |
 | `{{ _args }}`                       | List of all positional arguments                                                                           |
 | `{{ root }}`                        | Absolute path to the primary workspace directory (omitted if unresolvable)                                 |
-| `{{ wait_chats }}`                  | List of chat-transcript paths for agents named in `%wait:<name>` directives, in the order they appear      |
+| `{{ wait.chats }}`                  | List of chat-transcript paths for agents named in `%wait:<name>` directives, in the order they appear      |
+| `{{ wait.artifacts }}`              | Lazy list of non-chat artifact metadata dictionaries produced by those waited agents; no file contents     |
+| `{{ wait_chats }}`                  | Legacy alias for `wait.chats`; still omitted when no chat paths exist                                      |
 | `{{ agents["build"].path }}`        | Output variables loaded from `%wait:build` when that agent used `sase var set path=...`                    |
 | `{{ agents["p--plan"].plan_file }}` | Proposed plan path of a submitted planner row, synthesized from `%wait:p--plan` (no `sase var set` needed) |
 
 Named arguments and positional-to-name mappings take priority; if an xprompt is called
 within a workflow step, the workflow's execution scope is also available (xprompt args
 override scope values on conflict).
+
+The `wait` namespace is only populated while an agent run is rendering its executable
+prompt. `wait.artifacts` is evaluated on first access and returns plain dictionaries
+with metadata such as `wait_name`, `agent_name`, `ref`, `kind`, `label`, `path`,
+`source_path`, and nullable VCS provenance fields. Read artifact contents explicitly
+with `sase artifact read <ref> "<reason>"` when the prompt needs bytes.
 
 ### Filters
 

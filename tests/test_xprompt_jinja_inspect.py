@@ -14,6 +14,7 @@ def test_builtin_runtime_names_contains_agent_run_context() -> None:
         "workspace_num",
         "n",
         "N",
+        "wait",
         "wait_chats",
         "agents",
     }
@@ -26,7 +27,7 @@ def test_inspect_template_accepts_builtin_runtime_names() -> None:
     )
 
     diagnostics = jinja_inspect.inspect_template(
-        "{{ wait_chats }} {{ agents }}",
+        "{{ wait.chats }} {{ wait.artifacts }} {{ wait_chats }} {{ agents }}",
         known=known,
     )
     typo = jinja_inspect.inspect_template("{{ wait_chat }}", known=known)
@@ -156,8 +157,19 @@ def test_completion_context_inside_unclosed_tag() -> None:
 
     assert ctx is not None
     assert ctx.prefix == "ro"
+    assert ctx.namespace is None
     assert text[ctx.replacement_start : ctx.replacement_end] == "ro"
     assert ctx.tag_kind == "variable"
+
+
+def test_completion_context_inside_wait_namespace() -> None:
+    text = "Hello {{ wait.art }}"
+    ctx = jinja_inspect.completion_context(text, len("Hello {{ wait.art"))
+
+    assert ctx is not None
+    assert ctx.prefix == "art"
+    assert ctx.namespace == "wait"
+    assert text[ctx.replacement_start : ctx.replacement_end] == "art"
 
 
 def test_matching_delimiters_returns_pair_around_cursor() -> None:

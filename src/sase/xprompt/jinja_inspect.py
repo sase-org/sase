@@ -104,6 +104,12 @@ class JinjaCompletionContext:
     replacement_end: int
     prefix: str
     tag_kind: Literal["variable", "block"]
+    namespace: str | None = None
+
+
+RUNTIME_NAMESPACE_MEMBERS: dict[str, frozenset[str]] = {
+    "wait": frozenset({"artifacts", "chats"}),
+}
 
 
 def has_jinja(text: str) -> bool:
@@ -252,6 +258,11 @@ def builtin_runtime_names() -> set[str]:
     return set(BUILTIN_RUNTIME_NAMES)
 
 
+def builtin_runtime_member_names(namespace: str) -> set[str]:
+    """Return known static member names for an agent-run runtime namespace."""
+    return set(RUNTIME_NAMESPACE_MEMBERS.get(namespace, frozenset()))
+
+
 def jinja_filter_names() -> tuple[str, ...]:
     """Return registered filter names for prompt completion."""
     return tuple(sorted(get_jinja_env().filters))
@@ -279,11 +290,13 @@ def completion_context(
     while token_end < content_end and _name_char(text[token_end]):
         token_end += 1
     prefix = text[token_start:cursor_offset]
+    namespace = _namespace_before_token(text, content_start, token_start)
     return JinjaCompletionContext(
         replacement_start=token_start,
         replacement_end=token_end,
         prefix=prefix,
         tag_kind="block" if tag_kind == "block" else "variable",
+        namespace=namespace,
     )
 
 
@@ -418,3 +431,19 @@ def _tag_at_cursor(
 
 def _name_char(char: str) -> bool:
     return char == "_" or char.isalnum()
+
+
+def _namespace_before_token(
+    text: str,
+    content_start: int,
+    token_start: int,
+) -> str | None:
+    if token_start <= content_start or text[token_start - 1] != ".":
+        return None
+    namespace_end = token_start - 1
+    namespace_start = namespace_end
+    while namespace_start > content_start and _name_char(text[namespace_start - 1]):
+        namespace_start -= 1
+    if namespace_start == namespace_end:
+        return None
+    return text[namespace_start:namespace_end]

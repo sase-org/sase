@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass
 from enum import Enum, auto
+from itertools import count
 from typing import TYPE_CHECKING, Any, cast
 from weakref import ref
 
@@ -79,6 +80,7 @@ _section_height_cache: OrderedDict[tuple[str, int], _SectionLayoutCacheEntry] = 
 _section_strip_cache: OrderedDict[tuple[str, int, str], _SectionLayoutCacheEntry] = (
     OrderedDict()
 )
+_volatile_visual_key_counter = count()
 
 
 def _textual_style_token(style: Style) -> str:
@@ -96,7 +98,7 @@ def _visual_content_digest(visual: Visual) -> str:
     renderable = getattr(visual, "_renderable", None)
     if renderable is not None:
         return renderable_content_digest(renderable)
-    return f"visual:{type(visual).__name__}:{id(visual)}"
+    return f"visual:{type(visual).__name__}:{next(_volatile_visual_key_counter)}"
 
 
 def _store_layout(

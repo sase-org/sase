@@ -192,6 +192,56 @@ class TestWaitChatsInjection:
         named_args = mock_execute.call_args[0][2]
         assert "wait_chats" not in named_args
 
+    @patch("sase.xprompt.workflow_runner.execute_workflow")
+    @patch("sase.xprompt.models.create_anonymous_workflow")
+    def test_wait_namespace_not_persisted_in_workflow_args(
+        self,
+        mock_create: MagicMock,
+        mock_execute: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """run_execution_loop exposes wait through runtime context, not named_args."""
+        from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
+        from sase.xprompt._jinja import get_global_template_vars
+
+        mock_wf = MagicMock()
+        mock_wf.name = "anon"
+        mock_wf.xprompts = {}
+        mock_create.return_value = mock_wf
+
+        def execute(*args: object, **_kwargs: object) -> MagicMock:
+            assert "wait" in get_global_template_vars()
+            named_args = args[2]
+            assert isinstance(named_args, dict)
+            assert "wait" not in named_args
+            return MagicMock(response_text="done")
+
+        mock_execute.side_effect = execute
+
+        ctx = MagicMock(spec=AgentExecContext)
+        ctx.cl_name = "test"
+        ctx.workspace_num = 1
+        ctx.workspace_dir = str(tmp_path)
+        ctx.local_xprompts = {}
+        ctx.artifacts_dir = str(tmp_path)
+        ctx.is_home_mode = False
+        ctx.project_name = "test"
+        ctx.agent_name = None
+        ctx.agent_model = None
+        ctx.agent_llm_provider = None
+        ctx.agent_vcs_provider = None
+        ctx.agent_hidden = False
+        ctx.timestamp = "2025-01-01"
+        ctx.artifacts_timestamp = "20250101"
+        ctx.project_file = "/tmp/test.sase"
+        ctx.output_path = str(tmp_path / "output")
+        ctx.wait_chats = ["~/.sase/chats/a.md"]
+        ctx.wait_context = None
+
+        run_execution_loop(ctx, "test prompt")
+
+        assert "wait" not in get_global_template_vars()
+
 
 class TestInheritedVcsInjection:
     """Tests for inherited VCS workflow tag injection."""

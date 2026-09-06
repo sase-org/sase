@@ -24,16 +24,18 @@ _jinja_env: Environment | None = None
 RESERVED_GLOBAL_NAMES: frozenset[str] = frozenset({"root"})
 
 # Static mirror of user-typeable top-level names injected by
-# ``sase.axe.run_agent_exec._build_named_args`` during agent runs. ``agents``
-# mirrors ``sase.agent.output_variable_context.AGENTS_CONTEXT_KEY``; keep the
-# literal local to avoid importing the agent package from low-level xprompt
-# helpers. Internal double-underscore workflow args are intentionally omitted.
+# ``sase.axe.run_agent_exec._build_named_args`` or the runtime render context
+# during agent runs. ``agents`` mirrors
+# ``sase.agent.output_variable_context.AGENTS_CONTEXT_KEY``; keep the literal
+# local to avoid importing the agent package from low-level xprompt helpers.
+# Internal double-underscore workflow args are intentionally omitted.
 BUILTIN_RUNTIME_NAMES: frozenset[str] = frozenset(
     {
         "cl_name",
         "workspace_num",
         "n",
         "N",
+        "wait",
         "wait_chats",
         "agents",
     }
@@ -80,15 +82,17 @@ def get_global_template_vars() -> dict[str, Any]:
         root: Absolute path to the primary (#1) workspace directory for the
               current project, or omitted if the project can't be resolved.
 
-    Returned keys must be a subset of :data:`RESERVED_GLOBAL_NAMES`; static
-    linting and completion use that set directly instead of runtime values.
+    Static linting and completion use :data:`RESERVED_GLOBAL_NAMES` and
+    :data:`BUILTIN_RUNTIME_NAMES` directly instead of inspecting runtime values.
     """
     from sase.bead.workspace import resolve_primary_workspace
+    from sase.xprompt.runtime_context import get_runtime_template_vars
 
     result: dict[str, Any] = {}
     primary = resolve_primary_workspace()
     if primary is not None:
         result["root"] = str(primary)
+    result.update(get_runtime_template_vars())
     return result
 
 

@@ -11,6 +11,7 @@ from hashlib import blake2b
 from typing import Any
 
 from rich.console import Group
+from rich.style import Style
 from rich.syntax import Syntax
 from rich.text import Text
 
@@ -63,7 +64,7 @@ def _update_digest(hasher: Any, node: object) -> None:
         if spans:
             for span in spans:
                 hasher.update(
-                    f"{span.start}:{span.end}:{span.style}".encode(
+                    f"{span.start}:{span.end}:{_style_digest_token(span.style)}".encode(
                         "utf-8", errors="replace"
                     )
                 )
@@ -96,8 +97,20 @@ def _update_text_digest(hasher: Any, node: Text) -> None:
     hasher.update(str(node.end).encode("utf-8", errors="replace"))
     for span in node.spans:
         hasher.update(
-            f"{span.start}:{span.end}:{span.style}".encode("utf-8", errors="replace")
+            f"{span.start}:{span.end}:{_style_digest_token(span.style)}".encode(
+                "utf-8", errors="replace"
+            )
         )
+
+
+def _style_digest_token(style: object) -> str:
+    if not isinstance(style, Style):
+        return str(style)
+    token = str(style)
+    if not style.meta:
+        return token
+    meta = ",".join(f"{key}={style.meta[key]!r}" for key in sorted(style.meta))
+    return f"{token}|meta:{meta}"
 
 
 __all__ = ["renderable_content_digest"]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -114,6 +115,8 @@ def test_run_json_mtime_change_invalidates_cache(
     meta = chop_run_meta_path("hooks", "fast", run_id)
     payload = meta.read_text(encoding="utf-8").replace("success", "failure")
     meta.write_text(payload, encoding="utf-8")
+    stat = meta.stat()
+    os.utime(meta, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
 
     refreshed = _collect(cache, tail_chop_keys=frozenset({("hooks", "fast")}))
     assert refreshed.stats.run_json_parses == 1
