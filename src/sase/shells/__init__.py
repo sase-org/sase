@@ -14,6 +14,7 @@ _MODULE_BY_EXPORT = {
     "record_followup_not_launchable": "followup",
     "spawn_shell_family_successor": "followup",
     "starter_identity": "followup",
+    "wait_for_followup_started": "followup",
     "wait_for_starter": "followup",
     "ShellHandoffError": "handoff",
     "maybe_handoff_shell_from_agent": "handoff",

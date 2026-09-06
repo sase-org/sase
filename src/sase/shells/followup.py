@@ -41,6 +41,8 @@ class FollowupLaunchResult:
     error: str | None = None
     prompt_path: str | None = None
     agent_name: str | None = None
+    artifacts_dir: str | None = None
+    pid: int | None = None
 
     def __bool__(self) -> bool:
         return self.launched
@@ -187,7 +189,10 @@ def launch_shell_followup(
         return record_not_launchable(str(exc), prompt)
     else:
         return record_launched(
-            result.agent_name, degraded_reason=initial_degraded_reason
+            result.agent_name,
+            degraded_reason=initial_degraded_reason,
+            artifacts_dir=result.artifacts_dir or None,
+            pid=result.pid,
         )
 
     degraded_prompt = compose_prompt(fresh_reason)
@@ -219,11 +224,21 @@ def launch_shell_followup(
             result = spawn(zero_prompt, zero_workspace_dir, 0, None, zero_vcs_ref)
         except (RuntimeError, OSError, ValueError) as exc:
             return record_not_launchable(str(exc), zero_prompt)
-        return record_launched(result.agent_name, degraded_reason=zero_reason)
+        return record_launched(
+            result.agent_name,
+            degraded_reason=zero_reason,
+            artifacts_dir=result.artifacts_dir or None,
+            pid=result.pid,
+        )
     except (RuntimeError, OSError, ValueError) as exc:
         return record_not_launchable(str(exc), degraded_prompt)
 
-    return record_launched(result.agent_name, degraded_reason=fresh_reason)
+    return record_launched(
+        result.agent_name,
+        degraded_reason=fresh_reason,
+        artifacts_dir=result.artifacts_dir or None,
+        pid=result.pid,
+    )
 
 
 def _workspace_is_claimed(project_name: str, workspace_num: int) -> bool:
@@ -296,6 +311,8 @@ def record_followup_launched(
     persistence: FollowupPersistence,
     update_meta_field: UpdateMetaFieldFn,
     degraded_reason: str | None = None,
+    launched_artifacts_dir: str | None = None,
+    pid: int | None = None,
 ) -> FollowupLaunchResult:
     """Record a launched follow-up in metadata and return its result."""
     if agent_name:
@@ -312,6 +329,8 @@ def record_followup_launched(
         launched=True,
         degraded_reason=degraded_reason,
         agent_name=agent_name,
+        artifacts_dir=launched_artifacts_dir,
+        pid=pid,
     )
 
 
@@ -390,11 +409,54 @@ def wait_for_starter(
     return done_path.exists()
 
 
+def wait_for_followup_started(
+    artifacts_dir: str,
+    pid: int | None,
+    *,
+    timeout_seconds: float = DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
+    poll_seconds: float = STARTER_SETTLE_POLL_SECONDS,
+) -> bool:
+    """Poll for a launched follow-up to claim its runner slot."""
+    artifacts_path = Path(artifacts_dir)
+    done_path = artifacts_path / "done.json"
+    deadline = time.monotonic() + max(0.0, timeout_seconds)
+    interval = max(0.01, poll_seconds)
+
+    while True:
+        if _meta_has_run_started_at(artifacts_path):
+            return True
+        if done_path.exists():
+            return False
+        if pid is not None and not _pid_is_running(pid):
+            return _meta_has_run_started_at(artifacts_path)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(interval, remaining))
+
+
 def _starter_artifacts_dir(project_name: str, parent_timestamp: object) -> str | None:
     """Return the starter artifact path for *parent_timestamp*, if valid."""
     if not isinstance(parent_timestamp, str) or not parent_timestamp:
         return None
     return str(canonical_agent_artifact_path(project_name, "ace-run", parent_timestamp))
+
+
+def _meta_has_run_started_at(artifacts_dir: Path) -> bool:
+    """Return whether an artifact meta file has recorded runner startup."""
+    meta_path = artifacts_dir / "agent_meta.json"
+    try:
+        with meta_path.open(encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, OSError, ValueError):
+        return False
+    return bool(data.get("run_started_at")) if isinstance(data, dict) else False
+
+
+def _pid_is_running(pid: int) -> bool:
+    from sase.ace.hooks.processes import is_process_running
+
+    return is_process_running(pid)
 
 
 def _read_meta_str(artifacts_dir: str, key: str) -> str | None:
@@ -452,5 +514,6 @@ __all__ = [
     "spawn_shell_family_successor",
     "starter_identity",
     "vcs_ref_from_meta",
+    "wait_for_followup_started",
     "wait_for_starter",
 ]

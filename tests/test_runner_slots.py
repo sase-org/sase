@@ -46,6 +46,7 @@ def _record(
     appears_as_agent: bool = True,
     done: bool = False,
     pending_question: bool = False,
+    stopped_at: str | None = None,
 ) -> AgentArtifactRecordWire:
     return AgentArtifactRecordWire(
         project_name=project_name,
@@ -67,6 +68,7 @@ def _record(
             ),
             wait_priority=meta_wait_priority,
             run_started_at=("2026-07-12T12:00:00+00:00" if run_started else None),
+            stopped_at=stopped_at,
         ),
         waiting=(
             WaitingMarkerWire(
@@ -304,6 +306,87 @@ def test_settled_monitor_with_live_followup_still_occupies_one_slot() -> None:
     ]
 
     assert running_agent_slot_count(records, _always_live) == 1
+
+
+def _live_unless_stopped(record: AgentArtifactRecordWire) -> bool:
+    meta = record.agent_meta
+    return meta is not None and meta.stopped_at is None
+
+
+def test_monitor_followup_handoff_counts_live_monitor_before_successor_starts() -> None:
+    records = [
+        _record(
+            "/monitor",
+            agent_family="fam",
+            agent_family_role="monitor",
+            monitor_id="mon-1",
+        ),
+        _record(
+            "/followup",
+            agent_family="fam",
+            parent_timestamp="monitor_ts",
+        ),
+    ]
+
+    assert running_agent_slot_count(records, _live_unless_stopped) == 1
+
+
+def test_monitor_followup_handoff_overlap_counts_one_slot() -> None:
+    records = [
+        _record(
+            "/monitor",
+            agent_family="fam",
+            agent_family_role="monitor",
+            monitor_id="mon-1",
+        ),
+        _record(
+            "/followup",
+            agent_family="fam",
+            parent_timestamp="monitor_ts",
+            run_started=True,
+        ),
+    ]
+
+    assert running_agent_slot_count(records, _live_unless_stopped) == 1
+
+
+def test_stopped_monitor_with_started_followup_counts_one_slot() -> None:
+    records = [
+        _record(
+            "/monitor",
+            agent_family="fam",
+            agent_family_role="monitor",
+            monitor_id="mon-1",
+            stopped_at="2026-09-06T12:00:00+00:00",
+        ),
+        _record(
+            "/followup",
+            agent_family="fam",
+            parent_timestamp="monitor_ts",
+            run_started=True,
+        ),
+    ]
+
+    assert running_agent_slot_count(records, _live_unless_stopped) == 1
+
+
+def test_stopped_monitor_before_followup_start_documents_old_gap() -> None:
+    records = [
+        _record(
+            "/monitor",
+            agent_family="fam",
+            agent_family_role="monitor",
+            monitor_id="mon-1",
+            stopped_at="2026-09-06T12:00:00+00:00",
+        ),
+        _record(
+            "/followup",
+            agent_family="fam",
+            parent_timestamp="monitor_ts",
+        ),
+    ]
+
+    assert running_agent_slot_count(records, _live_unless_stopped) == 0
 
 
 def test_two_independent_families_occupy_two_slots() -> None:

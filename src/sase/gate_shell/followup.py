@@ -120,14 +120,22 @@ def launch_gate_followup_agent(
             spawn_fn=spawn_agent_subprocess,
         )
 
+    gate_artifacts_dir = artifacts_dir
+
     def _record_launched_result(
-        agent_name: str | None, *, degraded_reason: str | None = None
+        agent_name: str | None,
+        *,
+        degraded_reason: str | None = None,
+        artifacts_dir: str | None = None,
+        pid: int | None = None,
     ) -> FollowupLaunchResult:
         return record_followup_launched(
-            artifacts_dir,
+            gate_artifacts_dir,
             meta,
             agent_name=agent_name,
             degraded_reason=degraded_reason,
+            launched_artifacts_dir=artifacts_dir,
+            pid=pid,
             persistence=GATE_FOLLOWUP_PERSISTENCE,
             update_meta_field=update_meta_field,
         )

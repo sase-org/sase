@@ -33,6 +33,7 @@ from sase.monitor_status import (
     DEFAULT_MONITOR_STOP_STATUS,
     clamp_monitor_status_or_default,
 )
+from sase.shells.followup import wait_for_followup_started
 from sase.shells.settlement import stamp_shell_finished_at
 from sase.workflows.utils import get_project_file_path
 
@@ -424,7 +425,7 @@ def _finish_monitor(
     if exit_code is not None:
         meta["monitor_exit_code"] = exit_code
     meta["monitor_output_truncated"] = capture.truncated
-    meta["stopped_at"] = _utc_now_iso()
+    stopped_at = _utc_now_iso()
     timeout_message = _timeout_message(
         timeout_kind,
         total_timeout_seconds=float(meta.get("monitor_timeout_seconds") or 0.0),
@@ -435,11 +436,14 @@ def _finish_monitor(
         meta["monitor_timeout_kind"] = timeout_kind
         if timeout_message:
             meta["monitor_timeout_message"] = timeout_message
+    persisted_meta = dict(meta)
+    persisted_meta.pop("stopped_at", None)
     write_agent_meta_atomic(
         artifacts_dir,
-        meta,
+        persisted_meta,
         index_updater=update_agent_artifact_index_for_marker_mutation,
     )
+    meta["stopped_at"] = stopped_at
 
     member_name = str(meta.get("name") or "")
     timestamp = os.path.basename(artifacts_dir.rstrip("/"))
@@ -457,7 +461,7 @@ def _finish_monitor(
     )
 
     project_name = project_name_from_artifacts_dir(artifacts_dir)
-    followup_error = settle_claim_and_followup(
+    followup_settlement = settle_claim_and_followup(
         artifacts_dir,
         meta,
         monitor_state=monitor_state,
@@ -468,6 +472,14 @@ def _finish_monitor(
         project_name=project_name,
         launch_followup=launch_followup_agent,
     )
+    followup_error = followup_settlement.error
+    followup_launch = followup_settlement.launch_result
+    if (
+        followup_launch is not None
+        and followup_launch.launched
+        and followup_launch.artifacts_dir
+    ):
+        wait_for_followup_started(followup_launch.artifacts_dir, followup_launch.pid)
 
     meta["monitor_settled"] = True
     write_agent_meta_atomic(

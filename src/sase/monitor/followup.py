@@ -130,11 +130,22 @@ def launch_followup_agent(
             spawn_fn=spawn_agent_subprocess,
         )
 
+    monitor_artifacts_dir = artifacts_dir
+
     def _record_launched_result(
-        agent_name: str | None, *, degraded_reason: str | None = None
+        agent_name: str | None,
+        *,
+        degraded_reason: str | None = None,
+        artifacts_dir: str | None = None,
+        pid: int | None = None,
     ) -> FollowupLaunchResult:
         return _record_launched(
-            artifacts_dir, meta, agent_name, degraded_reason=degraded_reason
+            monitor_artifacts_dir,
+            meta,
+            agent_name,
+            degraded_reason=degraded_reason,
+            launched_artifacts_dir=artifacts_dir,
+            pid=pid,
         )
 
     def _record_not_launchable_result(error: str, prompt: str) -> FollowupLaunchResult:
@@ -165,12 +176,16 @@ def _record_launched(
     agent_name: str | None,
     *,
     degraded_reason: str | None = None,
+    launched_artifacts_dir: str | None = None,
+    pid: int | None = None,
 ) -> FollowupLaunchResult:
     return record_followup_launched(
         artifacts_dir,
         meta,
         agent_name=agent_name,
         degraded_reason=degraded_reason,
+        launched_artifacts_dir=launched_artifacts_dir,
+        pid=pid,
         persistence=_FOLLOWUP_PERSISTENCE,
         update_meta_field=update_meta_field,
     )

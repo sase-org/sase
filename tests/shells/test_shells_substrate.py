@@ -15,6 +15,7 @@ from sase.shells.followup import (
     FollowupPersistence,
     fork_target_for_settled_starter,
     record_followup_launched,
+    wait_for_followup_started,
 )
 from sase.shells.handoff import (
     will_handoff_shell_to_agent_runner,
@@ -269,6 +270,8 @@ def test_record_followup_launched_uses_configured_agent_field() -> None:
         meta,
         agent_name="acme--1",
         degraded_reason=None,
+        launched_artifacts_dir="/tmp/followup",
+        pid=123,
         persistence=FollowupPersistence(
             agent_field="shell_followup_agent",
             error_field="shell_followup_error",
@@ -281,8 +284,80 @@ def test_record_followup_launched_uses_configured_agent_field() -> None:
     )
 
     assert result.launched is True
+    assert result.artifacts_dir == "/tmp/followup"
+    assert result.pid == 123
     assert meta["shell_followup_agent"] == "acme--1"
     assert updated["shell_followup_agent"] == "acme--1"
+
+
+def test_wait_for_followup_started_returns_true_when_run_started(
+    tmp_path: Path,
+) -> None:
+    followup_dir = tmp_path / "followup"
+    followup_dir.mkdir()
+    (followup_dir / "agent_meta.json").write_text(
+        json.dumps({"run_started_at": "2026-09-06T12:00:00+00:00"}),
+        encoding="utf-8",
+    )
+
+    assert wait_for_followup_started(str(followup_dir), None, timeout_seconds=0.01)
+
+
+def test_wait_for_followup_started_returns_false_on_done_marker(
+    tmp_path: Path,
+) -> None:
+    followup_dir = tmp_path / "followup"
+    followup_dir.mkdir()
+    (followup_dir / "agent_meta.json").write_text("{}", encoding="utf-8")
+    (followup_dir / "done.json").write_text("{}", encoding="utf-8")
+
+    assert not wait_for_followup_started(str(followup_dir), None, timeout_seconds=5.0)
+
+
+def test_wait_for_followup_started_rereads_meta_after_dead_pid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    followup_dir = tmp_path / "followup"
+    followup_dir.mkdir()
+    meta_path = followup_dir / "agent_meta.json"
+    meta_path.write_text("{}", encoding="utf-8")
+
+    def dead_after_start(_pid: int) -> bool:
+        meta_path.write_text(
+            json.dumps({"run_started_at": "2026-09-06T12:00:00+00:00"}),
+            encoding="utf-8",
+        )
+        return False
+
+    monkeypatch.setattr("sase.shells.followup._pid_is_running", dead_after_start)
+
+    assert wait_for_followup_started(str(followup_dir), 999, timeout_seconds=5.0)
+
+
+def test_wait_for_followup_started_returns_false_on_dead_pid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    followup_dir = tmp_path / "followup"
+    followup_dir.mkdir()
+    (followup_dir / "agent_meta.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr("sase.shells.followup._pid_is_running", lambda _pid: False)
+
+    assert not wait_for_followup_started(str(followup_dir), 999, timeout_seconds=5.0)
+
+
+def test_wait_for_followup_started_returns_false_on_timeout(
+    tmp_path: Path,
+) -> None:
+    followup_dir = tmp_path / "followup"
+    followup_dir.mkdir()
+    (followup_dir / "agent_meta.json").write_text("{}", encoding="utf-8")
+
+    assert not wait_for_followup_started(
+        str(followup_dir),
+        None,
+        timeout_seconds=0.01,
+        poll_seconds=0.01,
+    )
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]

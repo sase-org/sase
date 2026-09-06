@@ -172,7 +172,7 @@ def _reconcile_dead_supervisor_locked(
         metadata_llm_provider=_optional_str(meta.get("llm_provider")),
     )
 
-    followup_error = settle_claim_and_followup(
+    followup_settlement = settle_claim_and_followup(
         record.artifacts_dir,
         meta,
         monitor_state=monitor_state,
@@ -183,6 +183,7 @@ def _reconcile_dead_supervisor_locked(
         project_name=record.project_name,
         transfer_from_pid=record.pid,
     )
+    followup_error = followup_settlement.error
 
     meta["monitor_settled"] = True
     write_agent_meta_atomic(

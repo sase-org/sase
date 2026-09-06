@@ -45,13 +45,63 @@ def test_run_supervisor_holds_the_claim_when_the_followup_launch_succeeds(
     assert len(get_claimed_workspaces(project_file)) == 1
 
 
+def test_run_supervisor_persists_stopped_at_after_followup_start_wait(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts_dir, _project_file = _make_member(
+        tmp_path, command="true", next_action="Report that it finished."
+    )
+    followup_dir = tmp_path / "followup"
+    followup_dir.mkdir()
+    import sase.monitor.supervise as supervise_module
+
+    done_path = Path(artifacts_dir) / "done.json"
+    wait_calls: list[tuple[str, int | None]] = []
+
+    def fake_launch_success(
+        _artifacts_dir: str, meta: dict[str, object], **_kwargs: object
+    ) -> FollowupLaunchResult:
+        on_disk = json.loads((Path(_artifacts_dir) / "agent_meta.json").read_text())
+        assert "stopped_at" not in on_disk
+        assert isinstance(meta.get("stopped_at"), str)
+        meta["monitor_followup_agent"] = "acme--1"
+        return FollowupLaunchResult(
+            launched=True,
+            agent_name="acme--1",
+            artifacts_dir=str(followup_dir),
+            pid=123,
+        )
+
+    def fake_wait(artifacts_dir_arg: str, pid: int | None) -> bool:
+        on_disk = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+        assert "stopped_at" not in on_disk
+        assert not done_path.exists()
+        wait_calls.append((artifacts_dir_arg, pid))
+        return False
+
+    monkeypatch.setattr(supervise_module, "launch_followup_agent", fake_launch_success)
+    monkeypatch.setattr(supervise_module, "wait_for_followup_started", fake_wait)
+
+    run_supervisor(artifacts_dir)
+
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert wait_calls == [(str(followup_dir), 123)]
+    assert isinstance(meta.get("stopped_at"), str)
+    assert meta["monitor_settled"] is True
+    assert done_path.exists()
+
+
 def test_run_supervisor_records_degraded_followup_and_releases_monitor_claim(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     artifacts_dir, project_file = _make_member(
         tmp_path, command="true", next_action="Report that it finished."
     )
+    followup_dir = tmp_path / "followup"
+    followup_dir.mkdir()
     import sase.monitor.supervise as supervise_module
+
+    wait_calls: list[tuple[str, int | None]] = []
 
     def fake_launch_degraded(
         _artifacts_dir: str, meta: dict[str, object], **_kwargs: object
@@ -61,13 +111,21 @@ def test_run_supervisor_records_degraded_followup_and_releases_monitor_claim(
             launched=True,
             degraded_reason="fresh claim on the same workspace",
             agent_name="acme--1",
+            artifacts_dir=str(followup_dir),
+            pid=456,
         )
 
+    def fake_wait(artifacts_dir_arg: str, pid: int | None) -> bool:
+        wait_calls.append((artifacts_dir_arg, pid))
+        return True
+
     monkeypatch.setattr(supervise_module, "launch_followup_agent", fake_launch_degraded)
+    monkeypatch.setattr(supervise_module, "wait_for_followup_started", fake_wait)
 
     run_supervisor(artifacts_dir)
 
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert wait_calls == [(str(followup_dir), 456)]
     assert meta["monitor_followup_outcome"] == "launched-degraded"
     assert meta["monitor_followup_degraded_reason"] == (
         "fresh claim on the same workspace"
@@ -97,6 +155,11 @@ def test_run_supervisor_releases_the_claim_when_the_followup_launch_fails(
         return False
 
     monkeypatch.setattr(supervise_module, "launch_followup_agent", fake_launch_failure)
+    monkeypatch.setattr(
+        supervise_module,
+        "wait_for_followup_started",
+        lambda *_args: pytest.fail("failed follow-up launch should not wait"),
+    )
 
     run_supervisor(artifacts_dir)
 

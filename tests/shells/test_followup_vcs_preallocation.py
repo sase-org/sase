@@ -137,6 +137,7 @@ def test_launch_shell_followup_forwards_resolved_vcs_ref(
             workspace_num=workspace_num,
             workspace_dir=workspace_dir,
             output_path="/tmp/out",
+            artifacts_dir=str(tmp_path / "child-artifacts"),
             agent_name="acme--1",
         )
 
@@ -148,8 +149,14 @@ def test_launch_shell_followup_forwards_resolved_vcs_ref(
         compose_prompt=lambda _reason: "#gh:sase continue",
         spawn=spawn,
         workspace=_workspace_messages(),
-        record_launched=lambda name, *, degraded_reason=None: FollowupLaunchResult(
-            launched=True, agent_name=name, degraded_reason=degraded_reason
+        record_launched=lambda name, *, degraded_reason=None, artifacts_dir=None, pid=None: (
+            FollowupLaunchResult(
+                launched=True,
+                agent_name=name,
+                degraded_reason=degraded_reason,
+                artifacts_dir=artifacts_dir,
+                pid=pid,
+            )
         ),
         record_not_launchable=lambda error, prompt: FollowupLaunchResult(
             launched=False, error=error, prompt_path=None
@@ -158,6 +165,8 @@ def test_launch_shell_followup_forwards_resolved_vcs_ref(
     )
 
     assert result.launched is True
+    assert result.artifacts_dir == str(tmp_path / "child-artifacts")
+    assert result.pid == 1
     assert captured["vcs_ref"] == ("gh", "sase")
     env = _preallocated_workspace_env(
         captured["vcs_ref"],
@@ -228,8 +237,14 @@ def test_launch_shell_followup_zero_fallback_advertises_workspace_zero(
         ),
         spawn=spawn_zero_ok,
         workspace=_workspace_messages(),
-        record_launched=lambda name, *, degraded_reason=None: FollowupLaunchResult(
-            launched=True, agent_name=name, degraded_reason=degraded_reason
+        record_launched=lambda name, *, degraded_reason=None, artifacts_dir=None, pid=None: (
+            FollowupLaunchResult(
+                launched=True,
+                agent_name=name,
+                degraded_reason=degraded_reason,
+                artifacts_dir=artifacts_dir,
+                pid=pid,
+            )
         ),
         record_not_launchable=lambda error, prompt: FollowupLaunchResult(
             launched=False, error=error, prompt_path=None
@@ -238,6 +253,7 @@ def test_launch_shell_followup_zero_fallback_advertises_workspace_zero(
     )
 
     assert result.launched is True
+    assert result.pid == 1
     assert [call["workspace_num"] for call in calls] == [3, 3, 0]
     zero = calls[-1]
     assert zero["vcs_ref"] == ("gh", "sase")
@@ -282,8 +298,14 @@ def test_launch_shell_followup_without_vcs_sets_no_preallocation_env(
         compose_prompt=lambda _reason: "continue without a vcs tag",
         spawn=spawn,
         workspace=_workspace_messages(),
-        record_launched=lambda name, *, degraded_reason=None: FollowupLaunchResult(
-            launched=True, agent_name=name, degraded_reason=degraded_reason
+        record_launched=lambda name, *, degraded_reason=None, artifacts_dir=None, pid=None: (
+            FollowupLaunchResult(
+                launched=True,
+                agent_name=name,
+                degraded_reason=degraded_reason,
+                artifacts_dir=artifacts_dir,
+                pid=pid,
+            )
         ),
         record_not_launchable=lambda error, prompt: FollowupLaunchResult(
             launched=False, error=error, prompt_path=None
@@ -291,6 +313,7 @@ def test_launch_shell_followup_without_vcs_sets_no_preallocation_env(
     )
 
     assert result.launched is True
+    assert result.pid == 1
     assert captured["vcs_ref"] is None
     assert (
         _preallocated_workspace_env(

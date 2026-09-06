@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
@@ -43,6 +44,14 @@ _MONITOR_SETTLEMENT_CONFIG = ShellSettlementConfig(
 )
 
 
+@dataclass(frozen=True, slots=True)
+class _MonitorFollowupSettlementResult:
+    """Disposition recorded while settling a monitor follow-up."""
+
+    error: str | None = None
+    launch_result: FollowupLaunchResult | None = None
+
+
 def settle_claim_and_followup(
     artifacts_dir: str,
     meta: dict[str, Any],
@@ -55,17 +64,25 @@ def settle_claim_and_followup(
     project_name: str | None,
     transfer_from_pid: int | None = None,
     launch_followup: FollowupLauncher | None = None,
-) -> str | None:
+) -> _MonitorFollowupSettlementResult:
     """Launch/record follow-up disposition and dispose of the monitor claim."""
     launcher = launch_followup or launch_followup_agent
-    return settle_shell_claim_and_followup(
+    captured_launch_result: FollowupLaunchResult | None = None
+
+    def launch_and_capture(*args: Any, **kwargs: Any) -> bool | FollowupLaunchResult:
+        nonlocal captured_launch_result
+        raw = launcher(*args, **kwargs)
+        captured_launch_result = _coerce_monitor_followup_result(raw, meta)
+        return raw
+
+    error = settle_shell_claim_and_followup(
         artifacts_dir,
         meta,
         shell_state=monitor_state,
         project_name=project_name,
         config=_MONITOR_SETTLEMENT_CONFIG,
         release_claim=_release_monitor_claim_positional,
-        launch_followup=launcher,
+        launch_followup=launch_and_capture,
         launch_kwargs={
             "monitor_state": monitor_state,
             "exit_code": exit_code,
@@ -76,6 +93,33 @@ def settle_claim_and_followup(
             "transfer_from_pid": transfer_from_pid,
         },
         update_meta_field=update_meta_field,
+    )
+    return _MonitorFollowupSettlementResult(
+        error=error, launch_result=captured_launch_result
+    )
+
+
+def _coerce_monitor_followup_result(
+    raw: bool | FollowupLaunchResult,
+    meta: dict[str, Any],
+) -> FollowupLaunchResult:
+    """Coerce legacy boolean monitor follow-up launchers into a result."""
+    if isinstance(raw, FollowupLaunchResult):
+        return raw
+    if raw:
+        agent = meta.get(_MONITOR_SETTLEMENT_CONFIG.agent_field)
+        return FollowupLaunchResult(
+            launched=True,
+            agent_name=agent if isinstance(agent, str) and agent else None,
+        )
+    error = meta.get(_MONITOR_SETTLEMENT_CONFIG.error_field)
+    prompt_path = meta.get(_MONITOR_SETTLEMENT_CONFIG.prompt_path_field)
+    return FollowupLaunchResult(
+        launched=False,
+        error=error if isinstance(error, str) and error else None,
+        prompt_path=prompt_path
+        if isinstance(prompt_path, str) and prompt_path
+        else None,
     )
 
 
