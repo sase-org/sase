@@ -4,34 +4,36 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
 from ._entry_relaunch import (
     prepare_kill_edit_agent_prompt,
     resolve_agent_identity,
     schedule_relaunch_prompt_resolution,
 )
-from ._launch_delta import artifact_dir_from_launch_result
+from ._kill_last_launch_deferred import (
+    apply_deferred_launch_kill_on_completion,
+    register_pending_launch_kill as _register_pending_launch_kill,
+)
+from ._kill_last_launch_targets import (
+    ResolvedLaunchTargets as _ResolvedLaunchTargets,
+    agent_for_launch_result as _agent_for_launch_result,
+    is_gate_dismissable as _is_gate_dismissable,
+    launch_result_key as _launch_result_key,
+    mark_all_record_results_handled as _mark_all_record_results_handled,
+    matched_agents_for_record as _matched_agents_for_record,
+    notify_unresolved_launch_targets as _notify_unresolved_launch_targets,
+    resolve_agents_for_record as _resolve_agents_for_record_impl,
+)
 from ._launch_records import (
     LaunchRecord,
     LaunchRecordState,
     begin_resolved_launch_action,
     consume_launch_record,
     latest_live_launch_record,
-    launch_record_for_proc_id,
-    record_procs_are_terminal,
     release_resolved_launch_action,
-    release_kill_pending_launch_record,
 )
 from ._types import RelaunchOperation, current_prompt_session
-from ._relaunch_barrier import (
-    PENDING_LAUNCH_KILL_TIMEOUT_SECONDS,
-    open_relaunch_cleanup_barrier,
-    release_relaunch_holds_if_idle,
-    settle_relaunch_cleanup_barrier,
-)
 from ..navigation._agent_reveal import (
     AgentIdentity,
     prepare_agent_navigation_target,
@@ -39,60 +41,9 @@ from ..navigation._agent_reveal import (
 )
 
 if TYPE_CHECKING:
-    from sase.agent.launch_types import AgentLaunchResult
     from ...models import Agent
 
 log = logging.getLogger(__name__)
-
-_ADMISSION_DEFERRED_STATUSES = frozenset({"WAITING", "QUEUED"})
-
-
-@dataclass(frozen=True)
-class _ResolvedLaunchTargets:
-    """Exact target resolution for one session launch record."""
-
-    agents: tuple[Agent, ...]
-    unresolved_count: int = 0
-    handled_count: int = 0
-
-
-def _agent_for_launch_result(
-    agents: Sequence[Agent], result: AgentLaunchResult
-) -> Agent | None:
-    """Return the loaded row this session's own launch produced, if any."""
-    target = artifact_dir_from_launch_result(result)
-    if target is None:
-        return None
-    target_str = str(target)
-    for agent in agents:
-        found = agent.get_artifacts_dir()
-        if found == target_str:
-            return agent
-        raw = getattr(agent, "artifacts_dir", None)
-        if raw is not None and str(raw) == target_str:
-            return agent
-    return None
-
-
-def _matched_agents_for_record(
-    record: LaunchRecord, agents: Sequence[Agent]
-) -> list[Agent]:
-    """Join a resolved record's launch results to currently loaded rows.
-
-    Iterates in ``record.proc_ids`` order (launch/mark order); a result with
-    no loaded row (already killed or dismissed by hand since launch) is
-    skipped rather than treated as an error.
-    """
-    matched: list[Agent] = []
-    seen: set[AgentIdentity] = set()
-    for proc_id in record.proc_ids:
-        for result in record.results.get(proc_id, ()):
-            agent = _agent_for_launch_result(agents, result)
-            if agent is None or agent.identity in seen:
-                continue
-            seen.add(agent.identity)
-            matched.append(agent)
-    return matched
 
 
 def _resolve_agents_for_record(
@@ -100,170 +51,12 @@ def _resolve_agents_for_record(
     record: LaunchRecord,
     agents: Sequence[Agent],
 ) -> _ResolvedLaunchTargets:
-    """Resolve all unhandled launch results without treating cache misses as dead."""
-    pending_results = _unhandled_launch_results(record, _all_record_results(record))
-    if not pending_results:
-        return _ResolvedLaunchTargets(
-            agents=(),
-            handled_count=len(record.handled_result_keys),
-        )
-
-    loaded_matches = _matched_agents_for_record(record, agents)
-    if len(loaded_matches) == len(pending_results):
-        return _ResolvedLaunchTargets(agents=tuple(loaded_matches))
-
-    matched: list[Agent] = []
-    seen: set[object] = set()
-    unresolved = 0
-    handled = 0
-    for result in pending_results:
-        key = _launch_result_key(result)
-        if _launch_result_confirmed_handled(app, result):
-            record.handled_result_keys.add(key)
-            handled += 1
-            continue
-
-        agent = _agent_for_launch_result(agents, result)
-        if agent is None:
-            agent = _synthetic_agent_from_launch_result(result)
-            if agent is not None:
-                _ensure_agent_visible(app, agent)
-        if agent is None:
-            unresolved += 1
-            continue
-
-        identity = getattr(agent, "identity", id(agent))
-        if identity in seen:
-            continue
-        seen.add(identity)
-        matched.append(agent)
-
-    return _ResolvedLaunchTargets(
-        agents=tuple(matched),
-        unresolved_count=unresolved,
-        handled_count=handled,
-    )
-
-
-def _notify_unresolved_launch_targets(
-    app: object,
-    record: LaunchRecord,
-    count: int,
-) -> None:
-    _schedule_launch_target_refresh(app, _all_record_results(record))
-    suffix = "" if count == 1 else "s"
-    _notify(
+    return _resolve_agents_for_record_impl(
         app,
-        f'"{record.display_name}" still has {count} launch target{suffix} '
-        "resolving; press ,X again after refresh",
-        severity="warning",
+        record,
+        agents,
+        match_record_agents=_matched_agents_for_record,
     )
-
-
-def _launch_result_confirmed_handled(
-    app: object,
-    result: AgentLaunchResult,
-) -> bool:
-    dismissed_objects = tuple(getattr(app, "_dismissed_agent_objects", ()) or ())
-    if dismissed_objects and _agent_for_launch_result(dismissed_objects, result):
-        return True
-    dismissed: set[object] = getattr(app, "_dismissed_agents", set()) or set()
-    if not dismissed:
-        return False
-    synthetic = _synthetic_agent_from_launch_result(result)
-    identity = getattr(synthetic, "identity", None) if synthetic is not None else None
-    return identity in dismissed
-
-
-def _all_record_results(record: LaunchRecord) -> tuple[AgentLaunchResult, ...]:
-    results: list[AgentLaunchResult] = []
-    for proc_id in record.proc_ids:
-        results.extend(record.results.get(proc_id, ()))
-    return tuple(results)
-
-
-def _unhandled_launch_results(
-    record: LaunchRecord,
-    results: Sequence[AgentLaunchResult],
-) -> tuple[AgentLaunchResult, ...]:
-    pending: list[AgentLaunchResult] = []
-    for result in results:
-        key = _launch_result_key(result)
-        if key in record.handled_result_keys:
-            continue
-        if key in record.kill_in_progress_result_keys:
-            continue
-        pending.append(result)
-    return tuple(pending)
-
-
-def _record_results_are_handled(record: LaunchRecord) -> bool:
-    keys = {_launch_result_key(result) for result in _all_record_results(record)}
-    return (
-        bool(keys)
-        and not record.kill_in_progress_result_keys
-        and keys <= (record.handled_result_keys)
-    )
-
-
-def _mark_all_record_results_handled(record: LaunchRecord) -> None:
-    record.handled_result_keys.update(
-        _launch_result_key(result) for result in _all_record_results(record)
-    )
-
-
-def _launch_result_key(result: AgentLaunchResult) -> str:
-    artifact_dir = artifact_dir_from_launch_result(result)
-    if artifact_dir is not None:
-        return f"artifact:{Path(artifact_dir).expanduser()}"
-    artifacts_dir = getattr(result, "artifacts_dir", "")
-    if artifacts_dir:
-        return f"artifact:{Path(str(artifacts_dir)).expanduser()}"
-    output_path = getattr(result, "output_path", "")
-    if output_path:
-        return f"output:{Path(str(output_path)).expanduser()}"
-    return "|".join(
-        str(part)
-        for part in (
-            getattr(result, "project_name", ""),
-            getattr(result, "workflow_name", ""),
-            getattr(result, "timestamp", ""),
-            getattr(result, "workspace_dir", ""),
-            getattr(result, "workspace_num", ""),
-            getattr(result, "pid", ""),
-            getattr(result, "agent_name", ""),
-        )
-    )
-
-
-def _schedule_launch_target_refresh(
-    app: object,
-    results: Sequence[AgentLaunchResult],
-) -> None:
-    if results:
-        handle_delta = getattr(app, "_handle_launch_results_delta", None)
-        if callable(handle_delta):
-            try:
-                handle_delta(tuple(results), source="last_launch")
-                return
-            except TypeError:
-                handle_delta(tuple(results))
-                return
-    schedule_refresh = getattr(app, "_schedule_agents_async_refresh", None)
-    if callable(schedule_refresh):
-        schedule_refresh(source="last_launch")
-        return
-    request_refresh = getattr(app, "request_agents_refresh", None)
-    if callable(request_refresh):
-        request_refresh("last_launch")
-
-
-def _is_gate_dismissable(agent: Agent) -> bool:
-    if not getattr(agent, "is_gate", False):
-        return False
-    from sase.gate_shell.state import gate_state_is_terminal
-
-    return bool(gate_state_is_terminal(agent.gate_state) or agent.stop_time)
 
 
 class KillAndEditLastLaunchMixin:
@@ -575,6 +368,11 @@ class KillAndEditLastLaunchMixin:
                         relaunch_operation=relaunch_operation,
                     )
 
+                from ._relaunch_barrier import (
+                    open_relaunch_cleanup_barrier,
+                    settle_relaunch_cleanup_barrier,
+                )
+
                 barrier = open_relaunch_cleanup_barrier(
                     self,
                     f"kill-and-edit last launch ({len(exact_agents)} agent(s))",
@@ -606,319 +404,6 @@ class KillAndEditLastLaunchMixin:
             failure_message="Unable to prepare last-launch relaunch prompts",
             on_error=lambda: finish(False),
         )
-
-
-def apply_deferred_launch_kill_on_completion(
-    app: object,
-    proc_id: str,
-    results: Sequence[AgentLaunchResult | None],
-    *,
-    failed: bool,
-    admission_complete: bool = True,
-) -> None:
-    """Kill or abandon a ``KILL_PENDING`` record when *proc_id* becomes terminal.
-
-    Called from the launch-completion callback after record stamping. A
-    successful payload kills every returned result through the ordinary
-    kill/dismiss path; a failure with no results discards the pending
-    intent. The replacement-launch hold stays up until every proc on the
-    record is terminal and any cleanup barrier opened here settles.
-    """
-    record = launch_record_for_proc_id(app, proc_id)
-    if record is None or record.state is not LaunchRecordState.KILL_PENDING:
-        return
-
-    present = tuple(result for result in results if result is not None)
-    if present:
-        _execute_deferred_kill_for_results(
-            app,
-            record,
-            present,
-            admission_complete=admission_complete,
-        )
-    elif failed:
-        _notify(
-            app,
-            f'Launch of "{record.display_name}" failed; kill-on-finish was cancelled',
-            severity="warning",
-        )
-
-    if record_procs_are_terminal(record):
-        _finish_pending_launch_kill(app, record)
-
-
-def _register_pending_launch_kill(
-    app: object,
-    record: LaunchRecord,
-    *,
-    operation: RelaunchOperation,
-) -> None:
-    """Mark *record* ``KILL_PENDING`` and start its warn-and-release timer."""
-    if record.state is LaunchRecordState.KILL_PENDING:
-        return
-    record.relaunch_operation = operation
-    record.state = LaunchRecordState.KILL_PENDING
-    timers = getattr(app, "_pending_launch_kill_timers", None)
-    if timers is None:
-        timers = {}
-        cast(Any, app)._pending_launch_kill_timers = timers
-    if record.proc_ids in timers:
-        return
-    set_timer = getattr(app, "set_timer", None)
-    timer = None
-    proc_ids = record.proc_ids
-    if callable(set_timer):
-        timer = set_timer(
-            PENDING_LAUNCH_KILL_TIMEOUT_SECONDS,
-            lambda: _pending_launch_kill_timed_out(app, proc_ids),
-            name="pending-launch-kill-timeout",
-        )
-    timers[proc_ids] = timer
-    _execute_deferred_kill_for_results(
-        app,
-        record,
-        _all_record_results(record),
-        admission_complete=True,
-    )
-    if record_procs_are_terminal(record):
-        _finish_pending_launch_kill(app, record)
-
-
-def _pending_launch_kill_timed_out(app: object, proc_ids: tuple[str, ...]) -> None:
-    """Abandon auto-kill after the in-flight budget and release parked launches."""
-    if not proc_ids:
-        return
-    record = launch_record_for_proc_id(app, proc_ids[0])
-    if record is None or record.proc_ids != proc_ids:
-        return
-    if record.state is not LaunchRecordState.KILL_PENDING:
-        return
-    _stop_pending_kill_timer(app, record)
-    release_kill_pending_launch_record(record)
-    _notify(
-        app,
-        f'"{record.display_name}" took too long to finish launching; '
-        "it will appear and can be killed with ,x",
-        severity="warning",
-    )
-    release_relaunch_holds_if_idle(app, operation=record.relaunch_operation)
-
-
-def _finish_pending_launch_kill(app: object, record: LaunchRecord) -> None:
-    """Clear pending-kill bookkeeping once every proc on *record* is terminal."""
-    _stop_pending_kill_timer(app, record)
-    if record.state is LaunchRecordState.KILL_PENDING:
-        if _record_results_are_handled(record):
-            consume_launch_record(record)
-        else:
-            release_kill_pending_launch_record(record)
-    release_relaunch_holds_if_idle(app, operation=record.relaunch_operation)
-
-
-def _stop_pending_kill_timer(app: object, record: LaunchRecord) -> None:
-    timers = getattr(app, "_pending_launch_kill_timers", None)
-    if not timers:
-        return
-    timer = timers.pop(record.proc_ids, None)
-    if timer is None:
-        return
-    stop = getattr(timer, "stop", None)
-    if callable(stop):
-        try:
-            stop()
-        except Exception:
-            pass
-
-
-def _execute_deferred_kill_for_results(
-    app: object,
-    record: LaunchRecord,
-    results: Sequence[AgentLaunchResult],
-    *,
-    admission_complete: bool,
-) -> None:
-    pending = _unhandled_launch_results(record, results)
-    if not pending:
-        return
-    pending_keys = {_launch_result_key(result) for result in pending}
-    record.kill_in_progress_result_keys.update(pending_keys)
-
-    agents = _agents_for_deferred_kill(app, pending)
-    if not agents:
-        record.kill_in_progress_result_keys.difference_update(pending_keys)
-        _schedule_launch_target_refresh(app, pending)
-        _notify(
-            app,
-            f'Could not find launched agent(s) of "{record.display_name}" to kill',
-            severity="warning",
-        )
-        return
-
-    killable, dismissable = _split_deferred_kill_targets(agents)
-    barrier = open_relaunch_cleanup_barrier(
-        app,
-        f"deferred kill {record.display_name}",
-        operation=record.relaunch_operation,
-    )
-    settle: Callable[[], None] = lambda: settle_relaunch_cleanup_barrier(  # noqa: E731
-        app, barrier
-    )
-    initiated = _initiate_deferred_kill(app, killable, dismissable, settle)
-    record.kill_in_progress_result_keys.difference_update(pending_keys)
-    if not initiated:
-        record.kill_failed_result_keys.update(pending_keys)
-        settle()
-        _notify(
-            app,
-            f'Could not start cleanup for launched agent(s) of "{record.display_name}"',
-            severity="warning",
-        )
-        return
-    record.handled_result_keys.update(pending_keys)
-    record.kill_failed_result_keys.difference_update(pending_keys)
-    if not admission_complete:
-        _notify(
-            app,
-            f'Killed launched units of "{record.display_name}"; '
-            "gated units continue in the background",
-            severity="warning",
-        )
-
-
-def _initiate_deferred_kill(
-    app: object,
-    killable: list[Agent],
-    dismissable: list[Agent],
-    settle: Callable[[], None],
-) -> bool:
-    """Start the ordinary kill/dismiss path. Return whether *settle* will fire."""
-    if len(killable) + len(dismissable) == 1 and len(dismissable) == 1:
-        dismiss = getattr(app, "_dismiss_done_agent", None)
-        if callable(dismiss):
-            return bool(dismiss(dismissable[0], on_settled=settle))
-        return False
-    if len(killable) + len(dismissable) == 1 and len(killable) == 1:
-        kill = getattr(app, "_do_kill_agent", None)
-        if callable(kill):
-            return bool(kill(killable[0], on_settled=settle))
-        return False
-    bulk = getattr(app, "_do_bulk_kill_agents", None)
-    if callable(bulk):
-        return bool(bulk(killable, dismissable, on_settled=settle))
-    return False
-
-
-def _agents_for_deferred_kill(
-    app: object, results: Sequence[AgentLaunchResult]
-) -> list[Agent]:
-    loaded = tuple(
-        getattr(app, "_agents_with_children", None)
-        or getattr(app, "_agents", None)
-        or ()
-    )
-    matched: list[Agent] = []
-    seen: set[object] = set()
-    for result in results:
-        agent = _agent_for_launch_result(loaded, result)
-        if agent is None:
-            agent = _synthetic_agent_from_launch_result(result)
-            if agent is not None:
-                _ensure_agent_visible(app, agent)
-                loaded = tuple(
-                    getattr(app, "_agents_with_children", None)
-                    or getattr(app, "_agents", None)
-                    or ()
-                )
-        if agent is None:
-            continue
-        identity = getattr(agent, "identity", id(agent))
-        if identity in seen:
-            continue
-        seen.add(identity)
-        matched.append(agent)
-    return matched
-
-
-def _ensure_agent_visible(app: object, agent: Agent) -> None:
-    """Inject *agent* so bulk/single kill can see it in ``_agents_with_children``."""
-    children = getattr(app, "_agents_with_children", None)
-    if not isinstance(children, list):
-        cast(Any, app)._agents_with_children = [agent]
-        children = app._agents_with_children  # type: ignore[attr-defined]
-    identity = getattr(agent, "identity", None)
-    if identity is not None and any(
-        getattr(existing, "identity", None) == identity for existing in children
-    ):
-        return
-    children.append(agent)
-    agents = getattr(app, "_agents", None)
-    if isinstance(agents, list) and agent not in agents:
-        agents.append(agent)
-
-
-def _synthetic_agent_from_launch_result(result: AgentLaunchResult) -> Agent | None:
-    """Build a killable row from a launch result when the Agents tab has none yet."""
-    from sase.ace.tui.models._timestamps import normalize_to_14_digit
-    from sase.ace.tui.models.agent import Agent, AgentType
-
-    artifact_dir = artifact_dir_from_launch_result(result)
-    artifacts_dir = (
-        str(artifact_dir)
-        if artifact_dir is not None
-        else (result.artifacts_dir or None)
-    )
-    if artifacts_dir is None:
-        return None
-    raw_suffix = normalize_to_14_digit(result.timestamp)
-    if raw_suffix is None and artifacts_dir:
-        from pathlib import Path
-
-        raw_suffix = normalize_to_14_digit(Path(artifacts_dir).name)
-    pid = result.pid if result.pid else None
-    cl_name = result.cl_name or result.agent_name or "agent"
-    status = "WAITING" if pid is None else "RUNNING"
-    return Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name=cl_name,
-        project_file=result.project_file or "",
-        status=status,
-        start_time=None,
-        pid=pid,
-        raw_suffix=raw_suffix,
-        artifacts_dir=artifacts_dir,
-        agent_name=result.agent_name or cl_name,
-        workspace_num=result.workspace_num or None,
-        workflow=result.workflow_name or None,
-    )
-
-
-def _split_deferred_kill_targets(
-    agents: Sequence[Agent],
-) -> tuple[list[Agent], list[Agent]]:
-    from ..agents._core import DISMISSABLE_STATUSES
-
-    killable: list[Agent] = []
-    dismissable: list[Agent] = []
-    for agent in agents:
-        status = getattr(agent, "status", "")
-        if (
-            status in _ADMISSION_DEFERRED_STATUSES
-            or status in DISMISSABLE_STATUSES
-            or getattr(agent, "pid", None) is None
-        ):
-            dismissable.append(agent)
-        else:
-            killable.append(agent)
-    return killable, dismissable
-
-
-def _notify(app: object, message: str, *, severity: str | None = None) -> None:
-    notify = getattr(app, "notify", None)
-    if callable(notify):
-        if severity is None:
-            notify(message)
-        else:
-            notify(message, severity=severity)
 
 
 __all__ = [
