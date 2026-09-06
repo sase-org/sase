@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -81,6 +81,7 @@ def execute_commit_finalizer(
     stitch_runner: StitchRunner | None = None,
     resume_runner: ResumeRunner | None = None,
     ledger: InstanceLedger | None = None,
+    ledger_before_already_clean: Sequence[Mapping[str, Any]] | None = None,
 ) -> BuiltinCommitExecution:
     """Execute accepted ``commit`` declarations through ``sase stitch create``."""
 
@@ -102,6 +103,11 @@ def execute_commit_finalizer(
     # the declaration look stale. Stitch checks use a later snapshot so they
     # still require their own markers.
     ledger_before_reconciliation = _load_commit_results(artifacts)
+    already_clean_ledger_before = (
+        ledger_before_already_clean
+        if ledger_before_already_clean is not None
+        else ledger_before_reconciliation
+    )
     state = prepare_commit_dirty_state(project_dir, artifacts)
     ledger_after_reconciliation = _load_commit_results(artifacts)
     dirty_before_decisions = state.dirty_state
@@ -232,7 +238,7 @@ def execute_commit_finalizer(
             attempts=attempts,
             evidence=evidence,
             invoke_result=current_result,
-            ledger_before=ledger_before_reconciliation,
+            ledger_before=already_clean_ledger_before,
         )
 
     if not accepted_repos and state.dirty_state.is_clean:
@@ -344,11 +350,19 @@ def execute_commit_finalizer(
             ),
         )
     if attempt_id is None:
+        success_attempts: Sequence[FinalizerAttemptWire] = ()
+        if ledger is not None and ledger.attempts:
+            success_attempts = (
+                FinalizerAttemptWire(
+                    attempt=ledger.allocate_attempt(),
+                    status="success",
+                ),
+            )
         return BuiltinCommitExecution(
             invoke_result=current_result,
             result=_success_result(
                 instance.instance_id,
-                attempts=(),
+                attempts=success_attempts,
                 evidence=evidence,
                 diagnostics=diagnostics,
             ),

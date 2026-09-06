@@ -29,7 +29,8 @@ from sase.finalizers.config import (
     FinalizerConfig,
     FinalizerFieldProvenance,
 )
-from sase.finalizers.controller import _write_aggregate_result
+from sase.finalizers.commit import BuiltinCommitExecution, BuiltinCommitFinalizerError
+from sase.finalizers.controller import _run_budgeted_commit, _write_aggregate_result
 from sase.finalizers.executor import (
     FinalizerExecutionContext,
     execute_non_commit_finalizer,
@@ -40,6 +41,7 @@ from sase.finalizers.ledger import (
     run_budgeted_attempts,
 )
 from sase.finalizers.providers import FinalizerProviderRecord
+from sase.llm_provider.types import InvokeResult
 
 
 def _config(
@@ -281,6 +283,176 @@ def test_reactivation_does_not_exceed_host_attempt_budget() -> None:
     assert calls["n"] == 0
     assert result.status == "failed"
     assert result.attempts[-1].diagnostic_code == "attempt_budget_exhausted"
+
+
+def test_commit_no_progress_failure_after_retryable_attempt_is_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance = _instance("commit", "builtin@commit", max_attempts=2)
+    ledger = InstanceLedger("commit", max_attempts=2)
+    context = FinalizerExecutionContext(
+        artifacts_dir=str(tmp_path),
+        plan_digest="sha256:test",
+    )
+    calls = {"n": 0}
+    fresh_failures: list[FinalizerInstanceResultWire] = []
+
+    def fake_execute(*_args: object, **kwargs: object) -> BuiltinCommitExecution:
+        calls["n"] += 1
+        call_ledger = kwargs["ledger"]
+        assert isinstance(call_ledger, InstanceLedger)
+        if calls["n"] == 1:
+            attempt = call_ledger.consume_before_execute()
+            result = FinalizerInstanceResultWire(
+                instance_id="commit",
+                status="failed",
+                attempts=[
+                    FinalizerAttemptWire(
+                        attempt=attempt,
+                        status="failed",
+                        diagnostic_code="stitch_failed",
+                    )
+                ],
+                diagnostics=[
+                    FinalizerDiagnosticWire(
+                        code="stitch_failed",
+                        message="after-commit hook failed",
+                        severity="error",
+                        instance_id="commit",
+                        attempt=attempt,
+                    )
+                ],
+            )
+            raise BuiltinCommitFinalizerError(
+                "after-commit hook failed",
+                result=result,
+                invoke_result=InvokeResult(content="attempt 1"),
+            )
+        result = FinalizerInstanceResultWire(
+            instance_id="commit",
+            status="failed",
+            diagnostics=[
+                FinalizerDiagnosticWire(
+                    code="dirty_work_discarded",
+                    message="accepted repo vanished without proof",
+                    severity="error",
+                    instance_id="commit",
+                )
+            ],
+        )
+        fresh_failures.append(result)
+        raise BuiltinCommitFinalizerError(
+            "accepted repo vanished without proof",
+            result=result,
+            invoke_result=InvokeResult(content="attempt 2"),
+        )
+
+    monkeypatch.setattr(
+        "sase.finalizers.controller.execute_commit_finalizer",
+        fake_execute,
+    )
+
+    with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
+        _run_budgeted_commit(
+            instance,
+            context,
+            ledger,
+            provider=object(),
+            invoke_result=InvokeResult(content="done"),
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            options=None,
+            artifacts_dir=str(tmp_path),
+        )
+
+    assert calls["n"] == 2
+    assert ledger.consumed == 1
+    assert not is_retryable_result(fresh_failures[0])
+    terminal = exc_info.value.result
+    assert terminal is not None
+    assert [item.attempt for item in terminal.attempts] == [1]
+    assert [item.code for item in terminal.diagnostics] == [
+        "stitch_failed",
+        "dirty_work_discarded",
+    ]
+
+
+def test_commit_consumed_retryable_failure_still_retries_within_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance = _instance("commit", "builtin@commit", max_attempts=2)
+    ledger = InstanceLedger("commit", max_attempts=2)
+    context = FinalizerExecutionContext(
+        artifacts_dir=str(tmp_path),
+        plan_digest="sha256:test",
+    )
+    calls = {"n": 0}
+
+    def fake_execute(*_args: object, **kwargs: object) -> BuiltinCommitExecution:
+        calls["n"] += 1
+        call_ledger = kwargs["ledger"]
+        assert isinstance(call_ledger, InstanceLedger)
+        attempt = call_ledger.consume_before_execute()
+        if calls["n"] == 1:
+            result = FinalizerInstanceResultWire(
+                instance_id="commit",
+                status="failed",
+                attempts=[
+                    FinalizerAttemptWire(
+                        attempt=attempt,
+                        status="failed",
+                        diagnostic_code="stitch_failed",
+                    )
+                ],
+                diagnostics=[
+                    FinalizerDiagnosticWire(
+                        code="stitch_failed",
+                        message="after-commit hook failed",
+                        severity="error",
+                        instance_id="commit",
+                        attempt=attempt,
+                    )
+                ],
+            )
+            raise BuiltinCommitFinalizerError(
+                "after-commit hook failed",
+                result=result,
+                invoke_result=InvokeResult(content="attempt 1"),
+            )
+        return BuiltinCommitExecution(
+            invoke_result=InvokeResult(content="attempt 2"),
+            result=FinalizerInstanceResultWire(
+                instance_id="commit",
+                status="success",
+                attempts=[FinalizerAttemptWire(attempt=attempt, status="success")],
+            ),
+        )
+
+    monkeypatch.setattr(
+        "sase.finalizers.controller.execute_commit_finalizer",
+        fake_execute,
+    )
+
+    execution = _run_budgeted_commit(
+        instance,
+        context,
+        ledger,
+        provider=object(),
+        invoke_result=InvokeResult(content="done"),
+        model_tier="large",
+        suppress_output=True,
+        model_override=None,
+        options=None,
+        artifacts_dir=str(tmp_path),
+    )
+
+    assert calls["n"] == 2
+    assert execution.result.status == "success"
+    assert [item.attempt for item in execution.result.attempts] == [1, 2]
+    assert execution.invoke_result.content == "attempt 2"
 
 
 def test_ledger_merges_evidence_across_attempts() -> None:

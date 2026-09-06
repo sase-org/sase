@@ -161,7 +161,7 @@ def run_budgeted_attempts(
         if ledger.consumed == consumed_before:
             return ledger.record(result)
         merged = ledger.record(result)
-        if is_retryable_result(merged) and ledger.remaining() > 0:
+        if is_retryable_result(result) and ledger.remaining() > 0:
             continue
         return merged
 

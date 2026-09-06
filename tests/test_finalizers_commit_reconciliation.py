@@ -18,9 +18,11 @@ from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult
 
 from .finalizers_commit_reconciliation_test_helpers import (
+    marker,
     patch_commit_state,
     persist_and_submit_commit,
     prepare_agent_env,
+    write_commit_results,
 )
 
 
@@ -184,3 +186,50 @@ def test_stale_commit_results_do_not_prove_clean_transition(
         )
 
     runner.assert_not_called()
+
+
+def test_prior_attempt_marker_proves_already_clean_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    artifacts = tmp_path / "artifacts"
+    dirty = {"value": True}
+    prepare_agent_env(monkeypatch, artifacts, repo)
+    patch_commit_state(monkeypatch, repo, dirty)
+    calls = {"n": 0}
+
+    def fail_after_commit(
+        _repo_arg: DirtyRepo,
+        _message: str,
+        _excludes: tuple[str, ...],
+        _context: object,
+    ) -> StitchCommandResult:
+        calls["n"] += 1
+        dirty["value"] = False
+        write_commit_results(
+            artifacts,
+            [marker(repo, sha="c" * 40, tree="d" * 40)],
+        )
+        return StitchCommandResult(returncode=1, stderr="after-commit hook failed\n")
+
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", fail_after_commit)
+
+    persist_and_submit_commit(artifacts)
+    result = run_finalizers(
+        provider=MagicMock(),
+        original_prompt="do work",
+        invoke_result=InvokeResult(content="done"),
+        model_tier="large",
+        suppress_output=True,
+        model_override=None,
+        artifacts_dir=str(artifacts),
+    )
+
+    assert result.content == "done"
+    assert calls["n"] == 1
+    aggregate = json.loads(
+        (artifacts / "finalizer_result.json").read_text(encoding="utf-8")
+    )
+    assert aggregate["status"] == "success"

@@ -14,6 +14,7 @@ from sase.finalizers.commit import (
     BuiltinCommitFinalizerError,
     execute_commit_finalizer,
 )
+from sase.finalizers.commit_repair import load_commit_results as _load_commit_results
 from sase.finalizers.config import FinalizerConfigDiagnostic
 from sase.finalizers.controller_context import (
     FinalizerControllerError,
@@ -48,6 +49,7 @@ from sase.finalizers.plan import (
     authenticate_resolved_finalizer_plan_full,
 )
 from sase.finalizers.providers import BUILTIN_COMMIT_PROVIDER_REF
+from sase.llm_provider.commit_finalizer_artifacts import artifact_root
 from sase.llm_provider.types import ModelTier
 
 
@@ -420,6 +422,7 @@ def _run_budgeted_commit(
     original_prompt: str | None = None,
 ) -> BuiltinCommitExecution:
     current_result = invoke_result
+    ledger_before_run = _load_commit_results(artifact_root(context.artifacts_dir))
     while True:
         consumed_before = ledger.consumed
         try:
@@ -433,6 +436,7 @@ def _run_budgeted_commit(
                 model_override=model_override,
                 options=options,
                 ledger=ledger,
+                ledger_before_already_clean=ledger_before_run,
             )
         except BuiltinCommitFinalizerError as exc:
             if (
@@ -460,13 +464,18 @@ def _run_budgeted_commit(
                     model_override=model_override,
                     options=options,
                     ledger=ledger,
+                    ledger_before_already_clean=ledger_before_run,
                 )
                 return BuiltinCommitExecution(
                     invoke_result=execution.invoke_result,
                     result=ledger.record(execution.result),
                 )
             merged = ledger.record(exc.result)
-            if is_retryable_result(merged) and ledger.remaining() > 0:
+            if (
+                ledger.consumed > consumed_before
+                and is_retryable_result(exc.result)
+                and ledger.remaining() > 0
+            ):
                 if exc.invoke_result is not None:
                     current_result = exc.invoke_result
                 continue
