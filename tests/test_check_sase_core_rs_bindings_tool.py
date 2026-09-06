@@ -83,6 +83,15 @@ def test_scan_finds_direct_and_forwarded_binding_names(
     assert "save_dismissed_agent_group" in names
 
 
+def test_scan_finds_artifact_context_query_bindings(
+    real_source_scan: tuple[set[str], list[str]],
+) -> None:
+    names, problems = real_source_scan
+    assert problems == []
+    assert "artifact_context_query" in names
+    assert "artifact_context_query_wire_schema_version" in names
+
+
 def test_required_bindings_include_pre_facade_contracts(tool: ModuleType) -> None:
     expected = {
         "feature_flag_state_get",

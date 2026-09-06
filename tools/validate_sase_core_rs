@@ -157,6 +157,8 @@ REQUIRED_BINDINGS = (
     "artifact_ref_file_row_validate",
     "artifact_ref_files_fold",
     "artifact_ref_file_index_wire_schema_version",
+    "artifact_context_query",
+    "artifact_context_query_wire_schema_version",
     "sdd_artifact_link_parse",
     "sdd_artifact_link_render",
     "sdd_artifact_link_upsert",
