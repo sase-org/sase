@@ -33,7 +33,7 @@ from sase.ace.tui.actions.agent_workflow._relaunch_barrier import (
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
 from sase.ace.tui.proc_observer import ObservedProc
 
-from tests.ace.tui.test_kill_and_edit_last_launch import (
+from tests.ace.tui._kill_and_edit_last_launch_helpers import (
     _FakeAgent,
     _artifacts_dir,
     _context,
