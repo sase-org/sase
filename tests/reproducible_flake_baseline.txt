@@ -62,7 +62,7 @@
 # in-flight launch" (committed 2026-08-17T08:54:01Z). The foreign lock holder
 # forked from a multi-threaded xdist worker; it now takes the same flock
 # in-process, which no fork hazard can reach.
-# fixed-at: 2026-08-17T08:54:01Z tests/test_plan_approval_actions_epic.py::test_headless_epic_approval_submits_while_inflight_launch_holds_anchor
+# fixed-at: 2026-08-17T08:54:01Z tests/test_plan_approval_actions.py::test_headless_epic_approval_submits_while_inflight_launch_holds_anchor
 #
 # sase-ob: stop exact == on TemporaryProviderDisable timestamps after the
 # JSON store round-trip. The sibling disable is checked by provider/source/
@@ -142,9 +142,13 @@ tests/test_models_panel_edit_outcomes.py::test_on_alias_edited_offers_commit_whe
 # sase-pg
 tests/main/test_completion_candidates_contract.py::test_candidates_fast_path_wall_clock_budget[agent]
 tests/main/test_completion_candidates_contract.py::test_candidates_fast_path_wall_clock_budget[monitor]
-# sase-pr
-tests/completion/test_snapshot.py::test_checked_in_snapshot_has_no_drift
-tests/completion/test_snapshot.py::test_current_structural_view_matches_checked_in_snapshot
+# sase-o0 / sase-pr: fixed by caa7917ac "feat(cli): canonicalize host
+# producers for the fleet cutover" (committed 2026-09-06T13:54:28Z), the
+# latest cli_spec.json regeneration after the recorded CLI/snapshot drift
+# windows. Earlier drift was also repaired by 6f5df19d6 and later resyncs, but
+# post-fix records required the final current snapshot instant.
+# fixed-at: 2026-09-06T13:54:28Z tests/completion/test_snapshot.py::test_checked_in_snapshot_has_no_drift
+# fixed-at: 2026-09-06T13:54:28Z tests/completion/test_snapshot.py::test_current_structural_view_matches_checked_in_snapshot
 # sase-rm.10 (sase-qm): the commits interaction test now waits for collection
 # and diff worker completion/callback delivery instead of a generic pause.
 # fixed-at: 2026-08-21T10:03:43Z tests/ace/tui/test_commits_pane_interactions.py::test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles
@@ -275,6 +279,11 @@ tests/ace/tui/test_agents_pane_mount.py::test_agents_pane_mounts_activates_and_l
 # records for the Artifacts subtab-order assertion.
 # fixed-at: 2026-08-26T13:45:55Z tests/ace/tui/test_artifacts_scaffold.py::test_subtab_strip_labels_and_accents_cover_all_panes
 #
+# sase-o0 / sase-x7.2.1.3: fixed by bea92ce92 "feat(migration-kit): add
+# driver operation catalog" (committed 2026-09-06T03:06:11Z), which registered
+# the migration_kit/atomic.py removal contexts in the operation audit catalog.
+# fixed-at: 2026-09-06T03:06:11Z tests/test_agent_artifact_directory_operation_audit.py::test_artifact_directory_operation_sites_are_reviewed
+#
 # sase-r2: Pipe family-member creation flakes under the full parallel lane and
 # passes isolated; ready flake task has independent corroboration.
 tests/fakey/test_pipe_e2e.py::test_default_pipe_creates_family_member_with_fork_and_shared_workspace
@@ -296,9 +305,9 @@ tests/ace/tui/artifacts_contract/test_no_ref_prefix_dispatch.py::test_behavioral
 # lane; ready flake task owns the parser/global-state investigation.
 tests/main/test_parser_command_help.py::test_agents_help_renders_sorted_subcommands
 #
-# sase-o0 / sase-n8.3: the existing fixed-at line retires known pre-fix
+# sase-xk / sase-n8.3: the existing fixed-at line retires known pre-fix
 # evidence, but later stale-tree records still exceed the current gate window.
-# Keep this as filed debt until the retirement declaration is corrected.
+# Keep this as filed debt until the post-fix full-lane failures are resolved.
 tests/main/test_var_integration.py::test_var_cli_end_to_end_refreshes_index_and_round_trips_machine_outputs
 #
 # sase-ux: both link_traversing_pager source/target parametrizations flake
