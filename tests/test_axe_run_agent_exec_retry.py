@@ -1,5 +1,6 @@
 """Tests for run_agent_exec_retry continuation-nudge behavior."""
 
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -9,13 +10,31 @@ from sase.axe.run_agent_exec_retry import (
     _maybe_prepend_continuation,
     handle_workflow_error,
 )
-from sase.llm_provider.retry_config import ProviderRetryConfig, get_retry_config
+from sase.llm_provider.retry_config import (
+    ProviderRetryConfig,
+    RetryState,
+    get_retry_config,
+)
 from tests._axe_run_agent_exec_retry_helpers import (
     _restore_model_override_env,  # noqa: F401 (registers the autouse fixture)
     config_with_nudge,
     make_ctx,
     make_ctx_with_update_target,
     make_state,
+)
+
+_CODEX_TRANSIENT_FAILURE = (
+    "ERROR codex_api::endpoint::responses_websocket: failed to connect to "
+    "websocket: HTTP error: 403 Forbidden, "
+    "url: wss://chatgpt.com/backend-api/codex/responses Reconnecting 5/5\n"
+    "[turn.failed] exceeded retry limit, last status: 429 Too Many Requests"
+)
+
+_CODEX_INPUT_TOO_LARGE_FAILURE = (
+    "[turn.failed] turn/start failed: JSON-RPC error -32602: "
+    "input validation failed; input_error_code=input_too_large; "
+    "max_chars=1048576; actual_chars=1913445; "
+    "warning: stale rollout path /tmp/codex-rollout"
 )
 
 
@@ -210,6 +229,127 @@ class TestHandleWorkflowErrorNoNudge:
 
         assert action == "continue"
         assert state.current_prompt == "Original prompt."
+
+
+class TestHandleWorkflowErrorCodexDefaults:
+    def test_codex_input_too_large_failure_does_not_retry(self, tmp_path: Path) -> None:
+        ctx = replace(make_ctx_with_update_target(tmp_path), agent_llm_provider="codex")
+        state = make_state("Do the work.")
+        tracker = RetryTracker(retry_cfg=None, execution_provider="codex")
+
+        with (
+            patch(
+                "sase.llm_provider.retry_config.load_merged_config",
+                return_value={},
+            ),
+            patch("sase.axe.run_agent_exec_retry.time.sleep") as sleep,
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_exec_retry.prepare_workspace",
+                MagicMock(),
+            ) as prepare,
+        ):
+            action = handle_workflow_error(
+                RuntimeError(_CODEX_INPUT_TOO_LARGE_FAILURE),
+                tracker,
+                ctx,
+                state,
+            )
+
+        assert action == "raise"
+        assert tracker.retry_count == 0
+        assert RetryState.read_from(ctx.artifacts_dir) is None
+        sleep.assert_not_called()
+        prepare.assert_not_called()
+
+    def test_codex_transient_default_retries_with_preserved_workspace(
+        self, tmp_path: Path
+    ) -> None:
+        ctx = replace(make_ctx_with_update_target(tmp_path), agent_llm_provider="codex")
+        state = make_state("Do the work.")
+        with patch(
+            "sase.llm_provider.retry_config.load_merged_config",
+            return_value={},
+        ):
+            retry_cfg = get_retry_config("codex")
+        assert retry_cfg is not None
+        tracker = RetryTracker(retry_cfg=retry_cfg, execution_provider="codex")
+
+        with (
+            patch("sase.axe.run_agent_exec_retry.time.sleep") as sleep,
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_exec_retry.prepare_workspace",
+                MagicMock(),
+            ) as prepare,
+        ):
+            action = handle_workflow_error(
+                RuntimeError(_CODEX_TRANSIENT_FAILURE),
+                tracker,
+                ctx,
+                state,
+            )
+
+        retry_state = RetryState.read_from(ctx.artifacts_dir)
+        assert action == "continue"
+        assert tracker.retry_count == 1
+        assert retry_state is not None
+        assert retry_state.status == "running_retry"
+        assert retry_state.retry_count == 1
+        assert "transient provider failure" in state.current_prompt
+        assert "Do the work." in state.current_prompt
+        assert sleep.call_count == 60
+        prepare.assert_not_called()
+
+
+class TestHandleWorkflowErrorSpawnNewAgent:
+    def test_spawn_new_agent_retry_uses_fresh_shell_when_opted_in(
+        self, tmp_path: Path
+    ) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state("Do the work.")
+        cfg = ProviderRetryConfig(
+            max_retries=2,
+            error_patterns=["transient provider failure"],
+            wait_times=[0],
+            continuation_prompt="NUDGE",
+            preserve_workspace=True,
+            spawn_new_agent=True,
+        )
+        tracker = RetryTracker(retry_cfg=cfg, execution_provider="codex")
+        spawn_result = {
+            "child_artifacts_timestamp": "20260906010101",
+            "chain_root_timestamp": "20260906000000",
+            "handoff_path": str(tmp_path / "retry_handoff.json"),
+            "error_category": "transient_provider_failure",
+        }
+
+        with (
+            patch("sase.axe.run_agent_exec_retry.time.sleep", MagicMock()),
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_retry_spawn.spawn_retry_agent",
+                return_value=spawn_result,
+            ) as spawn,
+            patch("sase.axe.run_agent_retry_spawn.mark_parent_retried") as mark_parent,
+            patch(
+                "sase.axe.run_agent_exec_retry.prepare_workspace",
+                MagicMock(),
+            ) as prepare,
+        ):
+            action = handle_workflow_error(
+                RuntimeError("transient provider failure"),
+                tracker,
+                ctx,
+                state,
+            )
+
+        assert action == "break"
+        assert tracker.retry_count == 1
+        assert state.loop_outcome == "failed_retried"
+        spawn.assert_called_once()
+        mark_parent.assert_called_once()
+        prepare.assert_not_called()
 
 
 class TestHandleWorkflowErrorPostPhaseTransition:

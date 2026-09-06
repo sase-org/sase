@@ -301,6 +301,13 @@ def _resolve_agent_fork_source(name: str) -> ForkSource:
     agent = resolve_resume_agent_name(name)
     if agent is not None:
         artifact_dir = Path(agent.artifacts_dir)
+        meta = read_json_dict(artifact_dir / "agent_meta.json") or {}
+        if is_real_monitor_member(
+            json_string(meta, "agent_family_role"),
+            json_string(meta, "monitor_id"),
+        ):
+            return resolve_monitor_fork_source(agent.name, artifact_dir)
+
         done = read_json_dict(artifact_dir / "done.json") or {}
         outcome = json_string(done, "outcome") or agent.outcome
         if outcome in FAILURE_OUTCOMES:

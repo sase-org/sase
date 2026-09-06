@@ -323,6 +323,48 @@ def test_family_lookup_combines_legacy_and_qualified_local_relations(
     ]
 
 
+def test_family_lookup_accepts_dotted_numeric_family_roots(
+    tmp_path: Path,
+) -> None:
+    base_name = "sase-x7.3.1.5"
+    _make_agent(
+        tmp_path,
+        "proj",
+        "20260701010101",
+        f"{base_name}--plan",
+        workflow_name=base_name,
+        agent_family=base_name,
+        role_suffix="--plan",
+        done=True,
+    )
+    newest = _make_agent(
+        tmp_path,
+        "proj",
+        "20260701010202",
+        f"{base_name}--code",
+        workflow_name=base_name,
+        agent_family=base_name,
+        role_suffix="--code",
+        parent_timestamp="20260701010101",
+        done=True,
+        outcome="completed",
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        family = find_agent_family(base_name)
+        legacy_parent = find_agent_family("sase-x7.3.1")
+        resolved = resolve_resume_agent_name(base_name)
+
+    assert family is not None
+    assert [member.name for member in family.members] == [
+        f"{base_name}--plan",
+        f"{base_name}--code",
+    ]
+    assert legacy_parent is None
+    assert resolved is not None
+    assert resolved.artifacts_dir == str(newest)
+
+
 def test_resume_family_name_uses_newest_completed_renamed_member(
     tmp_path: Path,
 ) -> None:

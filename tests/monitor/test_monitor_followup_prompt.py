@@ -7,6 +7,7 @@ from sase.llm_provider.preprocessing import (
     preprocess_prompt_late,
 )
 from sase.monitor.followup_prompt import compose_followup_prompt
+from sase.shells.prompt import OUTPUT_TAIL_MAX_CHARS
 from sase.xprompt._disabled_regions import disabled_region_ranges
 from sase.xprompt._literal_zones import code_literal_ranges, literal_zone_ranges
 from sase.xprompt.directives import extract_prompt_directives
@@ -144,6 +145,24 @@ def test_compose_followup_prompt_tail_is_limited_to_the_requested_line_count() -
     assert "## Last 3 lines of output" in prompt
     assert "line 497\nline 498\nline 499" in prompt
     assert "line 0\n" not in prompt
+
+
+def test_compose_followup_prompt_tail_is_limited_to_character_budget() -> None:
+    common = dict(_COMMON)
+    common["output_text"] = "discard:" + ("x" * OUTPUT_TAIL_MAX_CHARS)
+    common["tail_lines"] = 1
+    prompt = compose_followup_prompt(
+        starter_name="acme--0",
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=1.0,
+        timeout_seconds=0.0,
+        **common,
+    )
+
+    assert "Output tail truncated: omitted 8 earlier characters." in prompt
+    assert "discard:" not in prompt
+    _assert_inside_any_region(prompt, "Output tail truncated")
 
 
 def test_compose_followup_prompt_command_and_cwd_are_fenced_not_inline_code() -> None:

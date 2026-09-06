@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+from sase.agent.fork_waits import fork_wait_dependency
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.procs import Proc, append_proc
 from tests._agent_chat_from_name_helpers import write_agent
@@ -480,6 +481,92 @@ class TestExtractDirectivesImplicitForkWait:
                 "project_name": "proj",
             }
         ]
+
+    def test_dotted_numeric_family_fork_records_root_identity(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+        base_name = "sase-x7.3.1.5"
+        root = write_agent(
+            tmp_path,
+            "20260801010101",
+            f"{base_name}--plan",
+            meta={"agent_family": base_name, "workflow_name": base_name},
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="expanded prompt",
+                raw_resolved_prompt=f"#fork:{base_name} do stuff",
+            )
+
+        assert result["info"].wait_names == [base_name]
+        assert result["info"].wait_fork_sources == [
+            {
+                "kind": "family",
+                "name": base_name,
+                "artifact_dir": str(root),
+                "timestamp": root.name,
+                "project_name": "proj",
+            }
+        ]
+
+    def test_monitor_member_fork_records_proc_identity(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+        write_agent(
+            tmp_path,
+            "20260801010101",
+            "cx--mon",
+            done={"outcome": "monitored"},
+            meta={
+                "agent_family": "cx",
+                "agent_family_role": "monitor",
+                "monitor_id": "mon0123456789ab",
+            },
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="expanded prompt",
+                raw_resolved_prompt="#fork:cx--mon do stuff",
+            )
+
+        assert result["info"].wait_fork_sources == [
+            {
+                "kind": "proc",
+                "name": "cx--mon",
+                "proc_id": "mon0123456789ab",
+            }
+        ]
+
+    def test_monitor_starter_fork_records_agent_identity(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+        starter = write_agent(
+            tmp_path,
+            "20260801010101",
+            "starter",
+            done={"outcome": "completed"},
+            meta={"monitor_id": "mon0123456789ab"},
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            source = fork_wait_dependency("starter")
+
+        assert source == {
+            "kind": "agent",
+            "name": "starter",
+            "artifact_dir": str(starter),
+            "timestamp": starter.name,
+            "project_name": "proj",
+        }
 
     def test_clan_fork_records_generation_identity(
         self, tmp_path: Path, monkeypatch

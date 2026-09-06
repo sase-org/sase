@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import sase.scripts._agent_chat_from_name_monitor as monitor_source
 from sase.scripts.agent_chat_from_name import (
     _ForkFamilyMemberSource,
     _resolve_agent_chat_sources,
@@ -174,3 +175,45 @@ def test_explicit_monitor_member_fork_resolves_as_proc_source(
     assert source.proc is not None
     assert source.proc.is_monitor is True
     assert source.proc.proc_id == "mon0123456789ab"
+
+
+def test_resolved_monitor_artifact_fork_resolves_as_proc_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    _write_monitor_member(
+        tmp_path,
+        "20260718010202",
+        "watcher",
+        parent_timestamp="20260718010101",
+        done={"outcome": "monitored", "monitor_state": "completed"},
+    )
+
+    source = _resolve_agent_chat_sources(["watcher"])[0]
+
+    assert source.kind == "proc"
+    assert source.name == "watcher"
+    assert source.proc is not None
+    assert source.proc.is_monitor is True
+    assert source.proc.proc_id == "mon0123456789ab"
+
+
+def test_missing_monitor_record_for_resolved_artifact_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    _write_monitor_member(
+        tmp_path,
+        "20260718010202",
+        "watcher",
+        parent_timestamp="20260718010101",
+        done={"outcome": "monitored", "monitor_state": "completed"},
+    )
+    monkeypatch.setattr(
+        monitor_source,
+        "read_monitor_marker",
+        lambda project_name, artifacts_dir: None,
+    )
+
+    with pytest.raises(RuntimeError, match="Monitor record for agent 'watcher'"):
+        _resolve_agent_chat_sources(["watcher"])

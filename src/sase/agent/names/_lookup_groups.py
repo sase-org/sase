@@ -19,6 +19,10 @@ from sase.core.dismissed_agent_completion import (
     ArchivedAgentCompletion,
     load_archived_agent_completions,
 )
+from sase.core.agent_identity_facade import (
+    AgentFamilyNameKind,
+    parse_agent_family_name,
+)
 from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
     agent_family_base,
@@ -326,7 +330,7 @@ def find_agent_family(base_name: str) -> AgentFamily | None:
 
 def _find_agent_family_exact(base_name: str) -> AgentFamily | None:
     """Return one exact durable family spelling."""
-    if not base_name or is_agent_family_member(base_name):
+    if not base_name or _is_canonical_agent_family_member_name(base_name):
         return None
 
     members = _iter_family_members(base_name)
@@ -363,6 +367,13 @@ def _find_agent_family_exact(base_name: str) -> AgentFamily | None:
         root=None,
         members=tuple(sorted(members, key=lambda member: member.timestamp)),
     )
+
+
+def _is_canonical_agent_family_member_name(name: str) -> bool:
+    try:
+        return parse_agent_family_name(name).kind is AgentFamilyNameKind.MEMBER
+    except (RuntimeError, ValueError):
+        return False
 
 
 def is_agent_family_complete(base_name: str) -> bool | None:

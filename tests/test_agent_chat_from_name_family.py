@@ -154,6 +154,39 @@ def test_family_source_includes_completed_members_in_chain_order(
     assert explicit_member.path == str(planner_chat)
 
 
+def test_dotted_numeric_family_root_resolves_as_family_not_legacy_child(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    base_name = "sase-x7.3.1.5"
+    planner_chat = tmp_path / "planner.md"
+    coder_chat = tmp_path / "coder.md"
+    write_agent(
+        tmp_path,
+        "20260718010101",
+        f"{base_name}--plan",
+        done={"response_path": str(planner_chat), "outcome": "completed"},
+        meta={"workflow_name": base_name, "agent_family": base_name},
+    )
+    write_agent(
+        tmp_path,
+        "20260718010202",
+        f"{base_name}--code",
+        done={"response_path": str(coder_chat), "outcome": "completed"},
+        meta={"agent_family": base_name, "parent_timestamp": "20260718010101"},
+    )
+
+    source = _resolve_agent_chat_sources([base_name])[0]
+
+    assert _resolve_agent_chat_path(base_name) == str(coder_chat)
+    assert source.kind == "family"
+    assert source.name == base_name
+    assert [member.name for member in source.members] == [
+        f"{base_name}--plan",
+        f"{base_name}--code",
+    ]
+
+
 def test_family_source_includes_intermediate_handoff_without_done_marker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

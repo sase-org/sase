@@ -7,6 +7,7 @@ from sase.gate_shell.followup_prompt import (
     compose_gate_followup_prompt,
     format_gate_outcome_line,
 )
+from sase.shells.prompt import OUTPUT_TAIL_MAX_CHARS
 from sase.xprompt._disabled_regions import disabled_region_ranges
 from sase.xprompt.directives import extract_prompt_directives
 
@@ -239,6 +240,26 @@ def test_widens_the_fence_around_backticks_in_output_tail() -> None:
 
     assert "````text" in prompt
     assert prompt.count("````") == 2
+
+
+def test_output_tail_reports_line_and_character_truncation() -> None:
+    prompt = compose_gate_followup_prompt(
+        fork_target=None,
+        answered=True,
+        outcome_line="ANSWERED — Clean up",
+        answered_via="cli",
+        options=(),
+        output=("tail",),
+        output_text="old line\n" + ("y" * (OUTPUT_TAIL_MAX_CHARS + 1)),
+        tail_lines=1,
+        **_COMMON,
+    )
+
+    assert (
+        "Output tail truncated: omitted 1 earlier line and 1 earlier character."
+        in prompt
+    )
+    assert "old line" not in prompt
 
 
 def test_body_is_exactly_one_disabled_region() -> None:

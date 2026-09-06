@@ -21,8 +21,12 @@ from sase.agent.names._lookup_groups import (
 )
 from sase.agent.names._lookup_named import find_named_agent
 from sase.agent.names._templates import resolve_agent_name_template_reference
+from sase.core.agent_identity_facade import (
+    AgentFamilyNameKind,
+    parse_agent_family_name,
+)
 from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
-from sase.plan_chain import AGENT_FAMILY_FIELD, is_agent_family_member
+from sase.plan_chain import AGENT_FAMILY_FIELD
 
 
 def _self_parallel_family_root(
@@ -92,11 +96,18 @@ def resolve_resume_agent_name(name: str) -> NamedAgent | None:
         ):
             return self_root
         return None
-    if not is_agent_family_member(name):
+    if not _is_canonical_agent_family_member_name(name):
         family_member = most_recent_completed_family_member(name)
         if family_member is not None:
             return family_member
     return find_named_agent(name, only_done=True)
+
+
+def _is_canonical_agent_family_member_name(name: str) -> bool:
+    try:
+        return parse_agent_family_name(name).kind is AgentFamilyNameKind.MEMBER
+    except (RuntimeError, ValueError):
+        return False
 
 
 def resolve_wait_dependency(name: str) -> bool:

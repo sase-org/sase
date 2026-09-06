@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
+from sase.agent.names._lookup_artifacts import read_json_dict
+from sase.monitor_state import is_real_monitor_member
 
 
 def fork_wait_dependency(name: str) -> dict[str, str]:
@@ -33,6 +35,17 @@ def fork_wait_dependency(name: str) -> dict[str, str]:
 
     agent = find_named_agent(name)
     if agent is not None:
+        meta = read_json_dict(Path(agent.artifacts_dir) / "agent_meta.json") or {}
+        monitor_id = _json_string(meta, "monitor_id")
+        if monitor_id is not None and is_real_monitor_member(
+            _json_string(meta, "agent_family_role"),
+            monitor_id,
+        ):
+            return {
+                "kind": "proc",
+                "name": agent.name,
+                "proc_id": monitor_id,
+            }
         return {
             "kind": "agent",
             "name": agent.name,
@@ -67,6 +80,11 @@ def _project_name_for_artifact_dir(artifact_dir: Path) -> str:
     except (OSError, RuntimeError, ValueError):
         return ""
     return info.project_name if info is not None else ""
+
+
+def _json_string(data: dict[str, object], field: str) -> str | None:
+    value = data.get(field)
+    return value if isinstance(value, str) and value else None
 
 
 def _resolved_proc_id(name: str) -> str | None:

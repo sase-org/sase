@@ -21,6 +21,10 @@ from sase.agent.names import (
     resolve_resume_agent_name,
 )
 from sase.core.agent_tribe import parse_tribe_reference
+from sase.core.agent_identity_facade import (
+    AgentFamilyNameKind,
+    parse_agent_family_name,
+)
 from sase.core.dismissed_agent_completion import (
     ArchivedAgentCompletion,
     archived_response_path,
@@ -129,13 +133,25 @@ def validate_readable_transcript(name: str, transcript_path: str) -> None:
 
 def find_family_member(name: str) -> AgentFamilyMember | None:
     """Return the exact member represented by a recognized family-child name."""
-    base_name = agent_family_base(name, include_legacy_dash=True)
+    base_name = _canonical_family_member_base(name)
     if base_name is None:
-        return None
+        base_name = agent_family_base(name, include_legacy_dash=True)
+        if base_name is None or find_agent_family(name) is not None:
+            return None
     family = find_agent_family(base_name)
     if family is None:
         return None
     return next((member for member in family.members if member.name == name), None)
+
+
+def _canonical_family_member_base(name: str) -> str | None:
+    try:
+        parsed = parse_agent_family_name(name)
+    except (RuntimeError, ValueError):
+        return None
+    if parsed.kind is not AgentFamilyNameKind.MEMBER:
+        return None
+    return parsed.family_name
 
 
 def resolve_done_response_path(name: str) -> str | None:

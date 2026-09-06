@@ -15,7 +15,9 @@ def resolve_monitor_fork_source(name: str, artifacts_dir: Path) -> ForkSource:
     """Resolve one explicitly named monitor family member as a proc source."""
     record = read_family_monitor_marker(artifacts_dir)
     if record is None:
-        raise RuntimeError(f"No agent with chat history found for: {name}")
+        raise RuntimeError(
+            f"Monitor record for agent '{name}' is not readable: {artifacts_dir}"
+        )
     return ForkSource(
         kind="proc",
         name=name,

@@ -42,6 +42,7 @@ REQUIRED_BINDINGS = (
     "inline_code_ranges",
     "fenced_block_ranges",
     "fenced_block_details",
+    "tail_text_by_lines_and_chars",
     "scan_directive_owned_fences",
     "code_value_wire_schema_version",
     "commit_footer_wire_schema_version",

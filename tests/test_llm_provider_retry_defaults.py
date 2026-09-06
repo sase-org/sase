@@ -34,6 +34,13 @@ _CODEX_PERSISTENT_AUTH_FAILURE = (
     "ERROR: authentication failed: 403 Forbidden — invalid API credentials"
 )
 
+_CODEX_INPUT_TOO_LARGE_FAILURE = (
+    "[turn.failed] turn/start failed: JSON-RPC error -32602: "
+    "input validation failed; input_error_code=input_too_large; "
+    "max_chars=1048576; actual_chars=1913445; "
+    "warning: stale rollout path /tmp/codex-rollout"
+)
+
 
 class TestBuiltInDefaults:
     """Built-in retry defaults for universal failure modes."""
@@ -331,6 +338,17 @@ class TestCodexBuiltInDefaults:
         assert config is not None
         assert is_retryable_error(_CODEX_PERSISTENT_AUTH_FAILURE, config) is False
         assert find_retry_config_for_error(_CODEX_PERSISTENT_AUTH_FAILURE) is None
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_codex_input_too_large_failure_not_retried(
+        self, mock_config: object
+    ) -> None:
+        """Codex input-size validation failures are terminal, not transient."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_retry_config("codex")
+        assert config is not None
+        assert is_retryable_error(_CODEX_INPUT_TOO_LARGE_FAILURE, config) is False
+        assert find_retry_config_for_error(_CODEX_INPUT_TOO_LARGE_FAILURE) is None
 
     @patch("sase.llm_provider.retry_config.load_merged_config")
     def test_codex_user_config_merges_with_built_in(self, mock_config: object) -> None:
