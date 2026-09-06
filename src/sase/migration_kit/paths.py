@@ -86,6 +86,11 @@ def restores_dir() -> Path:
     return _ensure_dir(_cutover_backup_root() / "restores")
 
 
+def runs_dir() -> Path:
+    """Return the directory holding migration manifests, journals, and receipts."""
+    return _ensure_dir(_cutover_backup_root() / "runs")
+
+
 def backup_dir(backup_id: str) -> Path:
     """Return the directory for one specific backup id."""
     return backups_dir() / backup_id
@@ -94,3 +99,39 @@ def backup_dir(backup_id: str) -> Path:
 def backup_payload_dir(backup_id: str) -> Path:
     """Return the payload subtree of one backup, mirroring the source root."""
     return backup_dir(backup_id) / "payload"
+
+
+def run_dir(run_id: str) -> Path:
+    """Return the durable directory for one planned or applied migration run."""
+    return runs_dir() / run_id
+
+
+def run_manifest_path(run_id: str) -> Path:
+    """Return the manifest path for one migration run."""
+    return run_dir(run_id) / "manifest.json"
+
+
+def run_journal_path(run_id: str) -> Path:
+    """Return the append-only journal path for one migration run."""
+    return run_dir(run_id) / "journal.jsonl"
+
+
+def run_lock_path(run_id: str) -> Path:
+    """Return the bounded lock path for one migration run."""
+    return run_dir(run_id) / "run.lock"
+
+
+def run_receipt_path(run_id: str) -> Path:
+    """Return the final receipt path for one migration run."""
+    return run_dir(run_id) / "receipt.json"
+
+
+def operation_archive_dir(
+    backup_id: str,
+    *,
+    run_id: str,
+    operation: str,
+    action_id: str,
+) -> Path:
+    """Return the per-action archive directory inside a verified backup tree."""
+    return backup_dir(backup_id) / "migration-archives" / run_id / operation / action_id

@@ -19,10 +19,31 @@ def handle_migrate_command(args: argparse.Namespace) -> None:
     if sub == "backup":
         _handle_backup(args)
         return
+    if sub == "list":
+        _handle_list(args)
+        return
+    if sub == "plan":
+        _handle_plan(args)
+        return
     if sub == "restore":
         _handle_restore(args)
         return
-    print("Usage: sase migrate {backup,restore}", file=sys.stderr)
+    if sub == "resume":
+        _handle_resume(args)
+        return
+    if sub == "run":
+        _handle_run(args)
+        return
+    if sub == "status":
+        _handle_status(args)
+        return
+    if sub == "verify":
+        _handle_verify(args)
+        return
+    print(
+        "Usage: sase migrate {backup,list,plan,restore,resume,run,status,verify}",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 
@@ -77,6 +98,28 @@ def _render_backup_outcome(outcome: object) -> None:
         console.print(Text(error, style="red"))
     if outcome.ok and outcome.dry_run:
         console.print("Run again with [bold]--apply[/bold] to commit.")
+
+
+def _handle_list(args: argparse.Namespace) -> None:
+    from sase.migration_kit.driver import list_operations
+
+    outcome = list_operations(
+        root=Path(args.root) if getattr(args, "root", None) else None,
+        home=Path(args.home) if getattr(args, "home", None) else None,
+    )
+    _print_driver_outcome(outcome, json_output=bool(getattr(args, "json", False)))
+
+
+def _handle_plan(args: argparse.Namespace) -> None:
+    from sase.migration_kit.driver import plan_operation
+
+    outcome = plan_operation(
+        args.operation,
+        root=Path(args.root) if getattr(args, "root", None) else None,
+        home=Path(args.home) if getattr(args, "home", None) else None,
+        backup_id=getattr(args, "backup_id", None),
+    )
+    _print_driver_outcome(outcome, json_output=bool(getattr(args, "json", False)))
 
 
 def _handle_restore(args: argparse.Namespace) -> None:
@@ -135,3 +178,94 @@ def _render_restore_outcome(outcome: object) -> None:
         console.print("Run again with [bold]--apply[/bold] to swap it into place.")
     for error in outcome.errors:
         console.print(Text(error, style="red"))
+
+
+def _handle_resume(args: argparse.Namespace) -> None:
+    from sase.migration_kit.driver import resume_run
+
+    outcome = resume_run(
+        args.run_id,
+        apply=bool(getattr(args, "apply", False)),
+        lock_timeout_ms=int(getattr(args, "lock_timeout_ms", 5000)),
+    )
+    _print_driver_outcome(outcome, json_output=bool(getattr(args, "json", False)))
+
+
+def _handle_run(args: argparse.Namespace) -> None:
+    from sase.migration_kit.driver import run_manifest
+
+    outcome = run_manifest(
+        Path(args.manifest),
+        apply=bool(getattr(args, "apply", False)),
+        lock_timeout_ms=int(getattr(args, "lock_timeout_ms", 5000)),
+    )
+    _print_driver_outcome(outcome, json_output=bool(getattr(args, "json", False)))
+
+
+def _handle_status(args: argparse.Namespace) -> None:
+    from sase.migration_kit.driver import status_runs
+
+    outcome = status_runs()
+    _print_driver_outcome(outcome, json_output=bool(getattr(args, "json", False)))
+
+
+def _handle_verify(args: argparse.Namespace) -> None:
+    from sase.migration_kit.driver import verify_run
+
+    outcome = verify_run(args.run_id)
+    _print_driver_outcome(outcome, json_output=bool(getattr(args, "json", False)))
+
+
+def _print_driver_outcome(outcome: object, *, json_output: bool) -> None:
+    from rich.console import Console
+    from rich.table import Table
+    from rich.text import Text
+
+    from sase.migration_kit.driver import MigrationCommandOutcome
+
+    assert isinstance(outcome, MigrationCommandOutcome)
+    if json_output:
+        print(json.dumps(outcome.to_json_dict(), indent=2, sort_keys=True))
+        sys.exit(0 if outcome.ok else 1)
+
+    console = Console()
+    color = "green" if outcome.ok else "red"
+    console.print(
+        f"[bold {color}]sase migrate {outcome.command}[/bold {color}] · "
+        f"{outcome.message}"
+    )
+    if outcome.run_id:
+        console.print(f"  run id: [bold]{outcome.run_id}[/bold]")
+    if outcome.manifest_path:
+        console.print(f"  manifest: [bold]{outcome.manifest_path}[/bold]")
+    if outcome.receipt_path:
+        console.print(f"  receipt: [bold]{outcome.receipt_path}[/bold]")
+
+    if outcome.command == "list":
+        table = Table("operation", "backup", "apply", "roots", box=None)
+        for row in outcome.details.get("operations", []):
+            if not isinstance(row, dict):
+                continue
+            table.add_row(
+                str(row["name"]),
+                "yes" if row.get("backup_required") else "no",
+                "yes" if row.get("apply_supported") else "no",
+                ", ".join(str(item) for item in row.get("roots", [])),
+            )
+        console.print(table)
+    elif outcome.command == "status":
+        table = Table("run", "operation", "state", "resumable", box=None)
+        for row in outcome.details.get("runs", []):
+            if not isinstance(row, dict):
+                continue
+            table.add_row(
+                str(row.get("run_id") or ""),
+                str(row.get("operation") or ""),
+                str(row.get("state") or ""),
+                "yes" if row.get("resumable") else "no",
+            )
+        console.print(table)
+
+    for error in outcome.errors:
+        console.print(Text(error, style="red"))
+    sys.exit(0 if outcome.ok else 1)

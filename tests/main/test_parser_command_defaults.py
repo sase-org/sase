@@ -66,6 +66,7 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
         "sase flag",
         "sase memory",
         "sase memory agent-docs",
+        "sase migrate",
         "sase notify",
         "sase plan links",
         "sase prompt",

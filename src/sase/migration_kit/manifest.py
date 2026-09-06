@@ -2,14 +2,10 @@
 
 TEMPORARY MODULE: deletion owner sase-x7.14.
 
-These are plain Python dataclasses, not the Rust ``MigrationBackupRecord``
-wire type ``kit-contract`` added to ``sase_core``: the ``migration_*``
-bindings are not yet published on a released ``sase-core-rs`` (see the
-``sase-x7.2.1.1`` follow-up), so this module cannot call through them without
-either importing an unpublished binding or vendoring a Python
-reimplementation of the wire contract -- both forbidden. ``kit-driver``
-reconciles this on-disk shape with ``MigrationBackupRecord`` once a core
-release exposes the bindings.
+These are backup-capture dataclasses for the ``MANIFEST.json`` written next to
+copied payloads. The migration driver converts this backup-local shape into
+the Rust-normalized migration manifest and backup-record wire shapes when it
+plans or applies an operation.
 """
 
 from __future__ import annotations

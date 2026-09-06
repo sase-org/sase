@@ -1,4 +1,4 @@
-"""Parser tests for ``sase migrate backup`` and ``sase migrate restore``."""
+"""Parser tests for the temporary ``sase migrate`` command group."""
 
 from __future__ import annotations
 
@@ -71,17 +71,12 @@ def test_restore_accepts_root_override() -> None:
 
 
 def test_bare_migrate_parses_with_no_subcommand_selected() -> None:
-    """Neither ``backup`` nor ``restore`` is required at the argparse level.
-
-    The handler prints usage and exits 1 for a bare invocation; ``kit-driver``
-    later adds a ``list`` child that ``_default_list_subcommands()`` wires as
-    the bare default, matching every other command group's convention.
-    """
     parser = create_parser(only="migrate")
 
     args = parser.parse_args(["migrate"])
 
-    assert args.migrate_subcommand is None
+    assert args.migrate_subcommand == "list"
+    assert args.json is False
 
 
 def test_migrate_subcommand_options_are_never_required() -> None:
@@ -94,8 +89,53 @@ def test_migrate_subcommand_options_are_never_required() -> None:
         if isinstance(action, argparse._SubParsersAction)
     )
 
-    for subcommand in ("backup", "restore"):
+    for subcommand in (
+        "backup",
+        "list",
+        "plan",
+        "restore",
+        "resume",
+        "run",
+        "status",
+        "verify",
+    ):
         sub_parser = migrate_sub_action.choices[subcommand]
         for action in sub_parser._actions:
             if action.option_strings:
                 assert action.required is False, (subcommand, action.option_strings)
+
+
+def test_migrate_driver_subcommands_parse() -> None:
+    parser = create_parser(only="migrate")
+
+    listed = parser.parse_args(["migrate", "list", "-j", "-r", "/tmp/sase-home"])
+    planned = parser.parse_args(
+        [
+            "migrate",
+            "plan",
+            "state-residue",
+            "-b",
+            "backup-id",
+            "-d",
+            "/tmp/home",
+        ]
+    )
+    resumed = parser.parse_args(["migrate", "resume", "run-id", "-a", "-l", "10"])
+    run = parser.parse_args(["migrate", "run", "/tmp/manifest.json", "-a", "-j"])
+    status = parser.parse_args(["migrate", "status", "-j"])
+    verify = parser.parse_args(["migrate", "verify", "run-id", "-j"])
+
+    assert listed.migrate_subcommand == "list"
+    assert listed.json is True
+    assert listed.root == "/tmp/sase-home"
+    assert planned.operation == "state-residue"
+    assert planned.backup_id == "backup-id"
+    assert planned.home == "/tmp/home"
+    assert resumed.apply is True
+    assert resumed.lock_timeout_ms == 10
+    assert run.manifest == "/tmp/manifest.json"
+    assert run.apply is True
+    assert run.json is True
+    assert status.migrate_subcommand == "status"
+    assert status.json is True
+    assert verify.run_id == "run-id"

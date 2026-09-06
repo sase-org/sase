@@ -120,6 +120,21 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "directory."
         ),
     ),
+    "src/sase/migration_kit/atomic.py:_remove_path": DirOpReview(
+        exemption=(
+            "Removes only migration-kit temporary staging paths created in the "
+            "destination directory for atomic writes and archive copies, not "
+            "agent artifact directories."
+        ),
+    ),
+    "src/sase/migration_kit/atomic.py:remove_path": DirOpReview(
+        exemption=(
+            "Removes only operation-declared residue after the migration driver "
+            "has recorded a manifest, passed digest/backup gates, and promoted "
+            "an archive copy; import-state artifact cleanup uses the reviewed "
+            "purge-local-state path instead."
+        ),
+    ),
     "src/sase/main/workspace_handler_migration.py:handle_migrate": DirOpReview(
         exemption=(
             "Moves a workspace checkout directory under a managed root, not an "

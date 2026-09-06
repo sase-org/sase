@@ -12665,8 +12665,8 @@
       },
       {
         "aliases": [],
-        "default_child": null,
-        "description_digest": "9038fac89bfcf11d",
+        "default_child": "list",
+        "description_digest": "59d42d334aae0b42",
         "hidden": false,
         "mutex_groups": [],
         "name": "migrate",
@@ -12765,6 +12765,155 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "3ef353e1bb6a40d9",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "list",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "home",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-d",
+                  "--home"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "root",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-r",
+                  "--root"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "migrate",
+              "list"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "0d6ffd89cbb8d0d3",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "plan",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "backup_id",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-b",
+                  "--backup-id"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "home",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-d",
+                  "--home"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "root",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-r",
+                  "--root"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "migrate",
+              "plan"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "operation",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "<operation>",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "8f0ceeffabdfa96a",
             "hidden": false,
             "mutex_groups": [],
@@ -12830,6 +12979,241 @@
                 "is_remainder": false,
                 "kind": null,
                 "metavar": "<backup-id>",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "6e512a5346204051",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "resume",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "apply",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-a",
+                  "--apply"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "lock_timeout_ms",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-l",
+                  "--lock-timeout-ms"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "migrate",
+              "resume"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "run_id",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "<run-id>",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "94504fdad08e28d5",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "run",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "apply",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-a",
+                  "--apply"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "lock_timeout_ms",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-l",
+                  "--lock-timeout-ms"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "migrate",
+              "run"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "manifest",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "<manifest>",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "a338b303b7a213c5",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "status",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "migrate",
+              "status"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "2ac917101e9c9826",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "verify",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "migrate",
+              "verify"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "run_id",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "<run-id>",
                 "nargs": null
               }
             ],
