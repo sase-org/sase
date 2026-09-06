@@ -14,8 +14,10 @@ which records submitted procs instead of running them immediately.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -27,7 +29,13 @@ from sase.ace.tui.actions.agent_workflow import _relaunch_barrier
 from sase.ace.tui.actions.agent_workflow._entry_relaunch import EntryRelaunchMixin
 from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcMixin
 from sase.ace.tui.actions.agent_workflow._launch_start import AgentLaunchStartMixin
+from sase.ace.tui.actions.agent_workflow._prompt_bar_mount import PromptBarMountMixin
+from sase.ace.tui.actions.agent_workflow._prompt_bar_submit import PromptBarSubmitMixin
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
+from sase.ace.tui.actions.agent_workflow._types import (
+    RelaunchOperation,
+    begin_prompt_session,
+)
 from sase.ace.tui.actions.agents import AgentsMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.modals import ConfirmKillAllModal, ConfirmKillModal
@@ -112,6 +120,73 @@ class _LaunchBarrierApp(
 
     def _reload_and_reposition(self) -> None:
         pass
+
+
+class _PromptLifecycleApp(
+    TrackedProcRecorderMixin,
+    PromptBarMountMixin,
+    PromptBarSubmitMixin,
+    AgentLaunchStartMixin,
+    LaunchProcMixin,
+    App[None],
+):
+    """Real prompt-bar lifecycle harness with in-memory history/launch effects."""
+
+    ENABLE_COMMAND_PALETTE = False
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._init_tracked_task_recorder()
+        self.current_tab = "agents"  # type: ignore[assignment]
+        self._prompt_context = None
+        self._bulk_patches = None
+        self._plan_feedback_context = None
+        self._approve_prompt_context = None
+        self.notifications: list[tuple[str, str | None]] = []
+        self.saved_cancelled: list[str] = []
+        self.timers: list[Any] = []
+
+    def compose(self) -> ComposeResult:
+        yield Static("", id="host")
+
+    def notify(
+        self, message: str, *, severity: str | None = "information", **_kwargs: object
+    ) -> None:
+        self.notifications.append((message, severity))
+
+    def _submit_durable_proc(
+        self, argv: Any, *, request: Any = None, **kwargs: Any
+    ) -> Any:
+        proc_info = super()._submit_durable_proc(argv, request=request, **kwargs)
+        self.tracked_procs[-1]["request"] = dict(request or {})
+        return proc_info
+
+    def _save_text_as_cancelled(
+        self,
+        text: str,
+        *,
+        record_segments: bool = True,
+    ) -> str:
+        del record_segments
+        text = text.strip()
+        if text:
+            self.saved_cancelled.append(text)
+        return text
+
+    def set_timer(
+        self, delay: float, callback: Callable[[], None], name: str = ""
+    ) -> Any:
+        timer = SimpleNamespace(
+            stop=lambda: None, callback=callback, delay=delay, name=name
+        )
+        self.timers.append(timer)
+        return timer
+
+    def _mounted_prompt_bar(self) -> PromptInputBar | None:
+        try:
+            return self.query_one("#prompt-input-bar", PromptInputBar)
+        except Exception:
+            return None
 
 
 def _prompt_bar_ready(app: _LaunchBarrierApp) -> bool:
@@ -445,6 +520,76 @@ async def test_cancelling_prompt_bar_during_hold_drops_parked_launch(
         assert _launch_procs(app) == []
 
 
+def test_cancelled_hold_drops_old_submit_and_new_prompt_launches() -> None:
+    app = _PromptLifecycleApp()
+    operation = RelaunchOperation("old kill-and-edit")
+
+    barrier = _relaunch_barrier.open_relaunch_cleanup_barrier(
+        app,
+        "old cleanup",
+        operation=operation,
+    )
+    begin_prompt_session(
+        app,
+        _home_prompt_context("old"),
+        relaunch_operation=operation,
+    )
+
+    _submit_launch(app, "%id:!old\nold edited")
+    assert _launch_procs(app) == []
+
+    app.on_prompt_input_bar_cancelled(
+        PromptInputBar.Cancelled(
+            "%id:!old\nold",
+            "prompt",
+            record_segments=False,
+        )
+    )
+    assert app._prompt_context is None
+    assert app.saved_cancelled == ["%id:!old\nold"]
+
+    begin_prompt_session(app, _home_prompt_context("new"))
+    _submit_launch(app, "%id:new\nnew")
+
+    launched = _launch_procs(app)
+    assert len(launched) == 1
+    assert launched[0]["request"]["prompt"] == "%id:new\nnew"
+
+    _relaunch_barrier.settle_relaunch_cleanup_barrier(app, barrier)
+
+    launched = _launch_procs(app)
+    assert len(launched) == 1
+    assert launched[0]["request"]["prompt"] == "%id:new\nnew"
+
+
+def test_repeated_whole_bar_submit_while_held_replays_once() -> None:
+    app = _PromptLifecycleApp()
+    operation = RelaunchOperation("duplicate submit cleanup")
+
+    barrier = _relaunch_barrier.open_relaunch_cleanup_barrier(
+        app,
+        "duplicate cleanup",
+        operation=operation,
+    )
+    begin_prompt_session(
+        app,
+        _home_prompt_context("duplicate"),
+        relaunch_operation=operation,
+    )
+
+    prompt = "%id:!dup\none edited"
+    _submit_launch(app, prompt)
+    _submit_launch(app, prompt)
+
+    assert _launch_procs(app) == []
+
+    _relaunch_barrier.settle_relaunch_cleanup_barrier(app, barrier)
+
+    launched = _launch_procs(app)
+    assert len(launched) == 1
+    assert launched[0]["request"]["prompt"] == prompt
+
+
 async def test_barrier_timeout_releases_held_launch_with_warning(
     tmp_path: Path,
 ) -> None:
@@ -502,7 +647,12 @@ async def test_two_overlapping_barriers_replay_parked_launch_once(
 
         assert len(_barriers(app)) == 2
 
-        app._prompt_context = _home_prompt_context()
+        operation = _barriers(app)[1].operation
+        begin_prompt_session(
+            app,
+            _home_prompt_context(),
+            relaunch_operation=operation,
+        )
         prompt = "%id:!two\nSecond edited"
         _submit_launch(app, prompt)
         assert _launch_procs(app) == []

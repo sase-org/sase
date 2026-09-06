@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from ._marking_navigation import AgentMarkNavigationMixin
+from ..agent_workflow._types import RelaunchOperation
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -114,6 +115,9 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
             prompts = [prompt for prompt in resolved if prompt is not None]
             present_agents = [agent for agent in current_agents if agent is not None]
             first = present_agents[0]
+            operation = RelaunchOperation(
+                f"bulk kill-and-edit {len(present_agents)} agent(s)"
+            )
 
             def on_confirm(
                 _killable: list[Agent],
@@ -154,6 +158,7 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                         first.project_file,
                         first.cl_name,
                         first.is_project_agent,
+                        relaunch_operation=operation,
                     )
 
                 from ..agent_workflow._relaunch_barrier import (
@@ -162,7 +167,9 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                 )
 
                 barrier = open_relaunch_cleanup_barrier(
-                    self, f"bulk kill-and-edit {len(exact_agents)} agent(s)"
+                    self,
+                    f"bulk kill-and-edit {len(exact_agents)} agent(s)",
+                    operation=operation,
                 )
                 settle = lambda: settle_relaunch_cleanup_barrier(self, barrier)  # noqa: E731
                 if not self._do_bulk_kill_agents(  # type: ignore[attr-defined]

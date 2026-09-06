@@ -196,7 +196,7 @@ def test_bulk_patch_gesture_pushes_one_record_and_resolves_when_all_terminal(
     assert record.state is LaunchRecordState.RESOLVED
 
 
-def test_failed_proc_marks_record_failed_but_keeps_successful_results() -> None:
+def test_failed_proc_keeps_record_resolved_when_successful_results_exist() -> None:
     app = SimpleNamespace()
     record = push_launch_record(
         app,
@@ -211,8 +211,8 @@ def test_failed_proc_marks_record_failed_but_keeps_successful_results() -> None:
     assert record is not None
     assert record.results["one"] == (_result("one"),)
     assert record.failed_proc_ids == {"two"}
-    assert record.state is LaunchRecordState.FAILED
-    assert latest_live_launch_record(app) is None
+    assert record.state is LaunchRecordState.RESOLVED
+    assert latest_live_launch_record(app) is record
 
 
 def test_stack_is_bounded_and_drops_oldest() -> None:

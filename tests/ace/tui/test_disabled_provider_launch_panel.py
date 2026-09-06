@@ -11,6 +11,7 @@ from sase.ace.tui.modals.disabled_provider_launch_modal import (
     DisabledProviderLaunchModal,
 )
 from sase.ace.tui.modals.model_picker_modal import ModelPickerModal
+from sase.ace.tui.actions.agent_workflow._types import invalidate_prompt_session
 from sase.agent.launch_guard import LaunchUnit, LaunchUnitCandidate
 from sase.llm_provider.provider_disable import TemporaryProviderDisable
 from tests.ace.tui._agent_launch_helpers import _FakeApp
@@ -249,6 +250,23 @@ def test_explicit_model_enable_submits_the_original_prompt(
     assert app.launch_tasks[0]["prompt"] == prompt
     assert "launch_units" not in app.launch_tasks[0]["extra_payload"]
     assert app.unmount_calls == ["submit"]
+
+
+def test_stale_provider_guard_decision_does_not_launch_later_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin_cli_available(monkeypatch)
+    _bind_disables(monkeypatch, {"claude": disable("claude")})
+    app = _FakeApp()
+    app._finish_agent_launch("%model:claude/opus Fix the flaky selector")
+    assert isinstance(_panel(app), DisabledProviderLaunchModal)
+
+    invalidate_prompt_session(app)
+    _decide(app, DisabledProviderLaunchDecision(action="enable"))
+
+    assert app.launch_tasks == []
+    assert app._provider_guard_session is None
+    assert any("prompt bar was closed" in message for message, _ in app.notifications)
 
 
 def test_soft_enable_preserves_expires_at_and_submits(

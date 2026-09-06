@@ -8,7 +8,7 @@ from ..agents._notification_utils import (
     refresh_notification_agent_or_request,
     request_notification_agents_refresh,
 )
-from ._types import PromptContext
+from ._types import PromptContext, invalidate_prompt_session
 
 if TYPE_CHECKING:
     from sase.ace.tui.actions.agents._types import (
@@ -45,6 +45,7 @@ class PromptBarSubmitMixin:
             # widget without posting, so an empty value here is always a
             # whole-bar submit: cancel and unmount as before.
             self.notify("Empty prompt - cancelled", severity="warning")  # type: ignore[attr-defined]
+            invalidate_prompt_session(self, clear_context=False)
             self._unmount_prompt_bar()  # type: ignore[attr-defined]
             self._prompt_context = None
             return
@@ -87,12 +88,14 @@ class PromptBarSubmitMixin:
                 event.cancelled_text,
                 record_segments=False,
             )
+            invalidate_prompt_session(self, clear_context=False)
             self._unmount_prompt_bar_without_cancel_save()  # type: ignore[attr-defined]
             self._prompt_context = None
             if stored:
                 self._notify_prompt_cancelled(stored, pane=False)
             return
 
+        invalidate_prompt_session(self, clear_context=False)
         stored = self._unmount_prompt_bar()  # type: ignore[attr-defined]
         self._prompt_context = None
         if stored:

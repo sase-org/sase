@@ -78,6 +78,7 @@ class _SingleResultApp(KillAndEditLastLaunchMixin, EntryRelaunchMixin):
         project_file: str,
         cl_name: str,
         is_project_agent: bool,
+        **_kwargs: object,
     ) -> None:
         self.launched = (raw_prompt, project_file, cl_name, is_project_agent)
 

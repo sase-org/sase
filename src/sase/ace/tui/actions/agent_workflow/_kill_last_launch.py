@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from ._entry_relaunch import (
@@ -23,6 +25,7 @@ from ._launch_records import (
     release_resolved_launch_action,
     release_kill_pending_launch_record,
 )
+from ._types import RelaunchOperation, current_prompt_session
 from ._relaunch_barrier import (
     PENDING_LAUNCH_KILL_TIMEOUT_SECONDS,
     open_relaunch_cleanup_barrier,
@@ -42,6 +45,15 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 _ADMISSION_DEFERRED_STATUSES = frozenset({"WAITING", "QUEUED"})
+
+
+@dataclass(frozen=True)
+class _ResolvedLaunchTargets:
+    """Exact target resolution for one session launch record."""
+
+    agents: tuple[Agent, ...]
+    unresolved_count: int = 0
+    handled_count: int = 0
 
 
 def _agent_for_launch_result(
@@ -81,6 +93,169 @@ def _matched_agents_for_record(
             seen.add(agent.identity)
             matched.append(agent)
     return matched
+
+
+def _resolve_agents_for_record(
+    app: object,
+    record: LaunchRecord,
+    agents: Sequence[Agent],
+) -> _ResolvedLaunchTargets:
+    """Resolve all unhandled launch results without treating cache misses as dead."""
+    pending_results = _unhandled_launch_results(record, _all_record_results(record))
+    if not pending_results:
+        return _ResolvedLaunchTargets(
+            agents=(),
+            handled_count=len(record.handled_result_keys),
+        )
+
+    loaded_matches = _matched_agents_for_record(record, agents)
+    if len(loaded_matches) == len(pending_results):
+        return _ResolvedLaunchTargets(agents=tuple(loaded_matches))
+
+    matched: list[Agent] = []
+    seen: set[object] = set()
+    unresolved = 0
+    handled = 0
+    for result in pending_results:
+        key = _launch_result_key(result)
+        if _launch_result_confirmed_handled(app, result):
+            record.handled_result_keys.add(key)
+            handled += 1
+            continue
+
+        agent = _agent_for_launch_result(agents, result)
+        if agent is None:
+            agent = _synthetic_agent_from_launch_result(result)
+            if agent is not None:
+                _ensure_agent_visible(app, agent)
+        if agent is None:
+            unresolved += 1
+            continue
+
+        identity = getattr(agent, "identity", id(agent))
+        if identity in seen:
+            continue
+        seen.add(identity)
+        matched.append(agent)
+
+    return _ResolvedLaunchTargets(
+        agents=tuple(matched),
+        unresolved_count=unresolved,
+        handled_count=handled,
+    )
+
+
+def _notify_unresolved_launch_targets(
+    app: object,
+    record: LaunchRecord,
+    count: int,
+) -> None:
+    _schedule_launch_target_refresh(app, _all_record_results(record))
+    suffix = "" if count == 1 else "s"
+    _notify(
+        app,
+        f'"{record.display_name}" still has {count} launch target{suffix} '
+        "resolving; press ,X again after refresh",
+        severity="warning",
+    )
+
+
+def _launch_result_confirmed_handled(
+    app: object,
+    result: AgentLaunchResult,
+) -> bool:
+    dismissed_objects = tuple(getattr(app, "_dismissed_agent_objects", ()) or ())
+    if dismissed_objects and _agent_for_launch_result(dismissed_objects, result):
+        return True
+    dismissed: set[object] = getattr(app, "_dismissed_agents", set()) or set()
+    if not dismissed:
+        return False
+    synthetic = _synthetic_agent_from_launch_result(result)
+    identity = getattr(synthetic, "identity", None) if synthetic is not None else None
+    return identity in dismissed
+
+
+def _all_record_results(record: LaunchRecord) -> tuple[AgentLaunchResult, ...]:
+    results: list[AgentLaunchResult] = []
+    for proc_id in record.proc_ids:
+        results.extend(record.results.get(proc_id, ()))
+    return tuple(results)
+
+
+def _unhandled_launch_results(
+    record: LaunchRecord,
+    results: Sequence[AgentLaunchResult],
+) -> tuple[AgentLaunchResult, ...]:
+    pending: list[AgentLaunchResult] = []
+    for result in results:
+        key = _launch_result_key(result)
+        if key in record.handled_result_keys:
+            continue
+        if key in record.kill_in_progress_result_keys:
+            continue
+        pending.append(result)
+    return tuple(pending)
+
+
+def _record_results_are_handled(record: LaunchRecord) -> bool:
+    keys = {_launch_result_key(result) for result in _all_record_results(record)}
+    return (
+        bool(keys)
+        and not record.kill_in_progress_result_keys
+        and keys <= (record.handled_result_keys)
+    )
+
+
+def _mark_all_record_results_handled(record: LaunchRecord) -> None:
+    record.handled_result_keys.update(
+        _launch_result_key(result) for result in _all_record_results(record)
+    )
+
+
+def _launch_result_key(result: AgentLaunchResult) -> str:
+    artifact_dir = artifact_dir_from_launch_result(result)
+    if artifact_dir is not None:
+        return f"artifact:{Path(artifact_dir).expanduser()}"
+    artifacts_dir = getattr(result, "artifacts_dir", "")
+    if artifacts_dir:
+        return f"artifact:{Path(str(artifacts_dir)).expanduser()}"
+    output_path = getattr(result, "output_path", "")
+    if output_path:
+        return f"output:{Path(str(output_path)).expanduser()}"
+    return "|".join(
+        str(part)
+        for part in (
+            getattr(result, "project_name", ""),
+            getattr(result, "workflow_name", ""),
+            getattr(result, "timestamp", ""),
+            getattr(result, "workspace_dir", ""),
+            getattr(result, "workspace_num", ""),
+            getattr(result, "pid", ""),
+            getattr(result, "agent_name", ""),
+        )
+    )
+
+
+def _schedule_launch_target_refresh(
+    app: object,
+    results: Sequence[AgentLaunchResult],
+) -> None:
+    if results:
+        handle_delta = getattr(app, "_handle_launch_results_delta", None)
+        if callable(handle_delta):
+            try:
+                handle_delta(tuple(results), source="last_launch")
+                return
+            except TypeError:
+                handle_delta(tuple(results))
+                return
+    schedule_refresh = getattr(app, "_schedule_agents_async_refresh", None)
+    if callable(schedule_refresh):
+        schedule_refresh(source="last_launch")
+        return
+    request_refresh = getattr(app, "request_agents_refresh", None)
+    if callable(request_refresh):
+        request_refresh("last_launch")
 
 
 def _is_gate_dismissable(agent: Agent) -> bool:
@@ -131,12 +306,27 @@ class KillAndEditLastLaunchMixin:
                 or getattr(self, "_agents", None)
                 or ()
             )
-            matched = _matched_agents_for_record(record, agents)
+            resolved = _resolve_agents_for_record(self, record, agents)
+            if resolved.unresolved_count:
+                _notify_unresolved_launch_targets(
+                    self,
+                    record,
+                    resolved.unresolved_count,
+                )
+                return
+            matched = list(resolved.agents)
             if not matched:
-                consume_launch_record(record)
-                record = latest_live_launch_record(self)
-                continue
+                if resolved.handled_count:
+                    consume_launch_record(record)
+                    record = latest_live_launch_record(self)
+                    continue
+                _notify_unresolved_launch_targets(self, record, 1)
+                return
 
+            operation = RelaunchOperation(
+                f"kill-and-edit last launch {record.display_name}"
+            )
+            record.relaunch_operation = operation
             self._reveal_last_launch_target(matched[0].identity)
             begin_resolved_launch_action(record)
 
@@ -147,11 +337,13 @@ class KillAndEditLastLaunchMixin:
                 self._kill_and_edit_agent(  # type: ignore[attr-defined]
                     target=matched[0],
                     on_initiated=finish,
+                    relaunch_operation=operation,
                 )
             else:
                 self._kill_and_edit_last_launch_set(
                     matched,
                     on_initiated=finish,
+                    relaunch_operation=operation,
                 )
             return
 
@@ -161,22 +353,39 @@ class KillAndEditLastLaunchMixin:
 
     def _begin_inflight_deferred_kill(self, record: LaunchRecord) -> None:
         """Restore the prompt now and kill the launch when its proc completes."""
-        self._mount_inflight_launch_prompt(record)
-        _register_pending_launch_kill(self, record)
+        operation = record.relaunch_operation
+        if operation is None:
+            operation = RelaunchOperation(
+                f"kill-and-edit pending launch {record.display_name}"
+            )
+            record.relaunch_operation = operation
+        self._mount_inflight_launch_prompt(record, relaunch_operation=operation)
+        _register_pending_launch_kill(self, record, operation=operation)
         self.notify(  # type: ignore[attr-defined]
             f'Will kill "{record.display_name}" when its launch finishes'
         )
 
     def _refocus_kill_pending_launch_prompt(self, record: LaunchRecord) -> None:
         """Re-focus the restored prompt; never advance to an older record."""
+        session = current_prompt_session(self)
+        operation = record.relaunch_operation
         mounted = getattr(self, "_mounted_prompt_bar", None)
         bar = mounted() if callable(mounted) else None
-        if bar is not None:
+        if (
+            bar is not None
+            and session is not None
+            and session.relaunch_operation is operation
+        ):
             focus = getattr(bar, "focus", None)
             if callable(focus):
                 focus()
             return
-        self._mount_inflight_launch_prompt(record)
+        if operation is None:
+            operation = RelaunchOperation(
+                f"kill-and-edit pending launch {record.display_name}"
+            )
+            record.relaunch_operation = operation
+        self._mount_inflight_launch_prompt(record, relaunch_operation=operation)
 
     def _refocus_resolved_launch_action(self, _record: LaunchRecord) -> None:
         """Keep a pending resolved action pinned to its launch record."""
@@ -192,11 +401,17 @@ class KillAndEditLastLaunchMixin:
         if record.state is not LaunchRecordState.RESOLVED_ACTION_PENDING:
             return
         if initiated:
+            _mark_all_record_results_handled(record)
             consume_launch_record(record)
             return
         release_resolved_launch_action(record)
 
-    def _mount_inflight_launch_prompt(self, record: LaunchRecord) -> None:
+    def _mount_inflight_launch_prompt(
+        self,
+        record: LaunchRecord,
+        *,
+        relaunch_operation: RelaunchOperation,
+    ) -> None:
         """Seed the edit/relaunch prompt from the in-flight record's snapshot."""
         ctx = record.context
         if len(record.proc_ids) > 1:
@@ -209,6 +424,7 @@ class KillAndEditLastLaunchMixin:
                 ctx.project_file,
                 ctx.cl_name,
                 ctx.is_project_agent,
+                relaunch_operation=relaunch_operation,
             )
             return
         self._edit_and_relaunch_agent(  # type: ignore[attr-defined]
@@ -216,6 +432,7 @@ class KillAndEditLastLaunchMixin:
             ctx.project_file,
             ctx.cl_name,
             ctx.is_project_agent,
+            relaunch_operation=relaunch_operation,
         )
 
     def _reveal_last_launch_target(self, target_identity: AgentIdentity) -> None:
@@ -254,6 +471,7 @@ class KillAndEditLastLaunchMixin:
         agents: list[Agent],
         *,
         on_initiated: Callable[[bool], None] | None = None,
+        relaunch_operation: RelaunchOperation | None = None,
     ) -> None:
         """Kill/dismiss a resolved record's rows after one confirmation, then edit.
 
@@ -262,6 +480,10 @@ class KillAndEditLastLaunchMixin:
         machinery) but sources its agent set from a launch record's joined
         rows instead of the marked set.
         """
+        if relaunch_operation is None:
+            relaunch_operation = RelaunchOperation(
+                f"kill-and-edit last launch ({len(agents)} agent(s))"
+            )
         identities = tuple(agent.identity for agent in agents)
         agents_snapshot = tuple(
             getattr(self, "_agents_with_children", None)
@@ -350,15 +572,13 @@ class KillAndEditLastLaunchMixin:
                         first.project_file,
                         first.cl_name,
                         first.is_project_agent,
+                        relaunch_operation=relaunch_operation,
                     )
 
-                from ._relaunch_barrier import (
-                    open_relaunch_cleanup_barrier,
-                    settle_relaunch_cleanup_barrier,
-                )
-
                 barrier = open_relaunch_cleanup_barrier(
-                    self, f"kill-and-edit last launch ({len(exact_agents)} agent(s))"
+                    self,
+                    f"kill-and-edit last launch ({len(exact_agents)} agent(s))",
+                    operation=relaunch_operation,
                 )
                 settle: Callable[[], None] = lambda: settle_relaunch_cleanup_barrier(  # noqa: E731
                     self, barrier
@@ -427,10 +647,16 @@ def apply_deferred_launch_kill_on_completion(
         _finish_pending_launch_kill(app, record)
 
 
-def _register_pending_launch_kill(app: object, record: LaunchRecord) -> None:
+def _register_pending_launch_kill(
+    app: object,
+    record: LaunchRecord,
+    *,
+    operation: RelaunchOperation,
+) -> None:
     """Mark *record* ``KILL_PENDING`` and start its warn-and-release timer."""
     if record.state is LaunchRecordState.KILL_PENDING:
         return
+    record.relaunch_operation = operation
     record.state = LaunchRecordState.KILL_PENDING
     timers = getattr(app, "_pending_launch_kill_timers", None)
     if timers is None:
@@ -448,6 +674,14 @@ def _register_pending_launch_kill(app: object, record: LaunchRecord) -> None:
             name="pending-launch-kill-timeout",
         )
     timers[proc_ids] = timer
+    _execute_deferred_kill_for_results(
+        app,
+        record,
+        _all_record_results(record),
+        admission_complete=True,
+    )
+    if record_procs_are_terminal(record):
+        _finish_pending_launch_kill(app, record)
 
 
 def _pending_launch_kill_timed_out(app: object, proc_ids: tuple[str, ...]) -> None:
@@ -467,18 +701,18 @@ def _pending_launch_kill_timed_out(app: object, proc_ids: tuple[str, ...]) -> No
         "it will appear and can be killed with ,x",
         severity="warning",
     )
-    release_relaunch_holds_if_idle(app)
+    release_relaunch_holds_if_idle(app, operation=record.relaunch_operation)
 
 
 def _finish_pending_launch_kill(app: object, record: LaunchRecord) -> None:
     """Clear pending-kill bookkeeping once every proc on *record* is terminal."""
     _stop_pending_kill_timer(app, record)
     if record.state is LaunchRecordState.KILL_PENDING:
-        if record.results:
+        if _record_results_are_handled(record):
             consume_launch_record(record)
         else:
             release_kill_pending_launch_record(record)
-    release_relaunch_holds_if_idle(app)
+    release_relaunch_holds_if_idle(app, operation=record.relaunch_operation)
 
 
 def _stop_pending_kill_timer(app: object, record: LaunchRecord) -> None:
@@ -503,8 +737,16 @@ def _execute_deferred_kill_for_results(
     *,
     admission_complete: bool,
 ) -> None:
-    agents = _agents_for_deferred_kill(app, results)
+    pending = _unhandled_launch_results(record, results)
+    if not pending:
+        return
+    pending_keys = {_launch_result_key(result) for result in pending}
+    record.kill_in_progress_result_keys.update(pending_keys)
+
+    agents = _agents_for_deferred_kill(app, pending)
     if not agents:
+        record.kill_in_progress_result_keys.difference_update(pending_keys)
+        _schedule_launch_target_refresh(app, pending)
         _notify(
             app,
             f'Could not find launched agent(s) of "{record.display_name}" to kill',
@@ -513,13 +755,27 @@ def _execute_deferred_kill_for_results(
         return
 
     killable, dismissable = _split_deferred_kill_targets(agents)
-    barrier = open_relaunch_cleanup_barrier(app, f"deferred kill {record.display_name}")
+    barrier = open_relaunch_cleanup_barrier(
+        app,
+        f"deferred kill {record.display_name}",
+        operation=record.relaunch_operation,
+    )
     settle: Callable[[], None] = lambda: settle_relaunch_cleanup_barrier(  # noqa: E731
         app, barrier
     )
     initiated = _initiate_deferred_kill(app, killable, dismissable, settle)
+    record.kill_in_progress_result_keys.difference_update(pending_keys)
     if not initiated:
+        record.kill_failed_result_keys.update(pending_keys)
         settle()
+        _notify(
+            app,
+            f'Could not start cleanup for launched agent(s) of "{record.display_name}"',
+            severity="warning",
+        )
+        return
+    record.handled_result_keys.update(pending_keys)
+    record.kill_failed_result_keys.difference_update(pending_keys)
     if not admission_complete:
         _notify(
             app,
@@ -611,6 +867,8 @@ def _synthetic_agent_from_launch_result(result: AgentLaunchResult) -> Agent | No
         if artifact_dir is not None
         else (result.artifacts_dir or None)
     )
+    if artifacts_dir is None:
+        return None
     raw_suffix = normalize_to_14_digit(result.timestamp)
     if raw_suffix is None and artifacts_dir:
         from pathlib import Path

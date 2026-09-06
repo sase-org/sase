@@ -8,7 +8,7 @@ from sase.ace.patch.project_spec_path import preferred_project_spec_path
 from sase.core.paths import sase_projects_dir
 
 from ._prompt_bar_mount import strip_editor_review_markers
-from ._types import PromptContext
+from ._types import PromptContext, begin_prompt_session, invalidate_prompt_session
 
 
 class EntryPromptHistoryMixin:
@@ -49,20 +49,23 @@ class EntryPromptHistoryMixin:
         # Set up prompt context (same as _show_prompt_input_bar_for_home)
         timestamp = generate_timestamp()
         workflow_name = f"ace(run)-{timestamp}"
-        self._prompt_context = PromptContext(
-            project_name="home",
-            cl_name=None,
-            project_file=preferred_project_spec_path(
-                str(sase_projects_dir() / "home"), "home"
+        begin_prompt_session(
+            self,
+            PromptContext(
+                project_name="home",
+                cl_name=None,
+                project_file=preferred_project_spec_path(
+                    str(sase_projects_dir() / "home"), "home"
+                ),
+                workspace_dir=str(Path.home()),
+                workspace_num=0,
+                workflow_name=workflow_name,
+                timestamp=timestamp,
+                history_sort_key=history_key,
+                display_name=name,
+                update_target="",
+                is_home_mode=True,
             ),
-            workspace_dir=str(Path.home()),
-            workspace_num=0,
-            workflow_name=workflow_name,
-            timestamp=timestamp,
-            history_sort_key=history_key,
-            display_name=name,
-            update_target="",
-            is_home_mode=True,
         )
 
         def _build_prompt(prompt_text: str) -> str:
@@ -93,20 +96,20 @@ class EntryPromptHistoryMixin:
                     self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
             else:
                 self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
-                self._prompt_context = None
+                invalidate_prompt_session(self)
 
         if edit_first:
             prompt_text = self._first_prompt_history_entry_for_editor()
             if prompt_text is None:
                 self.notify("No prompt history entry to edit", severity="warning")  # type: ignore[attr-defined]
-                self._prompt_context = None
+                invalidate_prompt_session(self)
                 return
             _edit_prompt(prompt_text)
             return
 
         def on_history_select(result: PromptHistoryResult | None) -> None:
             if result is None:
-                self._prompt_context = None
+                invalidate_prompt_session(self)
                 return
 
             if result.action == PromptHistoryAction.SUBMIT:

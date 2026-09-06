@@ -106,6 +106,7 @@ class _FakeBulkEditApp(AgentMarkingMixin):
         project_file: str,
         cl_name: str,
         is_project_agent: bool,
+        **_kwargs: object,
     ) -> None:
         self.edit_calls.append(
             {

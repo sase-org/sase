@@ -6,7 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from ._prompt_bar_mount import strip_editor_review_markers
-from ._types import PromptContext
+from ._types import PromptContext, invalidate_prompt_session
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets import PromptInputBar
@@ -65,6 +65,7 @@ class PromptBarRequestsMixin:
                 pass
         else:
             self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
+            invalidate_prompt_session(self, clear_context=False)
             self._unmount_prompt_bar()  # type: ignore[attr-defined]
             self._prompt_context = None
 
@@ -162,6 +163,7 @@ class PromptBarRequestsMixin:
                         pass
                     return
                 self.notify("No prompt from history - cancelled", severity="warning")  # type: ignore[attr-defined]
+                invalidate_prompt_session(self, clear_context=False)
                 self._unmount_prompt_bar()  # type: ignore[attr-defined]
                 self._prompt_context = None
                 return
@@ -188,6 +190,7 @@ class PromptBarRequestsMixin:
                         self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
                 else:
                     self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
+                    invalidate_prompt_session(self, clear_context=False)
                     self._unmount_prompt_bar()  # type: ignore[attr-defined]
                     self._prompt_context = None
 
@@ -478,5 +481,6 @@ class PromptBarRequestsMixin:
             self._finish_agent_launch(f"#{workflow_name}")  # type: ignore[attr-defined]
         else:
             self.notify("No workflow from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
+            invalidate_prompt_session(self, clear_context=False)
             self._unmount_prompt_bar()  # type: ignore[attr-defined]
             self._prompt_context = None

@@ -77,6 +77,7 @@ class _BulkSetApp(AgentMarkingMixin, KillAndEditLastLaunchMixin):
         project_file: str,
         cl_name: str,
         is_project_agent: bool,
+        **_kwargs: object,
     ) -> None:
         self.edit_calls.append(
             {

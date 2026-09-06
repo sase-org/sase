@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING
 from sase.ace.patch.project_spec_path import preferred_project_spec_path
 from sase.core.paths import sase_projects_dir
 
-from ._types import PromptContext
+from ._types import (
+    PromptContext,
+    RelaunchOperation,
+    begin_prompt_session,
+    invalidate_prompt_session,
+)
 
 if TYPE_CHECKING:
     from sase.xprompt.models import InputArg
@@ -112,17 +117,20 @@ class PromptBarMountMixin:
         self._unmount_prompt_bar()
 
         # Store context for when prompt is submitted
-        self._prompt_context = PromptContext(
-            project_name=project_name,
-            cl_name=cl_name,
-            project_file=project_file,
-            workspace_dir=workspace_dir,
-            workspace_num=workspace_num,
-            workflow_name=workflow_name,
-            timestamp=timestamp,
-            history_sort_key=history_sort_key,
-            display_name=display_name,
-            update_target=update_target,
+        begin_prompt_session(
+            self,
+            PromptContext(
+                project_name=project_name,
+                cl_name=cl_name,
+                project_file=project_file,
+                workspace_dir=workspace_dir,
+                workspace_num=workspace_num,
+                workflow_name=workflow_name,
+                timestamp=timestamp,
+                history_sort_key=history_sort_key,
+                display_name=display_name,
+                update_target=update_target,
+            ),
         )
 
         # Immediately show prompt input bar (workspace prep happens in runner)
@@ -188,6 +196,7 @@ class PromptBarMountMixin:
         except Exception:
             return ""  # Bar not present
 
+        invalidate_prompt_session(self, clear_context=False)
         # Save any non-trivial text as cancelled before removing the bar.
         # This is the safety net — every dismissal code path flows through
         # here, so no prompt text can ever be silently lost.
@@ -214,6 +223,7 @@ class PromptBarMountMixin:
         except Exception:
             return  # Bar not present
 
+        invalidate_prompt_session(self, clear_context=False)
         self._detach_prompt_bar(bar)
 
     def _detach_prompt_bar(self, bar: object) -> None:
@@ -312,20 +322,23 @@ class PromptBarMountMixin:
         timestamp = generate_timestamp()
         workflow_name = f"ace(run)-{timestamp}"
 
-        self._prompt_context = PromptContext(
-            project_name="home",
-            cl_name=None,
-            project_file=preferred_project_spec_path(
-                str(sase_projects_dir() / "home"), "home"
+        begin_prompt_session(
+            self,
+            PromptContext(
+                project_name="home",
+                cl_name=None,
+                project_file=preferred_project_spec_path(
+                    str(sase_projects_dir() / "home"), "home"
+                ),
+                workspace_dir=str(Path.home()),
+                workspace_num=0,
+                workflow_name=workflow_name,
+                timestamp=timestamp,
+                history_sort_key=history_sort_key,
+                display_name=display_name,
+                update_target="",
+                is_home_mode=True,
             ),
-            workspace_dir=str(Path.home()),
-            workspace_num=0,
-            workflow_name=workflow_name,
-            timestamp=timestamp,
-            history_sort_key=history_sort_key,
-            display_name=display_name,
-            update_target="",
-            is_home_mode=True,
         )
 
     def _load_editor_markdown_into_bar(self, markdown: str) -> None:
@@ -541,4 +554,4 @@ class PromptBarMountMixin:
 
                 add_or_update_prompt(initial_text.strip(), cancelled=True)
             self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
-            self._prompt_context = None
+            invalidate_prompt_session(self)

@@ -21,7 +21,12 @@ from sase.llm_provider.provider_disable import (
 )
 from sase.llm_provider import provider_disable_peek
 
-from ._types import PromptContext
+from ._types import (
+    PromptContext,
+    PromptSessionId,
+    current_prompt_session,
+    prompt_session_is_live,
+)
 
 if TYPE_CHECKING:
     from sase.ace.tui.modals.disabled_provider_launch_modal import (
@@ -53,6 +58,7 @@ class _ProviderGuardSession:
 
     original_prompt: str
     keep_bar: bool
+    owner_id: PromptSessionId | None
     original_total: int
     units: list[_GuardUnitState] = field(default_factory=list)
     current_unit: LaunchUnit | None = None
@@ -70,25 +76,51 @@ class LaunchProviderGuardMixin:
         *,
         keep_bar: bool = False,
         extra_payload: dict[str, object] | None = None,
+        owner_session_id: PromptSessionId | None = None,
+        accepted: object | None = None,
     ) -> None:
         """Implemented by :class:`AgentLaunchStartMixin`."""
+        del owner_session_id, accepted
         raise NotImplementedError
 
-    def _preflight_provider_disables(self, prompt: str, keep_bar: bool) -> None:
+    def _preflight_provider_disables(
+        self,
+        prompt: str,
+        keep_bar: bool,
+        *,
+        owner_session_id: PromptSessionId | None = None,
+    ) -> None:
         """Refuse or resolve hard-disabled providers before unmounting the bar.
 
         The empty-disable path is synchronous and does not start a worker.
         Enumeration and provider writes run in ``launch-provider-guard``.
         """
+        session = current_prompt_session(self)
+        if session is None or (
+            owner_session_id is not None and session.session_id != owner_session_id
+        ):
+            self._notify_stale_provider_guard()
+            return
+        owner_session_id = session.session_id
         snapshot = provider_disable_peek.peek_active_provider_disables()
         if not any(record.is_hard for record in snapshot.values()):
-            self._submit_resolved_launch(prompt, keep_bar=keep_bar)
+            self._submit_resolved_launch(
+                prompt,
+                keep_bar=keep_bar,
+                owner_session_id=owner_session_id,
+            )
             return
         self._run_provider_guard_worker(
             lambda: self._plan_provider_guard_units(prompt),
-            lambda planned: self._on_provider_guard_planned(prompt, keep_bar, planned),
+            lambda planned: self._on_provider_guard_planned(
+                prompt,
+                keep_bar,
+                planned,
+                owner_session_id=owner_session_id,
+            ),
             prompt=prompt,
             keep_bar=keep_bar,
+            owner_session_id=owner_session_id,
         )
 
     def _plan_provider_guard_units(self, prompt: str) -> tuple[LaunchUnit, ...]:
@@ -99,17 +131,24 @@ class LaunchProviderGuardMixin:
         prompt: str,
         keep_bar: bool,
         planned: tuple[LaunchUnit, ...],
+        *,
+        owner_session_id: PromptSessionId | None,
     ) -> None:
-        if not self._provider_guard_context_is_live():
+        if not self._provider_guard_context_is_live(owner_session_id):
             self._notify_stale_provider_guard()
             return
         blocked = tuple(unit for unit in planned if unit.blocked)
         if not blocked:
-            self._submit_resolved_launch(prompt, keep_bar=keep_bar)
+            self._submit_resolved_launch(
+                prompt,
+                keep_bar=keep_bar,
+                owner_session_id=owner_session_id,
+            )
             return
         self._provider_guard_session = _ProviderGuardSession(
             original_prompt=prompt,
             keep_bar=keep_bar,
+            owner_id=owner_session_id,
             original_total=planned[0].total if planned else 1,
             units=[
                 _GuardUnitState(
@@ -151,7 +190,7 @@ class LaunchProviderGuardMixin:
         session = self._provider_guard_session
         if session is None:
             return
-        if not self._provider_guard_context_is_live():
+        if not self._provider_guard_context_is_live(session.owner_id):
             self._clear_provider_guard_session()
             self._notify_stale_provider_guard()
             return
@@ -264,6 +303,7 @@ class LaunchProviderGuardMixin:
             self._on_provider_guard_rechecked,
             prompt=session.original_prompt,
             keep_bar=session.keep_bar,
+            owner_session_id=session.owner_id,
         )
 
     def _enable_providers(self, providers: tuple[str, ...]) -> None:
@@ -295,7 +335,9 @@ class LaunchProviderGuardMixin:
                 )
 
     def _on_provider_guard_rechecked(self, blocked: tuple[LaunchUnit, ...]) -> None:
-        if not self._provider_guard_context_is_live():
+        session = self._provider_guard_session
+        owner_id = session.owner_id if session is not None else None
+        if not self._provider_guard_context_is_live(owner_id):
             self._clear_provider_guard_session()
             self._notify_stale_provider_guard()
             return
@@ -317,6 +359,7 @@ class LaunchProviderGuardMixin:
             self._on_provider_guard_rechecked,
             prompt=session.original_prompt,
             keep_bar=session.keep_bar,
+            owner_session_id=session.owner_id,
         )
 
     def _blocked_from_session(self) -> tuple[LaunchUnit, ...]:
@@ -377,7 +420,7 @@ class LaunchProviderGuardMixin:
         self._clear_provider_guard_session()
         if session is None:
             return
-        if not self._provider_guard_context_is_live():
+        if not self._provider_guard_context_is_live(session.owner_id):
             self._notify_stale_provider_guard()
             return
         surviving = [unit for unit in session.units if not unit.aborted]
@@ -388,11 +431,17 @@ class LaunchProviderGuardMixin:
         aborted = any(unit.aborted for unit in session.units)
         if not remodeled and not aborted:
             self._submit_resolved_launch(
-                session.original_prompt, keep_bar=session.keep_bar
+                session.original_prompt,
+                keep_bar=session.keep_bar,
+                owner_session_id=session.owner_id,
             )
             return
         if session.original_total == 1 and remodeled and not aborted:
-            self._submit_resolved_launch(surviving[0].prompt, keep_bar=session.keep_bar)
+            self._submit_resolved_launch(
+                surviving[0].prompt,
+                keep_bar=session.keep_bar,
+                owner_session_id=session.owner_id,
+            )
             return
         joined = "\n---\n".join(unit.prompt for unit in surviving)
         payload = [
@@ -407,6 +456,7 @@ class LaunchProviderGuardMixin:
             joined,
             keep_bar=session.keep_bar,
             extra_payload={"launch_units": payload},
+            owner_session_id=session.owner_id,
         )
 
     def _run_provider_guard_worker(
@@ -416,6 +466,7 @@ class LaunchProviderGuardMixin:
         *,
         prompt: str,
         keep_bar: bool,
+        owner_session_id: PromptSessionId | None,
     ) -> None:
         run_worker = getattr(self, "run_worker", None)
 
@@ -428,7 +479,10 @@ class LaunchProviderGuardMixin:
                     exc_info=True,
                 )
                 self._call_from_ui(
-                    self._on_provider_guard_failed_open, prompt, keep_bar
+                    self._on_provider_guard_failed_open,
+                    prompt,
+                    keep_bar,
+                    owner_session_id,
                 )
                 return
             self._call_from_ui(on_success, result)
@@ -443,12 +497,21 @@ class LaunchProviderGuardMixin:
             group=_GUARD_GROUP,
         )
 
-    def _on_provider_guard_failed_open(self, prompt: str, keep_bar: bool) -> None:
+    def _on_provider_guard_failed_open(
+        self,
+        prompt: str,
+        keep_bar: bool,
+        owner_session_id: PromptSessionId | None,
+    ) -> None:
         self._clear_provider_guard_session()
-        if not self._provider_guard_context_is_live():
+        if not self._provider_guard_context_is_live(owner_session_id):
             self._notify_stale_provider_guard()
             return
-        self._submit_resolved_launch(prompt, keep_bar=keep_bar)
+        self._submit_resolved_launch(
+            prompt,
+            keep_bar=keep_bar,
+            owner_session_id=owner_session_id,
+        )
 
     def _call_from_ui(self, callback: Any, *args: Any) -> None:
         caller = getattr(self, "call_from_thread", None)
@@ -457,8 +520,11 @@ class LaunchProviderGuardMixin:
             return
         callback(*args)
 
-    def _provider_guard_context_is_live(self) -> bool:
-        if self._prompt_context is None:
+    def _provider_guard_context_is_live(
+        self,
+        owner_session_id: PromptSessionId | None,
+    ) -> bool:
+        if not prompt_session_is_live(self, owner_session_id):
             return False
         mounted = getattr(self, "_mounted_prompt_bar", None)
         if callable(mounted):

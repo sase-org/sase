@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, cast
 
+from ._types import RelaunchOperation
+
 if TYPE_CHECKING:
     from sase.agent.launch_types import AgentLaunchResult
 
@@ -45,6 +47,10 @@ class LaunchRecord:
     submitted_prompts: dict[str, str] = field(default_factory=dict)
     results: dict[str, tuple[AgentLaunchResult, ...]] = field(default_factory=dict)
     failed_proc_ids: set[str] = field(default_factory=set)
+    relaunch_operation: RelaunchOperation | None = None
+    handled_result_keys: set[str] = field(default_factory=set)
+    kill_failed_result_keys: set[str] = field(default_factory=set)
+    kill_in_progress_result_keys: set[str] = field(default_factory=set)
     state: LaunchRecordState = LaunchRecordState.IN_FLIGHT
 
     @property
@@ -143,10 +149,18 @@ def launch_record_for_proc_id(app: object, proc_id: str) -> LaunchRecord | None:
     return None
 
 
-def has_pending_launch_kill(app: object) -> bool:
+_ANY_OPERATION = object()
+
+
+def has_pending_launch_kill(
+    app: object,
+    *,
+    operation: RelaunchOperation | None | object = _ANY_OPERATION,
+) -> bool:
     """Return whether any session launch record is waiting to be killed at T4."""
     return any(
         record.state is LaunchRecordState.KILL_PENDING
+        and (operation is _ANY_OPERATION or record.relaunch_operation is operation)
         for record in _launch_record_stack(app)
     )
 
@@ -183,11 +197,12 @@ def _refresh_launch_record_state(record: LaunchRecord) -> None:
         LaunchRecordState.CONSUMED,
     ):
         return
-    if record.failed_proc_ids:
-        record.state = LaunchRecordState.FAILED
-        return
-    if all(proc_id in record.results for proc_id in record.proc_ids):
+    terminal = record_procs_are_terminal(record)
+    if terminal and any(record.results.values()):
         record.state = LaunchRecordState.RESOLVED
+        return
+    if terminal and record.failed_proc_ids:
+        record.state = LaunchRecordState.FAILED
         return
     record.state = LaunchRecordState.IN_FLIGHT
 

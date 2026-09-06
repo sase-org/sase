@@ -85,6 +85,9 @@ class _DeferredKillApp(KillAndEditLastLaunchMixin, LaunchProcMixin):
         self._prompt_context: object | None = SimpleNamespace()
         self._prompt_bar: Any | None = None
         self._settle_immediately = True
+        self._kill_result = True
+        self._dismiss_result = True
+        self._bulk_result = True
 
     def notify(self, message: str, *, severity: str | None = None) -> None:
         self.notifications.append((message, severity))
@@ -110,6 +113,7 @@ class _DeferredKillApp(KillAndEditLastLaunchMixin, LaunchProcMixin):
         project_file: str,
         cl_name: str,
         is_project_agent: bool,
+        **_kwargs: object,
     ) -> None:
         self.edit_calls.append((raw_prompt, project_file, cl_name, is_project_agent))
 
@@ -119,6 +123,7 @@ class _DeferredKillApp(KillAndEditLastLaunchMixin, LaunchProcMixin):
         project_file: str,
         cl_name: str,
         is_project_agent: bool,
+        **_kwargs: object,
     ) -> None:
         del project_file, cl_name, is_project_agent
         self.bulk_edit_calls.append(list(raw_prompts))
@@ -144,17 +149,17 @@ class _DeferredKillApp(KillAndEditLastLaunchMixin, LaunchProcMixin):
     ) -> bool:
         del cleanup_plan
         self.killed.append(agent)
-        if self._settle_immediately and on_settled is not None:
+        if self._kill_result and self._settle_immediately and on_settled is not None:
             on_settled()
-        return True
+        return self._kill_result
 
     def _dismiss_done_agent(
         self, agent: Any, *, on_settled: Callable[[], None] | None = None
     ) -> bool:
         self.dismissed.append(agent)
-        if self._settle_immediately and on_settled is not None:
+        if self._dismiss_result and self._settle_immediately and on_settled is not None:
             on_settled()
-        return True
+        return self._dismiss_result
 
     def _do_bulk_kill_agents(
         self,
@@ -165,9 +170,9 @@ class _DeferredKillApp(KillAndEditLastLaunchMixin, LaunchProcMixin):
     ) -> bool:
         dismissable = dismissable or []
         self.bulk_kill_calls.append((list(killable), list(dismissable)))
-        if self._settle_immediately and on_settled is not None:
+        if self._bulk_result and self._settle_immediately and on_settled is not None:
             on_settled()
-        return True
+        return self._bulk_result
 
 
 def _running_row(name: str, timestamp: str) -> _FakeAgent:
@@ -205,6 +210,109 @@ def test_pending_placeholder_kill_intent_is_found_exactly_once() -> None:
 
     app._on_launch_proc_complete(_completion(placeholder, outcome))
     assert app.killed == [agent]
+
+
+def test_inflight_kill_processes_results_that_arrived_before_intent() -> None:
+    app = _DeferredKillApp()
+    app._settle_immediately = False
+    record = push_launch_record(
+        app,
+        proc_ids=("p1", "p2"),
+        prompt="shared",
+        context=_context("bulk"),
+        submitted_prompts={"p1": "first prompt", "p2": "second prompt"},
+    )
+    assert record is not None
+    first = _running_row("first", "20260903170101")
+    second = _running_row("second", "20260903170102")
+    app._agents_with_children = [first, second]
+
+    first_outcome = _LaunchProcOutcome(
+        "Started first",
+        results=(_matchable_result("proj", "20260903170101"),),
+    )
+    app._on_launch_proc_complete(_completion("p1", first_outcome))
+    assert app.killed == []
+    assert record.state is LaunchRecordState.IN_FLIGHT
+
+    app._kill_and_edit_last_launch()
+    assert app.killed == [first]
+    assert record.state is LaunchRecordState.KILL_PENDING
+
+    app._on_launch_proc_complete(_completion("p1", first_outcome))
+    assert app.killed == [first]
+
+    app._on_launch_proc_complete(
+        _completion(
+            "p2",
+            _LaunchProcOutcome(
+                "Started second",
+                results=(_matchable_result("proj", "20260903170102"),),
+            ),
+        )
+    )
+
+    assert app.killed == [first, second]
+    assert record.state is LaunchRecordState.CONSUMED
+
+
+def test_failed_sibling_does_not_hide_successful_pending_result() -> None:
+    app = _DeferredKillApp()
+    record = push_launch_record(
+        app,
+        proc_ids=("p1", "p2"),
+        prompt="shared",
+        context=_context("partial"),
+    )
+    assert record is not None
+    agent = _running_row("first", "20260903170201")
+    app._agents_with_children = [agent]
+
+    app._kill_and_edit_last_launch()
+    app._on_launch_proc_complete(
+        _completion(
+            "p1",
+            _LaunchProcOutcome(
+                "Started first",
+                results=(_matchable_result("proj", "20260903170201"),),
+            ),
+        )
+    )
+    app._on_launch_proc_complete(_completion("p2", None, success=False))
+
+    assert app.killed == [agent]
+    assert record.failed_proc_ids == {"p2"}
+    assert record.state is LaunchRecordState.CONSUMED
+
+
+def test_rejected_deferred_kill_remains_retryable() -> None:
+    app = _DeferredKillApp()
+    app._kill_result = False
+    record = push_launch_record(
+        app,
+        proc_ids=("p1",),
+        prompt="do work",
+        context=_context("retry"),
+    )
+    assert record is not None
+    agent = _running_row("retry", "20260903170301")
+    app._agents_with_children = [agent]
+
+    app._kill_and_edit_last_launch()
+    app._on_launch_proc_complete(
+        _completion(
+            "p1",
+            _LaunchProcOutcome(
+                "Started first",
+                results=(_matchable_result("proj", "20260903170301"),),
+            ),
+        )
+    )
+
+    assert app.killed == [agent]
+    assert record.state is LaunchRecordState.RESOLVED
+    assert latest_live_launch_record(app) is record
+    assert any("Could not start cleanup" in message for message, _ in app.notifications)
 
 
 def test_inflight_kill_parks_replacement_until_cleanup_settles() -> None:

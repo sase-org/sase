@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ._launch_records import LaunchRecordContext, push_launch_record
 from ._launch_provider_guard import LaunchProviderGuardMixin
-from ._types import PromptContext
+from ._types import (
+    PromptContext,
+    PromptSessionId,
+    RelaunchOperation,
+    current_prompt_session,
+    invalidate_prompt_session,
+    prompt_session_is_live,
+)
 
 if TYPE_CHECKING:
     from sase.ace.patch import Patch
@@ -99,6 +106,20 @@ class _AcceptedBulkLaunch:
     context: LaunchRecordContext
 
 
+@dataclass
+class _AcceptedLaunchSubmission:
+    """One prompt submission accepted by the UI but possibly parked."""
+
+    prompt: str
+    context: PromptContext
+    keep_bar: bool
+    extra_payload: dict[str, object] | None
+    bulk_patches: tuple[Patch, ...]
+    owner_id: PromptSessionId | None
+    relaunch_operation: RelaunchOperation | None
+    submitted: bool = False
+
+
 class AgentLaunchStartMixin(LaunchProviderGuardMixin):
     """Mixin providing prompt-submit launch setup."""
 
@@ -122,9 +143,11 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
             keep_bar: Leave the prompt bar mounted and the base context intact
                 (single-pane submit with panes remaining) instead of unmounting.
         """
-        if self._prompt_context is None:
+        session = current_prompt_session(self)
+        if session is None:
             self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
             return
+        owner_id = session.session_id
 
         from sase.agent.prompt_inputs import (
             PromptInputError,
@@ -137,7 +160,12 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
             # Collect on the UI thread, then launch from the modal callback. The
             # prompt bar stays mounted so a cancel returns the user to their
             # prompt.
-            self._collect_prompt_inputs_then_launch(prompt, plan, keep_bar)
+            self._collect_prompt_inputs_then_launch(
+                prompt,
+                plan,
+                keep_bar,
+                owner_session_id=owner_id,
+            )
             return
         if plan.declared is not None:
             # Only optional inputs: substitute their declared defaults so any
@@ -149,10 +177,19 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
                 self._release_prompt_context_if_no_bar_mounted()
                 return
 
-        self._launch_resolved_prompt(prompt, keep_bar=keep_bar)
+        self._launch_resolved_prompt(
+            prompt,
+            keep_bar=keep_bar,
+            owner_session_id=owner_id,
+        )
 
     def _collect_prompt_inputs_then_launch(
-        self, prompt: str, plan: PromptInputPlan, keep_bar: bool
+        self,
+        prompt: str,
+        plan: PromptInputPlan,
+        keep_bar: bool,
+        *,
+        owner_session_id: PromptSessionId | None,
     ) -> None:
         """Show the Prompt Inputs panel, then launch with substituted values.
 
@@ -175,6 +212,12 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
         agent_count = max(1, len(parse_multi_prompt(prompt).segments))
 
         def _after(values: object) -> None:
+            if not prompt_session_is_live(self, owner_session_id):
+                self.notify(  # type: ignore[attr-defined]
+                    "Launch cancelled; the prompt bar was closed while collecting inputs.",
+                    severity="warning",
+                )
+                return
             if values is None:
                 self.notify("Input collection cancelled")  # type: ignore[attr-defined]
                 self._release_prompt_context_if_no_bar_mounted()
@@ -187,14 +230,24 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
                 self.notify(f"Input error: {exc}", severity="error")  # type: ignore[attr-defined]
                 self._release_prompt_context_if_no_bar_mounted()
                 return
-            self._launch_resolved_prompt(resolved, keep_bar=keep_bar)
+            self._launch_resolved_prompt(
+                resolved,
+                keep_bar=keep_bar,
+                owner_session_id=owner_session_id,
+            )
 
         self.push_screen(  # type: ignore[attr-defined]
             InputCollectionModal(plan, agent_count=agent_count),
             _after,
         )
 
-    def _launch_resolved_prompt(self, prompt: str, *, keep_bar: bool = False) -> None:
+    def _launch_resolved_prompt(
+        self,
+        prompt: str,
+        *,
+        keep_bar: bool = False,
+        owner_session_id: PromptSessionId | None = None,
+    ) -> None:
         """Launch *prompt* (inputs already resolved) via durable ``sase run``.
 
         Runs the hard-disable provider guard first while the prompt bar is
@@ -218,11 +271,15 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
             keep_bar: Leave the prompt bar mounted and the base context intact
                 (single-pane submit with panes remaining) instead of unmounting.
         """
-        if self._prompt_context is None:
+        if not prompt_session_is_live(self, owner_session_id):
             self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
             return
 
-        self._preflight_provider_disables(prompt, keep_bar)
+        self._preflight_provider_disables(
+            prompt,
+            keep_bar,
+            owner_session_id=owner_session_id,
+        )
 
     def _submit_resolved_launch(
         self,
@@ -230,6 +287,8 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
         *,
         keep_bar: bool = False,
         extra_payload: dict[str, object] | None = None,
+        owner_session_id: PromptSessionId | None = None,
+        accepted: object | None = None,
     ) -> None:
         """Unmount (unless *keep_bar*) and submit the durable ``sase run``.
 
@@ -241,37 +300,75 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
         """
         from ._relaunch_barrier import hold_launch_for_relaunch_cleanup
 
+        if accepted is not None and not isinstance(accepted, _AcceptedLaunchSubmission):
+            raise TypeError("accepted launch submission has unexpected type")
+
+        accepted_submission = accepted
+        if accepted_submission is None:
+            session = current_prompt_session(self)
+            if session is None or (
+                owner_session_id is not None and session.session_id != owner_session_id
+            ):
+                self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
+                return
+            owner_session_id = session.session_id
+            if not keep_bar and session.accepted_whole_bar_submit:
+                log.debug("Dropping duplicate whole-bar launch submission")
+                return
+            if not keep_bar:
+                session.accepted_whole_bar_submit = True
+            accepted_submission = _AcceptedLaunchSubmission(
+                prompt=prompt,
+                context=replace(session.context),
+                keep_bar=keep_bar,
+                extra_payload=dict(extra_payload)
+                if extra_payload is not None
+                else None,
+                bulk_patches=tuple(getattr(self, "_bulk_patches", None) or ()),
+                owner_id=owner_session_id,
+                relaunch_operation=session.relaunch_operation,
+            )
+
+        if accepted_submission.submitted:
+            return
+
+        if not prompt_session_is_live(self, accepted_submission.owner_id):
+            log.debug("Dropping launch submission for retired prompt session")
+            return
+
         if hold_launch_for_relaunch_cleanup(
             self,
             lambda: self._submit_resolved_launch(
-                prompt, keep_bar=keep_bar, extra_payload=extra_payload
+                accepted_submission.prompt,
+                keep_bar=accepted_submission.keep_bar,
+                extra_payload=accepted_submission.extra_payload,
+                owner_session_id=accepted_submission.owner_id,
+                accepted=accepted_submission,
             ),
+            owner_id=accepted_submission.owner_id,
+            operation=accepted_submission.relaunch_operation,
         ):
             return
 
-        if self._prompt_context is None:
-            self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
+        if not prompt_session_is_live(self, accepted_submission.owner_id):
+            log.debug("Dropping launch submission for retired prompt session")
             return
 
-        bulk_patches = getattr(self, "_bulk_patches", None)
+        bulk_patches = accepted_submission.bulk_patches
         if bulk_patches:
+            accepted_submission.submitted = True
             self._submit_bulk_resolved_launch(
-                prompt,
+                accepted_submission.prompt,
                 list(bulk_patches),
-                keep_bar=keep_bar,
-                extra_payload=extra_payload,
+                keep_bar=accepted_submission.keep_bar,
+                extra_payload=accepted_submission.extra_payload,
             )
             return
 
         # Regenerate timestamp at launch time (not when prompt bar was opened)
         from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
 
-        if keep_bar:
-            import dataclasses
-
-            ctx = dataclasses.replace(self._prompt_context)
-        else:
-            ctx = self._prompt_context
+        ctx = replace(accepted_submission.context)
         ctx.timestamp = reserve_launch_timestamp_batch(1)[0]
         ctx.workflow_name = f"ace(run)-{ctx.timestamp}"
 
@@ -287,7 +384,11 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
         # remains the base. ``ctx`` is a snapshot with a freshly reserved
         # timestamp / workflow name so this submit does not mutate the base
         # that later panes still use.
-        if not keep_bar:
+        accepted_submission.submitted = True
+        if not accepted_submission.keep_bar:
+            invalidate_prompt_session(
+                self, accepted_submission.owner_id, clear_context=False
+            )
             self._unmount_prompt_bar_after_submit()  # type: ignore[attr-defined]
             self._prompt_context = None
         from ...util.trace import set_trace_context
@@ -298,7 +399,8 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
             last_action_ts=ctx.timestamp,
         )
         self.notify(  # type: ignore[attr-defined]
-            f"Launching agent for {_launch_toast_label(prompt, ctx.display_name)}..."
+            "Launching agent for "
+            f"{_launch_toast_label(accepted_submission.prompt, ctx.display_name)}..."
         )
 
         payload: dict[str, object] = {
@@ -306,27 +408,27 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
             "project_name": ctx.project_name,
             "workflow_name": ctx.workflow_name,
         }
-        if extra_payload:
-            payload.update(extra_payload)
+        if accepted_submission.extra_payload:
+            payload.update(accepted_submission.extra_payload)
 
         proc_info = self._submit_launch_proc(  # type: ignore[attr-defined]
             display_name=f"launch {ctx.display_name}",
             cl_name=ctx.display_name,
             project_file=ctx.project_file,
-            prompt=prompt,
+            prompt=accepted_submission.prompt,
             dedup_key=f"launch:{ctx.workflow_name}",
             extra_payload=payload,
-            submitted_prompt=prompt,
+            submitted_prompt=accepted_submission.prompt,
         )
         if proc_info is not None:
             push_launch_record(
                 self,
                 proc_ids=(proc_info.proc_id,),
-                prompt=prompt,
+                prompt=accepted_submission.prompt,
                 context=_launch_record_context_from_prompt_context(ctx),
-                submitted_prompts={proc_info.proc_id: prompt},
+                submitted_prompts={proc_info.proc_id: accepted_submission.prompt},
             )
-            _record_submit_time_vcs_replay(prompt)
+            _record_submit_time_vcs_replay(accepted_submission.prompt)
 
     def _submit_bulk_resolved_launch(
         self,
@@ -345,6 +447,7 @@ class AgentLaunchStartMixin(LaunchProviderGuardMixin):
         """
         del keep_bar
         self._bulk_patches = None  # type: ignore[attr-defined]
+        invalidate_prompt_session(self, clear_context=False)
         self._unmount_prompt_bar_after_submit()  # type: ignore[attr-defined]
         self._prompt_context = None
         self._clear_bulk_patch_marks()

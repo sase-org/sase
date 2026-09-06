@@ -14,7 +14,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from ._prompt_bar_stash_restore import PromptBarStashRestoreMixin
-from ._types import PromptContext
+from ._types import PromptContext, invalidate_prompt_session
 
 log = logging.getLogger(__name__)
 _RESTART_STASH_SOURCE = "restart"
@@ -94,6 +94,7 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
         if event.dismiss_bar:
             # The bar emptied: drop it via the post-submit path so the stashed
             # text is not *also* re-recorded as cancelled prompt history.
+            invalidate_prompt_session(self, clear_context=False)
             self._unmount_prompt_bar_after_submit()  # type: ignore[attr-defined]
             self._prompt_context = None
 

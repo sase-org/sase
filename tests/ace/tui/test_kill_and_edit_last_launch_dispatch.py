@@ -10,10 +10,16 @@ import pytest
 
 from sase.ace.tui.actions.agent_workflow._kill_last_launch import (
     KillAndEditLastLaunchMixin,
+    _launch_result_key,
 )
 from sase.ace.tui.actions.agent_workflow._launch_records import (
     push_launch_record,
     stamp_launch_record_results,
+)
+from sase.ace.tui.actions.agent_workflow._types import (
+    PromptContext,
+    RelaunchOperation,
+    begin_prompt_session,
 )
 
 from tests.ace.tui._kill_and_edit_last_launch_helpers import (
@@ -38,6 +44,7 @@ class _DispatchApp(KillAndEditLastLaunchMixin):
         self.bulk_edit_calls: list[dict[str, Any]] = []
         self.timers: list[Any] = []
         self._prompt_bar: Any | None = None
+        self._prompt_context: PromptContext | None = None
 
     def notify(self, message: str, *, severity: str | None = None) -> None:
         self.notifications.append((message, severity))
@@ -50,6 +57,7 @@ class _DispatchApp(KillAndEditLastLaunchMixin):
         target: _FakeAgent | None = None,
         *,
         on_initiated: Callable[[bool], None] | None = None,
+        **_kwargs: object,
     ) -> None:
         assert target is not None
         self.single_targets.append(target)
@@ -61,6 +69,7 @@ class _DispatchApp(KillAndEditLastLaunchMixin):
         agents: list[_FakeAgent],
         *,
         on_initiated: Callable[[bool], None] | None = None,
+        **_kwargs: object,
     ) -> None:
         self.set_targets.append(agents)
         if on_initiated is not None:
@@ -72,6 +81,7 @@ class _DispatchApp(KillAndEditLastLaunchMixin):
         project_file: str,
         cl_name: str,
         is_project_agent: bool,
+        **_kwargs: object,
     ) -> None:
         self.edit_calls.append((raw_prompt, project_file, cl_name, is_project_agent))
 
@@ -81,6 +91,7 @@ class _DispatchApp(KillAndEditLastLaunchMixin):
         project_file: str,
         cl_name: str,
         is_project_agent: bool,
+        **_kwargs: object,
     ) -> None:
         self.bulk_edit_calls.append(
             {
@@ -160,6 +171,11 @@ def test_kill_pending_repeat_refocuses_and_does_not_advance() -> None:
     assert app.edit_calls == [
         ("newer", newer.context.project_file, newer.context.cl_name, True)
     ]
+    begin_prompt_session(
+        app,
+        _prompt_context_for_record(newer),
+        relaunch_operation=newer.relaunch_operation,
+    )
 
     app._kill_and_edit_last_launch()
 
@@ -177,6 +193,55 @@ def test_kill_pending_repeat_refocuses_and_does_not_advance() -> None:
     assert newer.state is LaunchRecordState.KILL_PENDING
     assert older.state is LaunchRecordState.IN_FLIGHT
     assert latest_live_launch_record(app) is newer
+
+
+def test_kill_pending_repeat_remounts_when_an_unrelated_prompt_is_mounted() -> None:
+    app = _DispatchApp()
+    record = push_launch_record(
+        app, proc_ids=("newer",), prompt="newer", context=_context("newer")
+    )
+    assert record is not None
+    bar = SimpleNamespace(focus_count=0)
+
+    def focus() -> None:
+        bar.focus_count += 1
+
+    bar.focus = focus
+    app._prompt_bar = bar
+
+    app._kill_and_edit_last_launch()
+    assert app.edit_calls == [
+        ("newer", record.context.project_file, record.context.cl_name, True)
+    ]
+
+    begin_prompt_session(
+        app,
+        _prompt_context_for_record(record),
+        relaunch_operation=RelaunchOperation("unrelated prompt"),
+    )
+    app._kill_and_edit_last_launch()
+
+    assert bar.focus_count == 0
+    assert app.edit_calls == [
+        ("newer", record.context.project_file, record.context.cl_name, True),
+        ("newer", record.context.project_file, record.context.cl_name, True),
+    ]
+
+
+def _prompt_context_for_record(record: Any) -> PromptContext:
+    return PromptContext(
+        project_name="home",
+        cl_name=None,
+        project_file=record.context.project_file,
+        workspace_dir="/tmp",
+        workspace_num=0,
+        workflow_name="ace(run)-test",
+        timestamp="test",
+        history_sort_key=record.context.cl_name,
+        display_name=record.context.display_name,
+        update_target="",
+        is_home_mode=True,
+    )
 
 
 def test_inflight_bulk_record_mounts_per_unit_prompts() -> None:
@@ -283,7 +348,7 @@ def test_resolved_multi_match_delegates_to_bulk_set(
     assert app.revealed == [agents[0].identity]
 
 
-def test_already_dead_target_pops_to_next_live_record(
+def test_unresolved_newest_target_stays_pinned(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = _DispatchApp()
@@ -297,13 +362,12 @@ def test_already_dead_target_pops_to_next_live_record(
     stamp_launch_record_results(app, "p1", (_matchable_result("proj", "1"),))
     stamp_launch_record_results(app, "p2", (_matchable_result("proj", "2"),))
 
-    agent = _FakeAgent("still-here")
     calls: list[Any] = []
 
     def fake_matcher(record: Any, loaded: Any) -> list[_FakeAgent]:
+        del loaded
         calls.append(record)
-        # Newest record is already gone; pop it and take the older live one.
-        return [] if record is live else [agent]
+        return []
 
     monkeypatch.setattr(
         "sase.ace.tui.actions.agent_workflow._kill_last_launch."
@@ -313,11 +377,59 @@ def test_already_dead_target_pops_to_next_live_record(
 
     app._kill_and_edit_last_launch()
 
-    assert calls == [live, stale]
-    assert app.single_targets == [agent]
+    assert calls == [live]
+    assert app.single_targets == []
+    assert app.set_targets == []
     from sase.ace.tui.actions.agent_workflow._launch_records import (
         LaunchRecordState,
+        latest_live_launch_record,
     )
+
+    assert stale.state is LaunchRecordState.RESOLVED
+    assert live.state is LaunchRecordState.RESOLVED
+    assert latest_live_launch_record(app) is live
+    assert any(
+        "still has 1 launch target resolving" in message
+        for message, _severity in app.notifications
+    )
+
+
+def test_confirmed_handled_target_pops_to_next_live_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _DispatchApp()
+    stale = push_launch_record(
+        app, proc_ids=("p1",), prompt="p", context=_context("stale")
+    )
+    live = push_launch_record(
+        app, proc_ids=("p2",), prompt="p", context=_context("live")
+    )
+    assert stale is not None and live is not None
+    stale_result = _matchable_result("proj", "1")
+    live_result = _matchable_result("proj", "2")
+    stamp_launch_record_results(app, "p1", (stale_result,))
+    stamp_launch_record_results(app, "p2", (live_result,))
+    live.handled_result_keys.add(_launch_result_key(live_result))
+
+    agent = _FakeAgent("still-here")
+    calls: list[Any] = []
+
+    def fake_matcher(record: Any, loaded: Any) -> list[_FakeAgent]:
+        del loaded
+        calls.append(record)
+        return [agent] if record is stale else []
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agent_workflow._kill_last_launch."
+        "_matched_agents_for_record",
+        fake_matcher,
+    )
+
+    app._kill_and_edit_last_launch()
+
+    assert calls == [stale]
+    assert app.single_targets == [agent]
+    from sase.ace.tui.actions.agent_workflow._launch_records import LaunchRecordState
 
     assert stale.state is LaunchRecordState.CONSUMED
     assert live.state is LaunchRecordState.CONSUMED

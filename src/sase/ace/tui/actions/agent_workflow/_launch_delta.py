@@ -34,6 +34,8 @@ def _artifact_dir_from_output_path(output_path: str) -> Path | None:
 
 def artifact_dir_from_launch_result(result: AgentLaunchResult) -> Path | None:
     """Return the exact artifact directory created by a launch result."""
+    if result.artifacts_dir:
+        return Path(result.artifacts_dir).expanduser()
     project_name = result.project_name
     if not project_name and result.project_file:
         project_name = Path(result.project_file).expanduser().parent.name

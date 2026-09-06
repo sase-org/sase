@@ -17,7 +17,7 @@ from ._entry_name_prompts import (
     prepare_kill_and_edit_prompt,
     prompt_facing_agent_name,
 )
-from ._types import PromptContext
+from ._types import PromptContext, RelaunchOperation, begin_prompt_session
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -234,6 +234,7 @@ class EntryRelaunchMixin:
         target: Agent | None = None,
         *,
         on_initiated: Callable[[bool], None] | None = None,
+        relaunch_operation: RelaunchOperation | None = None,
     ) -> None:
         """Kill *target* (or the selected agent), then edit its prompt.
 
@@ -253,6 +254,10 @@ class EntryRelaunchMixin:
             if on_initiated is not None:
                 on_initiated(False)
             return
+        if relaunch_operation is None:
+            relaunch_operation = RelaunchOperation(
+                f"kill-and-edit {agent.display_name}"
+            )
         if getattr(agent, "is_clan_container", False):
             label = (
                 getattr(agent, "presented_agent_name", None)
@@ -303,6 +308,7 @@ class EntryRelaunchMixin:
                 identity,
                 raw_prompt,
                 on_initiated=on_initiated,
+                relaunch_operation=relaunch_operation,
             )
 
         schedule_relaunch_prompt_resolution(
@@ -323,6 +329,7 @@ class EntryRelaunchMixin:
         raw_prompt: str,
         *,
         on_initiated: Callable[[bool], None] | None = None,
+        relaunch_operation: RelaunchOperation | None = None,
     ) -> None:
         """Apply a resolved relaunch prompt to a still-current row.
 
@@ -346,7 +353,11 @@ class EntryRelaunchMixin:
 
         def mount_prompt_bar() -> None:
             self._edit_and_relaunch_agent(
-                raw_prompt, agent_project_file, agent_cl_name, agent_is_project_agent
+                raw_prompt,
+                agent_project_file,
+                agent_cl_name,
+                agent_is_project_agent,
+                relaunch_operation=relaunch_operation,
             )
 
         from ..agents._core import DISMISSABLE_STATUSES
@@ -356,7 +367,9 @@ class EntryRelaunchMixin:
             # prompt bar right away, and let the barrier hold the eventual
             # launch until the dismiss persistence proc settles.
             barrier = open_relaunch_cleanup_barrier(
-                self, f"kill-and-edit {agent.display_name}"
+                self,
+                f"kill-and-edit {agent.display_name}",
+                operation=relaunch_operation,
             )
             settle = lambda: settle_relaunch_cleanup_barrier(self, barrier)  # noqa: E731
             if not self._dismiss_done_agent(agent, on_settled=settle):  # type: ignore[attr-defined]
@@ -414,7 +427,9 @@ class EntryRelaunchMixin:
                     on_initiated(False)
                 return
             barrier = open_relaunch_cleanup_barrier(
-                self, f"kill-and-edit {current.display_name}"
+                self,
+                f"kill-and-edit {current.display_name}",
+                operation=relaunch_operation,
             )
             settle = lambda: settle_relaunch_cleanup_barrier(self, barrier)  # noqa: E731
             if not self._do_kill_agent(current, on_settled=settle):  # type: ignore[attr-defined]
@@ -434,6 +449,8 @@ class EntryRelaunchMixin:
         project_file: str,
         cl_name: str,
         is_project_agent: bool,
+        *,
+        relaunch_operation: RelaunchOperation | None = None,
     ) -> None:
         """Show agent prompt in the prompt input bar for editing and relaunch.
 
@@ -448,7 +465,11 @@ class EntryRelaunchMixin:
             is_project_agent: Whether the agent was a project-level agent.
         """
         self._mount_edit_relaunch_prompt_bar(
-            project_file, cl_name, is_project_agent, initial_value=raw_prompt
+            project_file,
+            cl_name,
+            is_project_agent,
+            initial_value=raw_prompt,
+            relaunch_operation=relaunch_operation,
         )
 
     def _edit_and_relaunch_agents_bulk(
@@ -457,6 +478,8 @@ class EntryRelaunchMixin:
         project_file: str,
         cl_name: str,
         is_project_agent: bool,
+        *,
+        relaunch_operation: RelaunchOperation | None = None,
     ) -> None:
         """Seed one editable prompt pane per killed agent (marked-set ``,x``).
 
@@ -474,7 +497,11 @@ class EntryRelaunchMixin:
             is_project_agent: Whether the first marked agent was project-level.
         """
         self._mount_edit_relaunch_prompt_bar(
-            project_file, cl_name, is_project_agent, initial_panes=raw_prompts
+            project_file,
+            cl_name,
+            is_project_agent,
+            initial_panes=raw_prompts,
+            relaunch_operation=relaunch_operation,
         )
 
     def _mount_edit_relaunch_prompt_bar(
@@ -485,6 +512,7 @@ class EntryRelaunchMixin:
         *,
         initial_value: str | None = None,
         initial_panes: list[str] | None = None,
+        relaunch_operation: RelaunchOperation | None = None,
     ) -> None:
         """Set up home-mode prompt context and mount the prompt input bar.
 
@@ -511,20 +539,24 @@ class EntryRelaunchMixin:
         self._unmount_prompt_bar()  # type: ignore[attr-defined]
 
         # Set up prompt context for home mode.
-        self._prompt_context = PromptContext(
-            project_name="home",
-            cl_name=None,
-            project_file=preferred_project_spec_path(
-                str(sase_projects_dir() / "home"), "home"
+        begin_prompt_session(
+            self,
+            PromptContext(
+                project_name="home",
+                cl_name=None,
+                project_file=preferred_project_spec_path(
+                    str(sase_projects_dir() / "home"), "home"
+                ),
+                workspace_dir=str(Path.home()),
+                workspace_num=0,
+                workflow_name=workflow_name,
+                timestamp=timestamp,
+                history_sort_key=cl_name,
+                display_name=display_name,
+                update_target="",
+                is_home_mode=True,
             ),
-            workspace_dir=str(Path.home()),
-            workspace_num=0,
-            workflow_name=workflow_name,
-            timestamp=timestamp,
-            history_sort_key=cl_name,
-            display_name=display_name,
-            update_target="",
-            is_home_mode=True,
+            relaunch_operation=relaunch_operation,
         )
 
         # Show prompt input bar with display-safe prompt text. Soft wrapping is
