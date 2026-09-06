@@ -199,6 +199,15 @@ REQUIRED_BINDINGS = (
     "aggregate_finalizer_outcomes",
     "feature_flag_state_get",
     "feature_flag_state_set",
+    "migration_acquire_bounded_lock",
+    "migration_fingerprint",
+    "migration_journal_record_normalize",
+    "migration_manifest_normalize",
+    "migration_plan_next_step",
+    "migration_reconcile_procs",
+    "migration_residue_classify",
+    "migration_tree_digest",
+    "migration_wire_schema_version",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the

@@ -83,11 +83,21 @@ def test_scan_finds_direct_and_forwarded_binding_names(
     assert "save_dismissed_agent_group" in names
 
 
-def test_required_bindings_include_feature_flag_state(tool: ModuleType) -> None:
-    assert tool.REQUIRED_BINDINGS == (
+def test_required_bindings_include_pre_facade_contracts(tool: ModuleType) -> None:
+    expected = {
         "feature_flag_state_get",
         "feature_flag_state_set",
-    )
+        "migration_acquire_bounded_lock",
+        "migration_fingerprint",
+        "migration_journal_record_normalize",
+        "migration_manifest_normalize",
+        "migration_plan_next_step",
+        "migration_reconcile_procs",
+        "migration_residue_classify",
+        "migration_tree_digest",
+        "migration_wire_schema_version",
+    }
+    assert expected <= set(tool.REQUIRED_BINDINGS)
 
 
 def test_list_includes_required_feature_flag_state_bindings(
