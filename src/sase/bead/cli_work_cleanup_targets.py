@@ -25,6 +25,7 @@ class _AgentOwnerView:
     """Indexed agent artifacts used to classify registered owners."""
 
     records_by_artifact_dir: dict[str, AgentArtifactRecordWire]
+    records_by_name_key: dict[str, tuple[AgentArtifactRecordWire, ...]]
     family_members_by_key: dict[str, tuple[AgentArtifactRecordWire, ...]]
     clan_members_by_key: dict[str, tuple[AgentArtifactRecordWire, ...]]
     identity: AgentIdentitySnapshot
@@ -57,10 +58,15 @@ def load_agent_owner_view() -> _AgentOwnerView:
             parsed_source_files=len(snapshot.records),
         )
     records_by_artifact_dir: dict[str, AgentArtifactRecordWire] = {}
+    records_by_name: dict[str, list[AgentArtifactRecordWire]] = {}
     family_members: dict[str, list[AgentArtifactRecordWire]] = {}
     clan_members: dict[str, list[AgentArtifactRecordWire]] = {}
     for record in snapshot.records:
         records_by_artifact_dir[_normalized_path_key(record.artifact_dir)] = record
+        record_name = _record_agent_name(record)
+        if record_name:
+            name_key = current_owner_agent_name_key(record_name, identity)
+            records_by_name.setdefault(name_key, []).append(record)
         meta = record.agent_meta
         if meta is None:
             continue
@@ -76,6 +82,9 @@ def load_agent_owner_view() -> _AgentOwnerView:
 
     return _AgentOwnerView(
         records_by_artifact_dir=records_by_artifact_dir,
+        records_by_name_key={
+            key: tuple(value) for key, value in records_by_name.items()
+        },
         family_members_by_key={
             key: tuple(value) for key, value in family_members.items()
         },
@@ -117,6 +126,7 @@ def classify_slot_owner(
                 slot,
                 owner,
                 bead_assignees=bead_assignees,
+                view=view,
             ),
         )
     return (
@@ -126,7 +136,7 @@ def classify_slot_owner(
             owner_name=slot.owner_name,
             bead_assignees=bead_assignees,
             membership="registry",
-            identity=view.identity,
+            view=view,
         ),
     )
 
@@ -174,7 +184,7 @@ def _classify_family_owner(
                     owner_name=owner_name,
                     bead_assignees=bead_assignees,
                     membership="family",
-                    identity=view.identity,
+                    view=view,
                 )
             )
         except ForcedReuseCleanupError as exc:
@@ -244,20 +254,23 @@ def _classify_artifact_record(
     owner_name: str,
     bead_assignees: dict[str, str],
     membership: _OwnerMembership,
-    identity: AgentIdentitySnapshot,
+    view: _AgentOwnerView,
 ) -> CleanupTarget:
     _require_record_association(
         slot,
         record,
         owner_name=owner_name,
         membership=membership,
-        identity=identity,
+        identity=view.identity,
     )
-    _require_compatible_assignee(
+    preserved = _resolve_assignee_conflict(
         slot,
         owner_name=owner_name,
         bead_assignees=bead_assignees,
+        view=view,
     )
+    if preserved is not None:
+        return preserved
 
     try:
         current_state = _record_current_state(record)
@@ -299,12 +312,16 @@ def _classify_stale_registry_owner(
     owner: dict[str, object],
     *,
     bead_assignees: dict[str, str],
+    view: _AgentOwnerView,
 ) -> CleanupTarget:
-    _require_compatible_assignee(
+    preserved = _resolve_assignee_conflict(
         slot,
         owner_name=slot.owner_name,
         bead_assignees=bead_assignees,
+        view=view,
     )
+    if preserved is not None:
+        return preserved
     state = owner.get("state")
     current_state = (
         state
@@ -414,33 +431,52 @@ def _require_record_association(
     )
 
 
-def _require_compatible_assignee(
+def _resolve_assignee_conflict(
     slot: BeadWorkSlot,
     *,
     owner_name: str,
     bead_assignees: dict[str, str],
-) -> None:
+    view: _AgentOwnerView,
+) -> CleanupTarget | None:
     assignee = bead_assignees.get(slot.expected_bead_id, "")
     if not assignee:
-        return
+        return None
     from sase.core.agent_identity_facade import (
-        AgentIdentitySnapshot,
+        agent_name_ancestors,
         current_owner_agent_name_key,
     )
 
-    identity = AgentIdentitySnapshot.current()
-    allowed = {owner_name}
+    identity = view.identity
+    allowed = {owner_name, slot.owner_name}
     if slot.launch_name:
         allowed.add(slot.launch_name)
     assignee_key = current_owner_agent_name_key(assignee, identity)
-    if assignee_key in {
-        current_owner_agent_name_key(name, identity) for name in allowed
-    }:
-        return
-    raise ForcedReuseCleanupError(
-        f"bead {slot.expected_bead_id} is assigned to {assignee}, which does "
-        f"not match the relaunch owner {owner_name}"
-    )
+    allowed_keys = {current_owner_agent_name_key(name, identity) for name in allowed}
+    if assignee_key in allowed_keys:
+        return None
+    ancestor_keys = {
+        current_owner_agent_name_key(ancestor, identity)
+        for ancestor in agent_name_ancestors(assignee, identity)
+    }
+    if allowed_keys.isdisjoint(ancestor_keys):
+        raise ForcedReuseCleanupError(
+            f"bead {slot.expected_bead_id} is assigned to {assignee}, which does "
+            f"not match the relaunch owner {owner_name}"
+        )
+    for record in view.records_by_name_key.get(assignee_key, ()):
+        if not _record_is_live(record):
+            continue
+        return CleanupTarget(
+            name=owner_name,
+            action="PRESERVE",
+            current_state=_record_current_state(record),
+            detail=(f"live retry {assignee} is working bead {slot.expected_bead_id}"),
+            expected_bead_id=slot.expected_bead_id,
+            slot_id=slot.slot_id,
+            artifacts_dir=str(getattr(record, "artifact_dir", "")),
+            generation=str(getattr(record, "timestamp", "")),
+        )
+    return None
 
 
 def _record_current_state(record: AgentArtifactRecordWire) -> str:
