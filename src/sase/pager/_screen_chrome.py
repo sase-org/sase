@@ -48,9 +48,11 @@ class PagerChromeMixin:
         offsets = self._body.section_offsets if self._body is not None else (0,)
         index = current_section_index(offsets, int(scroll.scroll_y))
         section = self.document.sections[index]
+        composed = 0 if self._body is None else self._body.total_height
+        fits = composed <= max(int(scroll.size.height), 1)
         percent = (
             100
-            if scroll.max_scroll_y <= 0
+            if fits or scroll.max_scroll_y <= 0
             else min(100, round(scroll.scroll_y / scroll.max_scroll_y * 100))
         )
         char_count = sum(len(part.plain_text) for part in self.document.sections)
