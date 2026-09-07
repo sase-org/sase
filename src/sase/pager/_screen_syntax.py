@@ -302,12 +302,18 @@ class PagerSyntaxMixin:
         if width is None:
             return
         self._label_layer = self._build_label_layer(width)
+        mark = getattr(self, "_goto_mark", None)
+        accent_fn = getattr(self, "_goto_accent_for_mark", None)
         self._body = compose_body(
             self.document,
             width,
             label_layer=self._label_layer,
             pending_prefix=self._label_pending_prefix,
             prepared_sections=self._prepared_section_texts(),
+            goto_mark=mark,
+            goto_accent=accent_fn()
+            if mark is not None and accent_fn is not None
+            else None,
         )
         if self._search.is_active:
             self._search.refresh_styled_base()

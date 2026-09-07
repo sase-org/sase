@@ -134,3 +134,40 @@ async def test_three_section_document_mid_rule_png_snapshot(
             f"three_section_mid_rule_{size[0]}x{size[1]}",
             title="SasePager: three-section document mid-rule",
         )
+
+
+@pytest.mark.parametrize("size", _SIZES)
+async def test_goto_prompt_typing_png_snapshot(
+    pager_png_visual: AcePngSnapshotFixture,
+    size: tuple[int, int],
+) -> None:
+    app = SasePager(_three_section_document())
+    async with app.run_test(size=size) as pilot:
+        await pilot.pause()
+        await pilot.press("semicolon")
+        await pilot.press("1")
+        await pilot.press("2")
+        await pilot.pause()
+        pager_png_visual.assert_page_png(
+            _SvgExport(app),
+            f"goto_prompt_typing_{size[0]}x{size[1]}",
+            title="SasePager: goto prompt typing",
+        )
+
+
+@pytest.mark.parametrize("size", _SIZES)
+async def test_goto_prompt_invalid_png_snapshot(
+    pager_png_visual: AcePngSnapshotFixture,
+    size: tuple[int, int],
+) -> None:
+    app = SasePager(_three_section_document())
+    async with app.run_test(size=size) as pilot:
+        await pilot.pause()
+        await pilot.press("semicolon")
+        await pilot.press("0")
+        await pilot.pause()
+        pager_png_visual.assert_page_png(
+            _SvgExport(app),
+            f"goto_prompt_invalid_{size[0]}x{size[1]}",
+            title="SasePager: goto prompt invalid",
+        )

@@ -330,6 +330,7 @@ class PagerActionMixin:
         self._label_window_scope = None
         self._last_activated_label = None
         self._pending_action = "follow"
+        self._clear_goto_state()
         self._reset_search_state()
         self._reset_syntax_for_new_document()
         self._ensure_body()

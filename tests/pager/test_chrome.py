@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+from rich.console import Console
+
 from sase.pager._chrome import (
     _format_char_count,
     _section_accent,
     _section_icon,
     footer_legend,
+    goto_command_line,
     section_rule,
     subject_line,
 )
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+
+_CONSOLE = Console(color_system="truecolor")
 
 
 def _bead_section(title: str = "sase-uk.3: The reading surface") -> PagerSection:
@@ -225,3 +230,75 @@ def test_footer_legend_promotes_pending_prefix_over_follow_hint() -> None:
 
     assert "Z… link" in line.plain
     assert "follow" not in line.plain
+
+
+def test_goto_command_line_idle_shows_range_and_gold_sigil() -> None:
+    line = goto_command_line(
+        digits="",
+        line_count=12,
+        section_title=None,
+        section_kind=None,
+        width=80,
+    )
+
+    assert line.plain.startswith(":")
+    assert "line 1-12" in line.plain
+    assert line.get_style_at_offset(_CONSOLE, 0).bold is True
+
+
+def test_goto_command_line_typing_keeps_digits_white() -> None:
+    line = goto_command_line(
+        digits="4",
+        line_count=12,
+        section_title=None,
+        section_kind=None,
+        width=80,
+    )
+
+    assert ":4" in line.plain
+    assert "out of range" not in line.plain
+    style = line.get_style_at_offset(_CONSOLE, 1)
+    assert style.bold is not True
+
+
+def test_goto_command_line_invalid_restyles_digits_and_range() -> None:
+    line = goto_command_line(
+        digits="0",
+        line_count=12,
+        section_title="alpha.py",
+        section_kind="file",
+        width=80,
+    )
+
+    assert "out of range · 1-12" in line.plain
+    assert "alpha.py" not in line.plain
+    style = line.get_style_at_offset(_CONSOLE, 1)
+    assert style.bold is True
+
+
+def test_goto_command_line_multi_section_shows_glyph_and_title() -> None:
+    line = goto_command_line(
+        digits="",
+        line_count=30,
+        section_title="alpha.py",
+        section_kind="file",
+        width=80,
+    )
+
+    assert _section_icon("file") in line.plain
+    assert "alpha.py" in line.plain
+    assert "line 1-30" in line.plain
+
+
+def test_goto_command_line_truncates_title_before_dropping_the_range() -> None:
+    line = goto_command_line(
+        digits="",
+        line_count=12,
+        section_title="very-long-section-title.py",
+        section_kind="file",
+        width=28,
+    )
+
+    assert "line 1-12" in line.plain
+    assert "very-long-section-title.py" not in line.plain
+    assert "…" in line.plain

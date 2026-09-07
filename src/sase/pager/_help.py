@@ -23,6 +23,7 @@ _BINDING_ROWS: tuple[tuple[str, str], ...] = (
     ("j / k, down / up", "Scroll one line"),
     ("ctrl+d / ctrl+u", "Scroll half a page"),
     ("g / G", "Jump to top / bottom"),
+    ("; or :", "Jump to a line (1-N)"),
     ("backspace / ctrl+o", "Walk back"),
     ("ctrl+i", "Walk forward"),
     ("r", "Refresh"),
@@ -49,10 +50,12 @@ def _pager_help_text(
 ) -> Text:
     """Build the full key-binding sheet, pure and Textual-free."""
     rows = list(_BINDING_ROWS)
+    # Insert after "backspace / ctrl+o" (index 5) and before "ctrl+i".
+    # The goto row sits at index 4, so this slot is 6.
     if label_count:
-        rows[5:5] = _LINK_BINDING_ROWS
+        rows[6:6] = _LINK_BINDING_ROWS
     if section_total > 1:
-        rows[5:5] = _SECTION_BINDING_ROWS
+        rows[6:6] = _SECTION_BINDING_ROWS
     width = max(len(key) for key, _label in rows)
 
     text = Text()

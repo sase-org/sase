@@ -44,6 +44,11 @@ PagerScreen #pager-search-command {
     padding: 0 1;
 }
 
+PagerScreen #pager-goto-command {
+    height: 1;
+    padding: 0 1;
+}
+
 PagerScreen #pager-footer-rule {
     height: 1;
     padding: 0 1;

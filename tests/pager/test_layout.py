@@ -77,6 +77,51 @@ def test_compose_body_handles_an_empty_document() -> None:
 
     assert composed.section_offsets == (0,)
     assert composed.total_height == 0
+    assert composed.section_line_counts == ()
+    assert composed.section_line_rows == ()
+
+
+def test_compose_body_records_exact_line_maps_and_paints_the_gutter() -> None:
+    sections = (
+        _section("a", "one\ntwo\nthree\n"),
+        _section("b", "x" * 50),
+    )
+    document = PagerDocument(
+        sections=sections, title="2 files", origin=PagerOrigin.FILE
+    )
+
+    composed = compose_body(document, width=20)
+
+    # max logical lines is 3 → two digit columns + fence = 4 cells; wrap at 16.
+    first = list(composed.renderable.renderables)[0]
+    body_b = list(composed.renderable.renderables)[2]
+    assert isinstance(first, Text)
+    assert isinstance(body_b, Text)
+    rows = body_b.plain.split("\n")
+    assert composed.section_line_counts == (3, 1)
+    assert composed.section_offsets == (0, 3)
+    assert composed.section_line_rows[0] == (0, 1, 2)
+    assert composed.section_line_rows[1][0] == 4  # after the section-1 rule
+    assert composed.total_height == composed.section_offsets[1] + len(rows)
+    assert first.plain.startswith(" 1│ ")
+    assert rows[0].startswith(" 1│ ")
+    assert rows[1].startswith("  │ ")
+
+
+def test_compose_body_emphasizes_the_goto_mark_number() -> None:
+    document = PagerDocument(
+        sections=(_section("a", "one\ntwo\nthree\n"),),
+        title="a",
+        origin=PagerOrigin.FILE,
+    )
+
+    composed = compose_body(document, width=40, goto_mark=(0, 2), goto_accent="#FFAF5F")
+
+    rendered = list(composed.renderable.renderables)[0]
+    assert isinstance(rendered, Text)
+    row_start = rendered.plain.index("\n") + 1
+    style = rendered.get_style_at_offset(_CONSOLE, row_start + 1)
+    assert style.bold is True
 
 
 def test_current_section_index_picks_the_last_offset_at_or_before_scroll_y() -> None:
@@ -168,8 +213,10 @@ def test_prepared_sections_thread_through_the_labeled_render_path_too() -> None:
     rendered = list(composed.renderable.renderables)[0]
     assert isinstance(rendered, Text)
     assert "[0]" in rendered.plain
-    style = rendered.get_style_at_offset(_CONSOLE, 0)
+    content_start = rendered.plain.index("see")
+    style = rendered.get_style_at_offset(_CONSOLE, content_start)
     assert style.bold is True
+    assert rendered.plain.startswith(" 1│ ")
 
 
 def test_styled_search_base_matches_search_corpus_text_exactly() -> None:

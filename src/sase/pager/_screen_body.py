@@ -6,12 +6,12 @@ from typing import Any
 
 from textual.widgets import Static
 
+from sase.pager._gutter import gutter_width, logical_line_count
 from sase.pager._labels import (
     LabelWindowScope,
     PAGER_LABEL_TWO_KEY_CAPACITY,
     PagerLabelLayer,
     build_label_layer,
-    row_for_character_offset,
 )
 from sase.pager._layout import ComposedBody, compose_body, current_section_index
 from sase.pager._screen_widgets import PagerBodyScroll
@@ -66,6 +66,7 @@ class PagerBodyMixin:
         self._goto_section(-1)
 
     def action_refresh(self: Any) -> None:
+        self._clear_goto_state()
         self._body_width = None
         self._ensure_body()
         self._after_scroll()
@@ -104,21 +105,49 @@ class PagerBodyMixin:
         width-dependent layout - section row offsets and transition rules -
         per ``tui_perf`` rule 8.
         """
-        scroll = self._body_scroll()
-        width = max(scroll.size.width, 1)
+        width = self._body_paint_width()
         if self._body is not None and width == self._body_width:
             return
         self._body_width = width
         self._label_layer = self._build_label_layer(width)
-        body = compose_body(
+        body = self._compose_body_at_width(width)
+        self._body = body
+        self.query_one("#pager-body", Static).update(body.renderable)
+        if getattr(self, "_goto_active", False):
+            self._update_goto_command()
+
+    def _body_paint_width(self: Any) -> int:
+        """Return the width the body Static actually paints into."""
+        scroll = self._body_scroll()
+        body = self.query_one("#pager-body", Static)
+        padding = body.styles.padding
+        horizontal = int(padding.left) + int(padding.right)
+        region_width = int(scroll.scrollable_content_region.width)
+        base = region_width if region_width > 0 else int(scroll.size.width)
+        return max(base - horizontal, 1)
+
+    def _gutter_content_width(self: Any, paint_width: int) -> int:
+        max_count = max(
+            (
+                logical_line_count(section.plain_text)
+                for section in self.document.sections
+            ),
+            default=0,
+        )
+        return max(paint_width - gutter_width(max_count), 1)
+
+    def _compose_body_at_width(self: Any, width: int) -> ComposedBody:
+        mark = getattr(self, "_goto_mark", None)
+        accent = self._goto_accent_for_mark() if mark is not None else None
+        return compose_body(
             self.document,
             width,
             label_layer=self._label_layer,
             pending_prefix=self._label_pending_prefix,
             prepared_sections=self._prepared_section_texts(),
+            goto_mark=mark,
+            goto_accent=accent,
         )
-        self._body = body
-        self.query_one("#pager-body", Static).update(body.renderable)
 
     def _build_label_layer(self: Any, width: int) -> PagerLabelLayer:
         if not self.links_enabled:
@@ -131,9 +160,10 @@ class PagerBodyMixin:
                 mode="document",
             )
         section_offsets = self._body.section_offsets if self._body is not None else ()
+        wrap_width = self._gutter_content_width(width)
         layer = build_label_layer(
             self.document,
-            width=width,
+            width=wrap_width,
             section_offsets=section_offsets,
             dangling_refs=self._dangling_refs.keys(),
             is_dangling=self._is_target_dangling,
@@ -145,7 +175,7 @@ class PagerBodyMixin:
         scope = self._current_label_window_scope()
         return build_label_layer(
             self.document,
-            width=width,
+            width=wrap_width,
             window_scope=scope,
             section_offsets=section_offsets,
             dangling_refs=self._dangling_refs.keys(),
@@ -181,15 +211,16 @@ class PagerBodyMixin:
         self._update_footer()
 
     def _row_for_document_line(self: Any, line: int) -> int | None:
-        if not self.document.sections:
+        return self._row_for_section_line(0, line)
+
+    def _row_for_section_line(self: Any, section_index: int, line: int) -> int | None:
+        body = self._body
+        if body is None or not 0 <= section_index < len(body.section_line_rows):
             return None
-        text = self.document.sections[0].plain_text
-        lines = text.split("\n")
-        if line < 1 or line > len(lines):
+        rows = body.section_line_rows[section_index]
+        if line < 1 or line > len(rows):
             return None
-        offset = sum(len(entry) + 1 for entry in lines[: line - 1])
-        width = self._body_width or 1
-        return row_for_character_offset(text, offset, width)
+        return rows[line - 1]
 
     def _current_section_index(self: Any) -> int:
         offsets = self._body.section_offsets if self._body is not None else (0,)

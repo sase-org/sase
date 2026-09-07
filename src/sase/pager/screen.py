@@ -24,6 +24,7 @@ from sase.pager._layout import ComposedBody
 from sase.pager._screen_actions import PagerActionMixin, _DanglingRefKey
 from sase.pager._screen_body import PagerBodyMixin
 from sase.pager._screen_chrome import PagerChromeMixin
+from sase.pager._screen_goto import PagerGotoMixin
 from sase.pager._screen_search import PagerSearchMixin
 from sase.pager._screen_syntax import PagerSyntaxMixin
 from sase.pager._screen_trail import PagerTrailMixin
@@ -41,6 +42,7 @@ class PagerScreen(
     PagerTrailMixin,
     PagerChromeMixin,
     PagerSearchMixin,
+    PagerGotoMixin,
     PagerSyntaxMixin,
     ModalScreen[PagerExit],
 ):
@@ -62,6 +64,7 @@ class PagerScreen(
         Binding("ctrl+u", "scroll_half_up", "Half Up"),
         Binding("g", "scroll_top", "Top"),
         Binding("G", "scroll_bottom", "Bottom"),
+        Binding("semicolon,colon", "goto_line", "Go to Line"),
         Binding("ctrl+n", "next_section", "Next Section"),
         Binding("ctrl+p", "prev_section", "Prev Section"),
         Binding("backspace,ctrl+o", "trail_back", "Back"),
@@ -102,6 +105,7 @@ class PagerScreen(
         self._back_trail: list[PagerTrailEntry] = []
         self._forward_trail: list[PagerTrailEntry] = []
         self._footer_status: str | None = None
+        self._init_goto_state()
         self._init_syntax_state()
 
     def on_unmount(self) -> None:
@@ -115,6 +119,7 @@ class PagerScreen(
             with PagerBodyScroll(id="pager-body-scroll"):
                 yield PagerBody(id="pager-body")
             yield Static(id="pager-search-command", classes="hidden")
+            yield Static(id="pager-goto-command", classes="hidden")
             yield Static(id="pager-footer-rule")
             yield Static(id="pager-footer")
 
@@ -144,6 +149,10 @@ class PagerScreen(
         so a search cannot silently start underneath it.
         """
         if self.app.screen is not self:
+            return
+        if self.handle_goto_key(event):
+            event.prevent_default()
+            event.stop()
             return
         disposition = self._search.handle_key(
             event.key,

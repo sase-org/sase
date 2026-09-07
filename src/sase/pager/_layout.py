@@ -19,10 +19,17 @@ from rich.console import Console, Group, RenderableType
 from rich.text import Text
 
 from sase.pager._chrome import section_rule
+from sase.pager._gutter import (
+    apply_gutter,
+    gutter_width,
+    logical_line_count,
+    number_width,
+)
 from sase.pager._labels import (
     DanglingPredicate,
     PagerLabelLayer,
     render_section_with_labels,
+    row_for_character_offset,
     style_target_accents,
 )
 from sase.pager.document import PagerDocument, PagerSection
@@ -37,6 +44,8 @@ class ComposedBody:
     renderable: RenderableType
     section_offsets: tuple[int, ...]
     total_height: int
+    section_line_counts: tuple[int, ...] = ()
+    section_line_rows: tuple[tuple[int, ...], ...] = ()
 
 
 def _measure_section_heights(
@@ -99,51 +108,127 @@ def compose_body(
     label_layer: PagerLabelLayer | None = None,
     pending_prefix: str = "",
     prepared_sections: Mapping[int, Text] | None = None,
+    goto_mark: tuple[int, int] | None = None,
+    goto_accent: str | None = None,
 ) -> ComposedBody:
-    """Render *document* at ``width``: section bodies plus transition rules.
+    """Render *document* at ``width``: gutterized bodies plus transition rules.
 
     ``prepared_sections`` maps a section index to syntax-styled ``Text`` that
     should stand in for that section's plain body — omitted indices render
-    exactly as before.
+    exactly as before. ``goto_mark`` is ``(section_index, line_number)`` for
+    the last jump; its gutter number is emphasized with ``goto_accent``.
     """
     sections = document.sections
     if not sections:
         return ComposedBody(renderable=Group(), section_offsets=(0,), total_height=0)
 
-    heights = _measure_section_heights(
-        sections,
-        width,
-        label_layer=label_layer,
-        pending_prefix=pending_prefix,
-        prepared_sections=prepared_sections,
+    paint_width = max(width, 1)
+    max_count = max(
+        (logical_line_count(section.plain_text) for section in sections),
+        default=0,
     )
-    offsets = _section_row_offsets(heights)
+    digits = number_width(max_count)
+    content_width = max(paint_width - gutter_width(max_count), 1)
     total = len(sections)
 
     parts: list[RenderableType] = []
+    heights: list[int] = []
+    relative_line_rows: list[tuple[int, ...]] = []
     for index, section in enumerate(sections):
         if index > 0:
             parts.append(
-                section_rule(section, index=index + 1, total=total, width=width)
+                section_rule(section, index=index + 1, total=total, width=paint_width)
             )
-        parts.append(
-            _section_renderable(
-                section,
-                section_index=index,
-                label_layer=label_layer,
-                pending_prefix=pending_prefix,
-                prepared_text=None
-                if prepared_sections is None
-                else prepared_sections.get(index),
-            )
+        renderable = _section_renderable(
+            section,
+            section_index=index,
+            label_layer=label_layer,
+            pending_prefix=pending_prefix,
+            prepared_text=None
+            if prepared_sections is None
+            else prepared_sections.get(index),
         )
+        emphasis_line = (
+            goto_mark[1] if goto_mark is not None and goto_mark[0] == index else None
+        )
+        painted, height, line_rows = _paint_section_body(
+            renderable,
+            section,
+            paint_width=paint_width,
+            content_width=content_width,
+            digits=digits,
+            emphasis_line=emphasis_line,
+            accent=goto_accent if emphasis_line is not None else None,
+        )
+        parts.append(painted)
+        heights.append(height)
+        relative_line_rows.append(line_rows)
 
-    total_height = offsets[-1] + heights[-1]
+    height_tuple = tuple(heights)
+    offsets = _section_row_offsets(height_tuple)
+    absolute_line_rows = tuple(
+        _absolute_line_rows(offsets[index], index, rows)
+        for index, rows in enumerate(relative_line_rows)
+    )
     return ComposedBody(
         renderable=Group(*parts),
         section_offsets=offsets,
-        total_height=total_height,
+        total_height=offsets[-1] + heights[-1],
+        section_line_counts=tuple(len(rows) for rows in relative_line_rows),
+        section_line_rows=absolute_line_rows,
     )
+
+
+def _paint_section_body(
+    renderable: RenderableType,
+    section: PagerSection,
+    *,
+    paint_width: int,
+    content_width: int,
+    digits: int,
+    emphasis_line: int | None,
+    accent: str | None,
+) -> tuple[RenderableType, int, tuple[int, ...]]:
+    """Gutterize a ``Text`` body; keep a no-gutter fallback for other renderables."""
+    if isinstance(renderable, Text):
+        guttered = apply_gutter(
+            renderable,
+            content_width=content_width,
+            number_width=digits,
+            emphasis_line=emphasis_line,
+            accent=accent,
+        )
+        return guttered.text, guttered.row_count, guttered.line_rows
+    height = _renderable_height(renderable, paint_width)
+    return renderable, height, _estimated_line_rows(section.plain_text, paint_width)
+
+
+def _absolute_line_rows(
+    section_offset: int,
+    section_index: int,
+    relative: tuple[int, ...],
+) -> tuple[int, ...]:
+    body_start = section_offset + (0 if section_index == 0 else _DIVIDER_LINES)
+    return tuple(body_start + row for row in relative)
+
+
+def _renderable_height(renderable: RenderableType, width: int) -> int:
+    console = Console(width=max(width, 1), color_system=None, highlight=False)
+    lines = console.render_lines(renderable, pad=False)
+    return max(len(lines), 1)
+
+
+def _estimated_line_rows(text: str, width: int) -> tuple[int, ...]:
+    count = logical_line_count(text)
+    if count == 0:
+        return ()
+    rows: list[int] = []
+    cursor = 0
+    for _index in range(count):
+        rows.append(row_for_character_offset(text, cursor, width))
+        newline = text.find("\n", cursor)
+        cursor = len(text) if newline < 0 else newline + 1
+    return tuple(rows)
 
 
 def current_section_index(offsets: tuple[int, ...], scroll_y: int) -> int:

@@ -58,6 +58,7 @@ class PagerTrailMixin:
         self._last_activated_label = None
         self._pending_action = "follow"
         self._footer_status = None
+        self._clear_goto_state()
         self._reset_syntax_for_new_document()
         self._ensure_body()
         self._restore_search_state(state.search)
