@@ -6,6 +6,7 @@ import pytest
 
 from sase.ace.tui.actions.agents._fork_actions import AgentForkActionsMixin
 from sase.ace.tui.actions.agents._kill_action_flow import AgentKillActionFlowMixin
+from sase.ace.tui.actions.agents._remote_attention import RemoteAttentionMixin
 from sase.ace.tui.actions.agents._remote_content import AgentRemoteContentMixin
 from sase.ace.tui.actions.agents._remote_lifecycle import is_remote_fleet_agent
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -173,3 +174,69 @@ def test_remote_content_action_refuses_when_flag_off() -> None:
     assert any(
         "remote dispatch is disabled" in message for message in harness.notifications
     )
+
+
+class _AttentionHarness(RemoteAttentionMixin):
+    def __init__(self, agent: Agent) -> None:
+        self._agents = [agent]
+        self.screens: list[tuple[object, object]] = []
+        self.notifications: list[str] = []
+
+    def _get_selected_agent(self) -> Agent:
+        return self._agents[0]
+
+    def _agent_by_identity(self, identity: object) -> Agent | None:
+        for agent in self._agents:
+            if agent.identity == identity:
+                return agent
+        return None
+
+    def push_screen(self, screen: object, callback: object = None) -> None:
+        self.screens.append((screen, callback))
+
+    def notify(self, message: str, severity: str | None = None) -> None:
+        self.notifications.append(message)
+
+
+def _remote_agent_with_pending_question() -> Agent:
+    agent = _remote_agent()
+    agent.fleet_capabilities = {"resource": ["attention.answer_question"]}
+    agent.fleet_attention = {
+        "kind": "question",
+        "state": "pending",
+        "request_key": {"request_id": "question-0001"},
+        "revision": 1,
+        "title": "What next?",
+    }
+    return agent
+
+
+def test_answer_remote_attention_refuses_when_flag_off() -> None:
+    harness = _AttentionHarness(_remote_agent_with_pending_question())
+    with override_flags(remote_dispatch=False):
+        harness.action_answer_remote_attention()
+    assert harness.screens == []
+    assert any(
+        "remote dispatch is disabled" in message for message in harness.notifications
+    )
+
+
+def test_answer_remote_attention_refuses_without_pending_entry() -> None:
+    harness = _AttentionHarness(_remote_agent())
+    with override_flags(remote_dispatch=True):
+        harness.action_answer_remote_attention()
+    assert harness.screens == []
+    assert any(
+        "pending question or gate" in message for message in harness.notifications
+    )
+
+
+def test_answer_remote_attention_opens_modal_for_pending_question() -> None:
+    harness = _AttentionHarness(_remote_agent_with_pending_question())
+    with override_flags(remote_dispatch=True):
+        harness.action_answer_remote_attention()
+    assert len(harness.screens) == 1
+    from sase.ace.tui.modals.remote_attention_modal import RemoteAttentionModal
+
+    modal, _callback = harness.screens[0]
+    assert isinstance(modal, RemoteAttentionModal)

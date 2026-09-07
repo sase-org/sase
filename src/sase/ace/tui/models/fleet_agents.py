@@ -31,6 +31,7 @@ def project_fleet_agents(
     summary_response: Mapping[str, Any] | None = None,
     catalog_response: Mapping[str, Any] | None = None,
     followed_response: Mapping[str, Any] | None = None,
+    attention_response: Mapping[str, Any] | None = None,
     follow_snapshot: FollowStoreSnapshot | None = None,
     local_agent_count: int = 0,
 ) -> FleetRowsProjection:
@@ -40,7 +41,9 @@ def project_fleet_agents(
         *_diagnostics_from_response(summary_response),
         *_diagnostics_from_response(catalog_response),
         *_diagnostics_from_response(followed_response),
+        *_diagnostics_from_response(attention_response),
     ]
+    attention_by_logical_key = _attention_by_logical_key(attention_response)
     fleet_source = catalog_response or summary_response
     fleet_rows = tuple(
         _dedupe_rows(
@@ -49,6 +52,7 @@ def project_fleet_agents(
                 active_keys=active_keys,
                 active_locator_ids=active_locator_ids,
                 followed_only=False,
+                attention_by_logical_key=attention_by_logical_key,
             )
         )
     )
@@ -60,6 +64,7 @@ def project_fleet_agents(
                 active_keys=active_keys,
                 active_locator_ids=active_locator_ids,
                 followed_only=True,
+                attention_by_logical_key=attention_by_logical_key,
             )
         )
     )
@@ -91,6 +96,7 @@ def project_fleet_agents(
                 summary_response,
                 catalog_response,
                 followed_response,
+                attention_response,
             )
         ),
         counts=counts,
@@ -111,12 +117,27 @@ def followed_logical_locators(
     return tuple(locators)
 
 
+def followed_logical_keys(
+    snapshot: FollowStoreSnapshot | None,
+) -> tuple[str, ...]:
+    """Return active logical keys for a bounded attention read."""
+    if snapshot is None:
+        return ()
+    keys: list[str] = []
+    for record in snapshot.active_records:
+        key = record.get("logical_key")
+        if isinstance(key, str) and key:
+            keys.append(key)
+    return tuple(keys)
+
+
 def _rows_from_response(
     response: Mapping[str, Any] | None,
     *,
     active_keys: frozenset[str],
     active_locator_ids: frozenset[str],
     followed_only: bool,
+    attention_by_logical_key: Mapping[str, Mapping[str, Any]],
 ) -> list[Agent]:
     if response is None or response.get("disabled"):
         return []
@@ -148,6 +169,7 @@ def _rows_from_response(
                 host_health=host_health,
                 observed_at_unix=observed_at,
                 summary_index=summary_index,
+                attention_by_logical_key=attention_by_logical_key,
             )
             followed = _summary_followed(agent, active_keys, active_locator_ids)
             agent.fleet_followed = followed
@@ -166,6 +188,7 @@ def _agent_from_summary(
     host_health: str | None,
     observed_at_unix: float | None,
     summary_index: int,
+    attention_by_logical_key: Mapping[str, Mapping[str, Any]],
 ) -> Agent:
     content = _mapping(summary.get("content"))
     lifecycle = _mapping(summary.get("lifecycle"))
@@ -181,7 +204,8 @@ def _agent_from_summary(
         exact_key or logical_key or _locator_id(exact_locator or logical_locator),
         summary_index,
     )
-    status = _status_from_summary(summary, lifecycle, liveness)
+    attention = attention_by_logical_key.get(logical_key) if logical_key else None
+    status = _status_from_summary(summary, lifecycle, liveness, attention)
     revision = _int_or_none(
         summary.get("revision"),
         lifecycle.get("revision"),
@@ -253,6 +277,7 @@ def _agent_from_summary(
         fleet_capabilities=dict(capabilities) if capabilities else None,
         fleet_content=dict(content) if content else None,
         fleet_bounded_intent=bounded_intent,
+        fleet_attention=dict(attention) if attention else None,
     )
     return agent
 
@@ -280,6 +305,42 @@ def _summary_payloads(host: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
     result = host.get("result")
     if isinstance(result, Mapping):
         return _summary_payloads(result)
+    return ()
+
+
+def _attention_by_logical_key(
+    response: Mapping[str, Any] | None,
+) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    if response is None or response.get("disabled"):
+        return result
+    for host in _host_payloads(response):
+        for entry in _attention_entries_from_host(host):
+            logical_key = entry.get("logical_key")
+            if not isinstance(logical_key, str) or not logical_key:
+                continue
+            existing = result.get(logical_key)
+            if existing is None or (
+                existing.get("state") != "pending" and entry.get("state") == "pending"
+            ):
+                result[logical_key] = dict(entry)
+    return result
+
+
+def _attention_entries_from_host(
+    host: Mapping[str, Any],
+) -> tuple[Mapping[str, Any], ...]:
+    payload = host.get("payload")
+    if isinstance(payload, Mapping):
+        entries = payload.get("entries")
+        if isinstance(entries, Sequence) and not isinstance(
+            entries,
+            (str, bytes, bytearray),
+        ):
+            return tuple(item for item in entries if isinstance(item, Mapping))
+    result = host.get("result")
+    if isinstance(result, Mapping):
+        return _attention_entries_from_host(result)
     return ()
 
 
@@ -341,7 +402,17 @@ def _status_from_summary(
     summary: Mapping[str, Any],
     lifecycle: Mapping[str, Any],
     liveness: Mapping[str, Any],
+    attention: Mapping[str, Any] | None = None,
 ) -> str:
+    # A correlated, still-pending attention entry is the most specific
+    # signal available: it distinguishes a question from a gate the way a
+    # bare lifecycle/needs_attention flag never can.
+    if attention is not None and attention.get("state") == "pending":
+        kind = attention.get("kind")
+        if kind == "question":
+            return "QUESTION"
+        if kind == "gate":
+            return "WAITING INPUT"
     value = _optional_str(
         summary.get("status"),
         lifecycle.get("display_status"),
@@ -364,6 +435,10 @@ def _status_from_summary(
         "waiting_input": "WAITING INPUT",
         "needs_input": "WAITING INPUT",
         "blocked": "WAITING INPUT",
+        # No attention entry has arrived yet (or this row isn't followed, so
+        # none was fetched at all); fall back to the generic remote-blocked
+        # status the owner's own lifecycle/needs_attention signal implies.
+        "asking": "WAITING INPUT",
         "failed": "FAILED",
         "error": "FAILED",
         "done": "DONE",
@@ -374,6 +449,8 @@ def _status_from_summary(
         "canceled": "STOPPED",
         "starting": "STARTING",
     }
+    if normalized not in status_map and bool(summary.get("needs_attention")):
+        return "WAITING INPUT"
     return status_map.get(normalized, value.upper())
 
 
@@ -556,6 +633,7 @@ def _display_token(value: str) -> str:
 
 __all__ = [
     "FleetRowsProjection",
+    "followed_logical_keys",
     "followed_logical_locators",
     "project_fleet_agents",
 ]

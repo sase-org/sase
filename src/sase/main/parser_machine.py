@@ -173,6 +173,97 @@ def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     add_operation_io_flags(stop_parser)
 
+    attention_parser = machine_subparsers.add_parser(
+        "attention",
+        help="Answer a remote question or approve a remote gate",
+        description=(
+            "Answer a pending remote question or approve a pending remote gate "
+            "on its owning host. ALIAS is the enrolled machine; REQUEST "
+            "identifies the pending attention request. ACE supplies the "
+            "request key, observed revision, selection, and operation key "
+            "through the durable request sidecar."
+        ),
+    )
+    attention_subparsers = attention_parser.add_subparsers(
+        dest="machine_attention_subcommand",
+        help="Remote attention actions",
+    )
+    answer_parser = attention_subparsers.add_parser(
+        "answer",
+        help="Answer a remote question",
+        description="Answer REQUEST on ALIAS with ANSWER.",
+    )
+    answer_parser.add_argument("alias", metavar="ALIAS", help="Enrolled machine alias")
+    answer_parser.add_argument(
+        "request",
+        metavar="REQUEST",
+        help="Pending attention request identity",
+    )
+    answer_parser.add_argument(
+        "answer",
+        nargs="?",
+        metavar="ANSWER",
+        help=(
+            "Free-text answer. Optional when ACE supplies a structured "
+            "answer through the durable request sidecar."
+        ),
+    )
+    answer_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a schema-versioned JSON result",
+    )
+    answer_parser.add_argument(
+        "-t",
+        "--timeout",
+        type=float,
+        metavar="SECONDS",
+        help="Per-request gateway timeout in seconds",
+    )
+    add_operation_io_flags(answer_parser)
+
+    approve_parser = attention_subparsers.add_parser(
+        "approve",
+        help="Approve a remote gate",
+        description="Approve REQUEST on ALIAS by selecting one or more OPTIONs.",
+    )
+    approve_parser.add_argument("alias", metavar="ALIAS", help="Enrolled machine alias")
+    approve_parser.add_argument(
+        "request",
+        metavar="REQUEST",
+        help="Pending attention request identity",
+    )
+    approve_parser.add_argument(
+        "options",
+        nargs="*",
+        metavar="OPTION",
+        help=(
+            "Selected option IDs. Optional when ACE supplies the selection "
+            "through the durable request sidecar."
+        ),
+    )
+    approve_parser.add_argument(
+        "-f",
+        "--feedback",
+        metavar="TEXT",
+        help="Optional feedback attached to the approval",
+    )
+    approve_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a schema-versioned JSON result",
+    )
+    approve_parser.add_argument(
+        "-t",
+        "--timeout",
+        type=float,
+        metavar="SECONDS",
+        help="Per-request gateway timeout in seconds",
+    )
+    add_operation_io_flags(approve_parser)
+
     discover_parser = machine_subparsers.add_parser(
         "discover",
         help="Run explicit provider discovery",

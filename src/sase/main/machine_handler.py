@@ -31,6 +31,12 @@ def handle_machine_command(args: argparse.Namespace) -> int:
             from sase.ops.commands.machine import handle_machine_agent_command
 
             return handle_machine_agent_command(args)
+        if subcommand == "attention":
+            from sase.ops.commands.machine_attention import (
+                handle_machine_attention_command,
+            )
+
+            return handle_machine_attention_command(args)
         if subcommand == "discover":
             return _handle_discover(args, service)
         if subcommand == "list":

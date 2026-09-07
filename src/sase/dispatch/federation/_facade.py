@@ -124,6 +124,20 @@ class FederationFacade:
             timeout_seconds=timeout_seconds,
         )
 
+    async def attention(
+        self,
+        request: Mapping[str, Any],
+        *,
+        cache_only: bool = False,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            self.attention_sync,
+            request,
+            cache_only=cache_only,
+            timeout_seconds=timeout_seconds,
+        )
+
     async def launch(
         self,
         target: str,
@@ -241,6 +255,23 @@ class FederationFacade:
             timeout_seconds=timeout_seconds,
         )
 
+    def attention_sync(
+        self,
+        request: Mapping[str, Any],
+        *,
+        cache_only: bool = False,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        return self._read(
+            "attention",
+            {
+                "op": "attention",
+                "request": dict(request),
+                "cache_only": cache_only,
+            },
+            timeout_seconds=timeout_seconds,
+        )
+
     def launch_sync(
         self,
         target: str,
@@ -284,6 +315,40 @@ class FederationFacade:
             )
         return self._request(
             {"op": "mutate", "target": target, "request": dict(request)},
+            timeout_seconds=timeout_seconds,
+        )
+
+    async def resolve_attention(
+        self,
+        target: str,
+        request: Mapping[str, Any],
+        *,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            self.resolve_attention_sync,
+            target,
+            request,
+            timeout_seconds=timeout_seconds,
+        )
+
+    def resolve_attention_sync(
+        self,
+        target: str,
+        request: Mapping[str, Any],
+        *,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        if not self.config.enabled:
+            raise FederationWorkerUnavailable(
+                "no configured dispatch machines are available"
+            )
+        return self._request(
+            {
+                "op": "resolve_attention",
+                "target": target,
+                "request": dict(request),
+            },
             timeout_seconds=timeout_seconds,
         )
 

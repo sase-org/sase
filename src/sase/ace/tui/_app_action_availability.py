@@ -51,6 +51,7 @@ _AGENT_FLEET_ACTIONS = frozenset(
         "connect_agent_machine",
         "retry_remote_agent",
         "view_remote_agent_content",
+        "answer_remote_attention",
     }
 )
 _LOCAL_AGENT_ROW_ACTIONS = frozenset(
@@ -121,6 +122,16 @@ def check_app_action(
                     getattr(selected_agent, "fleet_content", None)
                     or getattr(selected_agent, "fleet_row_revision", None)
                 )
+            )
+        if action == "answer_remote_attention":
+            from sase.ace.tui.actions.agents._remote_attention import (
+                has_pending_remote_attention,
+            )
+            from sase.dispatch.config import remote_dispatch_enabled
+
+            return bool(
+                remote_dispatch_enabled()
+                and has_pending_remote_attention(selected_agent)
             )
     if selected_agent_remote and action == "kill_agent":
         return _remote_lifecycle_available(selected_agent, "lifecycle.stop")

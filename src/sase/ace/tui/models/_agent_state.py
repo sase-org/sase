@@ -542,6 +542,15 @@ class AgentState:
     fleet_followed: bool = field(default=False, compare=False)
     fleet_bounded_intent: str | None = field(default=None, compare=False)
     fleet_diagnostic: str | None = field(default=None, compare=False)
+    # A pending remote question/gate entry for this row (see
+    # `sase_core.fleet_attention`'s `FleetAttentionEntryWire`), or None when
+    # no attention is currently pending. Answering never mutates this field
+    # directly; a fresh fleet refresh replaces it once the owner settles it.
+    fleet_attention: dict[str, Any] | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
 
     # Internal source marker for dismissed bundles loaded only for revive.
     _loaded_from_dismissed_bundle: bool = field(

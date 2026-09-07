@@ -114,6 +114,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("connect_agent_machine", "Machine", False),
     ("retry_remote_agent", "Retry Remote Agent", False),
     ("view_remote_agent_content", "View Remote Content", False),
+    ("answer_remote_attention", "Answer/Approve Remote Attention", False),
     ("patches_filters", "Patch Filters", False),
     ("open_agent_cleanup_panel", "Agent Cleanup", False),
     ("stop_axe_and_quit", "Quit / Restart", False),

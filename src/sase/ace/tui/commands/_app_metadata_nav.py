@@ -271,4 +271,11 @@ NAV_COMMAND_META: tuple[AppCommandMeta, ...] = (
         AGENTS_ONLY,
         ("content", "remote", "output"),
     ),
+    (
+        "answer_remote_attention",
+        "Agents: answer a remote question or approve a remote gate",
+        "Agents",
+        AGENTS_ONLY,
+        ("attention", "question", "gate", "remote"),
+    ),
 )

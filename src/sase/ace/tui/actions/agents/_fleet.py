@@ -28,6 +28,7 @@ from sase.dispatch.follow_store import (
 
 from ...models.fleet_agents import (
     FleetRowsProjection,
+    followed_logical_keys,
     followed_logical_locators,
     project_fleet_agents,
 )
@@ -256,6 +257,7 @@ class AgentFleetMixin:
             summary_response: Mapping[str, Any] | None = None
             followed_response: Mapping[str, Any] | None = None
             catalog_response: Mapping[str, Any] | None = None
+            attention_response: Mapping[str, Any] | None = None
             config_diagnostics = config.diagnostics_wire()
             if config.enabled:
                 facade = build_federation_facade(config)
@@ -280,6 +282,19 @@ class AgentFleetMixin:
                             timeout_seconds=timeout,
                         ),
                     )
+                logical_keys = followed_logical_keys(follow_snapshot)
+                if logical_keys:
+                    attention_response = await self._fleet_call(
+                        "attention",
+                        lambda: facade.attention(
+                            {
+                                "schema_version": 1,
+                                "logical_keys": list(logical_keys),
+                            },
+                            cache_only=False,
+                            timeout_seconds=timeout,
+                        ),
+                    )
                 if self.current_agents_subtab == "fleet" or source == "manual":
                     catalog_response = await self._fleet_call(
                         "catalog",
@@ -296,6 +311,7 @@ class AgentFleetMixin:
                 summary_response=summary_response,
                 catalog_response=catalog_response,
                 followed_response=followed_response,
+                attention_response=attention_response,
                 follow_snapshot=follow_snapshot,
                 local_agent_count=len(getattr(self, "_agents_local_with_children", [])),
             )
@@ -364,6 +380,7 @@ class AgentFleetMixin:
         if not self._agents_fleet_available and self.current_agents_subtab == "fleet":
             self.current_agents_subtab = "focus"
         self._reproject_agents_from_current_mode(source="fleet_refresh")
+        self._announce_remote_attention(projection)  # type: ignore[attr-defined]
 
     def _apply_fleet_error(self, message: str, *, generation: int) -> None:
         if generation != getattr(self, "_agents_fleet_refresh_generation", 0):

@@ -13,6 +13,7 @@ from ._folding import AgentFoldingMixin
 from ._fleet import AgentFleetMixin
 from ._grouping import AgentGroupingMixin
 from ._kill_action import AgentKillMixin
+from ._remote_attention import RemoteAttentionMixin
 from ._remote_content import AgentRemoteContentMixin
 from ._remote_lifecycle import AgentRemoteLifecycleMixin
 from ._killing import AgentKillingMixin
@@ -64,6 +65,7 @@ class AgentsMixinCore(
     AgentGroupingMixin,
     AgentFleetMixin,
     AgentRemoteLifecycleMixin,
+    RemoteAttentionMixin,
     AgentRemoteContentMixin,
     AgentKillMixin,
     AgentMarkingMixin,

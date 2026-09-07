@@ -126,6 +126,62 @@ def test_fleet_commands_are_contextual_for_remote_rows() -> None:
         assert not is_command_available(catalog["app.view_remote_agent_content"], ctx)
 
 
+def test_answer_remote_attention_requires_flag_and_pending_entry() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.answer_remote_attention"]
+    pending_question = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="fleet-ui",
+        project_file="/fleet/apollo/project.yml",
+        status="QUESTION",
+        start_time=None,
+        agent_name="apollo.agent",
+        fleet_origin_alias="apollo",
+        fleet_capabilities={"resource": ["attention.answer_question"]},
+        fleet_attention={
+            "kind": "question",
+            "state": "pending",
+            "request_key": {"request_id": "question-0001"},
+        },
+    )
+    ctx = CommandContext(
+        tab="agents",
+        agent=pending_question,
+        fleet_enabled=True,
+        agents_subtab="fleet",
+        selected_agent_remote=True,
+    )
+    with override_flags(remote_dispatch=True):
+        assert is_command_available(spec, ctx)
+    with override_flags(remote_dispatch=False):
+        assert not is_command_available(spec, ctx)
+
+    settled = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="fleet-ui",
+        project_file="/fleet/apollo/project.yml",
+        status="RUNNING",
+        start_time=None,
+        agent_name="apollo.agent",
+        fleet_origin_alias="apollo",
+        fleet_capabilities={"resource": ["attention.answer_question"]},
+        fleet_attention={
+            "kind": "question",
+            "state": "settled",
+            "request_key": {"request_id": "question-0001"},
+        },
+    )
+    settled_ctx = CommandContext(
+        tab="agents",
+        agent=settled,
+        fleet_enabled=True,
+        agents_subtab="fleet",
+        selected_agent_remote=True,
+    )
+    with override_flags(remote_dispatch=True):
+        assert not is_command_available(spec, settled_ctx)
+
+
 def test_remote_rows_hide_local_agent_actions() -> None:
     catalog = _catalog_by_id()
     remote = Agent(

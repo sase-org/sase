@@ -12526,6 +12526,251 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "317e6e9f1357b7b1",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "attention",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "machine",
+              "attention"
+            ],
+            "positionals": [],
+            "subcommands": [
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "f1aef57b811d297a",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "answer",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "timeout",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-t",
+                      "--timeout"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "operation_request_path",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-Q",
+                      "--request-path"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "operation_result_path",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-R",
+                      "--result-path"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "machine",
+                  "attention",
+                  "answer"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "alias",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "ALIAS",
+                    "nargs": null
+                  },
+                  {
+                    "choices": null,
+                    "dest": "request",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "REQUEST",
+                    "nargs": null
+                  },
+                  {
+                    "choices": null,
+                    "dest": "answer",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "ANSWER",
+                    "nargs": "?"
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "375a4aa798b934c9",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "approve",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "feedback",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-f",
+                      "--feedback"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "timeout",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-t",
+                      "--timeout"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "operation_request_path",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-Q",
+                      "--request-path"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "operation_result_path",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-R",
+                      "--result-path"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "machine",
+                  "attention",
+                  "approve"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "alias",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "ALIAS",
+                    "nargs": null
+                  },
+                  {
+                    "choices": null,
+                    "dest": "request",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "REQUEST",
+                    "nargs": null
+                  },
+                  {
+                    "choices": null,
+                    "dest": "options",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "OPTION",
+                    "nargs": "*"
+                  }
+                ],
+                "subcommands": []
+              }
+            ]
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "bf2fdc1a794bc01b",
             "hidden": false,
             "mutex_groups": [],

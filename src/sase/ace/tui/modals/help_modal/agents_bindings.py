@@ -143,6 +143,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.connect_agent_machine), "Show remote machine status"),
                 (d(a.retry_remote_agent), "Retry remote agent on its host"),
                 (d(a.view_remote_agent_content), "View remote content"),
+                (
+                    d(a.answer_remote_attention),
+                    "Answer remote question or approve remote gate",
+                ),
             ],
         ),
         (

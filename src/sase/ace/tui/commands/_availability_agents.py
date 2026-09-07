@@ -124,6 +124,9 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.view_remote_agent_content":
         return _remote_content_command_available(ctx)
 
+    if spec.id == "app.answer_remote_attention":
+        return _remote_attention_command_available(ctx)
+
     if ctx.selected_agent_remote:
         if spec.id == "app.kill_agent":
             return _remote_lifecycle_command_available(ctx, "lifecycle.stop")
@@ -315,6 +318,17 @@ def _remote_lifecycle_command_available(ctx: CommandContext, capability: str) ->
         and is_remote_fleet_agent(agent)
         and remote_capability_enabled(agent, capability)
     )
+
+
+def _remote_attention_command_available(ctx: CommandContext) -> bool:
+    from sase.ace.tui.actions.agents._remote_attention import (
+        has_pending_remote_attention,
+    )
+    from sase.dispatch.config import remote_dispatch_enabled
+
+    if not ctx.selected_agent_remote or not remote_dispatch_enabled():
+        return False
+    return has_pending_remote_attention(ctx.agent)
 
 
 def _remote_content_command_available(ctx: CommandContext) -> bool:

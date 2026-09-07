@@ -315,4 +315,4 @@ def test_inventory_records_infrastructure_and_classifications() -> None:
     assert any(site.site_id == "memory.publish" for site in PRODUCTION_PRODUCERS)
     assert any(site.site_id == "snippet.write" for site in PRODUCTION_PRODUCERS)
     assert any(site.site_id == "machine.agent-action" for site in PRODUCTION_PRODUCERS)
-    assert len(PRODUCTION_PRODUCERS) == 45
+    assert len(PRODUCTION_PRODUCERS) == 46

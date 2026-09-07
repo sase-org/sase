@@ -20,6 +20,7 @@ from sase.ops.names import (
     AGENT_PERSIST_DIRECTIVE,
     AGENT_REVERT,
     MACHINE_AGENT_ACTION,
+    MACHINE_ATTENTION_ACTION,
     RUN_LAUNCH,
 )
 
@@ -236,11 +237,39 @@ def submit_machine_agent_action(
     return submitted is not None
 
 
+def submit_machine_attention_action(
+    app: Any,
+    *,
+    kind: str,
+    alias: str,
+    request_id: str,
+    payload: Mapping[str, Any],
+    display_name: str,
+    on_complete: Callable[[TrackedProcCompletion[Any]], None] | None = None,
+) -> bool:
+    """Submit ``sase machine attention`` through the durable adapter."""
+    argv = sase_command_argv("machine", "attention", kind, alias, request_id)
+    submitted = app._submit_durable_proc(
+        argv,
+        operation=MACHINE_ATTENTION_ACTION,
+        request=dict(payload),
+        request_fingerprint=operation_fingerprint(MACHINE_ATTENTION_ACTION, payload),
+        concurrency_keys=(f"ace:machine-attention:{alias}:{request_id}",),
+        proc_type=f"machine.attention.{kind}",
+        display_name=display_name,
+        on_complete=on_complete,
+        reload_on_complete=False,
+        notify_on_complete=False,
+    )
+    return submitted is not None
+
+
 __all__ = [
     "submit_agent_cleanup",
     "submit_agent_directive",
     "submit_agent_launch",
     "submit_machine_agent_action",
+    "submit_machine_attention_action",
     "submit_provider_drain",
     "submit_agent_revert",
 ]
