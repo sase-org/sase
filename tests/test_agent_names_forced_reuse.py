@@ -195,7 +195,7 @@ def test_wipe_force_reuse_owner_concurrent_directory_removal_is_not_an_error(
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
         with patch(
-            "sase.agent.names._wipe.shutil.rmtree",
+            "sase.agent.names._wipe_execute.shutil.rmtree",
             side_effect=_rmtree_races_a_concurrent_delete,
         ):
             result = wipe_force_reuse_owner("foo", allow_container_skip=False)

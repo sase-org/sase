@@ -122,7 +122,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
             ),
         ),
     ),
-    "src/sase/agent/names/_wipe.py:_release_artifact_workspace": Review(
+    "src/sase/agent/names/_wipe_execute.py:_release_artifact_workspace": Review(
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),

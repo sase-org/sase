@@ -9,7 +9,8 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.names import (
-    _wipe,
+    _wipe_execute,
+    _wipe_scan,
     find_named_agent,
     get_reserved_agent_names,
     load_name_registry,
@@ -104,7 +105,7 @@ def test_wipe_deletes_artifact_index_rows_for_removed_dirs(tmp_path: Path) -> No
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
         with patch(
-            "sase.agent.names._wipe.delete_agent_artifact_index_artifacts"
+            "sase.agent.names._wipe_execute.delete_agent_artifact_index_artifacts"
         ) as mock_delete_index:
             result = wipe_agent_name_for_reuse("foo")
 
@@ -130,9 +131,9 @@ def test_release_artifact_workspace_updates_index_after_running_marker_delete(
     running_path.write_text(json.dumps({"pid": 1234}), encoding="utf-8")
 
     with patch(
-        "sase.agent.names._wipe.update_agent_artifact_index_for_marker_mutation"
+        "sase.agent.names._wipe_execute.update_agent_artifact_index_for_marker_mutation"
     ) as mock_update_index:
-        _wipe._release_artifact_workspace(artifacts_dir)
+        _wipe_execute._release_artifact_workspace(artifacts_dir)
 
     assert not running_path.exists()
     mock_update_index.assert_called_once_with(artifacts_dir)
@@ -155,10 +156,10 @@ def test_release_artifact_workspace_ignores_index_refresh_failure(
     running_path.write_text(json.dumps({"pid": 1234}), encoding="utf-8")
 
     with patch(
-        "sase.agent.names._wipe.update_agent_artifact_index_for_marker_mutation",
+        "sase.agent.names._wipe_execute.update_agent_artifact_index_for_marker_mutation",
         side_effect=RuntimeError("index unavailable"),
     ):
-        _wipe._release_artifact_workspace(artifacts_dir)
+        _wipe_execute._release_artifact_workspace(artifacts_dir)
 
     assert not running_path.exists()
 
@@ -171,9 +172,11 @@ def test_wipe_live_agent_terminates_and_releases_workspace(
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
         with (
-            patch("sase.agent.names._wipe.is_process_alive", return_value=True),
-            patch("sase.agent.names._wipe.os.killpg") as killpg,
-            patch("sase.agent.names._wipe._release_artifact_workspace") as release,
+            patch("sase.agent.names._wipe_execute.is_process_alive", return_value=True),
+            patch("sase.agent.names._wipe_execute.os.killpg") as killpg,
+            patch(
+                "sase.agent.names._wipe_execute._release_artifact_workspace"
+            ) as release,
         ):
             result = wipe_agent_name_for_reuse("foo")
 
@@ -196,7 +199,7 @@ def test_wipe_dismissed_bundle_only_agent_removes_bundle_and_index(
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
         with patch(
-            "sase.agent.names._wipe.sync_dismissed_agent_artifact_index"
+            "sase.agent.names._wipe_execute.sync_dismissed_agent_artifact_index"
         ) as sync_index:
             result = wipe_agent_name_for_reuse("foo")
 
@@ -312,7 +315,7 @@ def test_wipe_family_member_finds_day_sharded_handoff_and_bundle(
         rebuild_name_registry()
         assert {family_name, plan_name, code_name} <= get_reserved_agent_names()
         with patch(
-            "sase.agent.names._wipe._release_artifact_workspace"
+            "sase.agent.names._wipe_execute._release_artifact_workspace"
         ) as release_workspace:
             result = wipe_agent_name_for_reuse(plan_name)
 
@@ -396,16 +399,16 @@ def test_batch_wipe_shares_catalog_and_registry_rebuild(tmp_path: Path) -> None:
         rebuild_name_registry()
         with (
             patch(
-                "sase.agent.names._wipe._scan_artifacts",
-                wraps=_wipe._scan_artifacts,
+                "sase.agent.names._wipe_scan._scan_artifacts",
+                wraps=_wipe_scan._scan_artifacts,
             ) as scan_artifacts,
             patch(
-                "sase.agent.names._wipe._scan_bundles",
-                wraps=_wipe._scan_bundles,
+                "sase.agent.names._wipe_scan._scan_bundles",
+                wraps=_wipe_scan._scan_bundles,
             ) as scan_bundles,
             patch(
-                "sase.agent.names._wipe.rebuild_name_registry",
-                wraps=_wipe.rebuild_name_registry,
+                "sase.agent.names._wipe_execute.rebuild_name_registry",
+                wraps=_wipe_execute.rebuild_name_registry,
             ) as rebuild,
         ):
             results = wipe_agent_names_for_reuse(("foo", "bar"))
