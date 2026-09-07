@@ -359,3 +359,11 @@ tests/ace/tui/test_axe_status_read_cache.py::test_run_json_mtime_change_invalida
 tests/ace/tui/test_event_driven_pause_fixture.py::test_fixture_patch_does_not_leak_from_previous_test
 tests/test_config_schema.py::test_config_schema_validates_dispatch_machine_records
 tests/test_vcs_log_filter_query.py::test_canonical_query_round_trip_property
+
+# sase-x7.4: verified repairs bundled with the Telegram bridge recovery.
+# Config Center resume now awaits the durable history write before AcePage
+# cancels background tasks; cleanup-lock coverage patches _wipe_execute,
+# where deletion moved in fd2cebac4. Both nodes pass locally; the cutoff
+# records that verification, with the commit assigned by host finalization.
+# fixed-at: 2026-09-07T14:59:36Z tests/ace/tui/test_config_center_resume.py::test_new_process_loads_remembered_admin_center_section
+# fixed-at: 2026-09-07T14:59:36Z tests/test_agent_name_registry_lock.py::test_wipe_does_not_delete_under_the_allocation_lock

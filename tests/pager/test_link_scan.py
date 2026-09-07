@@ -28,12 +28,14 @@ def test_artifact_ref_found_at_leading_and_trailing_position() -> None:
     spans = scan_links(leading, PagerOrigin.FILE)
     assert spans[0].kind is LinkSpanKind.ARTIFACT_REF
     assert spans[0].text == "@bead:sase-uk.1"
+    assert spans[0].target == "bead:sase-uk.1"
     assert leading[spans[0].start : spans[0].end] == "@bead:sase-uk.1"
 
     trailing = "the line ends with @bead:sase-uk.1"
     spans = scan_links(trailing, PagerOrigin.FILE)
     assert spans[-1].kind is LinkSpanKind.ARTIFACT_REF
     assert spans[-1].text == "@bead:sase-uk.1"
+    assert spans[-1].target == "bead:sase-uk.1"
     assert spans[-1].end == len(trailing)
 
 
@@ -54,6 +56,7 @@ def test_file_path_found_at_leading_and_trailing_position() -> None:
     spans = scan_links(leading, PagerOrigin.FILE)
     assert spans[0].kind is LinkSpanKind.FILE_PATH
     assert spans[0].text == "src/sase/pager/link_scan.py"
+    assert spans[0].target == "src/sase/pager/link_scan.py"
 
     trailing = "the line ends with src/sase/pager/link_scan.py"
     spans = scan_links(trailing, PagerOrigin.FILE)
@@ -102,6 +105,65 @@ def test_bare_bead_id_does_not_double_count_a_typed_ref() -> None:
 
     assert len(spans) == 1
     assert spans[0].kind is LinkSpanKind.ARTIFACT_REF
+
+
+def test_quoted_artifact_ref_resolves_with_decoded_semantic_target() -> None:
+    text = 'see @plan:"a b.md"#L3 for details'
+    spans = scan_links(text, PagerOrigin.FILE)
+
+    assert len(spans) == 1
+    assert spans[0].text == '@plan:"a b.md"#L3'
+    assert spans[0].target == "plan:a b.md#L3"
+    assert text[spans[0].start : spans[0].end] == spans[0].text
+
+
+def test_generated_links_table_ref_keeps_artifact_target_and_hosted_url() -> None:
+    text = (
+        "<!-- sase:links:start -->\n\n"
+        "## Links\n\n"
+        "| Relation | Artifact | Why |\n"
+        "| --- | --- | --- |\n"
+        "| implements | [plan:202609/capture_line_edge_cycling.md][2] | screenshot |\n\n"
+        "[2]: https://github.com/bobs-org/bob-cli/blob/main/.sase/plans/202609/capture_line_edge_cycling.md\n\n"
+        "<!-- sase:links:end -->\n"
+    )
+
+    spans = scan_links(text, PagerOrigin.FILE)
+
+    assert [(span.kind, span.text, span.target) for span in spans] == [
+        (
+            LinkSpanKind.ARTIFACT_REF,
+            "[plan:202609/capture_line_edge_cycling.md][2]",
+            "plan:202609/capture_line_edge_cycling.md",
+        ),
+        (
+            LinkSpanKind.URL,
+            "https://github.com/bobs-org/bob-cli/blob/main/.sase/plans/202609/capture_line_edge_cycling.md",
+            "https://github.com/bobs-org/bob-cli/blob/main/.sase/plans/202609/capture_line_edge_cycling.md",
+        ),
+    ]
+
+
+def test_markdown_link_uses_declared_destination_as_target() -> None:
+    text = "[not the path](src/sase/pager/link_scan.py:12)"
+    spans = scan_links(text, PagerOrigin.FILE)
+
+    assert len(spans) == 1
+    assert spans[0].kind is LinkSpanKind.FILE_PATH
+    assert spans[0].text == "[not the path](src/sase/pager/link_scan.py:12)"
+    assert spans[0].target == "src/sase/pager/link_scan.py:12"
+
+
+def test_malformed_artifact_candidate_does_not_mask_at_file_path() -> None:
+    spans = scan_links("@src/sase/pager/resolve.py:42", PagerOrigin.FILE)
+
+    assert [(span.kind, span.text, span.target) for span in spans] == [
+        (
+            LinkSpanKind.FILE_PATH,
+            "@src/sase/pager/resolve.py:42",
+            "src/sase/pager/resolve.py:42",
+        )
+    ]
 
 
 def test_diff_origin_recognizes_bare_short_shas() -> None:

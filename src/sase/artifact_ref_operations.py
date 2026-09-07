@@ -7,10 +7,12 @@ from pathlib import Path
 from typing import Any, cast
 
 from sase.artifact_ref_models import (
+    ARTIFACT_REF_DOCUMENT_SCAN_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_WIRE_SCHEMA_VERSION,
     ArtifactRef,
     ArtifactRefContext,
+    ArtifactRefDocumentScan,
     ArtifactRefPathFilterResult,
     ArtifactRefPromptCandidate,
     ArtifactRefResolution,
@@ -211,6 +213,17 @@ def scan_artifact_refs(text: str) -> tuple[ArtifactRefPromptCandidate, ...]:
 scan_artifact_ref_prompt = scan_artifact_refs
 
 
+def scan_artifact_ref_document(
+    text: str,
+    *,
+    known_kinds: Iterable[str] = (),
+) -> ArtifactRefDocumentScan:
+    _require_artifact_ref_document_scan_schema()
+    binding = require_rust_binding("artifact_ref_scan_document")
+    raw = cast(Mapping[str, Any], binding(text, list(known_kinds)))
+    return ArtifactRefDocumentScan.from_wire(raw)
+
+
 def artifact_ref_kind_catalog() -> tuple[Mapping[str, Any], ...]:
     """Return every compiled-in artifact-reference kind descriptor, raw."""
     binding = require_rust_binding("artifact_ref_kind_catalog")
@@ -312,6 +325,16 @@ def _require_artifact_ref_path_filter_schema() -> None:
         )
 
 
+def _require_artifact_ref_document_scan_schema() -> None:
+    binding = require_rust_binding("artifact_ref_document_scan_wire_schema_version")
+    version = int(binding())
+    if version != ARTIFACT_REF_DOCUMENT_SCAN_WIRE_SCHEMA_VERSION:
+        raise RuntimeError(
+            "sase_core_rs artifact-reference document scan wire is stale: "
+            f"expected {ARTIFACT_REF_DOCUMENT_SCAN_WIRE_SCHEMA_VERSION}, got {version}"
+        )
+
+
 __all__ = [
     "at_reference_context",
     "at_reference_inventory",
@@ -330,6 +353,7 @@ __all__ = [
     "parse_artifact_ref",
     "render_artifact_ref",
     "resolve_artifact_ref",
+    "scan_artifact_ref_document",
     "scan_artifact_ref_prompt",
     "scan_artifact_refs",
 ]

@@ -14,6 +14,7 @@ from sase.core.time import get_timezone, local_now
 ARTIFACT_REF_WIRE_SCHEMA_VERSION = 5
 ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION = 2
 ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION = 1
+ARTIFACT_REF_DOCUMENT_SCAN_WIRE_SCHEMA_VERSION = 1
 
 ArtifactRefKindType = Literal[
     "commit",
@@ -40,6 +41,7 @@ ArtifactRefResolutionStatus = Literal[
     "filtered",
     "denied",
 ]
+ArtifactRefDocumentTargetKind = Literal["artifact_ref", "url", "file_path"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -557,6 +559,98 @@ class ArtifactRefPromptCandidate:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class ArtifactRefDocumentTarget:
+    """One document-scanner target with separate visible text and destination."""
+
+    schema_version: int
+    target_kind: ArtifactRefDocumentTargetKind
+    text: str
+    target: str
+    well_formed: bool
+    source_span: ArtifactRefSpan
+    candidate_span: ArtifactRefSpan
+    target_span: ArtifactRefSpan
+    label_span: ArtifactRefSpan | None
+    destination_span: ArtifactRefSpan | None
+    reference_label: str | None = None
+    markdown_destination: str | None = None
+    hosted_destination: str | None = None
+    artifact_reference: str | None = None
+    quoted: bool = False
+
+    @classmethod
+    def from_wire(
+        cls,
+        raw: Mapping[str, Any],
+    ) -> ArtifactRefDocumentTarget:
+        _check_document_scan_record_schema(
+            raw, record="artifact-reference document target"
+        )
+        target_kind = str(raw["target_kind"])
+        if target_kind not in {"artifact_ref", "url", "file_path"}:
+            raise RuntimeError(
+                "sase_core_rs returned an unknown artifact-reference document "
+                f"target kind: {target_kind}"
+            )
+        raw_label_span = raw.get("label_span")
+        raw_destination_span = raw.get("destination_span")
+        return cls(
+            schema_version=int(raw["schema_version"]),
+            target_kind=cast(ArtifactRefDocumentTargetKind, target_kind),
+            text=str(raw["text"]),
+            target=str(raw["target"]),
+            well_formed=bool(raw["well_formed"]),
+            source_span=ArtifactRefSpan.from_wire(
+                cast(Mapping[str, Any], raw["source_span"])
+            ),
+            candidate_span=ArtifactRefSpan.from_wire(
+                cast(Mapping[str, Any], raw["candidate_span"])
+            ),
+            target_span=ArtifactRefSpan.from_wire(
+                cast(Mapping[str, Any], raw["target_span"])
+            ),
+            label_span=(
+                None
+                if raw_label_span is None
+                else ArtifactRefSpan.from_wire(cast(Mapping[str, Any], raw_label_span))
+            ),
+            destination_span=(
+                None
+                if raw_destination_span is None
+                else ArtifactRefSpan.from_wire(
+                    cast(Mapping[str, Any], raw_destination_span)
+                )
+            ),
+            reference_label=optional_str(raw.get("reference_label")),
+            markdown_destination=optional_str(raw.get("markdown_destination")),
+            hosted_destination=optional_str(raw.get("hosted_destination")),
+            artifact_reference=optional_str(raw.get("artifact_reference")),
+            quoted=bool(raw.get("quoted", False)),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactRefDocumentScan:
+    schema_version: int
+    links: tuple[ArtifactRefDocumentTarget, ...]
+    diagnostics: tuple[str, ...] = ()
+
+    @classmethod
+    def from_wire(cls, raw: Mapping[str, Any]) -> ArtifactRefDocumentScan:
+        _check_document_scan_record_schema(
+            raw, record="artifact-reference document scan"
+        )
+        return cls(
+            schema_version=int(raw["schema_version"]),
+            links=tuple(
+                ArtifactRefDocumentTarget.from_wire(cast(Mapping[str, Any], item))
+                for item in raw.get("links", ())
+            ),
+            diagnostics=tuple(str(item) for item in raw.get("diagnostics", ())),
+        )
+
+
 def check_record_schema(
     raw: Mapping[str, Any],
     *,
@@ -564,6 +658,18 @@ def check_record_schema(
 ) -> None:
     version = int(raw["schema_version"])
     if version != ARTIFACT_REF_WIRE_SCHEMA_VERSION:
+        raise RuntimeError(
+            f"sase_core_rs returned an unsupported {record} wire: {version}"
+        )
+
+
+def _check_document_scan_record_schema(
+    raw: Mapping[str, Any],
+    *,
+    record: str,
+) -> None:
+    version = int(raw["schema_version"])
+    if version != ARTIFACT_REF_DOCUMENT_SCAN_WIRE_SCHEMA_VERSION:
         raise RuntimeError(
             f"sase_core_rs returned an unsupported {record} wire: {version}"
         )

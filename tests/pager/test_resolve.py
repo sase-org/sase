@@ -169,6 +169,19 @@ def test_target_resolution_ref_passes_through_artifact_refs_and_paths() -> None:
     assert target_resolution_ref(path_span, PagerOrigin.FILE) == "src/sase/pager/app.py"
 
 
+def test_target_resolution_ref_uses_semantic_scanned_target() -> None:
+    span = PagerTargetSpan(
+        kind=LinkSpanKind.ARTIFACT_REF.value,
+        target="plan:a b.md",
+        start=0,
+        end=len('@plan:"a b.md"'),
+        text='@plan:"a b.md"',
+        source="scanned",
+    )
+
+    assert target_resolution_ref(span, PagerOrigin.FILE) == "plan:a b.md"
+
+
 def test_bead_link_target_enriches_the_link_neighborhood_without_exiting(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -1,34 +1,28 @@
 """Scan plain text for typed refs, URLs, paths, and origin-scoped bare tokens.
 
-Runs the four precedence rules from the link-traversing-pager epic's design
-(``plan:202608/link_traversing_pager.md``, section D3) over one section's
-plain text: typed artifact refs win over URLs, which win over file paths,
-which win over origin-scoped bare tokens. No I/O: a span's presence and kind
-derive from the text alone, never from resolving the reference it names.
+Rust owns document-link grammar and target normalization. This module keeps
+origin-scoped bare-token recognition and Python character-offset conversion.
+No I/O: a span's presence and kind derive from text alone, never from
+resolving the reference it names.
 """
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+import re
 
 from rich.text import Text
 
 from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
-    HTTP_URL_PATTERN,
-    file_hint_match_span,
     iter_pager_file_path_matches,
-    matches_outside_artifact_refs,
 )
 from sase.ace.tui.widgets.prompt_panel._hint_caps import (
     HintContentBudget,
     bound_hint_content,
 )
-from sase.artifact_refs import scan_artifact_refs
-
-_HTTP_URL_RE = re.compile(HTTP_URL_PATTERN)
+from sase.artifact_refs import scan_artifact_ref_document
 
 # A bare bead id such as ``sase-uk.1`` or ``sase-ug.land``. Scoped to this
 # checkout's own project key: generalizing to other bead stores' keys is
@@ -72,6 +66,7 @@ class LinkSpan:
     start: int
     end: int
     text: str
+    target: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,33 +83,26 @@ def scan_links(text: str, origin: PagerOrigin) -> tuple[LinkSpan, ...]:
     occupied: list[tuple[int, int]] = []
     spans: list[LinkSpan] = []
 
-    candidates = scan_artifact_refs(text)
-    if candidates:
+    scan = scan_artifact_ref_document(text)
+    if scan.links:
         byte_to_char = _byte_to_character_offsets(text)
-        for candidate in candidates:
-            start = byte_to_char[candidate.candidate_span.start]
-            end = byte_to_char[candidate.candidate_span.end]
+        for target in scan.links:
+            if not target.well_formed:
+                continue
+            start = byte_to_char[target.source_span.start]
+            end = byte_to_char[target.source_span.end]
+            if _overlaps(start, end, occupied):
+                continue
             occupied.append((start, end))
-            if candidate.well_formed:
-                spans.append(
-                    LinkSpan(LinkSpanKind.ARTIFACT_REF, start, end, candidate.text)
+            spans.append(
+                LinkSpan(
+                    LinkSpanKind(target.target_kind),
+                    start,
+                    end,
+                    target.text,
+                    target.target,
                 )
-
-    for match in _HTTP_URL_RE.finditer(text):
-        start, end = match.start(), match.end()
-        if _overlaps(start, end, occupied):
-            continue
-        occupied.append((start, end))
-        spans.append(LinkSpan(LinkSpanKind.URL, start, end, match.group(0)))
-
-    for match in matches_outside_artifact_refs(
-        text, iter_pager_file_path_matches(text)
-    ):
-        start, end = file_hint_match_span(match)
-        if _overlaps(start, end, occupied):
-            continue
-        occupied.append((start, end))
-        spans.append(LinkSpan(LinkSpanKind.FILE_PATH, start, end, text[start:end]))
+            )
 
     recognizer = _BARE_TOKEN_RECOGNIZERS.get(origin)
     if recognizer is not None:

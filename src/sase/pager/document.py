@@ -142,9 +142,15 @@ def target_resolution_ref(target: PagerTargetSpan, origin: PagerOrigin) -> str |
     """
     if target.kind == LinkSpanKind.URL.value:
         return None
+    if target.source == "attached" and target.kind not in {
+        LinkSpanKind.ARTIFACT_REF.value,
+        LinkSpanKind.FILE_PATH.value,
+        LinkSpanKind.BARE_TOKEN.value,
+    }:
+        return target.text
     if target.kind == LinkSpanKind.BARE_TOKEN.value:
         return f"bead:{target.text}" if origin is PagerOrigin.BEAD else None
-    return target.text
+    return target.target if isinstance(target.target, str) else target.text
 
 
 def section_target_spans(
@@ -197,7 +203,7 @@ def _attached_target_span(target: AttachedTarget, plain: str) -> PagerTargetSpan
 def _scanned_target_span(span: LinkSpan) -> PagerTargetSpan:
     return PagerTargetSpan(
         kind=span.kind.value,
-        target=span.text,
+        target=span.target if span.target is not None else span.text,
         start=span.start,
         end=span.end,
         text=span.text,

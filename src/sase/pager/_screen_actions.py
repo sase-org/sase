@@ -168,16 +168,17 @@ class PagerActionMixin:
         context: LinkResolutionContext | None,
     ) -> None:
         if target.kind == LinkSpanKind.URL.value:
-            self._copy_ref(target.text, label="link")
+            ref = target.target if isinstance(target.target, str) else target.text
+            self._copy_ref(ref, label="link")
             return
-        ref = target_resolution_ref(target, self.document.origin)
-        if ref is None:
+        resolution_ref = target_resolution_ref(target, self.document.origin)
+        if resolution_ref is None:
             self.notify("Nothing to copy here.", severity="warning")
             return
         kind = target.kind
         schedule_copy_delivery(
             self,
-            lambda: copy_text_for_target(ref, kind, context=context),
+            lambda: copy_text_for_target(resolution_ref, kind, context=context),
             copied_label="link",
             task_name="sase-pager-copy",
             on_failure="toast",

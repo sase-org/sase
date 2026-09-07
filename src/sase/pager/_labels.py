@@ -371,7 +371,8 @@ def _target_marker(target: PagerTargetSpan, *, dangling: bool) -> _TargetMarker:
 
 def _target_artifact_tab(target: PagerTargetSpan) -> str | None:
     if target.kind == LinkSpanKind.ARTIFACT_REF.value:
-        ref_kind = target.text.split(":", 1)[0].lower()
+        ref = target.target if isinstance(target.target, str) else target.text
+        ref_kind = ref.split(":", 1)[0].lower()
         return _REF_KIND_TABS.get(ref_kind)
     if target.kind == LinkSpanKind.BARE_TOKEN.value:
         return "beads" if target.text.startswith("sase-") else "patches"

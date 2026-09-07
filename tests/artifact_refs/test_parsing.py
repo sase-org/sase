@@ -31,6 +31,28 @@ def test_parse_render_and_scan_wrappers_round_trip() -> None:
     assert candidates[0].fragment_span is not None
 
 
+def test_document_scan_wrapper_separates_visible_text_from_target() -> None:
+    scan = artifact_refs.scan_artifact_ref_document(
+        'é [plan](plan:202607/plan.md#L2) @plans:"a b.md" @src/app.py:7',
+        known_kinds=("plan",),
+    )
+
+    assert (
+        scan.schema_version
+        == artifact_refs.ARTIFACT_REF_DOCUMENT_SCAN_WIRE_SCHEMA_VERSION
+    )
+    assert [
+        (link.text, link.target, link.target_kind)
+        for link in scan.links
+        if link.well_formed
+    ] == [
+        ("[plan](plan:202607/plan.md#L2)", "plan:202607/plan.md#L2", "artifact_ref"),
+        ('@plans:"a b.md"', "plan:a b.md", "artifact_ref"),
+        ("@src/app.py:7", "src/app.py:7", "file_path"),
+    ]
+    assert scan.links[0].source_span.start == len("é ".encode())
+
+
 @pytest.mark.parametrize(
     ("reference", "kind", "payload_field", "payload_value"),
     [

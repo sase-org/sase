@@ -15,6 +15,13 @@ from sase.notifications.models import (
     notification_activity_cursor,
     normalize_notification_tags,
 )
+from sase.notifications.pending_actions import (
+    cleanup_transport_actions,
+    get_transport_action,
+    list_transport_actions,
+    remove_transport_action,
+    upsert_transport_action,
+)
 from sase.notifications.priority import is_error, is_priority
 from sase.notifications.question_summary import (
     AnswerState,
@@ -71,18 +78,21 @@ __all__ = [
     "QuestionOption",
     "QuestionSummary",
     "append_notification",
+    "cleanup_transport_actions",
     "dismiss_agent_completion_notifications_matching_agents",
     "dismiss_notifications_matching_agents",
     "expire_due_snoozes",
     "format_absolute_time",
     "format_relative_time",
     "format_relative_until",
+    "get_transport_action",
     "notification_activity_at",
     "notification_activity_cursor",
     "is_error",
     "is_priority",
     "is_question_notification",
     "is_report_notification",
+    "list_transport_actions",
     "list_notification_infos",
     "load_notifications",
     "load_notification_report",
@@ -101,6 +111,7 @@ __all__ = [
     "read_current_notification_snapshot",
     "question_answer_state",
     "resolve_notification_ref",
+    "remove_transport_action",
     "rewrite_notifications",
     "build_question_summary",
     "notify_axe_error_digest",
@@ -111,4 +122,5 @@ __all__ = [
     "notify_mentors_complete",
     "notify_sync_result",
     "notify_workflow_complete",
+    "upsert_transport_action",
 ]

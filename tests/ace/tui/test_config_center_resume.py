@@ -165,6 +165,15 @@ async def test_new_process_loads_remembered_admin_center_section(
         await page.press("escape")
         await page.expect_no_modal()
         assert page.app._last_admin_center_tab == "procs"
+        # AcePage teardown cancels background tasks; observe the durable save
+        # before creating the next app, which reads this history from disk.
+        await page.wait_for(
+            lambda _state: (
+                page.app._admin_center_tab_durable
+                == AdminCenterTabHistory(current="procs")
+            )
+        )
+        assert load_admin_center_tab_history() == AdminCenterTabHistory(current="procs")
 
     async with AcePage(initial_tab="agents") as page:
         assert page.app._last_admin_center_tab == "procs"

@@ -6,15 +6,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from sase.ace.tui.widgets.file_panel._messages import _EXTENSION_TO_LEXER
 from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
     file_hint_match_span,
     iter_file_path_matches,
     resolve_file_path,
 )
+from sase.content_layout import skill_reference_name
+from sase.core.source_language_facade import (
+    logical_source_filename,
+    resolve_source_language,
+)
 from sase.xprompt import xprompt_inspect
 from sase.xprompt._parsing_references import XPromptReference, iter_xprompt_references
-from sase.content_layout import skill_reference_name
 from sase.xprompt.loader import get_xprompt_or_workflow
 from sase.xprompt.models import UNSET, InputArg, XPrompt
 from sase.xprompt.properties import XPromptProperties, xprompt_properties
@@ -314,7 +317,7 @@ def _resolve_file_preview(
         title=token.raw,
         source_path=str(resolved),
         content=content,
-        lexer=_lexer_for_path(resolved),
+        lexer=_lexer_for_path(resolved, content=content),
     )
 
 
@@ -326,7 +329,11 @@ def _read_source_preview(source_path: str | None) -> tuple[str, str, str] | None
         content = _read_text_file(path, display_path=str(path))
     except PreviewError:
         return None
-    return (content, str(path), _lexer_for_path(path))
+    return (
+        content,
+        str(path),
+        _lexer_for_path(path, source_path=source_path, content=content),
+    )
 
 
 def _source_file_for_preview(source_path: str | None) -> Path | None:
@@ -393,8 +400,22 @@ def _read_text_file(path: Path, *, display_path: str) -> str:
     return content
 
 
-def _lexer_for_path(path: Path) -> str:
-    return _EXTENSION_TO_LEXER.get(path.suffix.lower(), "text")
+def _lexer_for_path(
+    path: Path,
+    *,
+    source_path: str | None = None,
+    content: str | None = None,
+) -> str:
+    logical_filename = logical_source_filename(
+        source_path=source_path,
+        resolved_path=str(path),
+    )
+    result = resolve_source_language(
+        category="raw_file",
+        logical_filename=logical_filename,
+        prefix=None if content is None else content[:8192],
+    )
+    return result.language or "text"
 
 
 def _xprompt_fallback_preview(xprompt: XPrompt) -> str:

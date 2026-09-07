@@ -373,3 +373,99 @@ def test_mark_plan_approval_auto_handled_promotes_legacy_record(
         record = promoted["transports"][0]["record"]
         assert record["chat_id"] == "chat"
         assert record["message_id"] == 42
+
+
+def test_transport_adapter_preserves_handled_state_and_original_lifecycle(
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "actions.json"
+    with (
+        patch.object(pending_actions, "PENDING_ACTIONS_PATH", store_path),
+        patch.object(
+            pending_actions, "LEGACY_TELEGRAM_PENDING_ACTIONS_PATH", tmp_path / "legacy"
+        ),
+    ):
+        notification = _notification(
+            "abcd1234-full", "PlanApproval", {"response_dir": "x"}
+        )
+        pending_actions.register_notification(notification, now=10.0)
+        pending_actions.upsert_transport_action(
+            "abcd1234",
+            {
+                "notification_id": notification.id,
+                "action": notification.action,
+                "chat_id": "chat",
+                "message_id": 42,
+                "extension": {"keep": True},
+            },
+            transport="telegram",
+            now=20.0,
+        )
+        pending_actions.mark_already_handled(notification.id, source="test", now=30.0)
+        pending_actions.register_notification(notification, now=100.0)
+        entry = pending_actions.read_pending_action_store()["actions"]["abcd1234"]
+        assert entry["state"] == "already_handled"
+        assert entry["handled_source"] == "test"
+        assert entry["created_at_unix"] == 10.0
+        assert (
+            entry["stale_deadline_unix"]
+            == 10.0 + pending_actions.STALE_THRESHOLD_SECONDS
+        )
+        record = pending_actions.get_transport_action("abcd1234", transport="telegram")
+        assert record is not None
+        assert record["extension"] == {"keep": True}
+        assert record["action_data"] == notification.action_data
+        assert record["notification_id"] == notification.id
+        assert pending_actions.remove_transport_action("abcd1234", transport="telegram")
+        assert not pending_actions.remove_transport_action(
+            "abcd1234", transport="telegram"
+        )
+        assert (
+            pending_actions.read_pending_action_store()["actions"]["abcd1234"]["state"]
+            == "already_handled"
+        )
+
+
+def test_transport_cleanup_keeps_host_and_other_transport_records(
+    tmp_path: Path,
+) -> None:
+    with (
+        patch.object(
+            pending_actions, "PENDING_ACTIONS_PATH", tmp_path / "actions.json"
+        ),
+        patch.object(
+            pending_actions, "LEGACY_TELEGRAM_PENDING_ACTIONS_PATH", tmp_path / "legacy"
+        ),
+    ):
+        pending_actions.register_notification(
+            _notification("abcd1234-full", "PlanApproval", {"response_dir": "x"}),
+            now=10.0,
+        )
+        pending_actions.upsert_transport_action(
+            "abcd1234", {"message_id": 42}, transport="telegram", now=20.0
+        )
+        pending_actions.upsert_transport_action(
+            "other", {"message_id": 99}, transport="mobile", now=10.0
+        )
+        assert pending_actions.cleanup_transport_actions(
+            transport="telegram", now=90000.0
+        ) == ["abcd1234"]
+        assert pending_actions.list_transport_actions(transport="telegram") == {}
+        store = pending_actions.read_pending_action_store()
+        assert set(store["actions"]) == {"abcd1234", "other"}
+        assert store["actions"]["abcd1234"]["transports"] == [
+            {"transport": "notification_store", "record": {}}
+        ]
+
+
+def test_missing_transport_binding_fails_without_creating_python_store(
+    tmp_path: Path,
+) -> None:
+    with patch("sase.core.rust.require_rust_extension", return_value=object()):
+        import pytest
+
+        with pytest.raises(AttributeError, match="pending_action_transport"):
+            pending_actions.upsert_transport_action(
+                "callback", {}, transport="telegram", path=tmp_path / "actions.json"
+            )
+    assert not (tmp_path / "actions.json").exists()
