@@ -54,6 +54,50 @@ def test_config_schema_allows_base_config_without_identity() -> None:
     )
 
 
+def test_config_schema_accepts_dispatch_federation_contract() -> None:
+    validator = Draft7Validator(schema())
+
+    validator.validate(
+        {
+            "dispatch": {
+                "federation_worker": {
+                    "enabled": True,
+                    "command": "sase_federation_worker",
+                    "sase_home": "/tmp/sase",
+                    "run_root": "/tmp/sase/run",
+                    "socket_path": "/tmp/sase/run/worker.sock",
+                    "idle_timeout_seconds": 300,
+                    "startup_timeout_seconds": 5,
+                    "request_timeout_seconds": 5,
+                    "max_frame_bytes": 1048576,
+                },
+                "remote_hosts": [
+                    {
+                        "enabled": True,
+                        "alias": "remote",
+                        "provider_ref": "fleet",
+                        "endpoint": "https://fleet.example.test",
+                        "credential_ref": "env:SASE_FLEET_TOKEN",
+                        "pinned_installation_id": "remote-install",
+                        "connection_kind": "gateway",
+                    }
+                ],
+            }
+        }
+    )
+
+    with pytest.raises(ValidationError):
+        validator.validate(
+            {
+                "dispatch": {
+                    "remote_hosts": [
+                        {"endpoint": "https://fleet.example.test", "extra": True}
+                    ]
+                }
+            }
+        )
+
+
 def test_config_schema_validates_nested_owner_and_legacy_machine_name() -> None:
     validator = Draft7Validator(schema())
 

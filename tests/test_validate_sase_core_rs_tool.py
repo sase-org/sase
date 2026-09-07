@@ -145,6 +145,7 @@ def test_validate_sase_core_rs_requires_fleet_contract_bindings() -> None:
         "fleet_operation_payload_fingerprint",
         "fleet_decide_operation_replay",
         "fleet_validate_connection_plan",
+        "federation_worker_main",
         "fleet_classify_runtime_duration",
         "fleet_classify_cache_freshness",
     }

@@ -105,6 +105,7 @@ def test_required_bindings_include_pre_facade_contracts(tool: ModuleType) -> Non
         "migration_residue_classify",
         "migration_tree_digest",
         "migration_wire_schema_version",
+        "federation_worker_main",
     }
     assert expected <= set(tool.REQUIRED_BINDINGS)
 

@@ -2700,6 +2700,145 @@
         }
       }
     },
+    "dispatch": {
+      "type": "object",
+      "description": "Remote dispatch and fleet-read configuration.",
+      "additionalProperties": false,
+      "properties": {
+        "federation_worker": {
+          "type": "object",
+          "description": "Local federation worker supervision and IPC settings.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Allow the local federation worker to start when enabled remote hosts are configured.",
+              "default": true
+            },
+            "command": {
+              "type": "string",
+              "description": "Worker command override, parsed without a shell. Empty string uses packaged-worker and linked-core development discovery.",
+              "default": ""
+            },
+            "sase_home": {
+              "type": "string",
+              "description": "SASE home passed to the worker. Empty string uses the runtime default.",
+              "default": ""
+            },
+            "run_root": {
+              "type": "string",
+              "description": "Host-local runtime directory override. Empty string derives from SASE home and host identity.",
+              "default": ""
+            },
+            "socket_path": {
+              "type": "string",
+              "description": "Unix socket override. Empty string derives from the runtime directory.",
+              "default": ""
+            },
+            "idle_timeout_seconds": {
+              "type": "number",
+              "description": "Seconds an unused worker may sit idle before exiting.",
+              "default": 300,
+              "exclusiveMinimum": 0
+            },
+            "startup_timeout_seconds": {
+              "type": "number",
+              "description": "Seconds to wait for a spawned worker to answer IPC health.",
+              "default": 5,
+              "exclusiveMinimum": 0
+            },
+            "request_timeout_seconds": {
+              "type": "number",
+              "description": "Default finite deadline for facade read calls.",
+              "default": 5,
+              "exclusiveMinimum": 0
+            },
+            "max_frame_bytes": {
+              "type": "integer",
+              "description": "Maximum IPC request or response frame size.",
+              "default": 1048576,
+              "minimum": 128
+            }
+          }
+        },
+        "remote_hosts": {
+          "type": "array",
+          "description": "Enabled and enrolled remote fleet hosts. An empty list keeps local SASE worker-free.",
+          "default": [],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "Include this host in worker configuration.",
+                "default": true
+              },
+              "alias": {
+                "type": "string",
+                "description": "Presentation alias for the host.",
+                "default": ""
+              },
+              "provider_ref": {
+                "type": "string",
+                "description": "Opaque provider reference recorded in the connection plan.",
+                "default": "fleet"
+              },
+              "endpoint": {
+                "type": "string",
+                "description": "HTTPS endpoint for the remote SASE fleet gateway.",
+                "default": ""
+              },
+              "credential_ref": {
+                "type": "string",
+                "description": "Opaque credential reference. The Python facade currently resolves env:NAME.",
+                "default": ""
+              },
+              "pinned_installation_id": {
+                "type": "string",
+                "description": "Pinned remote installation identity.",
+                "default": ""
+              },
+              "connection_kind": {
+                "type": "string",
+                "description": "Remote connection mode.",
+                "enum": ["gateway", "tunnel", "direct"],
+                "default": "gateway"
+              },
+              "tls": {
+                "type": "object",
+                "description": "TLS trust settings for the connection plan.",
+                "additionalProperties": false,
+                "properties": {
+                  "schema_version": {
+                    "type": "integer",
+                    "default": 1
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": ["system_roots", "pinned_ca", "pinned_server_name"],
+                    "default": "system_roots"
+                  },
+                  "ca_ref": {
+                    "type": ["string", "null"],
+                    "default": null
+                  },
+                  "server_name_ref": {
+                    "type": ["string", "null"],
+                    "default": null
+                  }
+                }
+              },
+              "plan": {
+                "type": "object",
+                "description": "Complete core ConnectionPlanWire override.",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
     "chat_install": {
       "type": "object",
       "description": "Configuration for chat-driven update workflows",
