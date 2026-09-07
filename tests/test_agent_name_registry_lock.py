@@ -11,7 +11,7 @@ import pytest
 
 from sase.agent.names import (
     _registry,
-    _wipe,
+    _wipe_execute,
     claim_exact_planned_registered_name,
     rebuild_name_registry,
     reserve_registered_name,
@@ -82,9 +82,9 @@ def test_wipe_does_not_delete_under_the_allocation_lock(
     artifact = make_agent(tmp_path, "proj", "20260724120100", "beta", done=True)
     held: list[bool] = []
     deletes_under_lock = 0
-    real_rmtree = _wipe.shutil.rmtree
+    real_rmtree = _wipe_execute.shutil.rmtree
 
-    def tracked_rmtree(path: object, *args: object, **kwargs: object) -> None:
+    def tracked_rmtree(path: Path, *args: Any, **kwargs: Any) -> None:
         nonlocal deletes_under_lock
         if held:
             deletes_under_lock += 1
@@ -93,7 +93,7 @@ def test_wipe_does_not_delete_under_the_allocation_lock(
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     rebuild_name_registry()
     _patch_lock(monkeypatch, held)
-    monkeypatch.setattr(_wipe.shutil, "rmtree", tracked_rmtree)
+    monkeypatch.setattr(_wipe_execute.shutil, "rmtree", tracked_rmtree)
 
     wipe_agent_names_for_reuse(("beta",))
 
