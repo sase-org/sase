@@ -58,11 +58,13 @@ class PagerTrailMixin:
         self._last_activated_label = None
         self._pending_action = "follow"
         self._footer_status = None
+        self._reset_syntax_for_new_document()
         self._ensure_body()
         self._restore_search_state(state.search)
         self._update_trail()
         self._update_footer()
         self._update_subject()
+        self._start_syntax_preparation_after_paint()
         self.call_after_refresh(
             lambda: self._restore_trail_scroll(
                 x=state.scroll_x,

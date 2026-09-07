@@ -86,6 +86,7 @@ class PagerBodyMixin:
 
     def _after_scroll(self: Any) -> None:
         self._refresh_window_scoped_labels_if_needed()
+        self._schedule_syntax_preparation()
         self.call_after_refresh(self._update_chrome_position)
 
     def _update_chrome_position(self: Any) -> None:
@@ -114,6 +115,7 @@ class PagerBodyMixin:
             width,
             label_layer=self._label_layer,
             pending_prefix=self._label_pending_prefix,
+            prepared_sections=self._prepared_section_texts(),
         )
         self._body = body
         self.query_one("#pager-body", Static).update(body.renderable)

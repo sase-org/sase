@@ -25,6 +25,7 @@ from sase.pager._screen_actions import PagerActionMixin, _DanglingRefKey
 from sase.pager._screen_body import PagerBodyMixin
 from sase.pager._screen_chrome import PagerChromeMixin
 from sase.pager._screen_search import PagerSearchMixin
+from sase.pager._screen_syntax import PagerSyntaxMixin
 from sase.pager._screen_trail import PagerTrailMixin
 from sase.pager._screen_widgets import PagerBody, PagerBodyScroll
 from sase.pager._styles import PAGER_CSS
@@ -40,6 +41,7 @@ class PagerScreen(
     PagerTrailMixin,
     PagerChromeMixin,
     PagerSearchMixin,
+    PagerSyntaxMixin,
     ModalScreen[PagerExit],
 ):
     """A link-traversing document reader: chrome, scrollable body, footer.
@@ -98,6 +100,7 @@ class PagerScreen(
         self._back_trail: list[PagerTrailEntry] = []
         self._forward_trail: list[PagerTrailEntry] = []
         self._footer_status: str | None = None
+        self._init_syntax_state()
 
     def on_unmount(self) -> None:
         cancel_pump_free_tasks(self)
@@ -121,6 +124,8 @@ class PagerScreen(
             self._update_trail()
             self._update_footer()
             self._update_subject()
+            self.watch(self.app, "theme", self._on_app_theme_changed, init=False)
+            self._start_syntax_preparation_after_paint()
 
     def on_key(self, event: Key) -> None:
         """Give the re-hosted vim search first refusal on every keypress.

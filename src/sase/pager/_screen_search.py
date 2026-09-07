@@ -11,7 +11,7 @@ from sase.ace.tui.widgets.vim_search_controller import (
     SearchViewport,
     VimSearchMode,
 )
-from sase.pager._layout import search_corpus
+from sase.pager._layout import search_corpus, styled_search_base
 
 
 class PagerSearchMixin:
@@ -19,6 +19,14 @@ class PagerSearchMixin:
 
     def vim_search_corpus(self: Any) -> str:
         return search_corpus(self.document)
+
+    def vim_search_styled_base(self: Any) -> Text | None:
+        return styled_search_base(
+            self.document,
+            prepared_sections=self._prepared_section_texts(),
+            dangling_refs=self._dangling_refs.keys(),
+            is_dangling=self._is_target_dangling,
+        )
 
     def vim_search_origin_scroll(self: Any) -> tuple[int, int]:
         scroll = self._body_scroll()

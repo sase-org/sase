@@ -25,6 +25,8 @@ from sase.pager.document import (
     PagerDocument,
     PagerOrigin,
     PagerSection,
+    RawSourceSpec,
+    section_syntax_language,
     section_target_spans,
 )
 from sase.pager.link_context import LinkAnchor
@@ -103,6 +105,50 @@ def test_string_body_does_not_double_trailing_newline_when_from_ansi_keeps_it(
         body="indexed\n",
     )
     assert section.plain_text == "indexed\n"
+
+
+def test_raw_source_defaults_to_none_and_does_not_affect_rendering() -> None:
+    section = PagerSection(
+        identity="file:/tmp/demo.py",
+        title="demo.py",
+        kind="file",
+        body="print('hi')\n",
+    )
+    assert section.raw_source is None
+    assert section_syntax_language(section) is None
+
+
+def test_section_syntax_language_returns_the_spec_language_when_eligible() -> None:
+    section = PagerSection(
+        identity="file:/tmp/demo.py",
+        title="demo.py",
+        kind="file",
+        body="print('hi')\n",
+        raw_source=RawSourceSpec(language="python"),
+    )
+    assert section_syntax_language(section) == "python"
+
+
+def test_section_syntax_language_is_none_when_ineligible() -> None:
+    section = PagerSection(
+        identity="file:/tmp/demo.py",
+        title="demo.py",
+        kind="file",
+        body="print('hi')\n",
+        raw_source=RawSourceSpec(language="python", eligible=False),
+    )
+    assert section_syntax_language(section) is None
+
+
+def test_section_syntax_language_is_none_without_a_language_hint() -> None:
+    section = PagerSection(
+        identity="file:/tmp/demo.txt",
+        title="demo.txt",
+        kind="file",
+        body="plain text\n",
+        raw_source=RawSourceSpec(language=None),
+    )
+    assert section_syntax_language(section) is None
 
 
 def test_attached_target_suppresses_overlapping_scanned_span() -> None:

@@ -11,12 +11,20 @@ Textual layer rebuilds only when the body's actual width changes, per
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 
 from rich.console import Console, Group, RenderableType
+from rich.text import Text
 
 from sase.pager._chrome import section_rule
-from sase.pager._labels import PagerLabelLayer, render_section_with_labels
+from sase.pager._labels import (
+    DanglingPredicate,
+    PagerLabelLayer,
+    render_section_with_labels,
+    style_target_accents,
+)
 from sase.pager.document import PagerDocument, PagerSection
 
 _DIVIDER_LINES = 1
@@ -37,17 +45,28 @@ def _measure_section_heights(
     *,
     label_layer: PagerLabelLayer | None = None,
     pending_prefix: str = "",
+    prepared_sections: Mapping[int, Text] | None = None,
 ) -> tuple[int, ...]:
-    """Return each section's wrapped line count at ``width``, no I/O."""
+    """Return each section's wrapped line count at ``width``, no I/O.
+
+    Prepared syntax text only adds *style* over the same characters, so it
+    can never change a wrapped row count — it is threaded through here
+    purely so a section rendered with labels starts from the styled base
+    rather than the plain body.
+    """
     console = Console(width=max(width, 1), color_system=None, highlight=False)
     heights = []
     for index, section in enumerate(sections):
+        prepared_text = (
+            None if prepared_sections is None else prepared_sections.get(index)
+        )
         lines = console.render_lines(
             _section_renderable(
                 section,
                 section_index=index,
                 label_layer=label_layer,
                 pending_prefix=pending_prefix,
+                prepared_text=prepared_text,
             ),
             pad=False,
         )
@@ -79,8 +98,14 @@ def compose_body(
     *,
     label_layer: PagerLabelLayer | None = None,
     pending_prefix: str = "",
+    prepared_sections: Mapping[int, Text] | None = None,
 ) -> ComposedBody:
-    """Render *document* at ``width``: section bodies plus transition rules."""
+    """Render *document* at ``width``: section bodies plus transition rules.
+
+    ``prepared_sections`` maps a section index to syntax-styled ``Text`` that
+    should stand in for that section's plain body — omitted indices render
+    exactly as before.
+    """
     sections = document.sections
     if not sections:
         return ComposedBody(renderable=Group(), section_offsets=(0,), total_height=0)
@@ -90,6 +115,7 @@ def compose_body(
         width,
         label_layer=label_layer,
         pending_prefix=pending_prefix,
+        prepared_sections=prepared_sections,
     )
     offsets = _section_row_offsets(heights)
     total = len(sections)
@@ -106,6 +132,9 @@ def compose_body(
                 section_index=index,
                 label_layer=label_layer,
                 pending_prefix=pending_prefix,
+                prepared_text=None
+                if prepared_sections is None
+                else prepared_sections.get(index),
             )
         )
 
@@ -155,17 +184,65 @@ def _section_renderable(
     section_index: int,
     label_layer: PagerLabelLayer | None,
     pending_prefix: str,
+    prepared_text: Text | None = None,
 ) -> RenderableType:
     if label_layer is None:
+        if prepared_text is not None:
+            return prepared_text.copy()
         return section.body_renderable
     labels = label_layer.labels_by_section[section_index]
     if not labels:
+        if prepared_text is not None:
+            return prepared_text.copy()
         return section.body_renderable
     return render_section_with_labels(
         section,
         labels,
         pending_prefix=pending_prefix,
+        source=prepared_text,
     )
+
+
+def styled_search_base(
+    document: PagerDocument,
+    *,
+    prepared_sections: Mapping[int, Text] | None = None,
+    dangling_refs: AbstractSet[object] = frozenset(),
+    is_dangling: DanglingPredicate | None = None,
+) -> Text:
+    """Build one styled ``Text`` matching ``search_corpus``'s exact text.
+
+    Prepared syntax text stands in for a section's plain body where
+    available, and link target spans are stylized with their marker accent
+    without inserting capsule characters — search matches offsets against
+    the unmodified corpus, so the plain text here must equal
+    ``search_corpus(document)`` exactly.
+    """
+    sections = document.sections
+    if not sections:
+        return Text("")
+    parts: list[Text] = []
+    total = len(sections)
+    for index, section in enumerate(sections):
+        if index > 0:
+            parts.append(Text(f"── {index + 1}/{total} · {section.title} ──\n"))
+        base = prepared_sections.get(index) if prepared_sections is not None else None
+        text = base.copy() if base is not None else section.body_text
+        text = style_target_accents(
+            text,
+            section,
+            index,
+            document.origin,
+            dangling_refs=dangling_refs,
+            is_dangling=is_dangling,
+        )
+        if not text.plain.endswith("\n"):
+            text.append("\n")
+        parts.append(text)
+    result = Text()
+    for part in parts:
+        result.append_text(part)
+    return result
 
 
 __all__ = [
@@ -174,4 +251,5 @@ __all__ = [
     "current_section_index",
     "render_section_with_labels",
     "search_corpus",
+    "styled_search_base",
 ]

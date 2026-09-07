@@ -69,12 +69,18 @@ def subject_line(
     scroll_percent: int,
     char_count: int,
     width: int,
+    syntax_hint: str | None = None,
 ) -> Text:
     """Build the sticky subject line: title left, position right.
 
     ``section_index``/``section_total`` are only shown once a document has
     more than one section — a single-section document's own index is not
     information, per the beauty rule that absence costs nothing.
+
+    ``syntax_hint`` is a short language alias (``"py"``, ``"md"``, ``"diff"``)
+    shown only when syntax is actually enabled/prepared for the current
+    section; it is the first thing dropped at a narrow width, before either
+    the subject or the position information it sits beside.
     """
     glyph = _section_icon(current_section.kind)
     accent = _section_accent(current_section.kind)
@@ -91,7 +97,12 @@ def subject_line(
         right_parts.append(f"{section_index}/{section_total}")
     right_parts.append(f"{scroll_percent}%")
     right_parts.append(f"⌘ {_format_char_count(char_count)}")
-    right = Text(" · ".join(right_parts), style="dim")
+    right_str = " · ".join(right_parts)
+    if syntax_hint:
+        with_hint = " · ".join((*right_parts, syntax_hint))
+        if cell_len(left.plain) + cell_len(with_hint) + 1 <= width:
+            right_str = with_hint
+    right = Text(right_str, style="dim")
 
     gap = max(width - cell_len(left.plain) - cell_len(right.plain), 1)
     line = Text()

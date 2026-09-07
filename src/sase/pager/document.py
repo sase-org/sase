@@ -47,6 +47,21 @@ class PagerTargetSpan:
 
 
 @dataclass(frozen=True, slots=True)
+class RawSourceSpec:
+    """Optional raw-source syntax eligibility for one pager section.
+
+    Carried independently of ``kind``, ``title``, and ``subject_ref`` — the
+    epic's "resolve each section independently" contract (a section's kind or
+    title is not evidence of raw-source-ness on its own). An adapter sets
+    this once it has trusted provenance for a section's body; its absence
+    leaves today's rendering untouched.
+    """
+
+    language: str | None
+    eligible: bool = True
+
+
+@dataclass(frozen=True, slots=True)
 class PagerSection:
     """One independently navigable section in a pager document."""
 
@@ -57,6 +72,7 @@ class PagerSection:
     subject_ref: str | None = None
     targets: tuple[AttachedTarget, ...] = ()
     link_anchors: tuple[LinkAnchor, ...] = ()
+    raw_source: RawSourceSpec | None = None
     _body_text: Text = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -150,6 +166,19 @@ def section_target_spans(
         if not _overlaps(span.start, span.end, attached_ranges)
     )
     return tuple(sorted((*attached, *scanned), key=_target_span_sort_key))
+
+
+def section_syntax_language(section: PagerSection) -> str | None:
+    """Return the engine language to attempt for *section*, if any.
+
+    ``None`` covers a missing spec, an explicitly ineligible section, and a
+    spec with no language hint — all three mean "do not run the syntax
+    engine here", collapsed to one check for every caller.
+    """
+    raw = section.raw_source
+    if raw is None or not raw.eligible:
+        return None
+    return raw.language
 
 
 def _attached_target_span(target: AttachedTarget, plain: str) -> PagerTargetSpan:
@@ -264,6 +293,8 @@ __all__ = [
     "PagerSection",
     "PagerTargetSpan",
     "PagerTargetSource",
+    "RawSourceSpec",
+    "section_syntax_language",
     "section_target_spans",
     "target_resolution_ref",
 ]

@@ -330,6 +330,7 @@ class PagerActionMixin:
         self._last_activated_label = None
         self._pending_action = "follow"
         self._reset_search_state()
+        self._reset_syntax_for_new_document()
         self._ensure_body()
         scroll = self._body_scroll()
         scroll.scroll_to(x=0, y=0, animate=False, immediate=True)
@@ -340,6 +341,7 @@ class PagerActionMixin:
         self._update_trail()
         self._update_footer()
         self._update_subject()
+        self._start_syntax_preparation_after_paint()
 
     def _link_context_for_section_index(
         self: Any,

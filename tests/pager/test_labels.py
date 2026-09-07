@@ -15,6 +15,7 @@ from sase.pager._labels import (
     PagerLabel,
     build_label_layer,
     render_section_with_labels,
+    style_target_accents,
 )
 from sase.pager.document import AttachedTarget, PagerDocument, PagerOrigin, PagerSection
 
@@ -251,6 +252,94 @@ def test_label_assignment_is_stable_across_reflow_widths() -> None:
         label.hint for label in wide.labels
     ]
     assert narrow.labels[-1].hint == wide.labels[-1].hint
+
+
+def test_render_section_with_labels_uses_prepared_source_over_the_plain_body() -> None:
+    document = _document("open src/sase/pager/app.py and https://example.test/page\n")
+    section = document.sections[0]
+    layer = build_label_layer(document, width=80)
+    prepared = section.body_text
+    prepared.stylize("bold #00AA00", 0, 4)  # pretend syntax already colored "open"
+
+    rendered = render_section_with_labels(
+        section,
+        layer.labels_by_section[0],
+        source=prepared,
+    )
+
+    # Capsules still land at the usual target offsets, and the syntax color
+    # from the prepared source survives ahead of the first capsule.
+    assert "[0]" in rendered.plain
+    assert rendered.plain.replace("[0]▤ ", "").replace("[1]↗ ", "") == prepared.plain
+    style = _style_at(rendered, 0)
+    assert style.bold is True
+    assert style.color == Color.parse("#00AA00")
+
+
+def test_render_section_with_labels_no_label_branch_returns_the_prepared_source() -> (
+    None
+):
+    document = _document("plain prose with no target spans\n")
+    section = document.sections[0]
+    layer = build_label_layer(document, width=80)
+    prepared = section.body_text
+    prepared.stylize("italic", 0, 5)
+
+    rendered = render_section_with_labels(
+        section,
+        layer.labels_by_section[0],
+        source=prepared,
+    )
+
+    assert rendered is prepared
+
+
+def test_style_target_accents_paints_without_inserting_capsule_characters() -> None:
+    document = _document("open src/sase/pager/app.py and https://example.test/page\n")
+    section = document.sections[0]
+    plain = section.plain_text
+
+    styled = style_target_accents(section.body_text, section, 0, document.origin)
+
+    assert styled.plain == plain
+    file_start = plain.index("src/sase/pager/app.py")
+    file_end = file_start + len("src/sase/pager/app.py")
+    style = _style_at(styled, file_start)
+    assert style.bold is True
+    assert style.color == _FILE_ACCENT
+    url_start = plain.index("https://example.test/page")
+    url_style = _style_at(styled, url_start)
+    assert url_style.color == _URL_ACCENT
+    # nothing outside the two target spans is touched
+    assert _style_at(styled, file_end).color is None
+
+
+def test_style_target_accents_dims_dangling_targets() -> None:
+    document = _attached_single_document("missing")
+    section = document.sections[0]
+
+    styled = style_target_accents(
+        section.body_text,
+        section,
+        0,
+        document.origin,
+        dangling_refs={"missing"},
+    )
+
+    assert styled.plain == section.plain_text
+    style = _style_at(styled, 0)
+    assert bool(style.dim) is True
+    assert style.bgcolor is None
+
+
+def test_style_target_accents_copies_and_does_not_mutate_the_input() -> None:
+    document = _document("open src/sase/pager/app.py\n")
+    section = document.sections[0]
+    original = section.body_text
+
+    style_target_accents(original, section, 0, document.origin)
+
+    assert not original.spans
 
 
 def test_window_scoped_fallback_is_dormant_until_two_key_capacity() -> None:

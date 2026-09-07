@@ -120,6 +120,73 @@ def test_subject_line_pads_to_the_requested_width_when_it_fits() -> None:
     assert len(line.plain) == 80
 
 
+def test_subject_line_shows_the_syntax_hint_when_it_fits() -> None:
+    section = _file_section("a.py")
+    document = PagerDocument(sections=(section,), title="a.py", origin=PagerOrigin.FILE)
+
+    line = subject_line(
+        document,
+        section,
+        section_index=1,
+        section_total=1,
+        scroll_percent=0,
+        char_count=10,
+        width=80,
+        syntax_hint="py",
+    )
+
+    assert "· py" in line.plain
+
+
+def test_subject_line_omits_the_syntax_hint_when_absent() -> None:
+    section = _file_section("a.py")
+    document = PagerDocument(sections=(section,), title="a.py", origin=PagerOrigin.FILE)
+
+    line = subject_line(
+        document,
+        section,
+        section_index=1,
+        section_total=1,
+        scroll_percent=0,
+        char_count=10,
+        width=80,
+        syntax_hint=None,
+    )
+
+    assert "· py" not in line.plain
+
+
+def test_subject_line_drops_the_syntax_hint_before_the_subject_at_narrow_width() -> (
+    None
+):
+    section = _file_section("a.py")
+    document = PagerDocument(sections=(section,), title="a.py", origin=PagerOrigin.FILE)
+
+    without_hint = subject_line(
+        document,
+        section,
+        section_index=1,
+        section_total=1,
+        scroll_percent=0,
+        char_count=10,
+        width=20,
+        syntax_hint=None,
+    )
+    with_hint = subject_line(
+        document,
+        section,
+        section_index=1,
+        section_total=1,
+        scroll_percent=0,
+        char_count=10,
+        width=20,
+        syntax_hint="py",
+    )
+
+    assert "· py" not in with_hint.plain
+    assert with_hint.plain == without_hint.plain
+
+
 def test_section_rule_shape_matches_the_design_doc() -> None:
     section = _file_section("artifact_links.py")
 

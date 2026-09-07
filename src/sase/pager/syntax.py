@@ -278,6 +278,32 @@ def normalize_language(language: str | None) -> str | None:
     return _LANGUAGE_ALIASES.get(key, key)
 
 
+#: Short display forms for the subject-line language hint (design doc: "· py",
+#: "· md", "· diff" — a concise alias, not a fixed-width promise). Languages
+#: missing here fall back to their canonical engine name.
+_SYNTAX_HINT_ALIASES: Final[Mapping[str, str]] = {
+    "bash": "sh",
+    "cpp": "cpp",
+    "diff": "diff",
+    "docker": "docker",
+    "javascript": "js",
+    "jsx": "jsx",
+    "markdown": "md",
+    "python": "py",
+    "ruby": "rb",
+    "rust": "rs",
+    "typescript": "ts",
+    "tsx": "tsx",
+    "zsh": "zsh",
+}
+
+
+def syntax_hint_alias(language: str) -> str:
+    """Return a short display form of *language* for the subject-line hint."""
+
+    return _SYNTAX_HINT_ALIASES.get(language, language)
+
+
 def resolve_pygments_alias(language: str) -> str | None:
     """Validate and normalize an explicit Pygments alias for the pager engine."""
 
@@ -482,5 +508,6 @@ __all__ = [
     "normalize_language",
     "resolve_pygments_alias",
     "style_source_text",
+    "syntax_hint_alias",
     "text_has_producer_style",
 ]

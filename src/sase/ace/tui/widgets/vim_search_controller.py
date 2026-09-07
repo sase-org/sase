@@ -88,6 +88,11 @@ class _VimSearchHost(Protocol):
     def vim_search_notify(self, message: str) -> None:
         """Surface non-blocking search feedback."""
 
+    # ``vim_search_styled_base`` is deliberately absent from this protocol:
+    # it is an opt-in extension point (see ``VimSearchController._styled_base``),
+    # and every other host keeps rendering the plain ``Text(self.corpus)``
+    # default it had before the pager needed preserved colors during search.
+
 
 def line_start_offsets(text: str) -> tuple[int, ...]:
     """Return absolute offsets for the first character of every logical line."""
@@ -376,8 +381,35 @@ class VimSearchController:
         viewport = self._host.vim_search_overlay_viewport()
         return offset_for_row(self.line_starts, viewport.scroll_y)
 
+    def refresh_styled_base(self) -> None:
+        """Repaint the overlay from a freshly built styled base.
+
+        For late syntax completion or a theme change: the corpus, query,
+        and selection are untouched, only the colors underneath them.
+        No-op while search is not active.
+        """
+        if self.mode == "off":
+            return
+        self._render_overlay()
+
+    def _styled_base(self) -> Text:
+        """Return the overlay's starting ``Text``, preferring the host's base.
+
+        A host without ``vim_search_styled_base`` (every host but the
+        pager, as of this writing) gets the unchanged plain default.
+        """
+        provider = getattr(self._host, "vim_search_styled_base", None)
+        if provider is not None:
+            base = provider()
+            if base is not None and base.plain == self.corpus:
+                styled = base.copy()
+                styled.no_wrap = True
+                styled.overflow = "crop"
+                return styled
+        return Text(self.corpus, no_wrap=True, overflow="crop")
+
     def _render_overlay(self) -> None:
-        body = Text(self.corpus, no_wrap=True, overflow="crop")
+        body = self._styled_base()
         for start, end in self.match_spans:
             if end > start:
                 body.stylize(MATCH_STYLE, start, end)

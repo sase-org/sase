@@ -63,6 +63,7 @@ class PagerChromeMixin:
                 scroll_percent=percent,
                 char_count=char_count,
                 width=width,
+                syntax_hint=self._current_syntax_hint(),
             )
         )
 

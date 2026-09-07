@@ -118,7 +118,7 @@ def test_pager_and_link_rail_share_ref_presentation(
     document = _document_for_ref(ref)
     layer = build_label_layer(document, width=120)
     pager_label = layer.labels[0]
-    pager_marker = _target_marker(pager_label)
+    pager_marker = _target_marker(pager_label.target, dangling=pager_label.dangling)
 
     assert target_resolution_ref(pager_label.target, document.origin) == ref
     assert index.target_for(ref) == expected_target
@@ -142,7 +142,7 @@ def test_pager_and_link_rail_share_dangling_vocabulary() -> None:
     document = _document_for_ref(ref)
     layer = build_label_layer(document, width=120, dangling_refs={ref})
     pager_label = layer.labels[0]
-    pager_marker = _target_marker(pager_label)
+    pager_marker = _target_marker(pager_label.target, dangling=pager_label.dangling)
     pager_text = render_section_with_labels(
         document.sections[0],
         layer.labels_by_section[0],

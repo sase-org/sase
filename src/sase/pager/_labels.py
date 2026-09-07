@@ -27,6 +27,7 @@ from sase.ace.tui.actions.navigation.jump_hints import (
 )
 from sase.pager.document import (
     PagerDocument,
+    PagerOrigin,
     PagerSection,
     PagerTargetSpan,
     section_target_spans,
@@ -205,9 +206,26 @@ def _target_is_dangling(
     dangling_refs: AbstractSet[object],
     is_dangling: DanglingPredicate | None,
 ) -> bool:
+    return _resolve_dangling(
+        occurrence.section_index,
+        occurrence.target,
+        origin=document.origin,
+        dangling_refs=dangling_refs,
+        is_dangling=is_dangling,
+    )
+
+
+def _resolve_dangling(
+    section_index: int,
+    target: PagerTargetSpan,
+    *,
+    origin: PagerOrigin,
+    dangling_refs: AbstractSet[object],
+    is_dangling: DanglingPredicate | None,
+) -> bool:
     if is_dangling is not None:
-        return is_dangling(occurrence.section_index, occurrence.target)
-    return target_resolution_ref(occurrence.target, document.origin) in dangling_refs
+        return is_dangling(section_index, target)
+    return target_resolution_ref(target, origin) in dangling_refs
 
 
 def render_section_with_labels(
@@ -215,35 +233,72 @@ def render_section_with_labels(
     labels: Sequence[PagerLabel],
     *,
     pending_prefix: str = "",
+    source: Text | None = None,
 ) -> Text:
-    """Return ``section`` body text with key capsules inserted before labels."""
-    if not labels:
-        return section.body_text
+    """Return styled body text with key capsules inserted before labels.
 
-    source = section.body_text
+    ``source`` lets prepared syntax-styled text stand in for the section's
+    own body text without losing its style spans; the syntax engine
+    guarantees it carries the exact same plain text as the section, so
+    target offsets computed against ``plain_text`` stay valid.
+    """
+    body = section.body_text if source is None else source
+    if not labels:
+        return body
+
     output = Text(
-        style=source.style,
-        justify=source.justify,
-        overflow=source.overflow,
-        no_wrap=source.no_wrap,
-        tab_size=source.tab_size,
+        style=body.style,
+        justify=body.justify,
+        overflow=body.overflow,
+        no_wrap=body.no_wrap,
+        tab_size=body.tab_size,
     )
     cursor = 0
     for label in sorted(labels, key=lambda item: item.target.start):
         start = label.target.start
         end = label.target.end
-        output.append_text(source[cursor:start])
+        output.append_text(body[cursor:start])
         output.append_text(_label_prefix(label, pending_prefix=pending_prefix))
-        target = source[start:end]
-        marker = _target_marker(label)
+        target = body[start:end]
+        marker = _target_marker(label.target, dangling=label.dangling)
         style = _LABEL_DANGLING_STYLE if label.dangling else f"bold {marker.accent}"
         target.stylize(style, 0, len(target.plain))
         output.append_text(target)
         if label.dangling:
             output.append(f" {_DANGLING_TEXT}", style=_LABEL_DANGLING_STYLE)
         cursor = end
-    output.append_text(source[cursor:])
+    output.append_text(body[cursor:])
     return output
+
+
+def style_target_accents(
+    text: Text,
+    section: PagerSection,
+    section_index: int,
+    origin: PagerOrigin,
+    *,
+    dangling_refs: AbstractSet[object] = frozenset(),
+    is_dangling: DanglingPredicate | None = None,
+) -> Text:
+    """Copy *text* and stylize link target spans with their marker accent.
+
+    No characters are inserted — this is the search-overlay styled base's
+    "no capsule" convention, since search matches offsets against the
+    unmodified corpus and cannot tolerate label characters moving them.
+    """
+    styled = text.copy()
+    for target in section_target_spans(section, origin):
+        dangling = _resolve_dangling(
+            section_index,
+            target,
+            origin=origin,
+            dangling_refs=dangling_refs,
+            is_dangling=is_dangling,
+        )
+        marker = _target_marker(target, dangling=dangling)
+        style = _LABEL_DANGLING_STYLE if dangling else f"bold {marker.accent}"
+        styled.stylize(style, target.start, target.end)
+    return styled
 
 
 def _iter_target_occurrences(document: PagerDocument) -> Iterator[_TargetOccurrence]:
@@ -263,7 +318,7 @@ def _group_labels_by_section(
 
 
 def _label_prefix(label: PagerLabel, *, pending_prefix: str) -> Text:
-    marker = _target_marker(label)
+    marker = _target_marker(label.target, dangling=label.dangling)
     text = Text()
     text.append(
         f"[{label.hint}]",
@@ -296,11 +351,10 @@ def _label_style(label: PagerLabel, *, pending_prefix: str) -> str:
     return _LABEL_MATCH_STYLE if hint.startswith(pending_prefix) else _LABEL_DIM_STYLE
 
 
-def _target_marker(label: PagerLabel) -> _TargetMarker:
-    if label.dangling:
+def _target_marker(target: PagerTargetSpan, *, dangling: bool) -> _TargetMarker:
+    if dangling:
         return _TargetMarker(_DANGLING_ICON, _DANGLING_ACCENT)
 
-    target = label.target
     if target.kind == LinkSpanKind.URL.value:
         return _TargetMarker(_URL_ICON, EXTERNAL_ACCENT)
 
@@ -368,4 +422,5 @@ __all__ = [
     "build_label_layer",
     "render_section_with_labels",
     "row_for_character_offset",
+    "style_target_accents",
 ]
