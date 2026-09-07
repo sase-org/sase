@@ -112,6 +112,20 @@ def resolve_launch_bead_id(expanded_args: dict[str, str]) -> str | None:
     return bead_id
 
 
+def resolve_dispatch_target(expanded_args: dict[str, str]) -> str | None:
+    """Validate the optional ``%dispatch`` remote-machine target."""
+    if "dispatch" not in expanded_args:
+        return None
+    target = expanded_args["dispatch"].strip()
+    if not target or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", target) is None:
+        raise DirectiveError("'%dispatch' requires a configured machine alias")
+    if target.casefold() == "local":
+        raise DirectiveError(
+            "'%dispatch:local' is reserved; omit %dispatch for local launch"
+        )
+    return target
+
+
 def resolve_wait_time_args(
     wait_time_args: list[str],
 ) -> tuple[float | None, str | None]:

@@ -152,6 +152,17 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         f"Unsupported keyword on %final: {keys}. "
                         "%final only accepts selector operations."
                     )
+                if name == "dispatch":
+                    if named_args:
+                        keys = ", ".join(f"{key}=" for key in sorted(named_args))
+                        raise DirectiveError(
+                            f"Unsupported keyword on %dispatch: {keys}. "
+                            "%dispatch only accepts one machine alias."
+                        )
+                    if len([arg for arg in positional_args if arg]) > 1:
+                        raise DirectiveError(
+                            "%dispatch accepts exactly one machine alias argument."
+                        )
                 if name == "model":
                     collected.model_alias_overrides = dict(named_args)
                 if name == "clan":

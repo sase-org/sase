@@ -43,6 +43,7 @@ _KNOWN_DIRECTIVES = frozenset(
         "hide",
         "model",
         "id",
+        "dispatch",
         "repeat",
         "wait",
         "if",
@@ -157,6 +158,8 @@ class PromptDirectives:
         auto_enabled: Whether ``%auto``/``%a`` was present.
         auto_argument: The optional raw argument, validated later by the gate
             adapter that owns the interaction kind.
+        dispatch: Remote machine alias requested via the %dispatch directive,
+            or None for a local launch.
     """
 
     auto_mode: str | None = None
@@ -194,6 +197,7 @@ class PromptDirectives:
     wait_until: str | None = None
     wait_runners: int | None = None
     wait_priority: int | None = None
+    dispatch: str | None = None
     final: list[str] = field(default_factory=list)
     if_code: CodeValue | None = None
     proc_code: CodeValue | None = None

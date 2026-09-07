@@ -21,6 +21,7 @@ from sase.ace.tui.widgets.directive_completion import (
     DirectiveCatalogPlaceholder,
     DirectiveCompletionMetadata,
     FinalizerCompletionMetadata,
+    MachineCompletionMetadata,
     ModelCompletionMetadata,
 )
 from sase.bead_status_presentation import bead_status_presentation
@@ -113,6 +114,22 @@ def append_directive_arg_completion_row(
             is_selected,
             finalizer_widths or finalizer_completion_column_widths([candidate]),
         )
+        return
+
+    if isinstance(candidate.metadata, MachineCompletionMetadata):
+        style = "bold magenta" if is_selected else "magenta"
+        content.append(candidate.display, style=style)
+        details = [
+            value
+            for value in (
+                candidate.metadata.status,
+                candidate.metadata.provider_ref,
+                candidate.metadata.installation_id,
+            )
+            if value
+        ]
+        if details:
+            content.append(f"  {'  '.join(details)}", style="dim")
         return
 
     if isinstance(candidate.metadata, BeadCompletionMetadata):

@@ -16,6 +16,7 @@ from sase.ace.tui.widgets._directive_completion_agents import (
 from sase.ace.tui.widgets._directive_completion_candidates import (
     build_bead_clause_candidates,
     build_finalizer_clause_candidates,
+    build_machine_clause_candidates,
     core_candidate_rows,
     directive_name_candidate,
     directive_recipe_candidates,
@@ -43,6 +44,8 @@ from sase.ace.tui.widgets._directive_completion_types import (
     DirectiveCompletionMetadata,
     FinalizerCompletionMetadata,
     FinalizersState,
+    MachineCompletionMetadata,
+    MachinesState,
     ModelCompletionMetadata,
     PathCandidateBuilder,
 )
@@ -92,6 +95,8 @@ def build_directive_clause_candidates(
     excluded_bead_ids: Sequence[str] = (),
     finalizer_inventory: Sequence[Mapping[str, object]] | None = None,
     finalizers_state: FinalizersState = "unavailable",
+    machine_inventory: Sequence[Mapping[str, str]] | None = None,
+    machines_state: MachinesState = "unavailable",
     path_candidates: PathCandidateBuilder | None = None,
 ) -> tuple[list[CompletionCandidate], str]:
     """Build ACE rows for a classified directive clause."""
@@ -125,6 +130,15 @@ def build_directive_clause_candidates(
             bead_inventory=bead_inventory,
             beads_state=beads_state,
             excluded_bead_ids=excluded_bead_ids,
+        )
+
+    if clause.value_role == "machine":
+        if not _remote_dispatch_enabled():
+            return [], ""
+        return build_machine_clause_candidates(
+            clause,
+            machine_inventory=machine_inventory,
+            machines_state=machines_state,
         )
 
     if clause.value_role in IDENTITY_ROLES:
@@ -187,6 +201,21 @@ def clause_needs_finalizer_inventory(clause: DirectiveClauseCompletion) -> bool:
     return clause.directive_name == "final" or clause.value_role == "finalizer_instance"
 
 
+def clause_needs_machine_inventory(clause: DirectiveClauseCompletion) -> bool:
+    """Return True when machine rows can appear for ``%dispatch``."""
+    if clause.is_name:
+        return False
+    if not _remote_dispatch_enabled():
+        return False
+    return clause.directive_name == "dispatch" or clause.value_role == "machine"
+
+
+def _remote_dispatch_enabled() -> bool:
+    from sase.dispatch.config import remote_dispatch_enabled
+
+    return remote_dispatch_enabled()
+
+
 def _offers_model_values(clause: DirectiveClauseCompletion) -> bool:
     if clause.directive_name != "model":
         return False
@@ -227,6 +256,8 @@ __all__ = [
     "DirectiveCompletionMetadata",
     "FinalizerCompletionMetadata",
     "FinalizersState",
+    "MachineCompletionMetadata",
+    "MachinesState",
     "ModelCompletionMetadata",
     "PathCandidateBuilder",
     "build_agent_arg_completion_candidates",
@@ -236,6 +267,7 @@ __all__ = [
     "clause_needs_agent_snapshot",
     "clause_needs_bead_inventory",
     "clause_needs_finalizer_inventory",
+    "clause_needs_machine_inventory",
     "extract_directive_arg_token_around_cursor",
     "extract_directive_token_around_cursor",
     "is_directive_catalog_placeholder",

@@ -1009,6 +1009,15 @@
             "$ref": "#/definitions/dispatchMachineRecord"
           }
         },
+        "remote_hosts": {
+          "type": "array",
+          "description": "Deprecated legacy federation host list. Use dispatch.machines for new remote dispatch configuration.",
+          "deprecated": true,
+          "default": [],
+          "items": {
+            "$ref": "#/definitions/dispatchRemoteHost"
+          }
+        },
         "discovery": {
           "type": "object",
           "description": "Explicit provider discovery settings. Discovery is never run during ordinary config loading.",
@@ -1026,18 +1035,6 @@
             }
           }
         },
-        "request_timeout_seconds": {
-          "type": "number",
-          "description": "Default per-request timeout for fleet gateway calls.",
-          "default": 5,
-          "exclusiveMinimum": 0
-        },
-        "status_cache_seconds": {
-          "type": "number",
-          "description": "Default freshness window for future dispatch status caches.",
-          "default": 60,
-          "minimum": 0
-        },
         "federation_worker": {
           "type": "object",
           "description": "Local federation worker supervision and IPC settings.",
@@ -1045,7 +1042,7 @@
           "properties": {
             "enabled": {
               "type": "boolean",
-              "description": "Allow the local federation worker to start when enabled remote hosts are configured.",
+              "description": "Allow the local federation worker to start when enrolled machines are configured.",
               "default": true
             },
             "command": {
@@ -1082,7 +1079,7 @@
             },
             "request_timeout_seconds": {
               "type": "number",
-              "description": "Default finite deadline for facade read calls.",
+              "description": "Default finite deadline for facade read and launch calls.",
               "default": 5,
               "exclusiveMinimum": 0
             },
@@ -1094,81 +1091,17 @@
             }
           }
         },
-        "remote_hosts": {
-          "type": "array",
-          "description": "Enabled and enrolled remote fleet hosts. An empty list keeps local SASE worker-free.",
-          "default": [],
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "enabled": {
-                "type": "boolean",
-                "description": "Include this host in worker configuration.",
-                "default": true
-              },
-              "alias": {
-                "type": "string",
-                "description": "Presentation alias for the host.",
-                "default": ""
-              },
-              "provider_ref": {
-                "type": "string",
-                "description": "Opaque provider reference recorded in the connection plan.",
-                "default": "fleet"
-              },
-              "endpoint": {
-                "type": "string",
-                "description": "HTTPS endpoint for the remote SASE fleet gateway.",
-                "default": ""
-              },
-              "credential_ref": {
-                "type": "string",
-                "description": "Opaque credential reference. The Python facade currently resolves env:NAME.",
-                "default": ""
-              },
-              "pinned_installation_id": {
-                "type": "string",
-                "description": "Pinned remote installation identity.",
-                "default": ""
-              },
-              "connection_kind": {
-                "type": "string",
-                "description": "Remote connection mode.",
-                "enum": ["gateway", "tunnel", "direct"],
-                "default": "gateway"
-              },
-              "tls": {
-                "type": "object",
-                "description": "TLS trust settings for the connection plan.",
-                "additionalProperties": false,
-                "properties": {
-                  "schema_version": {
-                    "type": "integer",
-                    "default": 1
-                  },
-                  "mode": {
-                    "type": "string",
-                    "enum": ["system_roots", "pinned_ca", "pinned_server_name"],
-                    "default": "system_roots"
-                  },
-                  "ca_ref": {
-                    "type": ["string", "null"],
-                    "default": null
-                  },
-                  "server_name_ref": {
-                    "type": ["string", "null"],
-                    "default": null
-                  }
-                }
-              },
-              "plan": {
-                "type": "object",
-                "description": "Complete core ConnectionPlanWire override.",
-                "additionalProperties": true
-              }
-            }
-          }
+        "request_timeout_seconds": {
+          "type": "number",
+          "description": "Default per-request timeout for fleet gateway calls.",
+          "default": 5,
+          "exclusiveMinimum": 0
+        },
+        "status_cache_seconds": {
+          "type": "number",
+          "description": "Default freshness window for future dispatch status caches.",
+          "default": 60,
+          "minimum": 0
         }
       }
     },
@@ -1181,6 +1114,55 @@
           "type": "boolean",
           "description": "Enable this provider for explicit dispatch operations.",
           "default": false
+        }
+      }
+    },
+    "dispatchRemoteHost": {
+      "type": "object",
+      "description": "Deprecated legacy remote fleet host consumed only by the federation fallback path.",
+      "required": [
+        "endpoint",
+        "credential_ref"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Include this legacy host in federation worker routing.",
+          "default": true
+        },
+        "alias": {
+          "type": "string",
+          "description": "Optional stable legacy host alias.",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$"
+        },
+        "provider_ref": {
+          "type": "string",
+          "description": "Opaque legacy provider reference.",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}$"
+        },
+        "endpoint": {
+          "type": "string",
+          "description": "HTTPS fleet gateway endpoint for this legacy host.",
+          "pattern": "^https://[^\\s/$.?#].*"
+        },
+        "credential_ref": {
+          "type": "string",
+          "description": "Legacy environment credential reference, formatted as env:NAME.",
+          "pattern": "^env:[A-Za-z_][A-Za-z0-9_]*$"
+        },
+        "pinned_installation_id": {
+          "type": "string",
+          "description": "Optional target installation pin expected from this host.",
+          "minLength": 1
+        },
+        "connection_kind": {
+          "type": "string",
+          "description": "Legacy connection kind.",
+          "enum": [
+            "gateway"
+          ],
+          "default": "gateway"
         }
       }
     },

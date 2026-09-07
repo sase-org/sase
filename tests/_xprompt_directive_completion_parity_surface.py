@@ -14,6 +14,8 @@ from sase.ace.tui.widgets.directive_completion import (
     DirectiveCompletionMetadata,
     FinalizerCompletionMetadata,
     FinalizersState,
+    MachineCompletionMetadata,
+    MachinesState,
     ModelCompletionMetadata,
     build_directive_clause_candidates,
     classify_directive_completion,
@@ -51,6 +53,17 @@ _BEAD_ROWS = (
         "project": "sase",
     },
 )
+_MACHINE_ROWS = (
+    {
+        "alias": "apollo",
+        "display": "apollo",
+        "provider_ref": "builtin@https",
+        "installation_id": "sase_inst_v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "endpoint": "https://fleet.example.test",
+        "status": "ok",
+        "documentation": "Remote workstation",
+    },
+)
 
 
 def _ace_and_lsp_rows(
@@ -65,6 +78,8 @@ def _ace_and_lsp_rows(
         text,
         finalizer_inventory=finalizer_inventory,
         finalizers_state=finalizers_state,
+        machine_inventory=_MACHINE_ROWS,
+        machines_state="warm",
     )
     with LspSession(
         tmp_path,
@@ -80,6 +95,8 @@ def _ace_clause_rows(
     *,
     finalizer_inventory: Sequence[Mapping[str, object]] = _FINALIZER_ROWS,
     finalizers_state: FinalizersState = "warm",
+    machine_inventory: Sequence[Mapping[str, str]] = _MACHINE_ROWS,
+    machines_state: MachinesState = "warm",
 ) -> list[SurfaceRow]:
     clause = classify_directive_completion(text, len(text))
     assert clause is not None
@@ -90,6 +107,8 @@ def _ace_clause_rows(
         beads_state="warm",
         finalizer_inventory=finalizer_inventory,
         finalizers_state=finalizers_state,
+        machine_inventory=machine_inventory,
+        machines_state=machines_state,
     )
     return _ace_surface_rows(candidates)
 
@@ -131,6 +150,17 @@ def _ace_surface_rows(candidates: Iterable[Any]) -> list[SurfaceRow]:
                 kind=metadata.kind,
                 status=metadata.status,
                 provider=metadata.provider,
+            )
+        elif isinstance(metadata, MachineCompletionMetadata):
+            documentation = metadata.documentation
+            detail = " · ".join(
+                part
+                for part in (
+                    metadata.status,
+                    metadata.provider_ref,
+                    metadata.installation_id,
+                )
+                if part
             )
         elif isinstance(metadata, DirectiveCatalogPlaceholder):
             documentation = metadata.message

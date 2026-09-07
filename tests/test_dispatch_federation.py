@@ -13,7 +13,9 @@ from typing import Any, cast
 import pytest
 
 import sase.dispatch.federation as federation
+from sase.dispatch.credentials import LocalCredentialStore
 from sase.dispatch.models import CredentialRecord, MachineDiagnostic
+from tests.conftest import redirect_sase_home
 
 
 def _installation_id(hex_char: str) -> str:
@@ -76,6 +78,71 @@ def test_host_config_validates_plan_and_redacts_secret(
     assert config.enabled
     assert config.hosts_wire()[0]["bearer_token"] == "secret-token"
     assert config.redacted_hosts()[0]["bearer_token"] == "<redacted>"
+
+
+def test_machine_config_derives_federation_host_from_local_credential(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    pin = "sase_inst_v1_" + "a" * 64
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    LocalCredentialStore().put(
+        CredentialRecord(
+            ref="fleet:workstation",
+            token="stored-token",
+            token_type="bearer",
+            provider_ref="builtin@https",
+            endpoint="https://fleet.example.test/",
+            installation_id=pin,
+            scopes=("fleet.launch",),
+        )
+    )
+
+    def validate(plan: dict[str, Any]) -> dict[str, Any]:
+        assert plan["provider_ref"] == "builtin:https"
+        return {**plan, "endpoint": "https://fleet.example.test"}
+
+    monkeypatch.setattr(federation, "require_rust_binding", lambda _name: validate)
+    monkeypatch.setattr(federation, "remote_dispatch_enabled", lambda: True)
+
+    config = federation.load_federation_config(
+        {
+            "dispatch": {
+                "federation_worker": {"sase_home": str(tmp_path / ".sase")},
+                "machines": {
+                    "workstation": {
+                        "provider": "builtin@https",
+                        "endpoint": "https://fleet.example.test",
+                        "credential_ref": "fleet:workstation",
+                        "installation_pin": pin,
+                    }
+                },
+            }
+        }
+    )
+
+    assert config.enabled
+    assert config.hosts_wire() == [
+        {
+            "schema_version": federation.FEDERATION_IPC_SCHEMA_VERSION,
+            "alias": "workstation",
+            "plan": {
+                "provider_ref": "builtin:https",
+                "endpoint": "https://fleet.example.test",
+                "pinned_installation_id": pin,
+                "connection_kind": "gateway",
+                "schema_version": 1,
+                "credential_ref": "fleet:workstation",
+                "tls": {
+                    "schema_version": 1,
+                    "mode": "system_roots",
+                    "ca_ref": None,
+                    "server_name_ref": None,
+                },
+            },
+            "bearer_token": "stored-token",
+            "origin_installation_id": pin,
+        }
+    ]
 
 
 def test_host_config_requires_env_credentials(

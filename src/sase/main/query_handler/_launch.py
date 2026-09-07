@@ -75,6 +75,31 @@ def launch_query(query: str) -> None:
         maybe_handoff_launch_approval_from_agent(approval_request)
         sys.exit(0)
 
+    from sase.dispatch.launch import (
+        RemoteDispatchLaunchError,
+        maybe_dispatch_launch,
+    )
+
+    try:
+        dispatch_result = maybe_dispatch_launch(
+            query,
+            payload=payload,
+            unresolved_names=tuple(unresolved_names),
+        )
+    except RemoteDispatchLaunchError as exc:
+        _emit_failed_launch_result(str(exc))
+        sys.exit(1)
+    if dispatch_result is not None:
+        from sase.ops.commands.run import emit_run_launch_result
+
+        print(dispatch_result.message)
+        emit_run_launch_result(
+            success=True,
+            message=dispatch_result.message,
+            payload=dispatch_result.payload,
+        )
+        sys.exit(0)
+
     segment_extra_env = None
     force_reuse_applied = False
     if allow_force_reuse:

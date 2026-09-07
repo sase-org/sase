@@ -160,6 +160,9 @@ class PromptTextArea(
         self._finalizer_inventory: tuple[dict[str, object], ...] | None = None
         self._finalizer_available: bool = False
         self._finalizer_inflight: bool = False
+        self._machine_inventory: tuple[dict[str, str], ...] | None = None
+        self._machine_available: bool = False
+        self._machine_inflight: bool = False
         self._active_xprompt_arg_hint: ActiveXPromptArgHint | None = None
         self._pending_xprompt_completion_spacer: (
             PendingXPromptCompletionSpacer | None

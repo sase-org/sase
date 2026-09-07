@@ -34,6 +34,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "alt": (),
         "auto": (),
         "clan": ("summary", "summary_script", "tribe"),
+        "dispatch": (),
         "effort": (),
         "final": (),
         "hide": (),
@@ -64,6 +65,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "alt": ("brace_shorthand", "colon", "parenthesized"),
         "auto": ("colon", "bare", "plus"),
         "clan": ("colon", "parenthesized"),
+        "dispatch": ("colon", "parenthesized"),
         "effort": ("colon",),
         "final": ("colon", "parenthesized"),
         "hide": ("bare", "plus"),
@@ -77,6 +79,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
     }
     assert contract["if"]["feature_flag"] == "typed_launch_units"
     assert contract["proc"]["feature_flag"] == "typed_launch_units"
+    assert contract["dispatch"]["feature_flag"] == "remote_dispatch"
     assert contract["if"]["body_kind"] == "fenced_code"
     assert contract["proc"]["body_kind"] == "optional_fenced_code"
 

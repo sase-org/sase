@@ -28,9 +28,11 @@ SASE_SKILL_PLUGIN_DIRS_JSON_ENV = "SASE_SKILL_PLUGIN_DIRS_JSON"
 SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV = "SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON"
 SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV = "SASE_XPROMPT_VCS_PROJECT_CATALOG"
 SASE_XPROMPT_MODEL_CATALOG_ENV = "SASE_XPROMPT_MODEL_CATALOG"
+SASE_XPROMPT_MACHINE_CATALOG_ENV = "SASE_XPROMPT_MACHINE_CATALOG"
 SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV = "SASE_XPROMPT_ARTIFACT_REF_CATALOG"
 SASE_XPROMPT_GLOSSARY_CATALOG_ENV = "SASE_XPROMPT_GLOSSARY_CATALOG"
 SASE_TYPED_LAUNCH_UNITS_ENV = "SASE_TYPED_LAUNCH_UNITS"
+SASE_REMOTE_DISPATCH_ENV = "SASE_REMOTE_DISPATCH"
 XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
 
 
@@ -249,6 +251,7 @@ def _prepare_xprompt_lsp_environment(
         )
     _materialize_vcs_project_catalog(environ)
     _materialize_model_catalog(environ)
+    _materialize_machine_catalog(environ)
     _materialize_artifact_ref_catalog(environ)
     _materialize_glossary_catalog(environ)
     _apply_typed_launch_units_flag(environ)
@@ -291,6 +294,11 @@ def _default_model_catalog_path() -> Path:
     return sase_subdir("xprompt_lsp") / "model_catalog.json"
 
 
+def _default_machine_catalog_path() -> Path:
+    """Return the default on-disk location for the LSP machine catalog."""
+    return sase_subdir("xprompt_lsp") / "machine_catalog.json"
+
+
 def _materialize_model_catalog(environ: MutableMapping[str, str]) -> None:
     """Write the ``%model`` completion catalog and expose its path.
 
@@ -310,6 +318,24 @@ def _materialize_model_catalog(environ: MutableMapping[str, str]) -> None:
     except Exception as exc:  # noqa: BLE001 - never block LSP startup on catalog errors.
         print(
             f"Warning: failed to materialize model completion catalog: {exc}",
+            file=sys.stderr,
+        )
+
+
+def _materialize_machine_catalog(environ: MutableMapping[str, str]) -> None:
+    """Write the `%dispatch` machine catalog and expose its path."""
+    existing = environ.get(SASE_XPROMPT_MACHINE_CATALOG_ENV)
+    path = Path(existing) if existing else _default_machine_catalog_path()
+    environ[SASE_XPROMPT_MACHINE_CATALOG_ENV] = str(path)
+    try:
+        from sase.dispatch.machine_catalog import machine_completion_catalog_payload
+
+        payload = machine_completion_catalog_payload()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001 - never block LSP startup on catalog errors.
+        print(
+            f"Warning: failed to materialize machine completion catalog: {exc}",
             file=sys.stderr,
         )
 
@@ -372,10 +398,12 @@ def _materialize_glossary_catalog(
 
 
 def _apply_typed_launch_units_flag(environ: MutableMapping[str, str]) -> None:
-    """Pin the LSP to the process-local typed_launch_units decision."""
+    """Pin the LSP to process-local directive feature-flag decisions."""
+    from sase.dispatch.config import remote_dispatch_enabled
     from sase.xprompt.code_value import typed_launch_units_enabled
 
     environ[SASE_TYPED_LAUNCH_UNITS_ENV] = "1" if typed_launch_units_enabled() else "0"
+    environ[SASE_REMOTE_DISPATCH_ENV] = "1" if remote_dispatch_enabled() else "0"
 
 
 def _discover_plugin_xprompt_dirs() -> list[dict[str, str]]:

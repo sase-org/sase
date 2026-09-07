@@ -124,9 +124,8 @@ class FederationConfig:
 
 
 IpcClientFactory = Callable[[Path, int], "FederationIpcClient"]
+CommandResolver = Callable[[FederationWorkerSettings], tuple[str, ...]]
 PopenFactory = Callable[..., subprocess.Popen[Any]]
-SleepFn = Callable[[float], None]
-MonotonicFn = Callable[[], float]
 
 
 def load_federation_config(
@@ -139,14 +138,11 @@ def load_federation_config(
     config = raw_config if raw_config is not None else load_merged_config()
     dispatch = _mapping(config.get("dispatch"))
     worker = _worker_settings(_mapping(dispatch.get("federation_worker")))
-    raw_hosts = dispatch.get("remote_hosts")
-    if not isinstance(raw_hosts, list):
+    if not isinstance(raw_hosts := dispatch.get("remote_hosts"), list):
         raw_hosts = []
     if raw_hosts:
-        return FederationConfig(
-            worker=worker,
-            hosts=_legacy_remote_host_configs(raw_hosts),
-        )
+        legacy_hosts = _legacy_remote_host_configs(raw_hosts)
+        return FederationConfig(worker=worker, hosts=legacy_hosts)
 
     dispatch_config = load_dispatch_config(config)
     diagnostics: list[MachineDiagnostic] = list(dispatch_config.diagnostics)
@@ -203,19 +199,15 @@ def resolve_federation_worker_command(
         return (packaged,)
 
     repo_root = Path(__file__).resolve().parents[3]
-    candidates = [
-        repo_root / "sase/repos/linked/sase-core/target/debug/sase_federation_worker",
-        repo_root / "sase/repos/linked/sase-core/target/release/sase_federation_worker",
-        repo_root
-        / "sase/repos/external/gh/sase-org/sase-core/target/debug/sase_federation_worker",
-        repo_root
-        / "sase/repos/external/gh/sase-org/sase-core/target/release/sase_federation_worker",
-        repo_root.parent / "sase-core/target/debug/sase_federation_worker",
-        repo_root.parent / "sase-core/target/release/sase_federation_worker",
-    ]
-    for candidate in candidates:
-        if candidate.is_file():
-            return (str(candidate),)
+    for target_root in (
+        repo_root / "sase/repos/linked/sase-core/target",
+        repo_root / "sase/repos/external/gh/sase-org/sase-core/target",
+        repo_root.parent / "sase-core/target",
+    ):
+        for profile in ("debug", "release"):
+            candidate = target_root / profile / FEDERATION_WORKER_COMMAND
+            if candidate.is_file():
+                return (str(candidate),)
     return ()
 
 
@@ -314,6 +306,20 @@ class FederationFacade:
             self.project_eligibility_sync,
             request,
             cache_only=cache_only,
+            timeout_seconds=timeout_seconds,
+        )
+
+    async def launch(
+        self,
+        target: str,
+        request: Mapping[str, Any],
+        *,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            self.launch_sync,
+            target,
+            request,
             timeout_seconds=timeout_seconds,
         )
 
@@ -420,6 +426,22 @@ class FederationFacade:
             timeout_seconds=timeout_seconds,
         )
 
+    def launch_sync(
+        self,
+        target: str,
+        request: Mapping[str, Any],
+        *,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        if not self.config.enabled:
+            raise FederationWorkerUnavailable(
+                "no configured dispatch machines are available"
+            )
+        return self._request(
+            {"op": "launch", "target": target, "request": dict(request)},
+            timeout_seconds=timeout_seconds,
+        )
+
     def shutdown_sync(self, *, timeout_seconds: float | None = None) -> dict[str, Any]:
         if not self.config.enabled:
             return {"schema_version": FEDERATION_IPC_SCHEMA_VERSION, "shutdown": False}
@@ -452,9 +474,7 @@ class FederationFacade:
                 "federation worker supervisor is disabled"
             )
         return self.supervisor.request(
-            operation,
-            timeout_seconds=timeout_seconds,
-            retry=retry,
+            operation, timeout_seconds=timeout_seconds, retry=retry
         )
 
 
@@ -463,15 +483,11 @@ class FederationWorkerSupervisor:
     """Race-safe on-demand worker process supervisor."""
 
     config: FederationConfig
-    command_resolver: Callable[[FederationWorkerSettings], tuple[str, ...]] = (
-        resolve_federation_worker_command
-    )
-    client_factory: IpcClientFactory = lambda path, max_frame_bytes: (
-        FederationIpcClient(path, max_frame_bytes)
-    )
+    command_resolver: CommandResolver = resolve_federation_worker_command
+    client_factory: IpcClientFactory = lambda p, n: FederationIpcClient(p, n)
     popen: PopenFactory = subprocess.Popen
-    sleep: SleepFn = time.sleep
-    monotonic: MonotonicFn = time.monotonic
+    sleep: Callable[[float], None] = time.sleep
+    monotonic: Callable[[], float] = time.monotonic
     _lock: threading.RLock = field(default_factory=threading.RLock, init=False)
     _proc: subprocess.Popen[Any] | None = field(default=None, init=False)
     _configured: bool = field(default=False, init=False)
@@ -561,10 +577,8 @@ class FederationWorkerSupervisor:
         with self._lock:
             if self._configured:
                 return
-            self._send(
-                {"op": "replace_config", "hosts": self.config.hosts_wire()},
-                timeout_seconds,
-            )
+            operation = {"op": "replace_config", "hosts": self.config.hosts_wire()}
+            self._send(operation, timeout_seconds)
             self._configured = True
 
     def _healthy(self, *, timeout_seconds: float) -> bool:
@@ -701,24 +715,13 @@ def _worker_settings(raw: Mapping[str, Any]) -> FederationWorkerSettings:
 
 
 def _host_config(raw: Mapping[str, Any], index: int) -> FederationHostConfig:
-    plan = _connection_plan(raw)
-    validate = require_rust_binding("fleet_validate_connection_plan")
-    try:
-        validated = validate(plan)
-    except Exception as exc:
-        raise FederationConfigError(
-            f"dispatch.remote_hosts[{index}] has an invalid connection plan: {exc}"
-        ) from exc
-    if not isinstance(validated, dict):
-        raise FederationConfigError(
-            f"dispatch.remote_hosts[{index}] validation returned a non-object plan"
-        )
-    credential_ref = str(validated.get("credential_ref") or "")
-    bearer_token = _resolve_credential(credential_ref, index)
+    plan = _validate_plan(_connection_plan(raw), f"dispatch.remote_hosts[{index}]")
+    credential_ref = str(plan.get("credential_ref") or "")
+    bearer_token = _resolve_env_credential(credential_ref, index)
     alias = raw.get("alias")
     return FederationHostConfig(
         alias=alias.strip() if isinstance(alias, str) and alias.strip() else None,
-        plan=validated,
+        plan=plan,
         bearer_token=bearer_token,
     )
 
@@ -736,6 +739,25 @@ def _legacy_remote_host_configs(
             continue
         hosts.append(_host_config(raw_host, index))
     return tuple(hosts)
+
+
+def _validate_plan(plan: Mapping[str, Any], label: str) -> dict[str, Any]:
+    validate = require_rust_binding("fleet_validate_connection_plan")
+    try:
+        validated = validate(dict(plan))
+    except Exception as exc:
+        raise FederationConfigError(
+            f"{label} has an invalid connection plan: {exc}"
+        ) from exc
+    if not isinstance(validated, dict):
+        raise FederationConfigError(f"{label} validation returned a non-object plan")
+    return validated
+
+
+def _rust_connection_plan(plan: Mapping[str, Any]) -> dict[str, Any]:
+    payload = dict(plan)
+    payload["provider_ref"] = str(payload.get("provider_ref") or "").replace("@", ":")
+    return payload
 
 
 def _machine_host_config(
@@ -794,7 +816,7 @@ def _machine_host_config(
     return (
         FederationHostConfig(
             alias=machine.alias,
-            plan=machine.to_connection_plan(),
+            plan=_rust_connection_plan(machine.to_connection_plan()),
             bearer_token=credential.token,
             origin_installation_id=credential.installation_id,
         ),
@@ -833,7 +855,7 @@ def _credential_machine_diagnostics(
                 ),
             )
         )
-    if credential.endpoint != machine.endpoint:
+    if credential.endpoint.rstrip("/") != machine.endpoint.rstrip("/"):
         diagnostics.append(
             MachineDiagnostic(
                 code="credential_endpoint_mismatch",
@@ -870,7 +892,7 @@ def _connection_plan(raw: Mapping[str, Any]) -> dict[str, Any]:
     return plan
 
 
-def _resolve_credential(credential_ref: str, index: int) -> str:
+def _resolve_env_credential(credential_ref: str, index: int) -> str:
     prefix, _, name = credential_ref.partition(":")
     if prefix != "env" or not name:
         raise FederationConfigError(
@@ -956,9 +978,7 @@ def _disabled_read(
         "hosts": [],
     }
     if diagnostics:
-        payload["diagnostics"] = [
-            _diagnostic_wire(diagnostic) for diagnostic in diagnostics
-        ]
+        payload["diagnostics"] = [_diagnostic_wire(item) for item in diagnostics]
     return payload
 
 

@@ -10,6 +10,7 @@ from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
 BeadsState = Literal["warm", "loading", "unavailable"]
 FinalizersState = BeadsState
+MachinesState = BeadsState
 PathCandidateBuilder = Callable[[str], tuple[list[CompletionCandidate], str]]
 
 
@@ -93,9 +94,21 @@ class FinalizerCompletionMetadata:
 
 
 @dataclass(frozen=True, slots=True)
+class MachineCompletionMetadata:
+    """Display metadata for a ``%dispatch`` machine completion row."""
+
+    alias: str
+    provider_ref: str = ""
+    installation_id: str = ""
+    endpoint: str = ""
+    status: str = ""
+    documentation: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class DirectiveCatalogPlaceholder:
     """Non-selectable loading or unavailable dynamic-catalog row."""
 
     kind: Literal["loading", "unavailable"]
     message: str
-    catalog: Literal["beads", "finalizers"] = "beads"
+    catalog: Literal["beads", "finalizers", "machines"] = "beads"

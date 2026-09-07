@@ -94,6 +94,11 @@ class LspSession:
         helper = self._helper or _write_helper(self._tmp_path)
         model_catalog = self._tmp_path / "model_catalog.json"
         model_catalog.write_text(json.dumps(_model_catalog_payload()), encoding="utf-8")
+        machine_catalog = self._tmp_path / "machine_catalog.json"
+        machine_catalog.write_text(
+            json.dumps(_machine_catalog_payload()),
+            encoding="utf-8",
+        )
         finalizer_catalog = self._tmp_path / "finalizer_catalog.json"
         finalizer_catalog.write_text(
             json.dumps(_finalizer_catalog_payload(self._finalizer_catalog)),
@@ -104,6 +109,7 @@ class LspSession:
             [sys.executable, str(helper)]
         )
         env["SASE_XPROMPT_MODEL_CATALOG"] = str(model_catalog)
+        env["SASE_XPROMPT_MACHINE_CATALOG"] = str(machine_catalog)
         env["SASE_PARITY_FINALIZER_CATALOG"] = str(finalizer_catalog)
         _apply_typed_launch_units_flag(env)
         self._proc = subprocess.Popen(
@@ -275,6 +281,23 @@ def _model_catalog_payload() -> dict[str, Any]:
                 "target_effort": "high",
                 "provenance": "configured",
             },
+        ],
+    }
+
+
+def _machine_catalog_payload() -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "entries": [
+            {
+                "alias": "apollo",
+                "display": "apollo",
+                "provider_ref": "builtin@https",
+                "installation_id": "sase_inst_v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "endpoint": "https://fleet.example.test",
+                "status": "ok",
+                "documentation": "Remote workstation",
+            }
         ],
     }
 

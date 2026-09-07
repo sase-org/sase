@@ -1,6 +1,9 @@
 """Cheap prompt directive scanning and side-effect-free stripping."""
 
+from __future__ import annotations
+
 import re
+from dataclasses import dataclass
 
 from ._directive_types import (
     _DEPRECATED_DIRECTIVES,
@@ -8,11 +11,22 @@ from ._directive_types import (
     _DIRECTIVE_PATTERN,
     _KNOWN_DIRECTIVES,
 )
-from ._disabled_regions import protect_disabled_regions
+from ._disabled_regions import protect_disabled_regions, unprotect_disabled_regions
 from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
-from ._parsing import find_matching_paren_for_args
+from ._exceptions import DirectiveError
+from ._parsing import find_matching_paren_for_args, parse_args
+from ._directive_values import resolve_dispatch_target
 
 _TYPED_LAUNCH_DIRECTIVES = frozenset({"if", "proc"})
+
+
+@dataclass(frozen=True, slots=True)
+class DispatchDirectiveScan:
+    """Side-effect-free routing result for a prompt-level dispatch directive."""
+
+    target: str
+    prompt: str
+    source: str
 
 
 def strip_known_directives(prompt: str) -> str:
@@ -55,6 +69,97 @@ def strip_known_directives(prompt: str) -> str:
         cleaned = cleaned[:start] + cleaned[end:]
 
     return unprotect_fenced_blocks(cleaned, fenced_blocks)
+
+
+def scan_dispatch_directive(prompt: str) -> DispatchDirectiveScan | None:
+    """Return active dispatch routing, stripping only ``%dispatch``.
+
+    This is intentionally cheaper and narrower than full directive extraction:
+    it does not allocate auto names, resolve xprompt references, or strip other
+    launch directives that the remote target must receive.
+    """
+    if "%dispatch" not in prompt:
+        return None
+
+    fenced_blocks: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced_blocks)
+    disabled_regions: list[str] = []
+    protected = protect_disabled_regions(protected, disabled_regions)
+
+    target: str | None = None
+    source = ""
+    regions_to_remove: list[tuple[int, int]] = []
+    saw_wait = False
+    saw_clan = False
+
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
+        if name not in _KNOWN_DIRECTIVES and name not in _DEPRECATED_DIRECTIVES:
+            continue
+        if name == "wait":
+            saw_wait = True
+        if name == "clan":
+            saw_clan = True
+        if name != "dispatch":
+            continue
+
+        if target is not None:
+            raise DirectiveError("Only one %dispatch directive is allowed per launch.")
+        raw_target, match_end = _dispatch_raw_target(protected, match)
+        source = protected[match.start() : match_end]
+        target = resolve_dispatch_target({"dispatch": raw_target})
+        regions_to_remove.append((match.start(), match_end))
+
+    if target is None:
+        return None
+    if saw_wait or saw_clan:
+        raise DirectiveError(
+            "%dispatch cannot be combined with %wait or %clan in V1 remote launch."
+        )
+
+    cleaned = protected
+    for start, end in reversed(regions_to_remove):
+        cleaned = cleaned[:start] + cleaned[end:]
+    cleaned = re.sub(r"^\s*\n", "", cleaned)
+    cleaned = unprotect_disabled_regions(cleaned, disabled_regions)
+    cleaned = unprotect_fenced_blocks(cleaned, fenced_blocks)
+    return DispatchDirectiveScan(target=target, prompt=cleaned, source=source)
+
+
+def _dispatch_raw_target(prompt: str, match: re.Match[str]) -> tuple[str, int]:
+    has_open_paren = match.group(2) is not None
+    colon_arg = match.group(3)
+    plus_suffix = match.group(4)
+    if has_open_paren:
+        paren_start = match.end() - 1
+        paren_end = find_matching_paren_for_args(prompt, paren_start)
+        if paren_end is None:
+            raise DirectiveError(
+                "Malformed %dispatch(...) directive: missing closing ')'."
+            )
+        positional_args, named_args = parse_args(
+            prompt[paren_start + 1 : paren_end],
+            reject_duplicate_named_args=True,
+        )
+        if named_args:
+            keys = ", ".join(f"{key}=" for key in sorted(named_args))
+            raise DirectiveError(
+                f"Unsupported keyword on %dispatch: {keys}. "
+                "%dispatch only accepts one machine alias."
+            )
+        non_empty = [arg for arg in positional_args if arg]
+        if len(non_empty) > 1:
+            raise DirectiveError(
+                "%dispatch accepts exactly one machine alias argument."
+            )
+        return (positional_args[0] if positional_args else ""), paren_end + 1
+    if colon_arg is not None:
+        if colon_arg.startswith("`") and colon_arg.endswith("`"):
+            return colon_arg[1:-1], match.end()
+        return colon_arg, match.end()
+    if plus_suffix is not None:
+        raise DirectiveError("%dispatch does not support '+'; use %dispatch:<machine>.")
+    return "", match.end()
 
 
 def has_deferred_start_directive(prompt: str) -> bool:

@@ -19,6 +19,8 @@ from sase.ace.tui.widgets._directive_completion_types import (
     DirectiveCompletionMetadata,
     FinalizerCompletionMetadata,
     FinalizersState,
+    MachineCompletionMetadata,
+    MachinesState,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.core.rust import require_rust_binding
@@ -111,12 +113,60 @@ def build_finalizer_clause_candidates(
     )
 
 
+def build_machine_clause_candidates(
+    clause: DirectiveClauseCompletion,
+    *,
+    machine_inventory: Sequence[Mapping[str, str]] | None,
+    machines_state: MachinesState,
+) -> tuple[list[CompletionCandidate], str]:
+    """Build candidates for a machine-valued dispatch directive."""
+    if machines_state == "loading":
+        return [
+            _catalog_placeholder("loading", "loading machines…", catalog="machines")
+        ], ""
+    if machines_state != "warm":
+        return [
+            _catalog_placeholder(
+                "unavailable",
+                "machine registry unavailable — type an alias",
+                catalog="machines",
+            )
+        ], ""
+    rows = core_candidate_rows(
+        clause,
+        machine_inventory=machine_inventory or (),
+    )
+    by_alias = {
+        str(entry.get("alias")): entry
+        for entry in (machine_inventory or ())
+        if entry.get("alias")
+    }
+    candidates = [
+        _machine_candidate(row, by_alias.get(str(row.get("insertion") or "")))
+        for row in rows
+        if isinstance(row.get("insertion"), str)
+    ]
+    if not candidates:
+        return [
+            _catalog_placeholder(
+                "unavailable",
+                "no matching remote machines",
+                catalog="machines",
+            )
+        ], ""
+    return candidates, shared_extension(
+        [candidate.insertion for candidate in candidates],
+        clause.token,
+    )
+
+
 def core_candidate_rows(
     clause: DirectiveClauseCompletion,
     *,
     bead_inventory: Sequence[Mapping[str, str]] | None = None,
     excluded_bead_ids: Sequence[str] = (),
     finalizer_inventory: Sequence[Mapping[str, object]] | None = None,
+    machine_inventory: Sequence[Mapping[str, str]] | None = None,
 ) -> list[dict[str, object]]:
     """Return Rust completion rows for an ACE directive clause."""
     inventories: dict[str, object] = {
@@ -125,6 +175,7 @@ def core_candidate_rows(
         "agents": [],
         "beads": [dict(entry) for entry in bead_inventory or ()],
         "finalizers": [dict(entry) for entry in finalizer_inventory or ()],
+        "machines": [dict(entry) for entry in machine_inventory or ()],
         "excluded_bead_ids": list(excluded_bead_ids),
         "enabled_feature_flags": _enabled_feature_flags(),
     }
@@ -263,7 +314,7 @@ def _catalog_placeholder(
     kind: Literal["loading", "unavailable"],
     message: str,
     *,
-    catalog: Literal["beads", "finalizers"] = "beads",
+    catalog: Literal["beads", "finalizers", "machines"] = "beads",
 ) -> CompletionCandidate:
     """Build a non-selectable dynamic-catalog status candidate."""
     return CompletionCandidate(
@@ -280,12 +331,16 @@ def _catalog_placeholder(
 
 
 def _enabled_feature_flags() -> list[str]:
+    from sase.dispatch.config import remote_dispatch_enabled
     from sase.feature_flags.registry import FeatureFlag
     from sase.xprompt.code_value import typed_launch_units_enabled
 
+    flags: list[str] = []
     if typed_launch_units_enabled():
-        return [FeatureFlag.typed_launch_units]
-    return []
+        flags.append(str(FeatureFlag.typed_launch_units))
+    if remote_dispatch_enabled():
+        flags.append(str(FeatureFlag.remote_dispatch))
+    return flags
 
 
 def _directive_contract_visible(
@@ -370,6 +425,38 @@ def _bead_candidate(
             task_type=task_type,
             project=project,
             created_at=created_at,
+            documentation=documentation,
+        ),
+    )
+
+
+def _machine_candidate(
+    row: dict[str, object],
+    inventory: Mapping[str, str] | None,
+) -> CompletionCandidate:
+    alias = str(row["insertion"])
+    provider_ref = str(row.get("detail") or "")
+    installation_id = ""
+    endpoint = ""
+    status = str(row.get("status") or "")
+    documentation = str(row.get("documentation") or "")
+    if inventory is not None:
+        provider_ref = str(inventory.get("provider_ref") or provider_ref)
+        installation_id = str(inventory.get("installation_id") or "")
+        endpoint = str(inventory.get("endpoint") or "")
+        status = str(inventory.get("status") or status)
+        documentation = str(inventory.get("documentation") or documentation)
+    return CompletionCandidate(
+        display=str(row.get("display") or alias),
+        insertion=alias,
+        is_dir=False,
+        name=alias,
+        metadata=MachineCompletionMetadata(
+            alias=alias,
+            provider_ref=provider_ref,
+            installation_id=installation_id,
+            endpoint=endpoint,
+            status=status,
             documentation=documentation,
         ),
     )
