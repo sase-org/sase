@@ -7,7 +7,6 @@ import pytest
 
 import sase.dispatch.attention as attention
 from sase.dispatch.models import DispatchConfig, MachineRecord, ProviderSettings
-from sase.feature_flags import override_flags
 from tests.conftest import redirect_sase_home
 
 
@@ -71,17 +70,6 @@ def _rust_binding(name: str) -> Any:
     raise AssertionError(f"unexpected binding: {name}")
 
 
-def test_remote_attention_gated_when_flag_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(attention, "load_dispatch_config", lambda: _config(_machine()))
-    with (
-        override_flags(remote_dispatch=False),
-        pytest.raises(Exception, match="remote dispatch is disabled"),
-    ):
-        attention.submit_remote_attention_answer("apollo", _gate_intent(_pin()))
-
-
 def test_remote_attention_submits_and_replays_same_key(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -122,13 +110,12 @@ def test_remote_attention_submits_and_replays_same_key(
             }
 
     monkeypatch.setattr(attention, "build_federation_facade", Facade)
-    with override_flags(remote_dispatch=True):
-        first = attention.submit_remote_attention_answer(
-            "apollo", _gate_intent(machine.pinned_installation_id), operation_id="op-1"
-        )
-        second = attention.submit_remote_attention_answer(
-            "apollo", _gate_intent(machine.pinned_installation_id), operation_id="op-1"
-        )
+    first = attention.submit_remote_attention_answer(
+        "apollo", _gate_intent(machine.pinned_installation_id), operation_id="op-1"
+    )
+    second = attention.submit_remote_attention_answer(
+        "apollo", _gate_intent(machine.pinned_installation_id), operation_id="op-1"
+    )
     assert first.outcome == "applied"
     assert first.settled_response == {"selected_option_ids": ["approve"]}
     assert second.decision == "return_original_receipt"
@@ -151,12 +138,9 @@ def test_remote_attention_unsent_when_worker_unavailable(
             )
 
     monkeypatch.setattr(attention, "build_federation_facade", Facade)
-    with (
-        override_flags(remote_dispatch=True),
-        pytest.raises(
-            attention.RemoteDispatchAttentionError, match="was not sent"
-        ) as exc,
-    ):
+    with pytest.raises(
+        attention.RemoteDispatchAttentionError, match="was not sent"
+    ) as exc:
         attention.submit_remote_attention_answer(
             "apollo", _gate_intent(machine.pinned_installation_id)
         )
@@ -177,10 +161,9 @@ def test_remote_attention_uncertain_when_worker_response_error(
             raise attention.FederationWorkerResponseError({"message": "lost reply"})
 
     monkeypatch.setattr(attention, "build_federation_facade", Facade)
-    with (
-        override_flags(remote_dispatch=True),
-        pytest.raises(attention.RemoteDispatchAttentionError, match="uncertain") as exc,
-    ):
+    with pytest.raises(
+        attention.RemoteDispatchAttentionError, match="uncertain"
+    ) as exc:
         attention.submit_remote_attention_answer(
             "apollo", _gate_intent(machine.pinned_installation_id)
         )
@@ -216,10 +199,9 @@ def test_remote_attention_surfaces_stale_revision_outcome_from_receipt(
             }
 
     monkeypatch.setattr(attention, "build_federation_facade", Facade)
-    with override_flags(remote_dispatch=True):
-        result = attention.submit_remote_attention_answer(
-            "apollo", _gate_intent(machine.pinned_installation_id)
-        )
+    result = attention.submit_remote_attention_answer(
+        "apollo", _gate_intent(machine.pinned_installation_id)
+    )
     assert result.outcome == "stale_revision"
     assert result.message == "Attention revision is stale on apollo"
 
@@ -254,10 +236,9 @@ def test_remote_attention_already_settled_names_the_host(
             }
 
     monkeypatch.setattr(attention, "build_federation_facade", Facade)
-    with override_flags(remote_dispatch=True):
-        result = attention.submit_remote_attention_answer(
-            "apollo", _gate_intent(machine.pinned_installation_id)
-        )
+    result = attention.submit_remote_attention_answer(
+        "apollo", _gate_intent(machine.pinned_installation_id)
+    )
     assert result.outcome == "already_settled"
     assert result.message == "Already answered on apollo"
     assert result.settled_response == {"answer": "42"}
@@ -276,10 +257,7 @@ def test_remote_attention_unknown_alias_refuses_without_remote_call(
             raise AssertionError("unenrolled aliases must not be sent")
 
     monkeypatch.setattr(attention, "build_federation_facade", Facade)
-    with (
-        override_flags(remote_dispatch=True),
-        pytest.raises(attention.RemoteDispatchAttentionError, match="not enrolled"),
-    ):
+    with pytest.raises(attention.RemoteDispatchAttentionError, match="not enrolled"):
         attention.submit_remote_attention_answer("apollo", _gate_intent(_pin()))
 
 
@@ -320,10 +298,9 @@ def test_remote_attention_surfaces_capability_missing_and_unknown_request(
             }
 
     monkeypatch.setattr(attention, "build_federation_facade", Facade)
-    with override_flags(remote_dispatch=True):
-        result = attention.submit_remote_attention_answer(
-            "apollo", _gate_intent(machine.pinned_installation_id)
-        )
+    result = attention.submit_remote_attention_answer(
+        "apollo", _gate_intent(machine.pinned_installation_id)
+    )
     assert result.outcome == outcome
     assert result.message == message
 
@@ -362,18 +339,17 @@ def test_remote_attention_lost_reply_reconciles_under_the_same_key(
             }
 
     monkeypatch.setattr(attention, "build_federation_facade", Facade)
-    with override_flags(remote_dispatch=True):
-        with pytest.raises(attention.RemoteDispatchAttentionError, match="uncertain"):
-            attention.submit_remote_attention_answer(
-                "apollo",
-                _gate_intent(machine.pinned_installation_id),
-                operation_id="op-lost",
-            )
-        result = attention.submit_remote_attention_answer(
+    with pytest.raises(attention.RemoteDispatchAttentionError, match="uncertain"):
+        attention.submit_remote_attention_answer(
             "apollo",
             _gate_intent(machine.pinned_installation_id),
             operation_id="op-lost",
         )
+    result = attention.submit_remote_attention_answer(
+        "apollo",
+        _gate_intent(machine.pinned_installation_id),
+        operation_id="op-lost",
+    )
     assert result.decision == "return_original_receipt"
     assert result.outcome == "applied"
     assert keys[0] == keys[1]

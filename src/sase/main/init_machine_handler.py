@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TextIO
 import sys
 
-from sase.dispatch.config import load_dispatch_config, remote_dispatch_enabled
+from sase.dispatch.config import load_dispatch_config
 from sase.dispatch.machine_service import MachineService
 from sase.dispatch.models import DiscoveryCandidate, DispatchError
 
@@ -25,14 +25,6 @@ def plan_init_machine(args: argparse.Namespace) -> InitPlan:
             command="machine",
             label="Machine",
             summary=f"remote machines are configured: {aliases}",
-            actions=(),
-            warnings=_diagnostic_messages(config),
-        )
-    if not remote_dispatch_enabled():
-        return InitPlan(
-            command="machine",
-            label="Machine",
-            summary="remote machine enrollment is disabled by remote_dispatch",
             actions=(),
             warnings=_diagnostic_messages(config),
         )
@@ -86,13 +78,6 @@ def run_init_machine(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
-    if not remote_dispatch_enabled():
-        print(
-            "remote machine enrollment is disabled by remote_dispatch.",
-            file=sys.stderr,
-        )
-        return 1
-
     service = MachineService()
     try:
         candidates = service.discover()

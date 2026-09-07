@@ -28,10 +28,6 @@ class DispatchConfigError(DispatchError):
     """Raised when dispatch config cannot be interpreted safely."""
 
 
-class DispatchFeatureDisabled(DispatchError):
-    """Raised when a remote-dispatch operation is gated off."""
-
-
 class EnrollmentBundleError(DispatchError):
     """Raised when a pasted enrollment bundle is invalid."""
 
@@ -429,7 +425,6 @@ __all__ = [
     "DispatchConfig",
     "DispatchConfigError",
     "DispatchError",
-    "DispatchFeatureDisabled",
     "DispatchProviderSpec",
     "DiscoveryCandidate",
     "EnrollmentBundleError",

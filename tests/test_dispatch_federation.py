@@ -122,7 +122,6 @@ def test_machine_config_derives_federation_host_from_local_credential(
     monkeypatch.setattr(
         federation._hosts, "require_rust_binding", lambda _name: validate
     )
-    monkeypatch.setattr(federation._hosts, "remote_dispatch_enabled", lambda: True)
 
     config = federation.load_federation_config(
         {
@@ -203,7 +202,6 @@ def test_dispatch_machines_resolve_local_credentials(
                 installation_id=installation_id,
             )
 
-    monkeypatch.setattr(federation._hosts, "remote_dispatch_enabled", lambda: True)
     monkeypatch.setattr(
         federation._hosts,
         "validate_connection_plan",
@@ -243,7 +241,6 @@ def test_dispatch_machines_degrade_to_diagnostics(
         def get(self, _ref: str) -> CredentialRecord | None:
             return None
 
-    monkeypatch.setattr(federation._hosts, "remote_dispatch_enabled", lambda: True)
     monkeypatch.setattr(
         federation._hosts,
         "validate_connection_plan",

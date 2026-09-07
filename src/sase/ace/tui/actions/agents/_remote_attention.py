@@ -83,14 +83,6 @@ class RemoteAttentionMixin:
 
     def action_answer_remote_attention(self) -> None:
         """Answer or approve the selected row's pending remote attention."""
-        from sase.dispatch.config import remote_dispatch_enabled
-
-        if not remote_dispatch_enabled():
-            self.notify(  # type: ignore[attr-defined]
-                "remote dispatch is disabled; enable `remote_dispatch` for this invocation",
-                severity="warning",
-            )
-            return
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if not has_pending_remote_attention(agent):
             self.notify(  # type: ignore[attr-defined]

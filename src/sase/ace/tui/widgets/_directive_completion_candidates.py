@@ -331,15 +331,12 @@ def _catalog_placeholder(
 
 
 def _enabled_feature_flags() -> list[str]:
-    from sase.dispatch.config import remote_dispatch_enabled
     from sase.feature_flags.registry import FeatureFlag
     from sase.xprompt.code_value import typed_launch_units_enabled
 
     flags: list[str] = []
     if typed_launch_units_enabled():
         flags.append(str(FeatureFlag.typed_launch_units))
-    if remote_dispatch_enabled():
-        flags.append(str(FeatureFlag.remote_dispatch))
     return flags
 
 

@@ -7,7 +7,6 @@ import pytest
 
 import sase.dispatch.launch as launch
 from sase.dispatch.models import DispatchConfig, MachineRecord, ProviderSettings
-from sase.feature_flags import override_flags
 from tests.conftest import redirect_sase_home
 
 
@@ -45,21 +44,6 @@ def _rust_binding(name: str) -> Any:
     if name == "fleet_validate_launch_intent":
         return lambda intent: intent
     raise AssertionError(f"unexpected binding: {name}")
-
-
-def test_dispatch_launch_gated_when_flag_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(launch, "load_dispatch_config", lambda: _config(_machine()))
-
-    with (
-        override_flags(remote_dispatch=False),
-        pytest.raises(
-            launch.RemoteDispatchLaunchError,
-            match="remote dispatch is disabled",
-        ),
-    ):
-        launch.maybe_dispatch_launch("%dispatch:apollo do it", payload={})
 
 
 def test_dispatch_launch_submits_portable_request_and_records_follow(
@@ -129,11 +113,10 @@ def test_dispatch_launch_submits_portable_request_and_records_follow(
 
     monkeypatch.setattr(launch, "build_federation_facade", Facade)
 
-    with override_flags(remote_dispatch=True):
-        result = launch.maybe_dispatch_launch(
-            "%dispatch:apollo do remote work",
-            payload={"project": "sase", "patch_ref": "patch-123", "follow": True},
-        )
+    result = launch.maybe_dispatch_launch(
+        "%dispatch:apollo do remote work",
+        payload={"project": "sase", "patch_ref": "patch-123", "follow": True},
+    )
 
     assert result is not None
     assert result.prompt == "do remote work"
@@ -156,12 +139,9 @@ def test_dispatch_launch_rejects_local_only_payload(
 ) -> None:
     monkeypatch.setattr(launch, "load_dispatch_config", lambda: _config(_machine()))
 
-    with (
-        override_flags(remote_dispatch=True),
-        pytest.raises(
-            launch.RemoteDispatchLaunchError,
-            match="local-only run payload field 'launch_units'",
-        ),
+    with pytest.raises(
+        launch.RemoteDispatchLaunchError,
+        match="local-only run payload field 'launch_units'",
     ):
         launch.maybe_dispatch_launch(
             "%dispatch:apollo do it",

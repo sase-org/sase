@@ -7,7 +7,6 @@ import pytest
 
 import sase.dispatch.mutations as mutations
 from sase.dispatch.models import DispatchConfig, MachineRecord, ProviderSettings
-from sase.feature_flags import override_flags
 from tests.conftest import redirect_sase_home
 
 
@@ -99,21 +98,6 @@ def _rust_binding(name: str) -> Any:
     raise AssertionError(f"unexpected binding: {name}")
 
 
-def test_remote_mutation_gated_when_flag_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(mutations, "load_dispatch_config", lambda: _config(_machine()))
-    with (
-        override_flags(remote_dispatch=False),
-        pytest.raises(Exception, match="remote dispatch is disabled"),
-    ):
-        mutations._submit_remote_mutation(
-            alias="apollo",
-            kind="stop",
-            snapshot=_snapshot(_machine()),
-        )
-
-
 def test_remote_mutation_submits_and_replays_same_key(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -152,19 +136,18 @@ def test_remote_mutation_submits_and_replays_same_key(
             }
 
     monkeypatch.setattr(mutations, "build_federation_facade", Facade)
-    with override_flags(remote_dispatch=True):
-        first = mutations._submit_remote_mutation(
-            alias="apollo",
-            kind="stop",
-            snapshot=_snapshot(machine),
-            operation_id="op-1",
-        )
-        second = mutations._submit_remote_mutation(
-            alias="apollo",
-            kind="stop",
-            snapshot=_snapshot(machine),
-            operation_id="op-1",
-        )
+    first = mutations._submit_remote_mutation(
+        alias="apollo",
+        kind="stop",
+        snapshot=_snapshot(machine),
+        operation_id="op-1",
+    )
+    second = mutations._submit_remote_mutation(
+        alias="apollo",
+        kind="stop",
+        snapshot=_snapshot(machine),
+        operation_id="op-1",
+    )
     assert first.outcome == "applied"
     assert "apollo" in first.message
     assert second.outcome == "already_settled"
@@ -187,10 +170,7 @@ def test_remote_mutation_unsent_when_worker_unavailable(
             )
 
     monkeypatch.setattr(mutations, "build_federation_facade", Facade)
-    with (
-        override_flags(remote_dispatch=True),
-        pytest.raises(mutations.RemoteDispatchMutationError, match="was not sent"),
-    ):
+    with pytest.raises(mutations.RemoteDispatchMutationError, match="was not sent"):
         mutations._submit_remote_mutation(
             alias="apollo",
             kind="stop",
@@ -231,11 +211,10 @@ def test_bulk_partition_reports_per_target(
             }
 
     monkeypatch.setattr(mutations, "build_federation_facade", Facade)
-    with override_flags(remote_dispatch=True):
-        results = mutations.submit_remote_mutations(
-            [_snapshot(apollo), _snapshot(bravo, "other")],
-            kind="stop",
-        )
+    results = mutations.submit_remote_mutations(
+        [_snapshot(apollo), _snapshot(bravo, "other")],
+        kind="stop",
+    )
     assert {item.alias for item in results} == {"apollo", "bravo"}
     assert any(item.outcome == "applied" for item in results)
     assert any(item.outcome == "unsent" for item in results)
@@ -257,11 +236,8 @@ def test_capability_missing_refuses_without_remote_call(
             raise AssertionError("capability-missing mutations must not be sent")
 
     monkeypatch.setattr(mutations, "build_federation_facade", Facade)
-    with (
-        override_flags(remote_dispatch=True),
-        pytest.raises(
-            mutations.RemoteDispatchMutationError, match="capability_missing"
-        ),
+    with pytest.raises(
+        mutations.RemoteDispatchMutationError, match="capability_missing"
     ):
         mutations._submit_remote_mutation(
             alias="apollo",
@@ -294,12 +270,9 @@ def test_precondition_mismatch_and_stale_revision_are_typed(
             }
 
     monkeypatch.setattr(mutations, "build_federation_facade", Facade)
-    with (
-        override_flags(remote_dispatch=True),
-        pytest.raises(
-            mutations.RemoteDispatchMutationError, match="stale_revision"
-        ) as exc,
-    ):
+    with pytest.raises(
+        mutations.RemoteDispatchMutationError, match="stale_revision"
+    ) as exc:
         mutations._submit_remote_mutation(
             alias="apollo",
             kind="stop",
@@ -342,20 +315,19 @@ def test_lost_reply_reconciles_under_the_same_key(
             }
 
     monkeypatch.setattr(mutations, "build_federation_facade", Facade)
-    with override_flags(remote_dispatch=True):
-        with pytest.raises(mutations.RemoteDispatchMutationError, match="uncertain"):
-            mutations._submit_remote_mutation(
-                alias="apollo",
-                kind="stop",
-                snapshot=_snapshot(machine),
-                operation_id="op-lost",
-            )
-        result = mutations._submit_remote_mutation(
+    with pytest.raises(mutations.RemoteDispatchMutationError, match="uncertain"):
+        mutations._submit_remote_mutation(
             alias="apollo",
             kind="stop",
             snapshot=_snapshot(machine),
             operation_id="op-lost",
         )
+    result = mutations._submit_remote_mutation(
+        alias="apollo",
+        kind="stop",
+        snapshot=_snapshot(machine),
+        operation_id="op-lost",
+    )
     assert result.outcome == "already_settled"
     assert keys[0] == keys[1]
 
@@ -405,13 +377,12 @@ def test_fork_follow_honors_unfollow_tombstone(
         "activate_dispatch_follow",
         lambda *args, **kwargs: activated.append({"args": args, "kwargs": kwargs}),
     )
-    with override_flags(remote_dispatch=True):
-        result = mutations._submit_remote_mutation(
-            alias="apollo",
-            kind="fork",
-            snapshot=snapshot,
-            fork_prompt="continue",
-            operation_id="op-fork",
-        )
+    result = mutations._submit_remote_mutation(
+        alias="apollo",
+        kind="fork",
+        snapshot=snapshot,
+        fork_prompt="continue",
+        operation_id="op-fork",
+    )
     assert result.outcome == "applied"
     assert activated == []

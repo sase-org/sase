@@ -10,7 +10,6 @@ from sase.ace.tui.actions.agents._remote_attention import RemoteAttentionMixin
 from sase.ace.tui.actions.agents._remote_content import AgentRemoteContentMixin
 from sase.ace.tui.actions.agents._remote_lifecycle import is_remote_fleet_agent
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.feature_flags import override_flags
 
 
 def _remote_agent() -> Agent:
@@ -93,9 +92,8 @@ def test_local_selection_keeps_local_kill_path() -> None:
 def test_empty_machine_registry_does_not_treat_local_as_remote() -> None:
     agent = _local_agent()
     assert not is_remote_fleet_agent(agent)
-    with override_flags(remote_dispatch=True):
-        harness = _KillHarness(agent)
-        harness.action_kill_agent()
+    harness = _KillHarness(agent)
+    harness.action_kill_agent()
     assert harness.remote_calls == []
 
 
@@ -159,7 +157,7 @@ class _ContentHarness(AgentRemoteContentMixin):
         self.notifications.append(message)
 
 
-def test_remote_content_action_refuses_when_flag_off() -> None:
+def test_remote_content_action_opens_modal_for_available_content() -> None:
     agent = _remote_agent()
     agent.fleet_content = {"handles": [{"id": "ch1"}]}
     agent.fleet_row_revision = {
@@ -168,12 +166,11 @@ def test_remote_content_action_refuses_when_flag_off() -> None:
         "revision": 1,
     }
     harness = _ContentHarness(agent)
-    with override_flags(remote_dispatch=False):
-        harness.action_view_remote_agent_content()
-    assert harness.screens == []
-    assert any(
-        "remote dispatch is disabled" in message for message in harness.notifications
-    )
+    harness.action_view_remote_agent_content()
+    assert len(harness.screens) == 1
+    from sase.ace.tui.modals.remote_content_modal import RemoteContentModal
+
+    assert isinstance(harness.screens[0], RemoteContentModal)
 
 
 class _AttentionHarness(RemoteAttentionMixin):
@@ -211,20 +208,9 @@ def _remote_agent_with_pending_question() -> Agent:
     return agent
 
 
-def test_answer_remote_attention_refuses_when_flag_off() -> None:
-    harness = _AttentionHarness(_remote_agent_with_pending_question())
-    with override_flags(remote_dispatch=False):
-        harness.action_answer_remote_attention()
-    assert harness.screens == []
-    assert any(
-        "remote dispatch is disabled" in message for message in harness.notifications
-    )
-
-
 def test_answer_remote_attention_refuses_without_pending_entry() -> None:
     harness = _AttentionHarness(_remote_agent())
-    with override_flags(remote_dispatch=True):
-        harness.action_answer_remote_attention()
+    harness.action_answer_remote_attention()
     assert harness.screens == []
     assert any(
         "pending question or gate" in message for message in harness.notifications
@@ -233,8 +219,7 @@ def test_answer_remote_attention_refuses_without_pending_entry() -> None:
 
 def test_answer_remote_attention_opens_modal_for_pending_question() -> None:
     harness = _AttentionHarness(_remote_agent_with_pending_question())
-    with override_flags(remote_dispatch=True):
-        harness.action_answer_remote_attention()
+    harness.action_answer_remote_attention()
     assert len(harness.screens) == 1
     from sase.ace.tui.modals.remote_attention_modal import RemoteAttentionModal
 

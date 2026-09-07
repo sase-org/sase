@@ -308,9 +308,8 @@ def _remote_lifecycle_command_available(ctx: CommandContext, capability: str) ->
         is_remote_fleet_agent,
         remote_capability_enabled,
     )
-    from sase.dispatch.config import remote_dispatch_enabled
 
-    if not ctx.selected_agent_remote or not remote_dispatch_enabled():
+    if not ctx.selected_agent_remote:
         return False
     agent = ctx.agent
     return bool(
@@ -324,17 +323,14 @@ def _remote_attention_command_available(ctx: CommandContext) -> bool:
     from sase.ace.tui.actions.agents._remote_attention import (
         has_pending_remote_attention,
     )
-    from sase.dispatch.config import remote_dispatch_enabled
 
-    if not ctx.selected_agent_remote or not remote_dispatch_enabled():
+    if not ctx.selected_agent_remote:
         return False
     return has_pending_remote_attention(ctx.agent)
 
 
 def _remote_content_command_available(ctx: CommandContext) -> bool:
-    from sase.dispatch.config import remote_dispatch_enabled
-
-    if not ctx.selected_agent_remote or not remote_dispatch_enabled():
+    if not ctx.selected_agent_remote:
         return False
     agent = ctx.agent
     if agent is None:

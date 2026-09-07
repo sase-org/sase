@@ -7,7 +7,6 @@ from sase.ace.tui.commands import (
     is_command_available,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.feature_flags import override_flags
 from tests._command_availability_helpers import (
     catalog_by_id as _catalog_by_id,
     make_agent as _make_agent,
@@ -118,15 +117,11 @@ def test_fleet_commands_are_contextual_for_remote_rows() -> None:
     assert is_command_available(catalog["app.toggle_agent_follow"], ctx)
     assert is_command_available(catalog["app.view_agent_in_focus"], ctx)
     assert is_command_available(catalog["app.connect_agent_machine"], ctx)
-    with override_flags(remote_dispatch=True):
-        assert is_command_available(catalog["app.retry_remote_agent"], ctx)
-        assert is_command_available(catalog["app.view_remote_agent_content"], ctx)
-    with override_flags(remote_dispatch=False):
-        assert not is_command_available(catalog["app.retry_remote_agent"], ctx)
-        assert not is_command_available(catalog["app.view_remote_agent_content"], ctx)
+    assert is_command_available(catalog["app.retry_remote_agent"], ctx)
+    assert is_command_available(catalog["app.view_remote_agent_content"], ctx)
 
 
-def test_answer_remote_attention_requires_flag_and_pending_entry() -> None:
+def test_answer_remote_attention_requires_pending_entry() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.answer_remote_attention"]
     pending_question = Agent(
@@ -151,10 +146,7 @@ def test_answer_remote_attention_requires_flag_and_pending_entry() -> None:
         agents_subtab="fleet",
         selected_agent_remote=True,
     )
-    with override_flags(remote_dispatch=True):
-        assert is_command_available(spec, ctx)
-    with override_flags(remote_dispatch=False):
-        assert not is_command_available(spec, ctx)
+    assert is_command_available(spec, ctx)
 
     settled = Agent(
         agent_type=AgentType.RUNNING,
@@ -178,8 +170,7 @@ def test_answer_remote_attention_requires_flag_and_pending_entry() -> None:
         agents_subtab="fleet",
         selected_agent_remote=True,
     )
-    with override_flags(remote_dispatch=True):
-        assert not is_command_available(spec, settled_ctx)
+    assert not is_command_available(spec, settled_ctx)
 
 
 def test_remote_rows_hide_local_agent_actions() -> None:
@@ -207,9 +198,8 @@ def test_remote_rows_hide_local_agent_actions() -> None:
         selected_agent_followable=True,
     )
 
-    with override_flags(remote_dispatch=True):
-        assert is_command_available(catalog["app.kill_agent"], ctx)
-        assert is_command_available(catalog["app.edit_hooks"], ctx)
+    assert is_command_available(catalog["app.kill_agent"], ctx)
+    assert is_command_available(catalog["app.edit_hooks"], ctx)
     for command_id in {
         "app.run_workflow",
         "app.edit_spec",

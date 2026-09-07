@@ -6,7 +6,7 @@ import argparse
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from sase.dispatch.config import load_dispatch_config, require_remote_dispatch_enabled
+from sase.dispatch.config import load_dispatch_config
 from sase.dispatch.federation import build_federation_facade
 from sase.dispatch.mutations import (
     RemoteDispatchMutationError,
@@ -28,7 +28,6 @@ def handle_machine_agent_command(args: argparse.Namespace) -> int:
 
 
 def _run_machine_agent(args: argparse.Namespace) -> OperationCommandResult:
-    require_remote_dispatch_enabled()
     kind = getattr(args, "machine_agent_subcommand", None)
     if kind not in {"fork", "retry", "stop"}:
         return OperationCommandResult(

@@ -133,8 +133,6 @@ def build_directive_clause_candidates(
         )
 
     if clause.value_role == "machine":
-        if not _remote_dispatch_enabled():
-            return [], ""
         return build_machine_clause_candidates(
             clause,
             machine_inventory=machine_inventory,
@@ -205,15 +203,7 @@ def clause_needs_machine_inventory(clause: DirectiveClauseCompletion) -> bool:
     """Return True when machine rows can appear for ``%dispatch``."""
     if clause.is_name:
         return False
-    if not _remote_dispatch_enabled():
-        return False
     return clause.directive_name == "dispatch" or clause.value_role == "machine"
-
-
-def _remote_dispatch_enabled() -> bool:
-    from sase.dispatch.config import remote_dispatch_enabled
-
-    return remote_dispatch_enabled()
 
 
 def _offers_model_values(clause: DirectiveClauseCompletion) -> bool:

@@ -9,11 +9,7 @@ from typing import Any
 
 from sase.config.core import load_merged_config
 from sase.core.rust import require_rust_binding
-from sase.dispatch.config import (
-    load_dispatch_config,
-    remote_dispatch_enabled,
-    validate_connection_plan,
-)
+from sase.dispatch.config import load_dispatch_config, validate_connection_plan
 from sase.dispatch.credentials import CredentialStoreError, LocalCredentialStore
 from sase.dispatch.models import CredentialRecord, MachineDiagnostic, MachineRecord
 
@@ -89,18 +85,6 @@ def load_federation_config(
     dispatch_config = load_dispatch_config(config)
     diagnostics: list[MachineDiagnostic] = list(dispatch_config.diagnostics)
     if not dispatch_config.machines:
-        return FederationConfig(worker=worker, diagnostics=tuple(diagnostics))
-    if not remote_dispatch_enabled():
-        diagnostics.append(
-            MachineDiagnostic(
-                code="remote_dispatch_disabled",
-                severity="warning",
-                message=(
-                    "dispatch.machines are configured but the remote_dispatch "
-                    "feature flag is disabled"
-                ),
-            )
-        )
         return FederationConfig(worker=worker, diagnostics=tuple(diagnostics))
 
     store = credential_store or LocalCredentialStore()

@@ -19,7 +19,6 @@ from .config import (
     load_dispatch_config,
     remove_machine_record,
     rename_machine_record,
-    require_remote_dispatch_enabled,
     validate_connection_plan,
     write_machine_record,
 )
@@ -72,7 +71,6 @@ class MachineService:
         provider_refs: Sequence[str] = (),
         timeout_seconds: float | None = None,
     ) -> tuple[DiscoveryCandidate, ...]:
-        require_remote_dispatch_enabled()
         config = load_dispatch_config()
         return self.discover_fn(
             config=config,
@@ -89,7 +87,6 @@ class MachineService:
         bundle_text: str,
         timeout_seconds: float | None = None,
     ) -> EnrollmentResult:
-        require_remote_dispatch_enabled()
         validate_machine_alias(alias)
         config = load_dispatch_config()
         if alias in config.machine_by_alias():
@@ -181,7 +178,6 @@ class MachineService:
         bundle_text: str,
         timeout_seconds: float | None = None,
     ) -> EnrollmentResult:
-        require_remote_dispatch_enabled()
         config = load_dispatch_config()
         existing = _record_or_raise(config.machine_by_alias(), alias)
         bundle = _parse_enrollment_bundle(bundle_text)
@@ -251,7 +247,6 @@ class MachineService:
         *,
         timeout_seconds: float | None = None,
     ) -> tuple[MachineStatus, ...]:
-        require_remote_dispatch_enabled()
         config = load_dispatch_config()
         by_alias = config.machine_by_alias()
         selected = tuple(aliases) or tuple(sorted(by_alias))

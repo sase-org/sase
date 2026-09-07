@@ -32,7 +32,6 @@ SASE_XPROMPT_MACHINE_CATALOG_ENV = "SASE_XPROMPT_MACHINE_CATALOG"
 SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV = "SASE_XPROMPT_ARTIFACT_REF_CATALOG"
 SASE_XPROMPT_GLOSSARY_CATALOG_ENV = "SASE_XPROMPT_GLOSSARY_CATALOG"
 SASE_TYPED_LAUNCH_UNITS_ENV = "SASE_TYPED_LAUNCH_UNITS"
-SASE_REMOTE_DISPATCH_ENV = "SASE_REMOTE_DISPATCH"
 XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
 
 
@@ -399,11 +398,9 @@ def _materialize_glossary_catalog(
 
 def _apply_typed_launch_units_flag(environ: MutableMapping[str, str]) -> None:
     """Pin the LSP to process-local directive feature-flag decisions."""
-    from sase.dispatch.config import remote_dispatch_enabled
     from sase.xprompt.code_value import typed_launch_units_enabled
 
     environ[SASE_TYPED_LAUNCH_UNITS_ENV] = "1" if typed_launch_units_enabled() else "0"
-    environ[SASE_REMOTE_DISPATCH_ENV] = "1" if remote_dispatch_enabled() else "0"
 
 
 def _discover_plugin_xprompt_dirs() -> list[dict[str, str]]:

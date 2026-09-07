@@ -17,7 +17,7 @@ from .attention_intent import (
     update_dispatch_attention_intent,
     upsert_dispatch_attention_intent,
 )
-from .config import load_dispatch_config, require_remote_dispatch_enabled
+from .config import load_dispatch_config
 from .federation import (
     FederationWorkerResponseError,
     FederationWorkerUnavailable,
@@ -108,7 +108,6 @@ def submit_remote_attention_answer(
     as submitted.
     """
     try:
-        require_remote_dispatch_enabled()
         config = load_dispatch_config()
         machine = _target_machine(config.machine_by_alias(), alias)
         full_intent = {"schema_version": _FLEET_SCHEMA_VERSION, **dict(intent)}

@@ -33,7 +33,7 @@ from tests._xprompt_directive_completion_parity_surface import (
 @pytest.fixture(autouse=True)
 def _typed_launch_units_off_by_default() -> Iterator[None]:
     """Keep ungated-contract assertions independent of host flag state."""
-    with override_flags(remote_dispatch=False, typed_launch_units=False):
+    with override_flags(typed_launch_units=False):
         yield
 
 
@@ -59,7 +59,7 @@ def test_ace_and_lsp_directive_name_rows_match(tmp_path: Path) -> None:
     assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
     assert "%if" not in expected_labels
     assert "%proc" not in expected_labels
-    assert "%dispatch" not in expected_labels
+    assert "%dispatch" in expected_labels
 
 
 def test_ace_and_lsp_include_typed_launch_directives_when_enabled(
@@ -77,27 +77,25 @@ def test_ace_and_lsp_include_typed_launch_directives_when_enabled(
     assert ace_labels == lsp_labels
 
 
-def test_ace_and_lsp_include_dispatch_directive_when_enabled(
+def test_ace_and_lsp_include_dispatch_directive(
     tmp_path: Path,
 ) -> None:
-    with override_flags(remote_dispatch=True):
-        ace_candidates, shared = build_directive_completion_candidates("%")
-        assert shared == ""
-        ace_labels = {row.label for row in _ace_surface_rows(ace_candidates)}
-        with LspSession(tmp_path) as lsp:
-            lsp_labels = {row.label for row in lsp.complete("%")}
+    ace_candidates, shared = build_directive_completion_candidates("%")
+    assert shared == ""
+    ace_labels = {row.label for row in _ace_surface_rows(ace_candidates)}
+    with LspSession(tmp_path) as lsp:
+        lsp_labels = {row.label for row in lsp.complete("%")}
 
     assert "%dispatch" in ace_labels
     assert ace_labels == lsp_labels
 
 
-def test_ace_and_lsp_include_dispatch_machine_rows_when_enabled(
+def test_ace_and_lsp_include_dispatch_machine_rows(
     tmp_path: Path,
 ) -> None:
-    with override_flags(remote_dispatch=True):
-        ace_rows = _ace_clause_rows("%dispatch:")
-        with LspSession(tmp_path) as lsp:
-            lsp_rows = lsp.complete("%dispatch:")
+    ace_rows = _ace_clause_rows("%dispatch:")
+    with LspSession(tmp_path) as lsp:
+        lsp_rows = lsp.complete("%dispatch:")
 
     assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
     assert [row.insertion for row in ace_rows] == ["apollo"]

@@ -6,7 +6,6 @@ import time
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
-from sase.dispatch.config import remote_dispatch_enabled
 from sase.dispatch.content import RemoteContentClient
 
 from ._remote_lifecycle import is_remote_fleet_agent
@@ -20,12 +19,6 @@ class AgentRemoteContentMixin:
 
     def action_view_remote_agent_content(self) -> None:
         """Open bounded remote content for the selected fleet row."""
-        if not remote_dispatch_enabled():
-            self.notify(  # type: ignore[attr-defined]
-                "remote dispatch is disabled; enable `remote_dispatch` for this invocation",
-                severity="warning",
-            )
-            return
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if not is_remote_fleet_agent(agent):
             self.notify("Select a remote fleet agent", severity="warning")  # type: ignore[attr-defined]

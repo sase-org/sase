@@ -7,18 +7,6 @@ from typing import Any
 import pytest
 
 import sase.dispatch.content as content
-from sase.feature_flags import override_flags
-
-
-def test_content_client_flag_off() -> None:
-    with (
-        override_flags(remote_dispatch=False),
-        pytest.raises(Exception, match="remote dispatch is disabled"),
-    ):
-        content.RemoteContentClient().open_handle(
-            {"id": "ch1", "digest": "a" * 64},
-            row_revision={"schema_version": 1, "logical_key": "k", "revision": 1},
-        )
 
 
 def test_content_client_validates_digest_and_reuses_cache(
@@ -49,12 +37,11 @@ def test_content_client_validates_digest_and_reuses_cache(
             }
 
     monkeypatch.setattr(content, "build_federation_facade", Facade)
-    with override_flags(remote_dispatch=True):
-        client = content.RemoteContentClient()
-        handle = {"id": "ch1", "digest": digest, "kind": "output"}
-        revision = {"schema_version": 1, "logical_key": "k", "revision": 1}
-        first = client.open_handle(handle, row_revision=revision)
-        second = client.open_handle(handle, row_revision=revision)
+    client = content.RemoteContentClient()
+    handle = {"id": "ch1", "digest": digest, "kind": "output"}
+    revision = {"schema_version": 1, "logical_key": "k", "revision": 1}
+    first = client.open_handle(handle, row_revision=revision)
+    second = client.open_handle(handle, row_revision=revision)
     assert first.data == data
     assert second.data == data
     assert calls["n"] == 1
@@ -88,12 +75,11 @@ def test_content_client_continues_growing_output(
             }
 
     monkeypatch.setattr(content, "build_federation_facade", Facade)
-    with override_flags(remote_dispatch=True):
-        client = content.RemoteContentClient()
-        handle = {"id": "ch1", "supports_growth": True}
-        revision = {"schema_version": 1, "logical_key": "k", "revision": 1}
-        first = client.open_handle(handle, row_revision=revision)
-        second = client.continue_tail(first, handle, row_revision=revision)
+    client = content.RemoteContentClient()
+    handle = {"id": "ch1", "supports_growth": True}
+    revision = {"schema_version": 1, "logical_key": "k", "revision": 1}
+    first = client.open_handle(handle, row_revision=revision)
+    second = client.continue_tail(first, handle, row_revision=revision)
     assert first.data == b"one"
     assert second.data == b"two"
     assert calls == [0, 3]
@@ -122,10 +108,7 @@ def test_content_client_rejects_digest_mismatch(
             }
 
     monkeypatch.setattr(content, "build_federation_facade", Facade)
-    with (
-        override_flags(remote_dispatch=True),
-        pytest.raises(content.RemoteContentError, match="digest"),
-    ):
+    with pytest.raises(content.RemoteContentError, match="digest"):
         content.RemoteContentClient().open_handle(
             {"id": "ch1", "digest": hashlib.sha256(data).hexdigest()},
             row_revision={"schema_version": 1, "logical_key": "k", "revision": 1},

@@ -5,11 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.diagnostics import CheckSpec, DiagnosticCheck
-from sase.dispatch.config import (
-    load_dispatch_config,
-    remote_dispatch_enabled,
-    validate_connection_plan,
-)
+from sase.dispatch.config import load_dispatch_config, validate_connection_plan
 from sase.dispatch.credentials import CredentialStoreError, LocalCredentialStore
 from sase.dispatch.machine_service import MachineService
 from sase.dispatch.providers import collect_dispatch_providers
@@ -81,7 +77,6 @@ def _check_dispatch_config(context: DoctorContext) -> DiagnosticCheck:
             data={
                 "machine_count": len(config.machines),
                 "provider_count": len(providers),
-                "remote_dispatch_enabled": remote_dispatch_enabled(),
             },
             next_steps=(
                 "Repair dispatch.machines entries or rerun `sase machine repair ALIAS`.",
@@ -97,7 +92,6 @@ def _check_dispatch_config(context: DoctorContext) -> DiagnosticCheck:
             data={
                 "machine_count": len(config.machines),
                 "provider_count": len(providers),
-                "remote_dispatch_enabled": remote_dispatch_enabled(),
             },
         )
     return _check(
@@ -109,7 +103,6 @@ def _check_dispatch_config(context: DoctorContext) -> DiagnosticCheck:
         data={
             "machine_count": len(config.machines),
             "provider_count": len(providers),
-            "remote_dispatch_enabled": remote_dispatch_enabled(),
         },
     )
 
@@ -178,13 +171,6 @@ def _check_dispatch_credentials(context: DoctorContext) -> DiagnosticCheck:
 
 def _check_dispatch_live(context: DoctorContext) -> DiagnosticCheck:
     del context
-    if not remote_dispatch_enabled():
-        return _check(
-            "dispatch.live",
-            "Dispatch gateway hello",
-            "SKIP",
-            "remote_dispatch is disabled",
-        )
     config = load_dispatch_config()
     if not config.machines:
         return _check(

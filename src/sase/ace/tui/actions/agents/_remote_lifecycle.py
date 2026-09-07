@@ -41,15 +41,9 @@ class AgentRemoteLifecycleMixin:
         fork_prompt: str | None = None,
         confirm_message: str | None = None,
     ) -> None:
-        from sase.dispatch.config import load_dispatch_config, remote_dispatch_enabled
+        from sase.dispatch.config import load_dispatch_config
         from ..agent_durable import submit_machine_agent_action
 
-        if not remote_dispatch_enabled():
-            self.notify(  # type: ignore[attr-defined]
-                "remote dispatch is disabled; enable `remote_dispatch` for this invocation",
-                severity="warning",
-            )
-            return
         if not agents:
             self.notify("No remote agent selected", severity="warning")  # type: ignore[attr-defined]
             return

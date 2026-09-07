@@ -39,7 +39,7 @@ def test_dispatch_config_check_is_offline_with_no_machines(
     check = _run_dispatch_check("dispatch.config")
 
     assert check.status == "OK"
-    assert check.data["remote_dispatch_enabled"] is False
+    assert check.data["machine_count"] == 0
 
 
 def test_dispatch_credentials_reports_missing_local_ref(
@@ -72,10 +72,10 @@ def test_dispatch_credentials_reports_missing_local_ref(
     assert "credential ref fleet:alpha is missing" in check.details[0]
 
 
-def test_dispatch_live_skips_when_flag_off(
+def test_dispatch_live_skips_with_no_machines_configured(
     isolated_dispatch_config: Path,
 ) -> None:
     check = _run_dispatch_check("dispatch.live")
 
     assert check.status == "SKIP"
-    assert "remote_dispatch is disabled" in check.summary
+    assert "no remote machines are configured" in check.summary

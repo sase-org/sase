@@ -10,12 +10,10 @@ from sase.config import core as config_core
 from sase.config._edit_yaml import set_key, unset_key
 from sase.config.targets import overlay_config_path, resolve_write_path
 from sase.core.state_write_guard import assert_test_state_write_isolated
-from sase.feature_flags import FeatureFlag, current_flags
 
 from .models import (
     DispatchConfig,
     DispatchConfigError,
-    DispatchFeatureDisabled,
     MachineDiagnostic,
     MachineRecord,
     ProviderSettings,
@@ -24,18 +22,6 @@ from .models import (
 )
 
 DEFAULT_PROVIDER_REFS = ("builtin@https", "builtin@tailnet")
-
-
-def remote_dispatch_enabled() -> bool:
-    """Return whether remote-dispatch operations may contact or mutate remotes."""
-    return current_flags().enabled(FeatureFlag.remote_dispatch)
-
-
-def require_remote_dispatch_enabled() -> None:
-    if not remote_dispatch_enabled():
-        raise DispatchFeatureDisabled(
-            "remote dispatch is disabled; enable `remote_dispatch` for this invocation"
-        )
 
 
 def load_dispatch_config(
@@ -296,10 +282,8 @@ __all__ = [
     "DEFAULT_PROVIDER_REFS",
     "load_dispatch_config",
     "provider_config",
-    "remote_dispatch_enabled",
     "remove_machine_record",
     "rename_machine_record",
-    "require_remote_dispatch_enabled",
     "validate_connection_plan",
     "write_machine_record",
 ]

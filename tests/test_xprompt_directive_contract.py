@@ -79,7 +79,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
     }
     assert contract["if"]["feature_flag"] == "typed_launch_units"
     assert contract["proc"]["feature_flag"] == "typed_launch_units"
-    assert contract["dispatch"]["feature_flag"] == "remote_dispatch"
+    assert contract["dispatch"].get("feature_flag") is None
     assert contract["if"]["body_kind"] == "fenced_code"
     assert contract["proc"]["body_kind"] == "optional_fenced_code"
 

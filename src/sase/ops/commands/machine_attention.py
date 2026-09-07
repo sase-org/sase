@@ -12,7 +12,7 @@ from sase.dispatch.attention import (
     fetch_remote_attention,
     submit_remote_attention_answer,
 )
-from sase.dispatch.config import load_dispatch_config, require_remote_dispatch_enabled
+from sase.dispatch.config import load_dispatch_config
 from sase.dispatch.federation import build_federation_facade
 from sase.ops.cli import load_request
 from sase.ops.commands.common import OperationCommandResult, run_and_finish
@@ -29,7 +29,6 @@ def handle_machine_attention_command(args: argparse.Namespace) -> int:
 
 
 def _run_machine_attention(args: argparse.Namespace) -> OperationCommandResult:
-    require_remote_dispatch_enabled()
     kind = getattr(args, "machine_attention_subcommand", None)
     if kind not in {"answer", "approve"}:
         return OperationCommandResult(

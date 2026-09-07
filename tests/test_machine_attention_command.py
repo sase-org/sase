@@ -6,26 +6,9 @@ from typing import Any
 import pytest
 
 from sase.dispatch.attention import RemoteAttentionResult
-from sase.feature_flags import override_flags
 from sase.ops.models import DurableOperationRequest
 from sase.ops.commands import machine_attention
 from sase.ops.commands.machine_attention import handle_machine_attention_command
-
-
-def test_machine_attention_refuses_when_remote_dispatch_disabled() -> None:
-    args = SimpleNamespace(
-        machine_attention_subcommand="answer",
-        alias="apollo",
-        request="question-0001",
-        answer="ship it",
-        timeout=None,
-        json=False,
-        operation_request_path=None,
-        operation_result_path=None,
-    )
-    with override_flags(remote_dispatch=False):
-        code = handle_machine_attention_command(args)
-    assert code != 0
 
 
 def test_machine_attention_requires_a_known_subcommand() -> None:
@@ -39,8 +22,7 @@ def test_machine_attention_requires_a_known_subcommand() -> None:
         operation_request_path=None,
         operation_result_path=None,
     )
-    with override_flags(remote_dispatch=True):
-        code = handle_machine_attention_command(args)
+    code = handle_machine_attention_command(args)
     assert code == 2
 
 
@@ -104,8 +86,7 @@ def test_machine_attention_sidecar_intent_yields_typed_durable_result(
         operation_request_path=None,
         operation_result_path=None,
     )
-    with override_flags(remote_dispatch=True):
-        code = handle_machine_attention_command(args)
+    code = handle_machine_attention_command(args)
     assert code == 0
     assert captured["alias"] == "apollo"
     assert captured["intent"] == full_intent

@@ -8,7 +8,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from sase.dispatch.config import require_remote_dispatch_enabled
 from sase.dispatch.federation import build_federation_facade
 
 _FLEET_SCHEMA_VERSION = 1
@@ -54,7 +53,6 @@ class RemoteContentClient:
         timeout_seconds: float | None = None,
     ) -> RemoteContentChunk:
         """Read one bounded range for *handle* and validate its digest."""
-        require_remote_dispatch_enabled()
         handle_id = str(handle.get("id") or "")
         if not handle_id:
             raise RemoteContentError("content handle id is required")

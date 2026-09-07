@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from sase.dispatch.config import load_dispatch_config, remote_dispatch_enabled
+from sase.dispatch.config import load_dispatch_config
 from sase.dispatch.fleet_client import FleetGatewayError
 from sase.dispatch.machine_service import MachineService
 from sase.dispatch.models import (
@@ -111,7 +111,6 @@ def _handle_list(args: argparse.Namespace) -> int:
         print(
             _json(
                 {
-                    "remote_dispatch_enabled": remote_dispatch_enabled(),
                     "machines": [_machine_row(machine) for machine in config.machines],
                     "diagnostics": [
                         {

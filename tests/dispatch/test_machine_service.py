@@ -10,7 +10,6 @@ from sase.dispatch.config import load_dispatch_config
 from sase.dispatch.credentials import LocalCredentialStore
 from sase.dispatch.machine_service import MachineService
 from sase.dispatch.models import CredentialRecord
-from sase.feature_flags import override_flags
 from tests.conftest import redirect_sase_home
 
 
@@ -94,16 +93,15 @@ def test_add_machine_stores_only_credential_ref_in_config(
         lambda record: (),
     )
 
-    with override_flags(remote_dispatch=True):
-        result = MachineService(
-            credential_store=LocalCredentialStore(credential_path),
-            gateway_client=fake_gateway,  # type: ignore[arg-type]
-        ).add_machine(
-            alias="alpha",
-            endpoint="https://fleet.example.test",
-            provider_ref="builtin@https",
-            bundle_text=_bundle(pin),
-        )
+    result = MachineService(
+        credential_store=LocalCredentialStore(credential_path),
+        gateway_client=fake_gateway,  # type: ignore[arg-type]
+    ).add_machine(
+        alias="alpha",
+        endpoint="https://fleet.example.test",
+        provider_ref="builtin@https",
+        bundle_text=_bundle(pin),
+    )
 
     assert result.quarantined is False
     config_text = (config_dir / "sase.yml").read_text(encoding="utf-8")
@@ -181,11 +179,10 @@ def test_status_quarantines_installation_mismatch(
     )
     fake_gateway = _FakeGateway(bad_pin)
 
-    with override_flags(remote_dispatch=True):
-        statuses = MachineService(
-            credential_store=store,
-            gateway_client=fake_gateway,  # type: ignore[arg-type]
-        ).status()
+    statuses = MachineService(
+        credential_store=store,
+        gateway_client=fake_gateway,  # type: ignore[arg-type]
+    ).status()
 
     assert statuses[0].state == "quarantined"
     reloaded = load_dispatch_config().machine_by_alias()["alpha"]

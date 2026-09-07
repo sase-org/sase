@@ -4209,11 +4209,6 @@
           "default": true,
           "deprecated": true
         },
-        "remote_dispatch": {
-          "type": "boolean",
-          "description": "Beta gate for configured dispatch provider activation.",
-          "default": false
-        },
         "typed_launch_units": {
           "type": "boolean",
           "description": "Beta gate for typed launch units, %if, and %proc.",
