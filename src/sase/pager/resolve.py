@@ -50,7 +50,11 @@ from sase.pager.landings import (
     card_link_target,
     commit_link_target,
 )
-from sase.pager.owner import document_owner_from_path, inherit_owner_context
+from sase.pager.owner import (
+    artifact_context_for_link_context,
+    document_owner_from_path,
+    inherit_owner_context,
+)
 from sase.pager.source_resolve import (
     lookup_owned_source_path,
     owned_source_is_retryable,
@@ -303,12 +307,16 @@ def _owned_file_path_resolution(
         return None
     last: ArtifactRefTargetResolution | None = None
     last_path = text
+    last_line: int | None = None
+    last_column: int | None = None
     for path_text, line, column in _path_candidates(text):
         owned = lookup_owned_source_path(path_text, context=context)
         if owned is None:
             continue
         last = owned
         last_path = path_text
+        last_line = line
+        last_column = column
         if owned_source_is_success(owned) and owned.resolved_path is not None:
             return LinkResolution(
                 target=_link_target_for_existing_path(
@@ -322,10 +330,59 @@ def _owned_file_path_resolution(
             return ambiguous_source_resolution(path_text, owned, context)
     if last is None:
         return None
+    existing = _existing_owner_scoped_path(last_path, context)
+    if existing is not None:
+        return LinkResolution(
+            target=_link_target_for_existing_path(
+                existing,
+                requested_line=last_line,
+                requested_column=last_column,
+                context=context,
+            )
+        )
     return LinkResolution(
         unresolved_message=owned_source_unresolved_message(last_path, last),
         retryable=owned_source_is_retryable(last),
     )
+
+
+def _existing_owner_scoped_path(
+    path_text: str, context: LinkResolutionContext
+) -> Path | None:
+    """Return an existing owner-scoped path the suffix index may omit.
+
+    Directories and other unindexed checkout entries must not fall through
+    to cwd, where an unrelated same-named file would steal the press.
+    """
+    relative = Path(path_text)
+    if relative.is_absolute():
+        return None
+    if relative.parts and relative.parts[0] == ".":
+        relative = Path(*relative.parts[1:]) if len(relative.parts) > 1 else Path()
+        if not relative.parts:
+            return None
+    bases: list[Path] = []
+    owner = context.owner
+    if owner is not None:
+        bases.extend(owner.checkout_candidates)
+    artifact_context = artifact_context_for_link_context(context)
+    if artifact_context is not None:
+        for repository in artifact_context.repositories:
+            bases.extend(repository.checkout_paths)
+            if repository.checkout_path is not None:
+                bases.append(repository.checkout_path)
+    seen: set[Path] = set()
+    for base in bases:
+        try:
+            candidate = (base / relative).expanduser().resolve(strict=False)
+        except OSError:
+            continue
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if candidate.exists():
+            return candidate
+    return None
 
 
 def _link_target_for_existing_path(

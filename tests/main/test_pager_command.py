@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from argparse import Namespace
 from io import StringIO
+from pathlib import Path
 
 import pytest
 
@@ -386,3 +387,55 @@ def test_stdin_diff_is_classified_without_an_explicit_alias(
     assert pager_handler.handle_pager_command(_args()) == 0
     assert launches[0].sections[0].raw_source is not None
     assert launches[0].sections[0].raw_source.language == "diff"
+
+
+def test_combined_real_paths_keep_per_section_owner_and_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = tmp_path / "one" / "a.md"
+    second = tmp_path / "two" / "b.md"
+    first.parent.mkdir()
+    second.parent.mkdir()
+    first.write_text("alpha\n", encoding="utf-8")
+    second.write_text("beta\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    document = pager_handler._build_pager_document([str(first), str(second)])
+
+    assert [section.origin for section in document.sections] == [
+        PagerOrigin.FILE,
+        PagerOrigin.FILE,
+    ]
+    assert document.sections[0].owner is not None
+    assert document.sections[1].owner is not None
+    assert document.sections[0].link_anchors[0].directory == first.parent.resolve()
+    assert document.sections[1].link_anchors[0].directory == second.parent.resolve()
+    assert document.sections[0].plain_text == "alpha\n"
+    assert document.sections[1].plain_text == "beta\n"
+
+
+def test_links_never_is_passed_to_the_app_for_path_input(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    path = tmp_path / "notes.md"
+    path.write_text("https://example.test/x\n", encoding="utf-8")
+    launches: list[tuple[PagerDocument, bool]] = []
+    stdin = _Stream(tty=True)
+    stdout = _Stream(tty=True)
+    monkeypatch.setattr(pager_handler.sys, "stdin", stdin)
+    monkeypatch.setattr(pager_handler.sys, "stdout", stdout)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setattr(
+        pager_handler,
+        "_run_pager_app",
+        lambda document, *, links_enabled, syntax_session=None: launches.append(
+            (document, links_enabled)
+        ),
+    )
+
+    assert (
+        pager_handler.handle_pager_command(_args(inputs=[str(path)], links="never"))
+        == 0
+    )
+    assert launches[0][1] is False
+    assert launches[0][0].sections[0].plain_text == "https://example.test/x\n"

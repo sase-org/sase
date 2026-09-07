@@ -252,6 +252,33 @@ def test_pager_link_context_keeps_owner_without_a_file_row(
     assert checkout.resolve() in pager_context.base_dirs
 
 
+def test_pager_context_from_a_plan_without_a_file_row_resolves_linked_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.pager.resolve import resolve_link
+    from tests.pager._rendered_link_corpus import (
+        ROUTER,
+        build_corpus,
+        install_inventory,
+    )
+
+    corpus = build_corpus(tmp_path)
+    install_inventory(monkeypatch, corpus)
+    result = resolved_reference(
+        corpus.screenshot_plan,
+        reference="plan:202609/capture_line_edge_cycling.md",
+        file=None,
+        context=corpus.context,
+    )
+    pager_context = _pager_link_context(result)
+    resolution = resolve_link(ROUTER, context=pager_context)
+    assert resolution.target is not None
+    assert resolution.target.edit_path == corpus.router
+    assert resolution.target.document is not None
+    assert "struct Router" in resolution.target.document.sections[0].plain_text
+
+
 def test_read_prints_link_neighborhood_footer(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

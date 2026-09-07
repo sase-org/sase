@@ -116,3 +116,28 @@ Following a new target after going back discards the forward branch.
 `y` and `E` are prefix keys: follow them with a painted label to copy or edit that
 target, or press the prefix twice for the current section. Link scanning can be disabled
 with `--links never`; ordinary reading, search, section, and trail keys still work.
+
+## Resolution
+
+Follow, copy, and edit use the same semantic target: a typed artifact reference without
+a leading `@`, a decoded path (quotes and prompt sigils stripped), a URL, or a
+caller-attached object. Painting uses the original character span; `@` and quoting are
+syntax, not path bytes.
+
+Resolution uses the document's owning project and already-available repositories, not
+the viewer's current directory. A same-named file in an unrelated checkout is not a hit.
+Distinct repositories that each contain the path produce an ambiguity page with
+followable candidate links rather than a first-hit guess. A source path that exists only
+in a linked repository still resolves even when the primary Git index has no matching
+entry.
+
+URL labels copy the exact destination, including query strings and fragments. File and
+artifact labels that cannot be resolved stay visible. The toast names the outcome:
+missing checkout, unavailable revision, filtered/denied, proven missing, or not found.
+Temporary failures and missing checkouts are retryable — `r` clears the dangling cache
+so a later press can succeed after the target appears. Failed navigation leaves the
+current document and trail unchanged.
+
+Reload and retry never clone, reset, or clean a workspace. Each press searches once on a
+background worker; diagnostics travel with that result, so the UI does not run a second
+Git search to build a toast.
