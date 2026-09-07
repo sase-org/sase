@@ -28,7 +28,7 @@ def test_empty_remote_hosts_keep_facade_disabled_without_rust_binding(
     def fail_binding(name: str) -> object:
         raise AssertionError(f"unexpected rust binding lookup: {name}")
 
-    monkeypatch.setattr(federation, "require_rust_binding", fail_binding)
+    monkeypatch.setattr(federation._hosts, "require_rust_binding", fail_binding)
 
     config = federation.load_federation_config(
         {
@@ -56,7 +56,9 @@ def test_host_config_validates_plan_and_redacts_secret(
     def validate(plan: dict[str, Any]) -> dict[str, Any]:
         return {**plan, "endpoint": "https://fleet.example.test"}
 
-    monkeypatch.setattr(federation, "require_rust_binding", lambda _name: validate)
+    monkeypatch.setattr(
+        federation._hosts, "require_rust_binding", lambda _name: validate
+    )
     monkeypatch.setenv("SASE_FLEET_TOKEN", "secret-token")
 
     config = federation.load_federation_config(
@@ -101,8 +103,10 @@ def test_machine_config_derives_federation_host_from_local_credential(
         assert plan["provider_ref"] == "builtin:https"
         return {**plan, "endpoint": "https://fleet.example.test"}
 
-    monkeypatch.setattr(federation, "require_rust_binding", lambda _name: validate)
-    monkeypatch.setattr(federation, "remote_dispatch_enabled", lambda: True)
+    monkeypatch.setattr(
+        federation._hosts, "require_rust_binding", lambda _name: validate
+    )
+    monkeypatch.setattr(federation._hosts, "remote_dispatch_enabled", lambda: True)
 
     config = federation.load_federation_config(
         {
@@ -149,7 +153,7 @@ def test_host_config_requires_env_credentials(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(
-        federation,
+        federation._hosts,
         "require_rust_binding",
         lambda _name: lambda plan: {**plan, "credential_ref": "env:MISSING_TOKEN"},
     )
@@ -183,9 +187,9 @@ def test_dispatch_machines_resolve_local_credentials(
                 installation_id=installation_id,
             )
 
-    monkeypatch.setattr(federation, "remote_dispatch_enabled", lambda: True)
+    monkeypatch.setattr(federation._hosts, "remote_dispatch_enabled", lambda: True)
     monkeypatch.setattr(
-        federation,
+        federation._hosts,
         "validate_connection_plan",
         lambda _machine: (),
     )
@@ -223,9 +227,9 @@ def test_dispatch_machines_degrade_to_diagnostics(
         def get(self, _ref: str) -> CredentialRecord | None:
             return None
 
-    monkeypatch.setattr(federation, "remote_dispatch_enabled", lambda: True)
+    monkeypatch.setattr(federation._hosts, "remote_dispatch_enabled", lambda: True)
     monkeypatch.setattr(
-        federation,
+        federation._hosts,
         "validate_connection_plan",
         lambda _machine: (
             MachineDiagnostic(
