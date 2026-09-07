@@ -19,7 +19,7 @@ from rich.text import Text
 from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
     HTTP_URL_PATTERN,
     file_hint_match_span,
-    iter_file_path_matches,
+    iter_pager_file_path_matches,
     matches_outside_artifact_refs,
 )
 from sase.ace.tui.widgets.prompt_panel._hint_caps import (
@@ -107,7 +107,9 @@ def scan_links(text: str, origin: PagerOrigin) -> tuple[LinkSpan, ...]:
         occupied.append((start, end))
         spans.append(LinkSpan(LinkSpanKind.URL, start, end, match.group(0)))
 
-    for match in matches_outside_artifact_refs(text, iter_file_path_matches(text)):
+    for match in matches_outside_artifact_refs(
+        text, iter_pager_file_path_matches(text)
+    ):
         start, end = file_hint_match_span(match)
         if _overlaps(start, end, occupied):
             continue
@@ -139,7 +141,9 @@ def scan_bounded_links(
     deriving a second budget, and surfaces the same truncation notice the
     existing hint-render path already shows.
     """
-    bounded = bound_hint_content(text, budget=budget, matcher=iter_file_path_matches)
+    bounded = bound_hint_content(
+        text, budget=budget, matcher=iter_pager_file_path_matches
+    )
     return BoundedLinkScan(
         content=bounded.content,
         spans=scan_links(bounded.content, origin),

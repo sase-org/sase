@@ -34,6 +34,19 @@ _FILE_PATH_PATTERN = (
     f"{_FILE_PATH_ALTERNATIVES}"
     r")"
 )
+# Pager-only: the same path token, then an optional :LINE or :LINE:COL, with
+# trailing sentence dots excluded from the path (lookbehind backtracks them).
+_PAGER_FILE_PATH_PATTERN = (
+    r"(?<![/\w@.])"
+    r"(@?)"
+    r"("
+    r"(?:"
+    f"{_FILE_PATH_ALTERNATIVES}"
+    r")"
+    r"(?<!\.)"
+    r"(?::\d+(?::\d+)?)?"
+    r")"
+)
 _CONTAINER_FILE_PATH_PATTERN = (
     r"(?<![/\w@.])"  # Not preceded by word char, /, @, or .
     r"(@?)"  # Group 1: optional @ prefix
@@ -50,6 +63,9 @@ _FILE_PATH_RE = FILE_PATH_RE
 HTTP_URL_PATTERN = r"(?<!\w)(?i:https?)://[^\s<>()\[\]{}'\"`]+"
 _FILE_PATH_OR_HTTP_URL_RE = re.compile(
     f"(?:{HTTP_URL_PATTERN})|(?:{_FILE_PATH_PATTERN})"
+)
+_PAGER_FILE_PATH_OR_HTTP_URL_RE = re.compile(
+    f"(?:{HTTP_URL_PATTERN})|(?:{_PAGER_FILE_PATH_PATTERN})"
 )
 _CONTAINER_FILE_PATH_OR_HTTP_URL_RE = re.compile(
     f"(?:{HTTP_URL_PATTERN})|(?:{_CONTAINER_FILE_PATH_PATTERN})"
@@ -172,6 +188,18 @@ def clear_file_hint_resolution_caches() -> None:
 def iter_file_path_matches(content: str) -> Generator[re.Match[str], None, None]:
     """Yield file-path matches that are not contained in HTTP(S) URLs."""
     for match in _FILE_PATH_OR_HTTP_URL_RE.finditer(content):
+        if match.group(2) is not None:
+            yield match
+
+
+def iter_pager_file_path_matches(content: str) -> Generator[re.Match[str], None, None]:
+    """Yield pager file-path matches with :LINE/:LINE:COL, without sentence dots.
+
+    Opt-in variant of ``iter_file_path_matches``. Only the pager link scanner
+    uses it; ACE hint callers keep the original matcher so their output stays
+    byte-identical.
+    """
+    for match in _PAGER_FILE_PATH_OR_HTTP_URL_RE.finditer(content):
         if match.group(2) is not None:
             yield match
 

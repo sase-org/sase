@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
+    file_hint_match_span,
+    iter_file_path_matches,
+)
 from sase.ace.tui.widgets.prompt_panel._hint_caps import (
     HINT_TRUNCATION_MESSAGE,
     HintContentBudget,
@@ -11,6 +15,11 @@ from sase.pager.link_scan import (
     PagerOrigin,
     scan_bounded_links,
     scan_links,
+)
+
+_SPAN_FIDELITY_FIXTURE = (
+    "see src/foo.py:12 and src/bar.py:12:5 and /tmp/baz.py. plus "
+    "https://example.com/src/foo.py"
 )
 
 
@@ -130,4 +139,70 @@ def test_scan_bounded_links_reports_no_notice_when_content_fits() -> None:
     result = scan_bounded_links("src/head.py", PagerOrigin.FILE)
 
     assert result.content == "src/head.py"
+    assert result.notice is None
+
+
+def test_file_path_span_includes_line_and_column_suffixes() -> None:
+    text = "open src/foo.py:12 and /tmp/bar.py:12:5"
+    spans = [
+        span
+        for span in scan_links(text, PagerOrigin.FILE)
+        if span.kind is LinkSpanKind.FILE_PATH
+    ]
+
+    assert [span.text for span in spans] == ["src/foo.py:12", "/tmp/bar.py:12:5"]
+    for span in spans:
+        assert text[span.start : span.end] == span.text
+
+
+def test_file_path_span_excludes_a_sentence_ending_dot() -> None:
+    text = "open /tmp/notes.py. The end"
+    spans = scan_links(text, PagerOrigin.FILE)
+
+    assert [span.text for span in spans] == ["/tmp/notes.py"]
+    assert text[spans[0].start : spans[0].end] == "/tmp/notes.py"
+
+
+def test_file_path_inside_a_url_is_not_a_file_span() -> None:
+    text = "see https://example.com/src/foo.py:12 for details"
+    spans = scan_links(text, PagerOrigin.FILE)
+
+    assert [span.kind for span in spans] == [LinkSpanKind.URL]
+    assert spans[0].text == "https://example.com/src/foo.py:12"
+
+
+def test_ace_file_path_matcher_output_is_unchanged_on_the_span_fixture() -> None:
+    matches = list(iter_file_path_matches(_SPAN_FIDELITY_FIXTURE))
+    spans = [file_hint_match_span(match) for match in matches]
+
+    assert [match.group(2) for match in matches] == [
+        "src/foo.py",
+        "src/bar.py",
+        "/tmp/baz.py.",
+    ]
+    assert [_SPAN_FIDELITY_FIXTURE[start:end] for start, end in spans] == [
+        "src/foo.py",
+        "src/bar.py",
+        "/tmp/baz.py.",
+    ]
+
+
+def test_pager_scan_uses_line_spans_and_drops_sentence_dots_on_fixture() -> None:
+    spans = scan_links(_SPAN_FIDELITY_FIXTURE, PagerOrigin.FILE)
+
+    assert [(span.kind, span.text) for span in spans] == [
+        (LinkSpanKind.FILE_PATH, "src/foo.py:12"),
+        (LinkSpanKind.FILE_PATH, "src/bar.py:12:5"),
+        (LinkSpanKind.FILE_PATH, "/tmp/baz.py"),
+        (LinkSpanKind.URL, "https://example.com/src/foo.py"),
+    ]
+    for span in spans:
+        assert _SPAN_FIDELITY_FIXTURE[span.start : span.end] == span.text
+
+
+def test_scan_bounded_links_keeps_line_suffix_spans() -> None:
+    result = scan_bounded_links("src/head.py:12", PagerOrigin.FILE)
+
+    assert result.content == "src/head.py:12"
+    assert [span.text for span in result.spans] == ["src/head.py:12"]
     assert result.notice is None
