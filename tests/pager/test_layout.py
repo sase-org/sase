@@ -7,7 +7,6 @@ from rich.text import Text
 
 from sase.pager._labels import build_label_layer
 from sase.pager._layout import (
-    _measure_section_heights,
     _section_row_offsets,
     compose_body,
     current_section_index,
@@ -23,15 +22,6 @@ def _section(title: str, body: str) -> PagerSection:
     return PagerSection(
         identity=f"file:/tmp/{title}", title=title, kind="file", body=body
     )
-
-
-def test_measure_section_heights_counts_wrapped_lines() -> None:
-    sections = (_section("a", "one\ntwo\nthree"), _section("b", "x" * 100))
-
-    heights = _measure_section_heights(sections, width=20)
-
-    assert heights[0] == 3
-    assert heights[1] == 5  # 100 chars wrapped at width 20
 
 
 def test_section_row_offsets_places_the_first_section_at_row_zero() -> None:

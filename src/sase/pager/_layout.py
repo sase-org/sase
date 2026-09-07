@@ -48,41 +48,6 @@ class ComposedBody:
     section_line_rows: tuple[tuple[int, ...], ...] = ()
 
 
-def _measure_section_heights(
-    sections: tuple[PagerSection, ...],
-    width: int,
-    *,
-    label_layer: PagerLabelLayer | None = None,
-    pending_prefix: str = "",
-    prepared_sections: Mapping[int, Text] | None = None,
-) -> tuple[int, ...]:
-    """Return each section's wrapped line count at ``width``, no I/O.
-
-    Prepared syntax text only adds *style* over the same characters, so it
-    can never change a wrapped row count — it is threaded through here
-    purely so a section rendered with labels starts from the styled base
-    rather than the plain body.
-    """
-    console = Console(width=max(width, 1), color_system=None, highlight=False)
-    heights = []
-    for index, section in enumerate(sections):
-        prepared_text = (
-            None if prepared_sections is None else prepared_sections.get(index)
-        )
-        lines = console.render_lines(
-            _section_renderable(
-                section,
-                section_index=index,
-                label_layer=label_layer,
-                pending_prefix=pending_prefix,
-                prepared_text=prepared_text,
-            ),
-            pad=False,
-        )
-        heights.append(max(len(lines), 1))
-    return tuple(heights)
-
-
 def _section_row_offsets(heights: tuple[int, ...]) -> tuple[int, ...]:
     """Return the row where each section's own rule (or the top) sits.
 
