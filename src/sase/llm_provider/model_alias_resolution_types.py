@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from sase.xprompt.effort import split_model_effort
 
@@ -14,6 +14,12 @@ from .types import ModelTier
 
 if TYPE_CHECKING:
     from .provider_disable import TemporaryProviderDisable
+    from .provider_priority import (
+        ProviderAvailability,
+        ProviderAvailabilityProvenance,
+        ProviderRoutingContext,
+        TemporaryProviderPriority,
+    )
 
 _ALIAS_RESOLUTION_DEPTH_LIMIT = 16
 
@@ -44,30 +50,77 @@ def active_alias_overrides() -> dict[str, Any]:
         return {}
 
 
-def _active_provider_disables() -> dict[str, TemporaryProviderDisable]:
-    """Return active provider disables for one routing operation."""
-    from .provider_disable import get_active_provider_disables
-
-    return get_active_provider_disables()
-
-
-def capture_provider_disables(
-    provider_disables: ProviderDisableSnapshot | None,
-) -> ProviderDisableSnapshot:
-    """Return *provider_disables*, or the active snapshot when omitted."""
+def capture_provider_routing_context(
+    *,
+    provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
+    now: float | None = None,
+) -> ProviderRoutingContext:
+    """Return one complete routing context for a resolution operation."""
+    if routing_context is not None and provider_disables is not None:
+        raise ValueError("pass routing_context or provider_disables, not both")
+    if routing_context is not None:
+        return routing_context
     if provider_disables is not None:
-        return provider_disables
-    from . import model_alias_resolution as resolution
+        from .provider_priority import provider_routing_context_from_parts
 
-    # Prefer the façade name so tests can patch
-    # ``model_alias_resolution._active_provider_disables``.
-    return getattr(resolution, "_active_provider_disables", _active_provider_disables)()
+        return provider_routing_context_from_parts(
+            provider_disables,
+            None,
+            captured_at=now,
+        )
+    from . import model_alias_resolution as resolution
+    from .provider_disable import get_active_provider_disables
+    from .provider_priority import (
+        capture_provider_routing_context as _capture_provider_routing_context,
+        provider_routing_context_from_parts,
+    )
+
+    disable_capture = getattr(
+        resolution,
+        "_active_provider_disables",
+        get_active_provider_disables,
+    )
+    if disable_capture is not get_active_provider_disables:
+        return provider_routing_context_from_parts(
+            _call_provider_disables(disable_capture, now),
+            None,
+            captured_at=now,
+        )
+    capture = getattr(
+        resolution,
+        "_active_provider_routing_context",
+        _capture_provider_routing_context,
+    )
+    if now is None:
+        return capture()
+    try:
+        return capture(now)
+    except TypeError:
+        try:
+            return capture()
+        except TypeError as exc:
+            raise exc from None
+
+
+def _call_provider_disables(
+    capture: Callable[..., ProviderDisableSnapshot],
+    now: float | None,
+) -> ProviderDisableSnapshot:
+    """Call a legacy provider-disable capture hook with tolerant arity."""
+    if now is None:
+        return capture()
+    try:
+        return capture(now)
+    except TypeError:
+        return cast("ProviderDisableSnapshot", capture())
 
 
 def resolve_default_alias_target(
     model_tier: ModelTier = "large",
     *,
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> str:
     """Return the fallback target for a user-defined ``@default`` alias.
 
@@ -82,14 +135,17 @@ def resolve_default_alias_target(
             provider_disable_for,
         )
 
-        disables = capture_provider_disables(provider_disables)
-        provider_name = get_configured_default_provider_name(provider_disables=disables)
-        disable = provider_disable_for(provider_name, disables)
+        context = capture_provider_routing_context(
+            provider_disables=provider_disables,
+            routing_context=routing_context,
+        )
+        provider_name = get_configured_default_provider_name(routing_context=context)
+        disable = provider_disable_for(provider_name, routing_context=context)
         if disable is not None and disable.is_hard:
             return f"{provider_name}/unknown"
         model = get_provider(
             provider_name,
-            provider_disables=disables,
+            routing_context=context,
         ).resolve_model_name(model_tier)
         return f"{provider_name}/{model}"
     except Exception:
@@ -125,6 +181,21 @@ class ModelAliasSelectorMember:
     weight: int = 1
     sparing: bool = False
     last_resort: bool = False
+    availability: MemberAvailability = MemberAvailability.PREFERRED
+    provenance: tuple[ProviderAvailabilityProvenance, ...] = ()
+    actual_disable: TemporaryProviderDisable | None = None
+    priority: TemporaryProviderPriority | None = None
+    eligible_for_priority: bool = False
+
+    @property
+    def priority_backup(self) -> bool:
+        """Return whether priority made this member a backup candidate."""
+        return "priority_backup" in self.provenance
+
+    @property
+    def actual_soft_disabled(self) -> bool:
+        """Return whether a real soft disable made this member sparing."""
+        return "actual_soft_disable" in self.provenance
 
 
 def provider_for_resolved_target(target: str) -> str | None:
@@ -144,12 +215,57 @@ def resolved_target_is_available(
     target: str,
     *,
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> bool:
     """Return whether *target* resolves to a registered, installed provider."""
-    from .registry import provider_routing_available
+    routing = resolved_target_routing(
+        target,
+        provider_disables=provider_disables,
+        routing_context=routing_context,
+        available=None,
+    )
+    return routing.availability != MemberAvailability.UNAVAILABLE
+
+
+def resolved_target_routing(
+    target: str,
+    provider_disables: ProviderDisableSnapshot | None = None,
+    *,
+    routing_context: ProviderRoutingContext | None = None,
+    available: bool | None,
+) -> ProviderAvailability:
+    """Return Rust-derived effective routing for a resolved target."""
+    from .provider_priority import (
+        ProviderAvailability,
+        classify_provider_availability,
+        provider_availability_facts,
+    )
+    from .registry import provider_routing_facts
 
     provider = provider_for_resolved_target(target)
-    return provider_routing_available(provider, provider_disables)
+    if provider is None:
+        return _fallback_target_routing(target, available=available)
+    context = capture_provider_routing_context(
+        provider_disables=provider_disables,
+        routing_context=routing_context,
+    )
+    facts = provider_routing_facts(provider)
+    if available is True:
+        facts = provider_availability_facts(
+            provider,
+            registered=True,
+            user_facing=True,
+            cli_available=True,
+        )
+    elif available is False:
+        if provider not in context.provider_disables:
+            facts = provider_availability_facts(
+                provider,
+                registered=bool(facts["registered"]),
+                user_facing=bool(facts["user_facing"]),
+                cli_available=False,
+            )
+    return classify_provider_availability(context, facts)
 
 
 def resolved_target_availability(
@@ -157,31 +273,61 @@ def resolved_target_availability(
     provider_disables: ProviderDisableSnapshot | None = None,
     *,
     available: bool,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> MemberAvailability:
-    """Layer the hard/soft disable mode on top of an already-known bool.
-
-    ``UNAVAILABLE`` when *available* is ``False``; otherwise ``SPARING`` when
-    *target*'s provider carries an active soft disable; otherwise
-    ``PREFERRED``.
-    """
-    if not available:
-        return MemberAvailability.UNAVAILABLE
-    from .registry import provider_disable_for
-
-    provider = provider_for_resolved_target(target)
-    disable = provider_disable_for(provider, provider_disables)
-    if disable is not None and disable.is_soft:
-        return MemberAvailability.SPARING
-    return MemberAvailability.PREFERRED
+    """Return Rust-derived tri-state availability for a resolved target."""
+    return resolved_target_routing(
+        target,
+        provider_disables,
+        routing_context=routing_context,
+        available=available,
+    ).availability
 
 
 def target_is_available(
     check: Callable[..., bool],
     target: str,
     provider_disables: ProviderDisableSnapshot,
+    *,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> bool:
-    """Run *check* with provider-disable kwargs when the callable accepts them."""
+    """Run *check* with routing kwargs when the callable accepts them."""
+    try:
+        return check(target, routing_context=routing_context)
+    except TypeError:
+        pass
     try:
         return check(target, provider_disables=provider_disables)
     except TypeError:
         return check(target)
+
+
+def _fallback_target_routing(
+    target: str,
+    *,
+    available: bool | None,
+) -> ProviderAvailability:
+    """Classify an unknown-provider terminal without inventing a provider id."""
+    from .provider_priority import (
+        PROVIDER_AVAILABILITY_WIRE_SCHEMA_VERSION,
+        ProviderAvailability,
+    )
+
+    provider = target.split("/", 1)[0] if "/" in target else "unknown"
+    if not provider:
+        provider = "unknown"
+    return ProviderAvailability(
+        version=PROVIDER_AVAILABILITY_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        availability=(
+            MemberAvailability.UNAVAILABLE
+            if available is False
+            else MemberAvailability.PREFERRED
+        ),
+        provenance=(
+            ("unregistered",) if available is False else ("ordinary_available",)
+        ),
+        actual_disable=None,
+        priority=None,
+        eligible_for_priority=False,
+    )

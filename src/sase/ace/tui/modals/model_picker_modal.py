@@ -11,6 +11,7 @@ from textual.widgets._option_list import Option
 
 from sase.ace.tui.actions.navigation.jump_hints import normalize_jump_key
 from sase.llm_provider.provider_disable import TemporaryProviderDisable
+from sase.llm_provider.provider_priority import ProviderRoutingContext
 
 from .base import FilterInput, OptionListNavigationMixin
 from .model_picker_options import (
@@ -141,6 +142,7 @@ class ModelPickerModal(
         alias_context: AliasSelectionContext | None = None,
         include_selector_option: bool = False,
         provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
+        routing_context: ProviderRoutingContext | None = None,
     ) -> None:
         super().__init__()
         self._title = title
@@ -148,18 +150,28 @@ class ModelPickerModal(
         self._distinct_default = distinct_default
         self._alias_context = alias_context
         self._include_selector_option = include_selector_option
-        if provider_disables is None:
-            from sase.llm_provider.provider_disable_peek import (
-                peek_active_provider_disables,
+        if routing_context is not None and provider_disables is not None:
+            raise ValueError("pass routing_context or provider_disables, not both")
+        if routing_context is None and provider_disables is None:
+            from sase.llm_provider.provider_priority_peek import (
+                peek_provider_routing_context,
             )
 
-            provider_disables = peek_active_provider_disables()
-        self._provider_disables = provider_disables
+            routing_context = peek_provider_routing_context()
+        self._provider_disables = (
+            routing_context.provider_disables
+            if routing_context is not None
+            else provider_disables or {}
+        )
+        self._routing_context = routing_context
         self._all_rows = build_model_rows(
             include_default_option=include_default_option,
             alias_context=alias_context,
             include_selector_option=include_selector_option,
-            provider_disables=self._provider_disables,
+            provider_disables=(
+                None if self._routing_context is not None else self._provider_disables
+            ),
+            routing_context=self._routing_context,
         )
         self._visible_rows = self._all_rows
 
@@ -184,7 +196,12 @@ class ModelPickerModal(
                 *(
                     build_model_options(
                         include_default_option=self._include_default_option,
-                        provider_disables=self._provider_disables,
+                        provider_disables=(
+                            None
+                            if self._routing_context is not None
+                            else self._provider_disables
+                        ),
+                        routing_context=self._routing_context,
                     )
                     if self._alias_context is None and not self._include_selector_option
                     else rows_to_options(self._all_rows)

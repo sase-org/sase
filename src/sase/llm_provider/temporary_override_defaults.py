@@ -9,9 +9,14 @@ resolution policy rather than override storage.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
-from .provider_disable import TemporaryProviderDisable, get_active_provider_disables
+from .provider_disable import TemporaryProviderDisable
+from .provider_priority import resolve_provider_routing_context
 from .types import ModelTier
+
+if TYPE_CHECKING:
+    from .provider_priority import ProviderRoutingContext
 
 ProviderDisableSnapshot = Mapping[str, TemporaryProviderDisable]
 
@@ -22,6 +27,7 @@ def resolve_effective_default_provider_model(
     *,
     consume: bool = False,
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> tuple[str, str]:
     """Return the ``(provider_name, model_name)`` to use for new launches.
 
@@ -32,10 +38,9 @@ def resolve_effective_default_provider_model(
     provider machinery, falling back to the shipped ``@large`` default if the
     field is missing or malformed.
     """
-    disables = (
-        get_active_provider_disables()
-        if provider_disables is None
-        else provider_disables
+    context = resolve_provider_routing_context(
+        provider_disables=provider_disables,
+        routing_context=routing_context,
     )
     from .model_launch_settings import resolve_default_launch_provider_model
 
@@ -43,7 +48,7 @@ def resolve_effective_default_provider_model(
         model_tier,
         model_alias_overrides,
         consume=consume,
-        provider_disables=disables,
+        routing_context=context,
     )
 
 
@@ -53,6 +58,7 @@ def resolve_effective_default_provider_model_with_effort(
     *,
     consume: bool = False,
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> tuple[str, str, str | None]:
     """Resolve the effective launch default including alias-borne effort."""
     provider, model, effort, _alias_trail = (
@@ -61,6 +67,7 @@ def resolve_effective_default_provider_model_with_effort(
             model_alias_overrides,
             consume=consume,
             provider_disables=provider_disables,
+            routing_context=routing_context,
         )
     )
     return provider, model, effort
@@ -72,12 +79,12 @@ def resolve_effective_default_provider_model_with_trail(
     *,
     consume: bool = False,
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> tuple[str, str, str | None, tuple[str, ...]]:
     """Resolve the effective launch default including alias-hop provenance."""
-    disables = (
-        get_active_provider_disables()
-        if provider_disables is None
-        else provider_disables
+    context = resolve_provider_routing_context(
+        provider_disables=provider_disables,
+        routing_context=routing_context,
     )
     from .model_launch_settings import resolve_default_launch_provider_model_with_trail
 
@@ -85,5 +92,5 @@ def resolve_effective_default_provider_model_with_trail(
         model_tier,
         model_alias_overrides,
         consume=consume,
-        provider_disables=disables,
+        routing_context=context,
     )

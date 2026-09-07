@@ -39,6 +39,23 @@ dispatch:
     enabled_providers: []
   request_timeout_seconds: 5
   status_cache_seconds: 60
+  federation_worker:
+    enabled: true
+    # Worker command override, parsed without a shell. Empty string uses
+    # packaged-worker and linked-core development discovery.
+    command: ""
+    # State directory passed to the worker as SASE home. Empty string uses the
+    # runtime default.
+    sase_home: ""
+    # Host-local runtime directory and socket override. Empty strings derive
+    # from SASE home plus the current host identity.
+    run_root: ""
+    socket_path: ""
+    idle_timeout_seconds: 300
+    startup_timeout_seconds: 5
+    request_timeout_seconds: 5
+    max_frame_bytes: 1048576
+  remote_hosts: []
 
 # Host-wide cap on concurrently occupied runner slots. A running sase
 # agent holds one slot while any of its shells is live: a standalone
@@ -152,25 +169,6 @@ mobile_gateway:
   push_timeout_seconds: 5
   push_retry_limit: 1
   startup_timeout_seconds: 10
-
-dispatch:
-  federation_worker:
-    enabled: true
-    # Worker command override, parsed without a shell. Empty string uses
-    # packaged-worker and linked-core development discovery.
-    command: ""
-    # State directory passed to the worker as SASE home. Empty string uses the
-    # runtime default.
-    sase_home: ""
-    # Host-local runtime directory and socket override. Empty strings derive
-    # from SASE home plus the current host identity.
-    run_root: ""
-    socket_path: ""
-    idle_timeout_seconds: 300
-    startup_timeout_seconds: 5
-    request_timeout_seconds: 5
-    max_frame_bytes: 1048576
-  remote_hosts: []
 
 ace:
   repro_output_dir: ""

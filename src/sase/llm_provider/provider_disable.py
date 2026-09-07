@@ -65,13 +65,13 @@ class TemporaryProviderDisable:
             raise ProviderDisableStateError(
                 f"unsupported provider-disable wire version: {version!r}"
             )
-        if not _is_provider_id(provider):
+        if not is_provider_id(provider):
             raise ProviderDisableStateError(f"invalid provider id: {provider!r}")
-        if not _is_finite_number(created_at) or float(created_at) <= 0.0:
+        if not is_finite_number(created_at) or float(created_at) <= 0.0:
             raise ProviderDisableStateError(
                 "created_at must be a finite positive number"
             )
-        if expires_at is not None and not _is_finite_number(expires_at):
+        if expires_at is not None and not is_finite_number(expires_at):
             raise ProviderDisableStateError(
                 "expires_at must be a finite number or null"
             )
@@ -163,7 +163,7 @@ def get_active_provider_disable(
     now: float | None = None,
 ) -> TemporaryProviderDisable | None:
     """Return the active disable for *provider*, or ``None`` if absent."""
-    if not _is_provider_id(provider):
+    if not is_provider_id(provider):
         return None
     return get_active_provider_disables(now).get(provider)
 
@@ -177,7 +177,7 @@ def disable_provider(
     now: float | None = None,
 ) -> TemporaryProviderDisable:
     """Disable a registered provider for a relative duration or until cleared."""
-    provider = _require_registered_provider(provider)
+    provider = require_registered_provider(provider)
     mode = _require_mode(mode)
     binding = require_rust_binding("provider_disable_set_relative")
     payload: Any = binding(
@@ -200,7 +200,7 @@ def disable_provider_until(
     now: float | None = None,
 ) -> TemporaryProviderDisable:
     """Disable a registered provider until an exact Unix timestamp."""
-    provider = _require_registered_provider(provider)
+    provider = require_registered_provider(provider)
     mode = _require_mode(mode)
     binding = require_rust_binding("provider_disable_set_until")
     payload: Any = binding(
@@ -228,7 +228,7 @@ def try_disable_provider(
     active disable is left unchanged, including its ``created_at``, expiry,
     source, and mode.
     """
-    provider = _require_registered_provider(provider)
+    provider = require_registered_provider(provider)
     mode = _require_mode(mode)
     binding = require_rust_binding("provider_disable_try_set_relative")
     payload: Any = binding(
@@ -251,7 +251,7 @@ def try_disable_provider_until(
     now: float | None = None,
 ) -> ProviderDisableWriteOutcome:
     """Disable *provider* until *expires_at* only when no active record exists."""
-    provider = _require_registered_provider(provider)
+    provider = require_registered_provider(provider)
     mode = _require_mode(mode)
     binding = require_rust_binding("provider_disable_try_set_until")
     payload: Any = binding(
@@ -271,7 +271,7 @@ def enable_provider(provider: str) -> bool:
     Clearing validates only provider-id syntax so state remains clearable after
     a provider plugin is uninstalled.
     """
-    provider = _require_provider_id(provider)
+    provider = require_provider_id(provider)
     binding = require_rust_binding("provider_disable_clear")
     return bool(binding(str(sase_home()), provider))
 
@@ -317,8 +317,8 @@ def _snapshot_from_wire(payload: object) -> dict[str, TemporaryProviderDisable]:
     return result
 
 
-def _require_registered_provider(provider: str) -> str:
-    provider = _require_provider_id(provider)
+def require_registered_provider(provider: str) -> str:
+    provider = require_provider_id(provider)
     from .registry import registered_provider_names
 
     registered = registered_provider_names()
@@ -330,10 +330,10 @@ def _require_registered_provider(provider: str) -> str:
     return provider
 
 
-def _require_provider_id(provider: object) -> str:
+def require_provider_id(provider: object) -> str:
     if not isinstance(provider, str):
         raise ValueError("provider must be a string")
-    if not _is_provider_id(provider):
+    if not is_provider_id(provider):
         raise ValueError("provider must be a non-empty provider id")
     return provider
 
@@ -346,7 +346,7 @@ def _require_mode(mode: str) -> str:
     return mode
 
 
-def _is_provider_id(value: object) -> bool:
+def is_provider_id(value: object) -> bool:
     return (
         isinstance(value, str)
         and bool(value)
@@ -355,7 +355,7 @@ def _is_provider_id(value: object) -> bool:
     )
 
 
-def _is_finite_number(value: object) -> bool:
+def is_finite_number(value: object) -> bool:
     return (
         not isinstance(value, bool)
         and isinstance(value, (int, float))
@@ -376,6 +376,10 @@ __all__ = [
     "enable_provider",
     "get_active_provider_disable",
     "get_active_provider_disables",
+    "is_finite_number",
+    "is_provider_id",
+    "require_provider_id",
+    "require_registered_provider",
     "try_disable_provider",
     "try_disable_provider_until",
 ]

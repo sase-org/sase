@@ -23,6 +23,7 @@ from sase.agent.launch_guard import (
 )
 from sase.llm_provider.provider_disable import TemporaryProviderDisable
 from sase.llm_provider.provider_disable_peek import peek_active_provider_disables
+from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 
 _DISABLED_STYLE = "#FFAF5F"
 _PROMPT_PREVIEW_WIDTH = 64
@@ -121,7 +122,10 @@ def _unavailable_note(
     alias = directives.model_alias
     if not alias:
         return None
-    details = model_alias_selector_details(alias, provider_disables=snapshot)
+    routing_context = peek_provider_routing_context(
+        provider_disables=dict(snapshot) if snapshot is not None else None
+    )
+    details = model_alias_selector_details(alias, routing_context=routing_context)
     if details is None or not details.members:
         return None
     blocked = set(unit.blocking_providers)

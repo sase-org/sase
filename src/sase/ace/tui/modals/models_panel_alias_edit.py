@@ -54,6 +54,7 @@ from .models_panel_selector_builder import SelectorBuilderModal
 
 if TYPE_CHECKING:
     from textual.screen import ModalScreen as _MixinBase
+    from .models_panel_provider_state import ProviderRoutingSnapshot
 else:
     _MixinBase = object
 
@@ -73,6 +74,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         _views: list[AliasView]
         _effort_snapshot: EffectiveDefaultEffortSnapshot
         _provider_disables: dict[str, TemporaryProviderDisable]
+        _provider_snapshot: ProviderRoutingSnapshot
 
         def _selected_row(
             self,
@@ -145,13 +147,22 @@ class ModelsPanelAliasEditMixin(_MixinBase):
             target_alias=key,
             operation="persistent",
         )
+        routing_context = self._provider_snapshot.routing_context
+        provider_disables = None
+        if (
+            routing_context is None
+            or dict(routing_context.provider_disables) != self._provider_disables
+        ):
+            routing_context = None
+            provider_disables = self._provider_disables
         self.app.push_screen(
             ModelPickerModal(
                 title=f"Edit Model — {self._pending_edit_target_label}",
                 include_default_option=False,
                 alias_context=self._pending_alias_selection,
                 include_selector_option=isinstance(row, AliasView),
-                provider_disables=self._provider_disables,
+                provider_disables=provider_disables,
+                routing_context=routing_context,
             ),
             callback=self._on_edit_model_picked,
         )
@@ -246,7 +257,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
                     alias_context=selection,
                     effort_snapshot=self._effort_snapshot,
                     now=self._models_panel_now(),
-                    provider_disables=self._provider_disables,
+                    routing_context=self._provider_snapshot.routing_context,
                 ),
                 callback=self._on_selector_built,
             )

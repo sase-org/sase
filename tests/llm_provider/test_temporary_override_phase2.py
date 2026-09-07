@@ -19,10 +19,23 @@ from sase.llm_provider.temporary_override import (
     set_alias_override,
     set_temporary_override,
 )
+from sase.llm_provider.provider_priority import ProviderRoutingContext
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions
 from sase.xprompt.directives import PromptDirectives
 
 _NO_EFFORT = LLMInvocationOptions(reasoning_effort=None, explicit=False)
+
+
+def _assert_get_provider_called_once(
+    mock_get_provider: MagicMock,
+    provider: str,
+) -> None:
+    mock_get_provider.assert_called_once()
+    assert mock_get_provider.call_args.args == (provider,)
+    assert isinstance(
+        mock_get_provider.call_args.kwargs.get("routing_context"),
+        ProviderRoutingContext,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +104,7 @@ def test_invoke_agent_applies_active_override(
     invoke_agent("prompt", agent_type="test", suppress_output=True)
 
     # provider_name resolved from override
-    mock_get_provider.assert_called_once_with("codex")
+    _assert_get_provider_called_once(mock_get_provider, "codex")
     # model_override threaded through to provider.invoke()
     mock_provider.invoke.assert_called_once_with(
         "preprocessed prompt",
@@ -146,7 +159,7 @@ def test_invoke_agent_applies_nondefault_alias_override_effort(
     set_alias_override("medium", "codex/o3@medium", 3600.0, source="test")
     invoke_agent("prompt", agent_type="test", suppress_output=True)
 
-    mock_get_provider.assert_called_once_with("codex")
+    _assert_get_provider_called_once(mock_get_provider, "codex")
     mock_provider.invoke.assert_called_once_with(
         "preprocessed prompt",
         model_tier="large",
@@ -177,7 +190,7 @@ def test_invoke_agent_prompt_directive_beats_override(
     invoke_agent("prompt", agent_type="test", suppress_output=True)
 
     # Resolved from %model directive, NOT from override.
-    mock_get_provider.assert_called_once_with("claude")
+    _assert_get_provider_called_once(mock_get_provider, "claude")
     mock_provider.invoke.assert_called_once_with(
         "preprocessed",
         model_tier="large",
@@ -210,7 +223,7 @@ def test_invoke_agent_explicit_provider_name_beats_override(
     )
 
     # Caller's explicit provider preserved; no override model applied.
-    mock_get_provider.assert_called_once_with("claude")
+    _assert_get_provider_called_once(mock_get_provider, "claude")
     mock_provider.invoke.assert_called_once_with(
         "preprocessed",
         model_tier="large",
@@ -266,7 +279,7 @@ def test_invoke_agent_expired_override_ignored(
     invoke_agent("prompt", agent_type="test", suppress_output=True)
 
     provider, model, effort = frozen_selector_provider_model_effort("large", 0)
-    mock_get_provider.assert_called_once_with(provider)
+    _assert_get_provider_called_once(mock_get_provider, provider)
     mock_provider.invoke.assert_called_once_with(
         "preprocessed",
         model_tier="large",

@@ -20,6 +20,7 @@ from sase.llm_provider.provider_disable import (
     enable_provider,
 )
 from sase.llm_provider import provider_disable_peek
+from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 
 from ._types import (
     PromptContext,
@@ -259,7 +260,9 @@ class LaunchProviderGuardMixin:
             ModelPickerModal(
                 title="Model for this agent",
                 include_default_option=False,
-                provider_disables=provider_disable_peek.peek_active_provider_disables(),
+                routing_context=peek_provider_routing_context(
+                    provider_disables=provider_disable_peek.peek_active_provider_disables()
+                ),
             ),
             on_picked,
         )

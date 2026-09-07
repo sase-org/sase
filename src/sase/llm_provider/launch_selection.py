@@ -26,6 +26,7 @@ from .model_alias_resolution_types import (
     resolved_target_is_available,
 )
 from .provider_disable import TemporaryProviderDisable, get_active_provider_disables
+from .provider_priority import ProviderRoutingContext, resolve_provider_routing_context
 from .types import ModelTier
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ __all__ = [
     "ALIAS_ORIGIN_DIRECTIVE",
     "ALIAS_ORIGIN_NONE",
     "LaunchSelection",
+    "get_active_provider_disables",
     "launch_selection_from_reservation",
     "reservation_from_launch_selection",
     "resolve_launch_selection",
@@ -81,6 +83,7 @@ def launch_selection_from_reservation(
     *,
     directives: PromptDirectives,
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> LaunchSelection | None:
     """Return the reserved selection when it still applies and is routable."""
     if not isinstance(reservation, Mapping):
@@ -108,11 +111,16 @@ def launch_selection_from_reservation(
     if not isinstance(alias_origin, str):
         return None
 
+    context = resolve_provider_routing_context(
+        provider_disables=provider_disables,
+        routing_context=routing_context,
+    )
+
     current = resolve_launch_selection(
         directives,
         directives.model_alias_overrides,
         consume=False,
-        provider_disables=provider_disables,
+        routing_context=context,
     )
     if current is None:
         return None
@@ -126,11 +134,11 @@ def launch_selection_from_reservation(
 
     available = resolved_target_is_available(
         target,
-        provider_disables=provider_disables,
+        routing_context=context,
     )
     state = resolved_target_availability(
         target,
-        provider_disables,
+        routing_context=context,
         available=available,
     )
     if state == MemberAvailability.UNAVAILABLE:
@@ -155,6 +163,7 @@ def resolve_launch_selection(
     provider_name: str | None = None,
     consume: bool,
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> LaunchSelection | None:
     """Resolve *directives* to a concrete provider/model/effort selection.
 
@@ -174,11 +183,10 @@ def resolve_launch_selection(
     from .registry import get_default_provider_name
 
     overrides = model_alias_overrides or None
-    disables = (
-        get_active_provider_disables()
-        if provider_disables is None
-        else provider_disables
-    ) or None
+    context = resolve_provider_routing_context(
+        provider_disables=provider_disables,
+        routing_context=routing_context,
+    )
     model_override = directives.model
     alias_effort: str | None = None
     alias_trail: tuple[str, ...] = ()
@@ -188,47 +196,25 @@ def resolve_launch_selection(
     if model_override and not provider_name:
         from .registry import resolve_model_provider_with_cursor
 
-        if disables is None:
-            (
-                resolved_provider,
-                model_override,
-                alias_effort,
-                alias_trail,
-                cursor_alias,
-            ) = resolve_model_provider_with_cursor(
-                model_override,
-                overrides,
-                consume=consume,
-                model_tier=model_tier,
-            )
-        else:
-            (
-                resolved_provider,
-                model_override,
-                alias_effort,
-                alias_trail,
-                cursor_alias,
-            ) = resolve_model_provider_with_cursor(
-                model_override,
-                overrides,
-                consume=consume,
-                model_tier=model_tier,
-                provider_disables=disables,
-            )
+        (
+            resolved_provider,
+            model_override,
+            alias_effort,
+            alias_trail,
+            cursor_alias,
+        ) = resolve_model_provider_with_cursor(
+            model_override,
+            overrides,
+            consume=consume,
+            model_tier=model_tier,
+            routing_context=context,
+        )
         if alias_trail:
             alias_origin = ALIAS_ORIGIN_DIRECTIVE
         if resolved_provider:
             provider_name = resolved_provider
-        elif disables is None:
-            provider_name = get_default_provider_name()
-            logger.warning(
-                "Model override %r did not resolve to an LLM provider; "
-                "falling back to default provider %r.",
-                directives.model,
-                provider_name,
-            )
         else:
-            provider_name = get_default_provider_name(provider_disables=disables)
+            provider_name = get_default_provider_name(routing_context=context)
             logger.warning(
                 "Model override %r did not resolve to an LLM provider; "
                 "falling back to default provider %r.",
@@ -249,7 +235,7 @@ def resolve_launch_selection(
             overrides,
             model_tier=model_tier,
             consume=consume,
-            provider_disables=disables,
+            routing_context=context,
         )
         return (
             snapshot.provider,

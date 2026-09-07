@@ -58,7 +58,20 @@ from .config import (
     resolve_model_alias_with_effort,
 )
 from .load_balancing import MemberAvailability
-from .provider_disable import TemporaryProviderDisable, get_active_provider_disables
+from .provider_disable import (
+    TemporaryProviderDisable,
+    get_active_provider_disables,
+    is_provider_id,
+)
+from .provider_priority import (
+    ProviderAvailability,
+    ProviderRoutingContext,
+    capture_provider_routing_context as _capture_provider_routing_context,
+    classify_provider_availability,
+    classify_provider_availability_many,
+    provider_availability_facts,
+    resolve_provider_routing_context,
+)
 from .types import ModelTier
 
 LLM_EXEC_PROVIDER_ENV = "SASE_LLM_EXEC_PROVIDER"
@@ -237,68 +250,112 @@ def capture_provider_disable_snapshot(
     return get_active_provider_disables(now)
 
 
+def capture_provider_routing_context(
+    now: float | None = None,
+) -> ProviderRoutingContext:
+    """Capture active provider disables and priority for one routing operation."""
+    return _capture_provider_routing_context(now)
+
+
 def provider_disable_for(
     provider_name: str | None,
     provider_disables: ProviderDisableSnapshot | None = None,
+    *,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> TemporaryProviderDisable | None:
     """Return the active disable for *provider_name*, if one is captured."""
     if not provider_name:
         return None
-    disables = (
-        capture_provider_disable_snapshot()
-        if provider_disables is None
-        else provider_disables
+    context = resolve_provider_routing_context(
+        provider_disables=provider_disables,
+        routing_context=routing_context,
     )
-    return disables.get(provider_name)
+    return context.provider_disables.get(provider_name)
+
+
+def provider_routing_facts(provider_name: str | None) -> dict[str, object]:
+    """Return the provider facts used by pure Rust routing classification."""
+    provider = (
+        provider_name
+        if isinstance(provider_name, str) and is_provider_id(provider_name)
+        else "unknown"
+    )
+    registered = bool(
+        provider_name
+        and provider == provider_name
+        and provider in registered_provider_names()
+    )
+    hidden = model_picker_hidden_provider_names()
+    return provider_availability_facts(
+        provider,
+        registered=registered,
+        user_facing=registered and provider not in hidden,
+        cli_available=registered and _provider_cli_available(provider),
+    )
+
+
+def provider_routing_availability(
+    provider_name: str | None,
+    provider_disables: ProviderDisableSnapshot | None = None,
+    *,
+    routing_context: ProviderRoutingContext | None = None,
+) -> ProviderAvailability:
+    """Return Rust-derived effective routing availability for *provider_name*."""
+    context = resolve_provider_routing_context(
+        provider_disables=provider_disables,
+        routing_context=routing_context,
+    )
+    return classify_provider_availability(
+        context, provider_routing_facts(provider_name)
+    )
 
 
 def provider_routing_available(
     provider_name: str | None,
     provider_disables: ProviderDisableSnapshot | None = None,
+    *,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> bool:
     """Return whether a provider can be used by automatic routing.
 
-    Returns ``False`` only for an unregistered provider, a provider with a
-    hard disable, or a provider whose CLI is missing. A soft-disabled
-    provider stays routable (deprioritized, not excluded) — see
-    :func:`_provider_routing_state` for the tri-state availability that
-    selectors use to prefer other members first.
+    Returns ``False`` only for providers classified as unavailable. Soft
+    disables and priority backups remain routable as ``SPARING``.
     """
-    if not provider_name or provider_name not in registered_provider_names():
-        return False
-    disable = provider_disable_for(provider_name, provider_disables)
-    if disable is not None and disable.is_hard:
-        return False
-    return _provider_cli_available(provider_name)
+    return (
+        provider_routing_availability(
+            provider_name,
+            provider_disables,
+            routing_context=routing_context,
+        ).availability
+        != MemberAvailability.UNAVAILABLE
+    )
 
 
 def _provider_routing_state(
     provider_name: str | None,
     provider_disables: ProviderDisableSnapshot | None = None,
+    *,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> MemberAvailability:
-    """Return the tri-state routing availability for *provider_name*.
-
-    ``UNAVAILABLE`` when :func:`provider_routing_available` is ``False``
-    (unregistered, hard-disabled, or CLI missing); ``SPARING`` when the
-    provider carries an active soft disable; otherwise ``PREFERRED``.
-    """
-    if not provider_routing_available(provider_name, provider_disables):
-        return MemberAvailability.UNAVAILABLE
-    disable = provider_disable_for(provider_name, provider_disables)
-    if disable is not None and disable.is_soft:
-        return MemberAvailability.SPARING
-    return MemberAvailability.PREFERRED
+    """Return the Rust-derived tri-state routing availability."""
+    return provider_routing_availability(
+        provider_name,
+        provider_disables,
+        routing_context=routing_context,
+    ).availability
 
 
 def build_provider_routing_statuses(
     provider_disables: ProviderDisableSnapshot | None = None,
+    *,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> tuple[ProviderRoutingStatus, ...]:
     """Return raw provider routing state for provider-management UI surfaces."""
-    disables = (
-        capture_provider_disable_snapshot()
-        if provider_disables is None
-        else provider_disables
+    context = resolve_provider_routing_context(
+        provider_disables=provider_disables,
+        routing_context=routing_context,
     )
+    disables = context.provider_disables
     payload = _llm_metadata_payload()
     providers = payload.get("providers")
     if not isinstance(providers, dict):
@@ -306,6 +363,11 @@ def build_provider_routing_statuses(
     hidden = model_picker_hidden_provider_names()
     model_counts = _provider_model_counts(payload)
     affected = _affected_aliases_by_provider()
+    facts = [provider_routing_facts(str(provider)) for provider in sorted(providers)]
+    availability = {
+        item.provider: item
+        for item in classify_provider_availability_many(context, facts)
+    }
     rows = [
         ProviderRoutingStatus(
             provider=provider,
@@ -314,6 +376,10 @@ def build_provider_routing_statuses(
             active_disable=disables.get(provider),
             hidden_from_model_pickers=provider in hidden,
             affected_aliases=affected.get(provider, ()),
+            availability=availability[provider].availability,
+            provenance=availability[provider].provenance,
+            priority=availability[provider].priority,
+            eligible_for_priority=availability[provider].eligible_for_priority,
         )
         for provider in sorted(str(name) for name in providers)
     ]
@@ -327,11 +393,17 @@ def _provider_model_counts(payload: Mapping[str, object]) -> dict[str, int]:
 def raise_if_provider_temporarily_disabled(
     provider_name: str | None,
     provider_disables: ProviderDisableSnapshot | None = None,
+    *,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> None:
     """Raise the explicit dispatch diagnostic for a disabled provider."""
     if not provider_name or provider_name not in registered_provider_names():
         return
-    disable = provider_disable_for(provider_name, provider_disables)
+    disable = provider_disable_for(
+        provider_name,
+        provider_disables,
+        routing_context=routing_context,
+    )
     if disable is not None and disable.is_hard:
         raise ProviderTemporarilyDisabledError(provider_name, disable)
 
@@ -340,6 +412,7 @@ def get_provider(
     name: str | None = None,
     *,
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> LLMProvider:
     """Get an instantiated LLM provider by name.
 
@@ -353,8 +426,15 @@ def get_provider(
         KeyError: If the provider name is not registered as an entry point.
     """
     if name is None:
-        name = get_default_provider_name(provider_disables=provider_disables)
-    raise_if_provider_temporarily_disabled(name, provider_disables)
+        name = get_default_provider_name(
+            provider_disables=provider_disables,
+            routing_context=routing_context,
+        )
+    raise_if_provider_temporarily_disabled(
+        name,
+        provider_disables,
+        routing_context=routing_context,
+    )
     return create_provider(name)
 
 
@@ -362,6 +442,7 @@ def resolve_execution_provider_name(
     requested_provider: str | None = None,
     *,
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> str:
     """Return the provider that should execute an invocation.
 
@@ -371,7 +452,8 @@ def resolve_execution_provider_name(
     choke point used for ordinary invocations.
     """
     requested = requested_provider or get_default_provider_name(
-        provider_disables=provider_disables
+        provider_disables=provider_disables,
+        routing_context=routing_context,
     )
     override = os.environ.get(LLM_EXEC_PROVIDER_ENV, "").strip()
     return override or requested
@@ -384,6 +466,7 @@ def resolve_model_provider(
     consume: bool = False,
     model_tier: ModelTier = "large",
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> tuple[str | None, str]:
     """Resolve a model override string to (provider_name, model_name).
 
@@ -408,6 +491,7 @@ def resolve_model_provider(
         consume=consume,
         model_tier=model_tier,
         provider_disables=provider_disables,
+        routing_context=routing_context,
     )
     return provider, model
 
@@ -419,6 +503,7 @@ def resolve_model_provider_with_effort(
     consume: bool = False,
     model_tier: ModelTier = "large",
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> tuple[str | None, str, str | None]:
     """Resolve a model override to provider/model plus alias-borne effort.
 
@@ -434,6 +519,7 @@ def resolve_model_provider_with_effort(
         consume=consume,
         model_tier=model_tier,
         provider_disables=provider_disables,
+        routing_context=routing_context,
     )
     return provider, model, effort
 
@@ -445,6 +531,7 @@ def _resolve_model_provider_with_trail(
     consume: bool = False,
     model_tier: ModelTier = "large",
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> tuple[str | None, str, str | None, tuple[str, ...]]:
     """Resolve a model override to provider/model/effort plus alias hops."""
     provider, model, effort, alias_trail, _cursor_alias = (
@@ -454,6 +541,7 @@ def _resolve_model_provider_with_trail(
             consume=consume,
             model_tier=model_tier,
             provider_disables=provider_disables,
+            routing_context=routing_context,
         )
     )
     return provider, model, effort, alias_trail
@@ -466,6 +554,7 @@ def resolve_model_provider_with_cursor(
     consume: bool = False,
     model_tier: ModelTier = "large",
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> tuple[str | None, str, str | None, tuple[str, ...], str | None]:
     """Resolve a model override plus the load-balanced cursor owner, if any."""
     resolved = resolve_model_alias_with_effort(
@@ -474,6 +563,7 @@ def resolve_model_provider_with_cursor(
         consume=consume,
         model_tier=model_tier,
         provider_disables=provider_disables,
+        routing_context=routing_context,
     )
     model_override = resolved.target
 
@@ -513,6 +603,7 @@ def resolve_model_provider_with_cursor(
 def get_configured_default_provider_name(
     *,
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> str:
     """Get the configured/autodetected provider without temporary overrides.
 
@@ -526,10 +617,9 @@ def get_configured_default_provider_name(
     if isinstance(provider, str) and provider:
         return provider
 
-    disables = (
-        capture_provider_disable_snapshot()
-        if provider_disables is None
-        else provider_disables
+    context = resolve_provider_routing_context(
+        provider_disables=provider_disables,
+        routing_context=routing_context,
     )
     candidates = _llm_metadata_payload().get("autodetect_candidates")
     if not isinstance(candidates, list):
@@ -540,7 +630,7 @@ def get_configured_default_provider_name(
         (MemberAvailability.PREFERRED, MemberAvailability.SPARING),
     ):
         for name in names:
-            if _provider_routing_state(name, disables) in accepted:
+            if _provider_routing_state(name, routing_context=context) in accepted:
                 return name
 
     raise RuntimeError(
@@ -552,6 +642,7 @@ def get_configured_default_provider_name(
 def get_default_provider_name(
     *,
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> str:
     """Get the effective default provider name.
 
@@ -575,15 +666,14 @@ def get_default_provider_name(
     # from this module's siblings via __init__.py.
     from .temporary_override import get_active_temporary_override
 
-    disables = (
-        capture_provider_disable_snapshot()
-        if provider_disables is None
-        else provider_disables
+    context = resolve_provider_routing_context(
+        provider_disables=provider_disables,
+        routing_context=routing_context,
     )
     override = get_active_temporary_override()
     if override is not None:
-        disable = provider_disable_for(override.provider, disables)
+        disable = provider_disable_for(override.provider, routing_context=context)
         if disable is None or not disable.is_hard:
             return override.provider
 
-    return get_configured_default_provider_name(provider_disables=disables)
+    return get_configured_default_provider_name(routing_context=context)

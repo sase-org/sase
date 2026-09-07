@@ -7,7 +7,6 @@ monkeypatch surface.
 
 from __future__ import annotations
 
-from . import model_alias_resolution_types as _resolution_types
 from .load_balancing import (
     fallback_availability_mask as fallback_availability_mask,
     pool_availability_mask as pool_availability_mask,
@@ -27,11 +26,20 @@ from .model_alias_resolution_types import (
     ProviderDisableSnapshot as ProviderDisableSnapshot,
     _ALIAS_RESOLUTION_DEPTH_LIMIT as _ALIAS_RESOLUTION_DEPTH_LIMIT,
     active_alias_overrides as active_alias_overrides,
+    capture_provider_routing_context as capture_provider_routing_context,
     normalize_model_alias_reference as normalize_model_alias_reference,
     provider_for_resolved_target as provider_for_resolved_target,
     resolve_default_alias_target as resolve_default_alias_target,
     resolved_target_availability as resolved_target_availability,
     resolved_target_is_available as resolved_target_is_available,
+    resolved_target_routing as resolved_target_routing,
+)
+from .provider_priority import (
+    capture_provider_routing_context as _rust_provider_routing_context,
+)
+from .provider_disable import (
+    get_active_provider_disables as _default_active_provider_disables,
 )
 
-_active_provider_disables = _resolution_types._active_provider_disables
+_active_provider_disables = _default_active_provider_disables
+_active_provider_routing_context = _rust_provider_routing_context

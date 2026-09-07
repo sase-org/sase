@@ -8,6 +8,7 @@ from textual.widgets._option_list import Option
 
 from sase.ace.tui.provider_styles import model_option_text, provider_header_text
 from sase.llm_provider.provider_disable import TemporaryProviderDisable
+from sase.llm_provider.provider_priority import ProviderRoutingContext
 
 from .model_picker_rows import (
     DEFAULT_SENTINEL,
@@ -170,6 +171,7 @@ def build_model_options(
     *,
     include_default_option: bool = True,
     provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> list[Option | None]:
     """Build the option list items grouped by provider.
 
@@ -183,5 +185,6 @@ def build_model_options(
         build_model_rows(
             include_default_option=include_default_option,
             provider_disables=provider_disables,
+            routing_context=routing_context,
         )
     )

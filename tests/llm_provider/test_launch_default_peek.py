@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 
 from sase.llm_provider import launch_default_peek
+from sase.llm_provider import provider_priority_peek
 from sase.llm_provider.load_balancing import (
     ModelAliasSelector,
     rotation_state_path,
@@ -17,6 +19,8 @@ from sase.llm_provider.model_launch_settings import (
     launch_model_setting_override_key,
 )
 from sase.llm_provider.provider_disable_peek import provider_disable_state_path
+from sase.llm_provider.provider_priority import PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION
+from sase.llm_provider.provider_priority_peek import provider_priority_state_path
 from sase.llm_provider.temporary_override_state import state_path as override_state_path
 
 
@@ -24,6 +28,18 @@ from sase.llm_provider.temporary_override_state import state_path as override_st
 def reset_token_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(launch_default_peek, "_token_cache_deadline", 0.0)
     monkeypatch.setattr(launch_default_peek, "_token_cache_value", ())
+    monkeypatch.setattr(provider_priority_peek, "_peek_cache_path", None)
+    monkeypatch.setattr(provider_priority_peek, "_peek_cache_token", None)
+    monkeypatch.setattr(
+        provider_priority_peek,
+        "_peek_cache_decode",
+        provider_priority_peek.ProviderPriorityDecode(
+            version=1,
+            priority=None,
+            diagnostics=(),
+        ),
+    )
+    monkeypatch.setattr(provider_priority_peek, "_peek_cache_deadline", 0.0)
 
 
 def test_token_is_stable_across_repeated_calls_when_nothing_changes() -> None:
@@ -89,6 +105,35 @@ def test_token_changes_when_provider_disable_state_file_changes() -> None:
     assert before != after
 
 
+def test_token_changes_when_provider_priority_state_file_changes() -> None:
+    before = launch_default_peek.peek_launch_default_change_token()
+
+    path = provider_priority_state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _write_priority(path, provider="codex", expires_at=None)
+    launch_default_peek._token_cache_deadline = 0.0
+
+    after = launch_default_peek.peek_launch_default_change_token()
+
+    assert before != after
+
+
+def test_token_changes_when_provider_priority_expires_without_rewrite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = provider_priority_state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _write_priority(path, provider="codex", expires_at=101.0)
+
+    monkeypatch.setattr(provider_priority_peek.time, "time", lambda: 100.0)
+    active = launch_default_peek.peek_launch_default_change_token()
+    launch_default_peek._token_cache_deadline = 0.0
+    monkeypatch.setattr(provider_priority_peek.time, "time", lambda: 101.0)
+    expired = launch_default_peek.peek_launch_default_change_token()
+
+    assert active != expired
+
+
 def test_stat_error_other_than_missing_degrades_to_sentinel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -101,3 +146,18 @@ def test_stat_error_other_than_missing_degrades_to_sentinel(
     token = launch_default_peek.peek_launch_default_change_token()
 
     assert token == launch_default_peek._TOKEN_ERROR_SENTINEL
+
+
+def _write_priority(path: Path, *, provider: str, expires_at: float | None) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "version": PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
+                "provider": provider,
+                "created_at": 1.0,
+                "expires_at": expires_at,
+                "source": "test",
+            }
+        ),
+        encoding="utf-8",
+    )

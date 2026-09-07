@@ -25,7 +25,7 @@ from .models_panel_provider_state import (
     ProviderRoutingSnapshot,
     ProviderWriteOutcome,
     active_disable,
-    provider_disable_route_key,
+    provider_routing_route_key,
 )
 from .models_panel_time import ResolvedOverrideUntil
 
@@ -175,7 +175,7 @@ class ProviderRoutingWorkersMixin(_MixinBase):
             self._snapshot_worker.cancel()
         provider = self._pending_provider
         mode = self._pending_mode
-        before = provider_disable_route_key(self._snapshot.provider_disables)
+        before = provider_routing_route_key(self._snapshot)
         previous = active_disable(
             self._snapshot.provider_disables.get(provider),
             now=self._now(),
@@ -224,9 +224,7 @@ class ProviderRoutingWorkersMixin(_MixinBase):
                         now=captured_now,
                     )
                 snapshot = self._load_snapshot()
-                changed = before != provider_disable_route_key(
-                    snapshot.provider_disables
-                )
+                changed = before != provider_routing_route_key(snapshot)
                 drain_preview, drain_preview_error = _provider_drain_preview(
                     provider,
                     mode=mode,

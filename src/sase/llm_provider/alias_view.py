@@ -43,7 +43,14 @@ from .config import (
     normalize_model_alias_reference,
 )
 from .load_balancing import ModelAliasSelectorMode
+from .load_balancing import MemberAvailability
 from .provider_disable import TemporaryProviderDisable
+from .provider_priority import (
+    ProviderAvailabilityProvenance,
+    ProviderRoutingContext,
+    TemporaryProviderPriority,
+    resolve_provider_routing_context,
+)
 from .temporary_override import TemporaryLLMOverride, get_active_alias_overrides
 
 #: The kind of an alias, used for badge styling and grouping.
@@ -110,6 +117,9 @@ class AliasView:
     selector_members: tuple[ModelAliasSelectorMember, ...] = ()
     effort: str | None = None
     override_paused_by_provider_disable: TemporaryProviderDisable | None = None
+    availability: MemberAvailability = MemberAvailability.PREFERRED
+    provenance: tuple[ProviderAvailabilityProvenance, ...] = ()
+    priority: TemporaryProviderPriority | None = None
 
     @property
     def is_overridden(self) -> bool:
@@ -328,6 +338,7 @@ def _effective_provider_model(
     name: str,
     override: TemporaryLLMOverride | None,
     provider_disables: Mapping[str, TemporaryProviderDisable],
+    routing_context: ProviderRoutingContext,
 ) -> tuple[str | None, str, str | None]:
     """Return the currently-effective provider, model, and effort for *name*.
 
@@ -349,7 +360,7 @@ def _effective_provider_model(
 
     return resolve_model_provider_with_effort(
         name,
-        provider_disables=provider_disables,
+        routing_context=routing_context,
     )
 
 
@@ -370,6 +381,7 @@ def build_alias_views(
     *,
     overrides: Mapping[str, TemporaryLLMOverride] | None = None,
     provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> list[AliasView]:
     """Aggregate every model alias into ordered, display-ready rows.
 
@@ -391,20 +403,19 @@ def build_alias_views(
     active_overrides = (
         get_active_alias_overrides(now) if overrides is None else overrides
     )
-    active_provider_disables: Mapping[str, TemporaryProviderDisable]
-    if provider_disables is None:
-        from .provider_disable import get_active_provider_disables
-
-        active_provider_disables = get_active_provider_disables(now)
-    else:
-        active_provider_disables = provider_disables
+    context = resolve_provider_routing_context(
+        provider_disables=provider_disables,
+        routing_context=routing_context,
+        now=now,
+    )
+    active_provider_disables = context.provider_disables
 
     views: list[AliasView] = []
     for name in names:
         override = active_overrides.get(name)
         selector = model_alias_selector_details(
             name,
-            provider_disables=active_provider_disables,
+            routing_context=context,
         )
         selected_member = (
             next((member for member in selector.members if member.selected), None)
@@ -420,6 +431,7 @@ def build_alias_views(
                 name,
                 override,
                 active_provider_disables,
+                context,
             )
         paused_disable = (
             active_provider_disables.get(override.provider)
@@ -428,6 +440,13 @@ def build_alias_views(
         )
         if paused_disable is not None and paused_disable.is_soft:
             paused_disable = None
+        from .registry import provider_routing_availability
+
+        routing = (
+            provider_routing_availability(provider, routing_context=context)
+            if provider is not None
+            else None
+        )
         views.append(
             AliasView(
                 name=name,
@@ -445,6 +464,13 @@ def build_alias_views(
                 selector_members=selector.members if selector is not None else (),
                 effort=effort,
                 override_paused_by_provider_disable=paused_disable,
+                availability=(
+                    routing.availability
+                    if routing is not None
+                    else MemberAvailability.PREFERRED
+                ),
+                provenance=routing.provenance if routing is not None else (),
+                priority=routing.priority if routing is not None else None,
             )
         )
 

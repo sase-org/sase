@@ -399,6 +399,12 @@ class _LaunchPaneBehavior(
     # points for downstream callers that imported the former monolithic module.
 
     def _load_alias_views(self) -> list[AliasView]:
+        routing_context = self._provider_snapshot.routing_context
+        if routing_context is not None:
+            return build_alias_views(
+                now=self._models_panel_now(),
+                routing_context=routing_context,
+            )
         return build_alias_views(
             now=self._models_panel_now(),
             provider_disables=self._provider_disables,

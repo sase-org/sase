@@ -18,6 +18,7 @@ from sase.ace.tui.modals.models_panel_provider_state import (
     ProviderRoutingSnapshot,
     load_provider_routing_snapshot,
 )
+from sase.llm_provider.provider_priority import provider_routing_context_from_parts
 from tests._models_panel_helpers import (
     ModelsPanelTestApp,
     make_alias_view,
@@ -76,20 +77,29 @@ def test_panel_sync_row_build_uses_captured_rows_without_provider_read(
 
 def test_provider_snapshot_worker_path_reads_authoritative_state(monkeypatch) -> None:
     disable = _disable("codex", expires_at=None)
-    provider_read = MagicMock(return_value={"codex": disable})
+    context = provider_routing_context_from_parts(
+        {"codex": disable},
+        None,
+        captured_at=100.0,
+    )
+    context_read = MagicMock(return_value=context)
     status_mock = MagicMock(return_value=(_status("codex", active_disable=disable),))
     view_mock = MagicMock(return_value=[make_alias_view("medium", "role")])
     color_mock = MagicMock(return_value={"codex": "#10A37F"})
-    monkeypatch.setattr(provider_state, "get_active_provider_disables", provider_read)
+    monkeypatch.setattr(
+        provider_state,
+        "capture_provider_routing_context",
+        context_read,
+    )
     monkeypatch.setattr(provider_state, "build_provider_routing_statuses", status_mock)
     monkeypatch.setattr(provider_state, "build_alias_views", view_mock)
     monkeypatch.setattr(provider_state, "provider_cli_status_color_map", color_mock)
 
     snapshot = load_provider_routing_snapshot(100.0)
 
-    provider_read.assert_called_once_with(100.0)
-    status_mock.assert_called_once_with({"codex": disable})
-    view_mock.assert_called_once_with(now=100.0, provider_disables={"codex": disable})
+    context_read.assert_called_once_with(100.0)
+    status_mock.assert_called_once_with(routing_context=context)
+    view_mock.assert_called_once_with(now=100.0, routing_context=context)
     color_mock.assert_called_once_with()
     assert snapshot.provider_disables == {"codex": disable}
 

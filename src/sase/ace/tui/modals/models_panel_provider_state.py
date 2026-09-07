@@ -13,12 +13,16 @@ from sase.bead.config import (
 )
 from sase.llm_provider import (
     AliasView,
+    ProviderRoutingContext,
     ProviderRoutingStatus,
     TemporaryProviderDisable,
+    TemporaryProviderPriority,
     build_alias_views,
     build_provider_routing_statuses,
-    get_active_provider_disables,
+    capture_provider_routing_context,
+    provider_priority_route_key,
 )
+from sase.llm_provider.provider_disable import get_active_provider_disables
 from sase.llm_provider.registry import provider_cli_status_color_map
 from sase.xprompt.effort import split_model_effort
 
@@ -42,6 +46,9 @@ class ProviderRoutingSnapshot:
     alias_views: tuple[AliasView, ...]
     provider_colors: Mapping[str, str]
     captured_at: float
+    routing_context: ProviderRoutingContext | None = None
+    provider_priority: TemporaryProviderPriority | None = None
+    routing_diagnostics: tuple[str, ...] = ()
     launch_model_rows: tuple[
         LaunchModelSettingRow | BigEpicPhaseThresholdSettingRow, ...
     ] = ()
@@ -79,18 +86,22 @@ def load_provider_routing_snapshot(
         if now is not None and math.isfinite(now) and now >= 0.0
         else _now()
     )
-    disables = get_active_provider_disables(captured_at)
-    statuses = build_provider_routing_statuses(disables)
-    views = tuple(build_alias_views(now=captured_at, provider_disables=disables))
+    routing_context = capture_provider_routing_context(captured_at)
+    disables = routing_context.provider_disables
+    statuses = build_provider_routing_statuses(routing_context=routing_context)
+    views = tuple(build_alias_views(now=captured_at, routing_context=routing_context))
     threshold = get_big_epic_phase_threshold()
     launch_rows = build_launch_model_setting_rows(
-        provider_disables=dict(disables),
+        routing_context=routing_context,
         big_epic_phase_threshold=threshold,
     )
     return ProviderRoutingSnapshot(
         statuses=statuses,
         provider_disables=dict(disables),
         alias_views=views,
+        routing_context=routing_context,
+        provider_priority=routing_context.priority,
+        routing_diagnostics=routing_context.diagnostics,
         launch_model_rows=launch_rows,
         big_epic_phase_threshold=threshold,
         provider_colors=provider_cli_status_color_map(),
@@ -130,7 +141,7 @@ def active_disable(
     return disable
 
 
-def provider_disable_route_key(
+def _provider_disable_route_key(
     disables: Mapping[str, TemporaryProviderDisable],
 ) -> tuple[tuple[str, float | None, str], ...]:
     """Return the routing-relevant shape of a provider-disable snapshot."""
@@ -139,6 +150,17 @@ def provider_disable_route_key(
             (provider, disable.expires_at, disable.mode)
             for provider, disable in disables.items()
         )
+    )
+
+
+def provider_routing_route_key(
+    snapshot: ProviderRoutingSnapshot,
+) -> tuple[object, ...]:
+    """Return the route-relevant shape of a provider-routing snapshot."""
+    return (
+        _provider_disable_route_key(snapshot.provider_disables),
+        provider_priority_route_key(snapshot.provider_priority),
+        snapshot.routing_diagnostics,
     )
 
 
@@ -185,3 +207,16 @@ def soft_explicit_provider_note(
         f"{provider.upper()} is soft-disabled "
         f"{remaining_label(disable, now=now)}; explicit targets still run"
     )
+
+
+__all__ = [
+    "ProviderRoutingSnapshot",
+    "ProviderWriteOutcome",
+    "active_disable",
+    "disabled_explicit_provider_message",
+    "get_active_provider_disables",
+    "load_provider_routing_snapshot",
+    "provider_routing_route_key",
+    "remaining_label",
+    "soft_explicit_provider_note",
+]

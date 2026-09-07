@@ -20,6 +20,7 @@ from .types import ModelTier
 if TYPE_CHECKING:
     from .model_alias_resolution import ModelAliasSelectorMember
     from .provider_disable import TemporaryProviderDisable
+    from .provider_priority import ProviderRoutingContext
     from .temporary_override_state import TemporaryLLMOverride
 
 
@@ -75,6 +76,7 @@ class LaunchModelSettingSnapshot:
     selector_members: tuple[ModelAliasSelectorMember, ...] = ()
     override_paused_by_provider_disable: TemporaryProviderDisable | None = None
     cursor_alias: str | None = None
+    routing_context: ProviderRoutingContext | None = None
 
 
 def get_default_model() -> str:
@@ -107,6 +109,7 @@ def launch_model_setting_alias(
     model_alias_overrides: Mapping[str, str] | None = None,
     *,
     provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> str | None:
     """Return the referenced alias that should be recorded for *field*, if any."""
     snapshot = build_launch_model_setting_snapshot(
@@ -114,6 +117,7 @@ def launch_model_setting_alias(
         model_alias_overrides,
         consume=False,
         provider_disables=provider_disables,
+        routing_context=routing_context,
     )
     return snapshot.referenced_alias
 
@@ -125,10 +129,11 @@ def build_launch_model_setting_snapshot(
     model_tier: ModelTier = "large",
     consume: bool = False,
     provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> LaunchModelSettingSnapshot:
     """Resolve one scalar launch model setting into a display/runtime snapshot."""
     from .launch_alias_overrides import active_launch_alias_overrides
-    from .provider_disable import get_active_provider_disables
+    from .provider_priority import resolve_provider_routing_context
     from .registry import (
         get_configured_default_provider_name,
         resolve_model_provider_with_effort,
@@ -139,17 +144,17 @@ def build_launch_model_setting_snapshot(
     from .model_alias_resolution import (
         ModelAliasSelectorMember,
         provider_for_resolved_target,
-        resolved_target_availability,
+        resolved_target_routing,
         resolved_target_is_available,
         resolve_model_alias_with_effort,
     )
 
     overrides = active_launch_alias_overrides(model_alias_overrides)
-    disables = (
-        get_active_provider_disables()
-        if provider_disables is None
-        else provider_disables
+    context = resolve_provider_routing_context(
+        provider_disables=provider_disables,
+        routing_context=routing_context,
     )
+    disables = context.provider_disables
     override_key = launch_model_setting_override_key(field)
     raw_value, provenance = _launch_model_field_value(field, overrides)
     override = get_active_alias_override(override_key)
@@ -168,11 +173,12 @@ def build_launch_model_setting_snapshot(
             referenced_alias=None,
             override_key=override_key,
             override=override,
+            routing_context=context,
         )
 
     referenced_alias, _alias_effort = normalize_model_alias_reference(raw_value)
     selector = (
-        model_alias_selector_details(referenced_alias, provider_disables=disables)
+        model_alias_selector_details(referenced_alias, routing_context=context)
         if referenced_alias is not None
         else None
     )
@@ -187,7 +193,7 @@ def build_launch_model_setting_snapshot(
                 overrides,
                 consume=consume,
                 model_tier=model_tier,
-                provider_disables=disables,
+                routing_context=context,
             )
         )
         selector_members = selector.members
@@ -202,7 +208,7 @@ def build_launch_model_setting_snapshot(
                     member,
                     overrides,
                     model_tier=model_tier,
-                    provider_disables=disables,
+                    routing_context=context,
                 )
                 for member in values
             ]
@@ -210,18 +216,21 @@ def build_launch_model_setting_snapshot(
                 member.valid
                 and resolved_target_is_available(
                     member.target,
-                    provider_disables=disables,
+                    routing_context=context,
                 )
                 for member in resolved_members
             ]
-            states = [
-                resolved_target_availability(
-                    member.target, disables, available=is_available
+            member_routing = [
+                resolved_target_routing(
+                    member.target,
+                    routing_context=context,
+                    available=is_available,
                 )
                 for member, is_available in zip(
                     resolved_members, availability, strict=True
                 )
             ]
+            states = [routing.availability for routing in member_routing]
             selected_index = select_model_alias_selector_index(
                 override_key,
                 raw_selector,
@@ -238,7 +247,7 @@ def build_launch_model_setting_snapshot(
                 overrides,
                 consume=False,
                 model_tier=model_tier,
-                provider_disables=disables,
+                routing_context=context,
             )
             effort = selected.effort
             alias_trail = selected.alias_trail
@@ -255,8 +264,13 @@ def build_launch_model_setting_snapshot(
                     valid=result.valid,
                     selected=index == selected_index,
                     weight=weight,
-                    sparing=state == MemberAvailability.SPARING,
+                    sparing=state.availability == MemberAvailability.SPARING,
                     last_resort=index >= pool_count,
+                    availability=state.availability,
+                    provenance=state.provenance,
+                    actual_disable=state.actual_disable,
+                    priority=state.priority,
+                    eligible_for_priority=state.eligible_for_priority,
                 )
                 for index, (value, result, available, weight, state) in enumerate(
                     zip(
@@ -264,7 +278,7 @@ def build_launch_model_setting_snapshot(
                         resolved_members,
                         availability,
                         weights,
-                        states,
+                        member_routing,
                         strict=True,
                     )
                 )
@@ -276,7 +290,7 @@ def build_launch_model_setting_snapshot(
                     overrides,
                     consume=consume,
                     model_tier=model_tier,
-                    provider_disables=disables,
+                    routing_context=context,
                 )
             )
     return LaunchModelSettingSnapshot(
@@ -284,7 +298,7 @@ def build_launch_model_setting_snapshot(
         config_path=f"llm_provider.{field}",
         raw_value=raw_value,
         provider=(
-            provider or get_configured_default_provider_name(provider_disables=disables)
+            provider or get_configured_default_provider_name(routing_context=context)
         ),
         model=model,
         effort=effort,
@@ -297,6 +311,7 @@ def build_launch_model_setting_snapshot(
         selector_members=selector_members,
         override_paused_by_provider_disable=paused_disable,
         cursor_alias=cursor_alias,
+        routing_context=context,
     )
 
 
@@ -306,6 +321,7 @@ def resolve_default_launch_provider_model(
     *,
     consume: bool = False,
     provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> tuple[str, str]:
     """Return the provider/model selected for a launch with no ``%model``."""
     provider, model, _effort = resolve_default_launch_provider_model_with_effort(
@@ -313,6 +329,7 @@ def resolve_default_launch_provider_model(
         model_alias_overrides,
         consume=consume,
         provider_disables=provider_disables,
+        routing_context=routing_context,
     )
     return provider, model
 
@@ -323,6 +340,7 @@ def resolve_default_launch_provider_model_with_effort(
     *,
     consume: bool = False,
     provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> tuple[str, str, str | None]:
     """Return provider/model/alias effort for a launch with no ``%model``."""
     provider, model, effort, _alias_trail = (
@@ -331,6 +349,7 @@ def resolve_default_launch_provider_model_with_effort(
             model_alias_overrides,
             consume=consume,
             provider_disables=provider_disables,
+            routing_context=routing_context,
         )
     )
     return provider, model, effort
@@ -342,6 +361,7 @@ def resolve_default_launch_provider_model_with_trail(
     *,
     consume: bool = False,
     provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> tuple[str, str, str | None, tuple[str, ...]]:
     """Return provider/model/effort plus alias hops for no-``%model`` launch."""
     snapshot = build_launch_model_setting_snapshot(
@@ -350,6 +370,7 @@ def resolve_default_launch_provider_model_with_trail(
         model_tier=model_tier,
         consume=consume,
         provider_disables=provider_disables,
+        routing_context=routing_context,
     )
     return snapshot.provider, snapshot.model, snapshot.effort, snapshot.alias_trail
 

@@ -3,13 +3,15 @@
 The launch default can move without any state this repo owns directly
 changing: a config edit to ``llm_provider.default_model`` or an alias
 definition, a load-balanced pool's rotation cursor advancing, a temporary
-override being set on the default-launch setting, or a provider disable
+override being set on the default-launch setting, provider priority, or a
+provider disable
 changing which pool members are available. Re-resolving the effective default
 on every timer tick would mean taking the pool-rotation lock and performing a
 self-cleaning override read from a Textual timer callback, which
 ``sase/memory/tui_perf.md`` forbids. This module instead answers a much
 cheaper question — "might the launch default have changed since the last
-resolve?" — using only ``os.stat`` and the already time-gated
+resolve?" — using ``os.stat``, cached priority decode, and the already
+time-gated
 :func:`sase.config.core.current_config_token`, so a caller can revalidate
 every tick and only pay for the real resolve when the token actually changes.
 
@@ -30,6 +32,7 @@ from sase.config.core import current_config_token
 
 from .load_balancing import rotation_state_path
 from .provider_disable_peek import provider_disable_state_path
+from .provider_priority_peek import peek_provider_priority_change_token
 from .temporary_override_state import state_path as temporary_override_state_path
 
 #: Minimum interval between filesystem metadata checks on display-only reads.
@@ -51,9 +54,10 @@ def peek_launch_default_change_token() -> tuple[object, ...]:
     Built from, in order: the current config token (covers
     ``llm_provider.default_model`` and alias-definition edits), the
     load-balanced pool rotation state file, the temporary-override state
-    file, and the provider-disable state file. Filesystem metadata is
-    checked at most once per short monotonic floor. Reads are ``os.stat``
-    only — no parsing, no locks.
+    file, the provider-disable state file, and the provider-priority state
+    plus active-priority route key. Filesystem metadata is checked at most
+    once per short monotonic floor. Reads never take routing-state locks or
+    perform self-cleaning writes.
     """
     global _token_cache_deadline, _token_cache_value  # noqa: PLW0603
 
@@ -70,6 +74,7 @@ def peek_launch_default_change_token() -> tuple[object, ...]:
                 _stat_token(rotation_state_path()),
                 _stat_token(temporary_override_state_path()),
                 _stat_token(provider_disable_state_path()),
+                peek_provider_priority_change_token(),
             )
         except Exception:  # noqa: BLE001 - display reads always degrade.
             token = _TOKEN_ERROR_SENTINEL

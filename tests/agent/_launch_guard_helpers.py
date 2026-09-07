@@ -61,6 +61,10 @@ def install_disables(
         _snapshot,
     )
     monkeypatch.setattr(
+        "sase.llm_provider.provider_priority_peek.peek_active_provider_priority",
+        lambda _now=None: None,
+    )
+    monkeypatch.setattr(
         "sase.llm_provider.launch_selection.get_active_provider_disables",
         _snapshot,
     )

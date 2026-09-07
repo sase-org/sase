@@ -17,6 +17,7 @@ from sase.llm_provider.config import (
 )
 from sase.llm_provider.model_launch_settings import LaunchModelField
 from sase.llm_provider.provider_disable import TemporaryProviderDisable
+from sase.llm_provider.provider_priority import ProviderRoutingContext
 
 ScalarSettingKind = Literal[
     "default_effort", "runner_limit", "big_epic_phase_threshold"
@@ -109,7 +110,8 @@ _LAUNCH_SETTING_ORDER: tuple[tuple[LaunchModelField, str], ...] = (
 
 def build_launch_model_setting_rows(
     *,
-    provider_disables: dict[str, TemporaryProviderDisable],
+    provider_disables: dict[str, TemporaryProviderDisable] | None = None,
+    routing_context: ProviderRoutingContext | None = None,
     big_epic_phase_threshold: int,
 ) -> tuple[LaunchModelSettingRow | BigEpicPhaseThresholdSettingRow, ...]:
     """Build display-ready launch-setting rows."""
@@ -129,10 +131,18 @@ def build_launch_model_setting_rows(
             field=field,
             label=label,
             detail=details[field],
-            snapshot=build_launch_model_setting_snapshot(
-                field,
-                consume=False,
-                provider_disables=provider_disables,
+            snapshot=(
+                build_launch_model_setting_snapshot(
+                    field,
+                    consume=False,
+                    routing_context=routing_context,
+                )
+                if routing_context is not None
+                else build_launch_model_setting_snapshot(
+                    field,
+                    consume=False,
+                    provider_disables=provider_disables or {},
+                )
             ),
         )
         for field, label in _LAUNCH_SETTING_ORDER

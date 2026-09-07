@@ -29,9 +29,16 @@ from sase.llm_provider.registry import (
 )
 from sase.llm_provider.provider_disable import (
     TemporaryProviderDisable,
-    get_active_provider_disables,
 )
-from sase.llm_provider.provider_disable_peek import peek_active_provider_disables
+from sase.llm_provider.provider_priority import (
+    ProviderAvailability,
+    ProviderRoutingContext,
+    classify_provider_availability,
+    provider_availability_facts,
+    resolve_provider_routing_context,
+)
+from sase.llm_provider.load_balancing import MemberAvailability
+from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
 
 #: Wire schema understood by existing Rust LSP versions. Alias metadata is
@@ -109,6 +116,7 @@ def build_model_completion_catalog(
     use_cache: bool = True,
     overrides: Mapping[str, TemporaryLLMOverride] | None = None,
     provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> list[_ModelCompletionEntry]:
     """Return ordered inline-completable ``%model`` values.
 
@@ -128,30 +136,35 @@ def build_model_completion_catalog(
         if use_cache:
             assert token is not None
             _CATALOG_CACHE = (token, tuple(entries))
-    disables = (
-        peek_active_provider_disables()
-        if provider_disables is None
-        else provider_disables
+    if routing_context is not None and provider_disables is not None:
+        raise ValueError("pass routing_context or provider_disables, not both")
+    context = (
+        peek_provider_routing_context()
+        if routing_context is None and provider_disables is None
+        else resolve_provider_routing_context(
+            routing_context=routing_context,
+            provider_disables=provider_disables,
+        )
     )
-    if disables:
-        entries = _apply_provider_disables(entries, disables, overrides=overrides)
+    if context.provider_disables or context.priority is not None:
+        entries = _apply_provider_routing(entries, context, overrides=overrides)
     elif overrides is not None:
         entries = _apply_alias_overrides(entries, overrides)
-    if overrides is None and not disables:
+    if overrides is None and not context.provider_disables and context.priority is None:
         return entries
     return entries
 
 
 def model_completion_catalog_payload() -> dict[str, object]:
     """Return the launch-time JSON snapshot materialized for the Rust LSP."""
-    provider_disables = get_active_provider_disables()
+    context = resolve_provider_routing_context()
     return {
         "schema_version": MODEL_COMPLETION_CATALOG_SCHEMA_VERSION,
         "entries": [
             _model_completion_entry_to_wire(entry)
             for entry in build_model_completion_catalog(
                 overrides={},
-                provider_disables=provider_disables,
+                routing_context=context,
             )
         ],
     }
@@ -235,34 +248,28 @@ def _apply_alias_overrides(
     return overlaid
 
 
-def _apply_provider_disables(
+def _apply_provider_routing(
     entries: list[_ModelCompletionEntry],
-    disables: Mapping[str, TemporaryProviderDisable],
+    routing_context: ProviderRoutingContext,
     *,
     overrides: Mapping[str, TemporaryLLMOverride] | None,
 ) -> list[_ModelCompletionEntry]:
-    """Drop hard-disabled concrete entries and refresh alias target metadata."""
-    hard_providers = {
-        provider for provider, disable in disables.items() if disable.is_hard
-    }
-    soft_providers = {
-        provider for provider, disable in disables.items() if disable.is_soft
-    }
-    filtered = [
-        replace(entry, provenance="soft")
-        if (entry.kind in {"model", "provider"} and entry.provider in soft_providers)
-        else entry
-        for entry in entries
-        if not (
-            entry.provider in hard_providers and entry.kind in {"model", "provider"}
-        )
-    ]
+    """Drop unavailable concrete entries and refresh alias target metadata."""
+    filtered: list[_ModelCompletionEntry] = []
+    for entry in entries:
+        if entry.kind not in {"model", "provider"}:
+            filtered.append(entry)
+            continue
+        routing = _completion_provider_routing(entry.provider, routing_context)
+        if routing.availability == MemberAvailability.UNAVAILABLE:
+            continue
+        filtered.append(replace(entry, provenance=_completion_provenance(routing)))
     try:
         alias_views = {
             view.name: view
             for view in build_alias_views(
                 overrides=overrides or {},
-                provider_disables=disables,
+                routing_context=routing_context,
             )
         }
     except Exception:  # noqa: BLE001 - keep concrete filtering if aliases fail.
@@ -283,6 +290,12 @@ def _apply_provider_disables(
         provenance = "configured" if view.configured else "implicit"
         if view.override is not None:
             provenance = "override_paused" if view.is_override_paused else "override"
+        elif "actual_soft_disable" in view.provenance:
+            provenance = "soft"
+        elif "priority" in view.provenance:
+            provenance = "priority"
+        elif "priority_backup" in view.provenance:
+            provenance = "backup"
         overlaid.append(
             replace(
                 entry,
@@ -300,6 +313,34 @@ def _apply_provider_disables(
             )
         )
     return overlaid
+
+
+def _completion_provider_routing(
+    provider: str,
+    routing_context: ProviderRoutingContext,
+) -> ProviderAvailability:
+    """Classify a catalog provider without folding in CLI availability."""
+    return classify_provider_availability(
+        routing_context,
+        provider_availability_facts(
+            provider,
+            registered=True,
+            user_facing=True,
+            cli_available=True,
+        ),
+    )
+
+
+def _completion_provenance(routing: ProviderAvailability) -> str:
+    """Return the compact completion label for provider routing provenance."""
+    provenance = routing.provenance
+    if "actual_soft_disable" in provenance:
+        return "soft"
+    if "priority" in provenance:
+        return "priority"
+    if "priority_backup" in provenance:
+        return "backup"
+    return ""
 
 
 def _build_static_catalog() -> list[_ModelCompletionEntry]:

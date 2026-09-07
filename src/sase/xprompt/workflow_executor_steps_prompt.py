@@ -111,13 +111,13 @@ class PromptStepMixin(PromptStepPrepareMixin):
         # when it still matches the effective routing directives; stale or
         # unavailable reservations fall back to inherited agent_meta, then a
         # fresh consuming resolution of default_model.
-        from sase.llm_provider.provider_disable import get_active_provider_disables
+        from sase.llm_provider.provider_priority import resolve_provider_routing_context
 
-        provider_disables = get_active_provider_disables() or None
+        routing_context = resolve_provider_routing_context()
         launch_selection = resolve_prompt_step_launch_selection(
             self.artifacts_dir,
             directives=effective_directives,
-            provider_disables=provider_disables,
+            routing_context=routing_context,
         )
         step_model = launch_selection.model
         step_llm_provider = launch_selection.provider

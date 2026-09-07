@@ -188,6 +188,19 @@ REQUIRED_BINDINGS = (
     "provider_disable_try_set_relative",
     "provider_disable_try_set_until",
     "provider_disable_clear",
+    "provider_priority_wire_schema_version",
+    "provider_priority_get",
+    "provider_priority_peek",
+    "provider_priority_decode",
+    "provider_priority_set_relative",
+    "provider_priority_set_until",
+    "provider_priority_clear",
+    "provider_routing_context_wire_schema_version",
+    "provider_routing_context_get",
+    "provider_routing_context_from_parts",
+    "provider_availability_wire_schema_version",
+    "provider_availability_classify",
+    "provider_availability_classify_many",
     "finalizer_wire_schema_version",
     "validate_finalizer_provider_spec",
     "finalizer_provider_spec_digest",
@@ -1420,6 +1433,201 @@ def _expect_provider_disable_outcome(
     return True
 
 
+def _validate_provider_priority_routing_contract(module: ModuleType) -> bool:
+    """Prove priority classification and context-from-parts semantics."""
+    required = (
+        "provider_priority_wire_schema_version",
+        "provider_routing_context_wire_schema_version",
+        "provider_availability_wire_schema_version",
+        "provider_routing_context_from_parts",
+        "provider_availability_classify",
+        "provider_availability_classify_many",
+    )
+    missing = [name for name in required if not callable(getattr(module, name, None))]
+    if missing:
+        _error(
+            "provider-priority routing bindings missing; cannot probe: "
+            + ", ".join(missing)
+        )
+        return False
+    try:
+        if module.provider_priority_wire_schema_version() != 1:
+            _error("provider-priority wire schema is not v1")
+            return False
+        if module.provider_routing_context_wire_schema_version() != 1:
+            _error("provider-routing context wire schema is not v1")
+            return False
+        if module.provider_availability_wire_schema_version() != 1:
+            _error("provider-availability wire schema is not v1")
+            return False
+    except Exception as exc:
+        _error(f"provider-priority schema probe failed: {exc}")
+        return False
+
+    now = 1_800_000_000.0
+    priority = _provider_priority_record("codex", now=now - 10.0, expires_at=now + 60.0)
+    try:
+        context = module.provider_routing_context_from_parts([], priority, now)
+        preferred = module.provider_availability_classify(
+            context, _provider_availability_facts("codex")
+        )
+        backup = module.provider_availability_classify(
+            context, _provider_availability_facts("claude")
+        )
+        batch = module.provider_availability_classify_many(
+            context,
+            [
+                _provider_availability_facts("codex"),
+                _provider_availability_facts("claude"),
+            ],
+        )
+        soft_context = module.provider_routing_context_from_parts(
+            [_provider_disable_record("claude", now=now - 20.0, mode="soft")],
+            priority,
+            now,
+        )
+        soft_backup = module.provider_availability_classify(
+            soft_context, _provider_availability_facts("claude")
+        )
+        hard_context = module.provider_routing_context_from_parts(
+            [_provider_disable_record("codex", now=now - 20.0, mode="hard")],
+            priority,
+            now,
+        )
+        hard_priority = module.provider_availability_classify(
+            hard_context, _provider_availability_facts("codex")
+        )
+        expired_context = module.provider_routing_context_from_parts(
+            [],
+            _provider_priority_record(
+                "codex", now=now - 120.0, expires_at=now - 1.0
+            ),
+            now,
+        )
+    except Exception as exc:
+        _error(f"provider-priority routing probe failed: {exc}")
+        return False
+
+    if not _expect_provider_availability(
+        preferred,
+        provider="codex",
+        availability="preferred",
+        provenance=("priority",),
+        label="priority provider",
+    ):
+        return False
+    if not _expect_provider_availability(
+        backup,
+        provider="claude",
+        availability="sparing",
+        provenance=("priority_backup",),
+        label="priority backup",
+    ):
+        return False
+    if not isinstance(batch, list) or len(batch) != 2:
+        _error(f"provider-priority batch classify returned {batch!r}")
+        return False
+    if not _expect_provider_availability(
+        soft_backup,
+        provider="claude",
+        availability="sparing",
+        provenance=("actual_soft_disable", "priority_backup"),
+        label="soft priority backup",
+    ):
+        return False
+    if not _expect_provider_availability(
+        hard_priority,
+        provider="codex",
+        availability="unavailable",
+        provenance=("actual_hard_disable", "priority"),
+        label="hard-disabled priority",
+    ):
+        return False
+    if not isinstance(expired_context, dict) or expired_context.get("priority") is not None:
+        _error(
+            "provider-priority from-parts probe kept an expired priority: "
+            f"{expired_context!r}"
+        )
+        return False
+    return True
+
+
+def _provider_priority_record(
+    provider: str,
+    *,
+    now: float,
+    expires_at: float | None,
+) -> dict[str, object]:
+    return {
+        "version": 1,
+        "provider": provider,
+        "created_at": now,
+        "expires_at": expires_at,
+        "source": "validate_sase_core_rs",
+    }
+
+
+def _provider_disable_record(
+    provider: str,
+    *,
+    now: float,
+    mode: str,
+) -> dict[str, object]:
+    return {
+        "version": 2,
+        "provider": provider,
+        "created_at": now,
+        "expires_at": now + 600.0,
+        "source": "validate_sase_core_rs",
+        "mode": mode,
+    }
+
+
+def _provider_availability_facts(provider: str) -> dict[str, object]:
+    return {
+        "provider": provider,
+        "registered": True,
+        "user_facing": True,
+        "cli_available": True,
+    }
+
+
+def _expect_provider_availability(
+    payload: object,
+    *,
+    provider: str,
+    availability: str,
+    provenance: tuple[str, ...],
+    label: str,
+) -> bool:
+    if not isinstance(payload, dict):
+        _error(f"provider-priority {label} probe returned a non-dict payload")
+        return False
+    if payload.get("version") != 1:
+        _error(
+            f"provider-priority {label} probe returned stale availability version: "
+            f"{payload.get('version')!r}"
+        )
+        return False
+    expected = {
+        "provider": provider,
+        "availability": availability,
+        "provenance": list(provenance),
+    }
+    mismatches = [
+        f"{name}={payload.get(name)!r} (expected {value!r})"
+        for name, value in expected.items()
+        if payload.get(name) != value
+    ]
+    if mismatches:
+        _error(
+            f"provider-priority {label} probe returned stale fields: "
+            + "; ".join(mismatches)
+        )
+        return False
+    return True
+
+
 def _validate_axe_chop_guard_providers(
     module: ModuleType, *, schema_path: Path = _CONFIG_SCHEMA_PATH
 ) -> bool:
@@ -1596,6 +1804,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_axe_chop_guard_providers(module):
         return 1
     if not _validate_provider_disable_first_writer(module):
+        return 1
+    if not _validate_provider_priority_routing_contract(module):
         return 1
     return 0
 

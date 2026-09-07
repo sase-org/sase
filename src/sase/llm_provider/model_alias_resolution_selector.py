@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from sase.xprompt.effort import split_model_effort
 
@@ -23,12 +24,15 @@ from .model_alias_resolution_types import (
     ProviderDisableSnapshot,
     ResolvedModelAlias,
     _ALIAS_RESOLUTION_DEPTH_LIMIT,
-    capture_provider_disables,
+    capture_provider_routing_context,
     provider_for_resolved_target,
-    resolved_target_availability,
+    resolved_target_routing,
     resolved_target_is_available,
     target_is_available,
 )
+
+if TYPE_CHECKING:
+    from .provider_priority import ProviderAvailability, ProviderRoutingContext
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +63,7 @@ def model_alias_selector_details(
     name: str,
     *,
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> _ModelAliasSelectorDetails | None:
     """Return selector mode and resolved member details for alias *name*."""
     from . import config
@@ -67,17 +72,21 @@ def model_alias_selector_details(
     selector = _model_alias_selector(alias)
     if selector is None:
         return None
-    disables = capture_provider_disables(provider_disables)
+    context = capture_provider_routing_context(
+        provider_disables=provider_disables,
+        routing_context=routing_context,
+    )
+    disables = context.provider_disables
     values = concatenated_selector_members(selector)
     pool_count = len(selector.members)
     weights = selector.weights + (1,) * len(selector.fallback_members)
     resolved: list[
-        tuple[str, ResolvedModelAlias, str | None, bool, MemberAvailability]
+        tuple[str, ResolvedModelAlias, str | None, bool, ProviderAvailability]
     ] = []
     for value in values:
         result = resolve_model_alias_with_effort(
             value,
-            provider_disables=disables,
+            routing_context=context,
             initial_seen={alias},
             active_selector=alias,
         )
@@ -94,21 +103,24 @@ def model_alias_selector_details(
             availability_check,
             result.target,
             disables,
+            routing_context=context,
         )
-        state = resolved_target_availability(
-            result.target, disables, available=available
+        routing = resolved_target_routing(
+            result.target,
+            routing_context=context,
+            available=available,
         )
-        resolved.append((value, result, provider, available, state))
+        resolved.append((value, result, provider, available, routing))
 
     selected_index = select_model_alias_selector_index(
         alias,
         selector,
-        [item[4] for item in resolved],
+        [item[4].availability for item in resolved],
         consume=False,
     )
 
     members: list[ModelAliasSelectorMember] = []
-    for index, (value, result, provider, available, state) in enumerate(resolved):
+    for index, (value, result, provider, available, routing) in enumerate(resolved):
         members.append(
             ModelAliasSelectorMember(
                 value=value,
@@ -119,8 +131,13 @@ def model_alias_selector_details(
                 valid=result.valid,
                 selected=index == selected_index,
                 weight=weights[index],
-                sparing=state == MemberAvailability.SPARING,
+                sparing=routing.availability == MemberAvailability.SPARING,
                 last_resort=index >= pool_count,
+                availability=routing.availability,
+                provenance=routing.provenance,
+                actual_disable=routing.actual_disable,
+                priority=routing.priority,
+                eligible_for_priority=routing.eligible_for_priority,
             )
         )
     return _ModelAliasSelectorDetails(mode=selector.mode, members=tuple(members))

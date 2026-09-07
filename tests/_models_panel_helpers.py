@@ -21,6 +21,7 @@ from sase.llm_provider import (
 )
 from sase.llm_provider.config import ModelAliasSelectorMember
 from sase.llm_provider.load_balancing import ModelAliasSelectorMode
+from sase.llm_provider.provider_priority import provider_routing_context_from_parts
 
 _ROOT = Path(__file__).resolve().parents[1]
 
@@ -185,7 +186,14 @@ def patch_alias_views(
         models_panel_provider_state, "get_active_provider_disables", lambda *_: {}
     )
     monkeypatch.setattr(
-        models_panel_provider_state, "build_provider_routing_statuses", lambda *_: ()
+        models_panel_provider_state,
+        "capture_provider_routing_context",
+        lambda *_: provider_routing_context_from_parts({}, None, captured_at=0.000001),
+    )
+    monkeypatch.setattr(
+        models_panel_provider_state,
+        "build_provider_routing_statuses",
+        lambda *a, **k: (),
     )
     monkeypatch.setattr(
         models_panel_provider_state, "provider_cli_status_color_map", lambda: {}

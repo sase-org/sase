@@ -16,12 +16,19 @@ from sase.config.tmux_agent import (
     get_tmux_agent_config,
 )
 from sase.llm_provider import (
+    TemporaryProviderPriority,
     effective_default_effort_snapshot,
-    get_active_provider_disables,
 )
 from sase.llm_provider import registry as llm_registry
 from sase.llm_provider.config import get_llm_provider_config
-from sase.llm_provider.provider_disable import TemporaryProviderDisable
+from sase.llm_provider.provider_disable import (
+    TemporaryProviderDisable,
+    get_active_provider_disables,
+)
+from sase.llm_provider.provider_priority import (
+    PROVIDER_ROUTING_CONTEXT_WIRE_SCHEMA_VERSION,
+    ProviderRoutingContext,
+)
 
 from .cache import (
     CachedProvider,
@@ -38,6 +45,7 @@ from .models import TmuxAgentCatalog, TmuxAgentEntry
 
 ResolveExecutableFn = Callable[[str, str], str | None]
 DisablesFn = Callable[[float | None], Mapping[str, TemporaryProviderDisable]]
+_REAL_GET_ACTIVE_PROVIDER_DISABLES = get_active_provider_disables
 
 
 @dataclass(frozen=True)
@@ -85,7 +93,8 @@ def build_tmux_agent_catalog(
 def capture_catalog_snapshot() -> CatalogCachePayload:
     """Rebuild the slow-changing catalog half from live registry and config."""
     statuses = collect_agent_cli_statuses(offline=True)
-    rows, config, effort, configured = _resolved_rows(statuses, now=None)
+    resolved = cast("tuple[Any, ...]", _resolved_rows(statuses, now=None))
+    rows, config, effort, configured = resolved[:4]
     return CatalogCachePayload(
         fingerprint={},
         config=config,
@@ -105,7 +114,13 @@ def _catalog_from_cache(
 ) -> TmuxAgentCatalog:
     """Hydrate a catalog from cached metadata plus live PATH and disable probes."""
     probe = resolve_executable_fn or _probe_executable
-    disables = dict((disables_fn or get_active_provider_disables)(now))
+    if disables_fn is None:
+        context = _capture_catalog_routing_context(now)
+        disables = dict(context.provider_disables)
+        priority_provider = _active_priority_provider(context.priority)
+    else:
+        disables = dict(disables_fn(now))
+        priority_provider = None
     entries = [
         _cached_to_entry(
             item, executable=probe(item.provider, item.binary), disables=disables
@@ -115,7 +130,11 @@ def _catalog_from_cache(
     entries.sort(key=lambda entry: (entry.key or "￿", entry.provider))
     return TmuxAgentCatalog(
         entries=tuple(entries),
-        default_provider=_resolve_default_provider_from_cache(entries, payload),
+        default_provider=_resolve_default_provider_from_cache(
+            entries,
+            payload,
+            priority_provider=priority_provider,
+        ),
         directory=directory,
     )
 
@@ -126,12 +145,17 @@ def _build_catalog_from_statuses(
     statuses: Sequence[AgentCliStatus],
     now: float | None,
 ) -> TmuxAgentCatalog:
-    rows, _config, _effort, _configured = _resolved_rows(statuses, now=now)
+    rows, _config, _effort, _configured, priority_provider = _resolved_rows(
+        statuses, now=now
+    )
     entries = [_row_to_entry(row) for row in rows]
     entries.sort(key=lambda entry: (entry.key or "￿", entry.provider))
     return TmuxAgentCatalog(
         entries=tuple(entries),
-        default_provider=_resolve_default_provider(entries),
+        default_provider=_resolve_default_provider(
+            entries,
+            priority_provider=priority_provider,
+        ),
         directory=directory,
     )
 
@@ -145,6 +169,7 @@ def _resolved_rows(
     TmuxAgentConfig,
     str | None,
     str | None,
+    str | None,
 ]:
     """Resolve included providers from *statuses* plus registry and config."""
     status_by_name = {status.name: status for status in statuses}
@@ -153,7 +178,8 @@ def _resolved_rows(
     vendor_map = llm_registry.provider_vendor_map()
     color_map = llm_registry.provider_cli_status_color_map()
     hidden = llm_registry.model_picker_hidden_provider_names()
-    disables = get_active_provider_disables(now)
+    context = _capture_catalog_routing_context(now)
+    disables = context.provider_disables
     config = get_tmux_agent_config()
     provider_objs = cast(
         "dict[str, InvocationOptionProvider]", dict(llm_registry.iter_plugins())
@@ -232,7 +258,13 @@ def _resolved_rows(
                 autodetect_priority=priority if isinstance(priority, int) else None,
             )
         )
-    return rows, config, default_effort, configured
+    return (
+        rows,
+        config,
+        default_effort,
+        configured,
+        _active_priority_provider(context.priority),
+    )
 
 
 def _row_to_entry(row: _ResolvedProvider) -> TmuxAgentEntry:
@@ -317,7 +349,29 @@ def _probe_executable(provider: str, binary: str) -> str | None:
     return resolve_executable(path_override or binary)
 
 
-def _resolve_default_provider(entries: Sequence[TmuxAgentEntry]) -> str | None:
+def _capture_catalog_routing_context(now: float | None) -> ProviderRoutingContext:
+    if get_active_provider_disables is not _REAL_GET_ACTIVE_PROVIDER_DISABLES:
+        return ProviderRoutingContext(
+            version=PROVIDER_ROUTING_CONTEXT_WIRE_SCHEMA_VERSION,
+            captured_at=now if now is not None and now > 0.0 else 0.0,
+            provider_disables=dict(get_active_provider_disables(now)),
+            priority=None,
+            diagnostics=(),
+        )
+    return llm_registry.capture_provider_routing_context(now)
+
+
+def _active_priority_provider(
+    priority: TemporaryProviderPriority | None,
+) -> str | None:
+    return priority.provider if priority is not None else None
+
+
+def _resolve_default_provider(
+    entries: Sequence[TmuxAgentEntry],
+    *,
+    priority_provider: str | None = None,
+) -> str | None:
     """First of: the configured provider when installed; the highest-priority
     installed provider; the first installed entry in menu order; else None.
     """
@@ -328,6 +382,9 @@ def _resolve_default_provider(entries: Sequence[TmuxAgentEntry]) -> str | None:
     configured = get_llm_provider_config().get("provider")
     if isinstance(configured, str) and configured in installed:
         return configured
+
+    if priority_provider in installed:
+        return priority_provider
 
     provider_payloads = llm_registry.get_llm_metadata_payload().get("providers", {})
     prioritized = sorted(
@@ -350,12 +407,16 @@ def _resolve_default_provider(entries: Sequence[TmuxAgentEntry]) -> str | None:
 def _resolve_default_provider_from_cache(
     entries: Sequence[TmuxAgentEntry],
     payload: CatalogCachePayload,
+    *,
+    priority_provider: str | None = None,
 ) -> str | None:
     installed = [entry.provider for entry in entries if entry.installed]
     if not installed:
         return None
     if payload.configured_provider in installed:
         return payload.configured_provider
+    if priority_provider in installed:
+        return priority_provider
     by_name = {item.provider: item for item in payload.providers}
     prioritized = sorted(
         (

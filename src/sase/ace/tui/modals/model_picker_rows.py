@@ -9,7 +9,16 @@ from rich.text import Text
 from sase.ace.tui.provider_styles import provider_model_badge_markup
 from sase.llm_provider import AliasView
 from sase.llm_provider.config import normalize_model_alias_reference
+from sase.llm_provider.load_balancing import MemberAvailability
 from sase.llm_provider.provider_disable import TemporaryProviderDisable
+from sase.llm_provider.provider_priority import (
+    ProviderAvailability,
+    ProviderRoutingContext,
+    classify_provider_availability,
+    provider_availability_facts,
+    resolve_provider_routing_context,
+)
+from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 
 # Sentinel returned when user selects "Custom..."
 CUSTOM_SENTINEL = "__custom__"
@@ -67,6 +76,8 @@ class ModelPickerRow:
     advisory_label: str | None = None
     advisory_severity: str | None = None
     soft: bool = False
+    priority: bool = False
+    backup: bool = False
 
     @property
     def disabled(self) -> bool:
@@ -100,6 +111,8 @@ class ModelPickerRow:
                 self.disabled_reason,
                 self.advisory_label,
                 "soft" if self.soft else None,
+                "priority" if self.priority else None,
+                "backup" if self.backup else None,
             )
             if part
         )
@@ -246,17 +259,20 @@ def build_model_rows(
     alias_context: AliasSelectionContext | None = None,
     include_selector_option: bool = False,
     provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> list[ModelPickerRow]:
     """Build typed model-picker rows grouped by provider."""
-    active_provider_disables: Mapping[str, TemporaryProviderDisable]
-    if provider_disables is None:
-        from sase.llm_provider.provider_disable_peek import (
-            peek_active_provider_disables,
+    if routing_context is not None and provider_disables is not None:
+        raise ValueError("pass routing_context or provider_disables, not both")
+    context = (
+        peek_provider_routing_context()
+        if routing_context is None and provider_disables is None
+        else resolve_provider_routing_context(
+            routing_context=routing_context,
+            provider_disables=provider_disables,
         )
-
-        active_provider_disables = peek_active_provider_disables()
-    else:
-        active_provider_disables = provider_disables
+    )
+    active_provider_disables = context.provider_disables
     from sase.llm_provider.registry import (
         model_advisory_map,
         model_advisory_marker,
@@ -278,9 +294,16 @@ def build_model_rows(
         for provider, disable in active_provider_disables.items()
         if disable.is_soft
     }
+    provider_routing: dict[str, ProviderAvailability] = {}
     provider_models: dict[str, list[str]] = {}
     for model, provider in model_to_provider_map().items():
         if provider in hidden_providers or provider in hard_providers:
+            continue
+        routing = provider_routing.setdefault(
+            provider,
+            _picker_provider_routing(provider, context),
+        )
+        if routing.availability == MemberAvailability.UNAVAILABLE:
             continue
         provider_models.setdefault(provider, []).append(model)
 
@@ -296,9 +319,16 @@ def build_model_rows(
 
     for provider, models in provider_models.items():
         soft = provider in soft_providers
+        routing = provider_routing[provider]
+        priority = "priority" in routing.provenance
+        backup = "priority_backup" in routing.provenance
         header_label = f"  {provider.upper()}  {len(models)} models"
         if soft:
             header_label = f"{header_label}  soft"
+        elif priority:
+            header_label = f"{header_label}  priority"
+        elif backup:
+            header_label = f"{header_label}  backup"
         rows.append(
             ModelPickerRow(
                 kind="provider",
@@ -307,6 +337,8 @@ def build_model_rows(
                 provider=provider,
                 model_count=len(models),
                 soft=soft,
+                priority=priority,
+                backup=backup,
             )
         )
         for model in models:
@@ -336,6 +368,8 @@ def build_model_rows(
                         advisory.get("severity") if advisory_label else None
                     ),
                     soft=soft,
+                    priority=priority,
+                    backup=backup,
                 )
             )
 
@@ -358,3 +392,19 @@ def build_model_rows(
         )
     )
     return rows
+
+
+def _picker_provider_routing(
+    provider: str,
+    routing_context: ProviderRoutingContext,
+) -> ProviderAvailability:
+    """Classify picker rows without cold CLI checks during modal construction."""
+    return classify_provider_availability(
+        routing_context,
+        provider_availability_facts(
+            provider,
+            registered=True,
+            user_facing=True,
+            cli_available=True,
+        ),
+    )

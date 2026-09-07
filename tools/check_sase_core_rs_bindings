@@ -53,6 +53,9 @@ REQUIRED_BINDINGS = (
     "migration_tree_digest",
     "migration_wire_schema_version",
     "federation_worker_main",
+    "provider_availability_wire_schema_version",
+    "provider_priority_wire_schema_version",
+    "provider_routing_context_wire_schema_version",
 )
 
 

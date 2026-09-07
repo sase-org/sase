@@ -19,7 +19,7 @@ from .models_panel_provider_rendering import provider_title_line
 from .models_panel_provider_state import (
     ProviderRoutingSnapshot,
     load_provider_routing_snapshot,
-    provider_disable_route_key,
+    provider_routing_route_key,
 )
 from .models_panel_rows import (
     BigEpicPhaseThresholdSettingRow,
@@ -136,9 +136,17 @@ class ModelsPanelProvidersMixin(_MixinBase):
         """Refresh countdowns and reload once an expiry crosses."""
         self._update_context()
         now = self._models_panel_now()
-        if not any(
-            disable.expires_at is not None and now >= disable.expires_at
-            for disable in self._provider_disables.values()
+        priority = self._provider_snapshot.provider_priority
+        if not (
+            any(
+                disable.expires_at is not None and now >= disable.expires_at
+                for disable in self._provider_disables.values()
+            )
+            or (
+                priority is not None
+                and priority.expires_at is not None
+                and now >= priority.expires_at
+            )
         ):
             return
         worker = self._provider_snapshot_worker
@@ -174,9 +182,9 @@ class ModelsPanelProvidersMixin(_MixinBase):
         update_rows: bool = True,
         signal_changes: bool = False,
     ) -> None:
-        routing_changed = provider_disable_route_key(
-            self._provider_disables
-        ) != provider_disable_route_key(snapshot.provider_disables)
+        routing_changed = provider_routing_route_key(
+            self._provider_snapshot
+        ) != provider_routing_route_key(snapshot)
         current_highlight = (
             self._highlighted_row_id() if self.is_mounted else None  # type: ignore[attr-defined]
         )

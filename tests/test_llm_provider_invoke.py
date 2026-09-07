@@ -17,9 +17,25 @@ from sase.llm_provider.types import (
     LLMInvocationOptions,
 )
 from sase.llm_provider.preprocessing import _PreprocessResult
+from sase.llm_provider.provider_priority import ProviderRoutingContext
 from sase.xprompt.directives import PromptDirectives
 
 _NO_EFFORT = LLMInvocationOptions(reasoning_effort=None, explicit=False)
+
+
+def _assert_routing_context_kw(kwargs: dict[str, object]) -> ProviderRoutingContext:
+    context = kwargs.get("routing_context")
+    assert isinstance(context, ProviderRoutingContext)
+    return context
+
+
+def _assert_get_provider_called_once(
+    mock_get_provider: MagicMock,
+    provider: str,
+) -> ProviderRoutingContext:
+    mock_get_provider.assert_called_once()
+    assert mock_get_provider.call_args.args == (provider,)
+    return _assert_routing_context_kw(mock_get_provider.call_args.kwargs)
 
 
 @pytest.fixture(autouse=True)
@@ -223,7 +239,7 @@ def test_invoke_agent_execution_provider_override_preserves_requested_metadata(
             directives=PromptDirectives(model="opus"),
         )
 
-    get_provider.assert_called_once_with("fakey")
+    _assert_get_provider_called_once(get_provider, "fakey")
     submitted_prompt = provider.invoke.call_args.args[0]
     assert submitted_prompt == "prompt"
     assert (artifacts / "test_prompt.md").read_text(encoding="utf-8") == "prompt"
@@ -301,7 +317,7 @@ def test_invoke_agent_unknown_execution_provider_is_actionable(
             skip_preprocessing=True,
         )
 
-    get_provider.assert_called_once_with("missing-provider")
+    _assert_get_provider_called_once(get_provider, "missing-provider")
 
 
 @patch("sase.llm_provider._invoke.get_provider")
@@ -370,7 +386,7 @@ def test_invoke_agent_resolves_model_alias_for_provider_and_model(
         directives=PromptDirectives(model="other"),
     )
 
-    mock_get_provider.assert_called_once_with("claude")
+    _assert_get_provider_called_once(mock_get_provider, "claude")
     mock_provider.invoke.assert_called_once_with(
         "prompt",
         model_tier="large",
@@ -474,14 +490,13 @@ def test_invoke_agent_warns_when_model_override_falls_back_to_default_provider(
             directives=PromptDirectives(model="unregistered-model"),
         )
 
-    mock_resolve.assert_called_once_with(
-        "unregistered-model",
-        None,
-        consume=True,
-        model_tier="large",
-    )
-    mock_default_provider.assert_called_once_with()
-    mock_get_provider.assert_called_once_with("codex")
+    mock_resolve.assert_called_once()
+    assert mock_resolve.call_args.args == ("unregistered-model", None)
+    assert mock_resolve.call_args.kwargs["consume"] is True
+    assert mock_resolve.call_args.kwargs["model_tier"] == "large"
+    context = _assert_routing_context_kw(mock_resolve.call_args.kwargs)
+    mock_default_provider.assert_called_once_with(routing_context=context)
+    _assert_get_provider_called_once(mock_get_provider, "codex")
     mock_provider.invoke.assert_called_once_with(
         "prompt",
         model_tier="large",
@@ -519,7 +534,7 @@ def test_invoke_agent_no_directive_routes_through_configured_default_model(
 
     invoke_agent("prompt", agent_type="test", suppress_output=True)
 
-    mock_get_provider.assert_called_once_with("codex")
+    _assert_get_provider_called_once(mock_get_provider, "codex")
     mock_provider.invoke.assert_called_once_with(
         "preprocessed",
         model_tier="large",

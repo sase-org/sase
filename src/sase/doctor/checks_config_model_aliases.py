@@ -374,11 +374,17 @@ def check_config_model_aliases() -> DiagnosticCheck:
                     ]
                     if available_pool:
                         for member in pool_members:
-                            if member.sparing:
+                            if member.actual_soft_disabled:
                                 notes.append(
                                     f"{target_key} pool member '{member.value}' is "
                                     "soft-disabled and will be spared while another "
                                     "member is available"
+                                )
+                            elif member.priority_backup:
+                                notes.append(
+                                    f"{target_key} pool member '{member.value}' is "
+                                    "a provider-priority backup and will be spared "
+                                    "while the priority provider is available"
                                 )
                             elif not member.available:
                                 notes.append(

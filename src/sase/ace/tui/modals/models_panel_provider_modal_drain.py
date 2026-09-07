@@ -84,7 +84,7 @@ class ProviderRoutingDrainMixin(_MixinBase):
                 ModelPickerModal(
                     title=f"Relaunch {plan.provider.upper()} Agents On",
                     include_default_option=False,
-                    provider_disables=self._snapshot.provider_disables,
+                    routing_context=self._snapshot.routing_context,
                 ),
                 callback=lambda model: self._on_provider_drain_model(plan, model),
             )

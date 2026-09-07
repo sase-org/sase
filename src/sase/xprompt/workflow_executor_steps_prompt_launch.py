@@ -2,9 +2,11 @@
 
 import json
 import os
+from collections.abc import Mapping
 from typing import Any
 
 from sase.llm_provider.launch_selection import LaunchSelection
+from sase.llm_provider.provider_priority import ProviderRoutingContext
 from sase.xprompt.directives import PromptDirectives
 
 
@@ -73,19 +75,27 @@ def resolve_prompt_step_launch_selection(
     artifacts_dir: str,
     *,
     directives: PromptDirectives,
-    provider_disables: Any,
+    provider_disables: Any = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> LaunchSelection:
     """Pick reservation, then inherited agent meta, then default_model."""
     from sase.llm_provider.launch_selection import (
         launch_selection_from_reservation,
         resolve_launch_selection,
     )
+    from sase.llm_provider.provider_priority import resolve_provider_routing_context
 
+    if routing_context is None:
+        routing_context = resolve_provider_routing_context(
+            provider_disables=(
+                provider_disables if isinstance(provider_disables, Mapping) else None
+            )
+        )
     reservation = _read_model_alias_reservation(artifacts_dir)
     launch_selection = launch_selection_from_reservation(
         reservation,
         directives=directives,
-        provider_disables=provider_disables,
+        routing_context=routing_context,
     )
     if launch_selection is not None:
         _mark_model_alias_reservation_redeemed(artifacts_dir, reservation)
@@ -104,7 +114,7 @@ def resolve_prompt_step_launch_selection(
         directives,
         directives.model_alias_overrides,
         consume=True,
-        provider_disables=provider_disables,
+        routing_context=routing_context,
     )
     assert selection is not None
     return selection

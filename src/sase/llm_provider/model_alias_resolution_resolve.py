@@ -22,7 +22,7 @@ from .model_alias_resolution_types import (
     ProviderDisableSnapshot,
     ResolvedModelAlias,
     _ALIAS_RESOLUTION_DEPTH_LIMIT,
-    capture_provider_disables,
+    capture_provider_routing_context,
     resolved_target_availability,
     resolved_target_is_available,
     target_is_available,
@@ -31,6 +31,7 @@ from .types import ModelTier
 
 if TYPE_CHECKING:
     from .provider_disable import TemporaryProviderDisable
+    from .provider_priority import ProviderRoutingContext
 
 
 def _with_suspended_override(
@@ -47,7 +48,7 @@ def _with_suspended_override(
 
 def _selector_member_states(
     member_results: Sequence[ResolvedModelAlias],
-    disables: ProviderDisableSnapshot,
+    routing_context: ProviderRoutingContext,
 ) -> list[MemberAvailability]:
     from . import config
 
@@ -58,11 +59,12 @@ def _selector_member_states(
     return [
         resolved_target_availability(
             result.target,
-            disables,
+            routing_context=routing_context,
             available=target_is_available(
                 availability_check,
                 result.target,
-                disables,
+                routing_context.provider_disables,
+                routing_context=routing_context,
             ),
         )
         for result in member_results
@@ -74,12 +76,12 @@ def _pick_selector_member(
     alias: str,
     selector: ModelAliasSelector,
     member_results: Sequence[ResolvedModelAlias],
-    disables: ProviderDisableSnapshot,
+    routing_context: ProviderRoutingContext,
     consume: bool,
 ) -> ResolvedModelAlias | None:
     if any(not result.valid for result in member_results):
         return None
-    states = _selector_member_states(member_results, disables)
+    states = _selector_member_states(member_results, routing_context)
     index = select_model_alias_selector_index(
         alias,
         selector,
@@ -102,6 +104,7 @@ def _resolve_model_alias_result(
     consume: bool = False,
     model_tier: ModelTier = "large",
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
     initial_seen: set[str] | None = None,
     active_selector: str | None = None,
 ) -> ResolvedModelAlias:
@@ -116,7 +119,10 @@ def _resolve_model_alias_result(
     # re-calling the (cheap but cached-lookup-backed) accessors per step.
     role_fallbacks = role_alias_fallbacks()
     role_targets = implicit_alias_targets()
-    disables = capture_provider_disables(provider_disables)
+    context = capture_provider_routing_context(
+        provider_disables=provider_disables,
+        routing_context=routing_context,
+    )
     # Loaded lazily and shared by recursive member resolutions.
     overrides: dict[str, Any] | None = None
 
@@ -157,7 +163,7 @@ def _resolve_model_alias_result(
                 alias=owner,
                 selector=selector,
                 member_results=member_results,
-                disables=disables,
+                routing_context=context,
                 consume=consume,
             )
 
@@ -196,7 +202,7 @@ def _resolve_model_alias_result(
 
                     suspended_disable = provider_disable_for(
                         getattr(override, "provider", None),
-                        disables,
+                        routing_context=context,
                     )
                     if suspended_disable is not None and suspended_disable.is_hard:
                         underlying_target = aliases.get(bare)
@@ -324,6 +330,7 @@ def resolve_model_alias_with_effort(
     consume: bool = False,
     model_tier: ModelTier = "large",
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
     initial_seen: set[str] | None = None,
     active_selector: str | None = None,
 ) -> ResolvedModelAlias:
@@ -342,6 +349,7 @@ def resolve_model_alias_with_effort(
         consume=consume,
         model_tier=model_tier,
         provider_disables=provider_disables,
+        routing_context=routing_context,
         initial_seen=initial_seen,
         active_selector=active_selector,
     )
@@ -354,6 +362,7 @@ def resolve_model_alias(
     consume: bool = False,
     model_tier: ModelTier = "large",
     provider_disables: ProviderDisableSnapshot | None = None,
+    routing_context: ProviderRoutingContext | None = None,
 ) -> str:
     """Resolve a model alias to its concrete target string.
 
@@ -368,4 +377,5 @@ def resolve_model_alias(
         consume=consume,
         model_tier=model_tier,
         provider_disables=provider_disables,
+        routing_context=routing_context,
     ).target

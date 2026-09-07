@@ -325,11 +325,14 @@ def extract_directives_and_write_meta(
             reservation_from_launch_selection,
             resolve_launch_selection,
         )
+        from sase.llm_provider.provider_priority import resolve_provider_routing_context
 
+        routing_context = resolve_provider_routing_context()
         selection = resolve_launch_selection(
             directives,
             model_alias_overrides,
             consume=True,
+            routing_context=routing_context,
         )
         assert selection is not None
         agent_model = selection.model
@@ -342,6 +345,7 @@ def extract_directives_and_write_meta(
             agent_model_alias = launch_model_setting_alias(
                 DEFAULT_MODEL_FIELD,
                 model_alias_overrides,
+                routing_context=routing_context,
             )
         agent_model_alias_reservation = (
             reservation_from_launch_selection(

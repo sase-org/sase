@@ -247,6 +247,127 @@ def test_validate_sase_core_rs_requires_provider_disable_first_writer() -> None:
     assert not validator._validate_provider_disable_first_writer(stale)
 
 
+def test_validate_sase_core_rs_requires_provider_priority_routing() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {
+        "provider_priority_wire_schema_version",
+        "provider_priority_get",
+        "provider_priority_peek",
+        "provider_priority_decode",
+        "provider_priority_set_relative",
+        "provider_priority_set_until",
+        "provider_priority_clear",
+        "provider_routing_context_wire_schema_version",
+        "provider_routing_context_get",
+        "provider_routing_context_from_parts",
+        "provider_availability_wire_schema_version",
+        "provider_availability_classify",
+        "provider_availability_classify_many",
+    }
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+    module = _provider_priority_module()
+    assert validator._validate_provider_priority_routing_contract(module)
+
+    stale = _provider_priority_module()
+    stale.provider_availability_classify = lambda _context, facts: {
+        "version": 1,
+        "provider": facts["provider"],
+        "availability": "preferred",
+        "provenance": ["ordinary_available"],
+        "actual_disable": None,
+        "priority": None,
+        "eligible_for_priority": True,
+    }
+    assert not validator._validate_provider_priority_routing_contract(stale)
+
+
+def _provider_priority_module() -> SimpleNamespace:
+    def from_parts(
+        disables: list[dict[str, object]],
+        priority: dict[str, object] | None,
+        captured_at: float,
+    ) -> dict[str, object]:
+        active_priority = None
+        if priority is not None:
+            expires_at = priority.get("expires_at")
+            if expires_at is None or captured_at < float(expires_at):
+                active_priority = priority
+        return {
+            "version": 1,
+            "captured_at": captured_at,
+            "disables": disables,
+            "priority": active_priority,
+            "diagnostics": [],
+        }
+
+    def classify(
+        context: dict[str, object],
+        facts: dict[str, object],
+    ) -> dict[str, object]:
+        provider = str(facts["provider"])
+        disables = context.get("disables")
+        priority = context.get("priority")
+        actual_disable = None
+        if isinstance(disables, list):
+            actual_disable = next(
+                (
+                    record
+                    for record in disables
+                    if isinstance(record, dict) and record.get("provider") == provider
+                ),
+                None,
+            )
+        is_priority = (
+            isinstance(priority, dict) and priority.get("provider") == provider
+        )
+        if isinstance(actual_disable, dict) and actual_disable.get("mode") == "hard":
+            availability = "unavailable"
+            provenance = ["actual_hard_disable"]
+            if is_priority:
+                provenance.append("priority")
+        elif isinstance(actual_disable, dict) and actual_disable.get("mode") == "soft":
+            availability = "sparing"
+            provenance = ["actual_soft_disable"]
+            if is_priority:
+                provenance.append("priority")
+            elif priority is not None:
+                provenance.append("priority_backup")
+        elif is_priority:
+            availability = "preferred"
+            provenance = ["priority"]
+        elif priority is not None:
+            availability = "sparing"
+            provenance = ["priority_backup"]
+        else:
+            availability = "preferred"
+            provenance = ["ordinary_available"]
+        return {
+            "version": 1,
+            "provider": provider,
+            "availability": availability,
+            "provenance": provenance,
+            "actual_disable": actual_disable,
+            "priority": priority,
+            "eligible_for_priority": True,
+        }
+
+    return SimpleNamespace(
+        provider_priority_wire_schema_version=lambda: 1,
+        provider_routing_context_wire_schema_version=lambda: 1,
+        provider_availability_wire_schema_version=lambda: 1,
+        provider_routing_context_from_parts=from_parts,
+        provider_availability_classify=classify,
+        provider_availability_classify_many=lambda context, facts: [
+            classify(context, item) for item in facts
+        ],
+    )
+
+
 def test_validate_sase_core_rs_requires_vcs_log_wire_schema_four() -> None:
     validator = load_validate_sase_core_rs()
 

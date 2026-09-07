@@ -26,6 +26,7 @@ from sase.ace.tui.provider_styles import provider_model_badge_markup
 from sase.llm_provider import (
     AliasView,
     EffectiveDefaultEffortSnapshot,
+    ProviderRoutingContext,
     TemporaryProviderDisable,
 )
 from sase.llm_provider.config import (
@@ -43,6 +44,7 @@ from sase.llm_provider.model_alias_resolution import (
     resolved_target_availability,
     resolved_target_is_available,
 )
+from sase.llm_provider.provider_priority import resolve_provider_routing_context
 from sase.xprompt.effort import split_model_effort
 
 from .base import OptionListNavigationMixin
@@ -115,6 +117,7 @@ def _member_option(
     member: str,
     views_by_name: dict[str, AliasView],
     provider_disables: Mapping[str, TemporaryProviderDisable],
+    routing_context: ProviderRoutingContext,
     weight: int = 1,
     *,
     last_resort: bool = False,
@@ -134,11 +137,11 @@ def _member_option(
         )
         available = resolved_target_is_available(
             resolved_target,
-            provider_disables=provider_disables,
+            routing_context=routing_context,
         )
         state = resolved_target_availability(
             resolved_target,
-            provider_disables=provider_disables,
+            routing_context=routing_context,
             available=available,
         )
         text.append("  ")
@@ -183,6 +186,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         effort_snapshot: EffectiveDefaultEffortSnapshot,
         now: float,
         provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
+        routing_context: ProviderRoutingContext | None = None,
     ) -> None:
         super().__init__()
         self._alias = alias
@@ -190,7 +194,13 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         self._member_context = replace(alias_context, operation="member")
         self._effort_snapshot = effort_snapshot
         self._now = now
-        self._provider_disables = dict(provider_disables or {})
+        context = resolve_provider_routing_context(
+            provider_disables=provider_disables,
+            routing_context=routing_context,
+            now=now,
+        )
+        self._routing_context = context
+        self._provider_disables = dict(context.provider_disables)
         self._views_by_name = {view.name: view for view in alias_context.views}
         mode, members, weights, fallback_members = _seed_selector(current_value)
         self._mode: ModelAliasSelectorMode = mode
@@ -252,6 +262,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
                 member,
                 self._views_by_name,
                 self._provider_disables,
+                self._routing_context,
                 self._weights[index],
             )
             for index, member in enumerate(self._members)
@@ -262,6 +273,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
                 member,
                 self._views_by_name,
                 self._provider_disables,
+                self._routing_context,
                 last_resort=True,
                 display_index=index,
             )
@@ -339,7 +351,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
                 title=title,
                 include_default_option=False,
                 alias_context=self._member_context,
-                provider_disables=self._provider_disables,
+                routing_context=self._routing_context,
             ),
             callback=self._on_member_picked,
         )

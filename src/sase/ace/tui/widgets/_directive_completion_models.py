@@ -12,7 +12,7 @@ from sase.ace.tui.widgets._directive_completion_types import (
     ModelCompletionMetadata,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.llm_provider.provider_disable_peek import peek_active_provider_disables
+from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 from sase.llm_provider.temporary_override import peek_active_alias_overrides
 from sase.xprompt.model_completion import filter_model_completion_entries
 
@@ -77,7 +77,7 @@ def _build_model_arg_completion_candidates(
     entries = filter_model_completion_entries(
         catalog_builder(
             overrides=peek_active_alias_overrides(),
-            provider_disables=peek_active_provider_disables(),
+            routing_context=peek_provider_routing_context(),
         ),
         partial,
     )

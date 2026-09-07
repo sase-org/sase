@@ -15,6 +15,8 @@ from typing import Any
 
 from sase.llm_provider.provider_disable import TemporaryProviderDisable
 from sase.llm_provider.provider_disable_peek import peek_active_provider_disables
+from sase.llm_provider.provider_priority import ProviderRoutingContext
+from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 
 _LAUNCH_UNIT_KEYS = frozenset({"prompt", "template_group", "swarm_xprompts"})
 _REMEDY = "Enable it in Config > Launch (,m -> p) or choose another model."
@@ -135,7 +137,9 @@ def plan_launch_units(prompt: str) -> tuple[LaunchUnit, ...]:
     segment so a model-bearing ``%alt`` / ``%repeat`` cannot hide a blocked
     branch. Never consumes a load-balanced pool cursor.
     """
-    return _plan_launch_units(prompt, peek_active_provider_disables())
+    snapshot = peek_active_provider_disables()
+    context = peek_provider_routing_context(provider_disables=dict(snapshot))
+    return _plan_launch_units(prompt, context)
 
 
 def blocked_launch_units(
@@ -150,10 +154,11 @@ def blocked_launch_units(
     snapshot = peek_active_provider_disables()
     if not _snapshot_has_hard_disable(snapshot):
         return ()
+    context = peek_provider_routing_context(provider_disables=dict(snapshot))
     planned = (
-        _plan_launch_units_from_inputs(units, snapshot)
+        _plan_launch_units_from_inputs(units, context)
         if units is not None
-        else _plan_launch_units(prompt, snapshot)
+        else _plan_launch_units(prompt, context)
     )
     return tuple(unit for unit in planned if unit.blocked)
 
@@ -210,7 +215,7 @@ def _parse_launch_unit_entry(index: int, item: object) -> LaunchUnitInput:
 
 def _plan_launch_units(
     prompt: str,
-    snapshot: ProviderDisableSnapshot,
+    routing_context: ProviderRoutingContext,
 ) -> tuple[LaunchUnit, ...]:
     from sase.agent.multi_prompt import parse_multi_prompt
     from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
@@ -229,12 +234,12 @@ def _plan_launch_units(
         )
         for record in expanded_records
     ]
-    return _plan_launch_units_from_inputs(inputs, snapshot)
+    return _plan_launch_units_from_inputs(inputs, routing_context)
 
 
 def _plan_launch_units_from_inputs(
     units: Sequence[LaunchUnitInput],
-    snapshot: ProviderDisableSnapshot,
+    routing_context: ProviderRoutingContext,
 ) -> tuple[LaunchUnit, ...]:
     from sase.xprompt._parsing import (
         normalize_default_vcs_workflow,
@@ -256,7 +261,7 @@ def _plan_launch_units_from_inputs(
                 segment=segment,
                 template_group=unit.template_group,
                 swarm_xprompts=tuple(unit.swarm_xprompts),
-                snapshot=snapshot,
+                routing_context=routing_context,
             )
         )
     return tuple(planned)
@@ -269,10 +274,10 @@ def _unit_from_segment(
     segment: str,
     template_group: str | None,
     swarm_xprompts: tuple[str, ...],
-    snapshot: ProviderDisableSnapshot,
+    routing_context: ProviderRoutingContext,
 ) -> LaunchUnit:
     resolved: list[tuple[LaunchUnitCandidate, tuple[str, ...]]] = [
-        _resolve_candidate(slot_index, slot.prompt, snapshot)
+        _resolve_candidate(slot_index, slot.prompt, routing_context)
         for slot_index, slot in enumerate(_fanout_slots_for_segment(segment))
     ]
     candidates = tuple(item[0] for item in resolved)
@@ -283,7 +288,7 @@ def _unit_from_segment(
         template_group=template_group,
         swarm_xprompts=swarm_xprompts,
         candidates=candidates,
-        _blocking_disables=_collect_blocking_disables(resolved, snapshot),
+        _blocking_disables=_collect_blocking_disables(resolved, routing_context),
     )
 
 
@@ -317,7 +322,7 @@ def _fanout_slots_for_segment(segment: str) -> list[Any]:
 def _resolve_candidate(
     slot_index: int,
     prompt: str,
-    snapshot: ProviderDisableSnapshot,
+    routing_context: ProviderRoutingContext,
 ) -> tuple[LaunchUnitCandidate, tuple[str, ...]]:
     from sase.llm_provider.launch_selection import resolve_launch_selection
     from sase.llm_provider.registry import provider_routing_available
@@ -327,11 +332,11 @@ def _resolve_candidate(
     selection = resolve_launch_selection(
         directives,
         consume=False,
-        provider_disables=snapshot,
+        routing_context=routing_context,
     )
     provider = selection.provider if selection is not None else None
     model = selection.model if selection is not None else None
-    disable = snapshot.get(provider) if provider else None
+    disable = routing_context.provider_disables.get(provider) if provider else None
     blocked_by = disable if disable is not None and disable.is_hard else None
     unavailable = not provider_routing_available(provider, {})
     candidate = LaunchUnitCandidate(
@@ -354,7 +359,7 @@ def _resolve_candidate(
 
 def _collect_blocking_disables(
     resolved: Sequence[tuple[LaunchUnitCandidate, tuple[str, ...]]],
-    snapshot: ProviderDisableSnapshot,
+    routing_context: ProviderRoutingContext,
 ) -> tuple[TemporaryProviderDisable, ...]:
     found: dict[str, TemporaryProviderDisable] = {}
     for candidate, alias_names in resolved:
@@ -363,7 +368,7 @@ def _collect_blocking_disables(
         if candidate.blocked_by is None and not candidate.unavailable:
             continue
         for provider, disable in _exhausted_alias_disables(
-            alias_names, snapshot
+            alias_names, routing_context
         ).items():
             found.setdefault(provider, disable)
     return tuple(found.values())
@@ -371,13 +376,13 @@ def _collect_blocking_disables(
 
 def _exhausted_alias_disables(
     alias_names: Sequence[str],
-    snapshot: ProviderDisableSnapshot,
+    routing_context: ProviderRoutingContext,
 ) -> dict[str, TemporaryProviderDisable]:
     from sase.llm_provider.model_alias_resolution import model_alias_selector_details
 
     found: dict[str, TemporaryProviderDisable] = {}
     for alias in alias_names:
-        details = model_alias_selector_details(alias, provider_disables=snapshot)
+        details = model_alias_selector_details(alias, routing_context=routing_context)
         if details is None:
             continue
         if any(member.available for member in details.members):
@@ -385,7 +390,7 @@ def _exhausted_alias_disables(
         for member in details.members:
             if not member.provider:
                 continue
-            disable = snapshot.get(member.provider)
+            disable = routing_context.provider_disables.get(member.provider)
             if disable is not None and disable.is_hard:
                 found.setdefault(member.provider, disable)
     return found
@@ -454,8 +459,10 @@ def launch_unit_block_reason(unit: LaunchUnit) -> str:
     _cleaned, directives = extract_prompt_directives(prompt)
     alias = directives.model_alias
     if alias:
+        routing_context = peek_provider_routing_context()
         details = model_alias_selector_details(
-            alias, provider_disables=peek_active_provider_disables()
+            alias,
+            routing_context=routing_context,
         )
         if details is not None and details.mode == "round_robin":
             return (
