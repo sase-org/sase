@@ -313,6 +313,14 @@ def test_parser_accepts_mobile_agent_bridge_retry_agent() -> None:
     assert args.mobile_agent_bridge_subcommand == "retry-agent"
 
 
+def test_parser_accepts_mobile_agent_bridge_fork_agent() -> None:
+    args = create_parser().parse_args(["mobile", "agent-bridge", "fork-agent"])
+
+    assert args.command == "mobile"
+    assert args.mobile_subcommand == "agent-bridge"
+    assert args.mobile_agent_bridge_subcommand == "fork-agent"
+
+
 @pytest.mark.parametrize("operation", ["gate-action", "question-action"])
 def test_parser_accepts_mobile_notification_bridge(operation: str) -> None:
     args = create_parser().parse_args(["mobile", "notification-bridge", operation])

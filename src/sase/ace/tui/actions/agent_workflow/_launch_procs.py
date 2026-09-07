@@ -74,6 +74,16 @@ class LaunchProcMixin:
         """
         from ..agent_durable import submit_agent_launch
 
+        pending = getattr(self, "_pending_remote_fork_identity", None)
+        if pending is not None and display_name.startswith("Fork on "):
+            self._pending_remote_fork_identity = None
+            resolver = getattr(self, "_agent_by_identity", None)
+            agent = resolver(pending) if callable(resolver) else None
+            submit_fork = getattr(self, "_submit_remote_fork", None)
+            if agent is not None and callable(submit_fork):
+                submit_fork(agent, prompt)
+                return None
+
         def on_handle(old_proc_id: str, new_proc_id: str) -> None:
             prompts = getattr(self, "_launch_submitted_prompts", None)
             if prompts is not None and old_proc_id in prompts:

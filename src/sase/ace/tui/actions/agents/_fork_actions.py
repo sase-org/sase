@@ -109,6 +109,19 @@ class AgentForkActionsMixin:
         if self.current_tab != "agents":
             return
 
+        from ._remote_lifecycle import is_remote_fleet_agent
+
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if is_remote_fleet_agent(agent):
+            alias = agent.fleet_origin_alias
+            self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+                initial_text="",
+                display_name=f"Fork on {alias}",
+                history_sort_key=agent.agent_name or alias,
+            )
+            self._pending_remote_fork_identity = agent.identity
+            return
+
         scope, warning = resolve_agent_prompt_target_scope(self, action="fork")
         if scope is None:
             self.notify(warning or "No fork scope selected", severity="warning")  # type: ignore[attr-defined]

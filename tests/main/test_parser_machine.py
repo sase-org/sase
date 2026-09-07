@@ -17,6 +17,7 @@ def test_machine_help_renders_sorted_subcommands_and_defaults_to_list() -> None:
     machine_parser = parser_for(("sase", "machine"))
     expected = {
         "add",
+        "agent",
         "discover",
         "list",
         "remove",
@@ -35,9 +36,30 @@ def test_machine_help_renders_sorted_subcommands_and_defaults_to_list() -> None:
         expected
     )
     assert (
-        "{add,discover,list,remove,rename,repair,status}"
+        "{add,agent,discover,list,remove,rename,repair,status}"
         in machine_parser.format_help()
     )
+
+
+def test_machine_agent_help_documents_fork_retry_stop() -> None:
+    agent_help = parser_for(("sase", "machine", "agent")).format_help()
+    stop_help = flat_help(
+        parser_for(("sase", "machine", "agent", "stop")).format_help()
+    )
+    fork_help = flat_help(
+        parser_for(("sase", "machine", "agent", "fork")).format_help()
+    )
+
+    assert help_subcommand_rows(agent_help, {"fork", "retry", "stop"}) == [
+        "fork",
+        "retry",
+        "stop",
+    ]
+    assert "ALIAS" in stop_help
+    assert "AGENT" in stop_help
+    assert "-j, --json" in stop_help
+    assert_metavar_option_documented(stop_help, "-t", "--timeout", "SECONDS")
+    assert "INSTRUCTION" in fork_help
 
 
 def test_machine_add_help_has_no_secret_cli_value() -> None:

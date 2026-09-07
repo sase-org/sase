@@ -229,6 +229,28 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                 expanded_agents.append(candidate)
         agents = expanded_agents
 
+        from ._remote_lifecycle import is_remote_fleet_agent
+
+        remote_agents = [agent for agent in agents if is_remote_fleet_agent(agent)]
+        local_agents = [agent for agent in agents if not is_remote_fleet_agent(agent)]
+        if remote_agents and not local_agents:
+            self._confirm_remote_stop(remote_agents)  # type: ignore[attr-defined]
+            return
+        if remote_agents and local_agents:
+            aliases = sorted(
+                {
+                    str(getattr(agent, "fleet_origin_alias", "remote"))
+                    for agent in remote_agents
+                }
+            )
+            self.notify(  # type: ignore[attr-defined]
+                "Remote rows on "
+                + ", ".join(aliases)
+                + " will be stopped separately from local cleanup"
+            )
+            self._confirm_remote_stop(remote_agents)  # type: ignore[attr-defined]
+            agents = local_agents
+
         from ._proc_shell_dismiss import (
             partition_proc_shells,
             proc_shell_count_phrase,

@@ -170,6 +170,30 @@ def test_kill_mobile_agent_maps_lifecycle_errors(
     assert expected_message in stderr.getvalue()
 
 
+def test_fork_mobile_agent_composes_fork_prompt_and_launches(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    agent = _agent(tmp_path, name="athena.worker")
+    captured: dict[str, object] = {}
+
+    def fake_launch(prompt: str, request: dict, **kwargs: object) -> dict[str, object]:
+        captured["prompt"] = prompt
+        return {"schema_version": 1, "primary": {"name": "athena.fork"}}
+
+    monkeypatch.setattr(lifecycle, "find_mobile_agent_summary", lambda name: agent)
+    monkeypatch.setattr(lifecycle, "launch_mobile_prompt", fake_launch)
+    monkeypatch.setattr(
+        lifecycle, "persist_last_mobile_project_context", lambda *_a, **_k: None
+    )
+    payload = lifecycle.fork_mobile_agent(
+        {"schema_version": 1, "name": "athena.worker", "prompt": "continue"}
+    )
+    assert captured["prompt"] == "#fork:athena.worker continue"
+    assert payload["source_agent"] == "athena.worker"
+    assert payload["launch"]["primary"]["name"] == "athena.fork"
+
+
 def test_retry_mobile_agent_prefers_artifact_prompt_and_allocates_name(
     monkeypatch, tmp_path: Path
 ) -> None:

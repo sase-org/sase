@@ -267,6 +267,7 @@ _LAZY_EXPORTS = {
         "RecursiveFileFinderModal",
     ),
     "RenamePatchModal": (".rename_patch_modal", "RenamePatchModal"),
+    "RemoteContentModal": (".remote_content_modal", "RemoteContentModal"),
     "ReportModal": (".report_modal", "ReportModal"),
     "RunnerJumpTarget": (".runners_modal", "RunnerJumpTarget"),
     "RunnersModal": (".runners_modal", "RunnersModal"),

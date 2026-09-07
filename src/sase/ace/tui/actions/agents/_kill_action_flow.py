@@ -63,6 +63,12 @@ class AgentKillActionFlowMixin:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
+        from ._remote_lifecycle import is_remote_fleet_agent
+
+        if is_remote_fleet_agent(agent):
+            self._confirm_remote_stop([agent])  # type: ignore[attr-defined]
+            return
+
         if agent.is_monitor and agent.monitor_state == "running":
             self._handle_monitor_stop_action(agent)  # type: ignore[attr-defined]
             return

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from sase.ops.cli import add_operation_io_flags
+
 
 def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``machine`` command group."""
@@ -68,6 +70,108 @@ def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
         metavar="SECONDS",
         help="Per-request gateway timeout in seconds",
     )
+
+    agent_parser = machine_subparsers.add_parser(
+        "agent",
+        help="Stop, retry, or fork a remote agent on its owning host",
+        description=(
+            "Submit a journaled lifecycle mutation for a remote agent. ALIAS is "
+            "the enrolled machine; AGENT identifies the exact remote row. ACE "
+            "supplies locator, revision, and operation key through the durable "
+            "request sidecar."
+        ),
+    )
+    agent_subparsers = agent_parser.add_subparsers(
+        dest="machine_agent_subcommand",
+        help="Remote agent actions",
+    )
+    fork_parser = agent_subparsers.add_parser(
+        "fork",
+        help="Fork a remote agent on its owning host",
+        description=(
+            "Fork AGENT on ALIAS with INSTRUCTION. The fork runs on the target "
+            "through its own launch machinery."
+        ),
+    )
+    fork_parser.add_argument("alias", metavar="ALIAS", help="Enrolled machine alias")
+    fork_parser.add_argument("agent", metavar="AGENT", help="Remote agent name")
+    fork_parser.add_argument(
+        "instruction",
+        nargs="?",
+        metavar="INSTRUCTION",
+        help=(
+            "Fork instruction appended to #fork:<name>. Optional when ACE "
+            "supplies it through the durable request sidecar."
+        ),
+    )
+    fork_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a schema-versioned JSON result",
+    )
+    fork_parser.add_argument(
+        "-t",
+        "--timeout",
+        type=float,
+        metavar="SECONDS",
+        help="Per-request gateway timeout in seconds",
+    )
+    add_operation_io_flags(fork_parser)
+
+    retry_parser = agent_subparsers.add_parser(
+        "retry",
+        help="Retry remote agents on their owning host",
+        description="Retry one or more remote agents on ALIAS.",
+    )
+    retry_parser.add_argument("alias", metavar="ALIAS", help="Enrolled machine alias")
+    retry_parser.add_argument(
+        "agents",
+        nargs="+",
+        metavar="AGENT",
+        help="Remote agent names",
+    )
+    retry_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a schema-versioned JSON result",
+    )
+    retry_parser.add_argument(
+        "-t",
+        "--timeout",
+        type=float,
+        metavar="SECONDS",
+        help="Per-request gateway timeout in seconds",
+    )
+    add_operation_io_flags(retry_parser)
+
+    stop_parser = agent_subparsers.add_parser(
+        "stop",
+        help="Stop remote agents on their owning host",
+        description="Stop one or more remote agents on ALIAS.",
+    )
+    stop_parser.add_argument("alias", metavar="ALIAS", help="Enrolled machine alias")
+    stop_parser.add_argument(
+        "agents",
+        nargs="+",
+        metavar="AGENT",
+        help="Remote agent names",
+    )
+    stop_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a schema-versioned JSON result",
+    )
+    stop_parser.add_argument(
+        "-t",
+        "--timeout",
+        type=float,
+        metavar="SECONDS",
+        help="Per-request gateway timeout in seconds",
+    )
+    add_operation_io_flags(stop_parser)
 
     discover_parser = machine_subparsers.add_parser(
         "discover",

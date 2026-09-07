@@ -216,6 +216,9 @@ def _agent_from_summary(
         summary.get("bounded_intent"),
     )
     capabilities = _mapping(summary.get("capabilities"))
+    row_revision = _mapping(summary.get("row_revision"))
+    if revision is None:
+        revision = _int_or_none(row_revision.get("revision"))
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name=patch_name,
@@ -243,6 +246,7 @@ def _agent_from_summary(
         fleet_logical_key=logical_key,
         fleet_exact_key=exact_key,
         fleet_revision=revision,
+        fleet_row_revision=dict(row_revision) if row_revision else None,
         fleet_freshness=freshness,
         fleet_connection_health=health,
         fleet_observed_at_unix=observed_at_unix,

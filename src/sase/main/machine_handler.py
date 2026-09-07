@@ -27,6 +27,10 @@ def handle_machine_command(args: argparse.Namespace) -> int:
     try:
         if subcommand == "add":
             return _handle_add(args, service)
+        if subcommand == "agent":
+            from sase.ops.commands.machine import handle_machine_agent_command
+
+            return handle_machine_agent_command(args)
         if subcommand == "discover":
             return _handle_discover(args, service)
         if subcommand == "list":

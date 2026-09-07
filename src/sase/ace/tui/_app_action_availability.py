@@ -49,6 +49,8 @@ _AGENT_FLEET_ACTIONS = frozenset(
         "toggle_agent_follow",
         "view_agent_in_focus",
         "connect_agent_machine",
+        "retry_remote_agent",
+        "view_remote_agent_content",
     }
 )
 _LOCAL_AGENT_ROW_ACTIONS = frozenset(
@@ -107,6 +109,23 @@ def check_app_action(
             )
         if action == "connect_agent_machine":
             return selected_agent_remote
+        if action == "retry_remote_agent":
+            return _remote_lifecycle_available(selected_agent, "lifecycle.retry")
+        if action == "view_remote_agent_content":
+            from sase.dispatch.config import remote_dispatch_enabled
+
+            return bool(
+                selected_agent_remote
+                and remote_dispatch_enabled()
+                and (
+                    getattr(selected_agent, "fleet_content", None)
+                    or getattr(selected_agent, "fleet_row_revision", None)
+                )
+            )
+    if selected_agent_remote and action == "kill_agent":
+        return _remote_lifecycle_available(selected_agent, "lifecycle.stop")
+    if selected_agent_remote and action == "edit_hooks":
+        return _remote_lifecycle_available(selected_agent, "lifecycle.fork")
     if selected_agent_remote and action in _LOCAL_AGENT_ROW_ACTIONS:
         return False
     if action == "open_config_center" and getattr(
@@ -399,3 +418,15 @@ def _selected_agent(app: Any) -> Any:
         except Exception:
             return None
     return None
+
+
+def _remote_lifecycle_available(agent: Any, capability: str) -> bool:
+    from sase.ace.tui.actions.agents._remote_lifecycle import (
+        is_remote_fleet_agent,
+        remote_capability_enabled,
+    )
+    from sase.dispatch.config import remote_dispatch_enabled
+
+    if agent is None or not remote_dispatch_enabled():
+        return False
+    return is_remote_fleet_agent(agent) and remote_capability_enabled(agent, capability)

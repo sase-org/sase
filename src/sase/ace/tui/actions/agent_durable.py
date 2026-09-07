@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +19,7 @@ from sase.ops.names import (
     AGENT_DRAIN,
     AGENT_PERSIST_DIRECTIVE,
     AGENT_REVERT,
+    MACHINE_AGENT_ACTION,
     RUN_LAUNCH,
 )
 
@@ -203,10 +204,43 @@ def submit_agent_cleanup(
     return submitted is not None
 
 
+def submit_machine_agent_action(
+    app: Any,
+    *,
+    kind: str,
+    alias: str,
+    agent_names: Sequence[str],
+    payload: Mapping[str, Any],
+    display_name: str,
+    on_complete: Callable[[TrackedProcCompletion[Any]], None] | None = None,
+) -> bool:
+    """Submit ``sase machine agent`` through the durable adapter."""
+    extra = list(agent_names)
+    if kind == "fork":
+        instruction = payload.get("fork_prompt")
+        if instruction:
+            extra.append(str(instruction))
+    argv = sase_command_argv("machine", "agent", kind, alias, *extra)
+    submitted = app._submit_durable_proc(
+        argv,
+        operation=MACHINE_AGENT_ACTION,
+        request=dict(payload),
+        request_fingerprint=operation_fingerprint(MACHINE_AGENT_ACTION, payload),
+        concurrency_keys=(f"ace:machine-agent:{alias}:{kind}",),
+        proc_type=f"machine.agent.{kind}",
+        display_name=display_name,
+        on_complete=on_complete,
+        reload_on_complete=False,
+        notify_on_complete=False,
+    )
+    return submitted is not None
+
+
 __all__ = [
     "submit_agent_cleanup",
     "submit_agent_directive",
     "submit_agent_launch",
+    "submit_machine_agent_action",
     "submit_provider_drain",
     "submit_agent_revert",
 ]

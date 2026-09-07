@@ -79,6 +79,7 @@ from ._mobile_agent_launch import (
     store_mobile_image_upload as _store_mobile_image_upload,
 )
 from ._mobile_agent_lifecycle import (
+    fork_mobile_agent as _fork_mobile_agent,
     kill_mobile_agent as _kill_mobile_agent,
     raise_lifecycle_error as _raise_lifecycle_error,
     resolve_mobile_retry_context as _resolve_mobile_retry_context,
@@ -149,6 +150,8 @@ def handle_mobile_agent_bridge(
             response = _kill_mobile_agent(request)
         elif operation == "retry-agent":
             response = _retry_mobile_agent(request)
+        elif operation == "fork-agent":
+            response = _fork_mobile_agent(request)
         else:
             raise _MobileAgentBridgeError("unknown mobile agent bridge operation")
     except _MobileAgentInvalidUploadError as exc:

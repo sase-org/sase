@@ -189,6 +189,7 @@ __all__ = [
     "QuitOption",
     "QuitOptionsModal",
     "RenamePatchModal",
+    "RemoteContentModal",
     "StashRestoreResult",
     "StashedPromptsModal",
     "SavedAgentGroupRevivalModal",

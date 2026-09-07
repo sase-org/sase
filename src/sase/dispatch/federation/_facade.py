@@ -257,6 +257,36 @@ class FederationFacade:
             timeout_seconds=timeout_seconds,
         )
 
+    async def mutate(
+        self,
+        target: str,
+        request: Mapping[str, Any],
+        *,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            self.mutate_sync,
+            target,
+            request,
+            timeout_seconds=timeout_seconds,
+        )
+
+    def mutate_sync(
+        self,
+        target: str,
+        request: Mapping[str, Any],
+        *,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        if not self.config.enabled:
+            raise FederationWorkerUnavailable(
+                "no configured dispatch machines are available"
+            )
+        return self._request(
+            {"op": "mutate", "target": target, "request": dict(request)},
+            timeout_seconds=timeout_seconds,
+        )
+
     def shutdown_sync(self, *, timeout_seconds: float | None = None) -> dict[str, Any]:
         if not self.config.enabled:
             return {"schema_version": FEDERATION_IPC_SCHEMA_VERSION, "shutdown": False}

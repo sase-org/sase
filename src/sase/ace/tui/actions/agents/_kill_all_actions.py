@@ -31,11 +31,16 @@ class AgentKillAllActionsMixin:
         """Kill running and dismiss done agents from a candidate list."""
         from ._clan_cleanup import expand_clan_containers_for_cleanup
         from ._core import DISMISSABLE_STATUSES
+        from ._remote_lifecycle import is_remote_fleet_agent
 
         agents = expand_clan_containers_for_cleanup(
             agents,
             self._agents_with_children,  # type: ignore[attr-defined]
         )
+        remote_agents = [agent for agent in agents if is_remote_fleet_agent(agent)]
+        agents = [agent for agent in agents if not is_remote_fleet_agent(agent)]
+        if remote_agents:
+            self._confirm_remote_stop(remote_agents)  # type: ignore[attr-defined]
 
         from ._proc_shell_dismiss import (
             partition_proc_shells,
@@ -55,6 +60,8 @@ class AgentKillAllActionsMixin:
         ]
 
         if not killable and not dismissable and not proc_shells:
+            if remote_agents:
+                return
             self.notify(empty_message, severity="warning")  # type: ignore[attr-defined]
             return
 

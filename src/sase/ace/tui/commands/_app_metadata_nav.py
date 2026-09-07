@@ -257,4 +257,18 @@ NAV_COMMAND_META: tuple[AppCommandMeta, ...] = (
         AGENTS_ONLY,
         ("machine", "remote", "connection"),
     ),
+    (
+        "retry_remote_agent",
+        "Agents: retry remote agent on its host",
+        "Agents",
+        AGENTS_ONLY,
+        ("retry", "remote"),
+    ),
+    (
+        "view_remote_agent_content",
+        "Agents: view remote chat/output/diff content",
+        "Agents",
+        AGENTS_ONLY,
+        ("content", "remote", "output"),
+    ),
 )

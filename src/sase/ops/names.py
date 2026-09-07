@@ -40,6 +40,7 @@ PLUGIN_INSTALL = "plugin.install"
 PLUGIN_UNINSTALL = "plugin.uninstall"
 PLUGIN_UPDATE = "plugin.update"
 
+MACHINE_AGENT_ACTION = "machine.agent-action"
 MONITOR_STOP = "monitor.stop"
 PROC_KILL = "proc.kill"
 RUN_LAUNCH = "run.launch"
@@ -60,6 +61,7 @@ __all__ = [
     "GATE_ANSWER",
     "GIT_POST_WRITE",
     "LAUNCH_APPROVAL",
+    "MACHINE_AGENT_ACTION",
     "MONITOR_STOP",
     "NOTIFY_APPLY_STATE",
     "PATCH_ACCEPT",

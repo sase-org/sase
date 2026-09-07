@@ -48,6 +48,11 @@ def test_empty_remote_hosts_keep_facade_disabled_without_rust_binding(
         "disabled": True,
         "hosts": [],
     }
+    with pytest.raises(
+        federation.FederationWorkerUnavailable,
+        match="no configured dispatch machines are available",
+    ):
+        facade.mutate_sync("apollo", {"schema_version": 1})
 
 
 def test_host_config_validates_plan_and_redacts_secret(

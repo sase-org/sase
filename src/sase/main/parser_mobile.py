@@ -46,6 +46,10 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
         "retry-agent",
         help=argparse.SUPPRESS,
     )
+    agent_bridge_subparsers.add_parser(
+        "fork-agent",
+        help=argparse.SUPPRESS,
+    )
 
     helper_bridge_parser = mobile_subparsers.add_parser(
         "helper-bridge",

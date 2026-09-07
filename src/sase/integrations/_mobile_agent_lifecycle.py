@@ -96,6 +96,35 @@ def retry_mobile_agent(request: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def fork_mobile_agent(request: dict[str, Any]) -> dict[str, Any]:
+    """Fork a named source agent through the target's launch machinery."""
+    source_name = required_bridge_str(request.get("name"), "name")
+    instruction = required_bridge_str(request.get("prompt"), "prompt")
+    source = find_mobile_agent_summary(source_name)
+    if source is None:
+        raise MobileAgentNotFoundError(f"No agent named '{source_name}'")
+    prompt = f"#fork:{source_name} {instruction}".strip()
+    launch = launch_mobile_prompt(
+        prompt,
+        {
+            **request,
+            "name": None,
+        },
+        launch_kind="fork",
+        source_agent_name=source_name,
+        project_context=project_context_from_agent(source),
+    )
+    persist_last_mobile_project_context(
+        optional_str(request.get("device_id")),
+        project_context_from_agent(source),
+    )
+    return {
+        "schema_version": MOBILE_AGENT_SCHEMA_VERSION,
+        "source_agent": source_name,
+        "launch": launch,
+    }
+
+
 def raise_lifecycle_error(result: KillResult) -> None:
     if result.reason == "not_found":
         raise MobileAgentNotFoundError(result.message)

@@ -521,6 +521,11 @@ class AgentState:
     fleet_logical_key: str | None = field(default=None, compare=False)
     fleet_exact_key: str | None = field(default=None, compare=False)
     fleet_revision: int | None = field(default=None, compare=False)
+    fleet_row_revision: dict[str, Any] | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
     fleet_freshness: str | None = field(default=None, compare=False)
     fleet_connection_health: str | None = field(default=None, compare=False)
     fleet_observed_at_unix: float | None = field(default=None, compare=False)

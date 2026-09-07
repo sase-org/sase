@@ -515,6 +515,8 @@ ace:
       toggle_agent_follow: "unbound"
       view_agent_in_focus: "unbound"
       connect_agent_machine: "unbound"
+      retry_remote_agent: "unbound"
+      view_remote_agent_content: "unbound"
       # PR actions
       patches_filters: "f"
       quit: "q"

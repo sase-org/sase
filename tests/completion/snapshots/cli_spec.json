@@ -12207,6 +12207,325 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "ba5f1ab7000e3ff5",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "agent",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "machine",
+              "agent"
+            ],
+            "positionals": [],
+            "subcommands": [
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "50643a1da44e6da8",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "fork",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "timeout",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-t",
+                      "--timeout"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "operation_request_path",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-Q",
+                      "--request-path"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "operation_result_path",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-R",
+                      "--result-path"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "machine",
+                  "agent",
+                  "fork"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "alias",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "ALIAS",
+                    "nargs": null
+                  },
+                  {
+                    "choices": null,
+                    "dest": "agent",
+                    "is_remainder": false,
+                    "kind": "agent",
+                    "metavar": "AGENT",
+                    "nargs": null
+                  },
+                  {
+                    "choices": null,
+                    "dest": "instruction",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "INSTRUCTION",
+                    "nargs": "?"
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "65e14c703f52fdfa",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "retry",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "timeout",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-t",
+                      "--timeout"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "operation_request_path",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-Q",
+                      "--request-path"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "operation_result_path",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-R",
+                      "--result-path"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "machine",
+                  "agent",
+                  "retry"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "alias",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "ALIAS",
+                    "nargs": null
+                  },
+                  {
+                    "choices": null,
+                    "dest": "agents",
+                    "is_remainder": false,
+                    "kind": "agent",
+                    "metavar": "AGENT",
+                    "nargs": "+"
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "ae724efb66e36ac5",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "stop",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "timeout",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-t",
+                      "--timeout"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "operation_request_path",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-Q",
+                      "--request-path"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "operation_result_path",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-R",
+                      "--result-path"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "machine",
+                  "agent",
+                  "stop"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "alias",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "ALIAS",
+                    "nargs": null
+                  },
+                  {
+                    "choices": null,
+                    "dest": "agents",
+                    "is_remainder": false,
+                    "kind": "agent",
+                    "metavar": "AGENT",
+                    "nargs": "+"
+                  }
+                ],
+                "subcommands": []
+              }
+            ]
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "bf2fdc1a794bc01b",
             "hidden": false,
             "mutex_groups": [],

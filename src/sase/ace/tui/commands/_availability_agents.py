@@ -118,7 +118,17 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.connect_agent_machine":
         return ctx.selected_agent_remote
 
+    if spec.id == "app.retry_remote_agent":
+        return _remote_lifecycle_command_available(ctx, "lifecycle.retry")
+
+    if spec.id == "app.view_remote_agent_content":
+        return _remote_content_command_available(ctx)
+
     if ctx.selected_agent_remote:
+        if spec.id == "app.kill_agent":
+            return _remote_lifecycle_command_available(ctx, "lifecycle.stop")
+        if spec.id == "app.edit_hooks":
+            return _remote_lifecycle_command_available(ctx, "lifecycle.fork")
         if spec.id in _REMOTE_AGENT_LOCAL_COMMANDS:
             return False
         if spec.id in {"copy.agents.chat", "copy.agents.file_path"}:
@@ -288,3 +298,34 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return agent is not None and is_revertable_agent_status(agent.status)
 
     return True
+
+
+def _remote_lifecycle_command_available(ctx: CommandContext, capability: str) -> bool:
+    from sase.ace.tui.actions.agents._remote_lifecycle import (
+        is_remote_fleet_agent,
+        remote_capability_enabled,
+    )
+    from sase.dispatch.config import remote_dispatch_enabled
+
+    if not ctx.selected_agent_remote or not remote_dispatch_enabled():
+        return False
+    agent = ctx.agent
+    return bool(
+        agent is not None
+        and is_remote_fleet_agent(agent)
+        and remote_capability_enabled(agent, capability)
+    )
+
+
+def _remote_content_command_available(ctx: CommandContext) -> bool:
+    from sase.dispatch.config import remote_dispatch_enabled
+
+    if not ctx.selected_agent_remote or not remote_dispatch_enabled():
+        return False
+    agent = ctx.agent
+    if agent is None:
+        return False
+    return bool(
+        getattr(agent, "fleet_content", None)
+        or getattr(agent, "fleet_row_revision", None)
+    )
