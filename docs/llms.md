@@ -96,7 +96,9 @@ Key design principles:
 | `src/sase/llm_provider/temporary_override.py`              | Primary/worker temporary override state and resolution                                   |
 | `src/sase/llm_provider/provider_disable.py`                | Rust-backed temporary provider-disable facade                                            |
 | `src/sase/llm_provider/provider_disable_peek.py`           | Lock-free display peek for active provider disables                                      |
-| `src/sase/llm_provider/provider_priority.py`               | Rust-backed temporary provider-priority facade and routing context                       |
+| `src/sase/llm_provider/provider_priority.py`               | Rust-backed temporary provider-priority facade (import/monkeypatch surface)              |
+| `src/sase/llm_provider/provider_priority_types.py`         | Provider-priority wire records, decode/write envelopes, and route keys                   |
+| `src/sase/llm_provider/provider_priority_routing.py`       | Routing-context capture and provider availability classification                         |
 | `src/sase/llm_provider/provider_priority_peek.py`          | Lock-free display peek for active provider priority and routing context                  |
 | `src/sase/finalizers/controller.py`                        | Provider-neutral finalizer planning and orchestration                                    |
 | `src/sase/finalizers/commit.py`                            | Bundled dirty-workspace commit finalizer                                                 |
