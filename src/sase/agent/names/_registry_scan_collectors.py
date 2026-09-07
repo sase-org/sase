@@ -44,7 +44,11 @@ def collect_planned_reservation_entries(
     for name, entry in existing_entries.items():
         if not isinstance(name, str) or not isinstance(entry, dict):
             continue
-        if entry.get("reservation_kind") not in {"planned", "planned_clan"}:
+        if entry.get("reservation_kind") not in {
+            "planned",
+            "planned_clan",
+            "cleanup_in_progress",
+        }:
             continue
         retained = dict(entry)
         if retained.get("origin") in {None, "local"} and identity is not None:

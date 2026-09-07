@@ -13,7 +13,7 @@ from contextvars import ContextVar
 import os
 from pathlib import Path
 import time
-from typing import Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from sase.agent.names import _registry_mutations, _registry_queries
 from sase.agent.names._registry_entries import (
@@ -51,6 +51,14 @@ from sase.core.agent_identity_facade import (
     current_owner_agent_name_lookup_candidates,
     present_agent_name,
 )
+
+if TYPE_CHECKING:
+    from sase.agent.names._registry_batch import (
+        RegisteredNameReservation,
+        RegisteredNameReservationBatchResult,
+        RegisteredNameReservationSnapshot,
+        RegisteredNameRegistryBatchHooks,
+    )
 
 _CACHE_PATH: Path | None = None
 _CACHE_SIGNATURE: tuple[int, int] | None = None
@@ -176,6 +184,93 @@ def reserve_registered_name(name: str, claiming_dir: str | Path) -> None:
     """
     _registry_mutations.reserve_registered_name(
         _mutation_operations(), name, claiming_dir
+    )
+
+
+def reserve_registered_names(
+    reservations: Sequence[tuple[str, str | Path]],
+) -> RegisteredNameReservationBatchResult:
+    """Reserve multiple planned names through one fresh registry transaction."""
+    from sase.agent.names._registry_batch import reserve_registered_names as _impl
+
+    return _impl(_reservation_batch_hooks(), reservations)
+
+
+def claim_registered_names(
+    reservations: Sequence[tuple[str, str | Path]],
+    *,
+    replace_existing: bool = False,
+) -> RegisteredNameReservationBatchResult:
+    """Claim multiple names through one fresh registry transaction."""
+    from sase.agent.names._registry_batch import claim_registered_names as _impl
+
+    return _impl(
+        _reservation_batch_hooks(),
+        reservations,
+        replace_existing=replace_existing,
+    )
+
+
+def mutate_registered_name_reservations(
+    reservations: Sequence[RegisteredNameReservation | Mapping[str, Any]],
+    *,
+    max_retries: int = 3,
+) -> RegisteredNameReservationBatchResult:
+    """Apply a core-planned reservation batch to the registry."""
+    from sase.agent.names._registry_batch import (
+        mutate_registered_name_reservations as _impl,
+    )
+
+    return _impl(_reservation_batch_hooks(), reservations, max_retries=max_retries)
+
+
+def registered_name_reservation_snapshot() -> RegisteredNameReservationSnapshot:
+    """Return one fresh registry snapshot for in-memory lookups."""
+    from sase.agent.names._registry_batch import (
+        registered_name_reservation_snapshot as _impl,
+    )
+
+    return _impl(_reservation_batch_hooks())
+
+
+def planned_registered_name_belongs_to_artifact(
+    name: str,
+    artifact_dir: str | Path,
+) -> bool:
+    """Return whether a raw planned reservation belongs to *artifact_dir*."""
+    from sase.agent.names._registry_batch import (
+        planned_registered_name_belongs_to_artifact as _impl,
+    )
+
+    return _impl(_reservation_batch_hooks(), name, artifact_dir)
+
+
+def claim_exact_planned_registered_name(
+    name: str,
+    artifact_dir: str | Path,
+) -> bool:
+    """Convert a matching planned reservation without archive discovery."""
+    from sase.agent.names._registry_batch import (
+        claim_exact_planned_registered_name as _impl,
+    )
+
+    return _impl(_reservation_batch_hooks(), name, artifact_dir)
+
+
+def _reservation_batch_hooks() -> RegisteredNameRegistryBatchHooks:
+    """Bind private registry internals for the batch transaction helper."""
+    from sase.agent.names._registry_batch import RegisteredNameRegistryBatchHooks
+
+    return RegisteredNameRegistryBatchHooks(
+        mutation_lock=_registry_mutation_lock,
+        mutation_operations=_mutation_operations,
+        load_name_registry=load_name_registry,
+        registry_path=_registry_path,
+        read_registry=_read_registry,
+        save_entries_locked=_save_entries_locked,
+        registry_file_is_stale=_registry_file_is_stale,
+        file_signature=_file_signature,
+        reset_scan_caches=_reset_registry_scan_caches,
     )
 
 

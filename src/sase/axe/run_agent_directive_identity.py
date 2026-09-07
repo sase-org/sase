@@ -205,6 +205,7 @@ def resolve_agent_identity(
             _claim_agent_identity(
                 agent_name,
                 artifacts_dir=artifacts_dir,
+                planned_name=planned_name,
                 user_explicit=request.user_explicit,
                 force_reuse=directives.name_force_reuse,
                 clan_membership_plan=clan_membership_plan,
@@ -271,6 +272,7 @@ def _claim_agent_identity(
     agent_name: str,
     *,
     artifacts_dir: str,
+    planned_name: str | None,
     user_explicit: bool,
     force_reuse: bool,
     clan_membership_plan: ClanMembershipPlan | None,
@@ -284,12 +286,21 @@ def _claim_agent_identity(
     if user_explicit and not internal_agent_name_bypass_enabled(os.environ):
         validate_user_agent_name(agent_name)
 
-    claim_agent_name(
-        agent_name,
-        artifacts_dir,
-        explicit=user_explicit,
-        force_reuse=force_reuse,
-    )
+    exact_planned_claimed = False
+    if planned_name == agent_name:
+        from sase.agent.names import claim_exact_planned_registered_name
+
+        exact_planned_claimed = claim_exact_planned_registered_name(
+            agent_name,
+            artifacts_dir,
+        )
+    if not exact_planned_claimed:
+        claim_agent_name(
+            agent_name,
+            artifacts_dir,
+            explicit=user_explicit,
+            force_reuse=force_reuse,
+        )
     if clan_membership_plan:
         from sase.agent.names import claim_registered_clan_name
 
@@ -338,14 +349,9 @@ def _planned_name_is_reserved_for_artifacts(
     planned_name: str, artifacts_dir: str
 ) -> bool:
     """Return whether *planned_name* is durably reserved for this run."""
-    from sase.agent.names import lookup_registered_name
+    from sase.agent.names import planned_registered_name_belongs_to_artifact
 
-    entry = lookup_registered_name(planned_name)
-    if entry is None:
-        return False
-    reserved_dir = entry.get("artifacts_dir")
-    if not isinstance(reserved_dir, str) or not reserved_dir:
-        return False
-    return os.path.realpath(os.path.expanduser(reserved_dir)) == os.path.realpath(
-        os.path.expanduser(artifacts_dir)
+    return planned_registered_name_belongs_to_artifact(
+        planned_name,
+        artifacts_dir,
     )

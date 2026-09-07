@@ -63,7 +63,11 @@ def entry_has_other_claim_owner(entry: dict[str, Any], artifact_dir: Path) -> bo
 def entry_owner_missing(entry: dict[str, Any]) -> bool:
     if entry.get("container_kind") == "owner_namespace":
         return False
-    if entry.get("reservation_kind") in {"planned", "planned_clan"}:
+    if entry.get("reservation_kind") in {
+        "planned",
+        "planned_clan",
+        "cleanup_in_progress",
+    }:
         return False
     source = entry.get("source")
     if source == "artifact":

@@ -66,6 +66,10 @@ class TestExtractDirectivesTemplates:
     ) -> None:
         with (
             patch.object(Path, "home", return_value=tmp_path),
+            patch(
+                "sase.agent.names.claim_exact_planned_registered_name",
+                return_value=False,
+            ),
             patch("sase.agent.names.claim_agent_name") as claim,
         ):
             result = run_extract(

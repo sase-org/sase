@@ -13,17 +13,23 @@ import pytest
 
 from sase.agent.names import (
     NameCollisionError,
+    RegisteredNameReservation,
+    RegisteredNameReservationBatchError,
+    claim_exact_planned_registered_name,
     claim_registered_clan_name,
     claim_registered_name,
+    claim_registered_names,
     convert_registered_agent_to_family,
     get_reserved_agent_names,
     get_reserved_clan_names,
     get_reserved_family_names,
     load_name_registry,
     lookup_registered_name,
+    mutate_registered_name_reservations,
     rebuild_name_registry,
     reserve_registered_clan_name,
     reserve_registered_name,
+    reserve_registered_names,
     reserve_registered_template_name,
     reserve_registered_template_names,
 )
@@ -32,6 +38,18 @@ from sase.agent.names.registry_freshness import agent_name_registry_freshness_to
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 
 from tests._agent_names_fixtures import make_agent as _make_agent
+
+
+def _configure_machine(monkeypatch: pytest.MonkeyPatch) -> None:
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
+    )
+    monkeypatch.setattr(
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda _cls: identity),
+    )
 
 
 def test_registry_write_uses_unique_temp_file_for_nested_writer(tmp_path: Path) -> None:
@@ -118,6 +136,176 @@ def test_planned_reservation_survives_rebuild_until_child_claims(
         claimed = lookup_registered_name("research.cdx-1")
         assert claimed["reservation_kind"] == "claimed"
         assert claimed["artifacts_dir"] == str(artifacts_dir)
+
+
+def test_batch_reserve_registered_names_uses_one_fresh_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"
+    load_count = 0
+    real_load = _registry.load_name_registry
+
+    def tracked_load(*, trust_stale_proof_memo: bool = True) -> dict[str, object]:
+        nonlocal load_count
+        load_count += 1
+        return real_load(trust_stale_proof_memo=trust_stale_proof_memo)
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch.object(_registry, "load_name_registry", side_effect=tracked_load),
+    ):
+        result = reserve_registered_names(
+            [
+                ("bulk-a", artifacts_root / "run-a"),
+                ("bulk-b", artifacts_root / "run-b"),
+                ("bulk-c", artifacts_root / "run-c"),
+            ]
+        )
+
+    assert load_count == 1
+    assert {item["storage_name"] for item in result.accepted} == {
+        "bulk-a",
+        "bulk-b",
+        "bulk-c",
+    }
+
+
+def test_batch_reservation_collision_is_all_or_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"
+    existing_dir = artifacts_root / "existing"
+    candidate_dir = artifacts_root / "candidate"
+    colliding_dir = artifacts_root / "colliding"
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        reserve_registered_name("taken", existing_dir)
+        with pytest.raises(RegisteredNameReservationBatchError, match="taken"):
+            reserve_registered_names(
+                [
+                    ("available", candidate_dir),
+                    ("taken", colliding_dir),
+                ]
+            )
+
+        assert lookup_registered_name("available") is None
+        assert lookup_registered_name("taken")["artifacts_dir"] == str(existing_dir)
+
+
+def test_concurrent_batch_reservations_preserve_unrelated_claims(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"
+    real_load = _registry.load_name_registry
+
+    def slow_load(*, trust_stale_proof_memo: bool = True) -> dict[str, object]:
+        data = real_load(trust_stale_proof_memo=trust_stale_proof_memo)
+        time.sleep(0.01)  # sase-test-wait: overlap stale snapshots
+        return data
+
+    def reserve_group(group: int) -> None:
+        reserve_registered_names(
+            [
+                (f"batch-{group}-{index}", artifacts_root / f"run-{group}-{index}")
+                for index in range(4)
+            ]
+        )
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch.object(_registry, "load_name_registry", side_effect=slow_load),
+        ThreadPoolExecutor(max_workers=2) as pool,
+    ):
+        list(pool.map(reserve_group, (0, 1)))
+        data = load_name_registry()
+
+    assert {
+        f"batch-{group}-{index}" for group in range(2) for index in range(4)
+    } <= set(data["entries"])
+
+
+def test_batch_claim_uses_current_owner_alias_for_planned_entry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    artifacts_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/run-a"
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        reserve_registered_name("alpha", artifacts_dir)
+        artifacts_dir.mkdir(parents=True)
+        claim_registered_names([("athena.alpha", artifacts_dir)])
+        entry = lookup_registered_name("alpha")
+
+    assert entry is not None
+    assert entry["reservation_kind"] == "claimed"
+    assert entry["artifacts_dir"] == str(artifacts_dir)
+
+
+def test_cleanup_guard_reservation_survives_rebuild(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    artifacts_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/run-a"
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        claim_registered_name("cleanup-target", artifacts_dir)
+        mutate_registered_name_reservations(
+            [
+                RegisteredNameReservation(
+                    request_id="cleanup-op",
+                    operation="cleanup_guard",
+                    name="cleanup-target",
+                    artifact_dir=artifacts_dir,
+                    cleanup_token="token-1",
+                )
+            ]
+        )
+
+        guarded = lookup_registered_name("cleanup-target")
+        rebuilt = rebuild_name_registry()
+
+    assert guarded is not None
+    assert guarded["reservation_kind"] == "cleanup_in_progress"
+    assert guarded["cleanup_token"] == "token-1"
+    assert rebuilt["entries"]["cleanup-target"]["reservation_kind"] == (
+        "cleanup_in_progress"
+    )
+    assert rebuilt["entries"]["cleanup-target"]["cleanup_token"] == "token-1"
+
+
+def test_exact_planned_claim_avoids_stale_proof_lookup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    artifacts_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/run-a"
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        reserve_registered_name("planned-fast", artifacts_dir)
+        artifacts_dir.mkdir(parents=True)
+        with patch.object(
+            _registry,
+            "_registry_file_is_stale",
+            side_effect=AssertionError("unexpected full source proof"),
+        ):
+            assert claim_exact_planned_registered_name(
+                "planned-fast",
+                artifacts_dir,
+            )
+
+        entry = lookup_registered_name("planned-fast")
+
+    assert entry is not None
+    assert entry["reservation_kind"] == "claimed"
+    assert entry["artifacts_dir"] == str(artifacts_dir)
 
 
 def test_clan_reservation_blocks_exact_agent_name_but_allows_hood_members(

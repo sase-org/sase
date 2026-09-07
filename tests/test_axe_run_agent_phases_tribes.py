@@ -298,6 +298,14 @@ def _extract_with_agent_tribes(
             patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
             patch("sase.agent.names.claim_agent_name"),
             patch(
+                "sase.agent.names.claim_exact_planned_registered_name",
+                return_value=False,
+            ),
+            patch(
+                "sase.agent.names.planned_registered_name_belongs_to_artifact",
+                return_value=planned_entry is not None,
+            ),
+            patch(
                 "sase.agent.names.lookup_registered_name",
                 return_value=planned_entry,
             ),
