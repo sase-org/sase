@@ -10,13 +10,27 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.agent.launch_guard import DisabledProviderLaunchError
 from sase.llm_provider.provider_disable import PROVIDER_DISABLE_MODE_SOFT
+from tests._multi_prompt_launcher_launch_helpers import spawn_result_with_planned_name
 from tests.agent._launch_guard_helpers import (
     disable,
     install_disables,
     pin_cli_available,
 )
+
+
+def _configure_machine(monkeypatch: pytest.MonkeyPatch) -> None:
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena",),
+    )
+    monkeypatch.setattr(
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda _cls: identity),
+    )
 
 
 def _bead_segments() -> tuple[list[str], list[dict[str, str]], set[str]]:
@@ -39,6 +53,7 @@ def test_adapter_passes_one_slot_preplanned_plans(
 ) -> None:
     from sase.agent import launch_cwd
 
+    _configure_machine(monkeypatch)
     segments, envs, expected = _bead_segments()
     captured: dict[str, Any] = {}
 
@@ -54,6 +69,10 @@ def test_adapter_passes_one_slot_preplanned_plans(
         "sase.history.prompt.add_or_update_prompt", lambda *a, **k: None
     )
     monkeypatch.setattr("sase.agent.names.get_reserved_agent_names", lambda: set())
+    monkeypatch.setattr(
+        "sase.agent.names.mutate_registered_name_reservations",
+        lambda _reservations: None,
+    )
     install_disables(monkeypatch, {})
 
     results = launch_cwd.launch_planned_bead_work_agents(
@@ -76,6 +95,157 @@ def test_adapter_passes_one_slot_preplanned_plans(
     # are permitted.
     assert captured["allow_reserved_family_separator_names"] is True
     assert captured["local_xprompts"] == {}
+
+
+def test_adapter_reserves_static_names_and_declared_clan_in_one_batch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sase.agent import launch_cwd
+
+    _configure_machine(monkeypatch)
+    segments, envs, expected = _bead_segments()
+    captured: dict[str, Any] = {}
+    captured_reservations: list[Any] = []
+
+    def fake_launch_multi(**kwargs: Any) -> list[object]:
+        captured.update(kwargs)
+        return [object(), object()]
+
+    monkeypatch.setattr(
+        "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+        lambda count, **_kwargs: [
+            "260501_120000",
+            "260501_120001",
+        ][:count],
+    )
+    monkeypatch.setattr(
+        "sase.agent.names.mutate_registered_name_reservations",
+        lambda reservations: captured_reservations.extend(reservations),
+    )
+    monkeypatch.setattr(
+        "sase.agent.launch_validation.validate_launch_name_requests",
+        lambda *_args, **_kwargs: pytest.fail(
+            "adapter should not run full collision validation after batch reserve"
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+        fake_launch_multi,
+    )
+    monkeypatch.setattr(
+        "sase.history.prompt.add_or_update_prompt",
+        lambda *a, **k: None,
+    )
+    install_disables(monkeypatch, {})
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        results = launch_cwd.launch_planned_bead_work_agents(
+            segments=segments,
+            segment_extra_env=envs,
+            expected_names=expected,
+            project_name="proj",
+        )
+
+    assert len(results) == 2
+    assert [reservation.operation for reservation in captured_reservations] == [
+        "reserve_planned",
+        "reserve_planned",
+        "reserve_clan",
+    ]
+    assert [reservation.name for reservation in captured_reservations[:2]] == [
+        "proj-epic.1",
+        "proj-epic.land",
+    ]
+    assert captured_reservations[2].name == "proj-epic"
+    assert captured_reservations[2].clan_generation == "20260501120000"
+    assert captured_reservations[2].create_only is True
+    assert [
+        plan.slots[0].timestamp for plan in captured["preplanned_fanout_plans"]
+    ] == [
+        "260501_120000",
+        "260501_120001",
+    ]
+    evidence = captured["name_reservation_evidence"]
+    assert [item.agent_name for item in evidence] == [
+        "proj-epic.1",
+        "proj-epic.land",
+    ]
+    assert evidence[0].clan_name == "proj-epic"
+    assert evidence[0].clan_generation == "20260501120000"
+
+
+def test_adapter_releases_unspawned_bulk_reservations_on_partial_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sase.agent import launch_cwd
+    from sase.agent.names import lookup_registered_name
+
+    _configure_machine(monkeypatch)
+    segments, envs, expected = _bead_segments()
+    spawn_count = 0
+
+    def spawn_or_fail(**kwargs: object) -> object:
+        nonlocal spawn_count
+        spawn_count += 1
+        if spawn_count == 2:
+            raise RuntimeError("boom")
+        from sase.agent.multi_prompt_launch_plan import future_agent_artifacts_dir
+
+        future_agent_artifacts_dir(
+            project_name=str(kwargs["project_name"]),
+            timestamp=str(kwargs["timestamp"]),
+        ).mkdir(parents=True)
+        return spawn_result_with_planned_name(**kwargs)
+
+    monkeypatch.setattr(
+        "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+        lambda count, **_kwargs: [
+            "260501_120000",
+            "260501_120001",
+        ][:count],
+    )
+    monkeypatch.setattr(
+        "sase.history.prompt.add_or_update_prompt",
+        lambda *a, **k: None,
+    )
+    monkeypatch.setattr(
+        "sase.history.prompt.record_failed_launch_prompt",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr("sase.agent.launcher.spawn_agent_subprocess", spawn_or_fail)
+    monkeypatch.setattr(
+        "sase.running_field.claim_next_axe_workspace",
+        MagicMock(side_effect=[100, 101]),
+    )
+    monkeypatch.setattr(
+        "sase.running_field.get_workspace_directory_for_num",
+        MagicMock(side_effect=[("/ws/100", None), ("/ws/101", None)]),
+    )
+    install_disables(monkeypatch, {})
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        pytest.raises(RuntimeError, match="boom"),
+    ):
+        launch_cwd.launch_planned_bead_work_agents(
+            segments=segments,
+            segment_extra_env=envs,
+            expected_names=expected,
+            project_name="proj",
+        )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        first = lookup_registered_name("proj-epic.1")
+        second = lookup_registered_name("proj-epic.land")
+        clan = lookup_registered_name("proj-epic")
+
+    assert first is not None
+    assert first["reservation_kind"] == "planned"
+    assert second is None
+    assert clan is not None
+    assert clan["reservation_kind"] == "clan"
 
 
 def test_adapter_rejects_unexpected_rendered_names(
@@ -182,6 +352,7 @@ def test_adapter_launches_when_provider_is_only_soft_disabled(
 ) -> None:
     from sase.agent import launch_cwd
 
+    _configure_machine(monkeypatch)
     segments, envs, expected = _explicit_claude_segment()
     pin_cli_available(monkeypatch)
     install_disables(
@@ -192,6 +363,10 @@ def test_adapter_launches_when_provider_is_only_soft_disabled(
         "sase.history.prompt.add_or_update_prompt", lambda *a, **k: None
     )
     monkeypatch.setattr("sase.agent.names.get_reserved_agent_names", lambda: set())
+    monkeypatch.setattr(
+        "sase.agent.names.mutate_registered_name_reservations",
+        lambda _reservations: None,
+    )
     launched: list[object] = []
 
     def fake_launch_multi(**kwargs: Any) -> list[object]:
@@ -220,11 +395,16 @@ def test_adapter_guard_failure_logs_and_launches(
 ) -> None:
     from sase.agent import launch_cwd
 
+    _configure_machine(monkeypatch)
     segments, envs, expected = _bead_segments()
     monkeypatch.setattr(
         "sase.history.prompt.add_or_update_prompt", lambda *a, **k: None
     )
     monkeypatch.setattr("sase.agent.names.get_reserved_agent_names", lambda: set())
+    monkeypatch.setattr(
+        "sase.agent.names.mutate_registered_name_reservations",
+        lambda _reservations: None,
+    )
     monkeypatch.setattr(
         "sase.agent.launch_guard.blocked_launch_units",
         lambda *a, **k: (_ for _ in ()).throw(ValueError("guard exploded")),

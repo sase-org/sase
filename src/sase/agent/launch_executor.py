@@ -8,11 +8,13 @@ from sase.agent.launch_executor_types import (
     LaunchExecutionContext,
     LaunchExecutionRecord,
     LaunchExecutionResult,
+    LaunchNameReservationEvidence,
     LaunchSpawnRequest,
     SlotContextCallback,
     SlotEnvCallback,
     SlotExecutedCallback,
     SlotLocalXpromptsCallback,
+    SlotNameReservationCallback,
     SpawnCallback,
 )
 from sase.agent.launch_executor_workspace import (
@@ -59,6 +61,7 @@ def execute_launch_plan(
     slot_context: SlotContextCallback | None = None,
     slot_extra_env: SlotEnvCallback | None = None,
     slot_local_xprompts_file: SlotLocalXpromptsCallback | None = None,
+    slot_name_reservation: SlotNameReservationCallback | None = None,
     extra_env: dict[str, str] | None = None,
     timestamp_allocator: LaunchTimestampBatchAllocator | None = None,
     base_timestamp: str | None = None,
@@ -77,12 +80,25 @@ def execute_launch_plan(
 
     ensure_historical_auto_name_migration()
 
-    from sase.agent.launch_validation import validate_launch_name_requests
+    name_reservations = _slot_name_reservations(plan, slot_name_reservation)
+    if _name_reservation_evidence_covers_plan(plan, name_reservations):
+        from sase.agent.launch_validation import preflight_launch_name_requests
 
-    validate_launch_name_requests(
-        [slot.prompt for slot in plan.slots],
-        allow_reserved_family_separator_names=allow_reserved_family_separator_names,
-    )
+        preflight_launch_name_requests(
+            [slot.prompt for slot in plan.slots],
+            allow_reserved_family_separator_names=(
+                allow_reserved_family_separator_names
+            ),
+        )
+    else:
+        from sase.agent.launch_validation import validate_launch_name_requests
+
+        validate_launch_name_requests(
+            [slot.prompt for slot in plan.slots],
+            allow_reserved_family_separator_names=(
+                allow_reserved_family_separator_names
+            ),
+        )
 
     allocator = timestamp_allocator or LaunchTimestampBatchAllocator()
     missing_timestamp_count = sum(1 for slot in plan.slots if slot.timestamp is None)
@@ -122,6 +138,7 @@ def execute_launch_plan(
         local_xprompts_file = (
             None if slot_local_xprompts_file is None else slot_local_xprompts_file(slot)
         )
+        name_reservation = name_reservations.get(slot.slot_index)
 
         request, result = spawn_slot_with_workspace_retry(
             slot=slot,
@@ -130,6 +147,7 @@ def execute_launch_plan(
             timestamp=timestamp,
             extra_env=env or None,
             local_xprompts_file=local_xprompts_file,
+            name_reservation=name_reservation,
             spawn=spawn_fn,
         )
         record = LaunchExecutionRecord(slot=slot, request=request, result=result)
@@ -169,10 +187,48 @@ def _explicit_static_name_for_pending_family_parent(prompt: str) -> str | None:
     return explicit_name
 
 
+def _slot_name_reservations(
+    plan: LaunchFanoutPlanWire,
+    callback: SlotNameReservationCallback | None,
+) -> dict[int, LaunchNameReservationEvidence | None]:
+    if callback is None:
+        return {}
+    return {slot.slot_index: callback(slot) for slot in plan.slots}
+
+
+def _name_reservation_evidence_covers_plan(
+    plan: LaunchFanoutPlanWire,
+    reservations: dict[int, LaunchNameReservationEvidence | None],
+) -> bool:
+    if not reservations or len(reservations) != len(plan.slots):
+        return False
+
+    from sase.agent.multi_prompt_references import extract_static_name_directive
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        normalize_owned_agent_name,
+    )
+
+    identity = AgentIdentitySnapshot.current()
+    for slot in plan.slots:
+        reservation = reservations.get(slot.slot_index)
+        if reservation is None:
+            return False
+        explicit_name = extract_static_name_directive(slot.prompt)
+        if explicit_name is None:
+            return False
+        if normalize_owned_agent_name(explicit_name, identity) != (
+            normalize_owned_agent_name(reservation.agent_name, identity)
+        ):
+            return False
+    return True
+
+
 __all__ = [
     "LaunchExecutionContext",
     "LaunchExecutionRecord",
     "LaunchExecutionResult",
+    "LaunchNameReservationEvidence",
     "LaunchSpawnRequest",
     "execute_launch_plan",
     "workspace_allocation_attempt_limit",

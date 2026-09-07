@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from sase.agent.launch_executor_types import (
     LaunchExecutionContext,
+    LaunchNameReservationEvidence,
     LaunchSpawnRequest,
     SpawnCallback,
 )
@@ -28,6 +29,7 @@ def spawn_slot_with_workspace_retry(
     timestamp: str,
     extra_env: dict[str, str] | None,
     local_xprompts_file: str | None,
+    name_reservation: LaunchNameReservationEvidence | None = None,
     spawn: SpawnCallback,
 ) -> tuple[LaunchSpawnRequest, AgentLaunchResult | None]:
     from sase.running_field import release_workspace
@@ -65,6 +67,7 @@ def spawn_slot_with_workspace_retry(
                 local_xprompts_file=local_xprompts_file,
                 extra_env=extra_env,
                 transfer_from_pid=transfer_from_pid,
+                name_reservation=name_reservation,
             )
             result = spawn(request)
             # Successful spawn: the callback transferred the pre-claim to

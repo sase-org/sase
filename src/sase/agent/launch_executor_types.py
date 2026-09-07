@@ -10,6 +10,17 @@ from sase.core.agent_launch_wire import LaunchFanoutSlotWire
 
 
 @dataclass(frozen=True)
+class LaunchNameReservationEvidence:
+    """Parent-side registry reservation prepared before a launch slot spawns."""
+
+    agent_name: str
+    artifacts_dir: str
+    request_id: str = ""
+    clan_name: str | None = None
+    clan_generation: str | None = None
+
+
+@dataclass(frozen=True)
 class LaunchExecutionContext:
     """Host-resolved context used to execute one or more launch slots."""
 
@@ -46,6 +57,7 @@ class LaunchSpawnRequest:
     local_xprompts_file: str | None = None
     extra_env: dict[str, str] | None = None
     transfer_from_pid: int | None = None
+    name_reservation: LaunchNameReservationEvidence | None = None
 
     def as_spawn_kwargs(self) -> dict[str, object]:
         """Return keyword arguments accepted by low-level launch spawners."""
@@ -99,6 +111,9 @@ SlotContextCallback = Callable[
 ]
 SlotEnvCallback = Callable[[LaunchFanoutSlotWire], dict[str, str]]
 SlotLocalXpromptsCallback = Callable[[LaunchFanoutSlotWire], str | None]
+SlotNameReservationCallback = Callable[
+    [LaunchFanoutSlotWire], LaunchNameReservationEvidence | None
+]
 SlotExecutedCallback = Callable[[LaunchExecutionRecord], None]
 
 
@@ -106,10 +121,12 @@ __all__ = [
     "LaunchExecutionContext",
     "LaunchExecutionRecord",
     "LaunchExecutionResult",
+    "LaunchNameReservationEvidence",
     "LaunchSpawnRequest",
     "SlotContextCallback",
     "SlotEnvCallback",
     "SlotExecutedCallback",
     "SlotLocalXpromptsCallback",
+    "SlotNameReservationCallback",
     "SpawnCallback",
 ]

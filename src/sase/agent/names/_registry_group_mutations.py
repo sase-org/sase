@@ -34,6 +34,13 @@ def reserve_registered_clan_name(
         storage_name, existing = operations.equivalent_entry(entries, name, identity)
         if isinstance(existing, dict):
             if existing.get("container_kind") == "clan":
+                existing_generation = existing.get("clan_generation")
+                if (
+                    existing.get("reservation_kind") == "planned_clan"
+                    and existing_generation == generation
+                    and operations.entry_belongs_to_artifact(existing, artifact_dir)
+                ):
+                    return generation
                 if create_only:
                     from sase.agent.names._common import NameCollisionError
 
@@ -42,7 +49,6 @@ def reserve_registered_clan_name(
                         f"clan '{visible_name}' already exists; join it with "
                         f"%id(<id>, clan={visible_name})"
                     )
-                existing_generation = existing.get("clan_generation")
                 return (
                     existing_generation
                     if isinstance(existing_generation, str) and existing_generation

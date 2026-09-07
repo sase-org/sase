@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Collection, Sequence
+from dataclasses import dataclass, replace
+from pathlib import Path
 
 from sase.agent.launch_cwd_common import internal_agent_name_bypass_for_launch
+from sase.agent.launch_executor_types import LaunchNameReservationEvidence
 from sase.agent.launch_types import AgentLaunchResult
+from sase.core.agent_launch_wire import LaunchFanoutPlanWire
 from sase.core.paths import sase_projects_dir
 
 log = logging.getLogger(__name__)
@@ -74,10 +78,9 @@ def launch_planned_bead_work_agents(
     from sase.agent.launch_projects import (
         enable_known_project_vcs_refs_for_launch_prompt,
     )
-    from sase.agent.launch_validation import validate_launch_name_requests
+    from sase.agent.launch_validation import preflight_launch_name_requests
     from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
     from sase.agent.multi_prompt_references import extract_static_name_directive
-    from sase.core.agent_launch_facade import plan_fake_fanout
     from sase.history.prompt import add_or_update_prompt
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
     from sase.workspace_provider import get_ref_patterns
@@ -148,7 +151,7 @@ def launch_planned_bead_work_agents(
                 break
 
     try:
-        validate_launch_name_requests(
+        preflight_launch_name_requests(
             normalized_segments,
             allow_reserved_family_separator_names=allow_bypass,
         )
@@ -164,9 +167,20 @@ def launch_planned_bead_work_agents(
         record_failed_launch_prompt=record_failed_launch_prompt,
     )
 
-    preplanned_fanout_plans = [
-        plan_fake_fanout("multi_prompt", [segment]) for segment in normalized_segments
-    ]
+    preplanned_fanout_plans = _preplanned_one_slot_fanout_plans(normalized_segments)
+    try:
+        reservation_batch = _reserve_planned_bead_work_launch(
+            normalized_segments,
+            preplanned_fanout_plans=preplanned_fanout_plans,
+            cl_name=cl_name,
+            project_file=project_file,
+            project_name=project_name,
+            vcs_ref=vcs_ref,
+        )
+    except RuntimeError:
+        record_failed_launch_prompt(normalized_query)
+        raise
+
     try:
         return launch_multi_prompt_agents(
             segments=normalized_segments,
@@ -180,10 +194,237 @@ def launch_planned_bead_work_agents(
             preplanned_fanout_plans=preplanned_fanout_plans,
             allow_reserved_family_separator_names=allow_bypass,
             default_bare_segments_to_home=True,
+            name_reservation_evidence=reservation_batch.name_evidence,
         )
-    except Exception:
+    except Exception as exc:
+        _release_unconsumed_bead_work_reservations(
+            reservation_batch,
+            launched_results=getattr(exc, "results", ()),
+        )
         record_failed_launch_prompt(normalized_query)
         raise
+
+
+@dataclass(frozen=True)
+class _BeadWorkReservationBatch:
+    """Reservations created for one planned bead-work launch."""
+
+    name_evidence: tuple[LaunchNameReservationEvidence | None, ...]
+    clan_reservations: tuple[tuple[str, str, Path], ...]
+
+
+def _preplanned_one_slot_fanout_plans(
+    segments: Sequence[str],
+) -> list[LaunchFanoutPlanWire]:
+    from sase.core.agent_launch_facade import (
+        LaunchTimestampBatchAllocator,
+        plan_fake_fanout,
+    )
+
+    timestamps = LaunchTimestampBatchAllocator().allocate(len(segments))
+    plans: list[LaunchFanoutPlanWire] = []
+    for segment, timestamp in zip(segments, timestamps, strict=True):
+        plan = plan_fake_fanout("multi_prompt", [segment])
+        plans.append(
+            replace(
+                plan,
+                slots=[replace(plan.slots[0], timestamp=timestamp)],
+            )
+        )
+    return plans
+
+
+def _reserve_planned_bead_work_launch(
+    segments: Sequence[str],
+    *,
+    preplanned_fanout_plans: Sequence[LaunchFanoutPlanWire],
+    cl_name: str,
+    project_file: str,
+    project_name: str,
+    vcs_ref: tuple[str, str] | None,
+) -> _BeadWorkReservationBatch:
+    from sase.agent.multi_prompt_launch_plan import future_agent_artifacts_dir
+    from sase.agent.multi_prompt_references import (
+        extract_static_clan_directive,
+        extract_static_name_directive,
+    )
+    from sase.agent.multi_prompt_vcs import resolve_segment_vcs_context
+    from sase.agent.names import (
+        RegisteredNameReservation,
+        mutate_registered_name_reservations,
+    )
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        normalize_owned_agent_name,
+    )
+    from sase.xprompt.directives import has_deferred_start_directive
+
+    if len(preplanned_fanout_plans) != len(segments):
+        raise ValueError("preplanned_fanout_plans must match bead-work segments")
+
+    identity = AgentIdentitySnapshot.current()
+    name_evidence: list[LaunchNameReservationEvidence | None] = []
+    artifacts_dirs: list[Path] = []
+    reservations: list[RegisteredNameReservation] = []
+    clan_names_by_segment: list[str | None] = []
+    declared_clans: set[str] = set()
+    clan_members: dict[str, list[int]] = {}
+
+    for index, (segment, plan) in enumerate(
+        zip(segments, preplanned_fanout_plans, strict=True)
+    ):
+        if len(plan.slots) != 1:
+            raise ValueError("bead-work launch plans must have exactly one slot")
+        slot = plan.slots[0]
+        if slot.timestamp is None:
+            raise ValueError("bead-work launch plans must carry timestamps")
+        context = resolve_segment_vcs_context(
+            prompt=slot.prompt,
+            fallback_cl_name=cl_name,
+            fallback_project_file=project_file,
+            fallback_project_name=project_name,
+            fallback_is_home_mode=False,
+            fallback_vcs_ref=vcs_ref,
+            has_wait=has_deferred_start_directive(slot.prompt),
+        )
+        artifacts_dir = future_agent_artifacts_dir(
+            project_name=context.project_name,
+            timestamp=slot.timestamp,
+        )
+        artifacts_dirs.append(artifacts_dir)
+
+        raw_name = extract_static_name_directive(segment)
+        if raw_name is None:
+            name_evidence.append(None)
+        else:
+            name = normalize_owned_agent_name(raw_name, identity)
+            request_id = f"bead-work-name-{index}"
+            evidence = LaunchNameReservationEvidence(
+                agent_name=name,
+                artifacts_dir=str(artifacts_dir),
+                request_id=request_id,
+            )
+            name_evidence.append(evidence)
+            reservations.append(
+                RegisteredNameReservation(
+                    request_id=request_id,
+                    operation="reserve_planned",
+                    name=name,
+                    artifact_dir=artifacts_dir,
+                )
+            )
+
+        clan_directive = extract_static_clan_directive(segment)
+        if clan_directive is None:
+            clan_names_by_segment.append(None)
+            continue
+        clan_name = normalize_owned_agent_name(clan_directive.name, identity)
+        clan_names_by_segment.append(clan_name)
+        clan_members.setdefault(clan_name, []).append(index)
+        if clan_directive.declared:
+            declared_clans.add(clan_name)
+
+    clan_reservations: list[tuple[str, str, Path]] = []
+    for clan_name in sorted(declared_clans):
+        members = clan_members.get(clan_name, [])
+        if not members:
+            continue
+        first_index = min(
+            members,
+            key=lambda member_index: str(
+                preplanned_fanout_plans[member_index].slots[0].timestamp
+            ),
+        )
+        generation = artifacts_dirs[first_index].name
+        artifacts_dir = artifacts_dirs[first_index]
+        request_id = f"bead-work-clan-{len(clan_reservations)}"
+        reservations.append(
+            RegisteredNameReservation(
+                request_id=request_id,
+                operation="reserve_clan",
+                name=clan_name,
+                artifact_dir=artifacts_dir,
+                clan_generation=generation,
+                create_only=True,
+            )
+        )
+        clan_reservations.append((clan_name, generation, artifacts_dir))
+
+    if reservations:
+        mutate_registered_name_reservations(reservations)
+
+    enriched_evidence: list[LaunchNameReservationEvidence | None] = []
+    clan_reservation_by_name = {
+        reserved_clan_name: (generation, clan_artifacts_dir)
+        for reserved_clan_name, generation, clan_artifacts_dir in clan_reservations
+    }
+    for evidence_item, segment_clan_name in zip(
+        name_evidence,
+        clan_names_by_segment,
+        strict=True,
+    ):
+        if evidence_item is None:
+            enriched_evidence.append(None)
+            continue
+        clan_reservation = (
+            None
+            if segment_clan_name is None
+            else clan_reservation_by_name.get(segment_clan_name)
+        )
+        if segment_clan_name is None or clan_reservation is None:
+            enriched_evidence.append(evidence_item)
+            continue
+        enriched_evidence.append(
+            replace(
+                evidence_item,
+                clan_name=segment_clan_name,
+                clan_generation=clan_reservation[0],
+            )
+        )
+
+    return _BeadWorkReservationBatch(
+        name_evidence=tuple(enriched_evidence),
+        clan_reservations=tuple(clan_reservations),
+    )
+
+
+def _release_unconsumed_bead_work_reservations(
+    batch: _BeadWorkReservationBatch,
+    *,
+    launched_results: Sequence[AgentLaunchResult],
+) -> None:
+    launched_agent_names = {
+        result.agent_name for result in launched_results if result.agent_name
+    }
+    launched_artifact_dirs = {
+        str(Path(result.artifacts_dir).expanduser().resolve(strict=False))
+        for result in launched_results
+        if result.artifacts_dir
+    }
+    from sase.agent.names import (
+        release_planned_registered_clan_name,
+        release_planned_registered_name,
+    )
+
+    for evidence in batch.name_evidence:
+        if evidence is None:
+            continue
+        evidence_artifacts_dir = str(Path(evidence.artifacts_dir).resolve(strict=False))
+        if (
+            evidence_artifacts_dir in launched_artifact_dirs
+            or evidence.agent_name in launched_agent_names
+        ):
+            continue
+        release_planned_registered_name(evidence.agent_name, evidence_artifacts_dir)
+
+    if launched_artifact_dirs or launched_agent_names:
+        return
+    for clan_name, generation, clan_artifacts_dir in batch.clan_reservations:
+        release_planned_registered_clan_name(
+            clan_name,
+            generation,
+            clan_artifacts_dir,
+        )
 
 
 def _guard_hard_disabled_bead_work(

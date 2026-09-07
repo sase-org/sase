@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.agent.clan_membership import CLAN_MEMBERSHIP_ENV
+from sase.agent.launch_executor_types import LaunchNameReservationEvidence
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.multi_prompt_launch_plan import (
     assign_missing_slot_timestamps,
@@ -63,6 +64,8 @@ def spawn_segments_into(
     timestamp_allocator: LaunchTimestampBatchAllocator,
     results: list[AgentLaunchResult],
     wait_for_agent_naming: Callable[[str], str | None],
+    name_reservation_evidence: Sequence[LaunchNameReservationEvidence | None]
+    | None = None,
 ) -> None:
     from sase.agent.launch_executor import (
         LaunchExecutionContext,
@@ -105,7 +108,17 @@ def spawn_segments_into(
         raise ValueError(
             "segment_swarm_xprompts must have one entry per multi-prompt segment"
         )
+    if name_reservation_evidence is not None and len(name_reservation_evidence) != len(
+        segments
+    ):
+        raise ValueError(
+            "name_reservation_evidence must have one entry per multi-prompt segment"
+        )
     name_allocator = PlannedNameAllocator()
+    if name_reservation_evidence is not None:
+        name_allocator.track_planned_reservations(
+            [evidence for evidence in name_reservation_evidence if evidence is not None]
+        )
     clan_prepass = empty_clan_prepass()
     try:
         clan_prepass = prepare_clan_launches(
@@ -122,14 +135,24 @@ def spawn_segments_into(
             timestamp_allocator=timestamp_allocator,
             name_allocator=name_allocator,
         )
-        from sase.agent.launch_validation import validate_launch_name_requests
+        if _reservation_evidence_covers_segments(segments, name_reservation_evidence):
+            from sase.agent.launch_validation import preflight_launch_name_requests
 
-        validate_launch_name_requests(
-            segments,
-            allow_reserved_family_separator_names=(
-                allow_reserved_family_separator_names
-            ),
-        )
+            preflight_launch_name_requests(
+                segments,
+                allow_reserved_family_separator_names=(
+                    allow_reserved_family_separator_names
+                ),
+            )
+        else:
+            from sase.agent.launch_validation import validate_launch_name_requests
+
+            validate_launch_name_requests(
+                segments,
+                allow_reserved_family_separator_names=(
+                    allow_reserved_family_separator_names
+                ),
+            )
     except Exception:
         clan_prepass.release_uncommitted_clan_reservations()
         name_allocator.release_uncommitted_template_reservations()
@@ -370,6 +393,18 @@ def spawn_segments_into(
                 ) -> str | None:
                     return files_by_slot[slot.slot_index]  # type: ignore[attr-defined]
 
+                def _slot_name_reservation(
+                    slot: object,
+                    evidence: LaunchNameReservationEvidence | None = (
+                        None
+                        if name_reservation_evidence is None
+                        else name_reservation_evidence[i]
+                    ),
+                ) -> LaunchNameReservationEvidence | None:
+                    if getattr(slot, "slot_index", None) != 0:
+                        return None
+                    return evidence
+
                 def _on_slot_executed(
                     record: LaunchExecutionRecord,
                     planned_names_by_slot: dict[int, str | None] = planned_names,
@@ -399,6 +434,7 @@ def spawn_segments_into(
                     slot_context=_slot_context,
                     slot_extra_env=_slot_extra_env,
                     slot_local_xprompts_file=_slot_local_xprompts_file,
+                    slot_name_reservation=_slot_name_reservation,
                     extra_env=extra_env,
                     timestamp_allocator=timestamp_allocator,
                     on_slot_executed=_on_slot_executed,
@@ -462,3 +498,30 @@ def spawn_segments_into(
             else:
                 print(f"  Agent {i + 1}/{len(segments)} naming timed out, continuing")
     timer.finish(outcome="ok", launched=len(results))
+
+
+def _reservation_evidence_covers_segments(
+    segments: Sequence[str],
+    evidence: Sequence[LaunchNameReservationEvidence | None] | None,
+) -> bool:
+    if evidence is None or len(evidence) != len(segments):
+        return False
+
+    from sase.agent.multi_prompt_references import extract_static_name_directive
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        normalize_owned_agent_name,
+    )
+
+    identity = AgentIdentitySnapshot.current()
+    for segment, item in zip(segments, evidence, strict=True):
+        if item is None:
+            return False
+        explicit_name = extract_static_name_directive(segment)
+        if explicit_name is None:
+            return False
+        if normalize_owned_agent_name(explicit_name, identity) != (
+            normalize_owned_agent_name(item.agent_name, identity)
+        ):
+            return False
+    return True

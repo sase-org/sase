@@ -7,6 +7,7 @@ sibling modules; this module retains the established import and patch surface.
 
 from collections.abc import Callable, Sequence
 
+from sase.agent.launch_executor_types import LaunchNameReservationEvidence
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.multi_prompt_launch_execution import spawn_segments_into
 from sase.agent.multi_prompt_references import (
@@ -84,6 +85,8 @@ def launch_multi_prompt_agents(
     allow_hyphenated_names: bool | None = None,
     default_bare_segments_to_home: bool = False,
     multi_agent_prompt_text: str | None = None,
+    name_reservation_evidence: Sequence[LaunchNameReservationEvidence | None]
+    | None = None,
 ) -> list[AgentLaunchResult]:
     """Launch each segment as a separate agent.
 
@@ -122,6 +125,7 @@ def launch_multi_prompt_agents(
             timestamp_allocator=timestamp_allocator,
             results=results,
             wait_for_agent_naming=_wait_for_agent_naming,
+            name_reservation_evidence=name_reservation_evidence,
         )
     except Exception as exc:
         if results:

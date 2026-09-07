@@ -22,6 +22,7 @@ from sase.core.agent_tribe import parse_tribe_reference
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
 
 if TYPE_CHECKING:
+    from sase.agent.launch_executor_types import LaunchNameReservationEvidence
     from sase.agent.names import AgentNameNamespaceReservationIndex
 
 
@@ -214,6 +215,28 @@ class PlannedNameAllocator:
         )
         if reservation in self._planned_reservations:
             self._committed_reservations.add(reservation)
+
+    def track_planned_reservations(
+        self, reservations: Sequence[LaunchNameReservationEvidence]
+    ) -> None:
+        """Track pre-existing planned reservations for failure cleanup."""
+        from sase.core.agent_identity_facade import normalize_owned_agent_name
+
+        existing = set(self._planned_reservations)
+        for evidence in reservations:
+            reservation = PlannedNameReservation(
+                name=normalize_owned_agent_name(
+                    evidence.agent_name,
+                    self._machine_identity,
+                ),
+                artifacts_dir=str(
+                    Path(evidence.artifacts_dir).expanduser().resolve(strict=False)
+                ),
+            )
+            if reservation in existing:
+                continue
+            self._planned_reservations.append(reservation)
+            existing.add(reservation)
 
     def mark_indexed_reservation_committed(
         self, name: str | None, artifacts_dir: str | Path | None

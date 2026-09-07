@@ -10,6 +10,7 @@ import pytest
 
 from sase.agent.launch_executor import (
     LaunchExecutionContext,
+    LaunchNameReservationEvidence,
     LaunchSpawnRequest,
     execute_launch_plan,
 )
@@ -126,6 +127,49 @@ def test_execute_fanout_plan_allocates_workspace_per_slot_and_merges_env() -> No
         parent_pid,
     ]
     assert executed == ["260501_120000", "260501_120001"]
+
+
+def test_execute_launch_plan_uses_matching_reservation_evidence_for_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = plan_fake_fanout("single", ["%id:worker\nDo work"])
+    evidence = LaunchNameReservationEvidence(
+        agent_name="worker",
+        artifacts_dir="/artifacts/run0",
+        request_id="reservation-1",
+    )
+    requests: list[LaunchSpawnRequest] = []
+    preflighted: list[list[str]] = []
+
+    monkeypatch.setattr(
+        "sase.agent.launch_validation.validate_launch_name_requests",
+        lambda *_args, **_kwargs: pytest.fail(
+            "matching reservation evidence should skip full validation"
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.agent.launch_validation.preflight_launch_name_requests",
+        lambda prompts, **_kwargs: preflighted.append(list(prompts)),
+    )
+
+    execution = execute_launch_plan(
+        plan,
+        LaunchExecutionContext(
+            cl_name="change",
+            project_file="/project.sase",
+            project_name="project",
+            workspace_num=7,
+            workspace_dir="/workspace/7",
+            use_preallocated_workspace=True,
+        ),
+        spawn=lambda request: requests.append(request) or _result_for(request),
+        base_timestamp="ts",
+        slot_name_reservation=lambda _slot: evidence,
+    )
+
+    assert execution.launched_count == 1
+    assert preflighted == [["%id:worker\nDo work"]]
+    assert requests[0].name_reservation == evidence
 
 
 def test_workspace_claim_failure_retries_with_new_allocation(
