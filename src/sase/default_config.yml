@@ -28,6 +28,18 @@ repos:
     builtin: {}
     custom: {}
 
+dispatch:
+  providers:
+    builtin@https:
+      enabled: true
+    builtin@tailnet:
+      enabled: false
+  machines: {}
+  discovery:
+    enabled_providers: []
+  request_timeout_seconds: 5
+  status_cache_seconds: 60
+
 # Host-wide cap on concurrently occupied runner slots. A running sase
 # agent holds one slot while any of its shells is live: a standalone
 # agent, a serial family (root, serial child, monitor, or --next

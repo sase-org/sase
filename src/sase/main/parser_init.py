@@ -179,6 +179,22 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Report whether owner identity initialization or migration is needed",
     )
 
+    machine_parser = init_subparsers.add_parser(
+        "machine",
+        help="Alias for `sase machine discover` plus optional enrollment",
+        description=(
+            "Compatibility alias for optional remote-machine enrollment during "
+            "initialization. Check mode is read-only and performs no discovery."
+        ),
+    )
+    machine_parser.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Report whether remote-machine enrollment can be offered",
+    )
+
     memory_parser = init_subparsers.add_parser(
         "memory",
         help="Alias for `sase memory init`",

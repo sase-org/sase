@@ -984,11 +984,150 @@
           "items": { "type": "string" }
         }
       }
+    },
+    "dispatchConfig": {
+      "type": "object",
+      "description": "Remote dispatch provider and enrolled machine configuration.",
+      "additionalProperties": false,
+      "properties": {
+        "providers": {
+          "type": "object",
+          "description": "Dispatch provider settings keyed by provider ref.",
+          "default": {},
+          "additionalProperties": {
+            "$ref": "#/definitions/dispatchProviderSettings"
+          }
+        },
+        "machines": {
+          "type": "object",
+          "description": "Viewer-local remote machine aliases keyed by alias.",
+          "default": {},
+          "propertyNames": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$"
+          },
+          "additionalProperties": {
+            "$ref": "#/definitions/dispatchMachineRecord"
+          }
+        },
+        "discovery": {
+          "type": "object",
+          "description": "Explicit provider discovery settings. Discovery is never run during ordinary config loading.",
+          "default": {},
+          "additionalProperties": false,
+          "properties": {
+            "enabled_providers": {
+              "type": "array",
+              "description": "Provider refs allowed for explicit machine discovery.",
+              "default": [],
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}$"
+              }
+            }
+          }
+        },
+        "request_timeout_seconds": {
+          "type": "number",
+          "description": "Default per-request timeout for fleet gateway calls.",
+          "default": 5,
+          "exclusiveMinimum": 0
+        },
+        "status_cache_seconds": {
+          "type": "number",
+          "description": "Default freshness window for future dispatch status caches.",
+          "default": 60,
+          "minimum": 0
+        }
+      }
+    },
+    "dispatchProviderSettings": {
+      "type": "object",
+      "description": "Settings for one dispatch provider.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable this provider for explicit dispatch operations.",
+          "default": false
+        }
+      }
+    },
+    "dispatchMachineRecord": {
+      "type": "object",
+      "description": "One enrolled remote machine alias. The credential_ref points to local secret storage; tokens must never appear here.",
+      "required": ["provider", "endpoint", "credential_ref", "installation_pin"],
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}$",
+          "description": "Opaque dispatch provider ref used for routing metadata."
+        },
+        "endpoint": {
+          "type": "string",
+          "pattern": "^https://[^\\s/$.?#].*",
+          "description": "HTTPS fleet gateway endpoint for this alias."
+        },
+        "credential_ref": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
+          "description": "Opaque reference into the local dispatch credential store."
+        },
+        "installation_pin": {
+          "type": "string",
+          "pattern": "^sase_inst_v1_[0-9a-f]{64}$",
+          "description": "Authoritative remote gateway installation identity pin."
+        },
+        "connection_kind": {
+          "type": "string",
+          "enum": ["gateway", "tunnel", "direct"],
+          "default": "gateway",
+          "description": "Fleet connection kind."
+        },
+        "tls": {
+          "$ref": "#/definitions/dispatchTlsSettings"
+        },
+        "quarantined": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this alias is quarantined until explicit repair."
+        },
+        "quarantine_reason": {
+          "type": "string",
+          "default": "",
+          "description": "Non-secret explanation for a quarantined alias."
+        }
+      }
+    },
+    "dispatchTlsSettings": {
+      "type": "object",
+      "description": "Fleet TLS trust settings.",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["system_roots", "pinned_ca", "pinned_server_name"],
+          "default": "system_roots"
+        },
+        "ca_ref": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Opaque CA reference for pinned_ca mode."
+        },
+        "server_name_ref": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Opaque server-name reference for pinned_server_name mode."
+        }
+      }
     }
   },
   "properties": {
     "artifact_refs": {
       "$ref": "#/definitions/artifactRefs"
+    },
+    "dispatch": {
+      "$ref": "#/definitions/dispatchConfig"
     },
     "memory": {
       "type": "object",
@@ -4081,6 +4220,11 @@
           "description": "A second ':' typed immediately after '@<kind>:' with an empty payload is consumed and refreshes that kind's backing sidecar (clone-if-missing or force-pull past the freshness TTL, else a catalog rescan), then reopens the '@' payload menu with newly-arrived rows badged.",
           "default": true,
           "deprecated": true
+        },
+        "remote_dispatch": {
+          "type": "boolean",
+          "description": "Beta gate for configured dispatch provider activation.",
+          "default": false
         },
         "typed_launch_units": {
           "type": "boolean",

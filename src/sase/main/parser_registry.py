@@ -43,6 +43,7 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "launch": ("sase.main.parser_launch", "register_launch_parser"),
     "logs": ("sase.main.parser_commands", "register_logs_parser"),
     "lsp": ("sase.main.parser_commands", "register_lsp_parser"),
+    "machine": ("sase.main.parser_machine", "register_machine_parser"),
     "memory": ("sase.main.parser_memory", "register_memory_parser"),
     "migrate": ("sase.main.parser_migrate", "register_migrate_parser"),
     "mobile": ("sase.main.parser_mobile", "register_mobile_parser"),

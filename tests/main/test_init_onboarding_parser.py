@@ -234,9 +234,10 @@ def test_init_help_lists_existing_subcommands(
     assert out.index(project_opt) < out.index("-y, --yes")
 
 
-def test_registry_order_is_config_memory_repo_skills() -> None:
+def test_registry_order_is_config_machine_memory_repo_skills() -> None:
     assert tuple(spec.name for spec in iter_init_command_specs()) == (
         "config",
+        "machine",
         "memory",
         "repo",
         "skills",

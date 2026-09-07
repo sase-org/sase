@@ -11364,6 +11364,46 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "7797bb81ba10b2aa",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "machine",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "check",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-c",
+                  "--check"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "init",
+              "machine"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "38d2242fadaa6c2e",
             "hidden": false,
             "mutex_groups": [],
@@ -12032,6 +12072,495 @@
           }
         ],
         "subcommands": []
+      },
+      {
+        "aliases": [],
+        "default_child": "list",
+        "description_digest": "9eada04a09e948d1",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "machine",
+        "options": [
+          {
+            "choices": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false
+          }
+        ],
+        "path": [
+          "machine"
+        ],
+        "positionals": [],
+        "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "b91a5a090eb1050a",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "add",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "bootstrap_file",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-B",
+                  "--bootstrap-file"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "candidate",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-c",
+                  "--candidate"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "provider",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--provider"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "timeout",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--timeout"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "machine",
+              "add"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "alias",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "ALIAS",
+                "nargs": null
+              },
+              {
+                "choices": null,
+                "dest": "endpoint",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "ENDPOINT",
+                "nargs": "?"
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "bf2fdc1a794bc01b",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "discover",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "provider",
+                "hidden": false,
+                "kind": null,
+                "repeatable": true,
+                "strings": [
+                  "-p",
+                  "--provider"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "timeout",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--timeout"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "machine",
+              "discover"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "c1b2ce7418f4e7d6",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "list",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "machine",
+              "list"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "21d2955deaef89ec",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "remove",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "yes",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-y",
+                  "--yes"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "machine",
+              "remove"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "alias",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "ALIAS",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "400ec3b9a89b6341",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "rename",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "machine",
+              "rename"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "old_alias",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "OLD_ALIAS",
+                "nargs": null
+              },
+              {
+                "choices": null,
+                "dest": "new_alias",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "NEW_ALIAS",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "a9125d21aa3f1b52",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "repair",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "bootstrap_file",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-B",
+                  "--bootstrap-file"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "timeout",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--timeout"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "machine",
+              "repair"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "alias",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "ALIAS",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "fd8162c3112bdca4",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "status",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "timeout",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--timeout"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "machine",
+              "status"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "aliases",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "ALIAS",
+                "nargs": "*"
+              }
+            ],
+            "subcommands": []
+          }
+        ]
       },
       {
         "aliases": [],

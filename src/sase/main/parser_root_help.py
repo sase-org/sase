@@ -25,7 +25,7 @@ _COMPACT_ROOT_COMMANDS: tuple[CompactRootCommand, ...] = (
     ),
     CompactRootCommand(
         "init",
-        "Check or initialize config, memory, repositories, and skills.",
+        "Check or initialize config, machines, memory, repositories, and skills.",
     ),
     CompactRootCommand(
         "version",
@@ -47,6 +47,10 @@ _COMPACT_ROOT_COMMANDS: tuple[CompactRootCommand, ...] = (
     CompactRootCommand(
         "agent",
         "List, inspect, tag, or stop active and recent agent runs.",
+    ),
+    CompactRootCommand(
+        "machine",
+        "List, enroll, repair, and check configured remote machine aliases.",
     ),
     CompactRootCommand(
         "memory",

@@ -74,6 +74,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
     )
     from sase.doctor.checks_config import config_check_specs
     from sase.doctor.checks_deep import deep_check_specs
+    from sase.doctor.checks_dispatch import dispatch_check_specs
     from sase.doctor.checks_external_mirror import external_mirror_check_specs
     from sase.doctor.checks_integrations import integration_check_specs
     from sase.doctor.checks_plugins import plugin_check_specs
@@ -90,6 +91,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
             *runtime_check_specs(context),
             *config_check_specs(context),
             *provider_check_specs(context),
+            *dispatch_check_specs(context),
             *plugin_check_specs(context),
             *resource_check_specs(context),
             *axe_check_specs(context),

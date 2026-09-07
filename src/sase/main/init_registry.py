@@ -27,6 +27,7 @@ def iter_init_command_specs() -> tuple[InitCommandSpec, ...]:
     before the repo spec owns configured sidecars and project repository wiring.
     """
     from .config_init_handler import plan_config_init, run_config_init
+    from .init_machine_handler import plan_init_machine, run_init_machine
     from .init_skills_handler import plan_init_skills, run_init_skills
     from .init_memory_handler import plan_init_memory, run_init_memory
     from .repo_init_handler import plan_repo_init, run_repo_init
@@ -37,6 +38,12 @@ def iter_init_command_specs() -> tuple[InitCommandSpec, ...]:
             label="Config",
             plan=plan_config_init,
             run=run_config_init,
+        ),
+        InitCommandSpec(
+            name="machine",
+            label="Machine",
+            plan=plan_init_machine,
+            run=run_init_machine,
         ),
         InitCommandSpec(
             name="memory",

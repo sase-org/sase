@@ -24,6 +24,7 @@ class FeatureFlag(StrEnum):
     ace_refresh_tokens = "ace_refresh_tokens"
     admin_center_flags = "admin_center_flags"
     provider_drain = "provider_drain"
+    remote_dispatch = "remote_dispatch"
     ref_sync_gesture = "ref_sync_gesture"
     typed_launch_units = "typed_launch_units"
 
@@ -57,6 +58,12 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "disable in Launch Control offers the same relaunch."
         ),
         bead="sase-sx",
+    ),
+    FeatureFlag.remote_dispatch: FeatureFlagDefinition(
+        key=FeatureFlag.remote_dispatch,
+        kind="beta",
+        description="Beta gate for configured dispatch provider activation.",
+        bead="sase-xp",
     ),
     FeatureFlag.ref_sync_gesture: FeatureFlagDefinition(
         key=FeatureFlag.ref_sync_gesture,

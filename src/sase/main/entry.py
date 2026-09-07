@@ -289,6 +289,11 @@ def main() -> NoReturn:
 
             sys.exit(run_config_init(args))
 
+        if args.init_subcommand == "machine":
+            from .init_machine_handler import handle_init_machine_command
+
+            handle_init_machine_command(args)
+
         if args.init_subcommand == "memory":
             from .init_memory_handler import handle_init_memory_command
 
@@ -329,6 +334,12 @@ def main() -> NoReturn:
         from sase.integrations.xprompt_lsp import handle_xprompt_lsp_command
 
         handle_xprompt_lsp_command(args)
+
+    # --- machine ---
+    if args.command == "machine":
+        from .machine_handler import handle_machine_command
+
+        sys.exit(handle_machine_command(args))
 
     # --- memory ---
     if args.command == "memory":

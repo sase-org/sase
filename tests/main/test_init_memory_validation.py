@@ -331,6 +331,6 @@ def test_init_memory_registry_runs_after_config() -> None:
     specs = {spec.name: spec for spec in iter_init_command_specs()}
     names = tuple(spec.name for spec in iter_init_command_specs())
 
-    assert names == ("config", "memory", "repo", "skills")
+    assert names == ("config", "machine", "memory", "repo", "skills")
     assert specs["memory"].plan is plan_init_memory
     assert specs["memory"].run is init_memory_handler.run_init_memory

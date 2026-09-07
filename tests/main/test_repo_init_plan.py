@@ -562,6 +562,6 @@ def test_materialized_sidecar_run_still_fails_without_a_project_key(
 
 def test_init_registry_uses_repo_runner() -> None:
     specs = {spec.name: spec for spec in iter_init_command_specs()}
-    assert tuple(specs) == ("config", "memory", "repo", "skills")
+    assert tuple(specs) == ("config", "machine", "memory", "repo", "skills")
     assert specs["repo"].plan is plan_repo_init
     assert specs["repo"].run is run_repo_init

@@ -160,3 +160,58 @@ def test_config_schema_accepts_both_finalizer_refusal_policies() -> None:
                 }
             }
         )
+
+
+def test_config_schema_validates_dispatch_machine_records() -> None:
+    validator = Draft7Validator(schema())
+    pin = "sase_inst_v1_" + "a" * 64
+
+    validator.validate(
+        {
+            "dispatch": {
+                "providers": {"builtin@https": {"enabled": True}},
+                "machines": {
+                    "alpha": {
+                        "provider": "builtin@https",
+                        "endpoint": "https://fleet.example.test",
+                        "credential_ref": "fleet:alpha",
+                        "installation_pin": pin,
+                    }
+                },
+                "discovery": {"enabled_providers": ["builtin@tailnet"]},
+            }
+        }
+    )
+
+    with pytest.raises(ValidationError):
+        validator.validate(
+            {
+                "dispatch": {
+                    "machines": {
+                        "alpha": {
+                            "provider": "builtin@https",
+                            "endpoint": "http://fleet.example.test",
+                            "credential_ref": "fleet:alpha",
+                            "installation_pin": pin,
+                        }
+                    }
+                }
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        validator.validate(
+            {
+                "dispatch": {
+                    "machines": {
+                        "alpha": {
+                            "provider": "builtin@https",
+                            "endpoint": "https://fleet.example.test",
+                            "credential_ref": "fleet:alpha",
+                            "installation_pin": pin,
+                            "token": "must-not-be-here",
+                        }
+                    }
+                }
+            }
+        )

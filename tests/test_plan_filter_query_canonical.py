@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from hypothesis import given, strategies as st
+from hypothesis import HealthCheck, given, settings, strategies as st
 
 from sase.core.time import get_timezone
 from sase.plan_search.filter_query import (
@@ -64,6 +64,7 @@ _VALUE_TEXT = st.text(
 )
 
 
+@settings(suppress_health_check=[HealthCheck.too_slow])
 @given(
     kinds=st.lists(
         st.sampled_from(("proposal", "task", "epic", "phase", "archive")),
