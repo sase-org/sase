@@ -154,11 +154,15 @@ from sase.agent.names._wipe import (
     AgentNameWipePreview,
     AgentNameWipeResult,
     preview_agent_name_wipe,
+    wipe_agent_names_for_reuse,
     wipe_agent_name_for_reuse,
 )
 from sase.agent.names._forced_reuse import (
     ForcedReuseCleanupError,
+    ForcedReuseCleanupBatchError,
     release_stale_container,
+    release_stale_containers,
+    wipe_force_reuse_owners,
     wipe_force_reuse_owner,
 )
 from sase.agent.names._registry_batch import (
@@ -264,6 +268,7 @@ __all__ = [
     "AgentNameWipePreview",
     "AgentNameWipeResult",
     "ForcedReuseCleanupError",
+    "ForcedReuseCleanupBatchError",
     "AgentFamily",
     "AgentFamilyMember",
     "AGENT_NAME_TEMPLATE_MARKER",
@@ -367,6 +372,7 @@ __all__ = [
     "rebuild_name_registry",
     "release_planned_registered_name",
     "release_stale_container",
+    "release_stale_containers",
     "most_recent_completed_family_member",
     "most_recent_completed_clan_member",
     "reserve_registered_name",
@@ -390,5 +396,7 @@ __all__ = [
     "wait_agent_name_template",
     "preview_agent_name_wipe",
     "wipe_agent_name_for_reuse",
+    "wipe_agent_names_for_reuse",
+    "wipe_force_reuse_owners",
     "wipe_force_reuse_owner",
 ]

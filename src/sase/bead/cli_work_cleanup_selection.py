@@ -103,24 +103,23 @@ def select_bead_work_launch(
     timer: LaunchTimingRecorder | None = None,
 ) -> BeadWorkLaunchSelection:
     """Classify current owners and compute the relaunch subset."""
-    from sase.agent.names import lookup_registered_name
+    from sase.agent.names import registered_name_reservation_snapshot
 
     if timer is None:
         view = load_agent_owner_view()
+        registry_snapshot = registered_name_reservation_snapshot()
     else:
         with timer.stage("owner_discovery", full_scans=1):
             view = load_agent_owner_view()
+        with timer.stage("registry_read", relevant_row_reads=len(slots)):
+            registry_snapshot = registered_name_reservation_snapshot()
     targets: list[CleanupTarget] = []
     owner_present_by_slot: dict[str, int] = {}
     preserved_slots: set[str] = set()
     blocked_slots: set[str] = set()
 
     for slot in slots:
-        if timer is None:
-            owner = lookup_registered_name(slot.owner_name)
-        else:
-            with timer.stage("registry_read", relevant_row_reads=1):
-                owner = lookup_registered_name(slot.owner_name)
+        owner = registry_snapshot.lookup(slot.owner_name)
         if owner is None:
             continue
         try:

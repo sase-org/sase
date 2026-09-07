@@ -4,14 +4,20 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from sase.agent.names import AgentNameWipeResult, lookup_registered_name
+from sase.agent.names import (
+    AgentNameWipeResult,
+    claim_registered_name,
+    lookup_registered_name,
+)
 from sase.bead import cli as bead_cli
 from sase.bead.cli_work_cleanup_apply import revalidate_bead_work_launch_selection
 from sase.bead.cli_work_cleanup_selection import select_bead_work_launch
 from sase.bead.cli_work_cleanup_types import BeadWorkLaunchSelection, BeadWorkSlot
+from sase.bead.cli_work_cleanup_types import CleanupTarget
 from sase.bead.cli_work_name_cleanup import ForcedReuseCleanupError
 from sase.bead.model import Status
 from sase.bead.project import BeadProject
@@ -533,14 +539,8 @@ def test_work_direct_registry_name_mismatch_without_beads_blocks(
     monkeypatch.setattr(Path, "home", lambda: fake_home)
     identity = AgentIdentitySnapshot.current()
     owner_key = current_owner_agent_name_key(phase_ids[0], identity)
-    real_lookup = lookup_registered_name
-
-    def fake_lookup(name: str) -> dict[str, object] | None:
-        if current_owner_agent_name_key(name, identity) == owner_key:
-            return {"artifacts_dir": str(artifact_dir), "state": "done"}
-        return real_lookup(name)
-
-    monkeypatch.setattr("sase.agent.names.lookup_registered_name", fake_lookup)
+    assert current_owner_agent_name_key(phase_ids[0], identity) == owner_key
+    claim_registered_name(phase_ids[0], artifact_dir, replace_existing=True)
     monkeypatch.setattr(
         "sase.agent.names.wipe_agent_name_for_reuse",
         lambda name: pytest.fail(
@@ -624,6 +624,56 @@ def test_select_bead_work_launch_returns_blocked_targets_instead_of_raising(
     assert blocked_names == {f"{family_name}--1", f"{family_name}--2"}
     assert selection.launch_names == frozenset()
     assert selection.destructive_targets == ()
+
+
+def test_select_bead_work_launch_uses_one_registry_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    slots = (
+        _phase_slot("epic.1"),
+        _phase_slot("epic.2"),
+        _phase_slot("epic.3"),
+    )
+    lookup_names: list[str] = []
+    snapshot_calls = 0
+
+    class Snapshot:
+        def lookup(self, name: str) -> dict[str, object] | None:
+            lookup_names.append(name)
+            return {"name": name}
+
+    def fake_snapshot() -> Snapshot:
+        nonlocal snapshot_calls
+        snapshot_calls += 1
+        return Snapshot()
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_cleanup_selection.load_agent_owner_view",
+        lambda: SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        "sase.agent.names.registered_name_reservation_snapshot",
+        fake_snapshot,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_cleanup_selection.classify_slot_owner",
+        lambda slot, owner, **_kwargs: (
+            CleanupTarget(
+                name=slot.owner_name,
+                action="REMOVE",
+                current_state="failed",
+                detail="done",
+                expected_bead_id=slot.expected_bead_id,
+                slot_id=slot.slot_id,
+            ),
+        ),
+    )
+
+    selection = select_bead_work_launch(slots=slots, bead_assignees={})
+
+    assert snapshot_calls == 1
+    assert lookup_names == ["epic.1", "epic.2", "epic.3"]
+    assert selection.launch_names == frozenset({"epic.1", "epic.2", "epic.3"})
 
 
 def test_revalidate_raises_when_blocker_appears_after_preview(

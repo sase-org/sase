@@ -64,9 +64,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
     "src/sase/agent/names/_wipe.py:_remove_artifact_dirs": DirOpReview(
         batched_by=(
             BatchedCoverage(
-                caller_context=(
-                    "src/sase/agent/names/_wipe.py:wipe_agent_name_for_reuse"
-                ),
+                caller_context="src/sase/agent/names/_wipe.py:_execute_wipe_plan",
                 helper_call="_remove_artifact_dirs",
                 lifecycle_call=_DELETE_INDEX,
             ),

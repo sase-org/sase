@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
 from sase.bead.cli_work_cleanup_selection import select_bead_work_launch
@@ -11,9 +12,10 @@ from sase.bead.cli_work_cleanup_types import (
     format_blocked_cleanup_error,
 )
 from sase.bead.cli_work_name_cleanup import (
+    ForcedReuseCleanupBatchError,
     ForcedReuseCleanupError,
-    release_stale_container,
-    wipe_force_reuse_owner,
+    release_stale_containers,
+    wipe_force_reuse_owners,
 )
 
 if TYPE_CHECKING:
@@ -72,29 +74,25 @@ def prepare_selected_bead_work_force_reuse(
                     timer=timer,
                 )
 
-    wiped_names: list[str] = []
-    for index, target in enumerate(destructive_targets, start=1):
-        try:
-            if timer is None:
-                _apply_cleanup_target(target)
-            else:
-                with timer.stage(
-                    "process_cleanup",
-                    completed_owners=index - 1,
-                    total_owners=len(destructive_targets),
-                    owner_name=target.name,
-                    action=target.action,
-                ):
-                    _apply_cleanup_target(target, timer=timer)
-        except ForcedReuseCleanupError as exc:
-            if not wiped_names:
-                raise
-            raise ForcedReuseCleanupError(
-                f"{exc}; bead-work cleanup already wiped "
-                f"{', '.join(wiped_names)} before this failure, so the epic "
-                "now has no live agent for those owners until this is rerun"
-            ) from exc
-        wiped_names.append(target.name)
+    try:
+        if timer is None:
+            _apply_cleanup_targets(destructive_targets)
+        else:
+            with timer.stage(
+                "process_cleanup",
+                completed_owners=0,
+                total_owners=len(destructive_targets),
+                action="batch",
+            ):
+                _apply_cleanup_targets(destructive_targets, timer=timer)
+    except ForcedReuseCleanupBatchError as exc:
+        if not exc.completed_names:
+            raise
+        raise ForcedReuseCleanupError(
+            f"{exc}; bead-work cleanup already wiped "
+            f"{', '.join(exc.completed_names)} before this failure, so the "
+            "epic now has no live agent for those owners until this is rerun"
+        ) from exc
     return rewrite_force_reuse_name_directives(query)
 
 
@@ -204,32 +202,41 @@ def _verify_cleanup_target_still_selected(
         )
 
 
-def _apply_cleanup_target(
-    target: CleanupTarget,
+def _apply_cleanup_targets(
+    targets: Sequence[CleanupTarget],
     *,
     timer: LaunchTimingRecorder | None = None,
 ) -> None:
-    if target.action == "RELEASE":
-        _release_selected_stale_container(target, timer=timer)
-    else:
-        if timer is None:
-            wipe_force_reuse_owner(target.name, allow_container_skip=False)
-            return
-        with timer.stage("closure_planning", owner_name=target.name):
-            with timer.stage("index_maintenance", owner_name=target.name):
-                wipe_force_reuse_owner(target.name, allow_container_skip=False)
-
-
-def _release_selected_stale_container(
-    target: CleanupTarget,
-    *,
-    timer: LaunchTimingRecorder | None = None,
-) -> None:
-    container_kind: Literal["family", "clan"] = (
-        "clan" if "clan" in target.detail else "family"
+    wipe_names = tuple(
+        dict.fromkeys(target.name for target in targets if target.action != "RELEASE")
+    )
+    release_targets = tuple(
+        (_release_container_name(target), _release_container_kind(target))
+        for target in targets
+        if target.action == "RELEASE"
     )
     if timer is None:
-        release_stale_container(target.name, container_kind=container_kind)
+        _apply_cleanup_batches(wipe_names, release_targets)
         return
-    with timer.stage("index_maintenance", owner_name=target.name, action=target.action):
-        release_stale_container(target.name, container_kind=container_kind)
+
+    with timer.stage("closure_planning", total_owners=len(wipe_names)):
+        with timer.stage("index_maintenance", total_owners=len(targets)):
+            _apply_cleanup_batches(wipe_names, release_targets)
+
+
+def _apply_cleanup_batches(
+    wipe_names: tuple[str, ...],
+    release_targets: tuple[tuple[str, Literal["family", "clan"]], ...],
+) -> None:
+    if wipe_names:
+        wipe_force_reuse_owners(wipe_names, allow_container_skip=False)
+    if release_targets:
+        release_stale_containers(release_targets)
+
+
+def _release_container_name(target: CleanupTarget) -> str:
+    return target.name
+
+
+def _release_container_kind(target: CleanupTarget) -> Literal["family", "clan"]:
+    return "clan" if "clan" in target.detail else "family"

@@ -6,7 +6,7 @@ import json
 import os
 import signal
 import shutil
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -76,6 +76,29 @@ class _WipePlan:
     names: set[str] = field(default_factory=set)
 
 
+@dataclass(frozen=True)
+class _ResolvedWipeTarget:
+    target_name: str
+    owner: Mapping[str, Any] | None
+
+
+@dataclass(frozen=True)
+class _WipeCatalog:
+    artifacts: tuple[_ArtifactRecord, ...]
+    bundles: tuple[_BundleRecord, ...]
+
+
+@dataclass(frozen=True)
+class _WipeExecution:
+    artifact_dirs_removed: set[Path]
+    bundle_paths_removed: set[Path]
+    registry_names_removed: set[str]
+    dismissed_index_entries_removed: int
+    notifications_dismissed: int
+    killed_processes: int
+    errors: tuple[str, ...]
+
+
 def wipe_agent_name_for_reuse(
     owner_or_name: str | Mapping[str, Any],
     *,
@@ -92,29 +115,192 @@ def wipe_agent_name_for_reuse(
     ``allow_stale_container`` is reserved for callers that have already proved a
     container has no concrete members and need to remove its orphaned owner data.
     """
-    owner: Mapping[str, Any] | None
-    if isinstance(owner_or_name, str):
-        target_name = owner_or_name
-        owner = lookup_registered_name(owner_or_name)
-    else:
-        owner = owner_or_name
-        target_name = _str_or_empty(owner.get("name"))
+    return wipe_agent_names_for_reuse(
+        (owner_or_name,),
+        allow_stale_container=allow_stale_container,
+    )[0]
 
+
+def wipe_agent_names_for_reuse(
+    owners_or_names: Sequence[str | Mapping[str, Any]],
+    *,
+    allow_stale_container: bool = False,
+) -> tuple[AgentNameWipeResult, ...]:
+    """Remove previous owners for a forced-reuse cleanup batch.
+
+    The batch shares one fresh registry snapshot, one artifact/bundle catalog,
+    and one final registry rebuild across all actionable owners. Individual
+    results preserve the single-name API shape while side effects are
+    deduplicated over the union of every selected closure.
+    """
+
+    resolved = _resolve_wipe_targets(owners_or_names)
+    if not resolved:
+        return ()
+
+    catalog: _WipeCatalog | None = None
+    plans: dict[int, _WipePlan] = {}
+    results: list[AgentNameWipeResult | None] = [None] * len(resolved)
+    for index, target in enumerate(resolved):
+        owner = target.owner
+        if owner is None:
+            results[index] = AgentNameWipeResult(
+                target_name=target.target_name,
+                found=False,
+            )
+            continue
+
+        container_kind = owner.get("container_kind")
+        if (
+            isinstance(container_kind, str)
+            and container_kind
+            and not allow_stale_container
+        ):
+            results[index] = AgentNameWipeResult(
+                target_name=target.target_name,
+                found=True,
+                skipped_container_kind=container_kind,
+            )
+            continue
+
+        if catalog is None:
+            catalog = _load_wipe_catalog()
+        plan = _build_wipe_plan(owner, target.target_name, catalog=catalog)
+        if not plan.names:
+            plan.names.add(target.target_name)
+        plans[index] = plan
+
+    if plans:
+        execution = _execute_wipe_plan(_merge_wipe_plans(tuple(plans.values())))
+        single_plan = len(plans) == 1
+        for index, plan in plans.items():
+            target = resolved[index]
+            results[index] = AgentNameWipeResult(
+                target_name=target.target_name,
+                found=True,
+                artifact_dirs_removed=_path_result(
+                    execution.artifact_dirs_removed & plan.artifact_dirs
+                ),
+                bundle_paths_removed=_path_result(
+                    execution.bundle_paths_removed & plan.bundle_paths
+                ),
+                registry_names_removed=tuple(
+                    sorted(execution.registry_names_removed & plan.names)
+                ),
+                dismissed_index_entries_removed=(
+                    execution.dismissed_index_entries_removed if single_plan else 0
+                ),
+                notifications_dismissed=(
+                    execution.notifications_dismissed if single_plan else 0
+                ),
+                killed_processes=execution.killed_processes if single_plan else 0,
+                errors=execution.errors,
+            )
+
+    return tuple(
+        result
+        if result is not None
+        else AgentNameWipeResult(target_name=target.target_name, found=False)
+        for target, result in zip(resolved, results, strict=True)
+    )
+
+
+def _resolve_wipe_targets(
+    owners_or_names: Sequence[str | Mapping[str, Any]],
+) -> tuple[_ResolvedWipeTarget, ...]:
+    if not owners_or_names:
+        return ()
+
+    snapshot = None
+    if any(isinstance(item, str) for item in owners_or_names):
+        from sase.agent.names import registered_name_reservation_snapshot
+
+        snapshot = registered_name_reservation_snapshot()
+
+    resolved: list[_ResolvedWipeTarget] = []
+    for item in owners_or_names:
+        if isinstance(item, str):
+            owner = snapshot.lookup(item) if snapshot is not None else None
+            resolved.append(_ResolvedWipeTarget(target_name=item, owner=owner))
+        else:
+            resolved.append(
+                _ResolvedWipeTarget(
+                    target_name=_str_or_empty(item.get("name")),
+                    owner=item,
+                )
+            )
+    return tuple(resolved)
+
+
+def preview_agent_name_wipe(name: str) -> AgentNameWipePreview:
+    """Return the wipe closure for *name* without mutating any state."""
+    owner = lookup_registered_name(name)
     if owner is None:
-        return AgentNameWipeResult(target_name=target_name, found=False)
+        return AgentNameWipePreview()
 
-    container_kind = owner.get("container_kind")
-    if isinstance(container_kind, str) and container_kind and not allow_stale_container:
-        return AgentNameWipeResult(
-            target_name=target_name,
-            found=True,
-            skipped_container_kind=container_kind,
-        )
-
-    plan = _build_wipe_plan(owner, target_name)
+    raw_kind = owner.get("container_kind")
+    container_kind = raw_kind if isinstance(raw_kind, str) and raw_kind else None
+    plan = _build_wipe_plan(owner, name)
     if not plan.names:
-        plan.names.add(target_name)
+        plan.names.add(name)
+    return AgentNameWipePreview(
+        artifact_dirs=tuple(sorted(str(path) for path in plan.artifact_dirs)),
+        bundle_paths=tuple(sorted(str(path) for path in plan.bundle_paths)),
+        names=tuple(sorted(plan.names)),
+        container_kind=container_kind,
+    )
 
+
+def _build_wipe_plan(
+    owner: Mapping[str, Any],
+    target_name: str,
+    *,
+    catalog: _WipeCatalog | None = None,
+) -> _WipePlan:
+    plan = _WipePlan(target_name=target_name)
+    plan.names.add(target_name)
+    _seed_owner(plan, owner)
+
+    if catalog is None:
+        catalog = _load_wipe_catalog()
+    changed = True
+    while changed:
+        changed = False
+        for artifact_record in catalog.artifacts:
+            if (
+                _artifact_related(artifact_record, plan)
+                and artifact_record.path not in plan.artifact_dirs
+            ):
+                _add_artifact_record(plan, artifact_record)
+                changed = True
+        for bundle_record in catalog.bundles:
+            if (
+                _bundle_related(bundle_record, plan)
+                and bundle_record.path not in plan.bundle_paths
+            ):
+                _add_bundle_record(plan, bundle_record)
+                changed = True
+    return plan
+
+
+def _load_wipe_catalog() -> _WipeCatalog:
+    return _WipeCatalog(
+        artifacts=tuple(_scan_artifacts()),
+        bundles=tuple(_scan_bundles()),
+    )
+
+
+def _merge_wipe_plans(plans: Sequence[_WipePlan]) -> _WipePlan:
+    merged = _WipePlan(target_name="batch")
+    for plan in plans:
+        merged.artifact_dirs.update(plan.artifact_dirs)
+        merged.bundle_paths.update(plan.bundle_paths)
+        merged.suffixes.update(plan.suffixes)
+        merged.names.update(plan.names)
+    return merged
+
+
+def _execute_wipe_plan(plan: _WipePlan) -> _WipeExecution:
     errors: list[str] = []
     killed = _terminate_live_artifacts(plan, errors)
     removed_artifacts = _remove_artifact_dirs(plan.artifact_dirs, errors)
@@ -140,12 +326,10 @@ def wipe_agent_name_for_reuse(
     except Exception as exc:  # pragma: no cover - defensive best effort
         errors.append(f"registry rebuild failed: {exc}")
 
-    return AgentNameWipeResult(
-        target_name=target_name,
-        found=True,
-        artifact_dirs_removed=tuple(sorted(str(p) for p in removed_artifacts)),
-        bundle_paths_removed=tuple(sorted(str(p) for p in removed_bundles)),
-        registry_names_removed=tuple(sorted(registry_names_removed)),
+    return _WipeExecution(
+        artifact_dirs_removed=removed_artifacts,
+        bundle_paths_removed=removed_bundles,
+        registry_names_removed=registry_names_removed,
         dismissed_index_entries_removed=dismissed_removed,
         notifications_dismissed=notifications,
         killed_processes=killed,
@@ -153,50 +337,8 @@ def wipe_agent_name_for_reuse(
     )
 
 
-def preview_agent_name_wipe(name: str) -> AgentNameWipePreview:
-    """Return the wipe closure for *name* without mutating any state."""
-    owner = lookup_registered_name(name)
-    if owner is None:
-        return AgentNameWipePreview()
-
-    raw_kind = owner.get("container_kind")
-    container_kind = raw_kind if isinstance(raw_kind, str) and raw_kind else None
-    plan = _build_wipe_plan(owner, name)
-    if not plan.names:
-        plan.names.add(name)
-    return AgentNameWipePreview(
-        artifact_dirs=tuple(sorted(str(path) for path in plan.artifact_dirs)),
-        bundle_paths=tuple(sorted(str(path) for path in plan.bundle_paths)),
-        names=tuple(sorted(plan.names)),
-        container_kind=container_kind,
-    )
-
-
-def _build_wipe_plan(owner: Mapping[str, Any], target_name: str) -> _WipePlan:
-    plan = _WipePlan(target_name=target_name)
-    plan.names.add(target_name)
-    _seed_owner(plan, owner)
-
-    artifacts = _scan_artifacts()
-    bundles = _scan_bundles()
-    changed = True
-    while changed:
-        changed = False
-        for artifact_record in artifacts:
-            if (
-                _artifact_related(artifact_record, plan)
-                and artifact_record.path not in plan.artifact_dirs
-            ):
-                _add_artifact_record(plan, artifact_record)
-                changed = True
-        for bundle_record in bundles:
-            if (
-                _bundle_related(bundle_record, plan)
-                and bundle_record.path not in plan.bundle_paths
-            ):
-                _add_bundle_record(plan, bundle_record)
-                changed = True
-    return plan
+def _path_result(paths: set[Path]) -> tuple[str, ...]:
+    return tuple(sorted(str(path) for path in paths))
 
 
 def _seed_owner(plan: _WipePlan, owner: Mapping[str, Any]) -> None:

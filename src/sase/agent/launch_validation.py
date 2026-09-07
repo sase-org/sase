@@ -510,10 +510,9 @@ def wipe_names_for_forced_reuse(names: list[str]) -> None:
     remains refused: it is a rootless parallel group, not one replaceable
     agent, and its members keep their own explicit relaunch path.
     """
-    from sase.agent.names import wipe_force_reuse_owner
+    from sase.agent.names import wipe_force_reuse_owners
 
-    for name in names:
-        wipe_force_reuse_owner(name, allow_container_skip=False)
+    wipe_force_reuse_owners(names, allow_container_skip=False)
 
 
 def _extract_explicit_name(

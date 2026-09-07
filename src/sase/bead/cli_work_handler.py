@@ -601,13 +601,11 @@ def launch_epic_bead_work(
 
 def _epic_bead_assignees(proj: BeadProject, plan: Any) -> dict[str, str]:
     bead_ids = {plan.epic_id, *plan.phase_bead_ids}
-    assignees: dict[str, str] = {}
-    for bead_id in bead_ids:
-        try:
-            assignees[bead_id] = proj.show(bead_id).assignee
-        except KeyError:
-            assignees[bead_id] = ""
-    return assignees
+    issues = {issue.id: issue for issue in proj.list_issues() if issue.id in bead_ids}
+    return {
+        bead_id: issue.assignee if (issue := issues.get(bead_id)) is not None else ""
+        for bead_id in bead_ids
+    }
 
 
 def _ordered_selected_names(plan: Any, launch_names: frozenset[str]) -> tuple[str, ...]:

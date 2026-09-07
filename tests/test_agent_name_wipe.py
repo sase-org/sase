@@ -15,6 +15,7 @@ from sase.agent.names import (
     load_name_registry,
     lookup_registered_name,
     rebuild_name_registry,
+    wipe_agent_names_for_reuse,
     wipe_agent_name_for_reuse,
 )
 from sase.notifications.models import Notification
@@ -379,6 +380,49 @@ def test_wipe_code_member_preserves_plan_member_and_family_container(
             get_reserved_agent_names()
         )
         assert code_name not in get_reserved_agent_names()
+
+
+def test_batch_wipe_shares_catalog_and_registry_rebuild(tmp_path: Path) -> None:
+    foo = _artifact(tmp_path, "20260724120000", "foo", done=True)
+    bar = _artifact(tmp_path, "20260724120100", "bar", done=True)
+    bundle_path = _bundle(
+        tmp_path,
+        "20260724120200",
+        "foo.review",
+        parent_timestamp=foo.name,
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        with (
+            patch(
+                "sase.agent.names._wipe._scan_artifacts",
+                wraps=_wipe._scan_artifacts,
+            ) as scan_artifacts,
+            patch(
+                "sase.agent.names._wipe._scan_bundles",
+                wraps=_wipe._scan_bundles,
+            ) as scan_bundles,
+            patch(
+                "sase.agent.names._wipe.rebuild_name_registry",
+                wraps=_wipe.rebuild_name_registry,
+            ) as rebuild,
+        ):
+            results = wipe_agent_names_for_reuse(("foo", "bar"))
+
+    assert scan_artifacts.call_count == 1
+    assert scan_bundles.call_count == 1
+    assert rebuild.call_count == 1
+    assert {result.target_name for result in results} == {"foo", "bar"}
+    assert {str(foo), str(bar)} <= {
+        path for result in results for path in result.artifact_dirs_removed
+    }
+    assert str(bundle_path) in {
+        path for result in results for path in result.bundle_paths_removed
+    }
+    assert not foo.exists()
+    assert not bar.exists()
+    assert not bundle_path.exists()
 
 
 @pytest.mark.parametrize(
