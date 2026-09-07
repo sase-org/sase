@@ -247,6 +247,10 @@ def _run_project(
         outbox_report = drain_artifact_link_outbox(store=store)
         totals.outbox_drained += outbox_report.drained
         totals.outbox_dropped += outbox_report.dropped
+        totals.warnings.extend(
+            f"{project_key}: {item}"
+            for item in getattr(outbox_report, "skip_diagnostics", ())
+        )
     except Exception as exc:  # noqa: BLE001 - continue with the other jobs.
         totals.warnings.append(f"{project_key}: outbox drain failed: {exc}")
     elapsed["drain"] = time.monotonic() - drain_started
@@ -267,6 +271,9 @@ def _run_project(
         )
         totals.reconciled += 1
         totals.repaired_renames += reconcile_report.repaired_renames
+        totals.warnings.extend(
+            f"{project_key}: {item}" for item in reconcile_report.skip_diagnostics
+        )
         if reconcile_report.deferred_refs > 0:
             totals.warnings.append(
                 f"{project_key}: deferred {reconcile_report.deferred_refs} "

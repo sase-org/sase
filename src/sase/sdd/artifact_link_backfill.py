@@ -20,7 +20,8 @@ from sase.artifact_links.derive import (
     DerivedLinkCandidate,
     derive_candidate_links,
 )
-from sase.sdd._artifact_link_store_support import is_projected_row
+from sase.sdd._artifact_link_authorize import classify_machine_writable_sidecar_roots
+from sase.sdd._artifact_link_store_support import is_projected_row, kind_of_ref
 from sase.sdd.artifact_link_derivation import (
     ArtifactLinkDerivationInputs,
     artifact_link_derivation_inputs,
@@ -97,11 +98,35 @@ def run_artifact_link_backfill_batch(
     if not pending:
         return _ArtifactLinkBackfillReport(), already_swept
 
-    batch = pending[: max(0, batch_size)]
+    needed_roots: dict[str, Path] = {}
+    for document in pending:
+        kind = kind_of_ref(document.ref)
+        root = store.sidecar_roots.get(kind)
+        if root is not None:
+            needed_roots[kind] = root
+    writable_roots, skip_diagnostics = classify_machine_writable_sidecar_roots(
+        needed_roots
+    )
+    work = tuple(
+        document for document in pending if kind_of_ref(document.ref) in writable_roots
+    )
+    if not work:
+        return (
+            _ArtifactLinkBackfillReport(
+                total_pending=len(pending),
+                remaining=len(pending),
+                errors=skip_diagnostics,
+            ),
+            already_swept,
+        )
+
+    batch = work[: max(0, batch_size)]
     if not batch:
         return (
             _ArtifactLinkBackfillReport(
-                total_pending=len(pending), remaining=len(pending)
+                total_pending=len(pending),
+                remaining=len(pending),
+                errors=skip_diagnostics,
             ),
             already_swept,
         )
@@ -146,7 +171,7 @@ def run_artifact_link_backfill_batch(
         candidates=candidates,
         persisted=persisted,
         remaining=sum(1 for document in pending if document.ref not in updated_swept),
-        errors=tuple(errors),
+        errors=(*skip_diagnostics, *errors),
     )
     return report, frozenset(updated_swept)
 
@@ -215,6 +240,7 @@ class _ArtifactLinkReconcileReport:
 
     repaired_renames: int = 0
     deferred_refs: int = 0
+    skip_diagnostics: tuple[str, ...] = ()
 
 
 def reconcile_and_repair_artifact_links(
@@ -242,18 +268,24 @@ def reconcile_and_repair_artifact_links(
 
     store.reconcile_aggregate()
     refs = dangling_and_orphaned_artifact_link_refs(store)
-    repair = repair_historical_artifact_renames(store, refs, deadline=deadline)
+    repair = repair_historical_artifact_renames(
+        store,
+        refs,
+        deadline=deadline,
+        require_machine_writable=True,
+    )
     if repair.changed_paths:
         commit_artifact_link_indexes(
             repair.changed_paths,
             store=store.sdd_store,
             repo_roots=tuple(store.sidecar_roots.values()),
             push_after_commit="async",
-            mutation_origin="machine" if store.sdd_store is not None else "user",
+            mutation_origin="machine",
         )
     return _ArtifactLinkReconcileReport(
         repaired_renames=len(repair.renames),
         deferred_refs=repair.deferred_refs,
+        skip_diagnostics=tuple(getattr(repair, "skip_diagnostics", ()) or ()),
     )
 
 

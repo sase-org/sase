@@ -80,6 +80,19 @@ def refresh_artifact_links_locked(
     issues: list[ReferencedByRefreshIssue] = []
     actions: list[ReferencedByRefreshAction] = []
     changed_paths: list[Path] = []
+    if write:
+        skip = _machine_unwritable_issue(repo_root, role)
+        if skip is not None:
+            return ReferencedByRefreshReport(
+                root=repo_root,
+                role=role,
+                write=write,
+                scanned=0,
+                actions=(),
+                issues=(skip,),
+                changed_files=(),
+                committed=False,
+            )
     grouped: dict[str, list[ReferencedByOutboxItem]] = defaultdict(list)
     for item in requests:
         grouped[item.artifact_id].append(item)
@@ -196,6 +209,29 @@ def refresh_artifact_links_locked(
     )
 
 
+def _machine_unwritable_issue(
+    repo_root: Path, role: str
+) -> ReferencedByRefreshIssue | None:
+    from sase.sdd._artifact_link_authorize import (
+        probe_machine_writable_sidecar_root,
+        sidecar_root_not_machine_writable_message,
+    )
+
+    probe = probe_machine_writable_sidecar_root(repo_root)
+    if probe.writable:
+        return None
+    return ReferencedByRefreshIssue(
+        "error",
+        "not-machine-writable",
+        str(repo_root),
+        sidecar_root_not_machine_writable_message(
+            sidecar_kind_for_role(role),
+            repo_root,
+            diagnostic=probe.diagnostic or "not machine-writable",
+        ),
+    )
+
+
 def _commit_changes(
     store: SddStore,
     repo_root: Path,
@@ -223,6 +259,7 @@ def _commit_changes(
                 push_after_commit="async",
                 already_locked=True,
                 cause="artifact_links",
+                mutation_origin="machine",
             )
         )
         if not committed:

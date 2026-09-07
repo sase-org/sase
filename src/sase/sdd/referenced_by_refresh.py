@@ -35,6 +35,19 @@ def refresh_referenced_by(
             str(repo_root),
             f"artifact repository root does not exist: {repo_root}",
         )
+    if write:
+        skip = _machine_unwritable_refresh_issue(repo_root, role)
+        if skip is not None:
+            return ReferencedByRefreshReport(
+                root=repo_root,
+                role=role,
+                write=write,
+                scanned=0,
+                actions=(),
+                issues=(skip,),
+                changed_files=(),
+                committed=False,
+            )
 
     from sase.sdd._git_contention import store_git_write_lock
 
@@ -78,6 +91,31 @@ def refresh_referenced_by(
             requests=requests,
             write=write,
         )
+
+
+def _machine_unwritable_refresh_issue(
+    repo_root: Path, role: str
+) -> ReferencedByRefreshIssue | None:
+    from sase.sdd._artifact_link_authorize import (
+        probe_machine_writable_sidecar_root,
+        sidecar_root_not_machine_writable_message,
+    )
+    from sase.sdd._artifact_link_store_support import sidecar_kind_for_role
+
+    probe = probe_machine_writable_sidecar_root(repo_root)
+    if probe.writable:
+        return None
+    kind = sidecar_kind_for_role(role)
+    return ReferencedByRefreshIssue(
+        "error",
+        "not-machine-writable",
+        str(repo_root),
+        sidecar_root_not_machine_writable_message(
+            kind,
+            repo_root,
+            diagnostic=probe.diagnostic or "not machine-writable",
+        ),
+    )
 
 
 def _pull_rebase_if_remote(repo_root: Path) -> ReferencedByRefreshIssue | None:

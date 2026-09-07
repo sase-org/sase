@@ -5,12 +5,20 @@ import json
 from pathlib import Path
 import subprocess
 
+import pytest
+
 from sase.agents_sync.referenced_by_outbox import ReferencedByOutboxItem
 from sase.sdd.artifact_link_store import ARTIFACT_LINK_ROW_SCHEMA_VERSION
 from sase.sdd.plan_header_block import PlanHeaderSection, PlanHeaderSectionKind
 from sase.sdd.plan_header_block import render_plan_header_block
 from sase.sdd.referenced_by_refresh import refresh_referenced_by
 from sase.sdd.store import SddStore
+from tests.sdd._artifact_link_store_helpers import allow_machine_sidecar_writes
+
+
+@pytest.fixture(autouse=True)
+def _allow_machine_sidecar_writes(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_machine_sidecar_writes(monkeypatch)
 
 
 @contextmanager
@@ -133,6 +141,7 @@ def test_refresh_referenced_by_dry_write_and_second_write_are_idempotent(
     )
     assert committed[0]["cause"] == "artifact_links"
     assert committed[0]["already_locked"] is True
+    assert committed[0]["mutation_origin"] == "machine"
     content = document.read_text(encoding="utf-8")
     assert content.startswith("# Example\n\nBody\n\n<!-- sase:referenced-by:start -->")
     assert "## Referenced By" in content

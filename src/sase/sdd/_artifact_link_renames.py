@@ -9,13 +9,13 @@ from pathlib import Path
 from typing import Any
 
 from sase.agents_sync.io import atomic_write_json
+from sase.sdd._artifact_link_authorize import classify_machine_writable_sidecar_roots
 from sase.sdd._artifact_link_store_support import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     canonicalize_artifact_link_ref,
     is_projected_row,
     kind_of_ref,
     read_artifact_link_index,
-    row_touches,
     sidecar_index_path,
     unique_rows,
     validate_artifact_link_row,
@@ -42,6 +42,7 @@ class _ArtifactLinkRenameReport:
     rewritten_rows: int = 0
     aggregate_changed: bool = False
     deferred_refs: int = 0
+    skip_diagnostics: tuple[str, ...] = ()
 
     @property
     def changed_paths(self) -> tuple[Path, ...]:
@@ -66,7 +67,12 @@ def consume_recent_artifact_renames(
     """Rewrite link indexes for renames introduced by the current HEAD commit."""
 
     renames = tuple(_current_head_renames(repo_root, kind=kind))
-    return _apply_artifact_renames(store, renames, sidecar_roots=(repo_root,))
+    return _apply_artifact_renames(
+        store,
+        renames,
+        sidecar_roots=(repo_root,),
+        require_machine_writable=True,
+    )
 
 
 def repair_historical_artifact_renames(
@@ -74,6 +80,7 @@ def repair_historical_artifact_renames(
     refs: Iterable[str],
     *,
     deadline: float | None = None,
+    require_machine_writable: bool = False,
 ) -> _ArtifactLinkRenameReport:
     """Repair stale refs when a sidecar git rename explains the drift.
 
@@ -107,7 +114,11 @@ def repair_historical_artifact_renames(
             continue
         resolved.append(_ArtifactLinkRename(old_ref=old_ref, new_ref=new_ref))
     return replace(
-        _apply_artifact_renames(store, tuple(dict.fromkeys(resolved))),
+        _apply_artifact_renames(
+            store,
+            tuple(dict.fromkeys(resolved)),
+            require_machine_writable=require_machine_writable,
+        ),
         deferred_refs=deferred_refs,
     )
 
@@ -117,6 +128,7 @@ def _apply_artifact_renames(
     renames: Iterable[_ArtifactLinkRename],
     *,
     sidecar_roots: Iterable[Path] | None = None,
+    require_machine_writable: bool = False,
 ) -> _ArtifactLinkRenameReport:
     """Apply artifact ref rewrites across sidecar indexes and the aggregate."""
 
@@ -136,18 +148,43 @@ def _apply_artifact_renames(
         if sidecar_roots is None
         else {root.expanduser().resolve(strict=False) for root in sidecar_roots}
     )
+    candidate_roots = {
+        kind: root
+        for kind, root in store.sidecar_roots.items()
+        if allowed_roots is None
+        or root.expanduser().resolve(strict=False) in allowed_roots
+    }
+    if require_machine_writable:
+        writable_roots, skip_diagnostics = classify_machine_writable_sidecar_roots(
+            candidate_roots
+        )
+    else:
+        writable_roots = {
+            kind: root.expanduser().resolve(strict=False)
+            for kind, root in candidate_roots.items()
+        }
+        skip_diagnostics = ()
     changed_indexes: list[Path] = []
     removed_indexes: list[Path] = []
     rewritten_rows = 0
-    for kind, root in store.sidecar_roots.items():
-        resolved_root = root.expanduser().resolve(strict=False)
-        if allowed_roots is not None and resolved_root not in allowed_roots:
+    for kind, root in candidate_roots.items():
+        if kind not in writable_roots:
             continue
         changed = _rewrite_sidecar_indexes(root, mapping, kind=kind)
         changed_indexes.extend(changed.changed_indexes)
         removed_indexes.extend(changed.removed_indexes)
         rewritten_rows += changed.rewritten_rows
 
+    applied = (
+        tuple(
+            rename
+            for rename in ordered
+            if kind_of_ref(rename.old_ref) in writable_roots
+            or kind_of_ref(rename.new_ref) in writable_roots
+        )
+        if skip_diagnostics
+        else ordered
+    )
     aggregate_changed = _rewrite_aggregate(store, mapping)
     if changed_indexes or removed_indexes:
         # Sidecar rows are authoritative for document-shaped refs; rebuild before
@@ -155,11 +192,12 @@ def _apply_artifact_renames(
         store.rebuild_aggregate()
         aggregate_changed = _rewrite_aggregate(store, mapping) or aggregate_changed
     return _ArtifactLinkRenameReport(
-        renames=ordered,
+        renames=applied,
         changed_indexes=tuple(dict.fromkeys(changed_indexes)),
         removed_indexes=tuple(dict.fromkeys(removed_indexes)),
         rewritten_rows=rewritten_rows,
         aggregate_changed=aggregate_changed,
+        skip_diagnostics=skip_diagnostics,
     )
 
 

@@ -37,8 +37,24 @@ def _row(
     }
 
 
+def allow_machine_sidecar_writes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Treat sidecar roots as machine-writable for background-writer tests."""
+
+    from sase.sdd._artifact_link_authorize import MachineSidecarWritability
+
+    monkeypatch.setattr(
+        "sase.workspace_provider.ownership.authorize_store_mutation",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_authorize.probe_machine_writable_sidecar_root",
+        lambda _root: MachineSidecarWritability(writable=True),
+    )
+
+
 def _store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ArtifactLinkStore:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
     plans = tmp_path / "plans"
     research = tmp_path / "research"
     plans.mkdir()

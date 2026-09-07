@@ -17,10 +17,12 @@ from sase.sdd.plan_header_block import (
     render_plan_header_block,
 )
 from tests._conftest_environment import redirect_sase_home
+from tests.sdd._artifact_link_store_helpers import allow_machine_sidecar_writes
 
 
 def _store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ArtifactLinkStore:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
     plans = tmp_path / "plans"
     research = tmp_path / "research"
     plans.mkdir()
@@ -164,12 +166,15 @@ def test_every_candidate_lands_in_one_commit_call(
 
     assert outcome.persisted == 2
     assert len(calls) == 1
+    _args, kwargs = calls[0]
+    assert kwargs["mutation_origin"] == "user"
 
 
 def test_derives_and_persists_agent_cites_plan(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
     plans = tmp_path / "plans"
     research = tmp_path / "research"
     agents = tmp_path / "agents"

@@ -119,8 +119,13 @@ def persist_artifact_link_graph_mutation(
     changed_indexes: Sequence[Path],
     beads_changed: bool,
     artifacts_dir: str | Path | None = None,
+    mutation_origin: str = "user",
 ) -> None:
-    """Commit and publish one explicit link add/rm, or raise on failure."""
+    """Commit and publish one explicit link add/rm, or raise on failure.
+
+    Interactive CLI callers leave ``mutation_origin`` at ``"user"``. Background
+    jobs pass ``"machine"`` so the ownership contract cannot be bypassed.
+    """
 
     if changed_indexes:
         result = commit_artifact_link_indexes(
@@ -129,6 +134,7 @@ def persist_artifact_link_graph_mutation(
             repo_roots=tuple(link_store.sidecar_roots.values()),
             artifacts_dir=artifacts_dir,
             verify_publication=True,
+            mutation_origin=mutation_origin,
         )
         if result.publication_error:
             raise ArtifactLinkPersistError(
@@ -136,7 +142,11 @@ def persist_artifact_link_graph_mutation(
                 diagnostic=result.publication_error,
             )
     if beads_changed:
-        _commit_bead_link_events(link_store, artifacts_dir=artifacts_dir)
+        _commit_bead_link_events(
+            link_store,
+            artifacts_dir=artifacts_dir,
+            mutation_origin=mutation_origin,
+        )
 
 
 def _ensure_artifact_link_commit_published(
@@ -260,6 +270,7 @@ def _commit_bead_link_events(
     link_store: ArtifactLinkStore,
     *,
     artifacts_dir: str | Path | None,
+    mutation_origin: str = "user",
 ) -> None:
     beads_dir = link_store.beads_dir
     if beads_dir is None:
@@ -279,6 +290,7 @@ def _commit_bead_link_events(
                 auto_commit_type="beads",
                 paths=[beads_dir],
                 artifacts_dir=artifacts_dir,
+                mutation_origin=mutation_origin,
             )
         )
     else:
@@ -289,6 +301,7 @@ def _commit_bead_link_events(
             auto_commit_type="beads",
             paths=[beads_dir],
             artifacts_dir=artifacts_dir,
+            mutation_origin=mutation_origin,
         )
     if not committed:
         return

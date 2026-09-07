@@ -14,10 +14,12 @@ from sase.sdd.artifact_link_backfill import (
 )
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
+from tests.sdd._artifact_link_store_helpers import allow_machine_sidecar_writes
 
 
 def _store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ArtifactLinkStore:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
     plans = tmp_path / "plans"
     research = tmp_path / "research"
     plans.mkdir()

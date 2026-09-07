@@ -85,6 +85,7 @@ def test_commits_changed_paths_from_a_repair(
     paths, kwargs = commit_calls[0]
     assert paths == changed
     assert kwargs["push_after_commit"] == "async"
+    assert kwargs["mutation_origin"] == "machine"
 
 
 def test_no_changed_paths_does_not_commit(
@@ -125,9 +126,13 @@ def test_forwards_deadline_and_deferred_refs(
     seen: list[object] = []
 
     def _fake_repair(
-        _store: object, _refs: object, *, deadline: object = None
+        _store: object,
+        _refs: object,
+        *,
+        deadline: object = None,
+        require_machine_writable: bool = False,
     ) -> SimpleNamespace:
-        seen.append(deadline)
+        seen.append((deadline, require_machine_writable))
         return SimpleNamespace(renames=(), changed_paths=(), deferred_refs=7)
 
     monkeypatch.setattr(
@@ -137,6 +142,6 @@ def test_forwards_deadline_and_deferred_refs(
 
     report = reconcile_and_repair_artifact_links(store, deadline=123.0)
 
-    assert seen == [123.0]
+    assert seen == [(123.0, True)]
     assert report.deferred_refs == 7
     assert report.repaired_renames == 0

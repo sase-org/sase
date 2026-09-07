@@ -14,7 +14,13 @@ from uuid import uuid4
 
 from sase.core.paths import sase_projects_dir, validate_sase_project_name
 from sase.memory.locks import locked_file
+from sase.sdd._artifact_link_authorize import (
+    MachineSidecarWritability,
+    probe_machine_writable_sidecar_root,
+    sidecar_root_not_machine_writable_message,
+)
 from sase.sdd._artifact_link_store_support import (
+    kind_of_ref,
     sidecar_index_path,
     validate_artifact_link_row,
 )
@@ -75,6 +81,7 @@ class _ArtifactLinkOutboxDrainReport:
     dropped: int = 0
     committed: bool = False
     changed_indexes: tuple[Path, ...] = ()
+    skip_diagnostics: tuple[str, ...] = ()
 
 
 def _artifact_link_outbox_path(project_key: str) -> Path:
@@ -182,8 +189,12 @@ def drain_artifact_link_outbox(
     publishable, unpublished = _partition_publishable(candidates)
     retained.extend(unpublished)
     retained.extend(stale)
+    writable_entries, unauthorized, skip_diagnostics = (
+        _partition_machine_writable_entries(link_store, publishable)
+    )
+    retained.extend(unauthorized)
 
-    changed_indexes = _upsert_publishable_entries(link_store, publishable)
+    changed_indexes = _upsert_publishable_entries(link_store, writable_entries)
     if changed_indexes:
         committed = _commit_outbox_indexes(
             link_store,
@@ -195,22 +206,24 @@ def drain_artifact_link_outbox(
                 queued=len(entries),
                 retained=len(entries),
                 changed_indexes=tuple(changed_indexes),
+                skip_diagnostics=skip_diagnostics,
             )
     else:
         committed = False
 
     _rewrite_without_ids(
         link_store.project_key,
-        drained_ids={entry.id for entry in publishable},
+        drained_ids={entry.id for entry in writable_entries},
         dropped=stale,
     )
     return _ArtifactLinkOutboxDrainReport(
         queued=len(entries),
-        drained=len(publishable),
-        retained=len(entries) - len(publishable) - len(stale),
+        drained=len(writable_entries),
+        retained=len(entries) - len(writable_entries) - len(stale),
         dropped=len(stale),
         committed=committed,
         changed_indexes=tuple(changed_indexes),
+        skip_diagnostics=skip_diagnostics,
     )
 
 
@@ -260,6 +273,49 @@ def _partition_publishable(
         else:
             retained.append(entry)
     return publishable, retained
+
+
+def _partition_machine_writable_entries(
+    store: ArtifactLinkStore,
+    entries: Iterable[_ArtifactLinkOutboxEntry],
+) -> tuple[
+    list[_ArtifactLinkOutboxEntry],
+    list[_ArtifactLinkOutboxEntry],
+    tuple[str, ...],
+]:
+    writable_entries: list[_ArtifactLinkOutboxEntry] = []
+    unauthorized: list[_ArtifactLinkOutboxEntry] = []
+    diagnostics: list[str] = []
+    probes: dict[Path, MachineSidecarWritability] = {}
+    for entry in entries:
+        blocked = False
+        for ref in (
+            str(entry.row.get("source_ref") or ""),
+            str(entry.row.get("target_ref") or ""),
+        ):
+            root = store.sidecar_root_for(ref)
+            if root is None:
+                continue
+            resolved = root.expanduser().resolve(strict=False)
+            probe = probes.get(resolved)
+            if probe is None:
+                probe = probe_machine_writable_sidecar_root(resolved)
+                probes[resolved] = probe
+                if not probe.writable:
+                    diagnostics.append(
+                        sidecar_root_not_machine_writable_message(
+                            kind_of_ref(ref),
+                            resolved,
+                            diagnostic=probe.diagnostic or "not machine-writable",
+                        )
+                    )
+            if not probe.writable:
+                blocked = True
+        if blocked:
+            unauthorized.append(entry)
+        else:
+            writable_entries.append(entry)
+    return writable_entries, unauthorized, tuple(dict.fromkeys(diagnostics))
 
 
 def _upsert_publishable_entries(
@@ -341,7 +397,7 @@ def _commit_outbox_indexes(
         store=store.sdd_store,
         repo_roots=tuple(store.sidecar_roots.values()),
         push_after_commit=push_after_commit,  # type: ignore[arg-type]
-        mutation_origin="machine" if store.sdd_store is not None else "user",
+        mutation_origin="machine",
     )
     return bool(result)
 

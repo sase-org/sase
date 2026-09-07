@@ -22,10 +22,18 @@ from sase.artifact_links.derive import (
     derive_candidate_links,
 )
 from sase.artifact_ref_models import ArtifactRefContext
-from sase.sdd._artifact_link_store_support import validate_artifact_link_row
+from sase.sdd._artifact_link_authorize import (
+    MachineSidecarWritability,
+    probe_machine_writable_sidecar_root,
+    sidecar_root_not_machine_writable_message,
+)
 from sase.sdd._artifact_link_commit import (
     ArtifactLinkPersistError,
     persist_artifact_link_graph_mutation,
+)
+from sase.sdd._artifact_link_store_support import (
+    kind_of_ref,
+    validate_artifact_link_row,
 )
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
@@ -71,6 +79,7 @@ def derive_and_persist_artifact_links(
     created_by: str,
     artifacts_dir: str | Path | None = None,
     derivation_inputs: ArtifactLinkDerivationInputs | None = None,
+    mutation_origin: str = "user",
 ) -> _ArtifactLinkDerivationOutcome:
     """Derive candidate rows for *documents* and persist them via *store*.
 
@@ -94,6 +103,7 @@ def derive_and_persist_artifact_links(
         candidates,
         created_by=created_by,
         artifacts_dir=artifacts_dir,
+        mutation_origin=mutation_origin,
     )
 
 
@@ -103,6 +113,7 @@ def persist_derived_link_candidates(
     *,
     created_by: str,
     artifacts_dir: str | Path | None = None,
+    mutation_origin: str = "machine",
 ) -> _ArtifactLinkDerivationOutcome:
     """Persist already-derived candidate rows via *store*."""
 
@@ -114,6 +125,15 @@ def persist_derived_link_candidates(
     beads_changed = False
     persisted = 0
     errors: list[str] = []
+    probes: dict[Path, MachineSidecarWritability] = {}
+    skip_diagnostics: list[str] = []
+    require_machine_writable = mutation_origin != "user"
+    beads_writable = not require_machine_writable or _machine_writable_store_root(
+        store.beads_dir,
+        kind="beads",
+        probes=probes,
+        skip_diagnostics=skip_diagnostics,
+    )
     for candidate in candidates:
         incoming = {
             "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
@@ -129,19 +149,37 @@ def persist_derived_link_candidates(
         try:
             row = validate_artifact_link_row(incoming)
             outcome: dict[str, object] | None = None
+            skipped_sidecar = False
             for ref in (str(row["source_ref"]), str(row["target_ref"])):
+                root = store.sidecar_root_for(ref)
+                if (
+                    require_machine_writable
+                    and root is not None
+                    and not _machine_writable_store_root(
+                        root,
+                        kind=kind_of_ref(ref),
+                        probes=probes,
+                        skip_diagnostics=skip_diagnostics,
+                    )
+                ):
+                    skipped_sidecar = True
+                    continue
                 written = store._upsert_sidecar(ref, row)
                 if written is not None:
                     outcome = written
                     changed_indexes.extend(
                         Path(path) for path in written.get("changed_indexes") or ()
                     )
-            bead_written = store._upsert_bead(row)
-            if bead_written is not None:
-                outcome = bead_written
-                beads_changed = (
-                    beads_changed or str(bead_written.get("kind") or "") != "unchanged"
-                )
+            if beads_writable:
+                bead_written = store._upsert_bead(row)
+                if bead_written is not None:
+                    outcome = bead_written
+                    beads_changed = (
+                        beads_changed
+                        or str(bead_written.get("kind") or "") != "unchanged"
+                    )
+                elif store._is_aggregate_only(row):
+                    outcome = store._upsert_aggregate_row(row)
             elif store._is_aggregate_only(row):
                 outcome = store._upsert_aggregate_row(row)
         except (RuntimeError, TypeError, ValueError) as exc:
@@ -150,9 +188,11 @@ def persist_derived_link_candidates(
                 f"{candidate.target_ref}: {exc}"
             )
             continue
-        outcome = outcome or {"kind": "unchanged"}
+        if skipped_sidecar and outcome is None:
+            continue
         persisted += 1
 
+    errors.extend(skip_diagnostics)
     store.rebuild_aggregate()
     if changed_indexes or beads_changed:
         try:
@@ -161,6 +201,7 @@ def persist_derived_link_candidates(
                 changed_indexes=tuple(dict.fromkeys(changed_indexes)),
                 beads_changed=beads_changed,
                 artifacts_dir=artifacts_dir,
+                mutation_origin=mutation_origin,
             )
         except ArtifactLinkPersistError as exc:
             errors.append(str(exc))
@@ -168,6 +209,31 @@ def persist_derived_link_candidates(
     return _ArtifactLinkDerivationOutcome(
         candidates=len(candidates), persisted=persisted, errors=tuple(errors)
     )
+
+
+def _machine_writable_store_root(
+    root: Path | None,
+    *,
+    kind: str,
+    probes: dict[Path, MachineSidecarWritability],
+    skip_diagnostics: list[str],
+) -> bool:
+    if root is None:
+        return True
+    resolved = root.expanduser().resolve(strict=False)
+    probe = probes.get(resolved)
+    if probe is None:
+        probe = probe_machine_writable_sidecar_root(resolved)
+        probes[resolved] = probe
+        if not probe.writable:
+            skip_diagnostics.append(
+                sidecar_root_not_machine_writable_message(
+                    kind,
+                    resolved,
+                    diagnostic=probe.diagnostic or "not machine-writable",
+                )
+            )
+    return probe.writable
 
 
 def _known_bead_ids(store: ArtifactLinkStore) -> frozenset[str]:

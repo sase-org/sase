@@ -19,6 +19,7 @@ from sase.sdd.artifact_link_outbox import (
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
 from tests.main.artifact_cli_reference_helpers import resolved_reference
+from tests.sdd._artifact_link_store_helpers import allow_machine_sidecar_writes
 
 
 def _run_git(repo: Path, *args: str) -> str:
@@ -122,6 +123,7 @@ def test_drain_published_agent_commits_dirty_index_without_double_counting(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
     repo = tmp_path / "plans"
     doc = _init_plans_repo(repo)
     store = ArtifactLinkStore(
