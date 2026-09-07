@@ -13,6 +13,7 @@ from textual.widgets import Static
 @runtime_checkable
 class _PagerBodyHost(Protocol):
     _body_width: int | None
+    _body: object | None
 
     def _ensure_body(self) -> None: ...
 
@@ -30,19 +31,19 @@ class PagerBodyScroll(VerticalScroll):
 
 
 class PagerBody(Static):
-    """Static body whose scroll height preserves standalone pager geometry."""
+    """Static body whose scroll height matches the pre-wrapped composed rows."""
 
     def get_content_height(self, container: Size, viewport: Size, width: int) -> int:
-        height = super().get_content_height(container, viewport, width)
+        del container, viewport, width
         screen = self.screen
-        if not isinstance(screen, _PagerBodyHost) or screen._body_width is None:
-            return height
-        composed_width_height = super().get_content_height(
-            container, viewport, screen._body_width
+        body = (
+            getattr(screen, "_body", None)
+            if isinstance(screen, _PagerBodyHost)
+            else None
         )
-        if container.height < composed_width_height < height:
-            return composed_width_height
-        return height
+        if body is not None:
+            return max(int(body.total_height), 1)
+        return 1
 
 
 __all__ = ["PagerBody", "PagerBodyScroll"]

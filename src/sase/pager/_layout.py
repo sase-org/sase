@@ -170,10 +170,11 @@ def compose_body(
         _absolute_line_rows(offsets[index], index, rows)
         for index, rows in enumerate(relative_line_rows)
     )
+    divider_rows = _DIVIDER_LINES * max(len(sections) - 1, 0)
     return ComposedBody(
         renderable=Group(*parts),
         section_offsets=offsets,
-        total_height=offsets[-1] + heights[-1],
+        total_height=sum(heights) + divider_rows,
         section_line_counts=tuple(len(rows) for rows in relative_line_rows),
         section_line_rows=absolute_line_rows,
     )

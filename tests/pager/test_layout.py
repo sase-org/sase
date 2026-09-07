@@ -102,7 +102,7 @@ def test_compose_body_records_exact_line_maps_and_paints_the_gutter() -> None:
     assert composed.section_offsets == (0, 3)
     assert composed.section_line_rows[0] == (0, 1, 2)
     assert composed.section_line_rows[1][0] == 4  # after the section-1 rule
-    assert composed.total_height == composed.section_offsets[1] + len(rows)
+    assert composed.total_height == composed.section_offsets[1] + 1 + len(rows)
     assert first.plain.startswith(" 1│ ")
     assert rows[0].startswith(" 1│ ")
     assert rows[1].startswith("  │ ")
