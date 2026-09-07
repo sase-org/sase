@@ -4,12 +4,36 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from sase.pager.document import PagerOrigin, PagerTargetSpan, target_resolution_ref
+from sase.pager.link_context import LinkAnchor, LinkResolutionContext
 from sase.pager.link_scan import LinkSpanKind
-from sase.pager.resolve import LinkTargetKind, copy_text_for_target, resolve_ref
+from sase.pager.resolve import (
+    LinkTargetKind,
+    copy_text_for_target,
+    file_path_unresolved_message,
+    resolve_ref,
+)
+
+
+def _context(
+    *directories: Path, workspace_num: int | None = None
+) -> LinkResolutionContext:
+    return LinkResolutionContext(
+        anchors=tuple(
+            LinkAnchor(directory=directory, workspace_num=workspace_num)
+            for directory in directories
+        )
+    )
+
+
+def _write(path: Path, body: str = "ok\n") -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+    return path
 
 
 def test_resolve_ref_opens_a_text_file_as_a_document(tmp_path: Path) -> None:
@@ -76,7 +100,7 @@ def test_resolve_ref_rejects_blank_input(ref: str) -> None:
     assert resolve_ref(ref) is None
 
 
-def test_copy_text_for_target_resolves_a_relative_file_path(
+def test_copy_text_for_target_falls_back_to_cwd_join_when_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
@@ -84,6 +108,21 @@ def test_copy_text_for_target_resolves_a_relative_file_path(
     copied = copy_text_for_target("sub/file.py", LinkSpanKind.FILE_PATH.value)
 
     assert copied == str((tmp_path / "sub" / "file.py").resolve())
+
+
+def test_copy_text_for_target_returns_the_existing_resolution(tmp_path: Path) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    live = _write(second / "src" / "file.py")
+
+    copied = copy_text_for_target(
+        "src/file.py",
+        LinkSpanKind.FILE_PATH.value,
+        context=_context(first, second),
+    )
+
+    assert copied == str(live.resolve())
 
 
 def test_copy_text_for_target_returns_artifact_refs_unchanged() -> None:
@@ -222,3 +261,247 @@ def test_bead_link_target_resolves_foreign_bead(
     assert target.document is not None
     assert "bob-cli-1 · Foreign" in target.document.sections[0].plain_text
     assert "Project: bob-cli" in target.document.sections[0].plain_text
+
+
+def test_resolve_ref_finds_a_relative_path_in_a_later_anchor(tmp_path: Path) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    live = _write(second / "src" / "foo.py")
+
+    target = resolve_ref("src/foo.py", context=_context(first, second))
+
+    assert target is not None
+    assert target.edit_path == live.resolve()
+    assert target.document is not None
+    assert target.document.sections[0].plain_text == "ok\n"
+
+
+def test_resolve_ref_reroots_a_stale_numbered_clone_path(tmp_path: Path) -> None:
+    stale = tmp_path / "sase_9" / "src" / "foo.py"
+    live = _write(tmp_path / "primary" / "src" / "foo.py")
+
+    target = resolve_ref(str(stale), context=_context(tmp_path / "primary"))
+
+    assert target is not None
+    assert target.edit_path == live.resolve()
+
+
+def test_resolve_ref_parses_a_line_suffix_into_scroll_and_edit_line(
+    tmp_path: Path,
+) -> None:
+    path = _write(tmp_path / "notes.py", "a\nb\nc\n")
+
+    target = resolve_ref(f"{path}:2")
+
+    assert target is not None
+    assert target.scroll_line == 2
+    assert target.edit_line == 2
+    assert target.edit_path == path
+
+
+def test_resolve_ref_parses_a_line_column_suffix(tmp_path: Path) -> None:
+    path = _write(tmp_path / "notes.py")
+
+    target = resolve_ref(f"{path}:8:3")
+
+    assert target is not None
+    assert target.scroll_line == 8
+    assert target.edit_line == 8
+
+
+def test_resolve_ref_strips_a_trailing_dot_candidate(tmp_path: Path) -> None:
+    path = _write(tmp_path / "notes.py")
+
+    target = resolve_ref(f"{path}.")
+
+    assert target is not None
+    assert target.edit_path == path
+
+
+def test_resolve_ref_strips_a_git_diff_prefix(tmp_path: Path) -> None:
+    live = _write(tmp_path / "src" / "foo.py")
+
+    target = resolve_ref("a/src/foo.py", context=_context(tmp_path))
+
+    assert target is not None
+    assert target.edit_path == live.resolve()
+
+
+def test_resolve_ref_uses_a_unique_git_suffix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "ws"
+    live = _write(workspace / "lib" / "pkg" / "deep.py")
+    git_calls: list[Path] = []
+
+    def fake_git_ls_files(directory: Path) -> tuple[str, ...] | None:
+        git_calls.append(directory)
+        return ("lib/pkg/deep.py",)
+
+    monkeypatch.setattr("sase.pager.resolve._git_ls_files", fake_git_ls_files)
+
+    target = resolve_ref("pkg/deep.py", context=_context(workspace))
+
+    assert target is not None
+    assert target.edit_path == live.resolve()
+    assert git_calls == [workspace.resolve()]
+
+
+def test_resolve_ref_dead_ends_on_an_ambiguous_git_suffix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    monkeypatch.setattr(
+        "sase.pager.resolve._git_ls_files",
+        lambda _directory: ("lib/pkg/deep.py", "other/pkg/deep.py"),
+    )
+
+    assert resolve_ref("pkg/deep.py", context=_context(workspace)) is None
+
+
+def test_resolve_ref_does_not_run_git_when_a_direct_probe_hits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    live = _write(tmp_path / "src" / "foo.py")
+
+    def fail_git(_directory: Path) -> tuple[str, ...] | None:
+        raise AssertionError("git ls-files should not run after a direct hit")
+
+    monkeypatch.setattr("sase.pager.resolve._git_ls_files", fail_git)
+
+    target = resolve_ref("src/foo.py", context=_context(tmp_path))
+
+    assert target is not None
+    assert target.edit_path == live.resolve()
+
+
+def test_resolve_ref_caches_git_ls_files_per_anchor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "ws"
+    live = _write(workspace / "lib" / "pkg" / "deep.py")
+    git_calls: list[Path] = []
+
+    def fake_git_ls_files(directory: Path) -> tuple[str, ...] | None:
+        git_calls.append(directory)
+        return ("lib/pkg/deep.py",)
+
+    monkeypatch.setattr("sase.pager.resolve._git_ls_files", fake_git_ls_files)
+
+    target = resolve_ref("a/pkg/deep.py", context=_context(workspace))
+
+    assert target is not None
+    assert target.edit_path == live.resolve()
+    assert git_calls == [workspace.resolve()]
+
+
+def test_resolve_ref_none_context_still_resolves_cwd_relative_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    live = _write(tmp_path / "src" / "foo.py")
+
+    target = resolve_ref("src/foo.py")
+
+    assert target is not None
+    assert target.edit_path == live.resolve()
+
+
+def test_file_path_unresolved_message_reports_probed_locations(tmp_path: Path) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+
+    message = file_path_unresolved_message("src/x.py", context=_context(first, second))
+
+    assert message == "src/x.py not found (searched 2 locations)"
+
+
+def test_resolve_ref_walks_typed_ref_anchors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    live = _write(second / "doc.md")
+    attempted: list[tuple[Path, int]] = []
+
+    def fake_artifact_ref_context(directory: Path, num: int) -> tuple[Path, int]:
+        attempted.append((directory, num))
+        return (directory, num)
+
+    def fake_resolve_cli_reference(ref: str, **kwargs: object) -> SimpleNamespace:
+        assert ref == "plan:202608/doc.md"
+        context = kwargs["context"]
+        if context == (second, 1):
+            return SimpleNamespace(
+                resolution=SimpleNamespace(status="exact", resolved_path=live),
+                parsed=SimpleNamespace(kind_type="file", fragment=None, kind="file"),
+                canonical_reference=ref,
+                file=None,
+            )
+        return SimpleNamespace(
+            resolution=SimpleNamespace(status="missing", resolved_path=None),
+            parsed=SimpleNamespace(kind_type="file", fragment=None, kind="file"),
+            canonical_reference=ref,
+            file=None,
+        )
+
+    monkeypatch.setattr(
+        "sase.pager.resolve.artifact_ref_context", fake_artifact_ref_context
+    )
+    monkeypatch.setattr(
+        "sase.pager.resolve.resolve_cli_reference", fake_resolve_cli_reference
+    )
+
+    target = resolve_ref(
+        "plan:202608/doc.md",
+        context=LinkResolutionContext(
+            anchors=(
+                LinkAnchor(directory=first, workspace_num=11),
+                LinkAnchor(directory=second, workspace_num=1),
+            )
+        ),
+    )
+
+    assert target is not None
+    assert target.edit_path == live
+    assert attempted == [(first, 11), (second, 1)]
+
+
+def test_resolve_ref_typed_ref_none_context_keeps_legacy_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    def fake_resolve_cli_reference(ref: str, **kwargs: object) -> None:
+        assert ref == "bead:sase-uk.5"
+        calls.append(kwargs)
+        raise ValueError("stop")
+
+    monkeypatch.setattr(
+        "sase.pager.resolve.resolve_cli_reference", fake_resolve_cli_reference
+    )
+
+    assert resolve_ref("bead:sase-uk.5") is None
+    assert calls == [{}]
+
+
+def test_resolve_ref_typed_ref_empty_context_keeps_legacy_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    def fake_resolve_cli_reference(ref: str, **kwargs: object) -> None:
+        calls.append(kwargs)
+        raise ValueError("stop")
+
+    monkeypatch.setattr(
+        "sase.pager.resolve.resolve_cli_reference", fake_resolve_cli_reference
+    )
+
+    assert resolve_ref("bead:sase-uk.5", context=LinkResolutionContext()) is None
+    assert calls == [{}]

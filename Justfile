@@ -340,6 +340,9 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-xe(follow_store_path)" \
         --epic-symbol "sase-xe(is_followed)" \
         --epic-symbol "sase-xe(reconcile_follow_store)" \
+        --epic-symbol "sase-xy.2(agent_link_context)" \
+        --epic-symbol "sase-xy.2(file_path_unresolved_message)" \
+        --epic-symbol "sase-xy.2(inherited_link_context)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

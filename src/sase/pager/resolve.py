@@ -13,6 +13,10 @@ from __future__ import annotations
 
 import logging
 import mimetypes
+import os
+import re
+import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -23,11 +27,17 @@ from sase.artifact_cli.references import (
     resolve_cli_reference,
     resolved_file_path,
 )
-from sase.artifact_ref_models import ArtifactRefFragment
+from sase.artifact_ref_context import artifact_ref_context
+from sase.artifact_ref_models import ArtifactRefContext, ArtifactRefFragment
 from sase.artifact_ref_operations import parse_artifact_ref
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.pager.adapters import path_section
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+from sase.pager.link_context import (
+    LinkAnchor,
+    LinkResolutionContext,
+    default_link_context,
+)
 from sase.pager.link_scan import LinkSpanKind
 
 log = logging.getLogger(__name__)
@@ -47,6 +57,16 @@ _TEXT_MIME_TYPES = frozenset(
         "application/yaml",
     }
 )
+_LINE_COL_SUFFIX_RE = re.compile(r"(.+):(\d+):(\d+)$")
+_LINE_SUFFIX_RE = re.compile(r"(.+):(\d+)$")
+_TRAILING_LINE_DIGITS_RE = re.compile(r":\d+$")
+_NUMBERED_CHECKOUT_RE = re.compile(r"^.+_\d+$")
+_DIFF_PREFIXES = ("a/", "b/")
+_GIT_LS_FILES_TIMEOUT_SECONDS = 2.0
+_GIT_LS_FILES_MAX_BYTES = 1_048_576
+
+_GitLsFilesCache = dict[Path, tuple[str, ...] | None]
+_PathConsider = Callable[[Path], Path | None]
 
 
 class LinkTargetKind(StrEnum):
@@ -73,12 +93,18 @@ class LinkTarget:
     edit_line: int | None = None
 
 
-def resolve_ref(ref: str) -> LinkTarget | None:
+def resolve_ref(
+    ref: str,
+    *,
+    context: LinkResolutionContext | None = None,
+) -> LinkTarget | None:
     """Resolve *ref* to a followable target, or ``None`` if it dead-ends.
 
     ``ref`` is a normalized ref string: a typed artifact reference
     (``bead:sase-uk.5``), or a plain filesystem path. Never called for URL
     spans — the press table copies those directly (D6) without resolving.
+    ``context`` is computed lazily for file paths; typed refs with ``None``
+    or empty anchors keep today's ``resolve_cli_reference(ref)`` call.
     """
     stripped = ref.strip()
     if not stripped:
@@ -86,8 +112,8 @@ def resolve_ref(ref: str) -> LinkTarget | None:
     try:
         parse_artifact_ref(stripped)
     except (ImportError, RuntimeError, ValueError):
-        return _resolve_file_path_target(stripped)
-    return _resolve_artifact_ref_target(stripped)
+        return _resolve_file_path_target(stripped, context=context)
+    return _resolve_artifact_ref_target(stripped, context=context)
 
 
 def link_target_for_artifact_entry_target(
@@ -111,9 +137,41 @@ def link_target_for_artifact_entry_target(
     return _resolve_artifact_ref_target(canonical_ref)
 
 
-def _resolve_artifact_ref_target(ref: str) -> LinkTarget | None:
+def _resolve_artifact_ref_target(
+    ref: str,
+    *,
+    context: LinkResolutionContext | None = None,
+) -> LinkTarget | None:
+    if context is None or not context.anchors:
+        return _resolve_artifact_result(ref, artifact_context=None)
+    for anchor in context.anchors:
+        artifact_context = _artifact_ref_context_for_anchor(anchor)
+        if artifact_context is None:
+            continue
+        target = _resolve_artifact_result(ref, artifact_context=artifact_context)
+        if target is not None:
+            return target
+    return None
+
+
+def _artifact_ref_context_for_anchor(anchor: LinkAnchor) -> ArtifactRefContext | None:
     try:
-        result = resolve_cli_reference(ref)
+        return artifact_ref_context(anchor.directory, anchor.workspace_num or 1)
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _resolve_artifact_result(
+    ref: str,
+    *,
+    artifact_context: ArtifactRefContext | None,
+) -> LinkTarget | None:
+    try:
+        result = (
+            resolve_cli_reference(ref)
+            if artifact_context is None
+            else resolve_cli_reference(ref, context=artifact_context)
+        )
     except (ImportError, RuntimeError, ValueError):
         return None
     if result.resolution.status not in _RESOLVED_STATUSES:
@@ -151,15 +209,22 @@ def _resolve_artifact_ref_target(ref: str) -> LinkTarget | None:
     return _card_link_target(result, path=path)
 
 
-def _resolve_file_path_target(text: str) -> LinkTarget | None:
-    path = Path(text).expanduser()
-    path = (
-        path.resolve(strict=False)
-        if path.is_absolute()
-        else (Path.cwd() / path).resolve(strict=False)
+def _resolve_file_path_target(
+    text: str,
+    *,
+    context: LinkResolutionContext | None = None,
+) -> LinkTarget | None:
+    found, line, _locations = _search_existing_path(
+        text, context=_file_path_context(context)
     )
-    if not path.exists():
+    if found is None:
         return None
+    return _link_target_for_existing_path(found, requested_line=line)
+
+
+def _link_target_for_existing_path(
+    path: Path, *, requested_line: int | None
+) -> LinkTarget | None:
     if path.is_dir():
         return _directory_link_target(path)
 
@@ -169,13 +234,15 @@ def _resolve_file_path_target(text: str) -> LinkTarget | None:
             kind=LinkTargetKind.MEDIA,
             media_specs=(ArtifactFileViewSpec(path, kind=mode),),
             edit_path=path,
+            edit_line=requested_line,
         )
     if _is_probably_text(path):
-        return _file_link_target(path, requested_line=None)
+        return _file_link_target(path, requested_line=requested_line)
     return LinkTarget(
         kind=LinkTargetKind.DOCUMENT,
         document=_binary_card_document(str(path), path=path, mime=_guess_mime(path)),
         edit_path=path,
+        edit_line=requested_line,
     )
 
 
@@ -328,13 +395,25 @@ def _ref_for_artifact_entry_target(target: ArtifactEntryTarget) -> str | None:
         return None
 
 
-def copy_text_for_target(ref: str, kind: str) -> str:
+def copy_text_for_target(
+    ref: str,
+    kind: str,
+    *,
+    context: LinkResolutionContext | None = None,
+) -> str:
     """Return the text ``y`` should copy for a scanned/attached target.
 
-    A file path copies its resolved absolute path; every other kind copies
-    its ref text verbatim, matching D8's "canonical ref or path" wording.
+    A file path copies its first existing resolution; when nothing exists
+    it falls back to today's cwd-joined absolute string. Every other kind
+    copies its ref text verbatim, matching D8's "canonical ref or path"
+    wording.
     """
     if kind == LinkSpanKind.FILE_PATH.value:
+        found, _line, _locations = _search_existing_path(
+            ref, context=_file_path_context(context)
+        )
+        if found is not None:
+            return str(found)
         path = Path(ref).expanduser()
         if not path.is_absolute():
             path = Path.cwd() / path
@@ -342,10 +421,233 @@ def copy_text_for_target(ref: str, kind: str) -> str:
     return ref
 
 
+def file_path_unresolved_message(
+    text: str,
+    *,
+    context: LinkResolutionContext | None = None,
+) -> str:
+    """Return the dead-end toast for a file-path span that did not resolve."""
+    _found, _line, locations = _search_existing_path(
+        text, context=_file_path_context(context)
+    )
+    return f"{text} not found (searched {locations} locations)"
+
+
+def _file_path_context(
+    context: LinkResolutionContext | None,
+) -> LinkResolutionContext:
+    if context is not None:
+        return context
+    return default_link_context()
+
+
+def _search_existing_path(
+    text: str,
+    *,
+    context: LinkResolutionContext,
+    cache: _GitLsFilesCache | None = None,
+) -> tuple[Path | None, int | None, int]:
+    """Return ``(path, line, locations_probed)`` for the first existing hit."""
+    git_cache: _GitLsFilesCache = {} if cache is None else cache
+    probed: list[Path] = []
+    seen: set[Path] = set()
+
+    def consider(path: Path) -> Path | None:
+        resolved = _resolved_path(path)
+        if resolved not in seen:
+            seen.add(resolved)
+            probed.append(resolved)
+        if resolved.exists():
+            return resolved
+        return None
+
+    candidates = _path_candidates(text)
+    for path_text, line in candidates:
+        found = _probe_direct(path_text, context, consider)
+        if found is not None:
+            return found, line, len(probed)
+    for path_text, line in candidates:
+        needle = _suffix_needle(path_text, context)
+        if needle is None:
+            continue
+        found = _unique_suffix_hit(needle, context, git_cache, consider)
+        if found is not None:
+            return found, line, len(probed)
+    return None, None, len(probed)
+
+
+def _probe_direct(
+    path_text: str,
+    context: LinkResolutionContext,
+    consider: _PathConsider,
+) -> Path | None:
+    path = Path(path_text).expanduser()
+    if path.is_absolute():
+        found = consider(path)
+        if found is not None:
+            return found
+        remainder = _stale_absolute_remainder(path, context)
+        if remainder is None:
+            return None
+        for base in context.base_dirs:
+            found = consider(base / remainder)
+            if found is not None:
+                return found
+        return None
+    for base in context.base_dirs:
+        found = consider(base / path)
+        if found is not None:
+            return found
+    return None
+
+
+def _unique_suffix_hit(
+    needle: str,
+    context: LinkResolutionContext,
+    cache: _GitLsFilesCache,
+    consider: _PathConsider,
+) -> Path | None:
+    hits: list[Path] = []
+    seen: set[Path] = set()
+    for anchor in context.anchors:
+        for tracked in _cached_git_ls_files(anchor.directory, cache):
+            if not _is_suffix_match(tracked, needle):
+                continue
+            resolved = _resolved_path(anchor.directory / tracked)
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            hits.append(resolved)
+    if len(hits) != 1:
+        return None
+    return consider(hits[0])
+
+
+def _path_candidates(text: str) -> tuple[tuple[str, int | None], ...]:
+    seen: set[str] = set()
+    candidates: list[tuple[str, int | None]] = []
+    for variant in _candidate_texts(text):
+        path_text, line = _split_line_suffix(variant)
+        if not path_text or path_text in seen:
+            continue
+        seen.add(path_text)
+        candidates.append((path_text, line))
+    return tuple(candidates)
+
+
+def _candidate_texts(text: str) -> tuple[str, ...]:
+    variants: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: str) -> None:
+        if value and value not in seen:
+            seen.add(value)
+            variants.append(value)
+
+    add(text)
+    add(text.rstrip("."))
+    for variant in tuple(variants):
+        for prefix in _DIFF_PREFIXES:
+            if variant.startswith(prefix) and len(variant) > len(prefix):
+                add(variant[len(prefix) :])
+                break
+    return tuple(variants)
+
+
+def _split_line_suffix(text: str) -> tuple[str, int | None]:
+    for pattern in (_LINE_COL_SUFFIX_RE, _LINE_SUFFIX_RE):
+        match = pattern.fullmatch(text)
+        if match is None:
+            continue
+        path_text = match.group(1)
+        if _TRAILING_LINE_DIGITS_RE.search(path_text):
+            continue
+        return path_text, int(match.group(2))
+    return text, None
+
+
+def _stale_absolute_remainder(
+    path: Path, context: LinkResolutionContext
+) -> Path | None:
+    resolved = _resolved_path(path)
+    anchor_dirs = {_resolved_path(base) for base in context.base_dirs}
+    for prefix in (resolved, *resolved.parents):
+        numbered = _NUMBERED_CHECKOUT_RE.fullmatch(prefix.name) is not None
+        if prefix not in anchor_dirs and not numbered:
+            continue
+        try:
+            return resolved.relative_to(prefix)
+        except ValueError:
+            continue
+    return None
+
+
+def _suffix_needle(path_text: str, context: LinkResolutionContext) -> str | None:
+    path = Path(path_text).expanduser()
+    if path.is_absolute():
+        remainder = _stale_absolute_remainder(path, context)
+        if remainder is None:
+            return None
+        posix = remainder.as_posix()
+    else:
+        posix = path.as_posix().lstrip("./")
+    if posix in {"", "."} or len(Path(posix).parts) < 2:
+        return None
+    return posix
+
+
+def _is_suffix_match(tracked: str, needle: str) -> bool:
+    tracked_posix = tracked.replace("\\", "/").lstrip("./")
+    needle_posix = needle.replace("\\", "/").lstrip("./")
+    if not needle_posix:
+        return False
+    return tracked_posix == needle_posix or tracked_posix.endswith("/" + needle_posix)
+
+
+def _cached_git_ls_files(directory: Path, cache: _GitLsFilesCache) -> tuple[str, ...]:
+    key = _resolved_path(directory)
+    if key not in cache:
+        cache[key] = _git_ls_files(key)
+    files = cache[key]
+    return files if files else ()
+
+
+def _git_ls_files(directory: Path) -> tuple[str, ...] | None:
+    env = os.environ.copy()
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(directory), "ls-files", "-z"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=_GIT_LS_FILES_TIMEOUT_SECONDS,
+            check=False,
+            env=env,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0 or len(result.stdout) > _GIT_LS_FILES_MAX_BYTES:
+        return None
+    return tuple(
+        chunk.decode("utf-8", "replace")
+        for chunk in result.stdout.split(b"\0")
+        if chunk
+    )
+
+
+def _resolved_path(path: Path) -> Path:
+    expanded = path.expanduser()
+    try:
+        return expanded.resolve(strict=False)
+    except OSError:
+        return expanded
+
+
 __all__ = [
     "LinkTarget",
     "LinkTargetKind",
     "copy_text_for_target",
+    "file_path_unresolved_message",
     "link_target_for_artifact_entry_target",
     "resolve_ref",
 ]
