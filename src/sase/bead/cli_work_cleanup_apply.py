@@ -196,11 +196,14 @@ def _fresh_cleanup_target(
     bead_assignees: dict[str, str],
 ) -> CleanupTarget | None:
     from sase.bead.cli_work_cleanup_targets import (
+        TargetedOwnerLookup,
         classify_artifact_record,
         classify_stale_registry_owner,
+        lookup_registry_entry_without_rebuild,
     )
     from sase.core.agent_identity_facade import AgentIdentitySnapshot
 
+    view = TargetedOwnerLookup(identity=AgentIdentitySnapshot.current())
     if target.artifacts_dir:
         record = _scan_cleanup_target_artifact(target.artifacts_dir)
         if record is None:
@@ -215,12 +218,12 @@ def _fresh_cleanup_target(
                 owner_name=target.name,
                 bead_assignees=bead_assignees,
                 membership=membership,
-                identity=AgentIdentitySnapshot.current(),
+                view=view,
             )
         except ForcedReuseCleanupError:
             return None
 
-    owner = _registry_entry_without_rebuild(target.name)
+    owner = lookup_registry_entry_without_rebuild(target.name, identity=view.identity)
     if owner is None:
         return None
     artifacts_dir = owner.get("artifacts_dir")
@@ -228,7 +231,9 @@ def _fresh_cleanup_target(
         return None
     if target.action == "RELEASE":
         return target
-    return classify_stale_registry_owner(slot, owner, bead_assignees=bead_assignees)
+    return classify_stale_registry_owner(
+        slot, owner, bead_assignees=bead_assignees, view=view
+    )
 
 
 def _scan_cleanup_target_artifact(
@@ -244,27 +249,6 @@ def _scan_cleanup_target_artifact(
         AgentArtifactScanOptionsWire(include_prompt_step_markers=False),
     )
     return snapshot.records[0] if snapshot.records else None
-
-
-def _registry_entry_without_rebuild(name: str) -> dict[str, object] | None:
-    from sase.agent.names._registry_store import read_registry, registry_path
-    from sase.core.agent_identity_facade import (
-        AgentIdentitySnapshot,
-        current_owner_agent_name_lookup_candidates,
-    )
-
-    data = read_registry(registry_path())
-    if data is None:
-        return None
-    entries = data.get("entries")
-    if not isinstance(entries, dict):
-        return None
-    identity = AgentIdentitySnapshot.current()
-    for candidate in current_owner_agent_name_lookup_candidates(name, identity):
-        entry = entries.get(candidate)
-        if isinstance(entry, dict):
-            return dict(entry)
-    return None
 
 
 def _apply_cleanup_targets(

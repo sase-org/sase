@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from sase.bead.cli_work_cleanup_types import (
     BeadWorkSlot,
@@ -20,6 +21,17 @@ if TYPE_CHECKING:
 type _OwnerMembership = Literal["registry", "family", "clan"]
 
 
+class _OwnerRecordLookup(Protocol):
+    """Minimal owner view needed to classify one targeted artifact."""
+
+    @property
+    def identity(self) -> AgentIdentitySnapshot: ...
+
+    def records_for_agent_name(
+        self, name: str
+    ) -> tuple[AgentArtifactRecordWire, ...]: ...
+
+
 @dataclass(frozen=True)
 class _AgentOwnerView:
     """Indexed agent artifacts used to classify registered owners."""
@@ -29,6 +41,12 @@ class _AgentOwnerView:
     family_members_by_key: dict[str, tuple[AgentArtifactRecordWire, ...]]
     clan_members_by_key: dict[str, tuple[AgentArtifactRecordWire, ...]]
     identity: AgentIdentitySnapshot
+
+    def records_for_agent_name(self, name: str) -> tuple[AgentArtifactRecordWire, ...]:
+        from sase.core.agent_identity_facade import current_owner_agent_name_key
+
+        key = current_owner_agent_name_key(name, self.identity)
+        return self.records_by_name_key.get(key, ())
 
 
 def load_agent_owner_view() -> _AgentOwnerView:
@@ -91,6 +109,60 @@ def load_agent_owner_view() -> _AgentOwnerView:
         clan_members_by_key={key: tuple(value) for key, value in clan_members.items()},
         identity=identity,
     )
+
+
+def lookup_registry_entry_without_rebuild(
+    name: str,
+    *,
+    identity: AgentIdentitySnapshot,
+    entries: Mapping[str, object] | None = None,
+) -> dict[str, object] | None:
+    """Resolve one registry entry without rebuilding the index."""
+    loaded = entries
+    if loaded is None:
+        from sase.agent.names._registry_store import read_registry, registry_path
+
+        data = read_registry(registry_path())
+        if data is None:
+            return None
+        raw_entries = data.get("entries")
+        if not isinstance(raw_entries, dict):
+            return None
+        loaded = raw_entries
+    from sase.core.agent_identity_facade import (
+        current_owner_agent_name_lookup_candidates,
+    )
+
+    for candidate in current_owner_agent_name_lookup_candidates(name, identity):
+        entry = loaded.get(candidate)
+        if isinstance(entry, dict):
+            return dict(entry)
+    return None
+
+
+@dataclass(frozen=True)
+class TargetedOwnerLookup:
+    """Resolve assignee records by scanning at most one artifact directory."""
+
+    identity: AgentIdentitySnapshot
+
+    def records_for_agent_name(self, name: str) -> tuple[AgentArtifactRecordWire, ...]:
+        owner = lookup_registry_entry_without_rebuild(name, identity=self.identity)
+        if owner is None or owner.get("container_kind"):
+            return ()
+        artifacts_dir = owner.get("artifacts_dir")
+        if not isinstance(artifacts_dir, str) or not artifacts_dir:
+            return ()
+        from sase.core.agent_scan_facade import scan_agent_artifact_dirs
+        from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
+        from sase.core.paths import sase_projects_dir
+
+        snapshot = scan_agent_artifact_dirs(
+            sase_projects_dir(),
+            [artifacts_dir],
+            AgentArtifactScanOptionsWire(include_prompt_step_markers=False),
+        )
+        return tuple(snapshot.records)
 
 
 def _normalized_path_key(value: object) -> str:
@@ -254,7 +326,7 @@ def classify_artifact_record(
     owner_name: str,
     bead_assignees: dict[str, str],
     membership: _OwnerMembership,
-    view: _AgentOwnerView,
+    view: _OwnerRecordLookup,
 ) -> CleanupTarget:
     _require_record_association(
         slot,
@@ -312,7 +384,7 @@ def classify_stale_registry_owner(
     owner: dict[str, object],
     *,
     bead_assignees: dict[str, str],
-    view: _AgentOwnerView,
+    view: _OwnerRecordLookup,
 ) -> CleanupTarget:
     preserved = _resolve_assignee_conflict(
         slot,
@@ -436,7 +508,7 @@ def _resolve_assignee_conflict(
     *,
     owner_name: str,
     bead_assignees: dict[str, str],
-    view: _AgentOwnerView,
+    view: _OwnerRecordLookup,
 ) -> CleanupTarget | None:
     assignee = bead_assignees.get(slot.expected_bead_id, "")
     if not assignee:
@@ -463,7 +535,7 @@ def _resolve_assignee_conflict(
             f"bead {slot.expected_bead_id} is assigned to {assignee}, which does "
             f"not match the relaunch owner {owner_name}"
         )
-    for record in view.records_by_name_key.get(assignee_key, ()):
+    for record in view.records_for_agent_name(assignee):
         if not _record_is_live(record):
             continue
         return CleanupTarget(

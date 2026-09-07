@@ -201,11 +201,12 @@ def _select_preserved_slots_from_registry(
     through to the full archive view.
     """
     from sase.agent.names._registry_store import read_registry, registry_path
-    from sase.bead.cli_work_cleanup_targets import classify_artifact_record
-    from sase.core.agent_identity_facade import (
-        AgentIdentitySnapshot,
-        current_owner_agent_name_lookup_candidates,
+    from sase.bead.cli_work_cleanup_targets import (
+        TargetedOwnerLookup,
+        classify_artifact_record,
+        lookup_registry_entry_without_rebuild,
     )
+    from sase.core.agent_identity_facade import AgentIdentitySnapshot
     from sase.core.agent_scan_facade import scan_agent_artifact_dirs
     from sase.core.agent_scan_wire import (
         AgentArtifactRecordWire,
@@ -223,18 +224,14 @@ def _select_preserved_slots_from_registry(
         return None
 
     identity = AgentIdentitySnapshot.current()
+    view = TargetedOwnerLookup(identity=identity)
     targets: list[CleanupTarget] = []
     artifact_dirs: list[str] = []
     owners: list[tuple[BeadWorkSlot, dict[str, object]]] = []
     for slot in slots:
-        owner = None
-        for candidate in current_owner_agent_name_lookup_candidates(
-            slot.owner_name, identity
-        ):
-            entry = entries.get(candidate)
-            if isinstance(entry, dict):
-                owner = dict(entry)
-                break
+        owner = lookup_registry_entry_without_rebuild(
+            slot.owner_name, identity=identity, entries=entries
+        )
         if owner is None:
             if slot.allow_populated_clan_skip:
                 continue
@@ -290,7 +287,7 @@ def _select_preserved_slots_from_registry(
                 owner_name=slot.owner_name,
                 bead_assignees=bead_assignees,
                 membership="registry",
-                identity=identity,
+                view=view,
             )
         except ForcedReuseCleanupError:
             return None
