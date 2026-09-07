@@ -1032,12 +1032,18 @@ rust-lsp-install VENV=venv_dir_abs: _venv
         printf "[rust-lsp-install] target venv %s has no bin/python; aborting.\n" "{{ VENV }}"; \
         exit 1; \
     fi
-    @cd "{{ sase_core_dir }}" && \
+    @sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
+    lsp_target_dir="$sase_core_abs/target/uv-tool-lsp"; \
+    profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \
+    cd "$sase_core_abs" && \
+        CARGO_TARGET_DIR="$lsp_target_dir" \
         CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
         CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
-        cargo build --release -p sase_xprompt_lsp
+        cargo build --profile "$profile" -p sase_xprompt_lsp
     @dest="{{ VENV }}/bin/sase-xprompt-lsp"; \
-    src="{{ sase_core_dir }}/target/release/sase-xprompt-lsp"; \
+    sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
+    profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \
+    src="$sase_core_abs/target/uv-tool-lsp/$profile/sase-xprompt-lsp"; \
     tmp="$dest.tmp.$$"; \
     trap 'rm -f "$tmp"' EXIT; \
     cp "$src" "$tmp"; \
