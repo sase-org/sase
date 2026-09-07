@@ -452,7 +452,12 @@ Periodic maintenance:
 The `error_digest` chop summarizes recent errors into a digest file stored at
 `~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a
 `ViewErrorReport` action that opens the digest in `$EDITOR` when selected in the ACE
-notification modal.
+notification modal. For failed script subprocesses, the digest includes the chop run ID,
+exit code, source log path, and a bounded subprocess output excerpt captured at failure
+time. The excerpt is redacted, stripped of terminal control sequences, and retained in
+`recent_errors.json`, so the digest remains useful even after per-run logs are pruned.
+Silent, missing, unreadable, malformed, and truncated output are called out explicitly
+instead of being reported as a Python traceback.
 
 The `managed_tmp_reap` chop bounds the managed SASE temp root (`$SASE_TMPDIR`, else
 `~/.sase/tmp`) that `get_sase_managed_tmpdir()` hands out. Horizons are per

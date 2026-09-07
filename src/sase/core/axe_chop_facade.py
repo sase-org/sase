@@ -78,6 +78,13 @@ def derive_chop_agent_name(
     return str(binding(chop_name, target_key, proposal_index, run_token))
 
 
+def normalize_chop_subprocess_diagnostic(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize a bounded subprocess output sample into a durable diagnostic."""
+
+    binding = require_rust_binding("normalize_chop_subprocess_diagnostic")
+    return dict(binding(dict(request)))
+
+
 def evaluate_chop_decision(request: Mapping[str, Any]) -> dict[str, Any]:
     """Evaluate guards and the trigger against host-provided snapshots."""
 

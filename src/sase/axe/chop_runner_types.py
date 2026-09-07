@@ -42,6 +42,7 @@ class ChopRunOutcome:
     output_bytes: int = 0
     error: Exception | None = None
     traceback: str | None = None
+    subprocess_diagnostic: dict[str, Any] | None = None
     result: dict[str, Any] | None = None
     proposals: tuple[dict[str, Any], ...] = ()
     launches: tuple[dict[str, Any], ...] = ()

@@ -62,6 +62,7 @@ class ChopRunEntry:
     pid: int | None = None
     error: str | None = None
     traceback: str | None = None
+    subprocess_diagnostic: dict[str, Any] | None = None
     output_bytes: int = 0
     output_log: str = ""
     source: ChopRunSource = "scheduled"
@@ -303,6 +304,7 @@ def finish_chop_run(
     agent_pid: int | None = None,
     error: str | None = None,
     traceback: str | None = None,
+    subprocess_diagnostic: dict[str, Any] | None = None,
     output_bytes: int | None = None,
     result_file: str | None = None,
     result: dict[str, Any] | None = None,
@@ -332,6 +334,8 @@ def finish_chop_run(
     data["agent_pid"] = agent_pid
     data["error"] = error
     data["traceback"] = traceback
+    if subprocess_diagnostic is not None:
+        data["subprocess_diagnostic"] = subprocess_diagnostic
     if result_file is not None:
         data["result_file"] = result_file
     if result is not None:

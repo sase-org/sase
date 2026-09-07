@@ -76,6 +76,7 @@ class _ChopResult:
     # traceback (e.g. a subprocess exited nonzero), set this to a constant
     # placeholder rather than leaving it ``None``.
     traceback: str | None = None
+    subprocess_diagnostic: dict[str, object] | None = None
     skip_reason: str | None = None
     no_op: bool = False
 
@@ -244,7 +245,12 @@ class Lumberjack:
             for line in result.log_lines:
                 self._log(line)
             if result.error is not None:
-                self._handle_error(result.chop_name, result.error, result.traceback)
+                self._handle_error(
+                    result.chop_name,
+                    result.error,
+                    result.traceback,
+                    result.subprocess_diagnostic,
+                )
             if result.executed:
                 self._metrics.chops_spawned += 1
                 tick_spawns += 1
@@ -343,6 +349,7 @@ class Lumberjack:
                 log_lines=log_lines,
                 error=outcome.error,
                 traceback=outcome.traceback,
+                subprocess_diagnostic=outcome.subprocess_diagnostic,
             )
 
         if outcome.status == "timeout":
@@ -354,6 +361,7 @@ class Lumberjack:
                 log_lines=log_lines,
                 error=outcome.error,
                 traceback=outcome.traceback,
+                subprocess_diagnostic=outcome.subprocess_diagnostic,
             )
 
         if outcome.status == "missing_script":
@@ -407,7 +415,11 @@ class Lumberjack:
                     log_lines.append(line)
 
     def _handle_error(
-        self, job_name: str, error: Exception, tb: str | None = None
+        self,
+        job_name: str,
+        error: Exception,
+        tb: str | None = None,
+        subprocess_diagnostic: dict[str, object] | None = None,
     ) -> None:
         self._log(f"Error in {job_name}: {error}", style="red")
         self._metrics.errors_encountered += 1
@@ -418,13 +430,15 @@ class Lumberjack:
         # Every error-bearing ``_ChopResult`` is responsible for capturing
         # its own traceback inside the ``except`` block (or setting an
         # explicit placeholder for non-exception failures).
-        error_info = {
+        error_info: dict[str, object] = {
             "timestamp": get_timestamp(),
             "lumberjack": self.name,
             "job": job_name,
             "error": str(error),
             "traceback": tb if tb is not None else _TRACEBACK_UNAVAILABLE,
         }
+        if subprocess_diagnostic is not None:
+            error_info["subprocess_diagnostic"] = subprocess_diagnostic
         append_error(error_info)
 
     def _update_status(self) -> None:

@@ -34,6 +34,7 @@ from .chop_runner_script_lifecycle import (
 from .chop_runner_script_result import process_script_chop_result
 from .chop_runner_trace import NO_PYTHON_TRACEBACK, capture_traceback
 from .chop_runner_types import ChopRunOutcome
+from .chop_subprocess_diagnostics import capture_chop_subprocess_diagnostic
 from .chop_script_runner import discover_chop_script, stream_chop_script
 from .chop_script_context import prepare_chop_run_context
 from .config import AxeConfig, ChopConfig
@@ -366,15 +367,22 @@ def run_script_chop_once(
 
     if result.timed_out:
         error = RuntimeError(f"timed out after {resolved_timeout}s")
+        subprocess_diagnostic = capture_chop_subprocess_diagnostic(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            exit_code=result.returncode,
+        )
         _finalize(
             lumberjack_name=lumberjack_name,
             chop_name=chop.name,
             run_id=run_id,
             started_at=started_at,
             status="timeout",
-            exit_code=None,
+            exit_code=result.returncode,
             error=error,
             tb=NO_PYTHON_TRACEBACK,
+            subprocess_diagnostic=subprocess_diagnostic,
             output_bytes=result.output_bytes,
             preflight=preflight,
         )
@@ -383,9 +391,11 @@ def run_script_chop_once(
             chop_name=chop.name,
             status="timeout",
             run_id=run_id,
+            exit_code=result.returncode,
             output_bytes=result.output_bytes,
             error=error,
             traceback=NO_PYTHON_TRACEBACK,
+            subprocess_diagnostic=subprocess_diagnostic,
             dry_run=dry_run,
             chop_verbose=chop_verbose,
         )

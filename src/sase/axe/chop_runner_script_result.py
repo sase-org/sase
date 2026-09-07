@@ -10,6 +10,7 @@ from typing import Any, Protocol
 
 from sase.core.axe_chop_facade import parse_chop_result
 
+from .chop_subprocess_diagnostics import capture_chop_subprocess_diagnostic
 from .chop_policy import (
     ChopPreflight,
     apply_chop_once_per,
@@ -100,6 +101,12 @@ def process_script_chop_result(
 
     if result.returncode != 0:
         error = RuntimeError(f"exit code {result.returncode}")
+        subprocess_diagnostic = capture_chop_subprocess_diagnostic(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            exit_code=result.returncode,
+        )
         finalize_script_chop_run(
             lumberjack_name=lumberjack_name,
             chop_name=chop.name,
@@ -109,6 +116,7 @@ def process_script_chop_result(
             exit_code=result.returncode,
             error=error,
             tb=NO_PYTHON_TRACEBACK,
+            subprocess_diagnostic=subprocess_diagnostic,
             output_bytes=result.output_bytes,
             result_file=result_path.name if structured_result is not None else None,
             structured_result=structured_result,
@@ -125,6 +133,7 @@ def process_script_chop_result(
             output_bytes=result.output_bytes,
             error=error,
             traceback=NO_PYTHON_TRACEBACK,
+            subprocess_diagnostic=subprocess_diagnostic,
             result=structured_result,
             proposals=tuple(proposals),
             dry_run=dry_run,

@@ -15,6 +15,7 @@ from sase.core.axe_chop_facade import (
     derive_chop_agent_name,
     evaluate_chop_decision,
     expand_chop_targets,
+    normalize_chop_subprocess_diagnostic,
     parse_chop_duration,
     parse_chop_result,
     release_chop_once_per,
@@ -239,6 +240,34 @@ def test_target_duration_and_agent_name_facades() -> None:
         derive_chop_agent_name("refresh_docs", target_key="sase-core")
         == "chop.refresh_docs.sase-core.1"
     )
+
+
+def test_subprocess_diagnostic_facade_round_trips_through_rust() -> None:
+    diagnostic = normalize_chop_subprocess_diagnostic(
+        {
+            "schema_version": CHOP_ENGINE_SCHEMA_VERSION,
+            "run_id": "20260906T211142_996558",
+            "exit_code": 1,
+            "source_log_path": "/tmp/chop.log",
+            "output": (
+                "\x1b[31mTraceback (most recent call last):\x1b[0m\n"
+                "https://api.telegram.org/"
+                "bot123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi/getUpdates\n"
+                "telegram.error.TimedOut: Timed out"
+            ),
+            "max_lines": 2,
+        }
+    )
+
+    assert diagnostic["run_id"] == "20260906T211142_996558"
+    assert diagnostic["exit_code"] == 1
+    assert diagnostic["output_status"] == "captured"
+    assert diagnostic["omitted_lines"] == 1
+    assert diagnostic["truncated"] is True
+    assert "telegram.error.TimedOut: Timed out" in diagnostic["output_excerpt"]
+    assert "bot<redacted>/getUpdates" in diagnostic["output_excerpt"]
+    assert "123456789:" not in diagnostic["output_excerpt"]
+    assert "\x1b" not in diagnostic["output_excerpt"]
 
 
 def test_description_split_normalizes_summary_and_body() -> None:

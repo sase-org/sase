@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from sase.core.paths import sase_subdir
@@ -13,6 +13,8 @@ from sase.project_display_names import humanize_cl_name
 
 if TYPE_CHECKING:
     from sase.llm_provider.usage_limit_config import UsageLimitDetection
+
+_NO_PYTHON_TRACEBACK = "<no python traceback: subprocess error>"
 
 
 def notify_workflow_complete(
@@ -129,8 +131,13 @@ def notify_axe_error_digest(
         lines.append(f"  Lumberjack: {err.get('lumberjack', 'unknown')}")
         lines.append(f"  Job:        {err.get('job', 'unknown')}")
         lines.append(f"  Error:      {err.get('error', 'unknown')}")
+        subprocess_diagnostic = _subprocess_diagnostic(err)
+        if subprocess_diagnostic is not None:
+            _append_subprocess_diagnostic(lines, subprocess_diagnostic)
         tb = err.get("traceback", "")
-        if tb:
+        if tb and not (
+            subprocess_diagnostic is not None and tb == _NO_PYTHON_TRACEBACK
+        ):
             lines.append("  Traceback:")
             for tb_line in tb.splitlines():
                 lines.append(f"    {tb_line}")
@@ -147,6 +154,72 @@ def notify_axe_error_digest(
         action_data={"error_report_path": str(digest_file)},
     )
     append_notification(n)
+
+
+def _subprocess_diagnostic(error: dict[str, Any]) -> dict[str, Any] | None:
+    value = error.get("subprocess_diagnostic")
+    return value if isinstance(value, dict) else None
+
+
+def _append_subprocess_diagnostic(lines: list[str], diagnostic: dict[str, Any]) -> None:
+    run_id = _string_value(diagnostic.get("run_id"))
+    exit_code = diagnostic.get("exit_code")
+    source_log_path = _string_value(diagnostic.get("source_log_path"))
+    output_status = _string_value(diagnostic.get("output_status")) or "unknown"
+    output_excerpt = _string_value(diagnostic.get("output_excerpt")) or ""
+
+    lines.append("  Run:")
+    if run_id:
+        lines.append(f"    ID:         {run_id}")
+    if isinstance(exit_code, int):
+        lines.append(f"    Exit Code:  {exit_code}")
+    if source_log_path:
+        lines.append(f"    Source Log: {source_log_path}")
+
+    markers = _subprocess_output_markers(diagnostic, output_status, output_excerpt)
+    lines.append("  Subprocess Output:")
+    for marker in markers:
+        lines.append(f"    [{marker}]")
+    if output_excerpt:
+        for output_line in output_excerpt.splitlines():
+            lines.append(f"    {output_line}")
+
+
+def _subprocess_output_markers(
+    diagnostic: dict[str, Any], output_status: str, output_excerpt: str
+) -> list[str]:
+    markers: list[str] = []
+    if output_status == "absent":
+        markers.append("output absent")
+    elif output_status == "unavailable":
+        reason = _string_value(diagnostic.get("unavailable_reason")) or "unknown"
+        markers.append(f"output unavailable: {reason}")
+    elif output_status != "captured":
+        markers.append(f"output status: {output_status}")
+    elif not output_excerpt:
+        markers.append("captured output empty after normalization")
+
+    if diagnostic.get("truncated") is True:
+        details: list[str] = []
+        omitted_lines = _nonnegative_int(diagnostic.get("omitted_lines"))
+        omitted_bytes = _nonnegative_int(diagnostic.get("omitted_bytes"))
+        if omitted_lines:
+            details.append(f"{omitted_lines} line(s)")
+        if omitted_bytes:
+            details.append(f"{omitted_bytes} byte(s)")
+        suffix = f": omitted {' and '.join(details)}" if details else ""
+        markers.append(f"truncated{suffix}")
+    if diagnostic.get("had_decode_errors") is True:
+        markers.append("invalid UTF-8 replaced")
+    return markers
+
+
+def _string_value(value: object) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def _nonnegative_int(value: object) -> int:
+    return value if isinstance(value, int) and value >= 0 else 0
 
 
 def notify_axe_restart_failed(message: str, attempts: list[str]) -> str:
