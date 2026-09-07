@@ -15,6 +15,7 @@ ARTIFACT_REF_WIRE_SCHEMA_VERSION = 5
 ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION = 2
 ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION = 1
 ARTIFACT_REF_DOCUMENT_SCAN_WIRE_SCHEMA_VERSION = 1
+ARTIFACT_REF_TARGET_RESOLUTION_WIRE_SCHEMA_VERSION = 1
 
 ArtifactRefKindType = Literal[
     "commit",
@@ -42,6 +43,14 @@ ArtifactRefResolutionStatus = Literal[
     "denied",
 ]
 ArtifactRefDocumentTargetKind = Literal["artifact_ref", "url", "file_path"]
+ArtifactRefTargetFailureCategory = Literal[
+    "missing_checkout",
+    "unavailable_revision",
+    "ambiguous",
+    "denied_filtered",
+    "temporary_error",
+    "proven_missing",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -648,6 +657,101 @@ class ArtifactRefDocumentScan:
                 for item in raw.get("links", ())
             ),
             diagnostics=tuple(str(item) for item in raw.get("diagnostics", ())),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactRefDocumentOwner:
+    """Provenance for a scanned document link's own source.
+
+    Lets an unqualified source path resolve in the repository that actually
+    owns the document naming it, rather than the viewer's cwd. Every field is
+    optional: absent provenance falls back to searching every repository in
+    the caller's resolution context.
+    """
+
+    source_reference: str | None = None
+    project_key: str | None = None
+    repository: str | None = None
+    revision: str | None = None
+    source_directory: str | None = None
+    checkout_candidates: tuple[Path, ...] = ()
+
+    def to_wire(self) -> dict[str, object]:
+        raw: dict[str, object] = {
+            "checkout_candidates": [str(path) for path in self.checkout_candidates],
+        }
+        for name in (
+            "source_reference",
+            "project_key",
+            "repository",
+            "revision",
+            "source_directory",
+        ):
+            value = getattr(self, name)
+            if value is not None:
+                raw[name] = value
+        return raw
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactRefTargetCandidate:
+    """One inspected or selected candidate, kept as resolution evidence."""
+
+    path: str
+    evidence: str
+    repository: str | None = None
+
+    @classmethod
+    def from_wire(cls, raw: Mapping[str, Any]) -> ArtifactRefTargetCandidate:
+        return cls(
+            path=str(raw["path"]),
+            evidence=str(raw["evidence"]),
+            repository=optional_str(raw.get("repository")),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactRefTargetResolution:
+    """The outcome of resolving one document-owned source-path target."""
+
+    schema_version: int
+    status: str
+    resolved_path: Path | None
+    repository: str | None
+    revision: str | None
+    candidates: tuple[ArtifactRefTargetCandidate, ...]
+    failure_category: ArtifactRefTargetFailureCategory | None
+    retryable: bool
+    diagnostic: str | None = None
+
+    @classmethod
+    def from_wire(cls, raw: Mapping[str, Any]) -> ArtifactRefTargetResolution:
+        version = int(raw["schema_version"])
+        if version != ARTIFACT_REF_TARGET_RESOLUTION_WIRE_SCHEMA_VERSION:
+            raise RuntimeError(
+                "sase_core_rs returned an unsupported artifact-reference "
+                f"target resolution wire: {version}"
+            )
+        resolved_path = raw.get("resolved_path")
+        failure_category = raw.get("failure_category")
+        return cls(
+            schema_version=version,
+            status=str(raw["status"]),
+            resolved_path=None if resolved_path is None else Path(str(resolved_path)),
+            repository=optional_str(raw.get("repository")),
+            revision=optional_str(raw.get("revision")),
+            candidates=tuple(
+                ArtifactRefTargetCandidate.from_wire(cast(Mapping[str, Any], item))
+                for item in raw.get("candidates", ())
+            ),
+            failure_category=(
+                None
+                if failure_category is None
+                else cast(ArtifactRefTargetFailureCategory, str(failure_category))
+            ),
+            retryable=bool(raw["retryable"]),
+            diagnostic=optional_str(raw.get("diagnostic")),
         )
 
 

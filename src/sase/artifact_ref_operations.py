@@ -9,14 +9,17 @@ from typing import Any, cast
 from sase.artifact_ref_models import (
     ARTIFACT_REF_DOCUMENT_SCAN_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION,
+    ARTIFACT_REF_TARGET_RESOLUTION_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_WIRE_SCHEMA_VERSION,
     ArtifactRef,
     ArtifactRefContext,
+    ArtifactRefDocumentOwner,
     ArtifactRefDocumentScan,
     ArtifactRefPathFilterResult,
     ArtifactRefPromptCandidate,
     ArtifactRefResolution,
     ArtifactRefResolutionStatus,
+    ArtifactRefTargetResolution,
     check_record_schema as _check_record_schema,
     optional_str as _optional_str,
 )
@@ -224,6 +227,31 @@ def scan_artifact_ref_document(
     return ArtifactRefDocumentScan.from_wire(raw)
 
 
+def resolve_document_source_target(
+    path: str,
+    *,
+    owner: ArtifactRefDocumentOwner | None = None,
+    context: ArtifactRefContext,
+) -> ArtifactRefTargetResolution:
+    """Resolve an unqualified source path in the repository that owns it.
+
+    Unlike :func:`resolve_artifact_ref`, *path* is not a kind-tagged
+    reference: it is the plain repo-relative path a rendered document
+    mentions (a source file named from a plan, for example). *owner* carries
+    whatever provenance the caller already has about that document; an empty
+    owner still resolves correctly by searching every repository in
+    *context*, requiring a unique match.
+    """
+    _require_artifact_ref_target_resolution_schema()
+    binding = require_rust_binding("artifact_ref_resolve_document_source_target")
+    resolved_owner = ArtifactRefDocumentOwner() if owner is None else owner
+    raw = cast(
+        Mapping[str, Any],
+        binding(path, resolved_owner.to_wire(), context.to_wire()),
+    )
+    return ArtifactRefTargetResolution.from_wire(raw)
+
+
 def artifact_ref_kind_catalog() -> tuple[Mapping[str, Any], ...]:
     """Return every compiled-in artifact-reference kind descriptor, raw."""
     binding = require_rust_binding("artifact_ref_kind_catalog")
@@ -335,6 +363,17 @@ def _require_artifact_ref_document_scan_schema() -> None:
         )
 
 
+def _require_artifact_ref_target_resolution_schema() -> None:
+    binding = require_rust_binding("artifact_ref_target_resolution_wire_schema_version")
+    version = int(binding())
+    if version != ARTIFACT_REF_TARGET_RESOLUTION_WIRE_SCHEMA_VERSION:
+        raise RuntimeError(
+            "sase_core_rs artifact-reference target resolution wire is stale: "
+            f"expected {ARTIFACT_REF_TARGET_RESOLUTION_WIRE_SCHEMA_VERSION}, "
+            f"got {version}"
+        )
+
+
 __all__ = [
     "at_reference_context",
     "at_reference_inventory",
@@ -353,6 +392,7 @@ __all__ = [
     "parse_artifact_ref",
     "render_artifact_ref",
     "resolve_artifact_ref",
+    "resolve_document_source_target",
     "scan_artifact_ref_document",
     "scan_artifact_ref_prompt",
     "scan_artifact_refs",
