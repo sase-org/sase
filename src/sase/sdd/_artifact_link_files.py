@@ -13,6 +13,7 @@ from sase.sdd._artifact_link_store_support import (
     validate_artifact_link_row,
 )
 from sase.sdd.referenced_by_index import REFERENCED_BY_LINKS_DIR
+from sase.sdd.referenced_by_index import referenced_by_index_relpath
 
 
 class ArtifactLinkRepoFileKind(StrEnum):
@@ -65,6 +66,28 @@ def is_canonical_artifact_link_index(path: Path, repo_root: Path) -> bool:
         classify_artifact_link_repo_file(path, repo_root)
         is ArtifactLinkRepoFileKind.INDEX
     )
+
+
+def is_canonical_artifact_link_index_location(path: Path, repo_root: Path) -> bool:
+    """Return whether *path* is a canonical per-artifact link-index location."""
+
+    located = _absolute_in_repo(path, repo_root)
+    if located is None:
+        return False
+    absolute, relative = located
+    if relative.parts[:1] != (REFERENCED_BY_LINKS_DIR,):
+        return False
+    if len(relative.parts) < 2 or not relative.name.endswith(".json"):
+        return False
+    if absolute.is_symlink():
+        return False
+    artifact_relpath = relative.as_posix()[len(f"{REFERENCED_BY_LINKS_DIR}/") :]
+    artifact_relpath = artifact_relpath[: -len(".json")]
+    try:
+        expected = referenced_by_index_relpath(artifact_relpath)
+    except (TypeError, ValueError, RuntimeError):
+        return False
+    return expected == relative.as_posix()
 
 
 def _absolute_in_repo(path: Path, repo_root: Path) -> tuple[Path, Path] | None:
@@ -144,4 +167,5 @@ __all__ = [
     "artifact_link_lock_path",
     "classify_artifact_link_repo_file",
     "is_canonical_artifact_link_index",
+    "is_canonical_artifact_link_index_location",
 ]

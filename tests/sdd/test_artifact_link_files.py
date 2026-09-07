@@ -9,6 +9,8 @@ from sase.sdd._artifact_link_files import (
     ArtifactLinkRepoFileKind,
     artifact_link_lock_path,
     classify_artifact_link_repo_file,
+    is_canonical_artifact_link_index,
+    is_canonical_artifact_link_index_location,
 )
 from sase.sdd.artifact_link_store import ARTIFACT_LINK_ROW_SCHEMA_VERSION
 
@@ -160,6 +162,31 @@ def test_symlink_index_is_rejected(tmp_path: Path) -> None:
     assert (
         classify_artifact_link_repo_file(link, repo)
         is ArtifactLinkRepoFileKind.REJECTED
+    )
+
+
+def test_missing_index_location_is_recognized_without_content(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "plans"
+    repo.mkdir()
+    path = repo / "links" / "202608" / "missing.md.json"
+
+    assert not path.exists()
+    assert is_canonical_artifact_link_index_location(path, repo)
+    assert not is_canonical_artifact_link_index(path, repo)
+
+
+def test_index_location_rejects_escaped_symlink_parent(tmp_path: Path) -> None:
+    repo = tmp_path / "plans"
+    outside = tmp_path / "outside"
+    repo.mkdir()
+    outside.mkdir()
+    (repo / "links").symlink_to(outside)
+
+    assert not is_canonical_artifact_link_index_location(
+        repo / "links" / "escape.md.json",
+        repo,
     )
 
 

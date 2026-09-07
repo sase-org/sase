@@ -9,7 +9,10 @@ from pathlib import Path
 import subprocess
 from typing import TYPE_CHECKING, Literal
 
-from sase.sdd._artifact_link_files import is_canonical_artifact_link_index
+from sase.sdd._artifact_link_files import (
+    is_canonical_artifact_link_index,
+    is_canonical_artifact_link_index_location,
+)
 from sase.sdd._artifact_link_ignore import ensure_artifact_link_lock_gitignore
 from sase.sdd._store_types import document_sidecar_roles
 
@@ -157,7 +160,11 @@ def _group_valid_indexes(
         owner = _owning_root(path, roots)
         if owner is None:
             continue
-        if not is_canonical_artifact_link_index(path, owner):
+        if path.exists():
+            valid = is_canonical_artifact_link_index(path, owner)
+        else:
+            valid = is_canonical_artifact_link_index_location(path, owner)
+        if not valid:
             continue
         grouped[owner].append(path.expanduser().resolve(strict=False))
     return grouped
