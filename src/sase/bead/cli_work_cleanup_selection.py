@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from sase.bead.cli_work_cleanup_targets import (
     classify_slot_owner,
@@ -16,6 +17,9 @@ from sase.bead.cli_work_cleanup_types import (
 )
 from sase.bead.cli_work_name_cleanup import ForcedReuseCleanupError
 
+if TYPE_CHECKING:
+    from sase.agent.launch_timing import LaunchTimingRecorder
+
 
 def preview_bead_work_force_reuse(
     query: str,
@@ -24,6 +28,7 @@ def preview_bead_work_force_reuse(
     extra_cleanup_names: frozenset[str] = frozenset(),
     expected_bead_ids: dict[str, str] | None = None,
     bead_assignees: dict[str, str] | None = None,
+    timer: LaunchTimingRecorder | None = None,
 ) -> CleanupPreview:
     """Describe every owner or stale reservation a live cleanup will affect."""
     if expected_bead_ids is not None:
@@ -50,6 +55,7 @@ def preview_bead_work_force_reuse(
             slots=slots,
             directive_names=expected_names,
             bead_assignees=bead_assignees or {},
+            timer=timer,
         )
 
     from sase.bead.cli_work_legacy_preview import (
@@ -69,6 +75,7 @@ def preview_bead_work_launch_selection(
     slots: Sequence[BeadWorkSlot],
     directive_names: set[str],
     bead_assignees: dict[str, str],
+    timer: LaunchTimingRecorder | None = None,
 ) -> CleanupPreview:
     """Return the assignment-aware relaunch selection for rendered bead work."""
     from sase.agent.launch_validation import force_reuse_owner_names
@@ -84,6 +91,7 @@ def preview_bead_work_launch_selection(
     selection = select_bead_work_launch(
         slots=tuple(slots),
         bead_assignees=bead_assignees,
+        timer=timer,
     )
     return CleanupPreview(targets=selection.targets, selection=selection)
 
@@ -92,18 +100,27 @@ def select_bead_work_launch(
     *,
     slots: tuple[BeadWorkSlot, ...],
     bead_assignees: dict[str, str],
+    timer: LaunchTimingRecorder | None = None,
 ) -> BeadWorkLaunchSelection:
     """Classify current owners and compute the relaunch subset."""
     from sase.agent.names import lookup_registered_name
 
-    view = load_agent_owner_view()
+    if timer is None:
+        view = load_agent_owner_view()
+    else:
+        with timer.stage("owner_discovery", full_scans=1):
+            view = load_agent_owner_view()
     targets: list[CleanupTarget] = []
     owner_present_by_slot: dict[str, int] = {}
     preserved_slots: set[str] = set()
     blocked_slots: set[str] = set()
 
     for slot in slots:
-        owner = lookup_registered_name(slot.owner_name)
+        if timer is None:
+            owner = lookup_registered_name(slot.owner_name)
+        else:
+            with timer.stage("registry_read", relevant_row_reads=1):
+                owner = lookup_registered_name(slot.owner_name)
         if owner is None:
             continue
         try:

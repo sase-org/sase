@@ -353,9 +353,22 @@ def load_name_registry(*, trust_stale_proof_memo: bool = True) -> dict[str, Any]
     if cached is not None:
         return cached
 
-    data = _read_registry(path)
-    if data is None or _registry_file_is_stale(data):
-        return rebuild_name_registry()
+    from sase.agent.launch_timing import active_launch_timing_recorder
+
+    timer = active_launch_timing_recorder()
+    if timer is None:
+        data = _read_registry(path)
+        if data is None or _registry_file_is_stale(data):
+            return rebuild_name_registry()
+    else:
+        with timer.stage("registry_read", allocation_read=not trust_stale_proof_memo):
+            data = _read_registry(path)
+        if data is None:
+            with timer.stage("registry_rebuild_reason", reason="missing_or_invalid"):
+                return rebuild_name_registry()
+        if _registry_file_is_stale(data):
+            with timer.stage("registry_rebuild_reason", reason="stale"):
+                return rebuild_name_registry()
 
     _set_cache(path, data)
     _record_stale_proof_memo()
@@ -376,22 +389,32 @@ def name_registry_load_session() -> Iterator[None]:
 
 def rebuild_name_registry() -> dict[str, Any]:
     """Rebuild the registry by scanning existing artifacts and dismissed bundles."""
-    with _registry_mutation_lock():
-        entries: dict[str, dict[str, Any]] = {}
-        identity = AgentIdentitySnapshot.current()
-        _collect_planned_reservation_entries(
-            entries,
-            _read_registry(_registry_path()),
-            identity,
-        )
-        _collect_artifact_entries(entries, identity)
-        _collect_dismissed_bundle_entries(entries, identity)
-        _collect_owner_namespace_entries(entries, identity)
-        data = _registry_data(entries)
-        _write_registry(_registry_path(), data)
-        _set_cache(_registry_path(), data)
-        invalidate_agent_name_registry_freshness()
-        return data
+    from sase.agent.launch_timing import active_launch_timing_recorder
+
+    timer = active_launch_timing_recorder()
+    if timer is None:
+        with _registry_mutation_lock():
+            return _rebuild_name_registry_locked()
+
+    with timer.stage("registry_rebuild", rebuilds=1):
+        with _registry_mutation_lock():
+            return _rebuild_name_registry_locked()
+
+
+def _rebuild_name_registry_locked() -> dict[str, Any]:
+    entries: dict[str, dict[str, Any]] = {}
+    identity = AgentIdentitySnapshot.current()
+    _collect_planned_reservation_entries(
+        entries, _read_registry(_registry_path()), identity
+    )
+    _collect_artifact_entries(entries, identity)
+    _collect_dismissed_bundle_entries(entries, identity)
+    _collect_owner_namespace_entries(entries, identity)
+    data = _registry_data(entries)
+    _write_registry(_registry_path(), data)
+    _set_cache(_registry_path(), data)
+    invalidate_agent_name_registry_freshness()
+    return data
 
 
 def reset_name_registry_caches_for_tests() -> None:
@@ -517,12 +540,25 @@ def _write_registry(path: Path, data: dict[str, Any]) -> None:
 
 
 def _save_entries(entries: dict[str, Any]) -> None:
-    with _registry_mutation_lock():
-        data = _registry_data(entries)
-        path = _registry_path()
-        _write_registry(path, data)
-        _set_cache(path, data)
-        invalidate_agent_name_registry_freshness()
+    from sase.agent.launch_timing import active_launch_timing_recorder
+
+    timer = active_launch_timing_recorder()
+    if timer is None:
+        with _registry_mutation_lock():
+            _save_entries_locked(entries)
+        return
+
+    with timer.stage("reservation_operation", entry_count=len(entries)):
+        with _registry_mutation_lock():
+            _save_entries_locked(entries)
+
+
+def _save_entries_locked(entries: dict[str, Any]) -> None:
+    data = _registry_data(entries)
+    path = _registry_path()
+    _write_registry(path, data)
+    _set_cache(path, data)
+    invalidate_agent_name_registry_freshness()
 
 
 def _registry_data(entries: dict[str, Any]) -> dict[str, Any]:

@@ -313,10 +313,19 @@ def test_task_work_persists_durable_stage_timing(
         json.loads(line)
         for line in timing_path.read_text(encoding="utf-8").splitlines()
     ]
-    record = next(record for record in records if record["operation"] == "bead_work")
+    record = next(
+        record
+        for record in records
+        if record["operation"] == "bead_work" and record["event"] == "launch_timing"
+    )
+    stage_records = [
+        record for record in records if record["event"] == "launch_timing_stage"
+    ]
     stage_names = {stage["stage"] for stage in record["stages"]}
     assert record["operation"] == "bead_work"
     assert record["bead_id"] == task_id
+    assert record["correlation_id"]
+    assert stage_records
     assert {
         "project_open",
         "initial_show",

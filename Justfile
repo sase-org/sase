@@ -1142,6 +1142,11 @@ bench-agent-scan *args: _setup
 bench-agent-launch *args: _setup
     {{ venv_bin }}/python tests/perf/bench_agent_launch.py {{ args }}
 
+# Run the synthetic epic-launch benchmark. Uses generated SASE_HOME state,
+# local fake launchers, and real bead-work cleanup/registry orchestration.
+bench-epic-launch *args: _setup
+    {{ venv_bin }}/python tests/perf/bench_epic_launch.py {{ args }}
+
 # Run the fresh-process prompt-search benchmark on disposable synthetic stores.
 bench-prompt-search *args: _setup
     {{ venv_bin }}/python tests/perf/bench_prompt_search.py {{ args }}

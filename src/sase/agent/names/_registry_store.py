@@ -38,9 +38,17 @@ def registry_path() -> Path:
 
 def read_registry(path: Path) -> dict[str, Any] | None:
     """Read and minimally validate a registry file."""
+    from sase.agent.launch_timing import active_launch_timing_recorder
+
+    timer = active_launch_timing_recorder()
     try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
+        if timer is None:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            with timer.stage("registry_file_read"):
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
     except (OSError, json.JSONDecodeError):
         return None
     if not isinstance(data, dict):
@@ -71,19 +79,37 @@ def write_registry(
     replace_file: Callable[[Path, Path], None] = os.replace,
 ) -> None:
     """Atomically write registry data through a unique temporary file."""
+    from sase.agent.launch_timing import active_launch_timing_recorder
+
+    timer = active_launch_timing_recorder()
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path: Path | None = None
     replaced = False
     try:
-        fd, tmp_name = tempfile.mkstemp(
-            prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
-        )
-        tmp_path = Path(tmp_name)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, sort_keys=True)
-            f.write("\n")
-        replace_file(tmp_path, path)
-        replaced = True
+        if timer is None:
+            fd, tmp_name = tempfile.mkstemp(
+                prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+            )
+            tmp_path = Path(tmp_name)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, sort_keys=True)
+                f.write("\n")
+            replace_file(tmp_path, path)
+            replaced = True
+        else:
+            entry_count = len(data.get("entries", {})) if isinstance(data, dict) else 0
+            with timer.stage(
+                "registry_write", registry_writes=1, entry_count=entry_count
+            ):
+                fd, tmp_name = tempfile.mkstemp(
+                    prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+                )
+                tmp_path = Path(tmp_name)
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, sort_keys=True)
+                    f.write("\n")
+                replace_file(tmp_path, path)
+                replaced = True
     finally:
         if tmp_path is not None and not replaced:
             try:
@@ -104,6 +130,16 @@ def registry_data(entries: dict[str, Any]) -> dict[str, Any]:
 
 def registry_file_is_stale(data: dict[str, Any]) -> bool:
     """Return whether registry data no longer matches its artifact sources."""
+    from sase.agent.launch_timing import active_launch_timing_recorder
+
+    timer = active_launch_timing_recorder()
+    if timer is not None:
+        with timer.stage("registry_source_proof"):
+            return _registry_file_is_stale(data)
+    return _registry_file_is_stale(data)
+
+
+def _registry_file_is_stale(data: dict[str, Any]) -> bool:
     if data.get("_needs_rebuild") is True:
         return True
     if data.get("scan_version") != SCAN_VERSION:
@@ -128,11 +164,35 @@ def _source_signature() -> dict[str, int | str]:
     if session_cache:
         return session_cache[0]
 
+    from sase.agent.launch_timing import active_launch_timing_recorder
+
+    timer = active_launch_timing_recorder()
+
     digest = hashlib.sha256()
-    paths = sorted(
-        set(_registry_source_signature_paths()),
-        key=lambda path: str(path),
-    )
+    paths = sorted(set(_registry_source_signature_paths()), key=lambda path: str(path))
+    statted_files = 0
+    if timer is None:
+        _update_source_signature_digest(digest, paths)
+    else:
+        with timer.stage("registry_source_signature", scanned_source_files=len(paths)):
+            statted_files = _update_source_signature_digest(digest, paths)
+            timer.mark(
+                "registry_source_signature_counts", statted_json_files=statted_files
+            )
+    signature: dict[str, int | str] = {
+        "count": len(paths),
+        "path_digest": digest.hexdigest(),
+    }
+    if session_cache is not None:
+        session_cache.append(signature)
+    return signature
+
+
+def _update_source_signature_digest(
+    digest: Any,
+    paths: list[Path],
+) -> int:
+    statted_files = 0
     for path in paths:
         digest.update(os.fsencode(path))
         digest.update(b"\0")
@@ -148,15 +208,10 @@ def _source_signature() -> dict[str, int | str]:
             stat = path.stat()
         except OSError:
             continue
+        statted_files += 1
         digest.update(f"{stat.st_mtime_ns}:{stat.st_size}".encode())
         digest.update(b"\0")
-    signature: dict[str, int | str] = {
-        "count": len(paths),
-        "path_digest": digest.hexdigest(),
-    }
-    if session_cache is not None:
-        session_cache.append(signature)
-    return signature
+    return statted_files
 
 
 @contextmanager

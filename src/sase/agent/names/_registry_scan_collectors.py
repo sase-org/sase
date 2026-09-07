@@ -56,6 +56,9 @@ def collect_artifact_entries(
     entries: dict[str, dict[str, Any]],
     identity: AgentIdentitySnapshot | None = None,
 ) -> None:
+    from sase.agent.launch_timing import active_launch_timing_recorder
+
+    timer = active_launch_timing_recorder()
     if identity is None:
         identity = AgentIdentitySnapshot.current()
     projects_dir = sase_projects_dir()
@@ -66,6 +69,7 @@ def collect_artifact_entries(
         project_iter = projects_dir.iterdir()
     except OSError:
         return
+    parsed_sources = 0
     for project_dir in project_iter:
         artifacts_root = project_dir / "artifacts"
         if not project_dir.is_dir() or not artifacts_root.is_dir():
@@ -77,7 +81,7 @@ def collect_artifact_entries(
         for workflow_dir in workflow_iter:
             if not workflow_dir.is_dir():
                 continue
-            _collect_workflow_artifact_entries(
+            parsed_sources += _collect_workflow_artifact_entries(
                 entries,
                 project_dir=project_dir,
                 workflow_dir=workflow_dir,
@@ -85,6 +89,12 @@ def collect_artifact_entries(
                 dismissed_suffixes=dismissed_suffixes,
                 identity=identity,
             )
+    if timer is not None:
+        timer.mark(
+            "registry_artifact_source_counts",
+            full_scans=1,
+            parsed_source_files=parsed_sources,
+        )
 
 
 def _collect_workflow_artifact_entries(
@@ -95,7 +105,8 @@ def _collect_workflow_artifact_entries(
     projects_dir: Path,
     dismissed_suffixes: set[str],
     identity: AgentIdentitySnapshot,
-) -> None:
+) -> int:
+    parsed_sources = 0
     for artifact_dir in iter_agent_artifact_dirs(
         project_dir.name,
         workflow_dir.name,
@@ -107,6 +118,7 @@ def _collect_workflow_artifact_entries(
         done = read_json_object(artifact_dir / "done.json")
         if meta is None and done is None:
             continue
+        parsed_sources += 1
         state = "done" if done is not None else "active"
         if artifact_dir.name in dismissed_suffixes:
             state = "dismissed"
@@ -143,12 +155,16 @@ def _collect_workflow_artifact_entries(
             provenance_payload,
             identity,
         )
+    return parsed_sources
 
 
 def collect_dismissed_bundle_entries(
     entries: dict[str, dict[str, Any]],
     identity: AgentIdentitySnapshot | None = None,
 ) -> None:
+    from sase.agent.launch_timing import active_launch_timing_recorder
+
+    timer = active_launch_timing_recorder()
     if identity is None:
         identity = AgentIdentitySnapshot.current()
     bundles_dir = sase_subdir("dismissed_bundles")
@@ -158,12 +174,14 @@ def collect_dismissed_bundle_entries(
         paths = list(bundles_dir.rglob("*.json"))
     except OSError:
         return
+    parsed_sources = 0
     for path in paths:
         if not path.is_file():
             continue
         bundle = read_json_object(path)
         if bundle is None:
             continue
+        parsed_sources += 1
         owner = bundle_owner(path, bundle)
         clan = clan_from_payload(bundle)
         family = family_from_payload(bundle)
@@ -190,6 +208,12 @@ def collect_dismissed_bundle_entries(
             owner,
             bundle,
             identity,
+        )
+    if timer is not None:
+        timer.mark(
+            "registry_bundle_source_counts",
+            full_scans=1,
+            parsed_source_files=parsed_sources,
         )
 
 

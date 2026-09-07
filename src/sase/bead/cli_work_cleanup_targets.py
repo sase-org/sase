@@ -32,6 +32,7 @@ class _AgentOwnerView:
 
 def load_agent_owner_view() -> _AgentOwnerView:
     """Scan agent artifacts and index them by owner container."""
+    from sase.agent.launch_timing import active_launch_timing_recorder
     from sase.core.agent_identity_facade import (
         AgentIdentitySnapshot,
         current_owner_agent_name_key,
@@ -48,6 +49,13 @@ def load_agent_owner_view() -> _AgentOwnerView:
             only_workflow_dirs=("ace-run",),
         ),
     )
+    timer = active_launch_timing_recorder()
+    if timer is not None:
+        timer.mark(
+            "owner_discovery_counts",
+            full_scans=1,
+            parsed_source_files=len(snapshot.records),
+        )
     records_by_artifact_dir: dict[str, AgentArtifactRecordWire] = {}
     family_members: dict[str, list[AgentArtifactRecordWire]] = {}
     clan_members: dict[str, list[AgentArtifactRecordWire]] = {}

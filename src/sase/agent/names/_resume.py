@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import threading
+import time
 
 from sase.core.paths import sase_home
 from sase.xprompt._disabled_regions import protect_disabled_regions
@@ -47,10 +48,19 @@ def agent_name_allocation_lock() -> Iterator[None]:
         lock_path = sase_home() / "agent_name_allocation.lock"
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         with open(lock_path, "a+", encoding="utf-8") as lock_file:
+            from sase.agent.launch_timing import active_launch_timing_recorder
+
+            timer = active_launch_timing_recorder()
+            wait_start = time.perf_counter()
             fcntl.flock(lock_file, fcntl.LOCK_EX)
+            wait_ms = (time.perf_counter() - wait_start) * 1000.0
             _LOCK_STATE.depth = 1
             try:
-                yield
+                if timer is None:
+                    yield
+                else:
+                    with timer.stage("registry_lock_hold", lock_wait_ms=wait_ms):
+                        yield
             finally:
                 _LOCK_STATE.depth = 0
                 fcntl.flock(lock_file, fcntl.LOCK_UN)

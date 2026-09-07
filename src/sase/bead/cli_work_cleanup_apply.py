@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from sase.bead.cli_work_cleanup_selection import select_bead_work_launch
 from sase.bead.cli_work_cleanup_types import (
@@ -16,12 +16,16 @@ from sase.bead.cli_work_name_cleanup import (
     wipe_force_reuse_owner,
 )
 
+if TYPE_CHECKING:
+    from sase.agent.launch_timing import LaunchTimingRecorder
+
 
 def prepare_selected_bead_work_force_reuse(
     query: str,
     *,
     selection: BeadWorkLaunchSelection,
     bead_assignees: dict[str, str],
+    timer: LaunchTimingRecorder | None = None,
 ) -> str:
     """Guardedly clean only the replacement owners selected for bead work."""
     from sase.agent.launch_validation import (
@@ -47,20 +51,41 @@ def prepare_selected_bead_work_force_reuse(
     # target discovered mid-loop must not leave earlier targets already
     # wiped with nothing relaunched in their place.
     destructive_targets = selection.destructive_targets
-    for target in destructive_targets:
-        _verify_cleanup_target_still_selected(
-            target,
-            selection=selection,
-            bead_assignees=bead_assignees,
-        )
+    for index, target in enumerate(destructive_targets, start=1):
+        if timer is None:
+            _verify_cleanup_target_still_selected(
+                target,
+                selection=selection,
+                bead_assignees=bead_assignees,
+            )
+        else:
+            with timer.stage(
+                "target_revalidation",
+                completed_owners=index - 1,
+                total_owners=len(destructive_targets),
+                owner_name=target.name,
+            ):
+                _verify_cleanup_target_still_selected(
+                    target,
+                    selection=selection,
+                    bead_assignees=bead_assignees,
+                    timer=timer,
+                )
 
     wiped_names: list[str] = []
-    for target in destructive_targets:
+    for index, target in enumerate(destructive_targets, start=1):
         try:
-            if target.action == "RELEASE":
-                _release_selected_stale_container(target)
+            if timer is None:
+                _apply_cleanup_target(target)
             else:
-                wipe_force_reuse_owner(target.name, allow_container_skip=False)
+                with timer.stage(
+                    "process_cleanup",
+                    completed_owners=index - 1,
+                    total_owners=len(destructive_targets),
+                    owner_name=target.name,
+                    action=target.action,
+                ):
+                    _apply_cleanup_target(target, timer=timer)
         except ForcedReuseCleanupError as exc:
             if not wiped_names:
                 raise
@@ -77,11 +102,13 @@ def revalidate_bead_work_launch_selection(
     previous: BeadWorkLaunchSelection,
     *,
     bead_assignees: dict[str, str],
+    timer: LaunchTimingRecorder | None = None,
 ) -> BeadWorkLaunchSelection:
     """Rescan owners and ensure cleanup does not broaden after confirmation."""
     current = select_bead_work_launch(
         slots=previous.slots,
         bead_assignees=bead_assignees,
+        timer=timer,
     )
     if current.blocked_targets:
         raise ForcedReuseCleanupError(
@@ -133,6 +160,7 @@ def _verify_cleanup_target_still_selected(
     *,
     selection: BeadWorkLaunchSelection,
     bead_assignees: dict[str, str],
+    timer: LaunchTimingRecorder | None = None,
 ) -> None:
     slot = next(
         (
@@ -149,11 +177,13 @@ def _verify_cleanup_target_still_selected(
         current = revalidate_bead_work_launch_selection(
             selection,
             bead_assignees=bead_assignees,
+            timer=timer,
         )
     else:
         current = select_bead_work_launch(
             slots=(slot,),
             bead_assignees=bead_assignees,
+            timer=timer,
         )
     matching = {
         _target_stability_key(item): item for item in current.destructive_targets
@@ -174,8 +204,32 @@ def _verify_cleanup_target_still_selected(
         )
 
 
-def _release_selected_stale_container(target: CleanupTarget) -> None:
+def _apply_cleanup_target(
+    target: CleanupTarget,
+    *,
+    timer: LaunchTimingRecorder | None = None,
+) -> None:
+    if target.action == "RELEASE":
+        _release_selected_stale_container(target, timer=timer)
+    else:
+        if timer is None:
+            wipe_force_reuse_owner(target.name, allow_container_skip=False)
+            return
+        with timer.stage("closure_planning", owner_name=target.name):
+            with timer.stage("index_maintenance", owner_name=target.name):
+                wipe_force_reuse_owner(target.name, allow_container_skip=False)
+
+
+def _release_selected_stale_container(
+    target: CleanupTarget,
+    *,
+    timer: LaunchTimingRecorder | None = None,
+) -> None:
     container_kind: Literal["family", "clan"] = (
         "clan" if "clan" in target.detail else "family"
     )
-    release_stale_container(target.name, container_kind=container_kind)
+    if timer is None:
+        release_stale_container(target.name, container_kind=container_kind)
+        return
+    with timer.stage("index_maintenance", owner_name=target.name, action=target.action):
+        release_stale_container(target.name, container_kind=container_kind)

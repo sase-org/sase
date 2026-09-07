@@ -9,6 +9,7 @@ import json
 import sys
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, NoReturn
+from uuid import uuid4
 
 from sase.bead.cli_common import get_project
 from sase.bead.model import BeadTier, IssueType
@@ -26,6 +27,7 @@ def handle_bead_work(
     json_output = bool(getattr(args, "json", False))
     targets = _normalize_targets(args)
     first_target = targets[0] if targets else ""
+    correlation_id = uuid4().hex
     _wait_spec_from_args(args)
     from sase.dev_update.code_swap_lock import code_swap_reader_lock
 
@@ -36,12 +38,15 @@ def handle_bead_work(
                 target=first_target,
                 json_output=json_output,
             )
-        for target in targets:
+        for index, target in enumerate(targets, start=1):
             _handle_bead_work_locked(
                 args,
                 timer_factory=timer_factory,
                 json_output=json_output,
                 target=target,
+                target_index=index,
+                target_count=len(targets),
+                correlation_id=correlation_id,
             )
 
 
@@ -64,6 +69,9 @@ def _handle_bead_work_locked(
     timer_factory: Callable[..., Any],
     json_output: bool,
     target: str,
+    target_index: int,
+    target_count: int,
+    correlation_id: str,
 ) -> None:
     artifacts_dir = getattr(args, "artifacts_dir", None)
     cl_name = getattr(args, "cl_name", None)
@@ -112,7 +120,13 @@ def _handle_bead_work_locked(
             if json_output
             else contextlib.nullcontext()
         )
-        timer = timer_factory(target, dry_run=dry_run)
+        timer = timer_factory(
+            target,
+            dry_run=dry_run,
+            target_index=target_index,
+            target_count=target_count,
+            correlation_id=correlation_id,
+        )
         try:
             with timer, output_context:
                 result = work_from_plan_file(
@@ -205,7 +219,13 @@ def _handle_bead_work_locked(
     # replace its launch helper continue to affect CLI dispatch.
     from sase.bead import cli_work_handler
 
-    timer = timer_factory(target, dry_run=dry_run)
+    timer = timer_factory(
+        target,
+        dry_run=dry_run,
+        target_index=target_index,
+        target_count=target_count,
+        correlation_id=correlation_id,
+    )
     with timer, contextlib.ExitStack() as stack:
         with timer.stage("project_open"):
             proj = stack.enter_context(get_project())
@@ -213,6 +233,7 @@ def _handle_bead_work_locked(
             try:
                 issue = proj.show(target)
                 target = issue.id
+                timer.add_fields(bead_id=target)
             except KeyError:
                 _exit_bead_id_error(
                     f"issue not found: {target}",

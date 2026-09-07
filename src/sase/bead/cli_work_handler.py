@@ -122,16 +122,31 @@ class BeadWorkError(RuntimeError):
         self.retry_requires_push = retry_requires_push
 
 
-def make_bead_work_timer(target: str, *, dry_run: bool) -> Any:
+def make_bead_work_timer(
+    target: str,
+    *,
+    dry_run: bool,
+    target_index: int | None = None,
+    target_count: int | None = None,
+    correlation_id: str | None = None,
+) -> Any:
     """Build a launch timer promoted to info logs by ``SASE_BEAD_WORK_TIMING``."""
     from sase.agent.launch_timing import LaunchTimingRecorder
     from sase.bead.cli_work_from_plan_helpers import is_plan_file_target
 
     identity_field = "plan_path" if is_plan_file_target(target) else "bead_id"
 
+    fields: dict[str, Any] = {identity_field: target, "dry_run": dry_run}
+    if target_index is not None:
+        fields["target_index"] = target_index
+    if target_count is not None:
+        fields["target_count"] = target_count
+    if correlation_id is not None:
+        fields["correlation_id"] = correlation_id
+
     return LaunchTimingRecorder(
         "bead_work",
-        {identity_field: target, "dry_run": dry_run},
+        fields,
         info_env_vars=(BEAD_WORK_TIMING_ENV,),
         durable=True,
     )
@@ -226,6 +241,7 @@ def launch_epic_bead_work(
         except (BeadXPromptNotFoundError, ValueError) as e:
             raise BeadWorkError(str(e)) from e
 
+    timer.add_fields(resolved_epic_id=epic_id)
     issue = proj.show(epic_id)
     with timer.stage("work_plan_build"):
         try:
@@ -265,18 +281,28 @@ def launch_epic_bead_work(
     print_work_plan_summary(epic_id, issue.title, plan)
 
     preview: CleanupPreview
-    bead_assignees = _epic_bead_assignees(proj, plan)
+    with timer.stage("bead_assignee_reads", bead_count=1 + len(plan.phase_bead_ids)):
+        bead_assignees = _epic_bead_assignees(proj, plan)
     try:
-        preview = preview_bead_work_launch_selection(
-            query,
-            slots=bead_work_slots(plan),
-            directive_names=expected_agent_names(plan),
-            bead_assignees=bead_assignees,
-        )
+        slots = bead_work_slots(plan)
+        with timer.stage("initial_selection", slot_count=len(slots)):
+            preview = preview_bead_work_launch_selection(
+                query,
+                slots=slots,
+                directive_names=expected_agent_names(plan),
+                bead_assignees=bead_assignees,
+                timer=timer,
+            )
     except ForcedReuseCleanupError as e:
         raise BeadWorkError(str(e)) from e
     assert preview.selection is not None
     selection = preview.selection
+    timer.add_fields(
+        selected_owner_count=len(selection.launch_names),
+        preserved_owner_count=len(selection.preserved_names),
+        cleanup_owner_count=len(selection.destructive_targets),
+        blocked_owner_count=len(selection.blocked_targets),
+    )
 
     if dry_run:
         render_cleanup_preview(epic_id, preview)
@@ -349,11 +375,20 @@ def launch_epic_bead_work(
 
     with timer.stage("force_reuse_cleanup"):
         try:
-            bead_assignees = _epic_bead_assignees(proj, plan)
-            selection = revalidate_bead_work_launch_selection(
-                selection,
-                bead_assignees=bead_assignees,
-            )
+            with timer.stage(
+                "bead_assignee_reads",
+                bead_count=1 + len(plan.phase_bead_ids),
+            ):
+                bead_assignees = _epic_bead_assignees(proj, plan)
+            with timer.stage(
+                "target_revalidation",
+                total_owners=len(selection.destructive_targets),
+            ):
+                selection = revalidate_bead_work_launch_selection(
+                    selection,
+                    bead_assignees=bead_assignees,
+                    timer=timer,
+                )
             if not selection.has_launches:
                 print(
                     f"Epic {epic_id} already has matching active work; no new "
@@ -378,6 +413,7 @@ def launch_epic_bead_work(
                 query,
                 selection=selection,
                 bead_assignees=bead_assignees,
+                timer=timer,
             )
         except ForcedReuseCleanupError as e:
             raise BeadWorkError(str(e)) from e
@@ -498,12 +534,16 @@ def launch_epic_bead_work(
 
     try:
         with timer.stage("agent_launch"):
-            segment_env = epic_work_segment_env(
-                plan,
-                plan_ref=issue.design,
-                plan_snapshot=plan_snapshot,
-                launch_names=selection.launch_names,
-            )
+            with timer.stage(
+                "child_segment_env",
+                segment_count=len(selection.launch_names),
+            ):
+                segment_env = epic_work_segment_env(
+                    plan,
+                    plan_ref=issue.design,
+                    plan_snapshot=plan_snapshot,
+                    launch_names=selection.launch_names,
+                )
             if graph_relocations:
                 segment_env = tuple(
                     {

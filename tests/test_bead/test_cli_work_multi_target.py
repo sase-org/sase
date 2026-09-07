@@ -108,7 +108,7 @@ def test_legacy_id_namespace_target_remains_compatible(
 def test_multi_target_dispatch_reuses_options_and_one_lock(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[str, bool, str | None, bool]] = []
+    calls: list[tuple[str, bool, str | None, bool, int, int, str]] = []
     lock = _FakeCodeSwapLock()
     monkeypatch.setattr(
         "sase.dev_update.code_swap_lock.code_swap_reader_lock",
@@ -121,10 +121,23 @@ def test_multi_target_dispatch_reuses_options_and_one_lock(
         timer_factory: Callable[..., Any],
         json_output: bool,
         target: str,
+        target_index: int,
+        target_count: int,
+        correlation_id: str,
     ) -> None:
         assert timer_factory is _timer_factory
         assert lock.active is True
-        calls.append((target, args.yes, args.parent, json_output))
+        calls.append(
+            (
+                target,
+                args.yes,
+                args.parent,
+                json_output,
+                target_index,
+                target_count,
+                correlation_id,
+            )
+        )
 
     monkeypatch.setattr(cli_work_entry, "_handle_bead_work_locked", fake_dispatch)
 
@@ -138,10 +151,14 @@ def test_multi_target_dispatch_reuses_options_and_one_lock(
         timer_factory=_timer_factory,
     )
 
-    assert calls == [
-        ("./epic.md", True, "top-level", True),
-        ("sase-task", True, "top-level", True),
+    assert [
+        (target, yes, parent, json_output, index, count)
+        for target, yes, parent, json_output, index, count, _correlation_id in calls
+    ] == [
+        ("./epic.md", True, "top-level", True, 1, 2),
+        ("sase-task", True, "top-level", True, 2, 2),
     ]
+    assert calls[0][6] == calls[1][6]
     assert lock.enter_count == 1
     assert lock.exit_count == 1
 
@@ -162,9 +179,15 @@ def test_multi_target_short_circuits_on_first_failure_with_json_lines(
         timer_factory: Callable[..., Any],
         json_output: bool,
         target: str,
+        target_index: int,
+        target_count: int,
+        correlation_id: str,
     ) -> None:
         assert timer_factory is _timer_factory
         assert json_output is True
+        assert target_index == len(calls) + 1
+        assert target_count == 3
+        assert correlation_id
         calls.append(target)
         print(json.dumps({"ok": target != "bad", "target": target}, sort_keys=True))
         if target == "bad":
