@@ -37,6 +37,14 @@ from sase.notification_gates.service import create_gate
 from sase.plan_chain import agent_family_base
 from sase.workflows.utils import get_project_file_path
 
+_FINALIZER_OWNED_TURN_ENV = "SASE_FINALIZER_OWNED_TURN"
+_FINALIZER_OWNED_TURN_ERROR = (
+    "gate shells cannot be created from a host finalizer turn: this turn cannot "
+    "end the agent run, so the gate could never hand off. Finish the finalizer's "
+    "task in this turn, or report the blocker in your response so the host "
+    "records the failure."
+)
+
 
 @dataclass(frozen=True)
 class GateShellCreation:
@@ -90,6 +98,8 @@ def create_gate_shell(
     spec = _spec_from_request(request)
     if spec.shell is None:
         raise GateShellError("gate shell creation requires a shell block")
+    if _finalizer_owned_turn_is_active():
+        raise GateShellError(_FINALIZER_OWNED_TURN_ERROR)
     assert spec.request_id is not None
 
     project_name = _resolve_project_name()
@@ -346,10 +356,16 @@ def _record_creator_claim(artifacts_dir: str, move: GateClaimMove) -> None:
         {
             "gate_creator_claim_pid": claim.pid,
             "gate_creator_claim_workflow": claim.workflow,
+            "gate_creator_claim_cl_name": claim.cl_name,
             "gate_creator_claim_artifacts_timestamp": claim.artifacts_timestamp,
             "gate_creator_claim_pinned": claim.pinned,
         },
     )
+
+
+def _finalizer_owned_turn_is_active() -> bool:
+    value = (os.environ.get(_FINALIZER_OWNED_TURN_ENV) or "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
 
 
 def _read_required_record(project_name: str, artifacts_dir: str) -> GateShellRecord:

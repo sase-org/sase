@@ -21,6 +21,7 @@ from sase.finalizers.declaration import (
     publish_final_context,
     submit_final_manifest,
 )
+from sase.finalizers.owned_turn import SASE_FINALIZER_OWNED_TURN_ENV
 from sase.llm_provider.commit_finalizer_baseline import FINALIZER_BASELINE_FILENAME
 from sase.llm_provider.commit_finalizer_git import normalize_path
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
@@ -107,9 +108,11 @@ def test_missing_required_declaration_gets_one_fresh_recovery_turn(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     prepare_dirty_declaration(monkeypatch, tmp_path)
+    monkeypatch.delenv(SASE_FINALIZER_OWNED_TURN_ENV, raising=False)
     provider = MagicMock()
 
     def recover(prompt: str, **_kwargs: object) -> InvokeResult:
+        assert os.environ[SASE_FINALIZER_OWNED_TURN_ENV] == "1"
         assert "single declaration-recovery turn" in prompt
         assert "Declaring a commit is not an edit you perform" in prompt
         assert "/sase_final" in prompt
@@ -136,6 +139,34 @@ def test_missing_required_declaration_gets_one_fresh_recovery_turn(
     assert "recovered" in result.content
     assert result.usage == {"input_tokens": 3}
     assert os.environ[SASE_FINAL_TURN_NONCE_ENV] == "nonce-1"
+    assert SASE_FINALIZER_OWNED_TURN_ENV not in os.environ
+
+
+def test_declaration_recovery_restores_finalizer_owned_turn_marker_on_exception(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prepare_dirty_declaration(monkeypatch, tmp_path)
+    monkeypatch.setenv(SASE_FINALIZER_OWNED_TURN_ENV, "outer")
+    provider = MagicMock()
+
+    def recover(_prompt: str, **_kwargs: object) -> InvokeResult:
+        assert os.environ[SASE_FINALIZER_OWNED_TURN_ENV] == "1"
+        raise RuntimeError("provider failed")
+
+    provider.invoke.side_effect = recover
+
+    with pytest.raises(RuntimeError, match="provider failed"):
+        ensure_final_declaration_or_recover(
+            provider=provider,
+            invoke_result=InvokeResult(content="initial"),
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(tmp_path),
+        )
+
+    assert os.environ[SASE_FINALIZER_OWNED_TURN_ENV] == "outer"
 
 
 @pytest.mark.parametrize("include_prompt", [True, False])

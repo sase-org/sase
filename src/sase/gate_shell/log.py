@@ -38,6 +38,12 @@ def _append_gate_shell_log_text(artifacts_dir: str, text: str) -> None:
         )
 
 
+def append_gate_shell_log_text(artifacts_dir: str, text: str) -> None:
+    """Append text to a gate shell's bounded live-output log."""
+
+    _append_gate_shell_log_text(artifacts_dir, text)
+
+
 @dataclass(frozen=True)
 class _GateShellExecutionCallbacks:
     """The three ``execute_gate_selection`` callbacks bound to one gate shell."""
@@ -96,6 +102,7 @@ def gate_shell_output_tail(artifacts_dir: str, *, lines: int = 200) -> str:
 
 __all__ = [
     "GATE_SHELL_LOG_FILENAME",
+    "append_gate_shell_log_text",
     "bind_gate_shell_execution_callbacks",
     "gate_shell_output_tail",
 ]

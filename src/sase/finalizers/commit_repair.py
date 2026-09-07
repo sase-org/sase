@@ -29,6 +29,7 @@ from sase.finalizers.commit_types import (
     failed_result,
 )
 from sase.finalizers.executor import FinalizerExecutionContext
+from sase.finalizers.owned_turn import finalizer_owned_turn
 from sase.llm_provider.commit_finalizer_artifacts import artifact_root
 from sase.llm_provider.commit_finalizer_git import (
     dirty_path_fingerprints,
@@ -551,13 +552,14 @@ def _run_conflict_repair_turn(
     artifact_dir = instance_artifact_dir(artifacts_dir, "commit")
     if artifact_dir is not None:
         write_text_artifact(artifact_dir / _CONFLICT_PROMPT_FILENAME, prompt)
-    follow_up = provider.invoke(
-        prompt,
-        model_tier=model_tier,
-        suppress_output=suppress_output,
-        model_override=model_override,
-        options=options,
-    )
+    with finalizer_owned_turn():
+        follow_up = provider.invoke(
+            prompt,
+            model_tier=model_tier,
+            suppress_output=suppress_output,
+            model_override=model_override,
+            options=options,
+        )
     if artifact_dir is not None:
         write_text_artifact(
             artifact_dir / _CONFLICT_RESPONSE_FILENAME,

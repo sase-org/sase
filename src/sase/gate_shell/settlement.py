@@ -147,7 +147,13 @@ def settle_gate_shell(
             shell_state=gate_state,
             project_name=project_name,
             config=_GATE_SETTLEMENT_CONFIG,
-            release_claim=release_gate_shell_claim,
+            release_claim=lambda release_meta, release_project_name: (
+                release_gate_shell_claim(
+                    release_meta,
+                    release_project_name,
+                    artifacts_dir=artifacts_dir,
+                )
+            ),
             launch_followup=launch_gate_followup_agent,
             launch_kwargs={
                 "project_name": project_name,
