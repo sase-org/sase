@@ -7,7 +7,7 @@ agent history.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Iterator, Mapping, Sequence
+from collections.abc import Iterator, Mapping
 from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
 import os
@@ -15,7 +15,9 @@ from pathlib import Path
 import time
 from typing import TYPE_CHECKING, Any, NoReturn
 
-from sase.agent.names import _registry_mutations, _registry_queries
+from sase.agent.names._registry_facade_batch import bind_registry_batch
+from sase.agent.names._registry_facade_mutations import bind_registry_mutations
+from sase.agent.names._registry_facade_queries import bind_registry_queries
 from sase.agent.names._registry_entries import (
     dotted_namespace_prefixes as _dotted_namespace_prefixes,
     entry_belongs_to_artifact as _entry_belongs_to_artifact,
@@ -23,7 +25,7 @@ from sase.agent.names._registry_entries import (
     entry_has_other_owner as _entry_has_other_owner,
     owner_from_artifact_name as _owner_from_artifact_name,
 )
-from sase.agent.names._registry_mutations import RegistryMutationOperations
+from sase.agent.names._registry_mutation_support import RegistryMutationOperations
 from sase.agent.names.registry_freshness import (
     agent_name_registry_freshness_token,
     invalidate_agent_name_registry_freshness,
@@ -53,12 +55,7 @@ from sase.core.agent_identity_facade import (
 )
 
 if TYPE_CHECKING:
-    from sase.agent.names._registry_batch import (
-        RegisteredNameReservation,
-        RegisteredNameReservationBatchResult,
-        RegisteredNameReservationSnapshot,
-        RegisteredNameRegistryBatchHooks,
-    )
+    from sase.agent.names._registry_batch import RegisteredNameRegistryBatchHooks
 
 _CACHE_PATH: Path | None = None
 _CACHE_SIGNATURE: tuple[int, int] | None = None
@@ -93,170 +90,6 @@ def _registry_path() -> Path:
     return _store_registry_path()
 
 
-def lookup_registered_name(name: str) -> dict[str, Any] | None:
-    """Return registry owner metadata for *name*, if reserved."""
-    return _registry_queries.lookup_registered_name(
-        name, load_registry=_load_registry_for_reservations
-    )
-
-
-def is_name_reserved(name: str) -> bool:
-    """Return whether *name* is reserved by an existing agent."""
-    return _registry_queries.is_name_reserved(
-        name, load_registry=_load_registry_for_reservations
-    )
-
-
-def get_reserved_agent_names() -> set[str]:
-    """Return every name currently reserved by the registry."""
-    return _registry_queries.get_reserved_agent_names(
-        load_registry=_load_registry_for_reservations
-    )
-
-
-def get_reserved_clan_names() -> set[str]:
-    """Return every name owned by a clan container."""
-    return _registry_queries.get_reserved_clan_names(
-        load_registry=_load_registry_for_reservations
-    )
-
-
-def get_reserved_family_names() -> set[str]:
-    """Return every name owned by a sequential family container."""
-    return _registry_queries.get_reserved_family_names(
-        load_registry=_load_registry_for_reservations
-    )
-
-
-def get_blocked_local_namespace_roots() -> dict[str, dict[str, Any]]:
-    """Return ``{root_name: entry}`` for registry entries blocking local allocation."""
-    return _registry_queries.get_blocked_local_namespace_roots(
-        load_registry=_load_registry_for_reservations
-    )
-
-
-def get_reserved_family_names_for_display() -> set[str]:
-    """Return family-container names for a render, never forcing a rebuild.
-
-    Link rendering only needs to know which names are family containers so it
-    can shape a URL. Unlike :func:`get_reserved_family_names`, which gates
-    allocation and must pay the full staleness proof, this read tolerates a
-    stale answer rather than take the name-allocation lock.
-    """
-    return _registry_queries.get_reserved_family_names(
-        load_registry=_load_registry_for_display
-    )
-
-
-def get_reserved_agent_name_map() -> dict[str, str]:
-    """Return ``{name: owner_path}`` for registered names with a known owner path."""
-    return _registry_queries.get_reserved_agent_name_map(
-        load_registry=_load_registry_for_reservations
-    )
-
-
-def lowest_name_suggestion(base: str) -> str:
-    """Return the lowest available ``<base><N>`` suggestion."""
-    return _registry_queries.lowest_name_suggestion(
-        base, load_registry=_load_registry_for_reservations
-    )
-
-
-def claim_registered_name(
-    name: str, claiming_dir: str | Path, *, replace_existing: bool = False
-) -> None:
-    """Best-effort upsert of a claimed name into the registry."""
-    _registry_mutations.claim_registered_name(
-        _mutation_operations(),
-        name,
-        claiming_dir,
-        replace_existing=replace_existing,
-    )
-
-
-def reserve_registered_name(name: str, claiming_dir: str | Path) -> None:
-    """Reserve *name* for a not-yet-started agent artifacts directory.
-
-    Planned launch reservations are intentionally collision-checked like
-    explicit claims, but they use ``reservation_kind="planned"`` so callers can
-    roll them back if the child process never starts. The child runner's later
-    regular claim is idempotent because it uses the same artifacts owner.
-    """
-    _registry_mutations.reserve_registered_name(
-        _mutation_operations(), name, claiming_dir
-    )
-
-
-def reserve_registered_names(
-    reservations: Sequence[tuple[str, str | Path]],
-) -> RegisteredNameReservationBatchResult:
-    """Reserve multiple planned names through one fresh registry transaction."""
-    from sase.agent.names._registry_batch import reserve_registered_names as _impl
-
-    return _impl(_reservation_batch_hooks(), reservations)
-
-
-def claim_registered_names(
-    reservations: Sequence[tuple[str, str | Path]],
-    *,
-    replace_existing: bool = False,
-) -> RegisteredNameReservationBatchResult:
-    """Claim multiple names through one fresh registry transaction."""
-    from sase.agent.names._registry_batch import claim_registered_names as _impl
-
-    return _impl(
-        _reservation_batch_hooks(),
-        reservations,
-        replace_existing=replace_existing,
-    )
-
-
-def mutate_registered_name_reservations(
-    reservations: Sequence[RegisteredNameReservation | Mapping[str, Any]],
-    *,
-    max_retries: int = 3,
-) -> RegisteredNameReservationBatchResult:
-    """Apply a core-planned reservation batch to the registry."""
-    from sase.agent.names._registry_batch import (
-        mutate_registered_name_reservations as _impl,
-    )
-
-    return _impl(_reservation_batch_hooks(), reservations, max_retries=max_retries)
-
-
-def registered_name_reservation_snapshot() -> RegisteredNameReservationSnapshot:
-    """Return one fresh registry snapshot for in-memory lookups."""
-    from sase.agent.names._registry_batch import (
-        registered_name_reservation_snapshot as _impl,
-    )
-
-    return _impl(_reservation_batch_hooks())
-
-
-def planned_registered_name_belongs_to_artifact(
-    name: str,
-    artifact_dir: str | Path,
-) -> bool:
-    """Return whether a raw planned reservation belongs to *artifact_dir*."""
-    from sase.agent.names._registry_batch import (
-        planned_registered_name_belongs_to_artifact as _impl,
-    )
-
-    return _impl(_reservation_batch_hooks(), name, artifact_dir)
-
-
-def claim_exact_planned_registered_name(
-    name: str,
-    artifact_dir: str | Path,
-) -> bool:
-    """Convert a matching planned reservation without archive discovery."""
-    from sase.agent.names._registry_batch import (
-        claim_exact_planned_registered_name as _impl,
-    )
-
-    return _impl(_reservation_batch_hooks(), name, artifact_dir)
-
-
 def _reservation_batch_hooks() -> RegisteredNameRegistryBatchHooks:
     """Bind private registry internals for the batch transaction helper."""
     from sase.agent.names._registry_batch import RegisteredNameRegistryBatchHooks
@@ -272,109 +105,6 @@ def _reservation_batch_hooks() -> RegisteredNameRegistryBatchHooks:
         file_signature=_file_signature,
         reset_scan_caches=_reset_registry_scan_caches,
     )
-
-
-def reserve_registered_clan_name(
-    name: str,
-    generation: str,
-    claiming_dir: str | Path,
-    *,
-    create_only: bool = False,
-) -> str:
-    """Reserve a clan and return its allocation-locked generation.
-
-    ``create_only`` makes an existing clan a collision. The check and new
-    reservation happen under the same allocation lock so concurrent clan
-    declarations cannot both succeed.
-    """
-    return _registry_mutations.reserve_registered_clan_name(
-        _mutation_operations(),
-        name,
-        generation,
-        claiming_dir,
-        create_only=create_only,
-    )
-
-
-def claim_registered_clan_name(
-    name: str,
-    generation: str,
-    claiming_dir: str | Path,
-) -> None:
-    """Persist a clan container after one of its members publishes metadata."""
-    _registry_mutations.claim_registered_clan_name(
-        _mutation_operations(), name, generation, claiming_dir
-    )
-
-
-def convert_registered_agent_to_family(
-    name: str,
-    member_name: str,
-    claiming_dir: str | Path,
-) -> None:
-    """Convert one agent claim into a family container plus member claim."""
-    _registry_mutations.convert_registered_agent_to_family(
-        _mutation_operations(), name, member_name, claiming_dir
-    )
-
-
-def release_planned_registered_clan_name(
-    name: str,
-    generation: str,
-    claiming_dir: str | Path,
-) -> None:
-    """Release a clan reservation when no member in its batch spawned."""
-    _registry_mutations.release_planned_registered_clan_name(
-        _mutation_operations(), name, generation, claiming_dir
-    )
-
-
-def reserve_registered_template_name(
-    name: str,
-    namespace: str,
-    claiming_dir: str | Path,
-    *,
-    allowed_existing_names: Collection[str] = (),
-) -> None:
-    """Reserve a template-allocated *name* after checking *namespace*."""
-    _registry_mutations.reserve_registered_template_name(
-        _mutation_operations(),
-        name,
-        namespace,
-        claiming_dir,
-        allowed_existing_names=allowed_existing_names,
-    )
-
-
-def reserve_registered_template_names(
-    reservations: Sequence[tuple[str, str, str | Path]],
-    *,
-    allowed_existing_names: Collection[str] = (),
-) -> None:
-    """Reserve template-allocated names atomically with namespace checks.
-
-    Names in the same batch may share a namespace, but an existing registry
-    entry blocks a namespace when it is exactly that namespace or a dotted
-    descendant of it. ``allowed_existing_names`` lets one parent-side template
-    group add later siblings beneath namespaces it already reserved.
-    """
-    _registry_mutations.reserve_registered_template_names(
-        _mutation_operations(),
-        reservations,
-        allowed_existing_names=allowed_existing_names,
-    )
-
-
-def release_planned_registered_name(name: str, claiming_dir: str | Path) -> None:
-    """Remove a still-planned reservation for *name* owned by *claiming_dir*."""
-    _registry_mutations.release_planned_registered_name(
-        _mutation_operations(), name, claiming_dir
-    )
-
-
-def delete_registered_name(name: str) -> None:
-    """Remove *name* from the registry."""
-    _registry_mutations.delete_registered_name(_mutation_operations(), name)
 
 
 def _mutation_operations() -> RegistryMutationOperations:
@@ -726,3 +456,40 @@ def _registry_file_is_stale(data: dict[str, Any]) -> bool:
 
 def _file_signature(path: Path) -> tuple[int, int]:
     return _store_file_signature(path)
+
+
+_queries = bind_registry_queries(
+    reservation_loader=_load_registry_for_reservations,
+    display_loader=_load_registry_for_display,
+)
+lookup_registered_name = _queries.lookup_registered_name
+is_name_reserved = _queries.is_name_reserved
+get_reserved_agent_names = _queries.get_reserved_agent_names
+get_reserved_clan_names = _queries.get_reserved_clan_names
+get_reserved_family_names = _queries.get_reserved_family_names
+get_blocked_local_namespace_roots = _queries.get_blocked_local_namespace_roots
+get_reserved_family_names_for_display = _queries.get_reserved_family_names_for_display
+get_reserved_agent_name_map = _queries.get_reserved_agent_name_map
+lowest_name_suggestion = _queries.lowest_name_suggestion
+
+_mutations = bind_registry_mutations(_mutation_operations)
+claim_registered_name = _mutations.claim_registered_name
+reserve_registered_name = _mutations.reserve_registered_name
+reserve_registered_clan_name = _mutations.reserve_registered_clan_name
+claim_registered_clan_name = _mutations.claim_registered_clan_name
+convert_registered_agent_to_family = _mutations.convert_registered_agent_to_family
+release_planned_registered_clan_name = _mutations.release_planned_registered_clan_name
+reserve_registered_template_name = _mutations.reserve_registered_template_name
+reserve_registered_template_names = _mutations.reserve_registered_template_names
+release_planned_registered_name = _mutations.release_planned_registered_name
+delete_registered_name = _mutations.delete_registered_name
+
+_batches = bind_registry_batch(_reservation_batch_hooks)
+reserve_registered_names = _batches.reserve_registered_names
+claim_registered_names = _batches.claim_registered_names
+mutate_registered_name_reservations = _batches.mutate_registered_name_reservations
+registered_name_reservation_snapshot = _batches.registered_name_reservation_snapshot
+planned_registered_name_belongs_to_artifact = (
+    _batches.planned_registered_name_belongs_to_artifact
+)
+claim_exact_planned_registered_name = _batches.claim_exact_planned_registered_name
