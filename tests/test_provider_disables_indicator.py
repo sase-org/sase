@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 from rich.text import Text
 
@@ -22,6 +24,8 @@ from sase.llm_provider.provider_disable import (
 from sase.llm_provider.provider_priority import (
     PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
     TemporaryProviderPriority,
+    provider_availability_facts,
+    provider_routing_context_from_parts,
 )
 
 _MODULE = "sase.ace.tui.widgets.provider_disables_indicator"
@@ -56,6 +60,24 @@ def _priority(
         created_at=100.0,
         expires_at=expires_at,
         source=source,
+    )
+
+
+def _patch_priority_facts(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    cli_available: bool = True,
+    registered: bool = True,
+    user_facing: bool = True,
+) -> None:
+    monkeypatch.setattr(
+        f"{_MODULE}.provider_routing_facts",
+        lambda provider: provider_availability_facts(
+            provider,
+            registered=registered,
+            user_facing=user_facing,
+            cli_available=cli_available,
+        ),
     )
 
 
@@ -233,6 +255,80 @@ def test_provider_priority_combines_with_disable_pill() -> None:
     assert text.plain == " CODEX ★ 1h2m +1 "
 
 
+def test_hard_disabled_provider_priority_renders_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_priority_facts(monkeypatch)
+    priority = _priority("codex", expires_at=3_820.0)
+    disable = _disable("codex", expires_at=None)
+    context = provider_routing_context_from_parts(
+        {"codex": disable},
+        priority,
+        captured_at=100.0,
+    )
+
+    text = ProviderDisablesIndicator._build_content(
+        dict(context.provider_disables),
+        priority=context.priority,
+        priority_availability=ProviderDisablesIndicator._priority_availability(context),
+        now=100.0,
+    )
+
+    assert text.plain == " CODEX ★ unavailable 1h2m +1 "
+
+
+def test_soft_disabled_provider_priority_renders_soft_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_priority_facts(monkeypatch)
+    priority = _priority("codex", expires_at=3_820.0)
+    disable = _disable(
+        "codex",
+        expires_at=None,
+        mode=PROVIDER_DISABLE_MODE_SOFT,
+    )
+    context = provider_routing_context_from_parts(
+        {"codex": disable},
+        priority,
+        captured_at=100.0,
+    )
+
+    text = ProviderDisablesIndicator._build_content(
+        dict(context.provider_disables),
+        priority=context.priority,
+        priority_availability=ProviderDisablesIndicator._priority_availability(context),
+        now=100.0,
+    )
+
+    assert text.plain == " CODEX ★ soft-disabled 1h2m +1 "
+    assert str(text.style) == PROVIDER_SOFT_DISABLE_PALETTE.base_style
+
+
+def test_missing_cli_provider_priority_renders_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_priority_facts(monkeypatch, cli_available=False)
+    priority = _priority("codex", expires_at=3_820.0)
+    context = provider_routing_context_from_parts({}, priority, captured_at=100.0)
+
+    priority_availability = ProviderDisablesIndicator._priority_availability(context)
+    text = ProviderDisablesIndicator._build_content(
+        dict(context.provider_disables),
+        priority=context.priority,
+        priority_availability=priority_availability,
+        now=100.0,
+    )
+    tooltip = ProviderDisablesIndicator._build_tooltip(
+        dict(context.provider_disables),
+        priority=context.priority,
+        priority_availability=priority_availability,
+        now=100.0,
+    )
+
+    assert text.plain == " CODEX ★ unavailable 1h2m "
+    assert "CODEX - unavailable · 1h2m left" in (tooltip or "")
+
+
 def test_tooltip_lists_soft_mode() -> None:
     tooltip = ProviderDisablesIndicator._build_tooltip(
         {
@@ -265,19 +361,19 @@ def test_tooltip_lists_provider_priority() -> None:
 
 
 def test_initial_content_uses_peek_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        f"{_MODULE}.peek_active_provider_disables",
-        lambda: {"claude": _disable(expires_at=None)},
+    context = provider_routing_context_from_parts(
+        {"claude": _disable(expires_at=None)},
+        None,
+        captured_at=100.0,
     )
-    monkeypatch.setattr(
-        f"{_MODULE}.peek_active_provider_priority",
-        lambda _now=None: None,
-    )
+    peek = MagicMock(return_value=context)
+    monkeypatch.setattr(f"{_MODULE}.peek_provider_routing_context", peek)
 
     rendered = ProviderDisablesIndicator()._build_initial_content()
 
     assert isinstance(rendered, Text)
     assert rendered.plain == " CLAUDE off ∞ "
+    peek.assert_called()
 
 
 async def test_provider_disables_indicator_is_mounted() -> None:

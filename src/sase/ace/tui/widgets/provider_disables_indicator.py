@@ -8,10 +8,16 @@ from rich.text import Text
 from textual.widgets import Static
 
 from sase.ace.tui.provider_disable_display import provider_disable_provenance_label
+from sase.llm_provider.load_balancing import MemberAvailability
 from sase.llm_provider.provider_disable import TemporaryProviderDisable
-from sase.llm_provider.provider_disable_peek import peek_active_provider_disables
-from sase.llm_provider.provider_priority import TemporaryProviderPriority
-from sase.llm_provider.provider_priority_peek import peek_active_provider_priority
+from sase.llm_provider.provider_priority import (
+    ProviderAvailability,
+    ProviderRoutingContext,
+    TemporaryProviderPriority,
+    classify_provider_availability,
+)
+from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
+from sase.llm_provider.registry import provider_routing_facts
 
 from ._override_pill import (
     PROVIDER_DISABLE_PALETTE,
@@ -29,10 +35,21 @@ class ProviderDisablesIndicator(Static):
     """Shows active machine-wide provider disables in one compact pill."""
 
     def __init__(self, **kwargs: Any) -> None:
-        disables = self._active_provider_disables()
-        priority = self._active_provider_priority()
-        super().__init__(self._build_content(disables, priority=priority), **kwargs)
-        self.tooltip = self._build_tooltip(disables, priority=priority)
+        context = self._active_provider_routing_context()
+        priority_state = self._priority_availability(context)
+        super().__init__(
+            self._build_content(
+                context.provider_disables,
+                priority=context.priority,
+                priority_availability=priority_state,
+            ),
+            **kwargs,
+        )
+        self.tooltip = self._build_tooltip(
+            context.provider_disables,
+            priority=context.priority,
+            priority_availability=priority_state,
+        )
 
     def on_mount(self) -> None:
         """Poll through the lock-free peek cache on the top-bar cadence."""
@@ -52,37 +69,47 @@ class ProviderDisablesIndicator(Static):
 
     def _build_initial_content(self, *, now: float | None = None) -> Text:
         """Render the current provider-disable map."""
+        context = self._active_provider_routing_context(now=now)
         return self._build_content(
-            self._active_provider_disables(),
-            priority=self._active_provider_priority(now=now),
+            context.provider_disables,
+            priority=context.priority,
+            priority_availability=self._priority_availability(context),
             now=now,
         )
 
     def _apply_content(self, *, now: float | None = None) -> None:
         """Update content and tooltip from one current peek snapshot."""
-        disables = self._active_provider_disables()
-        priority = self._active_provider_priority(now=now)
-        self.update(self._build_content(disables, priority=priority, now=now))
-        self.tooltip = self._build_tooltip(disables, priority=priority, now=now)
+        context = self._active_provider_routing_context(now=now)
+        priority_state = self._priority_availability(context)
+        self.update(
+            self._build_content(
+                context.provider_disables,
+                priority=context.priority,
+                priority_availability=priority_state,
+                now=now,
+            )
+        )
+        self.tooltip = self._build_tooltip(
+            context.provider_disables,
+            priority=context.priority,
+            priority_availability=priority_state,
+            now=now,
+        )
 
     @staticmethod
-    def _active_provider_disables() -> dict[str, TemporaryProviderDisable]:
-        """Return active provider disables from the lock-free display cache."""
-        return dict(peek_active_provider_disables())
-
-    @staticmethod
-    def _active_provider_priority(
+    def _active_provider_routing_context(
         *,
         now: float | None = None,
-    ) -> TemporaryProviderPriority | None:
-        """Return active provider priority from the lock-free display cache."""
-        return peek_active_provider_priority(now)
+    ) -> ProviderRoutingContext:
+        """Return active routing state from one lock-free display cache read."""
+        return peek_provider_routing_context(now)
 
     @staticmethod
     def _build_content(
         disables: dict[str, TemporaryProviderDisable],
         *,
         priority: TemporaryProviderPriority | None = None,
+        priority_availability: ProviderAvailability | None = None,
         now: float | None = None,
     ) -> Text:
         """Build the pill for active disables, provider priority, or both."""
@@ -96,6 +123,7 @@ class ProviderDisablesIndicator(Static):
         )
         priority_pill = ProviderDisablesIndicator._build_priority_content(
             priority,
+            priority_availability=priority_availability,
             now=now,
             disable_count=disable_count,
         )
@@ -158,6 +186,7 @@ class ProviderDisablesIndicator(Static):
     def _build_priority_content(
         priority: TemporaryProviderPriority | None,
         *,
+        priority_availability: ProviderAvailability | None = None,
         now: float | None = None,
         disable_count: int = 0,
     ) -> Text:
@@ -167,16 +196,21 @@ class ProviderDisablesIndicator(Static):
         remaining = format_pill_remaining(priority.expires_at, now)
         if remaining is None:
             return Text("")
+        state = ProviderDisablesIndicator._priority_state_label(priority_availability)
         trailing = (
-            f"{remaining} +{disable_count}"
+            (
+                f"{remaining} +{disable_count}"
+                if state == "priority"
+                else f"{state} {remaining} +{disable_count}"
+            )
             if disable_count
-            else f"priority {remaining}"
+            else f"{state} {remaining}"
         )
         return build_override_pill(
             subject=f"{priority.provider.upper()} ★",
             effort=None,
             trailing=trailing,
-            palette=PROVIDER_PRIORITY_PALETTE,
+            palette=ProviderDisablesIndicator._priority_palette(priority_availability),
         )
 
     @staticmethod
@@ -184,6 +218,7 @@ class ProviderDisablesIndicator(Static):
         disables: dict[str, TemporaryProviderDisable],
         *,
         priority: TemporaryProviderPriority | None = None,
+        priority_availability: ProviderAvailability | None = None,
         now: float | None = None,
     ) -> str | None:
         """Build sorted long-form details for provider routing state."""
@@ -201,11 +236,15 @@ class ProviderDisablesIndicator(Static):
                     remaining = ""
             if remaining:
                 has_priority = True
+                priority_label = ProviderDisablesIndicator._priority_tooltip_label(
+                    priority_availability
+                )
                 lines.extend(
                     (
-                        f"{priority.provider.upper()} - preferred · {remaining}",
-                        "Pools prefer the priority provider; "
-                        "other providers remain backups.",
+                        f"{priority.provider.upper()} - {priority_label} · {remaining}",
+                        ProviderDisablesIndicator._priority_tooltip_detail(
+                            priority_availability
+                        ),
                     )
                 )
         for provider, disable in sorted(disables.items()):
@@ -238,6 +277,70 @@ class ProviderDisablesIndicator(Static):
                 "Press ,m for Config > Launch.",
             )
         )
+
+    @staticmethod
+    def _priority_availability(
+        context: ProviderRoutingContext,
+    ) -> ProviderAvailability | None:
+        """Classify the active priority provider from one captured context."""
+        priority = context.priority
+        if priority is None:
+            return None
+        return classify_provider_availability(
+            context,
+            provider_routing_facts(priority.provider),
+        )
+
+    @staticmethod
+    def _priority_state_label(
+        priority_availability: ProviderAvailability | None,
+    ) -> str:
+        """Return the compact top-bar label for priority intent."""
+        if priority_availability is None:
+            return "priority"
+        if "actual_soft_disable" in priority_availability.provenance:
+            return "soft-disabled"
+        if priority_availability.availability == MemberAvailability.UNAVAILABLE:
+            return "unavailable"
+        return "priority"
+
+    @staticmethod
+    def _priority_tooltip_label(
+        priority_availability: ProviderAvailability | None,
+    ) -> str:
+        """Return the long-form tooltip label for priority intent."""
+        label = ProviderDisablesIndicator._priority_state_label(priority_availability)
+        return "preferred" if label == "priority" else label
+
+    @staticmethod
+    def _priority_tooltip_detail(
+        priority_availability: ProviderAvailability | None,
+    ) -> str:
+        """Return the long-form tooltip detail for priority intent."""
+        label = ProviderDisablesIndicator._priority_state_label(priority_availability)
+        if label == "soft-disabled":
+            return (
+                "Priority intent remains, but pools spare the provider while "
+                "another member can cover."
+            )
+        if label == "unavailable":
+            return (
+                "Priority intent remains, but routing uses backups until the "
+                "provider is available."
+            )
+        return "Pools prefer the priority provider; other providers remain backups."
+
+    @staticmethod
+    def _priority_palette(
+        priority_availability: ProviderAvailability | None,
+    ) -> Any:
+        """Return the top-bar palette for priority intent."""
+        label = ProviderDisablesIndicator._priority_state_label(priority_availability)
+        if label == "soft-disabled":
+            return PROVIDER_SOFT_DISABLE_PALETTE
+        if label == "unavailable":
+            return PROVIDER_DISABLE_PALETTE
+        return PROVIDER_PRIORITY_PALETTE
 
 
 __all__ = ["ProviderDisablesIndicator"]

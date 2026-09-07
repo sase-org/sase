@@ -222,6 +222,14 @@ def test_provider_summary_text_mentions_active_priority() -> None:
     assert "other providers remain backups" in text.plain
 
 
+def test_provider_summary_text_marks_orphaned_priority_unavailable() -> None:
+    record = priority("codex", expires_at=3_820.0)
+    text = provider_summary_text((), priority=record, now=100.0)
+
+    assert "★ CODEX priority unavailable · 1h2m left" in text.plain
+    assert "other providers remain backups" in text.plain
+
+
 def test_provider_title_line_marks_soft_entries() -> None:
     text = provider_title_line(
         {

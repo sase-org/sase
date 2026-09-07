@@ -26,6 +26,7 @@ from sase.llm_provider.config import (
     launch_model_setting_override_key,
 )
 from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
+from sase.llm_provider.provider_priority import provider_routing_context_from_parts
 
 # Expected left-to-right order of widgets inside ``#top-bar``. The ``#tab-bar``
 # spacer (``width: 1fr``) anchors the right-aligned indicator cluster, so every
@@ -179,8 +180,12 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
     )
     monkeypatch.setattr(
         provider_disables_indicator,
-        "peek_active_provider_disables",
-        lambda: {"claude": _disable("claude")},
+        "peek_provider_routing_context",
+        lambda *a, **k: provider_routing_context_from_parts(
+            {"claude": _disable("claude")},
+            None,
+            captured_at=100.0,
+        ),
     )
     monkeypatch.setattr(
         current_project_indicator,

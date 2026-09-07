@@ -195,7 +195,7 @@ def provider_summary_text(
             or "cli_missing" in owner.provenance
         ):
             headline += " unavailable"
-    elif statuses:
+    else:
         headline += " unavailable"
     headline += f" · {_priority_remaining_label(priority, now=now)}"
     detail = (

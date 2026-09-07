@@ -18,6 +18,8 @@ top-bar snapshot, so it needs no dedicated frame here.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 
 import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicator
@@ -35,7 +37,12 @@ from sase.llm_provider.config import (
     launch_model_setting_override_key,
 )
 from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
-from sase.llm_provider.provider_priority import PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION
+from sase.llm_provider.provider_priority import (
+    PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
+    ProviderRoutingContext,
+    provider_availability_facts,
+    provider_routing_context_from_parts,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -52,8 +59,8 @@ pytestmark = pytest.mark.visual
 def _no_provider_priority(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         provider_disables_indicator,
-        "peek_active_provider_priority",
-        lambda *a, **k: None,
+        "peek_provider_routing_context",
+        lambda *a, **k: _routing_context(),
     )
 
 
@@ -105,6 +112,28 @@ def _priority(
         created_at=_FROZEN_NOW,
         expires_at=expires_at,
         source="visual",
+    )
+
+
+def _routing_context(
+    disables: dict[str, TemporaryProviderDisable] | None = None,
+    priority: TemporaryProviderPriority | None = None,
+) -> ProviderRoutingContext:
+    return provider_routing_context_from_parts(
+        disables or {},
+        priority,
+        captured_at=_FROZEN_NOW,
+    )
+
+
+def _provider_facts(
+    *, cli_available: bool = True
+) -> Callable[[str], dict[str, object]]:
+    return lambda provider: provider_availability_facts(
+        provider,
+        registered=True,
+        user_facing=True,
+        cli_available=cli_available,
     )
 
 
@@ -182,8 +211,8 @@ async def test_provider_disables_indicator_single_png_snapshot(
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(
         provider_disables_indicator,
-        "peek_active_provider_disables",
-        lambda: {"claude": _disable("claude")},
+        "peek_provider_routing_context",
+        lambda *a, **k: _routing_context({"claude": _disable("claude")}),
     )
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -207,12 +236,14 @@ async def test_provider_disables_indicator_multiple_png_snapshot(
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(
         provider_disables_indicator,
-        "peek_active_provider_disables",
-        lambda: {
-            "claude": _disable("claude"),
-            "codex": _disable("codex"),
-            "gemini": _disable("gemini"),
-        },
+        "peek_provider_routing_context",
+        lambda *a, **k: _routing_context(
+            {
+                "claude": _disable("claude"),
+                "codex": _disable("codex"),
+                "gemini": _disable("gemini"),
+            }
+        ),
     )
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -236,8 +267,8 @@ async def test_provider_disables_indicator_soft_png_snapshot(
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(
         provider_disables_indicator,
-        "peek_active_provider_disables",
-        lambda: {"claude": _disable("claude", mode="soft")},
+        "peek_provider_routing_context",
+        lambda *a, **k: _routing_context({"claude": _disable("claude", mode="soft")}),
     )
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -262,13 +293,16 @@ async def test_provider_priority_indicator_combined_png_snapshot(
     monkeypatch.setattr(override_pill.time, "time", lambda: _FROZEN_NOW)
     monkeypatch.setattr(
         provider_disables_indicator,
-        "peek_active_provider_disables",
-        lambda: {"claude": _disable("claude")},
+        "peek_provider_routing_context",
+        lambda *a, **k: _routing_context(
+            {"claude": _disable("claude")},
+            _priority("codex", expires_at=_FROZEN_NOW + 42 * 60),
+        ),
     )
     monkeypatch.setattr(
         provider_disables_indicator,
-        "peek_active_provider_priority",
-        lambda *a, **k: _priority("codex", expires_at=_FROZEN_NOW + 42 * 60),
+        "provider_routing_facts",
+        _provider_facts(),
     )
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -283,4 +317,38 @@ async def test_provider_priority_indicator_combined_png_snapshot(
             page,
             "provider_priority_indicator_combined_120x40",
             title="ACE provider priority and disabled-provider pills",
+        )
+
+
+async def test_provider_priority_unavailable_indicator_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(override_pill.time, "time", lambda: _FROZEN_NOW)
+    monkeypatch.setattr(
+        provider_disables_indicator,
+        "peek_provider_routing_context",
+        lambda *a, **k: _routing_context(
+            priority=_priority("codex", expires_at=_FROZEN_NOW + 42 * 60)
+        ),
+    )
+    monkeypatch.setattr(
+        provider_disables_indicator,
+        "provider_routing_facts",
+        _provider_facts(cli_available=False),
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        await wait_for_svg_contains(page, "unavailable 42m")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "provider_priority_unavailable_indicator_120x40",
+            title="ACE unavailable provider priority pill",
         )
