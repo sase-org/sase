@@ -409,10 +409,7 @@ async def test_pressing_a_label_passes_merged_context_to_resolver(
 
     assert calls[0][0] == "src/target.py"
     assert calls[0][1] is not None
-    assert calls[0][1].base_dirs == (
-        section_anchor.resolve(),
-        document_anchor.resolve(),
-    )
+    assert calls[0][1].base_dirs == (section_anchor, document_anchor)
 
 
 async def test_follow_back_and_forward_restore_the_view(
@@ -636,8 +633,8 @@ async def test_dangling_refs_are_scoped_to_link_context(
     assert len(calls) == 2
     assert calls[0] is not None
     assert calls[1] is not None
-    assert calls[0].base_dirs == (first.resolve(),)
-    assert calls[1].base_dirs == (second.resolve(),)
+    assert calls[0].base_dirs == (first,)
+    assert calls[1].base_dirs == (second,)
 
 
 async def test_pressing_a_url_label_copies_without_a_y_prefix(

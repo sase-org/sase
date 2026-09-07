@@ -5,24 +5,18 @@ from __future__ import annotations
 import asyncio
 import os
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
-from sase.core.patch import get_workspace_directory_for_patch
 from sase.memory.legacy_glossary_read_report import (
     GlossaryReadReportSpec,
     write_glossary_read_report,
-)
-from sase.pager.link_context import (
-    LinkResolutionContext,
-    agent_link_context,
-    default_link_context,
-    workspace_link_context,
 )
 from sase.memory.memory_read_report import (
     MemoryReadReportSpec,
     write_memory_read_report,
 )
+from sase.pager.link_context import LinkResolutionContext
 from ....hint_types import EditHooksResult, ViewFilesResult
 from ....hints import (
     is_rerun_input,
@@ -35,9 +29,10 @@ from ...artifact_reads import ArtifactReadRefSpec
 from ...tools.report import SlowToolCallReportSpec, write_tool_call_report
 from ...widgets import HintInputBar
 from ...widgets.prompt_panel._agent_display_state import CommitViewSpec
-from ._artifact_ref_repair import repair_artifact_read_path
 from ..clipboard import schedule_copy_delivery
+from ._artifact_ref_repair import repair_artifact_read_path
 from ._files import build_pager_document
+from ._link_context_capture import CapturedLinkContext, link_context_from_capture
 from ._types import HintMixinBase
 
 type _HintReportSpec = (
@@ -55,7 +50,7 @@ class _ViewRequest:
     user_input: str
     patch_name: str
     commit_specs: tuple[CommitViewSpec, ...]
-    link_context: LinkResolutionContext
+    captured_link_context: CapturedLinkContext
 
 
 @dataclass(frozen=True)
@@ -63,6 +58,7 @@ class _MaterializedReports:
     files: tuple[str, ...]
     failed_paths: tuple[str, ...]
     missing_paths: tuple[str, ...] = ()
+    link_context: LinkResolutionContext = field(default_factory=LinkResolutionContext)
 
 
 @dataclass(frozen=True)
@@ -76,6 +72,7 @@ def _materialize_selected_view_files(
     files: tuple[str, ...],
     report_items: tuple[tuple[str, _HintReportSpec], ...],
     artifact_read_ref_items: tuple[tuple[str, ArtifactReadRefSpec], ...],
+    captured_link_context: CapturedLinkContext,
 ) -> _MaterializedReports:
     """Materialize reports, repair artifact-read paths, and drop stale files."""
     reports = dict(report_items)
@@ -108,7 +105,12 @@ def _materialize_selected_view_files(
                 materialized.append(repaired_path)
                 continue
         missing.append(resolved_path)
-    return _MaterializedReports(tuple(materialized), tuple(failed), tuple(missing))
+    return _MaterializedReports(
+        tuple(materialized),
+        tuple(failed),
+        tuple(missing),
+        link_context_from_capture(captured_link_context),
+    )
 
 
 def _parse_view_hint_selection(
@@ -303,7 +305,7 @@ class InputProcessingMixin(HintMixinBase):
                 getattr(self, "_hint_patch_name", ""),
             ),
             commit_specs=commit_specs,
-            link_context=self._view_request_link_context(),
+            captured_link_context=self._capture_view_link_context(),
         )
         tool_reports: dict[str, SlowToolCallReportSpec] = getattr(
             self, "_hint_tool_call_reports", {}
@@ -342,6 +344,7 @@ class InputProcessingMixin(HintMixinBase):
             request.files,
             prepared.report_items,
             prepared.artifact_read_ref_items,
+            request.captured_link_context,
         )
 
         # The request remains valid across navigation, but no UI effects should
@@ -395,7 +398,7 @@ class InputProcessingMixin(HintMixinBase):
                         build_pager_document,
                         files,
                         request.commit_specs,
-                        link_context=request.link_context,
+                        link_context=outcome.link_context,
                     )
                 except OSError as exc:
                     self.notify(  # type: ignore[attr-defined]
@@ -403,18 +406,23 @@ class InputProcessingMixin(HintMixinBase):
                         severity="error",
                     )
                     return
+                if not bool(getattr(self, "is_running", True)):
+                    return
                 self._view_files_with_pager_screen(document)  # type: ignore[attr-defined]
 
-    def _view_request_link_context(self) -> LinkResolutionContext:
+    def _capture_view_link_context(self) -> CapturedLinkContext:
+        """Snapshot stable agent/patch inputs; no directory or marker I/O."""
         if getattr(self, "current_tab", None) == "agents":
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
-            if agent is not None:
-                return agent_link_context(
-                    getattr(agent, "effective_workspace_num", None),
-                    getattr(agent, "project_file", None),
-                    getattr(agent, "workspace_dir", None),
-                )
-            return default_link_context()
+            if agent is None:
+                return CapturedLinkContext(source="default")
+            workspace_dir = getattr(agent, "workspace_dir", None)
+            return CapturedLinkContext(
+                source="agent",
+                workspace_num=getattr(agent, "effective_workspace_num", None),
+                project_file=getattr(agent, "project_file", None),
+                workspace_dir=(None if workspace_dir is None else str(workspace_dir)),
+            )
 
         patches = getattr(
             self,
@@ -422,17 +430,16 @@ class InputProcessingMixin(HintMixinBase):
             getattr(self, "changespecs", []),
         )
         if not patches:
-            return default_link_context()
-        current_idx = getattr(self, "current_idx", 0)
+            return CapturedLinkContext(source="default")
         try:
-            patch = patches[current_idx]
+            patch = patches[getattr(self, "current_idx", 0)]
         except (IndexError, TypeError):
-            return default_link_context()
-        try:
-            workspace_dir = get_workspace_directory_for_patch(patch)
-        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
-            return default_link_context()
-        return workspace_link_context(workspace_dir)
+            return CapturedLinkContext(source="default")
+        basename = getattr(patch, "project_basename", None)
+        return CapturedLinkContext(
+            source="patch",
+            project_basename=None if basename is None else str(basename),
+        )
 
     def _files_for_view_hints(self, hint_nums: Iterable[int]) -> list[str]:
         hint_input = " ".join(str(hint_num) for hint_num in hint_nums)

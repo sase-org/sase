@@ -35,7 +35,7 @@ from sase.pager.resolve import (
 #: that same key can be recognized as the doubled ``yy``/``EE`` form (design
 #: doc section D8) instead of an invalid label key.
 _PENDING_ACTION_KEYS: dict[PendingAction, str] = {"copy": "y", "edit": "E"}
-_DanglingRefKey = tuple[str, tuple[Path, ...]]
+_DanglingRefKey = tuple[str, tuple[tuple[Path, int | None], ...]]
 
 
 def _screen_module() -> Any:
@@ -374,7 +374,9 @@ class PagerActionMixin:
         del self
         if context is None:
             return ref, ()
-        return ref, tuple(anchor.directory for anchor in context.anchors)
+        return ref, tuple(
+            (anchor.directory, anchor.workspace_num) for anchor in context.anchors
+        )
 
 
 def _as_link_resolution(result: LinkResolution | LinkTarget | None) -> LinkResolution:

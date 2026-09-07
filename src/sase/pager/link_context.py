@@ -131,11 +131,16 @@ def merge_link_context(
     link_anchors: Iterable[LinkAnchor] = (),
     document_context: LinkResolutionContext | None = None,
 ) -> LinkResolutionContext | None:
-    """Prepend section anchors to a document context, preserving first match."""
+    """Prepend section anchors to a document context, preserving first match.
+
+    Combination is in-memory: it does not stat, resolve, or otherwise
+    normalize directories. First-anchor-wins is by the ``Path`` value as
+    stored, not by filesystem identity.
+    """
     anchors = list(link_anchors)
     if document_context is not None:
         anchors.extend(document_context.anchors)
-    merged = _dedupe_anchors(anchors)
+    merged = _unique_anchors(anchors)
     if not merged:
         return None
     return LinkResolutionContext(anchors=merged)
@@ -215,16 +220,25 @@ def _existing_dir(path: Path | None) -> Path | None:
 
 
 def _dedupe_anchors(anchors: Iterable[LinkAnchor]) -> tuple[LinkAnchor, ...]:
+    checked: list[LinkAnchor] = []
+    for anchor in anchors:
+        directory = _existing_dir(anchor.directory)
+        if directory is None:
+            continue
+        checked.append(
+            LinkAnchor(directory=directory, workspace_num=anchor.workspace_num)
+        )
+    return _unique_anchors(checked)
+
+
+def _unique_anchors(anchors: Iterable[LinkAnchor]) -> tuple[LinkAnchor, ...]:
     seen: set[Path] = set()
     unique: list[LinkAnchor] = []
     for anchor in anchors:
-        directory = _existing_dir(anchor.directory)
-        if directory is None or directory in seen:
+        if anchor.directory in seen:
             continue
-        seen.add(directory)
-        unique.append(
-            LinkAnchor(directory=directory, workspace_num=anchor.workspace_num)
-        )
+        seen.add(anchor.directory)
+        unique.append(anchor)
     return tuple(unique)
 
 

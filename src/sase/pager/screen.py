@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import subprocess
 from collections.abc import Mapping
-from pathlib import Path
 
 from rich.rule import Rule
 from textual.app import ComposeResult
@@ -22,7 +21,7 @@ from sase.ace.tui.widgets.vim_search_controller import VimSearchController
 from sase.pager._help import PagerHelpScreen
 from sase.pager._labels import LabelWindowScope, PagerLabel, PagerLabelLayer
 from sase.pager._layout import ComposedBody
-from sase.pager._screen_actions import PagerActionMixin
+from sase.pager._screen_actions import PagerActionMixin, _DanglingRefKey
 from sase.pager._screen_body import PagerBodyMixin
 from sase.pager._screen_chrome import PagerChromeMixin
 from sase.pager._screen_search import PagerSearchMixin
@@ -93,7 +92,7 @@ class PagerScreen(
         self._label_window_scope: LabelWindowScope | None = None
         self._last_activated_label: PagerLabel | None = None
         self._pending_action: PendingAction = "follow"
-        self._dangling_refs: dict[tuple[str, tuple[Path, ...]], str] = {}
+        self._dangling_refs: dict[_DanglingRefKey, str] = {}
         self._resolve_generation = 0
         self._search = VimSearchController(self)
         self._back_trail: list[PagerTrailEntry] = []

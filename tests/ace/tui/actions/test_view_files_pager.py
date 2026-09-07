@@ -22,6 +22,10 @@ from sase.ace.tui.actions.hints._files import (
     _resolve_ref_from_link_index,
     build_pager_document,
 )
+from sase.ace.tui.actions.hints._link_context_capture import (
+    CapturedLinkContext,
+    link_context_from_capture,
+)
 from sase.ace.tui.actions.hints._processing import InputProcessingMixin
 from sase.ace.tui.modals.commit_view_modal import CommitViewModal
 from sase.core.artifact_entry_target import ArtifactEntryTarget
@@ -276,10 +280,9 @@ async def test_missing_file_hint_drops_only_the_stale_selection(
     assert [section.identity for section in document.sections] == [f"file:{notes}"]
 
 
-def test_prepare_view_input_snapshots_agent_link_context(
+def test_prepare_view_input_snapshots_agent_inputs_without_building_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    context = LinkResolutionContext()
     app = _make_app("/tmp/notes.md")
     app.current_tab = "agents"
     agent = SimpleNamespace(
@@ -288,50 +291,186 @@ def test_prepare_view_input_snapshots_agent_link_context(
         workspace_dir="/tmp/workspace",
     )
     app._get_selected_agent = lambda: agent  # type: ignore[method-assign]
-    calls: list[tuple[int, str, str]] = []
+
+    def boom(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("ACE preparation must only snapshot agent inputs")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.link_context_from_capture",
+        boom,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._link_context_capture.agent_link_context",
+        boom,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._link_context_capture.workspace_link_context",
+        boom,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._link_context_capture.default_link_context",
+        boom,
+    )
+
+    prepared = app._prepare_view_input("1")
+
+    assert prepared is not None
+    assert prepared.request.captured_link_context == CapturedLinkContext(
+        source="agent",
+        workspace_num=7,
+        project_file="/tmp/project.sase",
+        workspace_dir="/tmp/workspace",
+    )
+
+
+def test_prepare_view_input_snapshots_patch_inputs_without_building_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch = SimpleNamespace(project_basename="proj")
+    app = _make_app("/tmp/notes.md")
+    app.current_tab = "patches"
+    app.patches = [patch]
+    app.current_idx = 0
+
+    def boom(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("ACE preparation must only snapshot patch inputs")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.link_context_from_capture",
+        boom,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._link_context_capture.get_workspace_directory_for_patch",
+        boom,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._link_context_capture.workspace_link_context",
+        boom,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._link_context_capture.default_link_context",
+        boom,
+    )
+
+    prepared = app._prepare_view_input("1")
+
+    assert prepared is not None
+    assert prepared.request.captured_link_context == CapturedLinkContext(
+        source="patch",
+        project_basename="proj",
+    )
+
+
+def test_link_context_from_capture_builds_agent_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = LinkResolutionContext()
+    calls: list[tuple[int | None, str | None, str | None]] = []
 
     def fake_agent_context(
-        workspace_num: int,
-        project_file: str,
-        workspace_dir: str,
+        workspace_num: int | None,
+        project_file: str | None,
+        workspace_dir: str | None,
     ) -> LinkResolutionContext:
         calls.append((workspace_num, project_file, workspace_dir))
         return context
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.agent_link_context",
+        "sase.ace.tui.actions.hints._link_context_capture.agent_link_context",
         fake_agent_context,
     )
 
-    prepared = app._prepare_view_input("1")
+    captured = CapturedLinkContext(
+        source="agent",
+        workspace_num=7,
+        project_file="/tmp/project.sase",
+        workspace_dir="/tmp/workspace",
+    )
 
-    assert prepared is not None
-    assert prepared.request.link_context is context
+    assert link_context_from_capture(captured) is context
     assert calls == [(7, "/tmp/project.sase", "/tmp/workspace")]
 
 
-def test_prepare_view_input_snapshots_patch_link_context(
+def test_link_context_from_capture_builds_patch_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     context = LinkResolutionContext()
-    patch = object()
-    app = _make_app("/tmp/notes.md")
-    app.current_tab = "patches"
-    app.patches = [patch]
-    app.current_idx = 0
+    patch_lookups: list[str] = []
+
+    def fake_workspace_dir(patch: object) -> str | None:
+        basename = getattr(patch, "project_basename", None)
+        patch_lookups.append(str(basename))
+        return "/tmp/patch-workspace" if basename == "proj" else None
+
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.get_workspace_directory_for_patch",
-        lambda value: "/tmp/patch-workspace" if value is patch else None,
+        "sase.ace.tui.actions.hints._link_context_capture.get_workspace_directory_for_patch",
+        fake_workspace_dir,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.workspace_link_context",
+        "sase.ace.tui.actions.hints._link_context_capture.workspace_link_context",
         lambda value: context if value == "/tmp/patch-workspace" else None,
     )
 
-    prepared = app._prepare_view_input("1")
+    captured = CapturedLinkContext(source="patch", project_basename="proj")
 
+    assert link_context_from_capture(captured) is context
+    assert patch_lookups == ["proj"]
+
+
+async def test_view_link_context_is_built_off_the_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    notes = tmp_path / "notes.md"
+    notes.write_text("hi", encoding="utf-8")
+    app = _make_app(str(notes))
+    app.current_tab = "agents"
+    app._get_selected_agent = lambda: SimpleNamespace(  # type: ignore[method-assign]
+        effective_workspace_num=7,
+        project_file="/tmp/project.sase",
+        workspace_dir="/tmp/workspace",
+    )
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
+    event_loop_thread = threading.get_ident()
+    context_threads: list[int] = []
+    captured_on_loop: list[CapturedLinkContext] = []
+
+    def spy_from_capture(captured: CapturedLinkContext) -> LinkResolutionContext:
+        context_threads.append(threading.get_ident())
+        assert captured == CapturedLinkContext(
+            source="agent",
+            workspace_num=7,
+            project_file="/tmp/project.sase",
+            workspace_dir="/tmp/workspace",
+        )
+        return LinkResolutionContext(anchors=(LinkAnchor(tmp_path, workspace_num=7),))
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.link_context_from_capture",
+        spy_from_capture,
+    )
+
+    prepared = app._prepare_view_input("1")
     assert prepared is not None
-    assert prepared.request.link_context is context
+    captured_on_loop.append(prepared.request.captured_link_context)
+    assert not context_threads
+
+    await app._process_view_input("1")
+
+    assert captured_on_loop == [
+        CapturedLinkContext(
+            source="agent",
+            workspace_num=7,
+            project_file="/tmp/project.sase",
+            workspace_dir="/tmp/workspace",
+        )
+    ]
+    assert context_threads
+    assert all(thread_id != event_loop_thread for thread_id in context_threads)
+    app._view_files_with_pager_screen.assert_called_once()
+    (document,) = app._view_files_with_pager_screen.call_args.args
+    assert document.link_context is not None
+    assert document.link_context.anchors[0].workspace_num == 7
 
 
 async def test_pager_build_oserror_is_reported(

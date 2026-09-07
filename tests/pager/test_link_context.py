@@ -247,7 +247,50 @@ def test_merge_link_context_prepends_and_dedupes_section_anchors(
     )
 
     assert merged is not None
-    assert merged.base_dirs == (first.resolve(), second.resolve())
+    assert merged.base_dirs == (first, second)
+
+
+def test_merge_link_context_keeps_first_anchor_workspace_num(tmp_path: Path) -> None:
+    directory = tmp_path / "shared"
+    merged = merge_link_context(
+        (LinkAnchor(directory=directory, workspace_num=4),),
+        LinkResolutionContext(
+            anchors=(LinkAnchor(directory=directory, workspace_num=8),)
+        ),
+    )
+
+    assert merged is not None
+    assert merged.anchors == (LinkAnchor(directory=directory, workspace_num=4),)
+
+
+def test_merge_link_context_does_not_normalize_or_stat_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = tmp_path / "ws"
+    alias = first / ".." / first.name
+    assert first != alias
+    assert first.resolve() == alias.resolve()
+
+    def boom(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("merge_link_context must stay in memory")
+
+    monkeypatch.setattr("sase.pager.link_context._existing_dir", boom)
+    monkeypatch.setattr(Path, "resolve", boom)
+    monkeypatch.setattr(Path, "exists", boom)
+    monkeypatch.setattr(Path, "is_dir", boom)
+    monkeypatch.setattr(Path, "expanduser", boom)
+    monkeypatch.setattr(Path, "stat", boom)
+
+    merged = merge_link_context(
+        (LinkAnchor(directory=alias, workspace_num=3),),
+        LinkResolutionContext(anchors=(LinkAnchor(directory=first, workspace_num=9),)),
+    )
+
+    assert merged is not None
+    assert merged.anchors == (
+        LinkAnchor(directory=alias, workspace_num=3),
+        LinkAnchor(directory=first, workspace_num=9),
+    )
 
 
 def test_link_context_module_does_not_call_workspace_cleaner() -> None:
