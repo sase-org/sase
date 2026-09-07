@@ -504,6 +504,40 @@ class AgentState:
     # The project_file path remains the storage identity for grouping/actions.
     project_display_name: str | None = field(default=None, compare=False)
 
+    # Remote fleet projection metadata. These fields are display/runtime-only:
+    # local mutating actions must treat rows with a fleet origin as read-only.
+    fleet_origin_alias: str | None = field(default=None, compare=False)
+    fleet_origin_installation_id: str | None = field(default=None, compare=False)
+    fleet_logical_locator: dict[str, Any] | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
+    fleet_exact_locator: dict[str, Any] | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
+    fleet_logical_key: str | None = field(default=None, compare=False)
+    fleet_exact_key: str | None = field(default=None, compare=False)
+    fleet_revision: int | None = field(default=None, compare=False)
+    fleet_freshness: str | None = field(default=None, compare=False)
+    fleet_connection_health: str | None = field(default=None, compare=False)
+    fleet_observed_at_unix: float | None = field(default=None, compare=False)
+    fleet_capabilities: dict[str, Any] | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
+    fleet_content: dict[str, Any] | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
+    fleet_followed: bool = field(default=False, compare=False)
+    fleet_bounded_intent: str | None = field(default=None, compare=False)
+    fleet_diagnostic: str | None = field(default=None, compare=False)
+
     # Internal source marker for dismissed bundles loaded only for revive.
     _loaded_from_dismissed_bundle: bool = field(
         default=False, compare=False, repr=False

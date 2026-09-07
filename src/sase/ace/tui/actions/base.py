@@ -440,6 +440,13 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                 source="manual",
                 full_history=False,
             )
+            schedule_fleet_refresh = getattr(
+                self,
+                "_schedule_agents_fleet_refresh",
+                None,
+            )
+            if callable(schedule_fleet_refresh):
+                schedule_fleet_refresh(source="manual", force=True)
         elif self.current_tab == "artifacts":
             if getattr(self, "current_artifacts_subtab", "patches") == "patches":
                 self._schedule_patches_async_refresh()  # type: ignore[attr-defined]

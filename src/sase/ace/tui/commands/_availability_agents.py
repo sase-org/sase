@@ -51,6 +51,31 @@ _COLLAPSED_PANEL_HIDDEN_AGENT_COMMANDS: frozenset[str] = frozenset(
         "leader.agent_from_cl",
     }
 )
+_REMOTE_AGENT_LOCAL_COMMANDS: frozenset[str] = frozenset(
+    {
+        "app.accept_proposal",
+        "app.add_tag",
+        "app.edit_agent_tribe",
+        "app.edit_hooks",
+        "app.edit_spec",
+        "app.jump_to_agent_patch",
+        "app.kill_agent",
+        "app.open_artifact_files",
+        "app.open_tmux",
+        "app.rename_cl",
+        "app.run_workflow",
+        "app.show_agent_run_log",
+        "app.start_agent_from_patch",
+        "app.start_sibling_mode",
+        "app.start_tmux_mode",
+        "app.toggle_agent_unread",
+        "app.toggle_attempt_view",
+        "leader.agent_from_cl",
+        "leader.kill_and_edit",
+        "leader.kill_and_edit_last",
+        "leader.revert_agent",
+    }
+)
 
 # Agent statuses considered "done" (no active process, no edits).
 _DONE_AGENT_STATUSES: frozenset[str] = frozenset({"DONE", "FAILED"})
@@ -76,6 +101,28 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             except ValueError:
                 return False
             return fold_level_at_position(position, summary_scale) is not None
+
+    if spec.id in {"app.cycle_agents_subtab", "app.cycle_agents_subtab_reverse"}:
+        return ctx.fleet_enabled
+
+    if spec.id == "app.toggle_agent_follow":
+        return ctx.selected_agent_followable
+
+    if spec.id == "app.view_agent_in_focus":
+        return (
+            ctx.agents_subtab == "fleet"
+            and ctx.selected_agent_remote
+            and ctx.selected_agent_followed
+        )
+
+    if spec.id == "app.connect_agent_machine":
+        return ctx.selected_agent_remote
+
+    if ctx.selected_agent_remote:
+        if spec.id in _REMOTE_AGENT_LOCAL_COMMANDS:
+            return False
+        if spec.id in {"copy.agents.chat", "copy.agents.file_path"}:
+            return False
 
     # The cleanup panel is discoverable even when every row action inside it is
     # currently disabled.

@@ -126,6 +126,16 @@ class AppWatchersMixin:
             # when there is pending work to consume.
             if not self._mounting:
                 self._refilter_agents()
+                update_agents_header = getattr(self, "_update_agents_header", None)
+                if callable(update_agents_header):
+                    update_agents_header()
+                schedule_fleet_refresh = getattr(
+                    self,
+                    "_schedule_agents_fleet_refresh",
+                    None,
+                )
+                if callable(schedule_fleet_refresh):
+                    schedule_fleet_refresh(source="tab_switch")
                 if getattr(self, "_dirty_agents", False) and not getattr(
                     self, "_agents_loading", False
                 ):

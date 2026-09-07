@@ -230,6 +230,11 @@ class CommandContext:
     file_panel_visible: bool = False
     has_artifact_files: bool = False
     agents_metadata_search_active: bool = False
+    fleet_enabled: bool = False
+    agents_subtab: str = "focus"
+    selected_agent_remote: bool = False
+    selected_agent_followable: bool = False
+    selected_agent_followed: bool = False
     # Axe tab state
     axe_running: bool = False
     selected_axe_slot_done: bool = False

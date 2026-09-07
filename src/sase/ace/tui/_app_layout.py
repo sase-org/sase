@@ -6,7 +6,7 @@ from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Header
+from textual.widgets import Header, Static
 
 from ._patch_list_layout import (
     CL_LIST_MAX_PANEL_WIDTH,
@@ -34,6 +34,7 @@ from .widgets import (
     ProcIndicator,
     UpdatesAvailableIndicator,
 )
+from .widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
 # Width bounds for dynamic list panel sizing (in terminal cells). The minimum
 # must fit the PR status line plus padding/border; the refresh countdown lives
@@ -82,6 +83,30 @@ class AppLayoutMixin:
             )
             with Vertical(id="agents-view", classes=agents_classes):
                 yield AgentInfoPanel(id="agent-info-panel")
+                with Horizontal(id="agents-header", classes="hidden"):
+                    yield PanelTabStrip(
+                        (
+                            PanelTab(
+                                "focus",
+                                "Focus",
+                                "#5FD7FF",
+                                compact_label="Focus",
+                                icon="●",
+                            ),
+                            PanelTab(
+                                "fleet",
+                                "Fleet",
+                                "#D7AF5F",
+                                compact_label="Fleet",
+                                icon="◆",
+                            ),
+                        ),
+                        active_tab=getattr(self, "current_agents_subtab", "focus"),
+                        compact_below=72,
+                        reflow_to_fit=True,
+                        id="agents-mode-tabs",
+                    )
+                    yield Static("", id="agents-fleet-status")
                 with Horizontal(id="agents-content"):
                     with Vertical(id="agent-list-container"):
                         yield AgentList(id="agent-list-panel")

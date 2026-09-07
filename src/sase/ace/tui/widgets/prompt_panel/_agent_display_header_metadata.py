@@ -219,6 +219,33 @@ def _append_project_fields(
         text.append(f"{agent.workflow}\n")
 
 
+def _append_fleet_fields(text: Text, agent: Agent) -> None:
+    """Append remote fleet provenance for read-only projected rows."""
+    if not agent.fleet_origin_alias:
+        return
+    text.append("Machine: ", style="bold #87D7FF")
+    text.append(agent.fleet_origin_alias, style="bold #5FD7FF")
+    if agent.fleet_followed:
+        text.append(" followed", style="dim #5FD7FF")
+    text.append("\n")
+
+    fields = [
+        field
+        for field in (
+            agent.fleet_connection_health,
+            agent.fleet_freshness,
+            agent.fleet_bounded_intent,
+        )
+        if field
+    ]
+    if agent.fleet_revision is not None:
+        fields.append(f"rev {agent.fleet_revision}")
+    if fields:
+        text.append("Fleet: ", style="bold #87D7FF")
+        text.append(" · ".join(dict.fromkeys(fields)), style="#87D7D7")
+        text.append("\n")
+
+
 def _append_wait_field(
     text: Text,
     agent: Agent,
@@ -396,6 +423,7 @@ def append_agent_metadata_fields(
         meta_project=meta_project,
         meta_patch=meta_patch,
     )
+    _append_fleet_fields(text, agent)
 
     _append_auto_approve_field(text, agent)
     shell_section = _append_shell_or_model_fields(text, agent, responsive_ranges)

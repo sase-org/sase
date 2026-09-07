@@ -39,6 +39,18 @@ def init_agent_state(self: Any) -> None:
     self._agents_last_idx = 0
     self._agents_last_identity = None
     self._agents = []
+    self._agents_local_with_children = []
+    self._agents_local_visible = []
+    from ..models.fleet_agents import FleetRowsProjection
+
+    self._agents_fleet_projection = FleetRowsProjection()
+    self._agents_fleet_rows = []
+    self._agents_fleet_focus_rows = []
+    self._agents_fleet_async_tasks = set()
+    self._agents_fleet_refresh_generation = 0
+    self._agents_fleet_loading = False
+    self._agents_fleet_available = False
+    self._agents_fleet_last_error = None
     self._agent_runner_capacity = RunnerCapacitySnapshot()
     self._agents_loading = False
     self._agents_refresh_pending = False

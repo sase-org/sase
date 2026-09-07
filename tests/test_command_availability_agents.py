@@ -77,6 +77,76 @@ def test_kill_agent_visible_on_group_banner_even_without_agent() -> None:
     assert is_command_available(spec, ctx)
 
 
+def test_fleet_commands_are_contextual_for_remote_rows() -> None:
+    catalog = _catalog_by_id()
+    remote = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="fleet-ui",
+        project_file="/fleet/apollo/project.yml",
+        status="RUNNING",
+        start_time=None,
+        agent_name="apollo.agent",
+        fleet_origin_alias="apollo",
+        fleet_logical_locator={
+            "schema_version": 1,
+            "project": "sase",
+            "agent_id": "apollo.agent",
+        },
+        fleet_followed=True,
+    )
+    ctx = CommandContext(
+        tab="agents",
+        agent=remote,
+        fleet_enabled=True,
+        agents_subtab="fleet",
+        selected_agent_remote=True,
+        selected_agent_followable=True,
+        selected_agent_followed=True,
+    )
+
+    assert is_command_available(catalog["app.cycle_agents_subtab"], ctx)
+    assert is_command_available(catalog["app.toggle_agent_follow"], ctx)
+    assert is_command_available(catalog["app.view_agent_in_focus"], ctx)
+    assert is_command_available(catalog["app.connect_agent_machine"], ctx)
+
+
+def test_remote_rows_hide_local_agent_actions() -> None:
+    catalog = _catalog_by_id()
+    remote = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="fleet-ui",
+        project_file="/fleet/apollo/project.yml",
+        status="RUNNING",
+        start_time=None,
+        agent_name="apollo.agent",
+        response_path="/tmp/remote-response.md",
+        workspace_num=7,
+        fleet_origin_alias="apollo",
+        fleet_logical_locator={"schema_version": 1, "agent_id": "apollo.agent"},
+    )
+    ctx = CommandContext(
+        tab="agents",
+        agent=remote,
+        fleet_enabled=True,
+        selected_agent_remote=True,
+        selected_agent_followable=True,
+    )
+
+    for command_id in {
+        "app.kill_agent",
+        "app.run_workflow",
+        "app.edit_spec",
+        "app.edit_hooks",
+        "app.open_tmux",
+        "app.open_artifact_files",
+        "app.jump_to_agent_patch",
+        "copy.agents.chat",
+        "copy.agents.file_path",
+        "leader.revert_agent",
+    }:
+        assert not is_command_available(catalog[command_id], ctx), command_id
+
+
 def test_collapsed_panel_exposes_kill_but_hides_hidden_agent_commands() -> None:
     catalog = _catalog_by_id()
     ctx = CommandContext(

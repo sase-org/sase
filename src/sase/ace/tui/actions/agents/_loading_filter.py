@@ -74,11 +74,26 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         elif not on_agents_tab:
             selected_identity = getattr(self, "_agents_last_identity", None)
 
+        sync_local_source = getattr(
+            self, "_sync_agents_local_source_from_current", None
+        )
+        if callable(sync_local_source):
+            sync_local_source()
+
         # Rebuild the pure synthetic clan projection so optimistic status,
         # tribe, kill, and dismiss mutations cannot leave a stale container.
         from ...models._agent_tree import project_clan_tree
 
-        self._agents_with_children = project_clan_tree(self._agents_with_children)
+        local_source = getattr(self, "_agents_local_with_children", None)
+        source_agents = (
+            list(local_source)
+            if local_source is not None
+            else list(self._agents_with_children)
+        )
+        project_current_mode = getattr(self, "_agents_source_for_current_mode", None)
+        if callable(project_current_mode):
+            source_agents = project_current_mode(source_agents)
+        self._agents_with_children = project_clan_tree(source_agents)
 
         # Start from the cached unfiltered list (already has dismiss/hide applied)
         if previous_agents is None:

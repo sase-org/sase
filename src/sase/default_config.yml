@@ -510,6 +510,11 @@ ace:
       agents_next: "j"
       agents_prev: "k"
       agents_revive: "w"
+      cycle_agents_subtab: "unbound"
+      cycle_agents_subtab_reverse: "unbound"
+      toggle_agent_follow: "unbound"
+      view_agent_in_focus: "unbound"
+      connect_agent_machine: "unbound"
       # PR actions
       patches_filters: "f"
       quit: "q"

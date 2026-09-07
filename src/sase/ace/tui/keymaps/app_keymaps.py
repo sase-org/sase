@@ -88,6 +88,11 @@ class AppKeymaps:
     agents_next: str
     agents_prev: str
     agents_revive: str
+    cycle_agents_subtab: str
+    cycle_agents_subtab_reverse: str
+    toggle_agent_follow: str
+    view_agent_in_focus: str
+    connect_agent_machine: str
     # Patch actions
     patches_filters: str
     quit: str

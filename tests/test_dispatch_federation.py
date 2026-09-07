@@ -13,6 +13,11 @@ from typing import Any, cast
 import pytest
 
 import sase.dispatch.federation as federation
+from sase.dispatch.models import CredentialRecord, MachineDiagnostic
+
+
+def _installation_id(hex_char: str) -> str:
+    return f"sase_inst_v1_{hex_char * 64}"
 
 
 def test_empty_remote_hosts_keep_facade_disabled_without_rust_binding(
@@ -92,6 +97,111 @@ def test_host_config_requires_env_credentials(
                 }
             }
         )
+
+
+def test_dispatch_machines_resolve_local_credentials(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    installation_id = _installation_id("a")
+
+    class Store:
+        def get(self, ref: str) -> CredentialRecord | None:
+            assert ref == "cred:workstation"
+            return CredentialRecord(
+                ref=ref,
+                token="stored-secret",
+                token_type="bearer",
+                provider_ref="builtin@https",
+                endpoint="https://fleet.example.test",
+                installation_id=installation_id,
+            )
+
+    monkeypatch.setattr(federation, "remote_dispatch_enabled", lambda: True)
+    monkeypatch.setattr(
+        federation,
+        "validate_connection_plan",
+        lambda _machine: (),
+    )
+
+    config = federation.load_federation_config(
+        {
+            "dispatch": {
+                "federation_worker": {"sase_home": str(tmp_path)},
+                "machines": {
+                    "workstation": {
+                        "provider_ref": "builtin@https",
+                        "endpoint": "https://fleet.example.test",
+                        "credential_ref": "cred:workstation",
+                        "pinned_installation_id": installation_id,
+                    }
+                },
+            }
+        },
+        credential_store=Store(),  # type: ignore[arg-type]
+    )
+
+    assert config.enabled
+    assert config.diagnostics == ()
+    wire = config.hosts_wire()[0]
+    assert wire["alias"] == "workstation"
+    assert wire["bearer_token"] == "stored-secret"
+    assert wire["origin_installation_id"] == installation_id
+    assert config.redacted_hosts()[0]["bearer_token"] == "<redacted>"
+
+
+def test_dispatch_machines_degrade_to_diagnostics(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class Store:
+        def get(self, _ref: str) -> CredentialRecord | None:
+            return None
+
+    monkeypatch.setattr(federation, "remote_dispatch_enabled", lambda: True)
+    monkeypatch.setattr(
+        federation,
+        "validate_connection_plan",
+        lambda _machine: (
+            MachineDiagnostic(
+                code="invalid_connection_plan",
+                alias="unused",
+                severity="error",
+                message="unused",
+            ),
+        ),
+    )
+
+    config = federation.load_federation_config(
+        {
+            "dispatch": {
+                "federation_worker": {"sase_home": str(tmp_path)},
+                "machines": {
+                    "missing": {
+                        "provider_ref": "builtin@https",
+                        "endpoint": "https://fleet.example.test",
+                        "credential_ref": "cred:missing",
+                        "pinned_installation_id": _installation_id("b"),
+                    },
+                    "quarantined": {
+                        "provider_ref": "builtin@https",
+                        "endpoint": "https://fleet.example.test",
+                        "credential_ref": "cred:quarantined",
+                        "pinned_installation_id": _installation_id("c"),
+                        "quarantined": True,
+                        "quarantine_reason": "pin mismatch",
+                    },
+                },
+            }
+        },
+        credential_store=Store(),  # type: ignore[arg-type]
+    )
+
+    assert not config.enabled
+    assert config.hosts == ()
+    codes = {diagnostic.code for diagnostic in config.diagnostics}
+    assert {"credential_missing", "machine_quarantined"} <= codes
+    disabled = federation.build_federation_facade(config).summary_sync()
+    assert disabled["disabled"] is True
+    assert {item["code"] for item in disabled["diagnostics"]} >= codes
 
 
 def test_supervisor_spawns_worker_and_replaces_config(tmp_path: Path) -> None:

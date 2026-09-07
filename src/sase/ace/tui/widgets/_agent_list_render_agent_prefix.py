@@ -52,6 +52,15 @@ def _should_render_reverted_badge(agent: Agent) -> bool:
     return agent.reverted and not agent_is_tree_child(agent)
 
 
+def _append_fleet_badge(text: Text, agent: Agent) -> None:
+    alias = agent.fleet_origin_alias
+    if not alias:
+        return
+    glyph = "◆" if agent.fleet_followed else "◇"
+    style = "bold #5FD7FF" if agent.fleet_followed else "#5FAFD7"
+    text.append(f"{glyph}{alias} ", style=style)
+
+
 def _monitor_glyph_style(agent: Agent) -> str:
     """Return the row gear style for a monitor shell.
 
@@ -187,6 +196,8 @@ def append_agent_row_prefix(
     if agent.retry_attempt > 0:
         badge_color = "#FFAF00"  # warm yellow
         text.append(f"↻{agent.retry_attempt} ", style=f"bold {badge_color}")
+
+    _append_fleet_badge(text, agent)
 
     # Agent type indicator with color
     dt = agent.get_display_type(is_expanded=is_expanded)

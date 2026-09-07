@@ -42,6 +42,36 @@ _CONTRACT_GATED_ARTIFACT_ACTIONS = (
     | _ARTIFACT_QUERY_HISTORY_ACTIONS
     | _ARTIFACT_SAVED_QUERY_ACTIONS
 )
+_AGENT_FLEET_ACTIONS = frozenset(
+    {
+        "cycle_agents_subtab",
+        "cycle_agents_subtab_reverse",
+        "toggle_agent_follow",
+        "view_agent_in_focus",
+        "connect_agent_machine",
+    }
+)
+_LOCAL_AGENT_ROW_ACTIONS = frozenset(
+    {
+        "accept_proposal",
+        "add_tag",
+        "edit_agent_tribe",
+        "edit_hooks",
+        "edit_spec",
+        "jump_to_agent_patch",
+        "kill_agent",
+        "open_artifact_files",
+        "open_tmux",
+        "rename_cl",
+        "run_workflow",
+        "show_agent_run_log",
+        "start_agent_from_patch",
+        "start_sibling_mode",
+        "start_tmux_mode",
+        "toggle_agent_unread",
+        "toggle_attempt_view",
+    }
+)
 
 
 def check_app_action(
@@ -53,6 +83,32 @@ def check_app_action(
     """Return whether an app action is available in the current UI context."""
     if action == "start_agent_from_changespec":  # legacy compatibility alias
         action = "start_agent_from_patch"
+    selected_agent = _selected_agent(app) if app.current_tab == "agents" else None
+    selected_agent_remote = bool(
+        selected_agent is not None
+        and getattr(selected_agent, "fleet_origin_alias", None)
+    )
+    if action in _AGENT_FLEET_ACTIONS:
+        if app.current_tab != "agents":
+            return False
+        fleet_available = getattr(app, "_fleet_mode_available", None)
+        if action in {"cycle_agents_subtab", "cycle_agents_subtab_reverse"}:
+            return bool(fleet_available()) if callable(fleet_available) else False
+        if action == "toggle_agent_follow":
+            return bool(
+                selected_agent_remote
+                and getattr(selected_agent, "fleet_logical_locator", None)
+            )
+        if action == "view_agent_in_focus":
+            return bool(
+                selected_agent_remote
+                and getattr(selected_agent, "fleet_followed", False)
+                and getattr(app, "current_agents_subtab", "focus") == "fleet"
+            )
+        if action == "connect_agent_machine":
+            return selected_agent_remote
+    if selected_agent_remote and action in _LOCAL_AGENT_ROW_ACTIONS:
+        return False
     if action == "open_config_center" and getattr(
         app.screen, "_blocks_global_config_center_open", False
     ):
@@ -333,3 +389,13 @@ def _artifact_contract_action_available(app: Any, action: str) -> bool:
     if action in _ARTIFACT_GROUP_FOLD_ACTIONS | _ARTIFACT_GROUP_CYCLE_ACTIONS:
         return contract.has(PaneCapability.GROUPING)
     return True
+
+
+def _selected_agent(app: Any) -> Any:
+    selected = getattr(app, "_get_selected_agent", None)
+    if callable(selected):
+        try:
+            return selected()
+        except Exception:
+            return None
+    return None

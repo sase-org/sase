@@ -10,6 +10,7 @@ from ._display import AgentDisplayMixin
 from ._filter_actions import AgentFilterActionsMixin
 from ._fold_persistence import AgentFoldPersistenceMixin
 from ._folding import AgentFoldingMixin
+from ._fleet import AgentFleetMixin
 from ._grouping import AgentGroupingMixin
 from ._kill_action import AgentKillMixin
 from ._killing import AgentKillingMixin
@@ -59,6 +60,7 @@ class AgentsMixinCore(
     AgentPanelHintFoldingMixin,
     AgentFoldingMixin,
     AgentGroupingMixin,
+    AgentFleetMixin,
     AgentKillMixin,
     AgentMarkingMixin,
     AgentTribeAssignmentMixin,

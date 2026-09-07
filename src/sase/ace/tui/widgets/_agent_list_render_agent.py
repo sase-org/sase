@@ -61,6 +61,27 @@ def _has_file_change_hint(agent: Agent) -> bool:
     return agent_file_change_hint(agent)
 
 
+def _append_fleet_summary(text: Text, agent: Agent) -> None:
+    if not agent.fleet_origin_alias:
+        return
+    fields = [
+        field
+        for field in (
+            agent.fleet_connection_health,
+            agent.fleet_freshness,
+            agent.fleet_bounded_intent,
+        )
+        if field
+    ]
+    if not fields:
+        return
+    brief = " · ".join(dict.fromkeys(fields))
+    if len(brief) > 48:
+        brief = f"{brief[:45]}..."
+    text.append(" ")
+    text.append(brief, style="dim #87D7D7")
+
+
 def format_agent_option(
     agent: Agent,
     index: int,
@@ -202,6 +223,8 @@ def format_agent_option(
         text.append(" ")
         text.append(presented_name, style=identity_name_style)
         append_owner_badge(text, agent)
+
+    _append_fleet_summary(text, agent)
 
     if agent.is_clan_container:
         rendered_tribes = tuple(

@@ -391,9 +391,24 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         previous_agents_with_children = list(getattr(self, "_agents_with_children", []))
         previous_agents = list(self._agents)
         self._agent_runner_capacity = boundary.runner_capacity
-        self._agents_with_children = boundary.fold.unfiltered_agents
+        unfiltered_agents = boundary.fold.unfiltered_agents
+        visible_agents = boundary.fold.visible_agents
+        project_current_mode = getattr(
+            self,
+            "_project_agents_for_current_mode_after_load",
+            None,
+        )
+        if callable(project_current_mode):
+            unfiltered_agents, visible_agents = project_current_mode(
+                list(unfiltered_agents),
+                list(visible_agents),
+            )
+        else:
+            self._agents_local_with_children = list(unfiltered_agents)  # type: ignore[attr-defined]
+            self._agents_local_visible = list(visible_agents)  # type: ignore[attr-defined]
+        self._agents_with_children = unfiltered_agents
         rearm_live_agent_watch_coverage(self)
-        self._agents = boundary.fold.visible_agents
+        self._agents = visible_agents
         carry_over_live_hints(
             [*previous_agents_with_children, *previous_agents],
             [*self._agents_with_children, *self._agents],
@@ -495,6 +510,10 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         # file, so it is deferred off the loader path the same way; it
         # no-ops cheaply when every visible row is already classified.
         self._schedule_diff_badge_classification(source="apply")  # type: ignore[attr-defined]
+
+        schedule_fleet_refresh = getattr(self, "_schedule_agents_fleet_refresh", None)
+        if callable(schedule_fleet_refresh):
+            schedule_fleet_refresh(source="apply")
 
     def _maybe_notify_agent_index_repair(
         self, load_state: AgentLoadState | None

@@ -132,6 +132,18 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
+            "Fleet",
+            [
+                (
+                    f"{d(a.cycle_agents_subtab)} / {d(a.cycle_agents_subtab_reverse)}",
+                    "Cycle Focus / Fleet",
+                ),
+                (d(a.toggle_agent_follow), "Follow/unfollow remote row"),
+                (d(a.view_agent_in_focus), "View followed remote row in Focus"),
+                (d(a.connect_agent_machine), "Show remote machine status"),
+            ],
+        ),
+        (
             "Metadata Search",
             [
                 (d(a.search_forward), "Start metadata search forward"),

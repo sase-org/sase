@@ -234,6 +234,41 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     # Agents sub-tab
     ("agents_next", "Agents: next row", "Navigation", CL_ONLY, ("agent down",)),
     ("agents_prev", "Agents: previous row", "Navigation", CL_ONLY, ("agent up",)),
+    (
+        "cycle_agents_subtab",
+        "Agents: next Focus/Fleet mode",
+        "Tabs",
+        AGENTS_ONLY,
+        ("fleet", "focus", "remote agents"),
+    ),
+    (
+        "cycle_agents_subtab_reverse",
+        "Agents: previous Focus/Fleet mode",
+        "Tabs",
+        AGENTS_ONLY,
+        ("fleet", "focus", "remote agents"),
+    ),
+    (
+        "toggle_agent_follow",
+        "Agents: follow or unfollow remote row",
+        "Agents",
+        AGENTS_ONLY,
+        ("follow", "unfollow", "remote"),
+    ),
+    (
+        "view_agent_in_focus",
+        "Agents: view followed remote row in Focus",
+        "Agents",
+        AGENTS_ONLY,
+        ("focus", "followed", "remote"),
+    ),
+    (
+        "connect_agent_machine",
+        "Agents: show remote machine status",
+        "Agents",
+        AGENTS_ONLY,
+        ("machine", "remote", "connection"),
+    ),
     # Patch actions
     ("quit", "Quit ace", "Misc", ALL_TABS, ("exit",)),
     ("change_status", "Change Patch status", "Patch Actions", CL_ONLY, ()),
