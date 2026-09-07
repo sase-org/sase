@@ -2123,6 +2123,24 @@ landing to sweep it up.
 | `-y, --yes`           | Skip only the launch confirmation prompt                                                             |
 | `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                                    |
 
+Progress, timing, and admission are separate from the dependency schedule. Kahn waves
+and `%w` waits decide _order_; they do not wait for an LLM or a runner slot merely to
+register the remaining deterministic names. Capacity admission is when a spawned child
+actually acquires a runner. A fast CLI return means the requested names are reserved and
+the children are registered, not that every child has already been admitted to a
+provider. `already_running` retries return before cleanup, bead writes, publication, or
+reservations.
+
+Human stderr may print throttled `launch_timing target=... stage=...` lines while a
+launch is in progress (current target/stage and completed/total owners when known).
+Those lines are progress, not part of the command's JSON contract: `--json` still prints
+one complete result object per processed target (newline-delimited for several targets)
+and is otherwise byte-stable. Enable the same structured stage records at info level
+with `SASE_BEAD_WORK_TIMING=1` (bead work) or `SASE_AGENT_LAUNCH_TIMING=1` (generic
+agent launches). Durable stage and summary events also append to
+`~/.sase/logs/tui_launch_timing.jsonl` (overridable with `SASE_TUI_LAUNCH_TIMING_PATH`).
+`--dry-run` does not create reservations or mutate agent/bead state.
+
 The work xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or
 user-defined `work_phase_bead`, `work_task_bead`, or `land_epic` xprompt overrides the
 built-in. For epic-tier work, every phase and land segment carries bare `%auto`, so

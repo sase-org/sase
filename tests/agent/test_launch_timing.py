@@ -75,3 +75,21 @@ def test_durable_stage_events_preserve_nested_parentage(
     assert parent["stage"] == "parent"
     assert summary["stage_count"] == 2
     assert [stage["stage"] for stage in summary["stages"]] == ["child", "parent"]
+
+
+def test_progress_writes_to_stderr_not_stdout(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with LaunchTimingRecorder(
+        "bead_work",
+        {"resolved_epic_id": "sase-test"},
+        progress=True,
+        progress_interval_seconds=0.0,
+    ) as timer:
+        with timer.stage("owner_discovery", completed_owners=1, total_owners=3):
+            pass
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "launch_timing target=sase-test stage=owner_discovery" in captured.err
+    assert "owners=1/3" in captured.err

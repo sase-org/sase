@@ -490,6 +490,7 @@ contributors without the sibling checkout are never blocked.
 | `just bead-perf-smoke`          | Tiny `sase bead` shell/facade/work-plan benchmark used as the CI smoke artifact                                             |
 | `just bench-agent-scan`         | Python agent-artifact scan benchmark vs current direct loaders                                                              |
 | `just bench-agent-launch`       | Fake-spawn launch benchmark through the Rust preparation binding                                                            |
+| `just bench-epic-launch`        | Isolated `sase bead work` history-scale benchmark (generated SASE_HOME, fake spawn)                                         |
 | `just launch-perf-check`        | CI-friendly launch regression check against the Phase 1 fan-out baseline                                                    |
 | `just phase7-perf-check`        | Run the Phase 7 regression-floor checker against the recorded Rust ceilings                                                 |
 

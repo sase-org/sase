@@ -65,6 +65,26 @@ def test_work_dry_run_never_mutates_or_launches(
     assert "%group:" not in out
 
 
+def test_work_dry_run_does_not_create_reservations(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epic_id, _phase_ids = seed_diamond(project_dir)
+
+    def fail(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("dry-run must not reserve agent names")
+
+    monkeypatch.setattr("sase.agent.names.reserve_registered_names", fail)
+    monkeypatch.setattr("sase.agent.names.mutate_registered_name_reservations", fail)
+    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fail)
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_epic_graph_checkpoint",
+        lambda *args, **kwargs: pytest.fail("dry run must not commit"),
+    )
+
+    bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True))
+
+
 def test_work_dry_run_matches_confirmed_launch_before_force_reuse_rewrite(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

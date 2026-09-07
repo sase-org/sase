@@ -58,6 +58,18 @@ def _summarize(values: Iterable[float]) -> dict[str, float]:
     }
 
 
+def _summarize_counts(values: Iterable[int]) -> dict[str, float]:
+    vals = sorted(float(value) for value in values)
+    if not vals:
+        return {"count": 0.0}
+    return {
+        "count": float(len(vals)),
+        "min": vals[0],
+        "median": statistics.median(vals),
+        "max": vals[-1],
+    }
+
+
 @contextlib.contextmanager
 def _temp_sase_home(home: Path) -> Iterator[None]:
     import sase.agent.names._registry as reg
@@ -192,7 +204,12 @@ def _seed_history(
         )
     for name, bead_id in selected:
         if scenario == "all_active_noop":
-            _write_agent_meta(root / f"active-{name}", name=name, bead_id=bead_id)
+            _write_agent_meta(
+                root / f"active-{name}",
+                name=name,
+                bead_id=bead_id,
+                pid=os.getpid(),
+            )
         elif scenario == "waiting_retry":
             _write_agent_meta(
                 root / f"waiting-{name}",
@@ -318,6 +335,7 @@ def _run_one(
     phase_count: int,
     history_size: int,
     base_dir: Path | None = None,
+    warm_registry: bool = False,
 ) -> dict[str, Any]:
     from sase.bead import cli as bead_cli
 
@@ -359,6 +377,10 @@ def _run_one(
                     epics=epics,
                     sleepers=sleepers,
                 )
+                if warm_registry:
+                    from sase.agent.names import rebuild_name_registry
+
+                    rebuild_name_registry()
                 start_wall = time.perf_counter()
                 start_cpu = time.process_time()
                 bead_cli.handle_bead_work(
@@ -404,6 +426,14 @@ def _run_one(
             "slow_stage_count": summary["slow_stage_count"],
             "stage_event_count": len(stage_events),
             "stage_totals_ms": _stage_totals(stage_events),
+            "warm_registry": warm_registry,
+            "full_scans": _sum_stage_field(stage_events, "full_scans"),
+            "rebuilds": _sum_stage_field(stage_events, "rebuilds"),
+            "source_proofs": sum(
+                1
+                for record in stage_events
+                if record.get("stage") == "registry_source_proof"
+            ),
         }
 
 
@@ -419,6 +449,15 @@ def _stage_totals(records: list[dict[str, Any]]) -> dict[str, float]:
         stage = str(record.get("stage", "unknown"))
         totals[stage] = totals.get(stage, 0.0) + float(record.get("elapsed_ms", 0.0))
     return dict(sorted(totals.items()))
+
+
+def _sum_stage_field(records: list[dict[str, Any]], field: str) -> int:
+    total = 0
+    for record in records:
+        value = record.get(field, 0)
+        if isinstance(value, (int, float)):
+            total += int(value)
+    return total
 
 
 def _git_revision() -> str | None:
@@ -449,6 +488,7 @@ def run_bench(
     scenarios: list[str],
     output: Path | None = None,
     base_dir: Path | None = None,
+    warm_registry: bool = False,
 ) -> dict[str, Any]:
     results: dict[str, Any] = {}
     for scenario in scenarios:
@@ -460,10 +500,12 @@ def run_bench(
                         phase_count=phase_count,
                         history_size=history_size,
                         base_dir=base_dir,
+                        warm_registry=warm_registry,
                     )
                     for _ in range(runs)
                 ]
-                key = f"{scenario}_hist{history_size}_slots{phase_count}"
+                warmth = "warm" if warm_registry else "cold"
+                key = f"{scenario}_hist{history_size}_slots{phase_count}_{warmth}"
                 results[key] = {
                     "runs": runs_payload,
                     "wall": _summarize(run["wall_ms"] / 1000.0 for run in runs_payload),
@@ -478,6 +520,12 @@ def run_bench(
                         for run in runs_payload
                         if run["time_to_admission_ms"] is not None
                     ),
+                    "full_scans": _summarize_counts(
+                        run["full_scans"] for run in runs_payload
+                    ),
+                    "rebuilds": _summarize_counts(
+                        run["rebuilds"] for run in runs_payload
+                    ),
                 }
     report = {
         "tool": "bench_epic_launch",
@@ -485,6 +533,7 @@ def run_bench(
         "history_sizes": history_sizes,
         "phase_counts": phase_counts,
         "scenarios": scenarios,
+        "warm_registry": warm_registry,
         "python_revision": _git_revision(),
         "core_revision": _core_revision(),
         "results": results,
@@ -516,6 +565,11 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--warm-registry",
+        action="store_true",
+        help="Rebuild the name registry after seeding and exclude that from timing.",
+    )
     args = parser.parse_args(argv)
     report = run_bench(
         runs=args.runs,
@@ -523,6 +577,7 @@ def main(argv: list[str] | None = None) -> int:
         phase_counts=_parse_csv_ints(args.phase_counts),
         scenarios=_parse_csv_strings(args.scenarios),
         output=args.output,
+        warm_registry=args.warm_registry,
     )
     if args.output is None:
         print(json.dumps(report, indent=2, sort_keys=True))
@@ -545,6 +600,8 @@ def test_bench_epic_launch_smoke(tmp_path: Path) -> None:
     first = next(iter(report["results"].values()))["runs"][0]
     assert first["stage_event_count"] > 0
     assert "initial_selection" in first["stage_totals_ms"]
+    assert first["full_scans"] >= 1
+    assert "full_scans" in next(iter(report["results"].values()))
 
 
 if __name__ == "__main__":

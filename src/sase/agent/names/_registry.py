@@ -482,29 +482,89 @@ def name_registry_load_session() -> Iterator[None]:
             _LOAD_SESSION_ACTIVE.reset(token)
 
 
+_REBUILD_LOCK_RETRIES = 3
+
+
 def rebuild_name_registry() -> dict[str, Any]:
-    """Rebuild the registry by scanning existing artifacts and dismissed bundles."""
+    """Rebuild the registry by scanning existing artifacts and dismissed bundles.
+
+    Source parsing happens outside the allocation lock. The lock covers only
+    the merge of in-flight planned reservations and the registry write. A
+    concurrent writer invalidates the attempt; a bounded retry rescans, and a
+    last-resort locked rebuild preserves correctness under sustained races.
+    """
     from sase.agent.launch_timing import active_launch_timing_recorder
 
     timer = active_launch_timing_recorder()
+    identity = AgentIdentitySnapshot.current()
+    path = _registry_path()
+    for _attempt in range(_REBUILD_LOCK_RETRIES):
+        try:
+            before_sig = _file_signature(path)
+        except OSError:
+            before_sig = None
+        scanned = _collect_rebuild_source_entries(identity)
+        if timer is None:
+            with _registry_mutation_lock():
+                committed = _commit_rebuild_locked(
+                    scanned, path=path, before_sig=before_sig, identity=identity
+                )
+        else:
+            with timer.stage("registry_rebuild", rebuilds=1, source_scan_unlocked=True):
+                with _registry_mutation_lock():
+                    committed = _commit_rebuild_locked(
+                        scanned, path=path, before_sig=before_sig, identity=identity
+                    )
+        if committed is not None:
+            return committed
     if timer is None:
         with _registry_mutation_lock():
             return _rebuild_name_registry_locked()
-
-    with timer.stage("registry_rebuild", rebuilds=1):
+    with timer.stage("registry_rebuild", rebuilds=1, locked_fallback=True):
         with _registry_mutation_lock():
             return _rebuild_name_registry_locked()
 
 
-def _rebuild_name_registry_locked() -> dict[str, Any]:
+def _collect_rebuild_source_entries(
+    identity: AgentIdentitySnapshot,
+) -> dict[str, dict[str, Any]]:
     entries: dict[str, dict[str, Any]] = {}
-    identity = AgentIdentitySnapshot.current()
-    _collect_planned_reservation_entries(
-        entries, _read_registry(_registry_path()), identity
-    )
     _collect_artifact_entries(entries, identity)
     _collect_dismissed_bundle_entries(entries, identity)
     _collect_owner_namespace_entries(entries, identity)
+    return entries
+
+
+def _commit_rebuild_locked(
+    scanned: dict[str, dict[str, Any]],
+    *,
+    path: Path,
+    before_sig: tuple[int, int] | None,
+    identity: AgentIdentitySnapshot,
+) -> dict[str, Any] | None:
+    try:
+        after_sig = _file_signature(path)
+    except OSError:
+        after_sig = None
+    if after_sig != before_sig:
+        return None
+    entries: dict[str, dict[str, Any]] = {}
+    _collect_planned_reservation_entries(entries, _read_registry(path), identity)
+    entries.update(scanned)
+    data = _registry_data(entries)
+    _write_registry(path, data)
+    _set_cache(path, data)
+    invalidate_agent_name_registry_freshness()
+    return data
+
+
+def _rebuild_name_registry_locked() -> dict[str, Any]:
+    identity = AgentIdentitySnapshot.current()
+    entries: dict[str, dict[str, Any]] = {}
+    _collect_planned_reservation_entries(
+        entries, _read_registry(_registry_path()), identity
+    )
+    entries.update(_collect_rebuild_source_entries(identity))
     data = _registry_data(entries)
     _write_registry(_registry_path(), data)
     _set_cache(_registry_path(), data)

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Literal
 from sase.bead.cli_work_cleanup_selection import select_bead_work_launch
 from sase.bead.cli_work_cleanup_types import (
     BeadWorkLaunchSelection,
+    BeadWorkSlot,
     CleanupTarget,
     format_blocked_cleanup_error,
 )
@@ -20,6 +21,7 @@ from sase.bead.cli_work_name_cleanup import (
 
 if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
+    from sase.core.agent_scan_wire import AgentArtifactRecordWire
 
 
 def prepare_selected_bead_work_force_reuse(
@@ -160,33 +162,18 @@ def _verify_cleanup_target_still_selected(
     bead_assignees: dict[str, str],
     timer: LaunchTimingRecorder | None = None,
 ) -> None:
+    del timer
     slot = next(
-        (
-            item
-            for item in selection.slots
-            if item.slot_id == target.slot_id and item.owner_name == target.name
-        ),
+        (item for item in selection.slots if item.slot_id == target.slot_id),
         None,
     )
     if slot is None:
-        # Family cleanup targets are concrete members rather than the logical
-        # family slot. In that case, revalidating the full selection below is
-        # the authoritative check.
-        current = revalidate_bead_work_launch_selection(
-            selection,
-            bead_assignees=bead_assignees,
-            timer=timer,
+        raise ForcedReuseCleanupError(
+            f"bead-work cleanup target {target.name} is no longer eligible for "
+            "destructive cleanup"
         )
-    else:
-        current = select_bead_work_launch(
-            slots=(slot,),
-            bead_assignees=bead_assignees,
-            timer=timer,
-        )
-    matching = {
-        _target_stability_key(item): item for item in current.destructive_targets
-    }.get(_target_stability_key(target))
-    if matching is None:
+    matching = _fresh_cleanup_target(target, slot=slot, bead_assignees=bead_assignees)
+    if matching is None or not matching.destructive:
         raise ForcedReuseCleanupError(
             f"bead-work cleanup target {target.name} is no longer eligible for "
             "destructive cleanup"
@@ -200,6 +187,84 @@ def _verify_cleanup_target_still_selected(
         raise ForcedReuseCleanupError(
             f"bead-work cleanup target {target.name} changed before wipe; rerun"
         )
+
+
+def _fresh_cleanup_target(
+    target: CleanupTarget,
+    *,
+    slot: BeadWorkSlot,
+    bead_assignees: dict[str, str],
+) -> CleanupTarget | None:
+    from sase.bead.cli_work_cleanup_targets import (
+        classify_artifact_record,
+        classify_stale_registry_owner,
+    )
+    from sase.core.agent_identity_facade import AgentIdentitySnapshot
+
+    if target.artifacts_dir:
+        record = _scan_cleanup_target_artifact(target.artifacts_dir)
+        if record is None:
+            return None
+        membership: Literal["registry", "family"] = (
+            "family" if slot.owner_name != target.name else "registry"
+        )
+        try:
+            return classify_artifact_record(
+                slot,
+                record,
+                owner_name=target.name,
+                bead_assignees=bead_assignees,
+                membership=membership,
+                identity=AgentIdentitySnapshot.current(),
+            )
+        except ForcedReuseCleanupError:
+            return None
+
+    owner = _registry_entry_without_rebuild(target.name)
+    if owner is None:
+        return None
+    artifacts_dir = owner.get("artifacts_dir")
+    if isinstance(artifacts_dir, str) and artifacts_dir:
+        return None
+    if target.action == "RELEASE":
+        return target
+    return classify_stale_registry_owner(slot, owner, bead_assignees=bead_assignees)
+
+
+def _scan_cleanup_target_artifact(
+    artifacts_dir: str,
+) -> AgentArtifactRecordWire | None:
+    from sase.core.agent_scan_facade import scan_agent_artifact_dirs
+    from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
+    from sase.core.paths import sase_projects_dir
+
+    snapshot = scan_agent_artifact_dirs(
+        sase_projects_dir(),
+        [artifacts_dir],
+        AgentArtifactScanOptionsWire(include_prompt_step_markers=False),
+    )
+    return snapshot.records[0] if snapshot.records else None
+
+
+def _registry_entry_without_rebuild(name: str) -> dict[str, object] | None:
+    from sase.agent.names._registry_store import read_registry, registry_path
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        current_owner_agent_name_lookup_candidates,
+    )
+
+    data = read_registry(registry_path())
+    if data is None:
+        return None
+    entries = data.get("entries")
+    if not isinstance(entries, dict):
+        return None
+    identity = AgentIdentitySnapshot.current()
+    for candidate in current_owner_agent_name_lookup_candidates(name, identity):
+        entry = entries.get(candidate)
+        if isinstance(entry, dict):
+            return dict(entry)
+    return None
 
 
 def _apply_cleanup_targets(

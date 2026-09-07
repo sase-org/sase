@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.bead.cli_work_cleanup_targets import (
@@ -105,6 +106,12 @@ def select_bead_work_launch(
     """Classify current owners and compute the relaunch subset."""
     from sase.agent.names import registered_name_reservation_snapshot
 
+    targeted = _select_preserved_slots_from_registry(
+        slots, bead_assignees=bead_assignees, timer=timer
+    )
+    if targeted is not None:
+        return targeted
+
     if timer is None:
         view = load_agent_owner_view()
         registry_snapshot = registered_name_reservation_snapshot()
@@ -177,4 +184,121 @@ def select_bead_work_launch(
         slots=slots,
         targets=tuple(targets),
         launch_names=frozenset(launch_names),
+    )
+
+
+def _select_preserved_slots_from_registry(
+    slots: tuple[BeadWorkSlot, ...],
+    *,
+    bead_assignees: dict[str, str],
+    timer: LaunchTimingRecorder | None,
+) -> BeadWorkLaunchSelection | None:
+    """Return an all-preserved selection without scanning unrelated history.
+
+    This is the already-running fast path: every logical slot must already be a
+    concrete registry owner whose targeted artifact check is PRESERVE. Family
+    and clan containers, missing owners, and destructive or blocked states fall
+    through to the full archive view.
+    """
+    from sase.agent.names._registry_store import read_registry, registry_path
+    from sase.bead.cli_work_cleanup_targets import classify_artifact_record
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        current_owner_agent_name_lookup_candidates,
+    )
+    from sase.core.agent_scan_facade import scan_agent_artifact_dirs
+    from sase.core.agent_scan_wire import (
+        AgentArtifactRecordWire,
+        AgentArtifactScanOptionsWire,
+    )
+    from sase.core.paths import sase_projects_dir
+
+    if not slots:
+        return None
+    data = read_registry(registry_path())
+    if data is None:
+        return None
+    entries = data.get("entries")
+    if not isinstance(entries, dict):
+        return None
+
+    identity = AgentIdentitySnapshot.current()
+    targets: list[CleanupTarget] = []
+    artifact_dirs: list[str] = []
+    owners: list[tuple[BeadWorkSlot, dict[str, object]]] = []
+    for slot in slots:
+        owner = None
+        for candidate in current_owner_agent_name_lookup_candidates(
+            slot.owner_name, identity
+        ):
+            entry = entries.get(candidate)
+            if isinstance(entry, dict):
+                owner = dict(entry)
+                break
+        if owner is None:
+            if slot.allow_populated_clan_skip:
+                continue
+            return None
+        if owner.get("container_kind"):
+            return None
+        artifacts_dir = owner.get("artifacts_dir")
+        if not isinstance(artifacts_dir, str) or not artifacts_dir:
+            return None
+        artifact_dirs.append(artifacts_dir)
+        owners.append((slot, owner))
+
+    if timer is None:
+        snapshot = scan_agent_artifact_dirs(
+            sase_projects_dir(),
+            artifact_dirs,
+            AgentArtifactScanOptionsWire(include_prompt_step_markers=False),
+        )
+    else:
+        with timer.stage(
+            "owner_discovery",
+            full_scans=0,
+            targeted_artifact_reads=len(artifact_dirs),
+        ):
+            snapshot = scan_agent_artifact_dirs(
+                sase_projects_dir(),
+                artifact_dirs,
+                AgentArtifactScanOptionsWire(include_prompt_step_markers=False),
+            )
+    records_by_dir: dict[str, AgentArtifactRecordWire] = {}
+    records_by_name: dict[str, AgentArtifactRecordWire] = {}
+    for record in snapshot.records:
+        records_by_dir[
+            str(Path(str(record.artifact_dir)).expanduser().resolve(strict=False))
+        ] = record
+        meta = getattr(record, "agent_meta", None)
+        name = getattr(meta, "name", None)
+        if isinstance(name, str) and name:
+            records_by_name[name] = record
+    for index, (slot, _owner) in enumerate(owners):
+        artifact_key = str(
+            Path(artifact_dirs[index]).expanduser().resolve(strict=False)
+        )
+        matched = records_by_dir.get(artifact_key) or records_by_name.get(
+            slot.owner_name
+        )
+        if matched is None:
+            return None
+        try:
+            classified = classify_artifact_record(
+                slot,
+                matched,
+                owner_name=slot.owner_name,
+                bead_assignees=bead_assignees,
+                membership="registry",
+                identity=identity,
+            )
+        except ForcedReuseCleanupError:
+            return None
+        if not classified.preserved:
+            return None
+        targets.append(classified)
+    return BeadWorkLaunchSelection(
+        slots=slots,
+        targets=tuple(targets),
+        launch_names=frozenset(),
     )

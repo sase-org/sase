@@ -122,7 +122,7 @@ def classify_slot_owner(
     record = _record_for_owner(owner, view)
     if record is None:
         return (
-            _classify_stale_registry_owner(
+            classify_stale_registry_owner(
                 slot,
                 owner,
                 bead_assignees=bead_assignees,
@@ -130,7 +130,7 @@ def classify_slot_owner(
             ),
         )
     return (
-        _classify_artifact_record(
+        classify_artifact_record(
             slot,
             record,
             owner_name=slot.owner_name,
@@ -178,7 +178,7 @@ def _classify_family_owner(
         owner_name = _record_agent_name(member) or slot.owner_name
         try:
             member_targets.append(
-                _classify_artifact_record(
+                classify_artifact_record(
                     slot,
                     member,
                     owner_name=owner_name,
@@ -247,7 +247,7 @@ def _classify_clan_owner(
     )
 
 
-def _classify_artifact_record(
+def classify_artifact_record(
     slot: BeadWorkSlot,
     record: AgentArtifactRecordWire,
     *,
@@ -307,7 +307,7 @@ def _classify_artifact_record(
     )
 
 
-def _classify_stale_registry_owner(
+def classify_stale_registry_owner(
     slot: BeadWorkSlot,
     owner: dict[str, object],
     *,

@@ -1,5 +1,22 @@
 # Performance Recipes
 
+## Epic launch history scale
+
+Measure isolated `sase bead work` orchestration against generated `SASE_HOME` history.
+Cleanup, registry proof, reservations, and launch timing use the production path;
+provider spawn and publication are stubbed.
+
+```bash
+just bench-epic-launch --runs 5 --history-sizes 1000,10000 --phase-counts 12
+just bench-epic-launch --runs 5 --history-sizes 40000 --phase-counts 12 --warm-registry
+```
+
+The default CLI scale is modest. Pass `--history-sizes 40000` and larger slot counts on
+a workstation when establishing acceptance numbers. Fixture construction is excluded
+from timing; `--warm-registry` rebuilds the name registry after seeding and excludes
+that rebuild from the measured window. Ordinary CI only runs
+`test_bench_epic_launch_smoke`.
+
 ## Prompt Search
 
 Measure fresh-process `sase prompt search` on disposable synthetic prompt stores:
