@@ -49,7 +49,7 @@ def _logical_lines(text: Text) -> tuple[Text, ...]:
 
 
 @dataclass(frozen=True, slots=True)
-class GutterSection:
+class _GutterSection:
     """One section after its logical lines have been gutterized and wrapped."""
 
     text: Text
@@ -64,7 +64,7 @@ def apply_gutter(
     number_width: int,
     emphasis_line: int | None = None,
     accent: str | None = None,
-) -> GutterSection:
+) -> _GutterSection:
     """Wrap *text* and prefix every visual row with gutter cells.
 
     ``line_rows`` maps each logical line (0-based) to its first visual row
@@ -113,7 +113,7 @@ def apply_gutter(
         if index:
             joined.append("\n")
         joined.append_text(row)
-    return GutterSection(
+    return _GutterSection(
         text=joined,
         row_count=len(visual_rows),
         line_rows=tuple(line_rows),
@@ -174,7 +174,6 @@ def _gutter_cells(
 
 
 __all__ = [
-    "GutterSection",
     "apply_gutter",
     "gutter_width",
     "logical_line_count",

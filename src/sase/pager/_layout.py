@@ -199,7 +199,7 @@ def _paint_section_body(
             accent=accent,
         )
         return guttered.text, guttered.row_count, guttered.line_rows
-    height = _renderable_height(renderable, paint_width)
+    height = _measure_section_heights((section,), paint_width)[0]
     return renderable, height, _estimated_line_rows(section.plain_text, paint_width)
 
 
@@ -210,12 +210,6 @@ def _absolute_line_rows(
 ) -> tuple[int, ...]:
     body_start = section_offset + (0 if section_index == 0 else _DIVIDER_LINES)
     return tuple(body_start + row for row in relative)
-
-
-def _renderable_height(renderable: RenderableType, width: int) -> int:
-    console = Console(width=max(width, 1), color_system=None, highlight=False)
-    lines = console.render_lines(renderable, pad=False)
-    return max(len(lines), 1)
 
 
 def _estimated_line_rows(text: str, width: int) -> tuple[int, ...]:
