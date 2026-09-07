@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -15,7 +16,7 @@ from sase.pager._help import PagerHelpScreen
 from sase.pager.app import PagerExit, SasePager
 from sase.pager.document import AttachedTarget, PagerDocument, PagerOrigin, PagerSection
 from sase.pager.link_context import LinkAnchor, LinkResolutionContext
-from sase.pager.resolve import LinkTarget, LinkTargetKind
+from sase.pager.resolve import LinkResolution, LinkTarget, LinkTargetKind, resolve_link
 from sase.pager.screen import PagerScreen
 
 
@@ -512,20 +513,40 @@ async def test_unresolvable_label_toasts_marks_it_dangling_and_does_not_renaviga
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    calls: list[str] = []
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    loop_thread = threading.current_thread()
+    git_calls: list[Path] = []
+    resolve_threads: list[int | None] = []
 
-    def fake_resolve(ref: str, **_kwargs: object) -> None:
-        calls.append(ref)
-        return None
+    def fake_git(directory: Path) -> tuple[str, ...] | None:
+        git_calls.append(directory)
+        return ()
 
-    monkeypatch.setattr("sase.pager.screen.resolve_ref", fake_resolve)
+    def spy_resolve(
+        ref: str, *, context: LinkResolutionContext | None = None
+    ) -> LinkResolution:
+        resolve_threads.append(threading.current_thread().ident)
+        assert threading.current_thread() is not loop_thread
+        return resolve_link(ref, context=context)
+
+    monkeypatch.setattr("sase.pager.resolve._git_ls_files", fake_git)
+    monkeypatch.setattr("sase.pager.screen.resolve_ref", spy_resolve)
     notifications: list[tuple[str, str]] = []
 
     def notify(message: str, *, severity: str = "information", **_kwargs: Any) -> None:
         notifications.append((message, severity))
 
-    missing = tmp_path / "target.py"
-    app = SasePager(_path_link_document(missing))
+    section = PagerSection(
+        identity="file:/tmp/source.py",
+        title="source.py",
+        kind="file",
+        body="see src/missing.py for details\n",
+        link_anchors=(LinkAnchor(workspace),),
+    )
+    app = SasePager(
+        PagerDocument(sections=(section,), title="source.py", origin=PagerOrigin.FILE)
+    )
     monkeypatch.setattr(app, "notify", notify)
     async with app.run_test(size=(80, 24)) as pilot:
         screen = _pager_screen(app)
@@ -534,22 +555,27 @@ async def test_unresolvable_label_toasts_marks_it_dangling_and_does_not_renaviga
         await pilot.pause(0.1)
         await pilot.pause(0.1)
 
-        assert calls == [str(missing)]
+        assert git_calls == [workspace.resolve()]
         assert screen.document.title == "source.py"
         assert not screen._back_trail
-        assert any(
-            message.startswith(f"{missing} not found (searched ")
-            and severity == "warning"
-            for message, severity in notifications
-        )
+        assert (
+            "src/missing.py not found (searched 1 locations)",
+            "warning",
+        ) in notifications
         assert screen._label_layer is not None
         assert screen._label_layer.labels[0].dangling is True
 
-        # Pressing the now-dangling label again does not re-resolve.
         await pilot.press("0")
         await pilot.pause(0.1)
 
-    assert calls == [str(missing)]
+    assert git_calls == [workspace.resolve()]
+    assert len(resolve_threads) == 1
+    assert (
+        notifications.count(
+            ("src/missing.py not found (searched 1 locations)", "warning")
+        )
+        == 2
+    )
 
 
 async def test_dangling_refs_are_scoped_to_link_context(

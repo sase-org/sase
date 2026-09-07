@@ -34,7 +34,7 @@ from sase.pager.document import (
     PagerTargetSpan,
 )
 from sase.pager.link_context import LinkAnchor, LinkResolutionContext
-from sase.pager.resolve import LinkTarget, LinkTargetKind
+from sase.pager.resolve import LinkResolution, LinkTarget, LinkTargetKind
 
 from ._view_files_helpers import _commit_spec, _make_app
 
@@ -563,11 +563,12 @@ def test_link_index_backed_pager_resolver_prefers_indexed_file_target(
         _link_index = _Index()
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._files.resolve_ref",
+        "sase.ace.tui.actions.hints._files.resolve_link",
         lambda value, **_kwargs: (_ for _ in ()).throw(AssertionError(value)),
     )
 
-    target = _resolve_ref_from_link_index(_App(), ref)
+    resolution = _resolve_ref_from_link_index(_App(), ref)
+    target = resolution.target
 
     assert target is not None
     assert target.kind is LinkTargetKind.DOCUMENT
@@ -596,17 +597,17 @@ def test_link_index_backed_pager_resolver_falls_back_for_unknown_ref(
         value: str,
         *,
         context: LinkResolutionContext | None = None,
-    ) -> LinkTarget | None:
+    ) -> LinkResolution:
         calls.append((value, context))
-        return fallback if value == "bead:unknown" else None
+        return LinkResolution(target=fallback if value == "bead:unknown" else None)
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._files.resolve_ref",
+        "sase.ace.tui.actions.hints._files.resolve_link",
         fake_resolve,
     )
 
     assert (
-        _resolve_ref_from_link_index(_App(), "bead:unknown", context=context)
+        _resolve_ref_from_link_index(_App(), "bead:unknown", context=context).target
         is fallback
     )
     assert calls == [("bead:unknown", context)]

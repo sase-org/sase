@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,8 +15,10 @@ from sase.pager.link_context import LinkAnchor, LinkResolutionContext
 from sase.pager.link_scan import LinkSpanKind
 from sase.pager.resolve import (
     LinkTargetKind,
+    _capture_bounded_process_output,
+    _git_ls_files,
     copy_text_for_target,
-    file_path_unresolved_message,
+    resolve_link,
     resolve_ref,
 )
 
@@ -429,17 +433,6 @@ def test_resolve_ref_none_context_still_resolves_cwd_relative_paths(
     assert target.edit_path == live.resolve()
 
 
-def test_file_path_unresolved_message_reports_probed_locations(tmp_path: Path) -> None:
-    first = tmp_path / "first"
-    second = tmp_path / "second"
-    first.mkdir()
-    second.mkdir()
-
-    message = file_path_unresolved_message("src/x.py", context=_context(first, second))
-
-    assert message == "src/x.py not found (searched 2 locations)"
-
-
 def test_resolve_ref_walks_typed_ref_anchors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -525,3 +518,188 @@ def test_resolve_ref_typed_ref_empty_context_keeps_legacy_call(
 
     assert resolve_ref("bead:sase-uk.5", context=LinkResolutionContext()) is None
     assert calls == [{}]
+
+
+def test_resolve_link_returns_dead_end_diagnostics_from_one_search(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    context = _context(first, second)
+
+    resolution = resolve_link("src/x.py", context=context)
+
+    assert resolution.target is None
+    assert resolution.unresolved_message == "src/x.py not found (searched 2 locations)"
+    assert resolve_ref("src/x.py", context=context) is None
+
+
+def test_missing_path_runs_git_once_per_anchor_across_candidates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    git_calls: list[Path] = []
+
+    def fake_git_ls_files(directory: Path) -> tuple[str, ...] | None:
+        git_calls.append(directory)
+        return ()
+
+    monkeypatch.setattr("sase.pager.resolve._git_ls_files", fake_git_ls_files)
+
+    resolution = resolve_link("a/pkg/deep.py", context=_context(workspace))
+
+    assert resolution.target is None
+    assert git_calls == [workspace.resolve()]
+    assert resolution.unresolved_message is not None
+    assert "searched" in resolution.unresolved_message
+
+
+def _python_stdout_proc(script: str) -> subprocess.Popen[bytes]:
+    return subprocess.Popen(
+        [sys.executable, "-c", script],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def test_capture_accepts_output_at_the_byte_limit() -> None:
+    payload = b"src/a.py\0lib/b.py\0"
+    proc = _python_stdout_proc(
+        "import sys; sys.stdout.buffer.write(" + repr(payload) + ")"
+    )
+
+    captured = _capture_bounded_process_output(
+        proc, max_bytes=len(payload), timeout_seconds=2.0
+    )
+
+    assert captured == payload
+    assert proc.poll() is not None
+
+
+def test_capture_rejects_output_over_the_byte_limit_without_keeping_it() -> None:
+    payload = b"x" * 32
+    proc = _python_stdout_proc(
+        "import sys; sys.stdout.buffer.write(" + repr(payload) + ")"
+    )
+
+    captured = _capture_bounded_process_output(proc, max_bytes=16, timeout_seconds=2.0)
+
+    assert captured is None
+    assert proc.poll() is not None
+
+
+def test_capture_times_out_and_reaps_the_child() -> None:
+    proc = _python_stdout_proc("import time; time.sleep(30)")
+
+    captured = _capture_bounded_process_output(
+        proc, max_bytes=1024, timeout_seconds=0.2
+    )
+
+    assert captured is None
+    assert proc.poll() is not None
+
+
+def test_git_ls_files_sets_prompt_free_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, object] = {}
+    real_popen = subprocess.Popen
+
+    def spy(argv: object, **kwargs: object) -> subprocess.Popen[bytes]:
+        del argv
+        seen["env"] = kwargs.get("env")
+        return real_popen(
+            [sys.executable, "-c", ""],
+            stdout=kwargs.get("stdout"),
+            stderr=kwargs.get("stderr"),
+            env=kwargs.get("env"),  # type: ignore[arg-type]
+        )
+
+    monkeypatch.setattr("sase.pager.resolve.subprocess.Popen", spy)
+    _git_ls_files(tmp_path)
+    env = seen["env"]
+    assert isinstance(env, dict)
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+
+
+def test_git_ls_files_accepts_output_at_the_byte_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload = b"src/a.py\0"
+    monkeypatch.setattr("sase.pager.resolve._GIT_LS_FILES_MAX_BYTES", len(payload))
+    real_popen = subprocess.Popen
+    held: list[subprocess.Popen[bytes]] = []
+
+    def spy(argv: object, **kwargs: object) -> subprocess.Popen[bytes]:
+        del argv
+        proc = real_popen(
+            [
+                sys.executable,
+                "-c",
+                "import sys; sys.stdout.buffer.write(" + repr(payload) + ")",
+            ],
+            stdout=kwargs.get("stdout"),
+            stderr=kwargs.get("stderr"),
+            env=kwargs.get("env"),  # type: ignore[arg-type]
+        )
+        held.append(proc)
+        return proc
+
+    monkeypatch.setattr("sase.pager.resolve.subprocess.Popen", spy)
+    files = _git_ls_files(tmp_path)
+    assert files == ("src/a.py",)
+    assert held[0].poll() is not None
+
+
+def test_git_ls_files_rejects_overflow_and_reaps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload = b"src/a.py\0extra\0"
+    monkeypatch.setattr("sase.pager.resolve._GIT_LS_FILES_MAX_BYTES", 8)
+    real_popen = subprocess.Popen
+    held: list[subprocess.Popen[bytes]] = []
+
+    def spy(argv: object, **kwargs: object) -> subprocess.Popen[bytes]:
+        del argv
+        proc = real_popen(
+            [
+                sys.executable,
+                "-c",
+                "import sys; sys.stdout.buffer.write(" + repr(payload) + ")",
+            ],
+            stdout=kwargs.get("stdout"),
+            stderr=kwargs.get("stderr"),
+            env=kwargs.get("env"),  # type: ignore[arg-type]
+        )
+        held.append(proc)
+        return proc
+
+    monkeypatch.setattr("sase.pager.resolve.subprocess.Popen", spy)
+    assert _git_ls_files(tmp_path) is None
+    assert held[0].poll() is not None
+
+
+def test_git_ls_files_timeout_reaps_the_child(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("sase.pager.resolve._GIT_LS_FILES_TIMEOUT_SECONDS", 0.2)
+    real_popen = subprocess.Popen
+    held: list[subprocess.Popen[bytes]] = []
+
+    def spy(argv: object, **kwargs: object) -> subprocess.Popen[bytes]:
+        del argv
+        proc = real_popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            stdout=kwargs.get("stdout"),
+            stderr=kwargs.get("stderr"),
+            env=kwargs.get("env"),  # type: ignore[arg-type]
+        )
+        held.append(proc)
+        return proc
+
+    monkeypatch.setattr("sase.pager.resolve.subprocess.Popen", spy)
+    assert _git_ls_files(tmp_path) is None
+    assert held[0].poll() is not None

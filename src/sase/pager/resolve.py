@@ -15,7 +15,9 @@ import logging
 import mimetypes
 import os
 import re
+import select
 import subprocess
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
@@ -94,6 +96,19 @@ class LinkTarget:
     edit_line: int | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class LinkResolution:
+    """One background resolution attempt and any UI-ready dead-end copy.
+
+    The pager apply path must consume this object as-is: it must not search,
+    stat, or talk to Git again to rebuild a toast. ``resolve_ref`` is the
+    convenience wrapper that returns only ``target``.
+    """
+
+    target: LinkTarget | None = None
+    unresolved_message: str | None = None
+
+
 def resolve_ref(
     ref: str,
     *,
@@ -107,14 +122,29 @@ def resolve_ref(
     ``context`` is computed lazily for file paths; typed refs with ``None``
     or empty anchors keep today's ``resolve_cli_reference(ref)`` call.
     """
+    return resolve_link(ref, context=context).target
+
+
+def resolve_link(
+    ref: str,
+    *,
+    context: LinkResolutionContext | None = None,
+) -> LinkResolution:
+    """Resolve *ref* and return any file-path dead-end diagnostics.
+
+    This is the pager's one background attempt. Callers that only need the
+    target should use :func:`resolve_ref`.
+    """
     stripped = ref.strip()
     if not stripped:
-        return None
+        return LinkResolution()
     try:
         parse_artifact_ref(stripped)
     except (ImportError, RuntimeError, ValueError):
-        return _resolve_file_path_target(stripped, context=context)
-    return _resolve_artifact_ref_target(stripped, context=context)
+        return _resolve_file_path_link(stripped, context=context)
+    return LinkResolution(
+        target=_resolve_artifact_ref_target(stripped, context=context)
+    )
 
 
 def link_target_for_artifact_entry_target(
@@ -228,14 +258,26 @@ def _resolve_file_path_target(
     *,
     context: LinkResolutionContext | None = None,
 ) -> LinkTarget | None:
+    return _resolve_file_path_link(text, context=context).target
+
+
+def _resolve_file_path_link(
+    text: str,
+    *,
+    context: LinkResolutionContext | None = None,
+) -> LinkResolution:
     resolved_context = _file_path_context(context)
-    found, line, _locations = _search_existing_path(text, context=resolved_context)
+    found, line, locations = _search_existing_path(text, context=resolved_context)
     if found is None:
-        return None
-    return _link_target_for_existing_path(
-        found,
-        requested_line=line,
-        context=resolved_context,
+        return LinkResolution(
+            unresolved_message=f"{text} not found (searched {locations} locations)",
+        )
+    return LinkResolution(
+        target=_link_target_for_existing_path(
+            found,
+            requested_line=line,
+            context=resolved_context,
+        )
     )
 
 
@@ -478,18 +520,6 @@ def copy_text_for_target(
     return ref
 
 
-def file_path_unresolved_message(
-    text: str,
-    *,
-    context: LinkResolutionContext | None = None,
-) -> str:
-    """Return the dead-end toast for a file-path span that did not resolve."""
-    _found, _line, locations = _search_existing_path(
-        text, context=_file_path_context(context)
-    )
-    return f"{text} not found (searched {locations} locations)"
-
-
 def _file_path_context(
     context: LinkResolutionContext | None,
 ) -> LinkResolutionContext:
@@ -672,24 +702,120 @@ def _cached_git_ls_files(directory: Path, cache: _GitLsFilesCache) -> tuple[str,
 def _git_ls_files(directory: Path) -> tuple[str, ...] | None:
     env = os.environ.copy()
     env["GIT_TERMINAL_PROMPT"] = "0"
+    proc: subprocess.Popen[bytes] | None = None
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             ["git", "-C", str(directory), "ls-files", "-z"],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            timeout=_GIT_LS_FILES_TIMEOUT_SECONDS,
-            check=False,
             env=env,
         )
+        captured = _capture_bounded_process_output(
+            proc,
+            max_bytes=_GIT_LS_FILES_MAX_BYTES,
+            timeout_seconds=_GIT_LS_FILES_TIMEOUT_SECONDS,
+        )
     except (OSError, subprocess.SubprocessError):
+        if proc is not None:
+            _kill_and_reap_process(proc)
         return None
-    if result.returncode != 0 or len(result.stdout) > _GIT_LS_FILES_MAX_BYTES:
+    if captured is None:
         return None
     return tuple(
-        chunk.decode("utf-8", "replace")
-        for chunk in result.stdout.split(b"\0")
-        if chunk
+        chunk.decode("utf-8", "replace") for chunk in captured.split(b"\0") if chunk
     )
+
+
+def _capture_bounded_process_output(
+    proc: subprocess.Popen[bytes],
+    *,
+    max_bytes: int,
+    timeout_seconds: float,
+) -> bytes | None:
+    """Read *proc* stdout up to *max_bytes*, then wait or kill.
+
+    Output at the limit is kept. One extra byte is a miss: the child is
+    killed and the buffer is discarded rather than returned as a partial
+    candidate list. Timeout and overflow always reap the child.
+    """
+    stdout = proc.stdout
+    if stdout is None:
+        _kill_and_reap_process(proc)
+        return None
+    deadline = time.monotonic() + timeout_seconds
+    chunks: list[bytes] = []
+    total = 0
+    overflow = False
+    timed_out = False
+    fd = stdout.fileno()
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                timed_out = True
+                break
+            ready, _, _ = select.select([fd], [], [], remaining)
+            if not ready:
+                timed_out = True
+                break
+            try:
+                chunk = os.read(fd, min(65536, max_bytes - total + 1))
+            except OSError:
+                break
+            if not chunk:
+                break
+            if total + len(chunk) > max_bytes:
+                overflow = True
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+    except (OSError, ValueError):
+        _kill_and_reap_process(proc)
+        return None
+    if overflow or timed_out:
+        _kill_and_reap_process(proc)
+        return None
+    returncode = proc.poll()
+    if returncode is None:
+        remaining = deadline - time.monotonic()
+        try:
+            returncode = proc.wait(timeout=max(remaining, 0.0))
+        except subprocess.TimeoutExpired:
+            _kill_and_reap_process(proc)
+            return None
+    if returncode != 0:
+        return None
+    return b"".join(chunks)
+
+
+def _kill_and_reap_process(proc: subprocess.Popen[bytes]) -> None:
+    if proc.poll() is None:
+        proc.kill()
+    stdout = proc.stdout
+    if stdout is not None:
+        try:
+            fd = stdout.fileno()
+        except (OSError, ValueError):
+            fd = None
+        if fd is not None:
+            try:
+                while True:
+                    ready, _, _ = select.select([fd], [], [], 0)
+                    if not ready:
+                        break
+                    if not os.read(fd, 65536):
+                        break
+            except (OSError, ValueError):
+                pass
+        try:
+            stdout.close()
+        except OSError:
+            pass
+    try:
+        proc.wait(timeout=1.0)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
 
 
 def _resolved_path(path: Path) -> Path:
@@ -701,10 +827,11 @@ def _resolved_path(path: Path) -> Path:
 
 
 __all__ = [
+    "LinkResolution",
     "LinkTarget",
     "LinkTargetKind",
     "copy_text_for_target",
-    "file_path_unresolved_message",
     "link_target_for_artifact_entry_target",
+    "resolve_link",
     "resolve_ref",
 ]

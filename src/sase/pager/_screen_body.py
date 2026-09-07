@@ -133,7 +133,7 @@ class PagerBodyMixin:
             self.document,
             width=width,
             section_offsets=section_offsets,
-            dangling_refs=self._dangling_refs,
+            dangling_refs=self._dangling_refs.keys(),
             is_dangling=self._is_target_dangling,
         )
         if layer.target_count <= PAGER_LABEL_TWO_KEY_CAPACITY:
@@ -146,7 +146,7 @@ class PagerBodyMixin:
             width=width,
             window_scope=scope,
             section_offsets=section_offsets,
-            dangling_refs=self._dangling_refs,
+            dangling_refs=self._dangling_refs.keys(),
             is_dangling=self._is_target_dangling,
         )
 

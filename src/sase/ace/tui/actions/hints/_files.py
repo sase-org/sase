@@ -21,9 +21,9 @@ from sase.pager import (
 from sase.pager.app import PendingAction
 from sase.pager.link_context import LinkResolutionContext
 from sase.pager.resolve import (
-    LinkTarget,
+    LinkResolution,
     link_target_for_artifact_entry_target,
-    resolve_ref,
+    resolve_link,
 )
 
 from ....hint_types import ViewFilesResult
@@ -151,18 +151,18 @@ def _resolve_ref_from_link_index(
     ref: str,
     *,
     context: LinkResolutionContext | None = None,
-) -> LinkTarget | None:
+) -> LinkResolution:
     index = getattr(app, "_link_index", None)
     targets_by_ref = getattr(index, "targets_by_ref", None)
     target_for = getattr(index, "target_for", None)
     if targets_by_ref is not None and callable(target_for) and ref in targets_by_ref:
         target = target_for(ref)
         if target is None:
-            return None
+            return LinkResolution()
         resolved = link_target_for_artifact_entry_target(ref, target)
         if resolved is not None:
-            return resolved
-    return resolve_ref(ref, context=context)
+            return LinkResolution(target=resolved)
+    return resolve_link(ref, context=context)
 
 
 class FileViewingMixin(HintMixinBase):

@@ -10,7 +10,7 @@ from textual.app import App
 
 from sase.pager.document import PagerDocument, PagerTargetSpan
 from sase.pager.link_context import LinkResolutionContext
-from sase.pager.resolve import LinkTarget
+from sase.pager.resolve import LinkResolution, LinkTarget
 
 PendingAction = Literal["follow", "copy", "edit"]
 
@@ -23,11 +23,15 @@ AttachedTargetHandler = Callable[[PagerTargetSpan, PendingAction], None]
 
 
 class ResolveRef(Protocol):
-    """Callable used by pager hosts to resolve one pressed ref."""
+    """Callable used by pager hosts to resolve one pressed ref.
+
+    Injected resolvers may return the convenience ``LinkTarget | None``
+    shape or a full ``LinkResolution``. The apply path never re-searches.
+    """
 
     def __call__(
         self, ref: str, *, context: LinkResolutionContext | None = None
-    ) -> LinkTarget | None: ...
+    ) -> LinkResolution | LinkTarget | None: ...
 
 
 @dataclass(frozen=True, slots=True)

@@ -31,7 +31,7 @@ from sase.pager._screen_widgets import PagerBody, PagerBodyScroll
 from sase.pager._styles import PAGER_CSS
 from sase.pager.app import AttachedTargetHandler, PagerExit, PendingAction, ResolveRef
 from sase.pager.document import PagerDocument
-from sase.pager.resolve import resolve_ref
+from sase.pager.resolve import resolve_link as resolve_ref
 from sase.pager.trail import PagerTrailEntry
 
 
@@ -93,7 +93,7 @@ class PagerScreen(
         self._label_window_scope: LabelWindowScope | None = None
         self._last_activated_label: PagerLabel | None = None
         self._pending_action: PendingAction = "follow"
-        self._dangling_refs: set[tuple[str, tuple[Path, ...]]] = set()
+        self._dangling_refs: dict[tuple[str, tuple[Path, ...]], str] = {}
         self._resolve_generation = 0
         self._search = VimSearchController(self)
         self._back_trail: list[PagerTrailEntry] = []
