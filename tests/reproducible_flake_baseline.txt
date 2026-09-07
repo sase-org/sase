@@ -367,3 +367,27 @@ tests/test_vcs_log_filter_query.py::test_canonical_query_round_trip_property
 # records that verification, with the commit assigned by host finalization.
 # fixed-at: 2026-09-07T14:59:36Z tests/ace/tui/test_config_center_resume.py::test_new_process_loads_remembered_admin_center_section
 # fixed-at: 2026-09-07T14:59:36Z tests/test_agent_name_registry_lock.py::test_wipe_does_not_delete_under_the_allocation_lock
+#
+# Rebase reconciliation (sase-xz landing onto the sase-x7.4 repairs): this commit
+# was authored on a tree without e0c575503, so its sase-y7 and sase-y8 stanzas
+# proposed baseline entries for the two nodes the block above retires as fixed.
+# Their promoting records are the pre-fix / stale-tree evidence the fixed-at
+# cutoff and the known-limitation note above already cover, so re-adding the nodes
+# would grow a permanent suppression over a landed fix. Only the sase-y9 stanza,
+# which this commit exists to add, is carried forward.
+# sase-y9: the %dispatch directive-vocabulary nodes co-fail in every promoting
+# record and pass in isolation. Confirmed root cause is a compiled sase_core_rs
+# whose directive contract predates the %dispatch vocabulary that landed in
+# 50b1405f4; test_runtime_directive_vocabulary_matches_core_contract compares
+# sase_core_rs directly with no LspSession, which rules out the LSP-install limb
+# of the original hypothesis (related: sase-vl, sase-v6, sase-rj, sase-xe).
+# The last four nodes were promoted by the sase-xz landing gate's third attempt
+# from six full-run records in workspaces sase_27, sase_34, sase_12, sase_29 and
+# sase_30; the landing workspace's own runs at that head passed all of them.
+# The first two node ids are recorded under their post-ac1ba1be9 names: that
+# commit's flag removal dropped the `_when_enabled` suffix, and this commit was
+# authored before it, so the names it promoted would have been dead on arrival.
+tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_include_dispatch_directive
+tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_include_dispatch_machine_rows
+tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_directive_argument_rows_match[%dispatch:]
+tests/test_xprompt_directive_contract.py::test_runtime_directive_vocabulary_matches_core_contract
