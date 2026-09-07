@@ -173,6 +173,45 @@ def test_git_commit_skill_invokes_observable_wrapper() -> None:
     assert "sase stitch create -M" not in body
 
 
+def test_git_commit_skill_conflict_repair_verifies_target_repository() -> None:
+    """Merge-conflict recovery must verify the repaired repository before continuing."""
+    src = get_sase_package_skills_dir() / "sase_git_commit.md"
+    body = src.read_text(encoding="utf-8")
+    flat = collapse_whitespace(body)
+
+    stage_index = body.index("3. **Stage resolved files**")
+    verify_index = body.index("4. **Verify the staged resolution**")
+    continue_index = body.index("5. **Continue the rebase/merge**")
+    clean_index = body.index("6. **Verify the working tree is clean**")
+    resume_index = body.index("7. **Finalize the sase stitch create**")
+    assert stage_index < verify_index < continue_index < clean_index < resume_index
+
+    assert "target repository's applicable instructions" in flat
+    assert "mandatory all-changes gate remains mandatory" in flat
+    assert "JSON or Markdown repairs" in flat
+    assert (
+        "Do not substitute a parent, launch-workspace, or sibling repository's gate"
+        in flat
+    )
+    assert "task runners discovering ancestor configuration" in flat
+    assert (
+        "If there is no applicable gate, validate the resolved files directly" in flat
+    )
+    assert "parsing plus relevant schema or invariants" in flat
+    assert "JSON artifact-link indexes" in flat
+    assert "preserve distinct records and counts" in flat
+    assert "detect duplicate identities" in flat
+    assert "Parse success alone is insufficient" in flat
+    assert (
+        "required gate that fails or cannot run because of missing tools or dependencies"
+        in flat
+    )
+    assert "is a verification failure, not an absent gate" in flat
+    assert "checks performed and their results" in flat
+    assert "repeat steps 1–5 until clean" in flat
+    assert "sase_git_commit --resume" in body
+
+
 def test_sase_final_skill_documents_declaration_commands() -> None:
     """The final declaration skill should stay terminal-action focused."""
     src = get_sase_package_skills_dir() / "sase_final.md"
