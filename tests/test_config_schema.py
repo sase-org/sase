@@ -53,6 +53,17 @@ def test_default_config_matches_public_schema() -> None:
     assert errors == [], "\n".join(format_schema_error(error) for error in errors)
 
 
+def test_config_schema_accepts_pager_syntax_auto_and_never() -> None:
+    validator = Draft7Validator(schema())
+    validator.validate({"pager": {"syntax": "auto"}})
+    validator.validate({"pager": {"syntax": "never"}})
+
+
+def test_config_schema_rejects_unknown_pager_syntax() -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema()).validate({"pager": {"syntax": "always"}})
+
+
 def test_config_schema_allows_base_config_without_identity() -> None:
     validator = Draft7Validator(schema())
 

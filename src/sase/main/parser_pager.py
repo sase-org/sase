@@ -53,6 +53,16 @@ def register_pager_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Dump plain text without starting the pager",
     )
     pager_parser.add_argument(
+        "-s",
+        "--syntax",
+        metavar="ALIAS",
+        help=(
+            "Highlighting language: auto, none, or a Pygments alias "
+            "(default: auto; config pager.syntax). Invalid aliases fail "
+            "before stdin is read; text/plain skip the language chip"
+        ),
+    )
+    pager_parser.add_argument(
         "-t",
         "--title",
         help="Document title for stdin input",

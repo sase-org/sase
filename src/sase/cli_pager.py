@@ -14,6 +14,7 @@ from rich.cells import cell_len
 
 if TYPE_CHECKING:
     from sase.pager.document import PagerDocument
+    from sase.pager.syntax_policy import PagerSyntaxSession
 
 _SGR_RE = re.compile(r"\x1b\[[0-9;]*m")
 
@@ -36,6 +37,7 @@ def page_or_print(
     *,
     mode: PagerMode | str,
     document: PagerDocument | None = None,
+    syntax_session: PagerSyntaxSession | None = None,
 ) -> None:
     """Write *text* directly or hand it to the SASE pager."""
     resolved_mode = mode if isinstance(mode, PagerMode) else resolve_pager_mode(mode)
@@ -44,7 +46,7 @@ def page_or_print(
         return
 
     try:
-        _run_sase_pager(text, document=document)
+        _run_sase_pager(text, document=document, syntax_session=syntax_session)
     except Exception:
         _write_direct(text)
 
@@ -73,11 +75,25 @@ def _term_supports_paging() -> bool:
     return term is not None and term != "dumb"
 
 
-def _run_sase_pager(text: str, *, document: PagerDocument | None) -> None:
+def _run_sase_pager(
+    text: str,
+    *,
+    document: PagerDocument | None,
+    syntax_session: PagerSyntaxSession | None = None,
+) -> None:
     from sase.pager.app import SasePager
     from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
     from sase.pager.link_context import default_link_context
+    from sase.pager.syntax_policy import (
+        classify_source,
+        pager_syntax_session_from_config,
+    )
 
+    session = (
+        syntax_session
+        if syntax_session is not None
+        else pager_syntax_session_from_config()
+    )
     pager_document = document
     if pager_document is None:
         pager_document = PagerDocument(
@@ -87,13 +103,14 @@ def _run_sase_pager(text: str, *, document: PagerDocument | None) -> None:
                     title="stdin",
                     kind="stdin",
                     body=text,
+                    raw_source=classify_source(category="stdin", source=text),
                 ),
             ),
             title="stdin",
             origin=PagerOrigin.FILE,
             link_context=default_link_context(),
         )
-    SasePager(pager_document).run()
+    SasePager(pager_document, syntax_session=session).run()
 
 
 def _estimated_display_rows(text: str, *, columns: int) -> int:

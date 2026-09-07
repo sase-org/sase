@@ -15549,7 +15549,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "219db3bbb3af52ae",
+        "description_digest": "c2bd64f1732badc5",
         "hidden": false,
         "mutex_groups": [],
         "name": "pager",
@@ -15608,6 +15608,18 @@
               "--plain"
             ],
             "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "syntax",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-s",
+              "--syntax"
+            ],
+            "takes_value": true
           },
           {
             "choices": null,

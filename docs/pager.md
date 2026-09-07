@@ -16,17 +16,18 @@ sase bead show sase-uk.7
 ```
 
 ```text
-sase pager [-c auto|always|never] [-l auto|never] [-p] [-t TITLE] [-w WIDTH] [REF|PATH ...]
+sase pager [-c auto|always|never] [-l auto|never] [-p] [-s ALIAS] [-t TITLE] [-w WIDTH] [REF|PATH ...]
 ```
 
-| Option        | Purpose                                                                                   |
-| ------------- | ----------------------------------------------------------------------------------------- |
-| `REF\|PATH`   | Artifact reference or file path. Omit it, or pass `-` by itself, to read stdin.           |
-| `-c, --color` | Color output mode: `auto`, `always`, or `never`.                                          |
-| `-l, --links` | Link scanning mode: `auto` or `never`. `never` opens the app without painted link labels. |
-| `-p, --plain` | Write plain text without starting the Textual pager.                                      |
-| `-t, --title` | Title for stdin input.                                                                    |
-| `-w, --wrap`  | Prose wrap width; accepts an integer, `auto`, `none`, or `0`.                             |
+| Option         | Purpose                                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------------------ |
+| `REF\|PATH`    | Artifact reference or file path. Omit it, or pass `-` by itself, to read stdin.                        |
+| `-c, --color`  | Color output mode: `auto`, `always`, or `never`. `never` also disables syntax highlighting.            |
+| `-l, --links`  | Link scanning mode: `auto` or `never`. `never` opens the app without painted link labels.              |
+| `-p, --plain`  | Write plain text without starting the Textual pager.                                                   |
+| `-s, --syntax` | Highlighting language: `auto`, `none`, or a Pygments alias. Invalid aliases fail before stdin is read. |
+| `-t, --title`  | Title for stdin input.                                                                                 |
+| `-w, --wrap`   | Prose wrap width; accepts an integer, `auto`, `none`, or `0`.                                          |
 
 ## CLI Paging
 
@@ -42,6 +43,46 @@ prints a single section without decoration and separates multiple sections with
 `-- i/N: title --` headings. If stdout is a TTY but SASE cannot open the controlling
 terminal (`/dev/tty`) for input, it falls back to the same plain output instead of
 starting an unusable app.
+
+## Syntax highlighting
+
+Recognized source files, Markdown documents, and diffs pick up a muted language overlay
+after the first paint. The underlying characters never change: comments, strings, and
+structure are styled in place, links stay the interactive objects, and `/` search keeps
+those colors under the match highlight.
+
+Detection is conservative. Each section is classified from its own provenance, not from
+`--title` or from paths mentioned in the text:
+
+1. `-s/--syntax ALIAS` selects a Pygments lexer for eligible initial sections. `none`
+   disables the added layer for the rest of the session. `auto` requests normal
+   detection. `text` and `plain` keep the source unhighlighted without a language chip.
+   Invalid aliases fail with exit code 2 before stdin is consumed.
+2. Trusted adapter provenance identifies an actual Markdown document or diff body. A
+   bead or card that merely mentions Markdown is still a formatted card.
+3. Filename policy covers common source families, including `README`, `Makefile`,
+   `Dockerfile`, `uv.lock`, and `.tcss`. `Justfile` and `.txt` stay deliberately plain.
+4. Extensionless files may use a bounded first-line shebang (`/usr/bin/env` and `env -S`
+   included).
+5. Untyped stdin may be recognized as a unified or git diff in a bounded prefix.
+
+Followed targets detect themselves. Revisiting history restores the original section
+override. `--syntax none`, `pager.syntax: never`, and `--color never` stay in effect
+across follow/back/forward. `--plain`, redirected stdout, and `page_or_print`'s direct
+branch do not lex. Existing producer ANSI is preserved: `--syntax none` is not the same
+as `--color never`.
+
+```bash
+sase pager src/sase/cli_pager.py
+sase pager notes.md
+git diff | sase pager -t "git diff"
+cat config.yml | sase pager -s yaml
+sase pager --syntax none README
+```
+
+Permanent configuration is `pager.syntax: auto | never` (default `auto`). CLI `--syntax`
+overrides it. Files that exceed the syntax caps stay fully visible and searchable, just
+without highlighting. Unknown types can still be forced with an explicit lexer.
 
 ## Keys
 

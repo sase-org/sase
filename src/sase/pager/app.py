@@ -11,6 +11,7 @@ from textual.app import App
 from sase.pager.document import PagerDocument, PagerTargetSpan
 from sase.pager.link_context import LinkResolutionContext
 from sase.pager.resolve import LinkResolution, LinkTarget
+from sase.pager.syntax_policy import PagerSyntaxSession
 
 PendingAction = Literal["follow", "copy", "edit"]
 
@@ -57,10 +58,14 @@ class SasePager(App[PagerExit]):
         links_enabled: bool = True,
         attached_handlers: Mapping[str, AttachedTargetHandler] | None = None,
         resolve_ref_fn: ResolveRef | None = None,
+        syntax_session: PagerSyntaxSession | None = None,
     ) -> None:
         super().__init__()
         self.document = document
         self.links_enabled = links_enabled
+        session = PagerSyntaxSession() if syntax_session is None else syntax_session
+        self.syntax_enabled = session.syntax_enabled
+        self.color_enabled = session.color_enabled
         self._attached_handlers: Mapping[str, AttachedTargetHandler] = (
             {} if attached_handlers is None else attached_handlers
         )
@@ -69,12 +74,15 @@ class SasePager(App[PagerExit]):
     def on_mount(self) -> None:
         from sase.pager.screen import PagerScreen
 
+        if not self.color_enabled:
+            self.console.no_color = True
         self.push_screen(
             PagerScreen(
                 self.document,
                 links_enabled=self.links_enabled,
                 attached_handlers=self._attached_handlers,
                 resolve_ref_fn=self._resolve_ref_fn,
+                syntax_enabled=self.syntax_enabled,
             ),
             callback=self.exit,
         )

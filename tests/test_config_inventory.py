@@ -335,6 +335,8 @@ def test_config_field_model_flattens_real_schema() -> None:
     assert by_path["machine_name"].deprecated is True
     assert "linked_repos" in by_path
     assert by_path["linked_repos"].kind == "array"
+    assert "pager.syntax" in by_path
+    assert by_path["pager.syntax"].enum_values == ("auto", "never")
 
 
 def test_load_config_schema_returns_object_schema() -> None:

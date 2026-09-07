@@ -33,6 +33,7 @@ from sase.artifact_ref_context import artifact_ref_context
 from sase.artifact_ref_models import ArtifactRefContext, ArtifactRefFragment
 from sase.artifact_ref_operations import parse_artifact_ref
 from sase.core.artifact_entry_target import ArtifactEntryTarget
+from sase.core.source_language_facade import logical_source_filename
 from sase.pager.adapters import path_section
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.link_context import (
@@ -42,24 +43,16 @@ from sase.pager.link_context import (
     inherited_link_context,
 )
 from sase.pager.link_scan import LinkSpanKind
+from sase.pager.syntax_policy import (
+    artifact_syntax_category,
+    is_openable_text_path,
+)
 
 log = logging.getLogger(__name__)
 
 _RESOLVED_STATUSES = frozenset({"exact", "drifted", "vcs_backed"})
 _MEDIA_MODES = frozenset({"image", "video", "pdf"})
-_TEXT_SUFFIXES = frozenset(
-    {".md", ".markdown", ".txt", ".json", ".yml", ".yaml", ".toml", ".xml", ".rst"}
-)
-_TEXT_MIME_PREFIXES = ("text/",)
-_TEXT_MIME_TYPES = frozenset(
-    {
-        "application/json",
-        "application/toml",
-        "application/x-yaml",
-        "application/xml",
-        "application/yaml",
-    }
-)
+
 _LINE_COL_SUFFIX_RE = re.compile(r"(.+):(\d+):(\d+)$")
 _LINE_SUFFIX_RE = re.compile(r"(.+):(\d+)$")
 _TRAILING_LINE_DIGITS_RE = re.compile(r":\d+$")
@@ -248,8 +241,16 @@ def _resolve_artifact_result(
             edit_path=path,
             edit_line=line,
         )
-    if _is_probably_text(path):
-        return _file_link_target(path, requested_line=line, context=link_context)
+    logical = _artifact_logical_filename(result, path)
+    file_kind = result.file.kind if result.file is not None else result.parsed.kind
+    if _is_probably_text(path, logical_filename=logical):
+        return _file_link_target(
+            path,
+            requested_line=line,
+            context=link_context,
+            logical_filename=logical,
+            category=artifact_syntax_category(kind_type=kind_type, kind=file_kind),
+        )
     return _card_link_target(result, path=path, context=link_context)
 
 
@@ -392,8 +393,14 @@ def _file_link_target(
     *,
     requested_line: int | None,
     context: LinkResolutionContext | None = None,
+    logical_filename: str | None = None,
+    category: str = "raw_file",
 ) -> LinkTarget:
-    section = path_section(path)
+    section = path_section(
+        path,
+        logical_filename=logical_filename,
+        category=category,
+    )
     document = PagerDocument(
         sections=(section,),
         title=path.name,
@@ -471,13 +478,28 @@ def _fragment_line(fragment: ArtifactRefFragment | None) -> int | None:
     return None
 
 
-def _is_probably_text(path: Path) -> bool:
-    if path.suffix.lower() in _TEXT_SUFFIXES:
-        return True
-    mime = _guess_mime(path)
-    if mime is None:
-        return path.suffix.lower() in {".py", ".sh"}
-    return mime.startswith(_TEXT_MIME_PREFIXES) or mime in _TEXT_MIME_TYPES
+def _is_probably_text(
+    path: Path,
+    *,
+    logical_filename: str | None = None,
+) -> bool:
+    return is_openable_text_path(
+        path,
+        logical_filename=logical_filename,
+        mime=_guess_mime(path),
+    )
+
+
+def _artifact_logical_filename(
+    result: ResolvedArtifactReference,
+    path: Path | None,
+) -> str | None:
+    artifact_file = result.file
+    return logical_source_filename(
+        source_path=None if artifact_file is None else artifact_file.source_path,
+        vcs_relpath=None if artifact_file is None else artifact_file.vcs_relpath,
+        resolved_path=None if path is None else str(path),
+    )
 
 
 def _guess_mime(path: Path) -> str | None:

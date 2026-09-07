@@ -91,6 +91,12 @@ markdown:
   # prettier config to match.
   print_width: 88
 
+pager:
+  # auto: highlight recognized source files, Markdown, and diffs after first
+  # paint. never: keep today's unhighlighted rendering. CLI --syntax overrides
+  # this; --color never disables syntax as well.
+  syntax: auto
+
 artifacts:
   capture:
     # Maximum byte-copying automatic captures per agent run. Version-control-

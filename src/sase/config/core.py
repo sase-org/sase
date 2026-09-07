@@ -59,6 +59,7 @@ from sase.config._settings import (
     get_configured_max_running_agents,
     get_markdown_print_width,
     get_max_agent_pipe_chain,
+    get_pager_syntax,
     get_proc_history_limit,
     get_runner_slot_deference_max_seconds,
     get_runner_slot_deference_seconds_per_step,

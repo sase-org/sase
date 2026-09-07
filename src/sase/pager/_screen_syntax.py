@@ -144,6 +144,8 @@ class PagerSyntaxMixin:
         return texts
 
     def _document_has_pending_syntax_work(self: Any) -> bool:
+        if not getattr(self, "syntax_enabled", True):
+            return False
         attempted = self._syntax_attempted
         for section in self.document.sections:
             if section.identity in attempted:

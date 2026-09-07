@@ -29,12 +29,15 @@ def _args(
     links: str = "auto",
     plain: bool = False,
     title: str | None = None,
+    color: str = "auto",
+    syntax: str | None = None,
 ) -> Namespace:
     return Namespace(
-        color="auto",
+        color=color,
         inputs=[] if inputs is None else inputs,
         links=links,
         plain=plain,
+        syntax=syntax,
         title=title,
         wrap=80,
     )
@@ -49,6 +52,8 @@ def test_parser_registers_pager_options_and_positionals() -> None:
             "-l",
             "never",
             "-p",
+            "-s",
+            "python",
             "-t",
             "Demo",
             "-w",
@@ -61,6 +66,7 @@ def test_parser_registers_pager_options_and_positionals() -> None:
     assert args.color == "always"
     assert args.links == "never"
     assert args.plain is True
+    assert args.syntax == "python"
     assert args.title == "Demo"
     assert args.wrap == 100
     assert args.inputs == ["bead:sase-1"]
@@ -87,6 +93,13 @@ def test_pager_help_documents_public_options() -> None:
     assert any(
         rendering in help_text
         for rendering in (
+            "-s, --syntax ALIAS",
+            "-s ALIAS, --syntax ALIAS",
+        )
+    )
+    assert any(
+        rendering in help_text
+        for rendering in (
             "-t, --title TITLE",
             "-t TITLE, --title TITLE",
         )
@@ -109,7 +122,12 @@ def test_stdin_non_tty_writes_plain_without_launching_app(
     monkeypatch.setattr(pager_handler.sys, "stdin", stdin)
     monkeypatch.setattr(pager_handler.sys, "stdout", stdout)
 
-    def fail_run_app(_document: PagerDocument, *, links_enabled: bool) -> None:
+    def fail_run_app(
+        _document: PagerDocument,
+        *,
+        links_enabled: bool,
+        syntax_session: object = None,
+    ) -> None:
         raise AssertionError("non-tty stdout should not launch the app")
 
     monkeypatch.setattr(pager_handler, "_run_pager_app", fail_run_app)
@@ -130,7 +148,9 @@ def test_enabled_tty_launches_app_with_links_option(
     monkeypatch.setattr(
         pager_handler,
         "_run_pager_app",
-        lambda document, *, links_enabled: launches.append((document, links_enabled)),
+        lambda document, *, links_enabled, syntax_session=None: launches.append(
+            (document, links_enabled, syntax_session)
+        ),
     )
 
     assert pager_handler.handle_pager_command(_args(links="never")) == 0
@@ -192,3 +212,127 @@ def test_stdin_dash_must_not_be_mixed_with_other_inputs(
         == 2
     )
     assert "'-' must be the only pager input" in stderr.getvalue()
+
+
+class _CountingStream(_Stream):
+    def __init__(self, text: str = "", *, tty: bool) -> None:
+        super().__init__(text, tty=tty)
+        self.reads = 0
+
+    def read(self, *args: object, **kwargs: object) -> str:
+        self.reads += 1
+        return super().read(*args, **kwargs)
+
+
+def test_invalid_syntax_alias_fails_before_reading_stdin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stdin = _CountingStream("secret-stdin\n", tty=True)
+    stderr = _Stream(tty=False)
+    monkeypatch.setattr(pager_handler.sys, "stdin", stdin)
+    monkeypatch.setattr(pager_handler.sys, "stderr", stderr)
+
+    def fail_run_app(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("invalid syntax must not launch the app")
+
+    monkeypatch.setattr(pager_handler, "_run_pager_app", fail_run_app)
+
+    assert (
+        pager_handler.handle_pager_command(_args(syntax="definitely-not-a-lexer")) == 2
+    )
+    assert stdin.reads == 0
+    assert "unknown syntax alias" in stderr.getvalue()
+
+
+def test_explicit_syntax_overrides_stdin_language(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stdin = _Stream("key: value\n", tty=True)
+    stdout = _Stream(tty=True)
+    launches: list[tuple[PagerDocument, object]] = []
+    monkeypatch.setattr(pager_handler.sys, "stdin", stdin)
+    monkeypatch.setattr(pager_handler.sys, "stdout", stdout)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setattr(
+        pager_handler,
+        "_run_pager_app",
+        lambda document, *, links_enabled, syntax_session=None: launches.append(
+            (document, syntax_session)
+        ),
+    )
+
+    assert pager_handler.handle_pager_command(_args(syntax="yaml")) == 0
+
+    document, session = launches[0]
+    assert document.sections[0].raw_source is not None
+    assert document.sections[0].raw_source.language == "yaml"
+    assert session is not None
+    assert session.syntax_enabled is True
+
+
+def test_syntax_none_disables_session_highlighting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stdin = _Stream("print(1)\n", tty=True)
+    stdout = _Stream(tty=True)
+    launches: list[object] = []
+    monkeypatch.setattr(pager_handler.sys, "stdin", stdin)
+    monkeypatch.setattr(pager_handler.sys, "stdout", stdout)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setattr(
+        pager_handler,
+        "_run_pager_app",
+        lambda document, *, links_enabled, syntax_session=None: launches.append(
+            syntax_session
+        ),
+    )
+
+    assert pager_handler.handle_pager_command(_args(syntax="none")) == 0
+    assert launches[0].syntax_enabled is False
+    assert launches[0].color_enabled is True
+
+
+def test_color_never_disables_syntax_and_color(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stdin = _Stream("print(1)\n", tty=True)
+    stdout = _Stream(tty=True)
+    launches: list[object] = []
+    monkeypatch.setattr(pager_handler.sys, "stdin", stdin)
+    monkeypatch.setattr(pager_handler.sys, "stdout", stdout)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setattr(
+        pager_handler,
+        "_run_pager_app",
+        lambda document, *, links_enabled, syntax_session=None: launches.append(
+            syntax_session
+        ),
+    )
+
+    assert (
+        pager_handler.handle_pager_command(_args(color="never", syntax="python")) == 0
+    )
+    assert launches[0].syntax_enabled is False
+    assert launches[0].color_enabled is False
+
+
+def test_stdin_diff_is_classified_without_an_explicit_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stdin = _Stream("diff --git a/old b/new\n", tty=True)
+    stdout = _Stream(tty=True)
+    launches: list[PagerDocument] = []
+    monkeypatch.setattr(pager_handler.sys, "stdin", stdin)
+    monkeypatch.setattr(pager_handler.sys, "stdout", stdout)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setattr(
+        pager_handler,
+        "_run_pager_app",
+        lambda document, *, links_enabled, syntax_session=None: launches.append(
+            document
+        ),
+    )
+
+    assert pager_handler.handle_pager_command(_args()) == 0
+    assert launches[0].sections[0].raw_source is not None
+    assert launches[0].sections[0].raw_source.language == "diff"

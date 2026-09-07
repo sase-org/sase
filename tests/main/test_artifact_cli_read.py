@@ -310,3 +310,61 @@ def test_read_binary_prints_open_pointer(
     output = capsys.readouterr().out
     assert "sase artifact open" in output
     assert result.canonical_reference in output
+
+
+def test_read_classifies_python_from_original_source_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    stored = tmp_path / "0123456789abcdef"
+    stored.write_text("print(1)\n", encoding="utf-8")
+    result = resolved_reference(
+        stored,
+        reference="file:explicit:0123456789abcdef01234567",
+        file=artifact_file(stored, source_path="/orig/app.py", kind="file"),
+    )
+    captured: list[object] = []
+    monkeypatch.setattr(
+        "sase.artifact_cli.read.resolve_cli_reference",
+        lambda _value: result,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.read.page_or_print",
+        lambda text, *, mode, document=None, syntax_session=None: captured.append(
+            document
+        ),
+    )
+
+    assert handle_read(_read_args(reference=result.input)) == 0
+    document = captured[0]
+    assert document is not None
+    section = document.sections[0]
+    assert section.raw_source is not None
+    assert section.raw_source.language == "python"
+
+
+def test_read_classifies_plan_artifacts_as_markdown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    path = tmp_path / "doc.md"
+    path.write_text("# Heading\n", encoding="utf-8")
+    result = resolved_reference(path, reference="plan:doc.md")
+    captured: list[object] = []
+    monkeypatch.setattr(
+        "sase.artifact_cli.read.resolve_cli_reference",
+        lambda _value: result,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.read.page_or_print",
+        lambda text, *, mode, document=None, syntax_session=None: captured.append(
+            document
+        ),
+    )
+
+    assert handle_read(_read_args()) == 0
+    section = captured[0].sections[0]
+    assert section.raw_source is not None
+    assert section.raw_source.language == "markdown"

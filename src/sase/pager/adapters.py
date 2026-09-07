@@ -5,12 +5,14 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
+from sase.core.source_language_facade import logical_source_filename
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.link_context import (
     LinkResolutionContext,
     default_link_context,
     link_anchor_for_directory,
 )
+from sase.pager.syntax_policy import classify_source
 
 
 def document_from_paths(
@@ -43,13 +45,23 @@ def path_section(
     path: str | Path,
     *,
     cwd: str | Path | None = None,
+    logical_filename: str | None = None,
+    category: str = "raw_file",
 ) -> PagerSection:
-    """Build one file-backed pager section."""
+    """Build one file-backed pager section.
+
+    Classification runs on the bytes already read for the section body.
+    *logical_filename* is original source provenance when the resolved path
+    is a content-addressed object; the default is the file's own path.
+    """
     display_path = str(path)
     absolute_path = _absolute_path(path, cwd=cwd)
     body = absolute_path.read_text(encoding="utf-8", errors="replace")
     subject_ref = f"file:{absolute_path}"
     anchor = link_anchor_for_directory(absolute_path.parent)
+    filename = logical_filename or logical_source_filename(
+        source_path=str(absolute_path)
+    )
     return PagerSection(
         identity=subject_ref,
         title=display_path,
@@ -57,6 +69,11 @@ def path_section(
         body=body,
         subject_ref=subject_ref,
         link_anchors=() if anchor is None else (anchor,),
+        raw_source=classify_source(
+            category=category,
+            logical_filename=filename,
+            source=body,
+        ),
     )
 
 

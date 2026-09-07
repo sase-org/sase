@@ -340,10 +340,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-xe(follow_store_path)" \
         --epic-symbol "sase-xe(is_followed)" \
         --epic-symbol "sase-xe(reconcile_follow_store)" \
-        --epic-symbol "sase-xz.4(logical_source_filename)" \
-        --epic-symbol "sase-xz.4(RawSourceSpec)" \
-        --epic-symbol "sase-xz.4(resolve_pygments_alias)" \
-        --epic-symbol "sase-xz.4(resolve_source_language)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

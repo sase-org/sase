@@ -50,11 +50,23 @@ from sase.sdd.artifact_link_store import (
 )
 from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_entry
 from sase.sdd.frontmatter import parse_frontmatter
-from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+from sase.core.source_language_facade import logical_source_filename
+from sase.pager.document import (
+    PagerDocument,
+    PagerOrigin,
+    PagerSection,
+    RawSourceSpec,
+)
 from sase.pager.link_context import (
     LinkResolutionContext,
     default_link_context,
     workspace_link_context,
+)
+from sase.pager.syntax_policy import (
+    artifact_syntax_category,
+    classify_source,
+    is_openable_text_path,
+    preview_has_nul,
 )
 
 
@@ -65,16 +77,6 @@ _READ_NOT_RECORDED = (
 )
 _RESOLVED_STATUSES = frozenset({"exact", "drifted", "vcs_backed"})
 _TEXT_KINDS = frozenset({"chat", "markdown", "plan", "document"})
-_TEXT_MIME_PREFIXES = ("text/",)
-_TEXT_MIME_TYPES = frozenset(
-    {
-        "application/json",
-        "application/toml",
-        "application/x-yaml",
-        "application/xml",
-        "application/yaml",
-    }
-)
 
 
 def handle_read(args: argparse.Namespace) -> int:
@@ -320,13 +322,24 @@ def _is_text_path(path: Path, result: ResolvedArtifactReference) -> bool:
     kind = result.file.kind if result.file is not None else result.parsed.kind
     mime = result.file.mime_type if result.file is not None else None
     if kind in _TEXT_KINDS or result.parsed.kind_type in {"chat", "document"}:
-        return True
-    suffix = path.suffix.lower()
-    if suffix in {".md", ".txt", ".json", ".yml", ".yaml", ".toml", ".xml", ".rst"}:
-        return True
-    if mime is None:
-        return suffix in {".py", ".sh", ".toml"}
-    return mime.startswith(_TEXT_MIME_PREFIXES) or mime in _TEXT_MIME_TYPES
+        return not preview_has_nul(path)
+    return is_openable_text_path(
+        path,
+        logical_filename=_logical_filename(result, path),
+        mime=mime,
+    )
+
+
+def _logical_filename(
+    result: ResolvedArtifactReference,
+    path: Path | None,
+) -> str | None:
+    artifact_file = result.file
+    return logical_source_filename(
+        source_path=None if artifact_file is None else artifact_file.source_path,
+        vcs_relpath=None if artifact_file is None else artifact_file.vcs_relpath,
+        resolved_path=None if path is None else str(path),
+    )
 
 
 def _print_rich(result: ResolvedArtifactReference, body: str) -> None:
@@ -353,12 +366,31 @@ def _page_markdown(result: ResolvedArtifactReference, body: str) -> None:
                     kind=_pager_section_kind(result),
                     body=body,
                     subject_ref=result.canonical_reference,
+                    raw_source=_artifact_raw_source(result, body),
                 ),
             ),
             title=result.canonical_reference,
             origin=_pager_origin(result),
             link_context=_pager_link_context(result),
         ),
+    )
+
+
+def _artifact_raw_source(
+    result: ResolvedArtifactReference,
+    body: str,
+) -> RawSourceSpec | None:
+    kind_type = result.parsed.kind_type
+    kind = result.file.kind if result.file is not None else result.parsed.kind
+    category = artifact_syntax_category(kind_type=kind_type, kind=kind)
+    if category == "formatted":
+        return None
+    if body.startswith("kind:") and "Open with `sase artifact open" in body:
+        return None
+    return classify_source(
+        category=category,
+        logical_filename=_logical_filename(result, result.resolution.resolved_path),
+        source=body,
     )
 
 

@@ -5,8 +5,6 @@ diff recognition live in ``sase-core``. This module rehydrates wire
 payloads through :func:`sase.core.rust.require_rust_binding` with no
 Python fallback. A missing or stale wheel raises the project's normal
 dependency error rather than a fake unknown language.
-
-Pager producers must not call this facade until activation.
 """
 
 from __future__ import annotations

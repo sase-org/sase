@@ -42,6 +42,7 @@ sections, environment variables, and CLI flags.
   - [runner_slots](#runner_slots)
   - [procs](#procs)
   - [markdown](#markdown)
+  - [pager](#pager)
   - [timezone](#timezone)
   - [chat_install](#chat_install)
   - [telegram](#telegram)
@@ -3354,6 +3355,27 @@ non-default `markdown.print_width` and then run `sase init` inside a repo whose 
 config still declares the default, the regenerated `AGENTS.md` will be wrapped at your
 width and that repo's `fmt-md-check` will fail on it. Change the repo's prettier config
 to match, or leave the field at its default.
+
+### pager
+
+File-aware syntax highlighting for the SASE pager. Eligible raw sources — files,
+Markdown documents, diffs, and stdin with a convincing diff prefix — receive a muted
+language-aware overlay after first paint. Formatted cards, bead detail, commit
+manifests, and producer-styled ANSI stay unhighlighted.
+
+```yaml
+pager:
+  syntax: auto
+```
+
+| Field          | Type              | Default | Description                                                                                                                  |
+| -------------- | ----------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `pager.syntax` | `auto` or `never` | `auto`  | `auto` detects language from filename, trusted Markdown/diff, shebang, or stdin diff. `never` keeps unhighlighted rendering. |
+
+CLI `--syntax` overrides this field. `--syntax none` and `--color never` disable the
+added layer for the rest of the session, including followed targets. Unknown values fail
+schema validation (`sase config` / doctor diagnostics) and the runtime accessor falls
+back to `auto` so a hand-edited `sase.yml` cannot crash the pager.
 
 ### timezone
 

@@ -77,7 +77,7 @@ def test_snapshot_includes_live_config_token_refresh_threads() -> None:
 
     def _run() -> None:
         started.set()
-        hold.wait(timeout=2.0)
+        hold.wait(timeout=30.0)
 
     from sase.config.core import CONFIG_TOKEN_REFRESH_THREAD_NAME
 

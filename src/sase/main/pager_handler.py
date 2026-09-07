@@ -12,6 +12,13 @@ from typing import TextIO
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.link_context import LinkResolutionContext, default_link_context
 from sase.pager.resolve import LinkTarget, LinkTargetKind, resolve_ref
+from sase.pager.syntax_policy import (
+    PagerSyntaxError,
+    PagerSyntaxSession,
+    apply_explicit_syntax,
+    classify_source,
+    resolve_cli_syntax,
+)
 
 
 class _PagerInputError(Exception):
@@ -21,6 +28,15 @@ class _PagerInputError(Exception):
 def handle_pager_command(args: argparse.Namespace) -> int:
     """Handle ``sase pager``."""
     try:
+        resolution = resolve_cli_syntax(
+            syntax=getattr(args, "syntax", None),
+            color=getattr(args, "color", "auto"),
+        )
+    except PagerSyntaxError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+
+    try:
         document = _build_pager_document(
             getattr(args, "inputs", ()),
             title=getattr(args, "title", None),
@@ -28,6 +44,8 @@ def handle_pager_command(args: argparse.Namespace) -> int:
     except _PagerInputError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
+    if resolution.apply_override:
+        document = apply_explicit_syntax(document, resolution.explicit_language)
 
     links_enabled = getattr(args, "links", "auto") != "never"
     if _should_write_plain(args):
@@ -39,7 +57,11 @@ def handle_pager_command(args: argparse.Namespace) -> int:
             _write_document_plain(document)
             return 0
         try:
-            _run_pager_app(document, links_enabled=links_enabled)
+            _run_pager_app(
+                document,
+                links_enabled=links_enabled,
+                syntax_session=resolution.session,
+            )
         except Exception:
             _write_document_plain(document)
     return 0
@@ -55,13 +77,15 @@ def _build_pager_document(
     if not values or values == ("-",):
         resolved_title = title or "stdin"
         context = default_link_context()
+        body = sys.stdin.read()
         return PagerDocument(
             sections=(
                 PagerSection(
                     identity="stdin",
                     title=resolved_title,
                     kind="stdin",
-                    body=sys.stdin.read(),
+                    body=body,
+                    raw_source=classify_source(category="stdin", source=body),
                 ),
             ),
             title=resolved_title,
@@ -190,10 +214,19 @@ def _textual_stdin() -> Iterator[bool]:
         tty.close()
 
 
-def _run_pager_app(document: PagerDocument, *, links_enabled: bool) -> None:
+def _run_pager_app(
+    document: PagerDocument,
+    *,
+    links_enabled: bool,
+    syntax_session: PagerSyntaxSession | None = None,
+) -> None:
     from sase.pager.app import SasePager
 
-    SasePager(document, links_enabled=links_enabled).run()
+    SasePager(
+        document,
+        links_enabled=links_enabled,
+        syntax_session=syntax_session,
+    ).run()
 
 
 def _write_document_plain(document: PagerDocument) -> None:

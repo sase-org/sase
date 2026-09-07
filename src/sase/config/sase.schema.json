@@ -3929,6 +3929,19 @@
         }
       }
     },
+    "pager": {
+      "type": "object",
+      "description": "Standalone and embedded SASE pager reading-surface policy.",
+      "additionalProperties": false,
+      "properties": {
+        "syntax": {
+          "type": "string",
+          "enum": ["auto", "never"],
+          "default": "auto",
+          "description": "File-aware syntax highlighting for eligible raw pager sources. auto detects language from filename, trusted Markdown/diff provenance, shebang, or stdin diff. never keeps today's unhighlighted rendering. CLI --syntax overrides this; --color never also disables syntax."
+        }
+      }
+    },
     "artifacts": {
       "type": "object",
       "additionalProperties": false,

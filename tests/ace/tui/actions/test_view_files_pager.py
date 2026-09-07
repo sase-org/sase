@@ -580,10 +580,12 @@ def test_view_files_with_pager_screen_pushes_screen_without_suspend(
             *,
             attached_handlers=None,
             resolve_ref_fn=None,
+            syntax_enabled: bool = True,
         ) -> None:
             captured["document"] = doc
             captured["handlers"] = attached_handlers
             captured["resolve_ref_fn"] = resolve_ref_fn
+            captured["syntax_enabled"] = syntax_enabled
             captured["screen"] = self
 
     monkeypatch.setattr(

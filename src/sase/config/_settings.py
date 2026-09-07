@@ -33,6 +33,7 @@ DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL = 3
 DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS = 90
 DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS = 14
 DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS = 3600
+DEFAULT_PAGER_SYNTAX = "auto"
 
 
 def _merged_config() -> dict[str, Any]:
@@ -141,6 +142,27 @@ def get_proc_history_limit() -> int:
 
 # Legacy accessor alias; retire after every caller moves to the proc spelling.
 get_task_history_limit = get_proc_history_limit
+
+
+def get_pager_syntax() -> str:
+    """Return ``pager.syntax``: ``auto`` or ``never``.
+
+    Unknown or malformed values fall back to ``auto`` so a hand-edited
+    ``sase.yml`` cannot crash the pager. Schema validation is the diagnostic
+    path for rejected values.
+    """
+    try:
+        pager = _merged_config().get("pager", {})
+    except Exception:  # noqa: BLE001 - pager syntax is fail-open.
+        return DEFAULT_PAGER_SYNTAX
+    value = (
+        pager.get("syntax", DEFAULT_PAGER_SYNTAX)
+        if isinstance(pager, dict)
+        else DEFAULT_PAGER_SYNTAX
+    )
+    if value in {"auto", "never"}:
+        return str(value)
+    return DEFAULT_PAGER_SYNTAX
 
 
 def get_markdown_print_width() -> int:

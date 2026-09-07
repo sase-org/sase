@@ -81,7 +81,9 @@ def test_auto_writes_direct_when_paging_conditions_fail(
     monkeypatch.setattr(
         cli_pager,
         "_run_sase_pager",
-        lambda text, *, document: launches.append((text, document)),
+        lambda text, *, document, syntax_session=None: launches.append(
+            (text, document)
+        ),
     )
 
     page_or_print(text, mode=PagerMode.AUTO)
@@ -103,7 +105,9 @@ def test_auto_pages_when_text_is_taller_than_terminal(
     monkeypatch.setattr(
         cli_pager,
         "_run_sase_pager",
-        lambda text, *, document: launches.append((text, document)),
+        lambda text, *, document, syntax_session=None: launches.append(
+            (text, document)
+        ),
     )
 
     page_or_print("one\ntwo\nthree\n", mode=PagerMode.AUTO)
@@ -120,7 +124,9 @@ def test_always_pages_fitting_text_but_not_redirected_stdout(
     monkeypatch.setattr(
         cli_pager,
         "_run_sase_pager",
-        lambda text, *, document: launches.append((text, document)),
+        lambda text, *, document, syntax_session=None: launches.append(
+            (text, document)
+        ),
     )
 
     page_or_print("fits\n", mode=PagerMode.ALWAYS)
@@ -152,7 +158,9 @@ def test_supplied_pager_document_is_preserved(
     monkeypatch.setattr(
         cli_pager,
         "_run_sase_pager",
-        lambda text, *, document: launches.append((text, document)),
+        lambda text, *, document, syntax_session=None: launches.append(
+            (text, document)
+        ),
     )
 
     page_or_print("body\n", mode=PagerMode.ALWAYS, document=document)
@@ -170,7 +178,9 @@ def test_pager_environment_no_longer_selects_external_backend(
     monkeypatch.setattr(
         cli_pager,
         "_run_sase_pager",
-        lambda text, *, document: launches.append((text, document)),
+        lambda text, *, document, syntax_session=None: launches.append(
+            (text, document)
+        ),
     )
 
     page_or_print("body\n", mode=PagerMode.ALWAYS)
@@ -183,7 +193,12 @@ def test_sase_pager_startup_failure_falls_back_to_direct_write(
 ) -> None:
     stdout = _terminal(monkeypatch)
 
-    def fail_run_sase_pager(_text: str, *, document: PagerDocument | None) -> None:
+    def fail_run_sase_pager(
+        _text: str,
+        *,
+        document: PagerDocument | None,
+        syntax_session: object = None,
+    ) -> None:
         raise RuntimeError("boom")
 
     monkeypatch.setattr(cli_pager, "_run_sase_pager", fail_run_sase_pager)
@@ -196,3 +211,23 @@ def test_sase_pager_startup_failure_falls_back_to_direct_write(
 def test_row_estimate_strips_sgr_and_counts_wrapped_cells() -> None:
     assert cli_pager._estimated_display_rows("\x1b[31mabcd\x1b[0m", columns=2) == 2
     assert cli_pager._estimated_display_rows("abcdef", columns=3) == 2
+
+
+def test_direct_write_does_not_classify_or_lex(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stdout, _stderr = _streams(monkeypatch, tty=False)
+    monkeypatch.setattr(
+        "sase.pager.syntax_policy.resolve_source_language",
+        lambda **_kwargs: (_ for _ in ()).throw(AssertionError("direct write lexed")),
+    )
+    monkeypatch.setattr(
+        "sase.pager.syntax.highlight_source",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("direct write lexed")
+        ),
+    )
+
+    page_or_print("print(1)\n", mode=PagerMode.NEVER)
+
+    assert stdout.text == "print(1)\n"

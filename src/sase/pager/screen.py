@@ -79,10 +79,12 @@ class PagerScreen(
         links_enabled: bool = True,
         attached_handlers: Mapping[str, AttachedTargetHandler] | None = None,
         resolve_ref_fn: ResolveRef | None = None,
+        syntax_enabled: bool = True,
     ) -> None:
         super().__init__()
         self.document = document
         self.links_enabled = links_enabled
+        self.syntax_enabled = syntax_enabled
         self._attached_handlers: Mapping[str, AttachedTargetHandler] = (
             {} if attached_handlers is None else attached_handlers
         )

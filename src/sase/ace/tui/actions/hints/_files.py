@@ -25,6 +25,7 @@ from sase.pager.resolve import (
     link_target_for_artifact_entry_target,
     resolve_link,
 )
+from sase.pager.syntax_policy import pager_syntax_session_from_config
 
 from ....hint_types import ViewFilesResult
 from ....hints import build_editor_args
@@ -417,12 +418,14 @@ class FileViewingMixin(HintMixinBase):
         """
         try:
             handlers: dict[str, AttachedTargetHandler] = {}
+            session = pager_syntax_session_from_config()
             screen = PagerScreen(
                 document,
                 attached_handlers=handlers,
                 resolve_ref_fn=lambda ref, *, context=None: (
                     _resolve_ref_from_link_index(self, ref, context=context)
                 ),
+                syntax_enabled=session.syntax_enabled,
             )
             handlers[_COMMIT_TARGET_KIND] = lambda target, action: (
                 _handle_commit_attached_target(screen, target, action)
