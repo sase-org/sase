@@ -37,6 +37,7 @@ from sase.pager.link_context import (
     LinkAnchor,
     LinkResolutionContext,
     default_link_context,
+    inherited_link_context,
 )
 from sase.pager.link_scan import LinkSpanKind
 
@@ -143,12 +144,20 @@ def _resolve_artifact_ref_target(
     context: LinkResolutionContext | None = None,
 ) -> LinkTarget | None:
     if context is None or not context.anchors:
-        return _resolve_artifact_result(ref, artifact_context=None)
+        return _resolve_artifact_result(
+            ref,
+            artifact_context=None,
+            link_context=context,
+        )
     for anchor in context.anchors:
         artifact_context = _artifact_ref_context_for_anchor(anchor)
         if artifact_context is None:
             continue
-        target = _resolve_artifact_result(ref, artifact_context=artifact_context)
+        target = _resolve_artifact_result(
+            ref,
+            artifact_context=artifact_context,
+            link_context=context,
+        )
         if target is not None:
             return target
     return None
@@ -165,6 +174,7 @@ def _resolve_artifact_result(
     ref: str,
     *,
     artifact_context: ArtifactRefContext | None,
+    link_context: LinkResolutionContext | None,
 ) -> LinkTarget | None:
     try:
         result = (
@@ -181,16 +191,20 @@ def _resolve_artifact_result(
     if kind_type == "bead":
         return _bead_link_target(result.canonical_reference)
     if kind_type in {"stitch", "commit"}:
-        return _card_link_target(result, path=result.resolution.resolved_path)
+        return _card_link_target(
+            result,
+            path=result.resolution.resolved_path,
+            context=link_context,
+        )
 
     try:
         path = resolved_file_path(result)
     except (ImportError, OSError, RuntimeError, ValueError):
         path = result.resolution.resolved_path
     if path is None:
-        return _card_link_target(result, path=None)
+        return _card_link_target(result, path=None, context=link_context)
     if path.is_dir():
-        return _directory_link_target(path)
+        return _directory_link_target(path, context=link_context)
 
     line = _fragment_line(result.parsed.fragment)
     mode = artifact_file_view_mode(
@@ -205,8 +219,8 @@ def _resolve_artifact_result(
             edit_line=line,
         )
     if _is_probably_text(path):
-        return _file_link_target(path, requested_line=line)
-    return _card_link_target(result, path=path)
+        return _file_link_target(path, requested_line=line, context=link_context)
+    return _card_link_target(result, path=path, context=link_context)
 
 
 def _resolve_file_path_target(
@@ -214,19 +228,25 @@ def _resolve_file_path_target(
     *,
     context: LinkResolutionContext | None = None,
 ) -> LinkTarget | None:
-    found, line, _locations = _search_existing_path(
-        text, context=_file_path_context(context)
-    )
+    resolved_context = _file_path_context(context)
+    found, line, _locations = _search_existing_path(text, context=resolved_context)
     if found is None:
         return None
-    return _link_target_for_existing_path(found, requested_line=line)
+    return _link_target_for_existing_path(
+        found,
+        requested_line=line,
+        context=resolved_context,
+    )
 
 
 def _link_target_for_existing_path(
-    path: Path, *, requested_line: int | None
+    path: Path,
+    *,
+    requested_line: int | None,
+    context: LinkResolutionContext,
 ) -> LinkTarget | None:
     if path.is_dir():
-        return _directory_link_target(path)
+        return _directory_link_target(path, context=context)
 
     mode = artifact_file_view_mode(path)
     if mode in _MEDIA_MODES:
@@ -237,10 +257,19 @@ def _link_target_for_existing_path(
             edit_line=requested_line,
         )
     if _is_probably_text(path):
-        return _file_link_target(path, requested_line=requested_line)
+        return _file_link_target(
+            path,
+            requested_line=requested_line,
+            context=context,
+        )
     return LinkTarget(
         kind=LinkTargetKind.DOCUMENT,
-        document=_binary_card_document(str(path), path=path, mime=_guess_mime(path)),
+        document=_binary_card_document(
+            str(path),
+            path=path,
+            mime=_guess_mime(path),
+            context=context,
+        ),
         edit_path=path,
         edit_line=requested_line,
     )
@@ -288,7 +317,11 @@ def _bead_link_target(canonical_ref: str) -> LinkTarget | None:
         return None
 
 
-def _directory_link_target(path: Path) -> LinkTarget | None:
+def _directory_link_target(
+    path: Path,
+    *,
+    context: LinkResolutionContext | None = None,
+) -> LinkTarget | None:
     try:
         entries = sorted(path.iterdir(), key=lambda entry: entry.name)
     except OSError:
@@ -307,14 +340,23 @@ def _directory_link_target(path: Path) -> LinkTarget | None:
         ),
         title=f"{len(entries)} entries · {path.name or str(path)}",
         origin=PagerOrigin.FILE,
+        link_context=_inherited_context(path, context),
     )
     return LinkTarget(kind=LinkTargetKind.DOCUMENT, document=document, edit_path=path)
 
 
-def _file_link_target(path: Path, *, requested_line: int | None) -> LinkTarget:
+def _file_link_target(
+    path: Path,
+    *,
+    requested_line: int | None,
+    context: LinkResolutionContext | None = None,
+) -> LinkTarget:
     section = path_section(path)
     document = PagerDocument(
-        sections=(section,), title=path.name, origin=PagerOrigin.FILE
+        sections=(section,),
+        title=path.name,
+        origin=PagerOrigin.FILE,
+        link_context=_inherited_context(path, context),
     )
     return LinkTarget(
         kind=LinkTargetKind.DOCUMENT,
@@ -329,6 +371,7 @@ def _card_link_target(
     result: ResolvedArtifactReference,
     *,
     path: Path | None,
+    context: LinkResolutionContext | None = None,
 ) -> LinkTarget:
     kind = result.file.kind if result.file is not None else result.parsed.kind
     mime = result.file.mime_type if result.file is not None else None
@@ -338,6 +381,7 @@ def _card_link_target(
         mime=mime,
         kind=kind,
         status=result.resolution.status,
+        context=context,
     )
     return LinkTarget(kind=LinkTargetKind.DOCUMENT, document=document, edit_path=path)
 
@@ -349,6 +393,7 @@ def _binary_card_document(
     mime: str | None,
     kind: str | None = None,
     status: str | None = None,
+    context: LinkResolutionContext | None = None,
 ) -> PagerDocument:
     lines = []
     if kind is not None:
@@ -363,7 +408,19 @@ def _binary_card_document(
         sections=(PagerSection(identity=title, title=title, kind="file", body=body),),
         title=title,
         origin=PagerOrigin.FILE,
+        link_context=(
+            _inherited_context(path, context) if path is not None else context
+        ),
     )
+
+
+def _inherited_context(
+    path: Path,
+    context: LinkResolutionContext | None,
+) -> LinkResolutionContext | None:
+    if context is None:
+        return None
+    return inherited_link_context(path, context)
 
 
 def _fragment_line(fragment: ArtifactRefFragment | None) -> int | None:

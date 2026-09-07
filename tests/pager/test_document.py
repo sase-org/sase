@@ -10,6 +10,8 @@ import pytest
 from rich.text import Text
 
 from sase.bead.cli_show_batch import (
+    _ShowRenderContext,
+    _show_entry_link_anchors,
     build_show_batch_document,
     default_show_render_context_resolver,
     render_show_batch,
@@ -25,6 +27,7 @@ from sase.pager.document import (
     PagerSection,
     section_target_spans,
 )
+from sase.pager.link_context import LinkAnchor
 
 
 @contextmanager
@@ -154,6 +157,8 @@ def test_path_list_adapter_builds_one_file_section_per_path(tmp_path: Path) -> N
 
     assert document.title == "2 files"
     assert document.origin is PagerOrigin.FILE
+    assert document.link_context is not None
+    assert document.link_context.base_dirs[0] == Path.cwd().resolve()
     assert [section.title for section in document.sections] == [
         "first.md",
         str(second),
@@ -165,6 +170,10 @@ def test_path_list_adapter_builds_one_file_section_per_path(tmp_path: Path) -> N
     assert [section.plain_text for section in document.sections] == [
         "see src/sase/pager/document.py\n",
         "plain\n",
+    ]
+    assert [section.link_anchors[0].directory for section in document.sections] == [
+        tmp_path.resolve(),
+        tmp_path.resolve(),
     ]
 
 
@@ -204,6 +213,7 @@ def test_bead_show_batch_adapter_matches_single_bead_rendering() -> None:
         ),
         title="sase-1 · First",
         origin=PagerOrigin.BEAD,
+        link_context=document.link_context,
     )
 
     assert document == expected
@@ -237,6 +247,23 @@ def test_bead_show_batch_adapter_uses_one_section_per_bead() -> None:
         ("bead:sase-2", "bead:sase-2"),
     ]
     assert all("── 1/2 " not in section.plain_text for section in document.sections)
+
+
+def test_bead_show_section_anchors_to_entry_primary_workspace(
+    tmp_path: Path,
+) -> None:
+    context = _ShowRenderContext(
+        relativize_design=False,
+        plan_roots=(),
+        design_cwd=tmp_path,
+        reference_context_factory=lambda: None,
+        creator_url_for=lambda _name: None,
+        page_url_for=lambda _id: None,
+    )
+
+    assert _show_entry_link_anchors(context) == (
+        LinkAnchor(directory=tmp_path.resolve(), workspace_num=1),
+    )
 
 
 _plain_render_context = default_show_render_context_resolver(

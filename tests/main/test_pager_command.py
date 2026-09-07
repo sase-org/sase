@@ -156,11 +156,17 @@ def test_plain_positional_input_uses_pager_resolver(
         origin=PagerOrigin.FILE,
     )
     stdout = _Stream(tty=False)
+    contexts: list[object] = []
+
+    def fake_resolve(value: str, *, context: object = None) -> LinkTarget:
+        contexts.append(context)
+        return LinkTarget(kind=LinkTargetKind.DOCUMENT, document=document)
+
     monkeypatch.setattr(pager_handler.sys, "stdout", stdout)
     monkeypatch.setattr(
         pager_handler,
         "resolve_ref",
-        lambda value: LinkTarget(kind=LinkTargetKind.DOCUMENT, document=document),
+        fake_resolve,
     )
 
     assert (
@@ -170,6 +176,7 @@ def test_plain_positional_input_uses_pager_resolver(
         == 0
     )
     assert stdout.getvalue() == "resolved\n"
+    assert contexts and contexts[0] is not None
 
 
 def test_stdin_dash_must_not_be_mixed_with_other_inputs(

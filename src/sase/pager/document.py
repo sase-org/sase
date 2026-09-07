@@ -10,6 +10,7 @@ from typing import Literal
 from rich.console import Console, RenderableType
 from rich.text import Text
 
+from sase.pager.link_context import LinkAnchor, LinkResolutionContext
 from sase.pager.link_scan import LinkSpan, LinkSpanKind, PagerOrigin, scan_links
 
 PagerTargetSource = Literal["attached", "scanned"]
@@ -55,6 +56,7 @@ class PagerSection:
     body: RenderableType | str
     subject_ref: str | None = None
     targets: tuple[AttachedTarget, ...] = ()
+    link_anchors: tuple[LinkAnchor, ...] = ()
     _body_text: Text = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -73,6 +75,7 @@ class PagerSection:
             section_identity=self.identity,
         )
         object.__setattr__(self, "targets", targets)
+        object.__setattr__(self, "link_anchors", tuple(self.link_anchors))
 
     @property
     def plain_text(self) -> str:
@@ -99,6 +102,7 @@ class PagerDocument:
     sections: tuple[PagerSection, ...]
     title: str
     origin: PagerOrigin
+    link_context: LinkResolutionContext | None = None
 
     def __post_init__(self) -> None:
         if not self.title.strip():

@@ -8,12 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from sase.artifact_cli.read import handle_read
+from sase.artifact_cli.read import _pager_link_context, handle_read
 from sase.artifact_read_log import ArtifactReadError, read_artifact_read_events
 from sase.sdd.artifact_link_outbox import _read_artifact_link_outbox_entries
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
-from tests.main.artifact_cli_reference_helpers import resolved_reference
+from tests.main.artifact_cli_reference_helpers import artifact_file, resolved_reference
 
 
 def _read_args(
@@ -184,6 +184,34 @@ def test_read_json_and_line_limit(
     assert payload["reference"] == "plan:doc.md"
     assert payload["recorded_link"] is False
     assert payload["text"].splitlines() == ["one", "two"]
+
+
+def test_pager_link_context_uses_artifact_workspace_first(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "agent-workspace"
+    primary = tmp_path / "primary"
+    cwd = tmp_path / "cwd"
+    workspace.mkdir()
+    primary.mkdir()
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+    monkeypatch.setattr(
+        "sase.pager.link_context.get_primary_workspace_dir",
+        lambda current, *_args, **_kwargs: (
+            str(primary) if Path(current).name == "agent-workspace" else str(cwd)
+        ),
+    )
+    path = tmp_path / "doc.md"
+    result = resolved_reference(
+        path,
+        file=artifact_file(path, workspace_dir=str(workspace)),
+    )
+
+    context = _pager_link_context(result)
+
+    assert context.base_dirs == (workspace.resolve(), primary.resolve(), cwd.resolve())
 
 
 def test_read_prints_link_neighborhood_footer(

@@ -76,6 +76,7 @@ def _term_supports_paging() -> bool:
 def _run_sase_pager(text: str, *, document: PagerDocument | None) -> None:
     from sase.pager.app import SasePager
     from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+    from sase.pager.link_context import default_link_context
 
     pager_document = document
     if pager_document is None:
@@ -90,6 +91,7 @@ def _run_sase_pager(text: str, *, document: PagerDocument | None) -> None:
             ),
             title="stdin",
             origin=PagerOrigin.FILE,
+            link_context=default_link_context(),
         )
     SasePager(pager_document).run()
 

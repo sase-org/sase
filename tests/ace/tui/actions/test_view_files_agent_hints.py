@@ -238,9 +238,19 @@ async def test_immediate_agent_hint_submission_waits_for_rendered_mapping(
 ) -> None:
     app = _ImmediateSubmitAgentViewApp()
     document = object()
+
+    def build_document(
+        _files: object,
+        _commit_specs: object,
+        *,
+        link_context: object = None,
+    ) -> object:
+        del link_context
+        return document
+
     monkeypatch.setattr(
         "sase.ace.tui.actions.hints._processing.build_pager_document",
-        lambda files, commit_specs: document,
+        build_document,
     )
     monkeypatch.setattr(
         "sase.ace.tui.actions.hints._processing.os.path.exists",

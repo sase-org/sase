@@ -8,9 +8,16 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from sase.core.patch import get_workspace_directory_for_patch
 from sase.memory.legacy_glossary_read_report import (
     GlossaryReadReportSpec,
     write_glossary_read_report,
+)
+from sase.pager.link_context import (
+    LinkResolutionContext,
+    agent_link_context,
+    default_link_context,
+    workspace_link_context,
 )
 from sase.memory.memory_read_report import (
     MemoryReadReportSpec,
@@ -48,6 +55,7 @@ class _ViewRequest:
     user_input: str
     patch_name: str
     commit_specs: tuple[CommitViewSpec, ...]
+    link_context: LinkResolutionContext
 
 
 @dataclass(frozen=True)
@@ -295,6 +303,7 @@ class InputProcessingMixin(HintMixinBase):
                 getattr(self, "_hint_patch_name", ""),
             ),
             commit_specs=commit_specs,
+            link_context=self._view_request_link_context(),
         )
         tool_reports: dict[str, SlowToolCallReportSpec] = getattr(
             self, "_hint_tool_call_reports", {}
@@ -383,7 +392,10 @@ class InputProcessingMixin(HintMixinBase):
             else:
                 try:
                     document = await asyncio.to_thread(
-                        build_pager_document, files, request.commit_specs
+                        build_pager_document,
+                        files,
+                        request.commit_specs,
+                        link_context=request.link_context,
                     )
                 except OSError as exc:
                     self.notify(  # type: ignore[attr-defined]
@@ -392,6 +404,35 @@ class InputProcessingMixin(HintMixinBase):
                     )
                     return
                 self._view_files_with_pager_screen(document)  # type: ignore[attr-defined]
+
+    def _view_request_link_context(self) -> LinkResolutionContext:
+        if getattr(self, "current_tab", None) == "agents":
+            agent = self._get_selected_agent()  # type: ignore[attr-defined]
+            if agent is not None:
+                return agent_link_context(
+                    getattr(agent, "effective_workspace_num", None),
+                    getattr(agent, "project_file", None),
+                    getattr(agent, "workspace_dir", None),
+                )
+            return default_link_context()
+
+        patches = getattr(
+            self,
+            "patches",
+            getattr(self, "changespecs", []),
+        )
+        if not patches:
+            return default_link_context()
+        current_idx = getattr(self, "current_idx", 0)
+        try:
+            patch = patches[current_idx]
+        except (IndexError, TypeError):
+            return default_link_context()
+        try:
+            workspace_dir = get_workspace_directory_for_patch(patch)
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            return default_link_context()
+        return workspace_link_context(workspace_dir)
 
     def _files_for_view_hints(self, hint_nums: Iterable[int]) -> list[str]:
         hint_input = " ".join(str(hint_num) for hint_num in hint_nums)

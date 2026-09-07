@@ -7,7 +7,7 @@ one compact key capsule inserted immediately before each target occurrence.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from typing import Literal
@@ -72,6 +72,7 @@ _DIRECT_KIND_TABS: Mapping[str, str] = {
 
 
 LabelLayerMode = Literal["document", "window"]
+DanglingPredicate = Callable[[int, PagerTargetSpan], bool]
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,7 +141,8 @@ def build_label_layer(
     width: int,
     window_scope: LabelWindowScope | None = None,
     section_offsets: Sequence[int] | None = None,
-    dangling_refs: AbstractSet[str] = frozenset(),
+    dangling_refs: AbstractSet[object] = frozenset(),
+    is_dangling: DanglingPredicate | None = None,
 ) -> PagerLabelLayer:
     """Assign stable labels to pager targets in document order.
 
@@ -176,9 +178,11 @@ def build_label_layer(
             hint=label_index_to_hint[index],
             section_index=occurrence.section_index,
             target=occurrence.target,
-            dangling=(
-                target_resolution_ref(occurrence.target, document.origin)
-                in dangling_refs
+            dangling=_target_is_dangling(
+                occurrence,
+                document=document,
+                dangling_refs=dangling_refs,
+                is_dangling=is_dangling,
             ),
         )
         for index, occurrence in enumerate(selected)
@@ -192,6 +196,18 @@ def build_label_layer(
         mode=mode,
         window_scope=scope,
     )
+
+
+def _target_is_dangling(
+    occurrence: _TargetOccurrence,
+    *,
+    document: PagerDocument,
+    dangling_refs: AbstractSet[object],
+    is_dangling: DanglingPredicate | None,
+) -> bool:
+    if is_dangling is not None:
+        return is_dangling(occurrence.section_index, occurrence.target)
+    return target_resolution_ref(occurrence.target, document.origin) in dangling_refs
 
 
 def render_section_with_labels(

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+from pathlib import Path
 from typing import Any, Literal
 
 from textual.events import Key
@@ -21,17 +22,20 @@ from sase.pager._labels import LabelWindowScope, PagerLabel, PagerLabelLayer
 from sase.pager._layout import ComposedBody
 from sase.pager.app import PendingAction
 from sase.pager.document import PagerDocument, PagerTargetSpan, target_resolution_ref
+from sase.pager.link_context import LinkResolutionContext, merge_link_context
 from sase.pager.link_scan import LinkSpanKind
 from sase.pager.resolve import (
     LinkTarget,
     LinkTargetKind,
     copy_text_for_target,
+    file_path_unresolved_message,
 )
 
 #: The key that arms each non-follow pending action, so a second press of
 #: that same key can be recognized as the doubled ``yy``/``EE`` form (design
 #: doc section D8) instead of an invalid label key.
 _PENDING_ACTION_KEYS: dict[PendingAction, str] = {"copy": "y", "edit": "E"}
+_DanglingRefKey = tuple[str, tuple[Path, ...]]
 
 
 def _screen_module() -> Any:
@@ -123,13 +127,20 @@ class PagerActionMixin:
         if action == "copy":
             self._copy_ref(ref, label="this section")
         else:
-            self._resolve_and_dispatch(ref, intent="edit")
+            self._resolve_and_dispatch(
+                ref,
+                intent="edit",
+                context=self._link_context_for_section_index(
+                    self._current_section_index()
+                ),
+            )
 
     def _activate_label(self: Any, label: PagerLabel) -> None:
         self._last_activated_label = label
         action = self._pending_action
         self._pending_action = "follow"
         target = label.target
+        context = self._link_context_for_section_index(label.section_index)
 
         handler = self._attached_handlers.get(target.kind)
         if handler is not None:
@@ -137,19 +148,24 @@ class PagerActionMixin:
             return
 
         if target.kind == LinkSpanKind.URL.value or action == "copy":
-            self._copy_target(target)
+            self._copy_target(target, context=context)
             return
         if action == "edit":
-            self._edit_target(target)
+            self._edit_target(target, context=context)
             return
-        self._follow_target(target)
+        self._follow_target(target, context=context)
 
     def _repaint_label_state(self: Any) -> None:
         self._body_width = None
         self._ensure_body()
         self._update_footer()
 
-    def _copy_target(self: Any, target: PagerTargetSpan) -> None:
+    def _copy_target(
+        self: Any,
+        target: PagerTargetSpan,
+        *,
+        context: LinkResolutionContext | None,
+    ) -> None:
         if target.kind == LinkSpanKind.URL.value:
             self._copy_ref(target.text, label="link")
             return
@@ -160,7 +176,7 @@ class PagerActionMixin:
         kind = target.kind
         schedule_copy_delivery(
             self,
-            lambda: copy_text_for_target(ref, kind),
+            lambda: copy_text_for_target(ref, kind, context=context),
             copied_label="link",
             task_name="sase-pager-copy",
             on_failure="toast",
@@ -175,25 +191,48 @@ class PagerActionMixin:
             on_failure="toast",
         )
 
-    def _edit_target(self: Any, target: PagerTargetSpan) -> None:
+    def _edit_target(
+        self: Any,
+        target: PagerTargetSpan,
+        *,
+        context: LinkResolutionContext | None,
+    ) -> None:
         ref = target_resolution_ref(target, self.document.origin)
         if ref is None:
             self.notify("Nothing to edit here.", severity="warning")
             return
-        self._resolve_and_dispatch(ref, intent="edit")
+        self._resolve_and_dispatch(
+            ref, intent="edit", context=context, kind=target.kind
+        )
 
-    def _follow_target(self: Any, target: PagerTargetSpan) -> None:
+    def _follow_target(
+        self: Any,
+        target: PagerTargetSpan,
+        *,
+        context: LinkResolutionContext | None,
+    ) -> None:
         ref = target_resolution_ref(target, self.document.origin)
         if ref is None:
             self.notify("Nothing to follow here.", severity="warning")
             return
-        self._resolve_and_dispatch(ref, intent="follow")
+        self._resolve_and_dispatch(
+            ref, intent="follow", context=context, kind=target.kind
+        )
 
     def _resolve_and_dispatch(
-        self: Any, ref: str, *, intent: Literal["follow", "edit"]
+        self: Any,
+        ref: str,
+        *,
+        intent: Literal["follow", "edit"],
+        context: LinkResolutionContext | None = None,
+        kind: str | None = None,
     ) -> None:
-        if ref in self._dangling_refs:
-            self.notify(f"{ref} could not be resolved.", severity="warning")
+        key = self._dangling_ref_key(ref, context)
+        if key in self._dangling_refs:
+            self.notify(
+                self._unresolved_message(ref, kind=kind, context=context),
+                severity="warning",
+            )
             return
         self._set_footer_status("loading")
         self._resolve_generation += 1
@@ -202,7 +241,11 @@ class PagerActionMixin:
 
         async def resolve_task() -> None:
             try:
-                target = await asyncio.to_thread(self._resolve_ref, ref)
+                target = await asyncio.to_thread(
+                    self._resolve_ref,
+                    ref,
+                    context=context,
+                )
             except Exception as exc:  # noqa: BLE001 - a press must never crash the pager
                 if generation == self._resolve_generation and self.document is document:
                     self._set_footer_status(None)
@@ -210,7 +253,13 @@ class PagerActionMixin:
                 return
             if generation != self._resolve_generation or self.document is not document:
                 return
-            self._apply_resolution(ref, target, intent=intent)
+            self._apply_resolution(
+                ref,
+                target,
+                intent=intent,
+                context=context,
+                kind=kind,
+            )
 
         spawn_pump_free_task(
             self,
@@ -225,11 +274,16 @@ class PagerActionMixin:
         target: LinkTarget | None,
         *,
         intent: Literal["follow", "edit"],
+        context: LinkResolutionContext | None = None,
+        kind: str | None = None,
     ) -> None:
         self._set_footer_status(None)
         if target is None:
-            self._dangling_refs.add(ref)
-            self.notify(f"{ref} could not be resolved.", severity="warning")
+            self._dangling_refs.add(self._dangling_ref_key(ref, context))
+            self.notify(
+                self._unresolved_message(ref, kind=kind, context=context),
+                severity="warning",
+            )
             self._repaint_label_state()
             return
         if intent == "edit":
@@ -294,6 +348,53 @@ class PagerActionMixin:
         self._update_trail()
         self._update_footer()
         self._update_subject()
+
+    def _link_context_for_section_index(
+        self: Any,
+        section_index: int,
+    ) -> LinkResolutionContext | None:
+        if not 0 <= section_index < len(self.document.sections):
+            return self.document.link_context
+        section = self.document.sections[section_index]
+        return merge_link_context(section.link_anchors, self.document.link_context)
+
+    def _is_target_dangling(
+        self: Any,
+        section_index: int,
+        target: PagerTargetSpan,
+    ) -> bool:
+        ref = target_resolution_ref(target, self.document.origin)
+        if ref is None:
+            return False
+        return (
+            self._dangling_ref_key(
+                ref,
+                self._link_context_for_section_index(section_index),
+            )
+            in self._dangling_refs
+        )
+
+    def _dangling_ref_key(
+        self: Any,
+        ref: str,
+        context: LinkResolutionContext | None,
+    ) -> _DanglingRefKey:
+        del self
+        if context is None:
+            return ref, ()
+        return ref, tuple(anchor.directory for anchor in context.anchors)
+
+    def _unresolved_message(
+        self: Any,
+        ref: str,
+        *,
+        kind: str | None,
+        context: LinkResolutionContext | None,
+    ) -> str:
+        del self
+        if kind == LinkSpanKind.FILE_PATH.value:
+            return file_path_unresolved_message(ref, context=context)
+        return f"{ref} could not be resolved."
 
 
 __all__ = ["PagerActionMixin"]

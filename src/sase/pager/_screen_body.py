@@ -134,6 +134,7 @@ class PagerBodyMixin:
             width=width,
             section_offsets=section_offsets,
             dangling_refs=self._dangling_refs,
+            is_dangling=self._is_target_dangling,
         )
         if layer.target_count <= PAGER_LABEL_TWO_KEY_CAPACITY:
             self._label_window_scope = None
@@ -146,6 +147,7 @@ class PagerBodyMixin:
             window_scope=scope,
             section_offsets=section_offsets,
             dangling_refs=self._dangling_refs,
+            is_dangling=self._is_target_dangling,
         )
 
     def _current_label_window_scope(self: Any) -> LabelWindowScope:

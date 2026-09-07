@@ -38,6 +38,11 @@ from sase.bead.show_epic_expansion import (
 )
 from sase.markdown_width import markdown_print_width
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+from sase.pager.link_context import (
+    LinkAnchor,
+    default_link_context,
+    link_anchor_for_directory,
+)
 
 if TYPE_CHECKING:
     from sase.bead.cross_project import BeadStoreOrigin
@@ -479,6 +484,7 @@ def build_show_batch_document(
         sections=sections,
         title=_show_batch_document_title(batch),
         origin=PagerOrigin.BEAD,
+        link_context=default_link_context(),
     )
 
 
@@ -613,9 +619,19 @@ def _show_batch_sections(
                     wrap=wrap,
                 ),
                 subject_ref=subject_ref,
+                link_anchors=_show_entry_link_anchors(context),
             )
         )
     return tuple(sections)
+
+
+def _show_entry_link_anchors(
+    context: _ShowRenderContext,
+) -> tuple[LinkAnchor, ...]:
+    anchor = link_anchor_for_directory(context.design_cwd, workspace_num=1)
+    if anchor is None:
+        return ()
+    return (anchor,)
 
 
 def _show_batch_document_title(batch: _ShowBatch) -> str:

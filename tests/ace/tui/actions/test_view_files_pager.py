@@ -33,6 +33,7 @@ from sase.pager.document import (
     PagerSection,
     PagerTargetSpan,
 )
+from sase.pager.link_context import LinkAnchor, LinkResolutionContext
 from sase.pager.resolve import LinkTarget, LinkTargetKind
 
 from ._view_files_helpers import _commit_spec, _make_app
@@ -143,6 +144,18 @@ def test_build_pager_document_files_only_matches_document_from_paths(
     assert [section.identity for section in document.sections] == [f"file:{file_a}"]
     assert document.title == "1 file"
     assert document.origin is PagerOrigin.FILE
+    assert document.link_context is not None
+    assert document.sections[0].link_anchors[0].directory == tmp_path.resolve()
+
+
+def test_build_pager_document_preserves_supplied_link_context(tmp_path: Path) -> None:
+    file_a = tmp_path / "a.md"
+    file_a.write_text("alpha", encoding="utf-8")
+    context = LinkResolutionContext(anchors=(LinkAnchor(tmp_path),))
+
+    document = build_pager_document([str(file_a)], link_context=context)
+
+    assert document.link_context is context
 
 
 def test_build_pager_document_prepends_commit_manifest_section(tmp_path: Path) -> None:
@@ -261,6 +274,64 @@ async def test_missing_file_hint_drops_only_the_stale_selection(
     app._view_files_with_pager_screen.assert_called_once()
     (document,) = app._view_files_with_pager_screen.call_args.args
     assert [section.identity for section in document.sections] == [f"file:{notes}"]
+
+
+def test_prepare_view_input_snapshots_agent_link_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = LinkResolutionContext()
+    app = _make_app("/tmp/notes.md")
+    app.current_tab = "agents"
+    agent = SimpleNamespace(
+        effective_workspace_num=7,
+        project_file="/tmp/project.sase",
+        workspace_dir="/tmp/workspace",
+    )
+    app._get_selected_agent = lambda: agent  # type: ignore[method-assign]
+    calls: list[tuple[int, str, str]] = []
+
+    def fake_agent_context(
+        workspace_num: int,
+        project_file: str,
+        workspace_dir: str,
+    ) -> LinkResolutionContext:
+        calls.append((workspace_num, project_file, workspace_dir))
+        return context
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.agent_link_context",
+        fake_agent_context,
+    )
+
+    prepared = app._prepare_view_input("1")
+
+    assert prepared is not None
+    assert prepared.request.link_context is context
+    assert calls == [(7, "/tmp/project.sase", "/tmp/workspace")]
+
+
+def test_prepare_view_input_snapshots_patch_link_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = LinkResolutionContext()
+    patch = object()
+    app = _make_app("/tmp/notes.md")
+    app.current_tab = "patches"
+    app.patches = [patch]
+    app.current_idx = 0
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.get_workspace_directory_for_patch",
+        lambda value: "/tmp/patch-workspace" if value is patch else None,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.workspace_link_context",
+        lambda value: context if value == "/tmp/patch-workspace" else None,
+    )
+
+    prepared = app._prepare_view_input("1")
+
+    assert prepared is not None
+    assert prepared.request.link_context is context
 
 
 async def test_pager_build_oserror_is_reported(
@@ -493,7 +564,7 @@ def test_link_index_backed_pager_resolver_prefers_indexed_file_target(
 
     monkeypatch.setattr(
         "sase.ace.tui.actions.hints._files.resolve_ref",
-        lambda value: (_ for _ in ()).throw(AssertionError(value)),
+        lambda value, **_kwargs: (_ for _ in ()).throw(AssertionError(value)),
     )
 
     target = _resolve_ref_from_link_index(_App(), ref)
@@ -506,8 +577,11 @@ def test_link_index_backed_pager_resolver_prefers_indexed_file_target(
 
 def test_link_index_backed_pager_resolver_falls_back_for_unknown_ref(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     fallback = LinkTarget(kind=LinkTargetKind.DOCUMENT)
+    context = LinkResolutionContext(anchors=(LinkAnchor(tmp_path),))
+    calls: list[tuple[str, LinkResolutionContext | None]] = []
 
     class _Index:
         targets_by_ref: dict[str, ArtifactEntryTarget | None] = {}
@@ -518,12 +592,24 @@ def test_link_index_backed_pager_resolver_falls_back_for_unknown_ref(
     class _App:
         _link_index = _Index()
 
+    def fake_resolve(
+        value: str,
+        *,
+        context: LinkResolutionContext | None = None,
+    ) -> LinkTarget | None:
+        calls.append((value, context))
+        return fallback if value == "bead:unknown" else None
+
     monkeypatch.setattr(
         "sase.ace.tui.actions.hints._files.resolve_ref",
-        lambda value: fallback if value == "bead:unknown" else None,
+        fake_resolve,
     )
 
-    assert _resolve_ref_from_link_index(_App(), "bead:unknown") is fallback
+    assert (
+        _resolve_ref_from_link_index(_App(), "bead:unknown", context=context)
+        is fallback
+    )
+    assert calls == [("bead:unknown", context)]
 
 
 # -- _handle_commit_attached_target --------------------------------------------

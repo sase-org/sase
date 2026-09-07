@@ -26,6 +26,7 @@ from sase.pager.document import (
     PagerTargetSource,
     section_target_spans,
 )
+from sase.pager.link_context import LinkAnchor, LinkResolutionContext
 from sase.pager.link_scan import (
     BoundedLinkScan,
     LinkSpan,
@@ -45,6 +46,8 @@ __all__ = [
     "BoundedLinkScan",
     "AttachedTarget",
     "AttachedTargetHandler",
+    "LinkAnchor",
+    "LinkResolutionContext",
     "LinkSpan",
     "LinkSpanKind",
     "LabelWindowScope",

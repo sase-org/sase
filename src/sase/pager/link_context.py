@@ -53,8 +53,8 @@ def default_link_context() -> LinkResolutionContext:
 
 def agent_link_context(
     workspace_num: int | None,
-    project_file: str,
-    workspace_dir: str | None = None,
+    project_file: str | None,
+    workspace_dir: str | Path | None = None,
 ) -> LinkResolutionContext:
     """Anchor on the agent's workspace, its primary, then the default list."""
     anchors: list[LinkAnchor] = []
@@ -65,6 +65,30 @@ def agent_link_context(
     if primary is not None:
         anchors.append(LinkAnchor(directory=primary, workspace_num=1))
     anchors.extend(default_link_context().anchors)
+    return LinkResolutionContext(anchors=_dedupe_anchors(anchors))
+
+
+def workspace_link_context(
+    workspace_dir: str | Path | None,
+    *,
+    workspace_num: int | None = None,
+    include_default: bool = True,
+) -> LinkResolutionContext:
+    """Anchor on one workspace directory, its primary, then optional defaults."""
+    anchors: list[LinkAnchor] = []
+    workspace = _existing_dir(_path_input(workspace_dir))
+    resolved_workspace_num = workspace_num
+    if workspace is not None:
+        if resolved_workspace_num is None:
+            resolved_workspace_num = _workspace_num_for(workspace)
+        anchors.append(
+            LinkAnchor(directory=workspace, workspace_num=resolved_workspace_num)
+        )
+        primary = _primary_workspace_dir(workspace, resolved_workspace_num)
+        if primary is not None:
+            anchors.append(LinkAnchor(directory=primary, workspace_num=1))
+    if include_default:
+        anchors.extend(default_link_context().anchors)
     return LinkResolutionContext(anchors=_dedupe_anchors(anchors))
 
 
@@ -86,10 +110,41 @@ def inherited_link_context(
     return LinkResolutionContext(anchors=_dedupe_anchors(anchors))
 
 
+def link_anchor_for_directory(
+    directory: str | Path | None,
+    *,
+    workspace_num: int | None = None,
+) -> LinkAnchor | None:
+    """Return one existence-checked directory anchor."""
+    existing = _existing_dir(_path_input(directory))
+    if existing is None:
+        return None
+    return LinkAnchor(
+        directory=existing,
+        workspace_num=(
+            workspace_num if workspace_num is not None else _workspace_num_for(existing)
+        ),
+    )
+
+
+def merge_link_context(
+    link_anchors: Iterable[LinkAnchor] = (),
+    document_context: LinkResolutionContext | None = None,
+) -> LinkResolutionContext | None:
+    """Prepend section anchors to a document context, preserving first match."""
+    anchors = list(link_anchors)
+    if document_context is not None:
+        anchors.extend(document_context.anchors)
+    merged = _dedupe_anchors(anchors)
+    if not merged:
+        return None
+    return LinkResolutionContext(anchors=merged)
+
+
 def _agent_workspace_dir(
     workspace_num: int | None,
-    project_file: str,
-    workspace_dir: str | None,
+    project_file: str | None,
+    workspace_dir: str | Path | None,
 ) -> Path | None:
     try:
         from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
@@ -106,7 +161,17 @@ def _agent_workspace_dir(
     return _existing_dir(Path(resolved))
 
 
-def _parse_primary_workspace(project_file: str) -> Path | None:
+def _path_input(value: str | Path | None) -> Path | None:
+    if value is None:
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    return Path(value)
+
+
+def _parse_primary_workspace(project_file: str | None) -> Path | None:
+    if project_file is None:
+        return None
     try:
         parsed = parse_workspace_dir(project_file)
     except (OSError, RuntimeError, TypeError, ValueError):
@@ -169,4 +234,7 @@ __all__ = [
     "agent_link_context",
     "default_link_context",
     "inherited_link_context",
+    "link_anchor_for_directory",
+    "merge_link_context",
+    "workspace_link_context",
 ]

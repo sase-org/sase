@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 from collections.abc import Mapping
+from pathlib import Path
 
 from rich.rule import Rule
 from textual.app import ComposeResult
@@ -92,7 +93,7 @@ class PagerScreen(
         self._label_window_scope: LabelWindowScope | None = None
         self._last_activated_label: PagerLabel | None = None
         self._pending_action: PendingAction = "follow"
-        self._dangling_refs: set[str] = set()
+        self._dangling_refs: set[tuple[str, tuple[Path, ...]]] = set()
         self._resolve_generation = 0
         self._search = VimSearchController(self)
         self._back_trail: list[PagerTrailEntry] = []

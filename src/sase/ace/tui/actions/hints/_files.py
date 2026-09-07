@@ -19,6 +19,7 @@ from sase.pager import (
     document_from_paths,
 )
 from sase.pager.app import PendingAction
+from sase.pager.link_context import LinkResolutionContext
 from sase.pager.resolve import (
     LinkTarget,
     link_target_for_artifact_entry_target,
@@ -51,6 +52,8 @@ _COMMIT_TARGET_KIND = "commit"
 def build_pager_document(
     files: Sequence[str],
     commit_specs: Sequence[CommitViewSpec] = (),
+    *,
+    link_context: LinkResolutionContext | None = None,
 ) -> PagerDocument:
     """Read every selected file and assemble one `PagerDocument`.
 
@@ -58,12 +61,15 @@ def build_pager_document(
     the event loop (`tui_perf` rule 1) — callers dispatch this through
     ``asyncio.to_thread`` before touching UI state.
     """
-    document = document_from_paths(files)
+    document = document_from_paths(files, link_context=link_context)
     if not commit_specs:
         return document
     sections = (_commit_manifest_section(commit_specs), *document.sections)
     return PagerDocument(
-        sections=sections, title=document.title, origin=document.origin
+        sections=sections,
+        title=document.title,
+        origin=document.origin,
+        link_context=document.link_context,
     )
 
 
@@ -140,7 +146,12 @@ def _handle_commit_attached_target(
     screen.app.push_screen(CommitViewModal((spec,)))
 
 
-def _resolve_ref_from_link_index(app: object, ref: str) -> LinkTarget | None:
+def _resolve_ref_from_link_index(
+    app: object,
+    ref: str,
+    *,
+    context: LinkResolutionContext | None = None,
+) -> LinkTarget | None:
     index = getattr(app, "_link_index", None)
     targets_by_ref = getattr(index, "targets_by_ref", None)
     target_for = getattr(index, "target_for", None)
@@ -151,7 +162,7 @@ def _resolve_ref_from_link_index(app: object, ref: str) -> LinkTarget | None:
         resolved = link_target_for_artifact_entry_target(ref, target)
         if resolved is not None:
             return resolved
-    return resolve_ref(ref)
+    return resolve_ref(ref, context=context)
 
 
 class FileViewingMixin(HintMixinBase):
@@ -409,7 +420,9 @@ class FileViewingMixin(HintMixinBase):
             screen = PagerScreen(
                 document,
                 attached_handlers=handlers,
-                resolve_ref_fn=lambda ref: _resolve_ref_from_link_index(self, ref),
+                resolve_ref_fn=lambda ref, *, context=None: (
+                    _resolve_ref_from_link_index(self, ref, context=context)
+                ),
             )
             handlers[_COMMIT_TARGET_KIND] = lambda target, action: (
                 _handle_commit_attached_target(screen, target, action)

@@ -14,6 +14,9 @@ from sase.pager.link_context import (
     agent_link_context,
     default_link_context,
     inherited_link_context,
+    link_anchor_for_directory,
+    merge_link_context,
+    workspace_link_context,
 )
 
 
@@ -147,6 +150,41 @@ def test_agent_link_context_degrades_when_agent_workspace_is_missing(
     assert context.base_dirs == (cwd.resolve(),)
 
 
+def test_workspace_link_context_orders_workspace_primary_then_defaults(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "sase_8"
+    primary = tmp_path / "primary"
+    cwd = tmp_path / "cwd"
+    workspace.mkdir()
+    primary.mkdir()
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+    monkeypatch.setattr(
+        "sase.pager.link_context.get_primary_workspace_dir",
+        lambda current, *_args, **_kwargs: (
+            str(primary) if Path(current).name == "sase_8" else str(cwd)
+        ),
+    )
+
+    context = workspace_link_context(workspace, workspace_num=8)
+
+    assert context.base_dirs == (workspace.resolve(), primary.resolve(), cwd.resolve())
+    assert [anchor.workspace_num for anchor in context.anchors] == [8, 1, None]
+
+
+def test_workspace_link_context_empty_string_uses_only_defaults(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sase.pager.link_context.get_primary_workspace_dir",
+        lambda *_args, **_kwargs: str(tmp_path),
+    )
+
+    assert workspace_link_context("").base_dirs == (tmp_path.resolve(),)
+
+
 def test_inherited_link_context_prepends_landed_parent(tmp_path: Path) -> None:
     workspace = tmp_path / "ws"
     nested = workspace / "src"
@@ -173,6 +211,43 @@ def test_inherited_link_context_dedupes_when_parent_is_already_first(
     context = inherited_link_context(workspace / "foo.py", parent)
 
     assert context.base_dirs == (workspace.resolve(),)
+
+
+def test_link_anchor_for_directory_recovers_workspace_num_from_marker(
+    tmp_path: Path,
+) -> None:
+    checkout = tmp_path / "sase_9"
+    primary = tmp_path / "primary"
+    checkout.mkdir()
+    primary.mkdir()
+    _write_checkout_marker(checkout, primary, workspace_num=9)
+
+    anchor = link_anchor_for_directory(checkout)
+
+    assert anchor == LinkAnchor(directory=checkout.resolve(), workspace_num=9)
+
+
+def test_merge_link_context_prepends_and_dedupes_section_anchors(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    document_context = LinkResolutionContext(
+        anchors=(
+            LinkAnchor(directory=second, workspace_num=2),
+            LinkAnchor(directory=first, workspace_num=1),
+        )
+    )
+
+    merged = merge_link_context(
+        (LinkAnchor(directory=first, workspace_num=1),),
+        document_context,
+    )
+
+    assert merged is not None
+    assert merged.base_dirs == (first.resolve(), second.resolve())
 
 
 def test_link_context_module_does_not_call_workspace_cleaner() -> None:

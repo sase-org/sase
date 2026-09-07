@@ -277,6 +277,26 @@ def test_resolve_ref_finds_a_relative_path_in_a_later_anchor(tmp_path: Path) -> 
     assert target.document.sections[0].plain_text == "ok\n"
 
 
+def test_followed_file_document_inherits_landed_parent_context(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    live = _write(second / "src" / "foo.py")
+
+    target = resolve_ref("src/foo.py", context=_context(first, second))
+
+    assert target is not None
+    assert target.document is not None
+    assert target.document.link_context is not None
+    assert target.document.link_context.base_dirs == (
+        live.parent.resolve(),
+        first.resolve(),
+        second.resolve(),
+    )
+
+
 def test_resolve_ref_reroots_a_stale_numbered_clone_path(tmp_path: Path) -> None:
     stale = tmp_path / "sase_9" / "src" / "foo.py"
     live = _write(tmp_path / "primary" / "src" / "foo.py")

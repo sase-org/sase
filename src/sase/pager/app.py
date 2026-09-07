@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Protocol
 
 from textual.app import App
 
 from sase.pager.document import PagerDocument, PagerTargetSpan
+from sase.pager.link_context import LinkResolutionContext
 from sase.pager.resolve import LinkTarget
 
 PendingAction = Literal["follow", "copy", "edit"]
@@ -19,7 +20,14 @@ PendingAction = Literal["follow", "copy", "edit"]
 #: consulted for a kind that has a handler, since there is no ref string to
 #: resolve.
 AttachedTargetHandler = Callable[[PagerTargetSpan, PendingAction], None]
-ResolveRef = Callable[[str], LinkTarget | None]
+
+
+class ResolveRef(Protocol):
+    """Callable used by pager hosts to resolve one pressed ref."""
+
+    def __call__(
+        self, ref: str, *, context: LinkResolutionContext | None = None
+    ) -> LinkTarget | None: ...
 
 
 @dataclass(frozen=True, slots=True)

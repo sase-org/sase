@@ -10,6 +10,7 @@ import sys
 from typing import TextIO
 
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+from sase.pager.link_context import LinkResolutionContext, default_link_context
 from sase.pager.resolve import LinkTarget, LinkTargetKind, resolve_ref
 
 
@@ -53,6 +54,7 @@ def _build_pager_document(
     values = tuple(inputs)
     if not values or values == ("-",):
         resolved_title = title or "stdin"
+        context = default_link_context()
         return PagerDocument(
             sections=(
                 PagerSection(
@@ -64,41 +66,58 @@ def _build_pager_document(
             ),
             title=resolved_title,
             origin=PagerOrigin.FILE,
+            link_context=context,
         )
     if "-" in values:
         raise _PagerInputError("'-' must be the only pager input when reading stdin")
 
-    documents = tuple(_document_for_input(value) for value in values)
+    context = default_link_context()
+    documents = tuple(_document_for_input(value, context=context) for value in values)
     sections = tuple(section for document in documents for section in document.sections)
     return PagerDocument(
         sections=sections,
         title=title or _input_document_title(values),
         origin=_combined_origin(documents),
+        link_context=context,
     )
 
 
-def _document_for_input(value: str) -> PagerDocument:
+def _document_for_input(
+    value: str,
+    *,
+    context: LinkResolutionContext,
+) -> PagerDocument:
     try:
-        target = resolve_ref(value)
+        target = resolve_ref(value, context=context)
     except (OSError, RuntimeError, ValueError) as exc:
         raise _PagerInputError(f"could not resolve {value!r}: {exc}") from exc
     if target is None:
         raise _PagerInputError(f"could not resolve {value!r}")
-    document = _document_for_target(value, target)
+    document = _document_for_target(value, target, context=context)
     if document is None:
         raise _PagerInputError(f"could not render {value!r} as text")
     return document
 
 
-def _document_for_target(value: str, target: LinkTarget) -> PagerDocument | None:
+def _document_for_target(
+    value: str,
+    target: LinkTarget,
+    *,
+    context: LinkResolutionContext,
+) -> PagerDocument | None:
     if target.document is not None:
         return target.document
     if target.kind is LinkTargetKind.MEDIA:
-        return _media_document(value, target)
+        return _media_document(value, target, context=context)
     return None
 
 
-def _media_document(value: str, target: LinkTarget) -> PagerDocument:
+def _media_document(
+    value: str,
+    target: LinkTarget,
+    *,
+    context: LinkResolutionContext,
+) -> PagerDocument:
     lines = [f"reference: {value}", "kind: media"]
     for spec in target.media_specs:
         lines.append(f"path: {spec.path}")
@@ -116,6 +135,7 @@ def _media_document(value: str, target: LinkTarget) -> PagerDocument:
         ),
         title=value,
         origin=PagerOrigin.FILE,
+        link_context=context,
     )
 
 

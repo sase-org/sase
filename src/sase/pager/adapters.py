@@ -6,6 +6,11 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+from sase.pager.link_context import (
+    LinkResolutionContext,
+    default_link_context,
+    link_anchor_for_directory,
+)
 
 
 def document_from_paths(
@@ -13,6 +18,7 @@ def document_from_paths(
     *,
     cwd: str | Path | None = None,
     title: str | None = None,
+    link_context: LinkResolutionContext | None = None,
 ) -> PagerDocument:
     """Build one pager document containing one section per file path."""
     sections = path_sections(paths, cwd=cwd)
@@ -20,6 +26,7 @@ def document_from_paths(
         sections=sections,
         title=title or _path_document_title(len(sections)),
         origin=PagerOrigin.FILE,
+        link_context=default_link_context() if link_context is None else link_context,
     )
 
 
@@ -42,12 +49,14 @@ def path_section(
     absolute_path = _absolute_path(path, cwd=cwd)
     body = absolute_path.read_text(encoding="utf-8", errors="replace")
     subject_ref = f"file:{absolute_path}"
+    anchor = link_anchor_for_directory(absolute_path.parent)
     return PagerSection(
         identity=subject_ref,
         title=display_path,
         kind="file",
         body=body,
         subject_ref=subject_ref,
+        link_anchors=() if anchor is None else (anchor,),
     )
 
 

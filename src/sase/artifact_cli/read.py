@@ -51,6 +51,11 @@ from sase.sdd.artifact_link_store import (
 from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_entry
 from sase.sdd.frontmatter import parse_frontmatter
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+from sase.pager.link_context import (
+    LinkResolutionContext,
+    default_link_context,
+    workspace_link_context,
+)
 
 
 _NON_TEXT_POINTER = "Open with `sase artifact open {ref}`."
@@ -352,8 +357,16 @@ def _page_markdown(result: ResolvedArtifactReference, body: str) -> None:
             ),
             title=result.canonical_reference,
             origin=_pager_origin(result),
+            link_context=_pager_link_context(result),
         ),
     )
+
+
+def _pager_link_context(result: ResolvedArtifactReference) -> LinkResolutionContext:
+    artifact_file = result.file
+    if artifact_file is not None and artifact_file.workspace_dir:
+        return workspace_link_context(artifact_file.workspace_dir)
+    return default_link_context()
 
 
 def _pager_section_kind(result: ResolvedArtifactReference) -> str:
