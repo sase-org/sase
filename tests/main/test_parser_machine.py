@@ -18,6 +18,7 @@ def test_machine_help_renders_sorted_subcommands_and_defaults_to_list() -> None:
     expected = {
         "add",
         "agent",
+        "attention",
         "discover",
         "list",
         "remove",
@@ -36,7 +37,7 @@ def test_machine_help_renders_sorted_subcommands_and_defaults_to_list() -> None:
         expected
     )
     assert (
-        "{add,agent,discover,list,remove,rename,repair,status}"
+        "{add,agent,attention,discover,list,remove,rename,repair,status}"
         in machine_parser.format_help()
     )
 
