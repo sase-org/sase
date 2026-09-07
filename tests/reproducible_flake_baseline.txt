@@ -340,3 +340,22 @@ tests/test_plan_approval_launch_reliability_integration.py::test_archive_publica
 # and this check-full's test-cost lane passed. Ready flake task owns the
 # investigation (related: sase-rj, sase-v6).
 tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_wait_prose_replacement_ranges_match
+#
+# sase-vt: mounted-clan fold isolation remains filed full-lane debt.
+tests/ace/tui/test_agents_panel_fold_mounted.py::test_mounted_clan_fold_chords_zoom_and_patch_isolation
+# sase-x6: three section-identity nodes with existing failure reports.
+tests/ace/tui/widgets/test_prompt_panel_section_navigation_targets.py::test_active_section_reconciles_across_same_document_rerender
+tests/ace/tui/widgets/test_prompt_panel_section_navigation_targets.py::test_cheap_paint_preserves_section_until_enriched_layout_returns
+tests/ace/tui/widgets/test_prompt_panel_section_navigation_targets.py::test_resolve_section_at_row_still_resolves_fold_only_anchor
+# sase-xb: summary SIGTERM deadline has no scheduling headroom.
+tests/test_clan_summary_script_execution.py::test_timed_out_summary_script_exits_on_sigterm_without_sigkill
+# sase-j7: retained cache/fixture/schema/property failures already owned by
+# the global-state and historical-evidence investigation. All four passed
+# the sase-xq landing's 38,961-test run; this records debt, not a new failure.
+# The property history references closed sase-sv; no current failure or
+# identified fix justifies reopening it or adding a fixed-at timestamp.
+# Per-node records: file:explicit:67b2d31e698e74bc638fa8f2.
+tests/ace/tui/test_axe_status_read_cache.py::test_run_json_mtime_change_invalidates_cache
+tests/ace/tui/test_event_driven_pause_fixture.py::test_fixture_patch_does_not_leak_from_previous_test
+tests/test_config_schema.py::test_config_schema_validates_dispatch_machine_records
+tests/test_vcs_log_filter_query.py::test_canonical_query_round_trip_property
