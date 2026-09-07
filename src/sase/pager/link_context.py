@@ -12,6 +12,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from sase.artifact_ref_models import ArtifactRefDocumentOwner
 from sase.sdd.files import get_primary_workspace_dir
 from sase.workspace_provider.marker import find_marker_from_cwd
 from sase.workspace_provider.utils import parse_workspace_dir
@@ -27,9 +28,14 @@ class LinkAnchor:
 
 @dataclass(frozen=True, slots=True)
 class LinkResolutionContext:
-    """Ordered anchors for one press; first match wins."""
+    """Ordered anchors for one press; first match wins.
+
+    ``owner`` carries document/repository provenance for owned-source
+    lookup. Combination of anchors stays in-memory and path-only.
+    """
 
     anchors: tuple[LinkAnchor, ...] = ()
+    owner: ArtifactRefDocumentOwner | None = None
 
     @property
     def base_dirs(self) -> tuple[Path, ...]:
@@ -95,6 +101,8 @@ def workspace_link_context(
 def inherited_link_context(
     landed_path: Path,
     parent_context: LinkResolutionContext,
+    *,
+    owner: ArtifactRefDocumentOwner | None = None,
 ) -> LinkResolutionContext:
     """Prepend the landed path's parent directory to *parent_context*."""
     parent_dir = _existing_dir(Path(landed_path).expanduser().parent)
@@ -107,7 +115,10 @@ def inherited_link_context(
             )
         )
     anchors.extend(parent_context.anchors)
-    return LinkResolutionContext(anchors=_dedupe_anchors(anchors))
+    return LinkResolutionContext(
+        anchors=_dedupe_anchors(anchors),
+        owner=parent_context.owner if owner is None else owner,
+    )
 
 
 def link_anchor_for_directory(
@@ -130,20 +141,26 @@ def link_anchor_for_directory(
 def merge_link_context(
     link_anchors: Iterable[LinkAnchor] = (),
     document_context: LinkResolutionContext | None = None,
+    *,
+    owner: ArtifactRefDocumentOwner | None = None,
 ) -> LinkResolutionContext | None:
     """Prepend section anchors to a document context, preserving first match.
 
     Combination is in-memory: it does not stat, resolve, or otherwise
     normalize directories. First-anchor-wins is by the ``Path`` value as
-    stored, not by filesystem identity.
+    stored, not by filesystem identity. Section *owner* wins over the
+    document owner when both are present.
     """
     anchors = list(link_anchors)
+    merged_owner = owner
     if document_context is not None:
         anchors.extend(document_context.anchors)
+        if merged_owner is None:
+            merged_owner = document_context.owner
     merged = _unique_anchors(anchors)
-    if not merged:
+    if not merged and merged_owner is None:
         return None
-    return LinkResolutionContext(anchors=merged)
+    return LinkResolutionContext(anchors=merged, owner=merged_owner)
 
 
 def _agent_workspace_dir(

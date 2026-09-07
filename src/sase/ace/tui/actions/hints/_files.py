@@ -13,6 +13,7 @@ from sase.pager import (
     AttachedTarget,
     AttachedTargetHandler,
     PagerDocument,
+    PagerOrigin,
     PagerSection,
     PagerScreen,
     PagerTargetSpan,
@@ -106,6 +107,7 @@ def _commit_manifest_section(commit_specs: Sequence[CommitViewSpec]) -> PagerSec
         kind=_COMMIT_TARGET_KIND,
         body=body,
         targets=tuple(targets),
+        origin=PagerOrigin.DIFF,
     )
 
 
@@ -160,7 +162,7 @@ def _resolve_ref_from_link_index(
         target = target_for(ref)
         if target is None:
             return LinkResolution()
-        resolved = link_target_for_artifact_entry_target(ref, target)
+        resolved = link_target_for_artifact_entry_target(ref, target, context=context)
         if resolved is not None:
             return LinkResolution(target=resolved)
     return resolve_link(ref, context=context)

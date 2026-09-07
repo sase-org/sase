@@ -9,6 +9,8 @@ from pathlib import Path
 import sys
 from typing import TextIO
 
+from dataclasses import replace
+
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.link_context import LinkResolutionContext, default_link_context
 from sase.pager.resolve import LinkTarget, LinkTargetKind, resolve_ref
@@ -97,12 +99,35 @@ def _build_pager_document(
 
     context = default_link_context()
     documents = tuple(_document_for_input(value, context=context) for value in values)
-    sections = tuple(section for document in documents for section in document.sections)
+    sections = tuple(
+        _section_with_document_identity(section, document)
+        for document in documents
+        for section in document.sections
+    )
     return PagerDocument(
         sections=sections,
         title=title or _input_document_title(values),
         origin=_combined_origin(documents),
-        link_context=context,
+        link_context=None,
+    )
+
+
+def _section_with_document_identity(
+    section: PagerSection,
+    document: PagerDocument,
+) -> PagerSection:
+    """Keep each input's origin and owner after flattening combined CLI inputs."""
+    owner = section.owner
+    if owner is None and document.link_context is not None:
+        owner = document.link_context.owner
+    anchors = section.link_anchors
+    if not anchors and document.link_context is not None:
+        anchors = document.link_context.anchors
+    return replace(
+        section,
+        origin=section.origin if section.origin is not None else document.origin,
+        owner=owner,
+        link_anchors=anchors,
     )
 
 

@@ -43,6 +43,15 @@ _LEGACY_TEXT_SUFFIXES = frozenset(
         ".rst",
         ".py",
         ".sh",
+        ".swift",
+        ".rs",
+        ".go",
+        ".c",
+        ".h",
+        ".cc",
+        ".cpp",
+        ".js",
+        ".ts",
     }
 )
 _MARKDOWN_ARTIFACT_KINDS = frozenset({"chat", "markdown", "plan", "document"})

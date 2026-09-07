@@ -10,6 +10,7 @@ from typing import Literal
 from rich.console import Console, RenderableType
 from rich.text import Text
 
+from sase.artifact_ref_models import ArtifactRefDocumentOwner
 from sase.pager.link_context import LinkAnchor, LinkResolutionContext
 from sase.pager.link_scan import LinkSpan, LinkSpanKind, PagerOrigin, scan_links
 
@@ -73,6 +74,8 @@ class PagerSection:
     targets: tuple[AttachedTarget, ...] = ()
     link_anchors: tuple[LinkAnchor, ...] = ()
     raw_source: RawSourceSpec | None = None
+    origin: PagerOrigin | None = None
+    owner: ArtifactRefDocumentOwner | None = None
     _body_text: Text = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -137,8 +140,10 @@ def target_resolution_ref(target: PagerTargetSpan, origin: PagerOrigin) -> str |
 
     URL spans are never resolved — the press table copies them directly
     (design doc section D6) without ever asking whether they exist. A bare
-    token's meaning depends on the document's origin, never globally
-    (section D3): a bare id only means a bead in a bead document.
+    token's meaning depends on the section's origin, never globally
+    (section D3): a bare id only means a bead in a bead document, and a
+    short SHA only means a commit in a diff document. Scanned targets use
+    the scanner's normalized destination, not display text.
     """
     if target.kind == LinkSpanKind.URL.value:
         return None
@@ -149,8 +154,18 @@ def target_resolution_ref(target: PagerTargetSpan, origin: PagerOrigin) -> str |
     }:
         return target.text
     if target.kind == LinkSpanKind.BARE_TOKEN.value:
-        return f"bead:{target.text}" if origin is PagerOrigin.BEAD else None
+        token = target.target if isinstance(target.target, str) else target.text
+        if origin is PagerOrigin.BEAD:
+            return f"bead:{token}"
+        if origin is PagerOrigin.DIFF:
+            return f"commit:{token}"
+        return None
     return target.target if isinstance(target.target, str) else target.text
+
+
+def section_origin(section: PagerSection, origin: PagerOrigin) -> PagerOrigin:
+    """Return the origin that scans and resolves *section*."""
+    return section.origin if section.origin is not None else origin
 
 
 def section_target_spans(
@@ -164,11 +179,12 @@ def section_target_spans(
     sequence.
     """
     plain = section.plain_text
+    effective_origin = section_origin(section, origin)
     attached = tuple(_attached_target_span(target, plain) for target in section.targets)
     attached_ranges = [(target.start, target.end) for target in attached]
     scanned = tuple(
         _scanned_target_span(span)
-        for span in scan_links(plain, origin)
+        for span in scan_links(plain, effective_origin)
         if not _overlaps(span.start, span.end, attached_ranges)
     )
     return tuple(sorted((*attached, *scanned), key=_target_span_sort_key))
@@ -300,6 +316,7 @@ __all__ = [
     "PagerTargetSpan",
     "PagerTargetSource",
     "RawSourceSpec",
+    "section_origin",
     "section_syntax_language",
     "section_target_spans",
     "target_resolution_ref",

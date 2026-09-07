@@ -43,6 +43,7 @@ from sase.pager.link_context import (
     default_link_context,
     link_anchor_for_directory,
 )
+from sase.pager.owner import document_owner_from_path
 
 if TYPE_CHECKING:
     from sase.bead.cross_project import BeadStoreOrigin
@@ -620,6 +621,10 @@ def _show_batch_sections(
                 ),
                 subject_ref=subject_ref,
                 link_anchors=_show_entry_link_anchors(context),
+                origin=PagerOrigin.BEAD,
+                owner=document_owner_from_path(
+                    context.design_cwd, source_reference=subject_ref
+                ),
             )
         )
     return tuple(sections)

@@ -38,7 +38,12 @@ from sase.pager.document import (
     PagerTargetSpan,
 )
 from sase.pager.link_context import LinkAnchor, LinkResolutionContext
-from sase.pager.resolve import LinkResolution, LinkTarget, LinkTargetKind
+from sase.pager.resolve import (
+    LinkResolution,
+    LinkTarget,
+    LinkTargetKind,
+    link_target_for_artifact_entry_target,
+)
 
 from ._view_files_helpers import _commit_spec, _make_app
 
@@ -708,13 +713,54 @@ def test_link_index_backed_pager_resolver_prefers_indexed_file_target(
         lambda value, **_kwargs: (_ for _ in ()).throw(AssertionError(value)),
     )
 
-    resolution = _resolve_ref_from_link_index(_App(), ref)
+    resolution = _resolve_ref_from_link_index(_App(), ref, context=None)
     target = resolution.target
 
     assert target is not None
     assert target.kind is LinkTargetKind.DOCUMENT
     assert target.document is not None
     assert target.document.sections[0].plain_text == "indexed\n"
+
+
+def test_link_index_backed_pager_resolver_forwards_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "indexed.md"
+    path.write_text("indexed\n", encoding="utf-8")
+    ref = f"file:{path}"
+    context = LinkResolutionContext(anchors=(LinkAnchor(tmp_path),))
+    seen: list[LinkResolutionContext | None] = []
+
+    class _Index:
+        targets_by_ref = {ref: ArtifactEntryTarget("files", (str(path),))}
+
+        def target_for(self, value: str) -> ArtifactEntryTarget | None:
+            return self.targets_by_ref[value]
+
+    class _App:
+        _link_index = _Index()
+
+    real = link_target_for_artifact_entry_target
+
+    def spy(
+        value: str,
+        target: ArtifactEntryTarget,
+        *,
+        context: LinkResolutionContext | None = None,
+    ) -> object:
+        seen.append(context)
+        return real(value, target, context=context)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._files.link_target_for_artifact_entry_target",
+        spy,
+    )
+
+    resolution = _resolve_ref_from_link_index(_App(), ref, context=context)
+
+    assert resolution.target is not None
+    assert seen == [context]
 
 
 def test_link_index_backed_pager_resolver_falls_back_for_unknown_ref(

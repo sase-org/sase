@@ -10,6 +10,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from sase.artifact_ref_models import (
+    ArtifactRefDocumentOwner,
+    ArtifactRefTargetResolution,
+)
 from sase.pager.document import PagerOrigin, PagerTargetSpan, target_resolution_ref
 from sase.pager.link_context import LinkAnchor, LinkResolutionContext
 from sase.pager.link_scan import LinkSpanKind
@@ -104,14 +108,14 @@ def test_resolve_ref_rejects_blank_input(ref: str) -> None:
     assert resolve_ref(ref) is None
 
 
-def test_copy_text_for_target_falls_back_to_cwd_join_when_missing(
+def test_copy_text_for_target_keeps_the_logical_token_when_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
 
     copied = copy_text_for_target("sub/file.py", LinkSpanKind.FILE_PATH.value)
 
-    assert copied == str((tmp_path / "sub" / "file.py").resolve())
+    assert copied == "sub/file.py"
 
 
 def test_copy_text_for_target_returns_the_existing_resolution(tmp_path: Path) -> None:
@@ -155,6 +159,11 @@ def test_target_resolution_ref_prefixes_bare_bead_tokens_in_bead_origin() -> Non
 def test_target_resolution_ref_ignores_bare_tokens_outside_bead_origin() -> None:
     span = _span(LinkSpanKind.BARE_TOKEN, "sase-uk.5")
     assert target_resolution_ref(span, PagerOrigin.FILE) is None
+
+
+def test_target_resolution_ref_prefixes_bare_shas_in_diff_origin() -> None:
+    span = _span(LinkSpanKind.BARE_TOKEN, "deadbee1")
+    assert target_resolution_ref(span, PagerOrigin.DIFF) == "commit:deadbee1"
 
 
 def test_target_resolution_ref_never_resolves_urls() -> None:
@@ -345,6 +354,7 @@ def test_resolve_ref_parses_a_line_column_suffix(tmp_path: Path) -> None:
     assert target is not None
     assert target.scroll_line == 8
     assert target.edit_line == 8
+    assert target.edit_column == 3
 
 
 def test_resolve_ref_strips_a_trailing_dot_candidate(tmp_path: Path) -> None:
@@ -716,3 +726,117 @@ def test_git_ls_files_timeout_reaps_the_child(
     monkeypatch.setattr("sase.pager.resolve.subprocess.Popen", spy)
     assert _git_ls_files(tmp_path) is None
     assert held[0].poll() is not None
+
+
+def _owned_resolution(**overrides: object) -> ArtifactRefTargetResolution:
+    values: dict[str, object] = {
+        "schema_version": 1,
+        "status": "exact",
+        "resolved_path": None,
+        "repository": "capture",
+        "revision": None,
+        "candidates": (),
+        "failure_category": None,
+        "retryable": False,
+    }
+    values.update(overrides)
+    return ArtifactRefTargetResolution(**values)  # type: ignore[arg-type]
+
+
+def test_resolve_ref_uses_owned_lookup_instead_of_unrelated_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cwd = tmp_path / "cwd"
+    live = tmp_path / "capture" / "Sources" / "Router.swift"
+    decoy = cwd / "Sources" / "Router.swift"
+    live.parent.mkdir(parents=True)
+    decoy.parent.mkdir(parents=True)
+    live.write_text("live\n", encoding="utf-8")
+    decoy.write_text("decoy\n", encoding="utf-8")
+    monkeypatch.chdir(cwd)
+
+    def fake_lookup(
+        path_text: str, *, context: LinkResolutionContext | None
+    ) -> ArtifactRefTargetResolution:
+        assert path_text == "Sources/Router.swift"
+        assert context is not None and context.owner is not None
+        return _owned_resolution(resolved_path=live)
+
+    monkeypatch.setattr("sase.pager.resolve.lookup_owned_source_path", fake_lookup)
+
+    target = resolve_ref(
+        "Sources/Router.swift",
+        context=LinkResolutionContext(
+            anchors=(LinkAnchor(directory=cwd),),
+            owner=ArtifactRefDocumentOwner(project_key="bob-cli"),
+        ),
+    )
+
+    assert target is not None
+    assert target.edit_path == live
+    assert target.document is not None
+    assert target.document.sections[0].plain_text == "live\n"
+
+
+def test_owned_missing_checkout_is_retryable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    monkeypatch.setattr(
+        "sase.pager.resolve.lookup_owned_source_path",
+        lambda _path, **_kwargs: _owned_resolution(
+            status="missing_checkout",
+            failure_category="missing_checkout",
+            retryable=True,
+            diagnostic="Sources/Router.swift checkout is unavailable",
+        ),
+    )
+
+    resolution = resolve_link(
+        "Sources/Router.swift",
+        context=LinkResolutionContext(
+            anchors=(LinkAnchor(directory=workspace),),
+            owner=ArtifactRefDocumentOwner(project_key="bob-cli"),
+        ),
+    )
+
+    assert resolution.target is None
+    assert resolution.retryable is True
+    assert resolution.unresolved_message is not None
+    assert "unavailable" in resolution.unresolved_message
+
+
+def test_commit_link_shows_identifiable_details() -> None:
+    from sase.pager.landings import commit_link_target
+
+    result = SimpleNamespace(
+        canonical_reference="stitch:sase@deadbee1dead",
+        parsed=SimpleNamespace(
+            kind="stitch",
+            kind_type="stitch",
+            payload=SimpleNamespace(sha="deadbee1"),
+        ),
+        resolution=SimpleNamespace(
+            status="exact",
+            locator="sase@deadbee1dead",
+            resolved_path=None,
+        ),
+        entry=SimpleNamespace(
+            properties={
+                "subject": "Fix pager landing",
+                "author": "Ada",
+                "repo": "sase",
+                "sha": "deadbee1dead",
+            }
+        ),
+        file=None,
+    )
+
+    target = commit_link_target(result)  # type: ignore[arg-type]
+
+    assert target.document is not None
+    body = target.document.sections[0].plain_text
+    assert "subject: Fix pager landing" in body
+    assert "sha: deadbee1dead" in body
+    assert target.document.origin is PagerOrigin.DIFF

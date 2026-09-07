@@ -58,10 +58,14 @@ from sase.pager.document import (
     RawSourceSpec,
 )
 from sase.pager.link_context import (
+    LinkAnchor,
     LinkResolutionContext,
     default_link_context,
+    link_anchor_for_directory,
+    merge_link_context,
     workspace_link_context,
 )
+from sase.pager.owner import document_owner_from_artifact
 from sase.pager.syntax_policy import (
     artifact_syntax_category,
     classify_source,
@@ -367,6 +371,8 @@ def _page_markdown(result: ResolvedArtifactReference, body: str) -> None:
                     body=body,
                     subject_ref=result.canonical_reference,
                     raw_source=_artifact_raw_source(result, body),
+                    origin=_pager_origin(result),
+                    owner=document_owner_from_artifact(result),
                 ),
             ),
             title=result.canonical_reference,
@@ -395,10 +401,30 @@ def _artifact_raw_source(
 
 
 def _pager_link_context(result: ResolvedArtifactReference) -> LinkResolutionContext:
+    owner = document_owner_from_artifact(result)
     artifact_file = result.file
     if artifact_file is not None and artifact_file.workspace_dir:
-        return workspace_link_context(artifact_file.workspace_dir)
-    return default_link_context()
+        context = workspace_link_context(artifact_file.workspace_dir)
+        return LinkResolutionContext(anchors=context.anchors, owner=owner)
+
+    anchors: list[LinkAnchor] = []
+    resolved_path = result.resolution.resolved_path
+    if resolved_path is not None:
+        parent = link_anchor_for_directory(
+            resolved_path if resolved_path.is_dir() else resolved_path.parent
+        )
+        if parent is not None:
+            anchors.append(parent)
+    if result.context is not None:
+        for repository in result.context.repositories:
+            for checkout in repository.checkout_paths:
+                anchor = link_anchor_for_directory(checkout)
+                if anchor is not None:
+                    anchors.append(anchor)
+    merged = merge_link_context(anchors, default_link_context(), owner=owner)
+    if merged is not None:
+        return merged
+    return LinkResolutionContext(owner=owner)
 
 
 def _pager_section_kind(result: ResolvedArtifactReference) -> str:

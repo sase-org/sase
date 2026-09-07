@@ -247,22 +247,13 @@ def test_bead_show_batch_adapter_matches_single_bead_rendering() -> None:
         wrap=80,
         render_context_for=_plain_render_context,
     )
-    expected = PagerDocument(
-        sections=(
-            PagerSection(
-                identity="bead:sase-1",
-                title="sase-1 · First",
-                kind="bead",
-                body=expected_body,
-                subject_ref="bead:sase-1",
-            ),
-        ),
-        title="sase-1 · First",
-        origin=PagerOrigin.BEAD,
-        link_context=document.link_context,
-    )
-
-    assert document == expected
+    section = document.sections[0]
+    assert document.title == "sase-1 · First"
+    assert document.origin is PagerOrigin.BEAD
+    assert section.identity == "bead:sase-1"
+    assert section.subject_ref == "bead:sase-1"
+    assert section.origin is PagerOrigin.BEAD
+    assert section.plain_text == expected_body
 
 
 def test_bead_show_batch_adapter_uses_one_section_per_bead() -> None:

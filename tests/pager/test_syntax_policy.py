@@ -177,6 +177,22 @@ def test_is_openable_text_path_admits_rust_and_shebang(tmp_path: Path) -> None:
     assert is_openable_text_path(unknown) is False
 
 
+def test_is_openable_text_path_admits_swift_and_go_without_mime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "sase.pager.syntax_policy.mimetypes.guess_type",
+        lambda _path: (None, None),
+    )
+    swift = tmp_path / "Router.swift"
+    go_file = tmp_path / "main.go"
+    swift.write_text("import Foundation\n", encoding="utf-8")
+    go_file.write_text("package main\n", encoding="utf-8")
+
+    assert is_openable_text_path(swift) is True
+    assert is_openable_text_path(go_file) is True
+
+
 def test_get_pager_syntax_falls_back_on_unknown_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

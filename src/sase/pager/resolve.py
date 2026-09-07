@@ -19,8 +19,6 @@ import select
 import subprocess
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
-from enum import StrEnum
 from pathlib import Path
 
 from sase.ace.tui.graphics import ArtifactFileViewSpec, artifact_file_view_mode
@@ -30,7 +28,11 @@ from sase.artifact_cli.references import (
     resolved_file_path,
 )
 from sase.artifact_ref_context import artifact_ref_context
-from sase.artifact_ref_models import ArtifactRefContext, ArtifactRefFragment
+from sase.artifact_ref_models import (
+    ArtifactRefContext,
+    ArtifactRefFragment,
+    ArtifactRefTargetResolution,
+)
 from sase.artifact_ref_operations import parse_artifact_ref
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.source_language_facade import logical_source_filename
@@ -40,9 +42,22 @@ from sase.pager.link_context import (
     LinkAnchor,
     LinkResolutionContext,
     default_link_context,
-    inherited_link_context,
 )
 from sase.pager.link_scan import LinkSpanKind
+from sase.pager.landings import (
+    ambiguous_source_resolution,
+    binary_card_document,
+    card_link_target,
+    commit_link_target,
+)
+from sase.pager.owner import document_owner_from_path, inherit_owner_context
+from sase.pager.source_resolve import (
+    lookup_owned_source_path,
+    owned_source_is_retryable,
+    owned_source_is_success,
+    owned_source_unresolved_message,
+)
+from sase.pager.targets import LinkResolution, LinkTarget, LinkTargetKind
 from sase.pager.syntax_policy import (
     artifact_syntax_category,
     is_openable_text_path,
@@ -63,43 +78,6 @@ _GIT_LS_FILES_MAX_BYTES = 1_048_576
 
 _GitLsFilesCache = dict[Path, tuple[str, ...] | None]
 _PathConsider = Callable[[Path], Path | None]
-
-
-class LinkTargetKind(StrEnum):
-    """What kind of thing a press should do (design doc section D6)."""
-
-    DOCUMENT = "document"
-    MEDIA = "media"
-
-
-@dataclass(frozen=True, slots=True)
-class LinkTarget:
-    """One resolved press destination.
-
-    ``edit_path``/``edit_line`` are populated whenever a real file backs the
-    target, independent of ``kind`` — this is what lets the one-shot ``E``
-    prefix (design doc D8) reuse the same resolution as a normal follow.
-    """
-
-    kind: LinkTargetKind
-    document: PagerDocument | None = None
-    scroll_line: int | None = None
-    media_specs: tuple[ArtifactFileViewSpec, ...] = ()
-    edit_path: Path | None = None
-    edit_line: int | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class LinkResolution:
-    """One background resolution attempt and any UI-ready dead-end copy.
-
-    The pager apply path must consume this object as-is: it must not search,
-    stat, or talk to Git again to rebuild a toast. ``resolve_ref`` is the
-    convenience wrapper that returns only ``target``.
-    """
-
-    target: LinkTarget | None = None
-    unresolved_message: str | None = None
 
 
 def resolve_ref(
@@ -135,14 +113,14 @@ def resolve_link(
         parse_artifact_ref(stripped)
     except (ImportError, RuntimeError, ValueError):
         return _resolve_file_path_link(stripped, context=context)
-    return LinkResolution(
-        target=_resolve_artifact_ref_target(stripped, context=context)
-    )
+    return _resolve_artifact_ref_link(stripped, context=context)
 
 
 def link_target_for_artifact_entry_target(
     ref: str,
     target: ArtifactEntryTarget,
+    *,
+    context: LinkResolutionContext | None = None,
 ) -> LinkTarget | None:
     """Resolve an already-indexed ACE artifact target into a pager landing.
 
@@ -150,15 +128,16 @@ def link_target_for_artifact_entry_target(
     and synthesized the destination ``ArtifactEntryTarget``.  This adapter
     skips the artifact-reference discovery path for common concrete panes and
     falls back to the canonical ref resolver only when the target has no direct
-    pager document shape.
+    pager document shape. *context* is retained on the fast path so materialized
+    reports do not land as contextless temporary files.
     """
 
     if target.pane_id == "files" and target.parts:
-        return _resolve_file_path_target(str(target.parts[-1]))
+        return _resolve_file_path_target(str(target.parts[-1]), context=context)
     if target.pane_id == "beads" and target.parts:
         return _bead_link_target(f"bead:{target.parts[-1]}")
     canonical_ref = _ref_for_artifact_entry_target(target) or ref
-    return _resolve_artifact_ref_target(canonical_ref)
+    return _resolve_artifact_ref_target(canonical_ref, context=context)
 
 
 def _resolve_artifact_ref_target(
@@ -166,24 +145,34 @@ def _resolve_artifact_ref_target(
     *,
     context: LinkResolutionContext | None = None,
 ) -> LinkTarget | None:
+    return _resolve_artifact_ref_link(ref, context=context).target
+
+
+def _resolve_artifact_ref_link(
+    ref: str,
+    *,
+    context: LinkResolutionContext | None = None,
+) -> LinkResolution:
     if context is None or not context.anchors:
         return _resolve_artifact_result(
             ref,
             artifact_context=None,
             link_context=context,
         )
+    last = LinkResolution()
     for anchor in context.anchors:
         artifact_context = _artifact_ref_context_for_anchor(anchor)
         if artifact_context is None:
             continue
-        target = _resolve_artifact_result(
+        resolution = _resolve_artifact_result(
             ref,
             artifact_context=artifact_context,
             link_context=context,
         )
-        if target is not None:
-            return target
-    return None
+        if resolution.target is not None:
+            return resolution
+        last = resolution
+    return last
 
 
 def _artifact_ref_context_for_anchor(anchor: LinkAnchor) -> ArtifactRefContext | None:
@@ -198,36 +187,46 @@ def _resolve_artifact_result(
     *,
     artifact_context: ArtifactRefContext | None,
     link_context: LinkResolutionContext | None,
-) -> LinkTarget | None:
+) -> LinkResolution:
     try:
         result = (
             resolve_cli_reference(ref)
             if artifact_context is None
             else resolve_cli_reference(ref, context=artifact_context)
         )
-    except (ImportError, RuntimeError, ValueError):
-        return None
+    except (ImportError, RuntimeError, ValueError) as exc:
+        return LinkResolution(unresolved_message=f"{ref} could not be resolved - {exc}")
     if result.resolution.status not in _RESOLVED_STATUSES:
-        return None
+        diagnostic = (
+            getattr(result.resolution, "diagnostic", None)
+            or f"{ref} could not be resolved."
+        )
+        retryable = (
+            result.resolution.status
+            in {
+                "missing",
+                "unknown_repo",
+            }
+            and "ambiguous" not in diagnostic.lower()
+        )
+        return LinkResolution(unresolved_message=diagnostic, retryable=retryable)
 
     kind_type = result.parsed.kind_type
     if kind_type == "bead":
-        return _bead_link_target(result.canonical_reference)
+        return LinkResolution(target=_bead_link_target(result.canonical_reference))
     if kind_type in {"stitch", "commit"}:
-        return _card_link_target(
-            result,
-            path=result.resolution.resolved_path,
-            context=link_context,
-        )
+        return LinkResolution(target=commit_link_target(result, context=link_context))
 
     try:
         path = resolved_file_path(result)
     except (ImportError, OSError, RuntimeError, ValueError):
         path = result.resolution.resolved_path
     if path is None:
-        return _card_link_target(result, path=None, context=link_context)
+        return LinkResolution(
+            target=card_link_target(result, path=None, context=link_context)
+        )
     if path.is_dir():
-        return _directory_link_target(path, context=link_context)
+        return LinkResolution(target=_directory_link_target(path, context=link_context))
 
     line = _fragment_line(result.parsed.fragment)
     mode = artifact_file_view_mode(
@@ -235,23 +234,30 @@ def _resolve_artifact_result(
         kind=(result.file.kind if result.file is not None else result.parsed.kind),
     )
     if mode in _MEDIA_MODES:
-        return LinkTarget(
-            kind=LinkTargetKind.MEDIA,
-            media_specs=(ArtifactFileViewSpec(path, kind=mode),),
-            edit_path=path,
-            edit_line=line,
+        return LinkResolution(
+            target=LinkTarget(
+                kind=LinkTargetKind.MEDIA,
+                media_specs=(ArtifactFileViewSpec(path, kind=mode),),
+                edit_path=path,
+                edit_line=line,
+            )
         )
     logical = _artifact_logical_filename(result, path)
     file_kind = result.file.kind if result.file is not None else result.parsed.kind
     if _is_probably_text(path, logical_filename=logical):
-        return _file_link_target(
-            path,
-            requested_line=line,
-            context=link_context,
-            logical_filename=logical,
-            category=artifact_syntax_category(kind_type=kind_type, kind=file_kind),
+        return LinkResolution(
+            target=_file_link_target(
+                path,
+                requested_line=line,
+                context=link_context,
+                logical_filename=logical,
+                category=artifact_syntax_category(kind_type=kind_type, kind=file_kind),
+                subject_ref=result.canonical_reference,
+            )
         )
-    return _card_link_target(result, path=path, context=link_context)
+    return LinkResolution(
+        target=card_link_target(result, path=path, context=link_context)
+    )
 
 
 def _resolve_file_path_target(
@@ -268,7 +274,12 @@ def _resolve_file_path_link(
     context: LinkResolutionContext | None = None,
 ) -> LinkResolution:
     resolved_context = _file_path_context(context)
-    found, line, locations = _search_existing_path(text, context=resolved_context)
+    owned = _owned_file_path_resolution(text, context=resolved_context)
+    if owned is not None:
+        return owned
+    found, line, column, locations = _search_existing_path(
+        text, context=resolved_context
+    )
     if found is None:
         return LinkResolution(
             unresolved_message=f"{text} not found (searched {locations} locations)",
@@ -277,8 +288,43 @@ def _resolve_file_path_link(
         target=_link_target_for_existing_path(
             found,
             requested_line=line,
+            requested_column=column,
             context=resolved_context,
         )
+    )
+
+
+def _owned_file_path_resolution(
+    text: str,
+    *,
+    context: LinkResolutionContext,
+) -> LinkResolution | None:
+    if context.owner is None:
+        return None
+    last: ArtifactRefTargetResolution | None = None
+    last_path = text
+    for path_text, line, column in _path_candidates(text):
+        owned = lookup_owned_source_path(path_text, context=context)
+        if owned is None:
+            continue
+        last = owned
+        last_path = path_text
+        if owned_source_is_success(owned) and owned.resolved_path is not None:
+            return LinkResolution(
+                target=_link_target_for_existing_path(
+                    owned.resolved_path,
+                    requested_line=line,
+                    requested_column=column,
+                    context=context,
+                )
+            )
+        if owned.status == "ambiguous" or owned.failure_category == "ambiguous":
+            return ambiguous_source_resolution(path_text, owned, context)
+    if last is None:
+        return None
+    return LinkResolution(
+        unresolved_message=owned_source_unresolved_message(last_path, last),
+        retryable=owned_source_is_retryable(last),
     )
 
 
@@ -286,6 +332,7 @@ def _link_target_for_existing_path(
     path: Path,
     *,
     requested_line: int | None,
+    requested_column: int | None = None,
     context: LinkResolutionContext,
 ) -> LinkTarget | None:
     if path.is_dir():
@@ -298,16 +345,18 @@ def _link_target_for_existing_path(
             media_specs=(ArtifactFileViewSpec(path, kind=mode),),
             edit_path=path,
             edit_line=requested_line,
+            edit_column=requested_column,
         )
     if _is_probably_text(path):
         return _file_link_target(
             path,
             requested_line=requested_line,
+            requested_column=requested_column,
             context=context,
         )
     return LinkTarget(
         kind=LinkTargetKind.DOCUMENT,
-        document=_binary_card_document(
+        document=binary_card_document(
             str(path),
             path=path,
             mime=_guess_mime(path),
@@ -315,6 +364,7 @@ def _link_target_for_existing_path(
         ),
         edit_path=path,
         edit_line=requested_line,
+        edit_column=requested_column,
     )
 
 
@@ -379,11 +429,12 @@ def _directory_link_target(
                 kind="file",
                 body=body,
                 subject_ref=f"file:{path}",
+                owner=document_owner_from_path(path, source_reference=f"file:{path}"),
             ),
         ),
         title=f"{len(entries)} entries · {path.name or str(path)}",
         origin=PagerOrigin.FILE,
-        link_context=_inherited_context(path, context),
+        link_context=inherit_owner_context(path, context),
     )
     return LinkTarget(kind=LinkTargetKind.DOCUMENT, document=document, edit_path=path)
 
@@ -392,20 +443,23 @@ def _file_link_target(
     path: Path,
     *,
     requested_line: int | None,
+    requested_column: int | None = None,
     context: LinkResolutionContext | None = None,
     logical_filename: str | None = None,
     category: str = "raw_file",
+    subject_ref: str | None = None,
 ) -> LinkTarget:
     section = path_section(
         path,
         logical_filename=logical_filename,
         category=category,
+        subject_ref=subject_ref,
     )
     document = PagerDocument(
         sections=(section,),
         title=path.name,
         origin=PagerOrigin.FILE,
-        link_context=_inherited_context(path, context),
+        link_context=inherit_owner_context(path, context),
     )
     return LinkTarget(
         kind=LinkTargetKind.DOCUMENT,
@@ -413,63 +467,8 @@ def _file_link_target(
         scroll_line=requested_line,
         edit_path=path,
         edit_line=requested_line,
+        edit_column=requested_column,
     )
-
-
-def _card_link_target(
-    result: ResolvedArtifactReference,
-    *,
-    path: Path | None,
-    context: LinkResolutionContext | None = None,
-) -> LinkTarget:
-    kind = result.file.kind if result.file is not None else result.parsed.kind
-    mime = result.file.mime_type if result.file is not None else None
-    document = _binary_card_document(
-        result.canonical_reference,
-        path=path,
-        mime=mime,
-        kind=kind,
-        status=result.resolution.status,
-        context=context,
-    )
-    return LinkTarget(kind=LinkTargetKind.DOCUMENT, document=document, edit_path=path)
-
-
-def _binary_card_document(
-    title: str,
-    *,
-    path: Path | None,
-    mime: str | None,
-    kind: str | None = None,
-    status: str | None = None,
-    context: LinkResolutionContext | None = None,
-) -> PagerDocument:
-    lines = []
-    if kind is not None:
-        lines.append(f"kind: {kind}")
-    lines.append(f"reference: {title}")
-    if status is not None:
-        lines.append(f"status: {status}")
-    lines.append(f"mime_type: {mime or '-'}")
-    lines.append(f"path: {path if path is not None else '-'}")
-    body = "\n".join(lines) + "\n"
-    return PagerDocument(
-        sections=(PagerSection(identity=title, title=title, kind="file", body=body),),
-        title=title,
-        origin=PagerOrigin.FILE,
-        link_context=(
-            _inherited_context(path, context) if path is not None else context
-        ),
-    )
-
-
-def _inherited_context(
-    path: Path,
-    context: LinkResolutionContext | None,
-) -> LinkResolutionContext | None:
-    if context is None:
-        return None
-    return inherited_link_context(path, context)
 
 
 def _fragment_line(fragment: ArtifactRefFragment | None) -> int | None:
@@ -524,21 +523,22 @@ def copy_text_for_target(
 ) -> str:
     """Return the text ``y`` should copy for a scanned/attached target.
 
-    A file path copies its first existing resolution; when nothing exists
-    it falls back to today's cwd-joined absolute string. Every other kind
-    copies its ref text verbatim, matching D8's "canonical ref or path"
-    wording.
+    A file path copies its first existing resolution. Unavailable paths
+    copy the original logical token rather than inventing a cwd-joined
+    path. Every other kind copies its ref text verbatim.
     """
     if kind == LinkSpanKind.FILE_PATH.value:
-        found, _line, _locations = _search_existing_path(
-            ref, context=_file_path_context(context)
+        resolved_context = _file_path_context(context)
+        owned = _owned_file_path_resolution(ref, context=resolved_context)
+        if owned is not None and owned.target is not None:
+            if owned.target.edit_path is not None:
+                return str(owned.target.edit_path)
+        found, _line, _column, _locations = _search_existing_path(
+            ref, context=resolved_context
         )
         if found is not None:
             return str(found)
-        path = Path(ref).expanduser()
-        if not path.is_absolute():
-            path = Path.cwd() / path
-        return str(path.resolve(strict=False))
+        return ref
     return ref
 
 
@@ -555,8 +555,8 @@ def _search_existing_path(
     *,
     context: LinkResolutionContext,
     cache: _GitLsFilesCache | None = None,
-) -> tuple[Path | None, int | None, int]:
-    """Return ``(path, line, locations_probed)`` for the first existing hit."""
+) -> tuple[Path | None, int | None, int | None, int]:
+    """Return ``(path, line, column, locations_probed)`` for the first existing hit."""
     git_cache: _GitLsFilesCache = {} if cache is None else cache
     probed: list[Path] = []
     seen: set[Path] = set()
@@ -571,18 +571,18 @@ def _search_existing_path(
         return None
 
     candidates = _path_candidates(text)
-    for path_text, line in candidates:
+    for path_text, line, column in candidates:
         found = _probe_direct(path_text, context, consider)
         if found is not None:
-            return found, line, len(probed)
-    for path_text, line in candidates:
+            return found, line, column, len(probed)
+    for path_text, line, column in candidates:
         needle = _suffix_needle(path_text, context)
         if needle is None:
             continue
         found = _unique_suffix_hit(needle, context, git_cache, consider)
         if found is not None:
-            return found, line, len(probed)
-    return None, None, len(probed)
+            return found, line, column, len(probed)
+    return None, None, None, len(probed)
 
 
 def _probe_direct(
@@ -632,15 +632,15 @@ def _unique_suffix_hit(
     return consider(hits[0])
 
 
-def _path_candidates(text: str) -> tuple[tuple[str, int | None], ...]:
+def _path_candidates(text: str) -> tuple[tuple[str, int | None, int | None], ...]:
     seen: set[str] = set()
-    candidates: list[tuple[str, int | None]] = []
+    candidates: list[tuple[str, int | None, int | None]] = []
     for variant in _candidate_texts(text):
-        path_text, line = _split_line_suffix(variant)
+        path_text, line, column = _split_line_suffix(variant)
         if not path_text or path_text in seen:
             continue
         seen.add(path_text)
-        candidates.append((path_text, line))
+        candidates.append((path_text, line, column))
     return tuple(candidates)
 
 
@@ -663,16 +663,18 @@ def _candidate_texts(text: str) -> tuple[str, ...]:
     return tuple(variants)
 
 
-def _split_line_suffix(text: str) -> tuple[str, int | None]:
-    for pattern in (_LINE_COL_SUFFIX_RE, _LINE_SUFFIX_RE):
-        match = pattern.fullmatch(text)
-        if match is None:
-            continue
+def _split_line_suffix(text: str) -> tuple[str, int | None, int | None]:
+    match = _LINE_COL_SUFFIX_RE.fullmatch(text)
+    if match is not None:
         path_text = match.group(1)
-        if _TRAILING_LINE_DIGITS_RE.search(path_text):
-            continue
-        return path_text, int(match.group(2))
-    return text, None
+        if not _TRAILING_LINE_DIGITS_RE.search(path_text):
+            return path_text, int(match.group(2)), int(match.group(3))
+    match = _LINE_SUFFIX_RE.fullmatch(text)
+    if match is not None:
+        path_text = match.group(1)
+        if not _TRAILING_LINE_DIGITS_RE.search(path_text):
+            return path_text, int(match.group(2)), None
+    return text, None, None
 
 
 def _stale_absolute_remainder(

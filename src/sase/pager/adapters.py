@@ -12,6 +12,7 @@ from sase.pager.link_context import (
     default_link_context,
     link_anchor_for_directory,
 )
+from sase.pager.owner import document_owner_from_path
 from sase.pager.syntax_policy import classify_source
 
 
@@ -47,32 +48,40 @@ def path_section(
     cwd: str | Path | None = None,
     logical_filename: str | None = None,
     category: str = "raw_file",
+    subject_ref: str | None = None,
+    origin: PagerOrigin | None = None,
 ) -> PagerSection:
     """Build one file-backed pager section.
 
     Classification runs on the bytes already read for the section body.
     *logical_filename* is original source provenance when the resolved path
     is a content-addressed object; the default is the file's own path.
+    Owner/checkout provenance is recovered from the landed path so later
+    presses resolve in the file's repository rather than the viewer's cwd.
     """
     display_path = str(path)
     absolute_path = _absolute_path(path, cwd=cwd)
     body = absolute_path.read_text(encoding="utf-8", errors="replace")
-    subject_ref = f"file:{absolute_path}"
+    resolved_subject = subject_ref or f"file:{absolute_path}"
     anchor = link_anchor_for_directory(absolute_path.parent)
     filename = logical_filename or logical_source_filename(
         source_path=str(absolute_path)
     )
     return PagerSection(
-        identity=subject_ref,
+        identity=resolved_subject,
         title=display_path,
         kind="file",
         body=body,
-        subject_ref=subject_ref,
+        subject_ref=resolved_subject,
         link_anchors=() if anchor is None else (anchor,),
         raw_source=classify_source(
             category=category,
             logical_filename=filename,
             source=body,
+        ),
+        origin=origin,
+        owner=document_owner_from_path(
+            absolute_path, source_reference=resolved_subject
         ),
     )
 

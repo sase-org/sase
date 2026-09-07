@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import json
 from pathlib import Path
 
@@ -13,7 +14,12 @@ from sase.artifact_read_log import ArtifactReadError, read_artifact_read_events
 from sase.sdd.artifact_link_outbox import _read_artifact_link_outbox_entries
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
-from tests.main.artifact_cli_reference_helpers import artifact_file, resolved_reference
+from sase.artifact_refs import ArtifactRefRepository
+from tests.main.artifact_cli_reference_helpers import (
+    artifact_file,
+    artifact_ref_context,
+    resolved_reference,
+)
 
 
 def _read_args(
@@ -212,6 +218,38 @@ def test_pager_link_context_uses_artifact_workspace_first(
     context = _pager_link_context(result)
 
     assert context.base_dirs == (workspace.resolve(), primary.resolve(), cwd.resolve())
+    assert context.owner is not None
+    assert context.owner.source_reference == result.canonical_reference
+
+
+def test_pager_link_context_keeps_owner_without_a_file_row(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+    checkout = tmp_path / "capture"
+    checkout.mkdir()
+    context = replace(
+        artifact_ref_context(tmp_path),
+        repositories=(ArtifactRefRepository("capture", checkout_paths=(checkout,)),),
+    )
+    path = tmp_path / "plans" / "202609" / "doc.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("plan\n", encoding="utf-8")
+    result = resolved_reference(
+        path,
+        reference="plan:202609/doc.md",
+        file=None,
+        context=context,
+    )
+
+    pager_context = _pager_link_context(result)
+
+    assert pager_context.owner is not None
+    assert pager_context.owner.source_reference == result.canonical_reference
+    assert checkout.resolve() in pager_context.base_dirs
 
 
 def test_read_prints_link_neighborhood_footer(

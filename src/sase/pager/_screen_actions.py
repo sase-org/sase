@@ -21,9 +21,16 @@ from sase.ace.tui.widgets._prompt_jump_target import build_jump_editor_argv
 from sase.pager._labels import LabelWindowScope, PagerLabel, PagerLabelLayer
 from sase.pager._layout import ComposedBody
 from sase.pager.app import PendingAction
-from sase.pager.document import PagerDocument, PagerTargetSpan, target_resolution_ref
+from sase.pager.document import (
+    PagerDocument,
+    PagerOrigin,
+    PagerTargetSpan,
+    section_origin,
+    target_resolution_ref,
+)
 from sase.pager.link_context import LinkResolutionContext, merge_link_context
 from sase.pager.link_scan import LinkSpanKind
+from sase.pager.owner import owner_cache_key
 from sase.pager.resolve import (
     LinkResolution,
     LinkTarget,
@@ -35,7 +42,11 @@ from sase.pager.resolve import (
 #: that same key can be recognized as the doubled ``yy``/``EE`` form (design
 #: doc section D8) instead of an invalid label key.
 _PENDING_ACTION_KEYS: dict[PendingAction, str] = {"copy": "y", "edit": "E"}
-_DanglingRefKey = tuple[str, tuple[tuple[Path, int | None], ...]]
+_DanglingRefKey = tuple[
+    str,
+    tuple[tuple[Path, int | None], ...],
+    tuple[str | None, str | None, str | None, str | None, tuple[str, ...]],
+]
 
 
 def _screen_module() -> Any:
@@ -128,12 +139,11 @@ class PagerActionMixin:
         if action == "copy":
             self._copy_ref(ref, label="this section")
         else:
+            index = self._current_section_index()
             self._resolve_and_dispatch(
                 ref,
                 intent="edit",
-                context=self._link_context_for_section_index(
-                    self._current_section_index()
-                ),
+                context=self._link_context_for_section_index(index),
             )
 
     def _activate_label(self: Any, label: PagerLabel) -> None:
@@ -148,13 +158,14 @@ class PagerActionMixin:
             handler(target, action)
             return
 
+        origin = self._origin_for_section_index(label.section_index)
         if target.kind == LinkSpanKind.URL.value or action == "copy":
-            self._copy_target(target, context=context)
+            self._copy_target(target, context=context, origin=origin)
             return
         if action == "edit":
-            self._edit_target(target, context=context)
+            self._edit_target(target, context=context, origin=origin)
             return
-        self._follow_target(target, context=context)
+        self._follow_target(target, context=context, origin=origin)
 
     def _repaint_label_state(self: Any) -> None:
         self._body_width = None
@@ -166,12 +177,13 @@ class PagerActionMixin:
         target: PagerTargetSpan,
         *,
         context: LinkResolutionContext | None,
+        origin: PagerOrigin,
     ) -> None:
         if target.kind == LinkSpanKind.URL.value:
             ref = target.target if isinstance(target.target, str) else target.text
             self._copy_ref(ref, label="link")
             return
-        resolution_ref = target_resolution_ref(target, self.document.origin)
+        resolution_ref = target_resolution_ref(target, origin)
         if resolution_ref is None:
             self.notify("Nothing to copy here.", severity="warning")
             return
@@ -198,8 +210,9 @@ class PagerActionMixin:
         target: PagerTargetSpan,
         *,
         context: LinkResolutionContext | None,
+        origin: PagerOrigin,
     ) -> None:
-        ref = target_resolution_ref(target, self.document.origin)
+        ref = target_resolution_ref(target, origin)
         if ref is None:
             self.notify("Nothing to edit here.", severity="warning")
             return
@@ -210,8 +223,9 @@ class PagerActionMixin:
         target: PagerTargetSpan,
         *,
         context: LinkResolutionContext | None,
+        origin: PagerOrigin,
     ) -> None:
-        ref = target_resolution_ref(target, self.document.origin)
+        ref = target_resolution_ref(target, origin)
         if ref is None:
             self.notify("Nothing to follow here.", severity="warning")
             return
@@ -275,7 +289,8 @@ class PagerActionMixin:
         target = resolution.target
         if target is None:
             message = resolution.unresolved_message or f"{ref} could not be resolved."
-            self._dangling_refs[self._dangling_ref_key(ref, context)] = message
+            if not resolution.retryable:
+                self._dangling_refs[self._dangling_ref_key(ref, context)] = message
             self.notify(message, severity="warning")
             self._repaint_label_state()
             return
@@ -295,7 +310,7 @@ class PagerActionMixin:
             return
         editor = os.environ.get("EDITOR") or "nvim"
         argv = build_jump_editor_argv(
-            editor, str(target.edit_path), target.edit_line, None
+            editor, str(target.edit_path), target.edit_line, target.edit_column
         )
         screen_module = _screen_module()
         with screen_module.suspend_for_external_tool(
@@ -352,14 +367,27 @@ class PagerActionMixin:
         if not 0 <= section_index < len(self.document.sections):
             return self.document.link_context
         section = self.document.sections[section_index]
-        return merge_link_context(section.link_anchors, self.document.link_context)
+        return merge_link_context(
+            section.link_anchors,
+            self.document.link_context,
+            owner=section.owner,
+        )
+
+    def _origin_for_section_index(self: Any, section_index: int) -> PagerOrigin:
+        if not 0 <= section_index < len(self.document.sections):
+            return self.document.origin
+        return section_origin(
+            self.document.sections[section_index], self.document.origin
+        )
 
     def _is_target_dangling(
         self: Any,
         section_index: int,
         target: PagerTargetSpan,
     ) -> bool:
-        ref = target_resolution_ref(target, self.document.origin)
+        ref = target_resolution_ref(
+            target, self._origin_for_section_index(section_index)
+        )
         if ref is None:
             return False
         return (
@@ -377,9 +405,13 @@ class PagerActionMixin:
     ) -> _DanglingRefKey:
         del self
         if context is None:
-            return ref, ()
-        return ref, tuple(
-            (anchor.directory, anchor.workspace_num) for anchor in context.anchors
+            return ref, (), owner_cache_key(None)
+        return (
+            ref,
+            tuple(
+                (anchor.directory, anchor.workspace_num) for anchor in context.anchors
+            ),
+            owner_cache_key(context.owner),
         )
 
 

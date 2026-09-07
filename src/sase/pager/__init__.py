@@ -24,7 +24,9 @@ from sase.pager.document import (
     PagerSection,
     PagerTargetSpan,
     PagerTargetSource,
+    section_origin,
     section_target_spans,
+    target_resolution_ref,
 )
 from sase.pager.link_context import LinkAnchor, LinkResolutionContext
 from sase.pager.link_scan import (
@@ -74,5 +76,7 @@ __all__ = [
     "render_section_with_labels",
     "scan_bounded_links",
     "scan_links",
+    "section_origin",
     "section_target_spans",
+    "target_resolution_ref",
 ]

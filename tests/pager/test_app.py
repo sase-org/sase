@@ -575,6 +575,59 @@ async def test_unresolvable_label_toasts_marks_it_dangling_and_does_not_renaviga
     )
 
 
+async def test_refresh_clears_dangling_so_retry_can_succeed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    calls: list[str] = []
+
+    def fake_resolve(
+        ref: str, *, context: LinkResolutionContext | None = None
+    ) -> LinkResolution:
+        del context
+        calls.append(ref)
+        if len(calls) == 1:
+            return LinkResolution(
+                unresolved_message=f"{ref} checkout is unavailable",
+                retryable=True,
+            )
+        return LinkResolution(
+            target=LinkTarget(kind=LinkTargetKind.DOCUMENT, document=_target_document())
+        )
+
+    monkeypatch.setattr("sase.pager.screen.resolve_ref", fake_resolve)
+    section = PagerSection(
+        identity="file:/tmp/source.py",
+        title="source.py",
+        kind="file",
+        body="see src/missing.py for details\n",
+        link_anchors=(LinkAnchor(workspace),),
+    )
+    app = SasePager(
+        PagerDocument(sections=(section,), title="source.py", origin=PagerOrigin.FILE)
+    )
+    async with app.run_test(size=(80, 24)) as pilot:
+        screen = _pager_screen(app)
+        await pilot.pause()
+        await pilot.press("0")
+        await pilot.pause(0.1)
+        await pilot.pause(0.1)
+
+        assert screen.document.title == "source.py"
+        assert screen._dangling_refs == {}
+
+        await pilot.press("r")
+        await pilot.pause()
+        await pilot.press("0")
+        await pilot.pause(0.1)
+        await pilot.pause(0.1)
+
+        assert screen.document.title == "target"
+        assert len(calls) == 2
+
+
 async def test_dangling_refs_are_scoped_to_link_context(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

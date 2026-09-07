@@ -66,6 +66,8 @@ class PagerBodyMixin:
         self._goto_section(-1)
 
     def action_refresh(self: Any) -> None:
+        self._dangling_refs.clear()
+        self._resolve_generation += 1
         self._clear_goto_state()
         self._body_width = None
         self._ensure_body()

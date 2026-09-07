@@ -199,6 +199,56 @@ def test_plain_positional_input_uses_pager_resolver(
     assert contexts and contexts[0] is not None
 
 
+def test_combined_inputs_preserve_each_section_origin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bead_document = PagerDocument(
+        sections=(
+            PagerSection(
+                identity="bead:sase-1",
+                title="sase-1",
+                kind="bead",
+                body="bead body\n",
+                subject_ref="bead:sase-1",
+            ),
+        ),
+        title="sase-1",
+        origin=PagerOrigin.BEAD,
+    )
+    file_document = PagerDocument(
+        sections=(
+            PagerSection(
+                identity="file:/tmp/demo.txt",
+                title="demo.txt",
+                kind="file",
+                body="file body\n",
+                subject_ref="file:/tmp/demo.txt",
+            ),
+        ),
+        title="demo.txt",
+        origin=PagerOrigin.FILE,
+    )
+
+    def fake_resolve(value: str, *, context: object = None) -> LinkTarget:
+        del context
+        if value.startswith("bead:"):
+            return LinkTarget(kind=LinkTargetKind.DOCUMENT, document=bead_document)
+        return LinkTarget(kind=LinkTargetKind.DOCUMENT, document=file_document)
+
+    monkeypatch.setattr(pager_handler, "resolve_ref", fake_resolve)
+
+    document = pager_handler._build_pager_document(["bead:sase-1", "demo.txt"])
+
+    assert [section.origin for section in document.sections] == [
+        PagerOrigin.BEAD,
+        PagerOrigin.FILE,
+    ]
+    assert [section.identity for section in document.sections] == [
+        "bead:sase-1",
+        "file:/tmp/demo.txt",
+    ]
+
+
 def test_stdin_dash_must_not_be_mixed_with_other_inputs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
