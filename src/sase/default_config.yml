@@ -642,6 +642,7 @@ ace:
       zoom_panel: "Z"
       isolate_panels: "="
       collapse_panel_folds: "-"
+      collapse_all_panel_folds: "_"
       start_leader_mode: "comma"
       start_bang_mode: "exclamation_mark"
       copy_tab_content: "percent_sign"

@@ -71,6 +71,8 @@ _KEY_ALIASES: dict[str, str] = {
     "-": "minus",
     # Textual normalizes the printable ``$`` key to the name ``dollar_sign``.
     "$": "dollar_sign",
+    # Textual normalizes the printable ``_`` key to the name ``underscore``.
+    "_": "underscore",
 }
 
 

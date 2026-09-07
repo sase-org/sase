@@ -97,6 +97,7 @@ def test_zoom_and_agents_fold_defaults_are_in_sync_with_help() -> None:
     assert reg.app.zoom_panel == "Z"
     assert reg.app.isolate_panels == "="
     assert reg.app.collapse_panel_folds == "minus"
+    assert reg.app.collapse_all_panel_folds == "underscore"
     assert agent_fold == {
         "cycle_level": "z",
         "toggle_all": "Z",
@@ -115,6 +116,7 @@ def test_zoom_and_agents_fold_defaults_are_in_sync_with_help() -> None:
     }
     assert ("Z", "Zoom agent/tribe detail") in agent_pairs
     assert ("=", "Only panel ⇄ restore panels") in agent_pairs
+    assert ("_", "All-panel folds ⇄ restore ▿") in agent_pairs
     assert ("zz", "Cycle panel fold level forward") in agent_pairs
     assert ("zZ", "Toggle all metadata folds") in agent_pairs
     assert ("za", "Cycle foldable section/member") in agent_pairs

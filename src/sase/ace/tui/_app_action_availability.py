@@ -382,7 +382,13 @@ def check_app_action(
         if app.current_tab != "agents":
             return False
     if (
-        action in {"zoom_panel", "isolate_panels", "collapse_panel_folds"}
+        action
+        in {
+            "zoom_panel",
+            "isolate_panels",
+            "collapse_panel_folds",
+            "collapse_all_panel_folds",
+        }
         and app.current_tab != "agents"
     ):
         return False

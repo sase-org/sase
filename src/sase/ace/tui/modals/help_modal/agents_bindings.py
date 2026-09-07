@@ -207,6 +207,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     d(a.collapse_panel_folds),
                     "Collapse panel folds ⇄ restore ▿",
                 ),
+                (
+                    d(a.collapse_all_panel_folds),
+                    "All-panel folds ⇄ restore ▿",
+                ),
             ],
         ),
         (

@@ -9,6 +9,7 @@ from sase.agent.status_buckets import agent_is_asking
 
 from ...models.agent_hoods import agent_owns_sase_agent
 from ._display_helpers import TabName
+from ._panel_fold_intent import effective_panel_collapses
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -154,6 +155,29 @@ class AgentFooterDisplayMixin:
                         panel_fold_restore_armed = bool(
                             restore_available(sweep_panel_key)
                         )
+            all_panel_fold_sweep_available = False
+            all_panel_fold_restore_armed = False
+            if panel_group is not None:
+                collapsed = effective_panel_collapses(self, panel_group.panel_keys)
+                eligible_panel_keys = [
+                    key for key in panel_group.panel_keys if key not in collapsed
+                ]
+                if len(eligible_panel_keys) >= 2:
+                    has_collapsible = getattr(
+                        self, "_panel_has_collapsible_folds", None
+                    )
+                    if callable(has_collapsible):
+                        all_panel_fold_sweep_available = any(
+                            has_collapsible(key) for key in eligible_panel_keys
+                        )
+                    if not all_panel_fold_sweep_available:
+                        restore_available = getattr(
+                            self, "_panel_fold_sweep_restore_available", None
+                        )
+                        if callable(restore_available):
+                            all_panel_fold_restore_armed = any(
+                                restore_available(key) for key in eligible_panel_keys
+                            )
             # Under whole-panel focus, `H` hints every expanded lane, clan,
             # *and* grouping banner (unlike the narrower `-` sweep), so its
             # footer chip needs its own broader availability check.
@@ -274,6 +298,8 @@ class AgentFooterDisplayMixin:
                 panel_isolation_available=panel_isolation_available,
                 panel_fold_sweep_available=panel_fold_sweep_available,
                 panel_fold_restore_armed=panel_fold_restore_armed,
+                all_panel_fold_sweep_available=all_panel_fold_sweep_available,
+                all_panel_fold_restore_armed=all_panel_fold_restore_armed,
                 panel_hint_collapse_available=panel_hint_collapse_available,
                 left_navigation_kind=left_navigation_kind,
                 lane_collapse_available=lane_collapse_available,

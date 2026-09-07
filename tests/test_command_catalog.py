@@ -263,6 +263,21 @@ def test_collapse_panel_folds_command_is_agents_only_display_command() -> None:
     assert "fold panel" in spec.aliases
 
 
+def test_collapse_all_panel_folds_command_is_agents_only_display_command() -> None:
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.collapse_all_panel_folds"]
+
+    assert spec.label == "Collapse or restore folds in every tribe panel"
+    assert spec.category == "Display"
+    assert spec.tabs == ("agents",)
+    assert spec.key_sequence == ("underscore",)
+    assert spec.key_display == "_"
+    assert "collapse all folds" in spec.aliases
+    assert "restore all folds" in spec.aliases
+    assert "fold all panels" in spec.aliases
+    assert "sweep all panels" in spec.aliases
+
+
 def test_h_commands_describe_navigation_and_contextual_collapsing() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     lower = by_id["app.hooks_or_collapse"]

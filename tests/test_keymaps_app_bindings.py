@@ -281,6 +281,7 @@ def test_h_binding_metadata_describes_navigation_and_contextual_collapse() -> No
     zoom = "Zoom Detail"
     isolate = "Only/Restore Panels"
     sweep = "Collapse/Restore Panel Folds"
+    sweep_all = "Collapse/Restore All Panel Folds"
     assert runtime_by_action["hooks_or_collapse"].description == lower
     assert fallback_by_action["hooks_or_collapse"].description == lower
     assert runtime_by_action["hooks_or_collapse_all"].description == upper
@@ -291,3 +292,5 @@ def test_h_binding_metadata_describes_navigation_and_contextual_collapse() -> No
     assert fallback_by_action["isolate_panels"].description == isolate
     assert runtime_by_action["collapse_panel_folds"].description == sweep
     assert fallback_by_action["collapse_panel_folds"].description == sweep
+    assert runtime_by_action["collapse_all_panel_folds"].description == sweep_all
+    assert fallback_by_action["collapse_all_panel_folds"].description == sweep_all

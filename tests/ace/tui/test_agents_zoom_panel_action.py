@@ -132,6 +132,19 @@ def test_zoom_and_fold_actions_are_tab_gated() -> None:
     assert patches_app.check_action("start_fold_mode", ()) is False
 
 
+def test_all_panel_fold_sweep_is_agents_only_underscore_reaches_next_query() -> None:
+    """``underscore`` resolves to distinct actions per tab, never a real conflict."""
+    agents_app = AceApp(auto_start_axe=False, initial_tab="agents")
+    patches_app = AceApp(auto_start_axe=False, initial_tab="patches")
+    patches_app.current_artifacts_subtab = "patches"
+
+    assert agents_app.check_action("collapse_all_panel_folds", ()) is not False
+    assert patches_app.check_action("collapse_all_panel_folds", ()) is False
+
+    assert agents_app.check_action("next_query", ()) is False
+    assert patches_app.check_action("next_query", ()) is not False
+
+
 def test_metadata_sections_are_agents_only_and_forward_jump_is_all_tab() -> None:
     agents_app = AceApp(auto_start_axe=False, initial_tab="agents")
     patches_app = AceApp(auto_start_axe=False, initial_tab="patches")

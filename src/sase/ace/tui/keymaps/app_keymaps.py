@@ -193,6 +193,7 @@ class AppKeymaps:
     zoom_panel: str
     isolate_panels: str
     collapse_panel_folds: str
+    collapse_all_panel_folds: str
     start_leader_mode: str
     start_bang_mode: str
     copy_tab_content: str

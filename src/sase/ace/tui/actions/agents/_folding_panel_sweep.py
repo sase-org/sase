@@ -12,7 +12,7 @@ from ._folding_clans import (
 )
 from ._folding_sase_agents import resolve_panel_lane_collapse_target
 from ._navigation_order import rendered_panel_slice
-from ._panel_fold_intent import panel_is_collapsed
+from ._panel_fold_intent import effective_panel_collapses, panel_is_collapsed
 
 if TYPE_CHECKING:
     from ...models.agent_panels import PanelKey
@@ -213,6 +213,149 @@ class AgentPanelFoldSweepMixin(AgentGroupFoldingMixin):
         total = len(agent_levels)
         noun = "fold" if total == 1 else "folds"
         self.notify(f"Restored {total} {noun}", timeout=1.5)  # type: ignore[attr-defined]
+
+    def action_collapse_all_panel_folds(self) -> None:
+        """Sweep every open fold in every eligible panel, or restore it."""
+        if self.current_tab != "agents":
+            return
+        if getattr(self, "_panel_fold_hint_mode_active", False):
+            self._teardown_panel_fold_hint_mode()  # type: ignore[attr-defined]
+
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is None:
+            self.notify(  # type: ignore[attr-defined]
+                "No tribe panel to fold", severity="warning"
+            )
+            return
+
+        collapsed = effective_panel_collapses(self, panel_group.panel_keys)
+        target_keys = [key for key in panel_group.panel_keys if key not in collapsed]
+        if not target_keys:
+            self.notify(  # type: ignore[attr-defined]
+                "All tribe panels are collapsed", severity="warning"
+            )
+            return
+
+        panel_focus = self._resolve_focused_panel()  # type: ignore[attr-defined]
+        whole_panel_focus = panel_focus is not None and not panel_focus.collapsed
+        focused_key = panel_group.focused_key
+
+        per_panel: list[tuple[PanelKey, tuple[str, ...], tuple[str, ...]]] = []
+        for panel_key in target_keys:
+            lane_target = resolve_panel_lane_collapse_target(self, panel_key)
+            lane_keys = lane_target.fold_keys if lane_target is not None else ()
+            clan_target = resolve_panel_clan_collapse_target(self, panel_key)
+            clan_keys = clan_target.fold_keys if clan_target is not None else ()
+            if lane_keys or clan_keys:
+                per_panel.append((panel_key, lane_keys, clan_keys))
+
+        if per_panel:
+            self._sweep_all_panel_folds(
+                per_panel,
+                whole_panel_focus=whole_panel_focus,
+                focused_key=focused_key,
+            )
+        else:
+            self._restore_all_panel_fold_sweeps(
+                target_keys,
+                whole_panel_focus=whole_panel_focus,
+                focused_key=focused_key,
+            )
+
+    def _sweep_all_panel_folds(
+        self,
+        per_panel: list[tuple[PanelKey, tuple[str, ...], tuple[str, ...]]],
+        *,
+        whole_panel_focus: bool,
+        focused_key: PanelKey,
+    ) -> None:
+        """Collapse every resolved lane and clan fold in every eligible panel."""
+        records = _panel_fold_sweep_records(self)
+        all_keys: list[str] = []
+        focused_lane_keys: tuple[str, ...] = ()
+        focused_clan_keys: tuple[str, ...] = ()
+        for panel_key, lane_keys, clan_keys in per_panel:
+            agent_levels = tuple(
+                (key, self._fold_manager.get(key)) for key in (*lane_keys, *clan_keys)
+            )
+            records[panel_key] = PanelFoldSweepRecord(
+                panel_key=panel_key,
+                agent_levels=agent_levels,
+            )
+            all_keys.extend((*lane_keys, *clan_keys))
+            if panel_key == focused_key:
+                focused_lane_keys = lane_keys
+                focused_clan_keys = clan_keys
+
+        if not whole_panel_focus:
+            reanchor_index = self._panel_sweep_reanchor_index(
+                focused_key,
+                lane_keys=focused_lane_keys,
+                clan_keys=focused_clan_keys,
+            )
+            if reanchor_index is not None:
+                self.current_idx = reanchor_index
+
+        self._fold_manager.collapse_fully_all(all_keys)
+
+        self._repaint_after_panel_fold_sweep(
+            focused_key, whole_panel_focus=whole_panel_focus
+        )
+
+        total = len(all_keys)
+        panel_count = len(per_panel)
+        fold_noun = "fold" if total == 1 else "folds"
+        panel_noun = "panel" if panel_count == 1 else "panels"
+        self.notify(  # type: ignore[attr-defined]
+            f"Collapsed {total} {fold_noun} in {panel_count} {panel_noun}",
+            timeout=1.5,
+        )
+
+    def _restore_all_panel_fold_sweeps(
+        self,
+        target_keys: list[PanelKey],
+        *,
+        whole_panel_focus: bool,
+        focused_key: PanelKey,
+    ) -> None:
+        """Re-expand every fold that the last all-panel sweep closed."""
+        records = _panel_fold_sweep_records(self)
+        per_panel_entries: list[tuple[PanelKey, tuple[tuple[str, FoldLevel], ...]]] = []
+        for panel_key in target_keys:
+            record = records.get(panel_key)
+            if record is None:
+                continue
+            live_entries = _live_sweep_record_entries(self, panel_key, record)
+            if not live_entries:
+                del records[panel_key]
+                continue
+            per_panel_entries.append((panel_key, live_entries))
+
+        if not per_panel_entries:
+            self.notify(  # type: ignore[attr-defined]
+                "No folds to collapse or restore", severity="warning"
+            )
+            return
+
+        all_entries: dict[str, FoldLevel] = {}
+        for _panel_key, entries in per_panel_entries:
+            all_entries.update(dict(entries))
+        self._fold_manager.restore_levels(all_entries)
+        for panel_key, _entries in per_panel_entries:
+            del records[panel_key]
+
+        self._repaint_after_panel_fold_sweep(
+            focused_key, whole_panel_focus=whole_panel_focus
+        )
+
+        total = sum(len(entries) for _panel_key, entries in per_panel_entries)
+        panel_count = len(per_panel_entries)
+        fold_noun = "fold" if total == 1 else "folds"
+        panel_noun = "panel" if panel_count == 1 else "panels"
+        self.notify(  # type: ignore[attr-defined]
+            f"Restored {total} {fold_noun} in {panel_count} {panel_noun}",
+            timeout=1.5,
+        )
 
     def _repaint_after_panel_fold_sweep(
         self,

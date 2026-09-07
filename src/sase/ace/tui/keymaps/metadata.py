@@ -29,6 +29,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("zoom_panel", "Zoom Detail", False),
     ("isolate_panels", "Only/Restore Panels", False),
     ("collapse_panel_folds", "Collapse/Restore Panel Folds", False),
+    ("collapse_all_panel_folds", "Collapse/Restore All Panel Folds", False),
     ("plans_approve", "Approve Plan", False),
     ("accept_proposal", "Accept", False),
     ("rebase", "Rebase", False),

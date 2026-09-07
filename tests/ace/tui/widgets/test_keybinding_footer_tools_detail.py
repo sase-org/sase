@@ -202,6 +202,69 @@ def test_footer_panel_fold_sweep_prefers_collapse_over_restore_chip() -> None:
     assert ("-", "restore folds") not in bindings
 
 
+def test_footer_all_panel_fold_sweep_chip_follows_availability() -> None:
+    footer = KeybindingFooter()
+
+    sweep_available = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            all_panel_fold_sweep_available=True,
+        )
+    )
+    restore_armed = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            all_panel_fold_restore_armed=True,
+        )
+    )
+    neither = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+        )
+    )
+
+    assert ("_", "collapse all folds") in sweep_available
+    assert ("_", "restore all folds") not in sweep_available
+    assert ("_", "restore all folds") in restore_armed
+    assert ("_", "collapse all folds") not in restore_armed
+    assert not any(key == "_" for key, _label in neither)
+
+
+def test_footer_all_panel_fold_sweep_prefers_collapse_over_restore_chip() -> None:
+    footer = KeybindingFooter()
+
+    bindings = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            all_panel_fold_sweep_available=True,
+            all_panel_fold_restore_armed=True,
+        )
+    )
+
+    assert ("_", "collapse all folds") in bindings
+    assert ("_", "restore all folds") not in bindings
+
+
+def test_footer_panel_and_all_panel_fold_sweep_chips_coexist() -> None:
+    footer = KeybindingFooter()
+
+    bindings = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            panel_fold_sweep_available=True,
+            all_panel_fold_sweep_available=True,
+        )
+    )
+
+    assert ("-", "collapse folds") in bindings
+    assert ("_", "collapse all folds") in bindings
+
+
 def test_footer_row_focus_advertises_isolation_when_two_or_more_panels() -> None:
     footer = KeybindingFooter()
 

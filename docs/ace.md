@@ -1219,6 +1219,7 @@ somewhere stale.
 | `Z`                 | Zoom the active agent or tribe detail panel                                                                    |
 | `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                                |
 | `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds         |
+| `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds      |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                  |
 
 ### Forking Agents and Groups
@@ -1806,6 +1807,19 @@ footer shows `- collapse folds` when the focused panel has an open agent-node or
 fold to sweep, or `- restore folds` when nothing is left to collapse but a prior sweep's
 reverse is still armed. A panel with only open grouping banners and no open agent node
 or clan reports nothing to collapse or restore.
+
+Press `_` for the all-panels sibling of `-`: in one press it sweeps every open
+agent-node and clan fold in **every** tribe panel, not just the focused one, and shares
+`-`'s per-panel sweep records, so the two compose — sweeping one panel with `-` and the
+rest with `_` still restores everything in the reverse order. A panel that is
+effectively collapsed is skipped in both directions, exactly like `-` refuses to sweep a
+collapsed panel, though its record stays live and reachable once it is expanded again.
+`_` works identically from any selection — a row, a group banner, whole-panel focus on
+an expanded panel, or whole-panel focus on a collapsed panel — sweeping or restoring the
+other panels either way. When nothing is left to collapse anywhere, it re-expands every
+fold every panel's last sweep closed, restoring each to its exact prior level. The
+footer shows `_ collapse all folds` / `_ restore all folds`, but only once at least two
+tribe panels are eligible; with a single panel it would be a redundant duplicate of `-`.
 
 Per-panel actions (kill, dismiss, expand, etc.) operate on whichever panel currently
 holds focus. Press `X` to open the cleanup panel: `d` dismisses completed agents in the

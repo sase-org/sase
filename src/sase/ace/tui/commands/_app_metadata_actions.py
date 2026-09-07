@@ -249,6 +249,18 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("collapse folds", "restore folds", "fold panel"),
     ),
     (
+        "collapse_all_panel_folds",
+        "Collapse or restore folds in every tribe panel",
+        "Display",
+        AGENTS_ONLY,
+        (
+            "collapse all folds",
+            "restore all folds",
+            "fold all panels",
+            "sweep all panels",
+        ),
+    ),
+    (
         "edit_panel",
         "Edit panel file / chop output",
         "Display",

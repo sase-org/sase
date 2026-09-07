@@ -153,6 +153,35 @@ def test_contextual_open_external_actions_may_share_a_custom_key() -> None:
     assert reg.app.files_open_external == "f11"
 
 
+def test_all_panel_fold_sweep_shares_underscore_with_next_query_by_default(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The default registry load emits no duplicate-key warning for underscore."""
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry({})
+
+    assert reg.app.next_query == "underscore"
+    assert reg.app.collapse_all_panel_folds == "underscore"
+    assert not any("Duplicate key" in r.message for r in caplog.records)
+
+
+def test_contextual_all_panel_fold_sweep_may_share_next_querys_key() -> None:
+    """Agents-only sweep and Artifacts-only query history are pane-disjoint."""
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "app": {
+                    "next_query": "f10",
+                    "collapse_all_panel_folds": "f10",
+                }
+            }
+        }
+    )
+
+    assert reg.app.next_query == "f10"
+    assert reg.app.collapse_all_panel_folds == "f10"
+
+
 def test_both_overrides_duplicate_revert_both() -> None:
     """Two user overrides mapping to the same key both revert."""
     reg = load_keymap_registry(

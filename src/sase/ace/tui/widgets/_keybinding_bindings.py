@@ -117,6 +117,8 @@ class KeybindingBindingsMixin:
         panel_isolation_available: bool = False,
         panel_fold_sweep_available: bool = False,
         panel_fold_restore_armed: bool = False,
+        all_panel_fold_sweep_available: bool = False,
+        all_panel_fold_restore_armed: bool = False,
         panel_hint_collapse_available: bool = False,
         left_navigation_kind: str | None = None,
         lane_collapse_available: bool = False,
@@ -225,6 +227,13 @@ class KeybindingBindingsMixin:
             bindings.append((self._kd("collapse_panel_folds"), "collapse folds"))
         elif panel_fold_restore_armed:
             bindings.append((self._kd("collapse_panel_folds"), "restore folds"))
+
+        if all_panel_fold_sweep_available:
+            bindings.append(
+                (self._kd("collapse_all_panel_folds"), "collapse all folds")
+            )
+        elif all_panel_fold_restore_armed:
+            bindings.append((self._kd("collapse_all_panel_folds"), "restore all folds"))
 
         if (
             left_navigation_kind in {"workflow", "family", "clan", "tribe"}

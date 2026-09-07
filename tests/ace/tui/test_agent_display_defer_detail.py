@@ -346,3 +346,39 @@ def test_footer_refresh_uses_panel_fold_sweep_probe_during_whole_panel_focus() -
     call = app.footer_widget.agent_binding_calls[-1]
     assert call["panel_fold_sweep_available"] is False
     assert call["panel_fold_restore_armed"] is True
+
+
+def test_footer_all_panel_fold_sweep_probe_across_eligible_panels() -> None:
+    from sase.ace.tui.models.agent_panels import AgentPanelGroup
+
+    app = _FakeApp()
+    app._panel_group = AgentPanelGroup.from_panel_keys(
+        [None, "alpha"], focused_key=None
+    )
+    app._panel_has_collapsible_folds = lambda _panel_key: True  # type: ignore[attr-defined]
+    app._panel_fold_sweep_restore_available = lambda _panel_key: (  # type: ignore[attr-defined]
+        _ for _ in ()
+    ).throw(AssertionError("restore probe used while a sweep is still available"))
+
+    app._apply_agent_footer_update(_DetailWidget(), app.footer_widget, None)
+
+    call = app.footer_widget.agent_binding_calls[-1]
+    assert call["all_panel_fold_sweep_available"] is True
+    assert call["all_panel_fold_restore_armed"] is False
+
+    app._panel_has_collapsible_folds = lambda _panel_key: False  # type: ignore[attr-defined]
+    app._panel_fold_sweep_restore_available = lambda _panel_key: True  # type: ignore[attr-defined]
+    app._apply_agent_footer_update(_DetailWidget(), app.footer_widget, None)
+
+    call = app.footer_widget.agent_binding_calls[-1]
+    assert call["all_panel_fold_sweep_available"] is False
+    assert call["all_panel_fold_restore_armed"] is True
+
+    # Fewer than two eligible panels: no all-panel chip even if collapsible.
+    app._panel_group = AgentPanelGroup.from_panel_keys([None], focused_key=None)
+    app._panel_has_collapsible_folds = lambda _panel_key: True  # type: ignore[attr-defined]
+    app._apply_agent_footer_update(_DetailWidget(), app.footer_widget, None)
+
+    call = app.footer_widget.agent_binding_calls[-1]
+    assert call["all_panel_fold_sweep_available"] is False
+    assert call["all_panel_fold_restore_armed"] is False

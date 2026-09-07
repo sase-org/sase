@@ -575,6 +575,13 @@ instead. The footer shows `- collapse folds` or `- restore folds` depending on w
 direction the next press would take. A panel with only open grouping banners reports
 nothing to collapse or restore.
 
+Press `_` for `-`'s all-panels sibling: one press sweeps every open agent node and clan
+fold in every eligible tribe panel at once, sharing `-`'s per-panel records so the two
+compose freely. It skips any effectively collapsed panel in both directions and works
+identically from any selection, including whole-panel focus on a collapsed panel. With
+nothing left to sweep anywhere, it restores every panel's last sweep. The footer shows
+`_ collapse all folds` / `_ restore all folds` once at least two panels are eligible.
+
 Uppercase `H` on a selected expanded panel hints every currently expanded agent node,
 clan, and top-level grouping banner in that panel — including owners hidden behind a
 collapsed banner — using the same adaptive hint keys as `L`, restricted to folds that
