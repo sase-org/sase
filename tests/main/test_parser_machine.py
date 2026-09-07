@@ -5,7 +5,12 @@ import sys
 import pytest
 
 from sase.main.parser import create_parser, default_list_delegation_notice
-from tests.main.parser_help_helpers import flat_help, help_subcommand_rows, parser_for
+from tests.main.parser_help_helpers import (
+    assert_metavar_option_documented,
+    flat_help,
+    help_subcommand_rows,
+    parser_for,
+)
 
 
 def test_machine_help_renders_sorted_subcommands_and_defaults_to_list() -> None:
@@ -40,7 +45,7 @@ def test_machine_add_help_has_no_secret_cli_value() -> None:
 
     assert "ALIAS" in add_help
     assert "ENDPOINT" in add_help
-    assert "-B, --bootstrap-file" in add_help
+    assert_metavar_option_documented(add_help, "-B", "--bootstrap-file", "PATH")
     assert "no secret value is accepted as a command-line option" in add_help
     assert "--bootstrap-secret" not in add_help
 

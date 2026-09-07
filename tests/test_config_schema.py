@@ -10,12 +10,23 @@ import pytest
 import yaml
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import ValidationError
+from ruamel.yaml import YAML
 
 from sase.config.inventory import config_schema_path
 from tests._config_schema_helpers import REPO_ROOT, format_schema_error, schema
 
 
 pytestmark = pytest.mark.contract
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    ["src/sase/config/sase.schema.json", "src/sase/default_config.yml"],
+)
+def test_bundled_config_has_no_duplicate_keys(relative_path: str) -> None:
+    # Both JSON and YAML are accepted by this loader, which rejects duplicate
+    # mapping keys instead of silently discarding the earlier settings.
+    YAML(typ="safe").load((REPO_ROOT / relative_path).read_text(encoding="utf-8"))
 
 
 def test_config_schema_resolves_inside_sase_package() -> None:
