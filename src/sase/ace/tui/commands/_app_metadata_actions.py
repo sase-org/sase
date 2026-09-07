@@ -1,0 +1,301 @@
+"""Patch, agent, axe, folding, and marking app-command metadata.
+
+Split out of ``_app_metadata.py`` to keep each module under the 500-line cap.
+"""
+
+from __future__ import annotations
+
+from sase.ace.tui.commands._tabs import (
+    AGENTS_AXE,
+    AGENTS_ONLY,
+    ALL_TABS,
+    AXE_ONLY,
+    CL_AGENTS,
+    CL_ONLY,
+)
+from sase.ace.tui.commands.types import AppCommandMeta
+
+
+ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
+    # Patch actions
+    ("quit", "Quit ace", "Misc", ALL_TABS, ("exit",)),
+    ("change_status", "Change Patch status", "Patch Actions", CL_ONLY, ()),
+    (
+        "run_workflow",
+        "Run workflow / retry agent / re-run",
+        "Patch Actions",
+        ALL_TABS,
+        ("retry", "relaunch", "edit prompt"),
+    ),
+    ("mail", "Mail Patch", "Patch Actions", CL_ONLY, ("send",)),
+    ("show_diff", "Show diff", "Patch Actions", CL_ONLY, ()),
+    ("reword", "Reword Patch", "Patch Actions", CL_ONLY, ()),
+    (
+        "add_tag",
+        "Add tag / wait for agent, clan, or tribe",
+        "Patch Actions",
+        CL_AGENTS,
+        (
+            "wait",
+            "wait for agent",
+            "wait for clan",
+            "wait for tribe",
+            "new prompt with wait",
+        ),
+    ),
+    ("view_files", "View Patch files", "Patch Actions", CL_ONLY, ()),
+    (
+        "edit_spec",
+        "Edit spec / chat / AXE config",
+        "Patch Actions",
+        ALL_TABS,
+        ("edit lumberjack", "edit chop config"),
+    ),
+    (
+        "add_axe_item",
+        "Add AXE lumberjack or chop",
+        "Axe",
+        AXE_ONLY,
+        ("new lumberjack", "new chop", "add chop"),
+    ),
+    (
+        "toggle_axe_description",
+        "Toggle AXE description",
+        "Axe",
+        AXE_ONLY,
+        ("description", "expand description", "collapse description"),
+    ),
+    ("rename_cl", "Rename Patch / agent", "Patch Actions", CL_AGENTS, ()),
+    ("patches_filters", "Patches: filter bar", "Display", CL_ONLY, ()),
+    # Patch edits
+    (
+        "edit_hooks",
+        "Edit hooks / fork agent, clan, or tribe",
+        "Patch Edits",
+        CL_AGENTS,
+        ("fork",),
+    ),
+    (
+        "mark_pr_origin",
+        "Mark PR origin (sase / external / unknown)",
+        "Patch Edits",
+        CL_ONLY,
+        ("origin", "adopt"),
+    ),
+    # Proposals & Sync
+    ("accept_proposal", "Accept proposal", "Proposals & Sync", CL_AGENTS, ()),
+    ("rebase", "Rebase Patch", "Proposals & Sync", CL_ONLY, ()),
+    (
+        "start_rewind",
+        "Rewind Patch / Revive agent",
+        "Proposals & Sync",
+        CL_AGENTS,
+        (),
+    ),
+    ("sync", "Sync repo", "Proposals & Sync", ALL_TABS, ()),
+    ("refresh", "Refresh tab", "Proposals & Sync", ALL_TABS, ("reload",)),
+    (
+        "artifacts_copy_reference",
+        "Artifacts: copy row reference",
+        "Display",
+        CL_ONLY,
+        ("copy reference", "copy sha", "copy bug ref"),
+    ),
+    (
+        "artifacts_link_marked",
+        "Artifacts: link marked row to current",
+        "Display",
+        CL_ONLY,
+        ("artifact link", "link marked", "typed link"),
+    ),
+    (
+        "agents_revive",
+        "Artifacts Agent: revive selected agent",
+        "Proposals & Sync",
+        CL_ONLY,
+        ("revive dismissed agent", "agent pane revive"),
+    ),
+    # Folding
+    (
+        "hooks_or_collapse",
+        "Navigate to parent container or tribe / collapse selected panel, "
+        "jump to last expanded panel, or collapse fold",
+        "Folding",
+        ALL_TABS,
+        ("last expanded panel",),
+    ),
+    (
+        "hooks_or_collapse_all",
+        "Collapse selected workflow/family, then group sase agents, selected "
+        "clan, remaining clans/groups; panel sase agents/clans/groups/panel / "
+        "compact tools detail / collapse all folds on other tabs",
+        "Folding",
+        ALL_TABS,
+        (
+            "collapse workflow",
+            "collapse family",
+            "collapse sase agents",
+            "collapse clan",
+            "collapse selected clan",
+            "collapse clans",
+            "collapse remaining clans",
+            "collapse group",
+            "collapse selected panel",
+        ),
+    ),
+    (
+        "expand_or_layout",
+        "Expand entry / change layout / more tools detail",
+        "Folding",
+        ALL_TABS,
+        (),
+    ),
+    (
+        "expand_all_folds",
+        "Toggle a fold in the selected tribe / expand all folds on other tabs",
+        "Folding",
+        ALL_TABS,
+        (),
+    ),
+    ("toggle_layout", "Toggle layout", "Folding", ALL_TABS, ()),
+    # Marking
+    ("toggle_mark", "Mark / unmark entry", "Marking", CL_AGENTS, ()),
+    ("clear_marks", "Clear all marks", "Marking", CL_AGENTS, ("unmark",)),
+    (
+        "bulk_change_status",
+        "Bulk status change",
+        "Marking",
+        CL_ONLY,
+        ("marked cl", "bulk"),
+    ),
+    (
+        "save_marked_agents",
+        "Save/dismiss marked agents",
+        "Marking",
+        AGENTS_ONLY,
+        (
+            "save marked",
+            "dismiss marked",
+            "agent group",
+            "name group",
+            "saved group name",
+        ),
+    ),
+    # Agents / Axe actions
+    ("kill_agent", "Kill / dismiss / start-stop axe", "Agents", ALL_TABS, ()),
+    (
+        "open_agent_cleanup_panel",
+        "Cleanup panel / clear output",
+        "Agents",
+        AGENTS_AXE,
+        ("cleanup", "dismiss all", "clear output"),
+    ),
+    ("stop_axe_and_quit", "Quit / restart menu", "Axe", ALL_TABS, ()),
+    ("start_custom_agent", "Run custom agent", "Agents", ALL_TABS, ("+",)),
+    (
+        "start_agent_home",
+        "Run agent (home mode)",
+        "Agents",
+        ALL_TABS,
+        ("home", "home mode", "~"),
+    ),
+    (
+        "start_agent_from_patch",
+        "Run agent from Patch",
+        "Agents",
+        CL_AGENTS,
+        (),
+    ),
+    (
+        "start_last_vcs_xprompt_in_editor",
+        "Edit last VCS xprompt",
+        "Agents",
+        ALL_TABS,
+        ("ctrl+g", "last vcs", "editor"),
+    ),
+    (
+        "restore_prompt_stash",
+        "Restore stashed prompt",
+        "Agents",
+        ALL_TABS,
+        ("stash", "restore", "pop"),
+    ),
+    (
+        "jump_to_agent_patch",
+        "Jump to agent's Patch",
+        "Agents",
+        AGENTS_ONLY,
+        ("go to patch",),
+    ),
+    (
+        "zoom_panel",
+        "Zoom agent or tribe detail panel",
+        "Display",
+        AGENTS_ONLY,
+        ("zoom", "tribe"),
+    ),
+    (
+        "isolate_panels",
+        "Isolate or restore tribe panels",
+        "Display",
+        AGENTS_ONLY,
+        ("only panel", "restore panels", "isolate"),
+    ),
+    (
+        "collapse_panel_folds",
+        "Collapse or restore tribe panel folds",
+        "Display",
+        AGENTS_ONLY,
+        ("collapse folds", "restore folds", "fold panel"),
+    ),
+    (
+        "edit_panel",
+        "Edit panel file / chop output",
+        "Display",
+        AGENTS_AXE,
+        ("recorded chop output", "open chop log"),
+    ),
+    (
+        "open_artifact_files",
+        "Open agent artifact files",
+        "Display",
+        AGENTS_ONLY,
+        ("artifact file", "image", "chat", "icat"),
+    ),
+    (
+        "show_agent_run_log",
+        "Show agent run log",
+        "Agents",
+        CL_ONLY,
+        ("agent run log",),
+    ),
+    (
+        "toggle_attempt_view",
+        "Toggle attempt view",
+        "Agents",
+        AGENTS_ONLY,
+        ("retry", "history"),
+    ),
+    (
+        "toggle_agent_unread",
+        "Toggle agent unread marker",
+        "Agents",
+        AGENTS_ONLY,
+        ("unread", "read"),
+    ),
+    ("edit_agent_tribe", "Set, edit, or clear agent tribe", "Agents", AGENTS_ONLY, ()),
+    (
+        "focus_next_agent_panel",
+        "Focus next agent panel",
+        "Agents",
+        AGENTS_ONLY,
+        (),
+    ),
+    (
+        "focus_prev_agent_panel",
+        "Focus previous agent panel",
+        "Agents",
+        AGENTS_ONLY,
+        (),
+    ),
+)

@@ -4,6 +4,8 @@ Defines the small data classes that the rest of the command subsystem
 revolves around:
 
 - ``CommandTab`` / ``CommandCategory`` — display + scoping enums.
+- ``AppCommandMeta`` — one app-keymap catalog row (action, label, category,
+  tabs, aliases).
 - ``CommandExecutor`` — frozen descriptor that says *how* to run a
   command (by app action name, by saved-query digit, by mode handler
   + subkey, or by custom mode command id). The executor is interpreted
@@ -63,6 +65,11 @@ CommandCategory = Literal[
     "Misc",
 ]
 """Stable category labels grouped by the help modal's existing structure."""
+
+type AppCommandMeta = tuple[
+    str, str, CommandCategory, tuple[CommandTab, ...], tuple[str, ...]
+]
+"""One app-command catalog row: action, palette label, category, tabs, aliases."""
 
 
 CATEGORY_ORDER: tuple[CommandCategory, ...] = (
