@@ -18,7 +18,9 @@ from sase.llm_provider import (
     AliasView,
     TemporaryLLMOverride,
     TemporaryProviderDisable,
+    TemporaryProviderPriority,
 )
+from sase.llm_provider.provider_priority import ProviderAvailabilityProvenance
 from sase.llm_provider.config import ModelAliasSelectorMember
 from sase.llm_provider.load_balancing import ModelAliasSelectorMode
 from sase.llm_provider.provider_priority import provider_routing_context_from_parts
@@ -55,6 +57,8 @@ def make_alias_view(
     selector_members: tuple[ModelAliasSelectorMember, ...] = (),
     effort: str | None = None,
     override_paused_by_provider_disable: TemporaryProviderDisable | None = None,
+    provenance: tuple[ProviderAvailabilityProvenance, ...] = (),
+    priority: TemporaryProviderPriority | None = None,
 ) -> AliasView:
     return AliasView(
         name=name,
@@ -71,6 +75,8 @@ def make_alias_view(
         selector_members=selector_members,
         effort=effort,
         override_paused_by_provider_disable=override_paused_by_provider_disable,
+        provenance=provenance,
+        priority=priority,
     )
 
 

@@ -9,7 +9,15 @@ from textual.widgets import OptionList
 from textual.worker import Worker, WorkerState
 
 from sase.agent.provider_drain import ProviderDrainError, plan_provider_drain
-from sase.llm_provider import disable_provider, disable_provider_until, enable_provider
+from sase.llm_provider import (
+    clear_provider_priority,
+    disable_provider,
+    disable_provider_until,
+    enable_provider,
+    set_provider_priority,
+    set_provider_priority_until,
+)
+from sase.llm_provider.registry import provider_routing_facts
 from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_MODE_HARD,
     PROVIDER_DISABLE_MODE_SOFT,
@@ -61,6 +69,23 @@ def _disable_success_toast(
             else " (was disabled)"
         )
     return f"{outcome.provider.upper()} {verb} {suffix}{was}; alias routing refreshed."
+
+
+def _priority_success_toast(
+    outcome: ProviderWriteOutcome,
+    duration: (
+        RelativeOverrideDuration
+        | OverrideUntilCleared
+        | ResolvedOverrideUntil
+        | KeepCurrentWindow
+        | None
+    ),
+) -> str:
+    """Return the success toast for a provider-priority write."""
+    return (
+        f"{outcome.provider.upper()} priority set {duration_suffix(duration)}; "
+        "alias routing refreshed."
+    )
 
 
 def _provider_drain_flag_enabled() -> bool:
@@ -122,6 +147,7 @@ class ProviderRoutingWorkersMixin(_MixinBase):
         )
         _snapshot_worker: Worker[ProviderRoutingSnapshot] | None
         _snapshot_keep_provider: str | None
+        _snapshot_emit_on_load: bool
         _write_worker: Worker[ProviderWriteOutcome] | None
         _pending_provider: str
         _pending_mode: str
@@ -142,10 +168,17 @@ class ProviderRoutingWorkersMixin(_MixinBase):
             self, outcome: ProviderWriteOutcome
         ) -> None: ...
 
+        def _refresh_option_rows(self, *, keep_provider: str | None) -> None: ...
+
     def _write_busy(self) -> bool:
         return self._write_worker is not None and not self._write_worker.is_finished
 
-    def _start_snapshot_load(self, *, keep_provider: str | None = None) -> None:
+    def _start_snapshot_load(
+        self,
+        *,
+        keep_provider: str | None = None,
+        emit_snapshot: bool = False,
+    ) -> None:
         if self._snapshot_worker is not None and not self._snapshot_worker.is_finished:
             self._snapshot_worker.cancel()
 
@@ -153,10 +186,12 @@ class ProviderRoutingWorkersMixin(_MixinBase):
             return self._load_snapshot()
 
         self._snapshot_keep_provider = keep_provider
+        self._snapshot_emit_on_load = emit_snapshot
         self._snapshot_worker = self.run_worker(  # type: ignore[attr-defined]
             task,
             thread=True,
             exclusive=True,
+            exit_on_error=False,
             group=_SNAPSHOT_GROUP,
         )
 
@@ -258,6 +293,7 @@ class ProviderRoutingWorkersMixin(_MixinBase):
             task,
             thread=True,
             exclusive=True,
+            exit_on_error=False,
             group=_WRITE_GROUP,
         )
 
@@ -289,8 +325,153 @@ class ProviderRoutingWorkersMixin(_MixinBase):
             task,
             thread=True,
             exclusive=True,
+            exit_on_error=False,
             group=_WRITE_GROUP,
         )
+
+    def _submit_priority(
+        self,
+        result: (
+            RelativeOverrideDuration
+            | OverrideUntilCleared
+            | ResolvedOverrideUntil
+            | KeepCurrentWindow
+        ),
+    ) -> None:
+        if self._write_busy() or not self._pending_provider:
+            return
+        if self._snapshot_worker is not None and not self._snapshot_worker.is_finished:
+            self._snapshot_worker.cancel()
+        provider = self._pending_provider
+        expected = self._snapshot.provider_priority
+        before = provider_routing_route_key(self._snapshot)
+
+        def task() -> ProviderWriteOutcome:
+            try:
+                captured_now = self._now()
+                facts = provider_routing_facts(provider)
+                if isinstance(result, ResolvedOverrideUntil):
+                    write = set_provider_priority_until(
+                        provider,
+                        result.expires_at,
+                        source="ace",
+                        facts=facts,
+                        expected=expected,
+                        now=captured_now,
+                    )
+                elif isinstance(result, KeepCurrentWindow) and result.expires_at:
+                    write = set_provider_priority_until(
+                        provider,
+                        result.expires_at,
+                        source="ace",
+                        facts=facts,
+                        expected=expected,
+                        now=captured_now,
+                    )
+                else:
+                    seconds = (
+                        result.seconds
+                        if isinstance(result, RelativeOverrideDuration)
+                        else None
+                    )
+                    write = set_provider_priority(
+                        provider,
+                        seconds,
+                        source="ace",
+                        facts=facts,
+                        expected=expected,
+                        now=captured_now,
+                    )
+            except Exception as exc:  # noqa: BLE001 - surfaced in TUI toast.
+                return ProviderWriteOutcome(
+                    action="priority_set",
+                    provider=provider,
+                    changed=False,
+                    snapshot=None,
+                    error=str(exc),
+                )
+            snapshot, reload_error = self._load_snapshot_after_write()
+            changed = (
+                before != provider_routing_route_key(snapshot)
+                if snapshot is not None
+                else write.status == "changed"
+            )
+            return ProviderWriteOutcome(
+                action="priority_set",
+                provider=provider,
+                changed=changed,
+                snapshot=snapshot,
+                priority_status=write.status,
+                priority_current=write.current or write.record,
+                priority_reason=write.reason,
+                reload_error=reload_error,
+            )
+
+        self._pending_duration = result
+        self._write_worker = self.run_worker(  # type: ignore[attr-defined]
+            task,
+            thread=True,
+            exclusive=True,
+            exit_on_error=False,
+            group=_WRITE_GROUP,
+        )
+
+    def _submit_clear_priority(self) -> None:
+        if self._write_busy():
+            return
+        if self._snapshot_worker is not None and not self._snapshot_worker.is_finished:
+            self._snapshot_worker.cancel()
+        expected = self._snapshot.provider_priority
+        provider = expected.provider if expected is not None else ""
+        before = provider_routing_route_key(self._snapshot)
+
+        def task() -> ProviderWriteOutcome:
+            try:
+                captured_now = self._now()
+                write = clear_provider_priority(
+                    expected=expected,
+                    now=captured_now,
+                )
+            except Exception as exc:  # noqa: BLE001 - surfaced in TUI toast.
+                return ProviderWriteOutcome(
+                    action="priority_clear",
+                    provider=provider,
+                    changed=False,
+                    snapshot=None,
+                    error=str(exc),
+                )
+            snapshot, reload_error = self._load_snapshot_after_write()
+            changed = (
+                before != provider_routing_route_key(snapshot)
+                if snapshot is not None
+                else write.status == "changed"
+            )
+            return ProviderWriteOutcome(
+                action="priority_clear",
+                provider=provider or (write.current.provider if write.current else ""),
+                changed=changed,
+                snapshot=snapshot,
+                priority_status=write.status,
+                priority_current=write.current or write.record,
+                priority_reason=write.reason,
+                reload_error=reload_error,
+            )
+
+        self._write_worker = self.run_worker(  # type: ignore[attr-defined]
+            task,
+            thread=True,
+            exclusive=True,
+            exit_on_error=False,
+            group=_WRITE_GROUP,
+        )
+
+    def _load_snapshot_after_write(
+        self,
+    ) -> tuple[ProviderRoutingSnapshot | None, str | None]:
+        try:
+            return self._load_snapshot(), None
+        except Exception as exc:  # noqa: BLE001 - write already completed.
+            return None, str(exc)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.worker is self._snapshot_worker:
@@ -306,13 +487,15 @@ class ProviderRoutingWorkersMixin(_MixinBase):
         ):
             return
         keep = self._snapshot_keep_provider
+        emit = self._snapshot_emit_on_load
         self._snapshot_worker = None
         self._snapshot_keep_provider = None
+        self._snapshot_emit_on_load = False
         if event.state == WorkerState.SUCCESS and event.worker.result is not None:
             self._apply_snapshot(
                 event.worker.result,
                 keep_provider=keep,
-                emit_snapshot=False,
+                emit_snapshot=emit,
             )
         elif event.state == WorkerState.ERROR:
             self.notify(  # type: ignore[attr-defined]
@@ -338,11 +521,14 @@ class ProviderRoutingWorkersMixin(_MixinBase):
                 "Could not update provider routing: unknown error", severity="error"
             )
             return
-        if outcome.error is not None or outcome.snapshot is None:
+        if outcome.error is not None:
             self.notify(  # type: ignore[attr-defined]
-                f"Could not update provider routing: {outcome.error or 'unknown error'}",
+                f"Could not update provider routing: {outcome.error}",
                 severity="error",
             )
+            return
+        if outcome.snapshot is None:
+            self._handle_reload_failure(outcome)
             return
         self._apply_snapshot(
             outcome.snapshot,
@@ -359,14 +545,130 @@ class ProviderRoutingWorkersMixin(_MixinBase):
                     f"{outcome.provider.upper()} already has that provider disable.",
                     severity="warning",
                 )
+        elif outcome.action == "enable":
+            if outcome.changed:
+                self.notify(f"{outcome.provider.upper()} enabled for new launches.")  # type: ignore[attr-defined]
+                self._changed = True
+            else:
+                self.notify(  # type: ignore[attr-defined]
+                    f"{outcome.provider.upper()} is already enabled.",
+                    severity="warning",
+                )
+        elif outcome.action == "priority_set":
+            self._handle_priority_set_outcome(outcome, duration)
+        elif outcome.action == "priority_clear":
+            self._handle_priority_clear_outcome(outcome)
         elif outcome.changed:
-            self.notify(f"{outcome.provider.upper()} enabled for new launches.")  # type: ignore[attr-defined]
+            self.notify("Provider routing updated.")  # type: ignore[attr-defined]
             self._changed = True
         else:
             self.notify(  # type: ignore[attr-defined]
-                f"{outcome.provider.upper()} is already enabled.",
+                "Provider routing already matched that state.",
                 severity="warning",
             )
+
+    def _handle_priority_set_outcome(
+        self,
+        outcome: ProviderWriteOutcome,
+        duration: (
+            RelativeOverrideDuration
+            | OverrideUntilCleared
+            | ResolvedOverrideUntil
+            | KeepCurrentWindow
+            | None
+        ),
+    ) -> None:
+        status = outcome.priority_status
+        if status == "changed":
+            self.notify(_priority_success_toast(outcome, duration))  # type: ignore[attr-defined]
+            self._changed = True
+        elif status == "unchanged":
+            self.notify(  # type: ignore[attr-defined]
+                f"{outcome.provider.upper()} already has that priority.",
+                severity="warning",
+            )
+        elif status == "ineligible_target":
+            reason = outcome.priority_reason
+            self.notify(  # type: ignore[attr-defined]
+                f"Could not prioritize {outcome.provider.upper()}: "
+                f"{reason or 'provider is not eligible right now'}",
+                severity="warning",
+            )
+        elif status == "conflict":
+            current = outcome.priority_current
+            target = current.provider.upper() if current is not None else "another"
+            self.notify(  # type: ignore[attr-defined]
+                "Provider priority changed in another session; "
+                f"refreshed {target} priority. Choose p again to replace it.",
+                severity="warning",
+            )
+        else:
+            self.notify(  # type: ignore[attr-defined]
+                "Could not update provider priority: unknown write status",
+                severity="error",
+            )
+
+    def _handle_priority_clear_outcome(
+        self,
+        outcome: ProviderWriteOutcome,
+    ) -> None:
+        status = outcome.priority_status
+        provider = outcome.provider.upper() if outcome.provider else "Provider"
+        if status == "changed":
+            self.notify(f"{provider} priority cleared; alias routing refreshed.")  # type: ignore[attr-defined]
+            self._changed = True
+        elif status == "unchanged":
+            self.notify("No provider priority to clear.", severity="warning")  # type: ignore[attr-defined]
+        elif status == "conflict":
+            current = outcome.priority_current
+            target = current.provider.upper() if current is not None else "another"
+            self.notify(  # type: ignore[attr-defined]
+                "Provider priority changed in another session; "
+                f"refreshed {target} priority. Choose c again to clear it.",
+                severity="warning",
+            )
+        elif status == "ineligible_target":
+            self.notify(  # type: ignore[attr-defined]
+                "Could not clear provider priority: state was rejected.",
+                severity="warning",
+            )
+        else:
+            self.notify(  # type: ignore[attr-defined]
+                "Could not clear provider priority: unknown write status",
+                severity="error",
+            )
+
+    def _handle_reload_failure(self, outcome: ProviderWriteOutcome) -> None:
+        if outcome.reload_error is None:
+            self.notify(  # type: ignore[attr-defined]
+                "Could not update provider routing: unknown error", severity="error"
+            )
+            return
+        if outcome.changed:
+            self._changed = True
+            self._refresh_launch_indicators_after_write()
+            self.notify(  # type: ignore[attr-defined]
+                "Provider routing was updated, but refresh failed: "
+                f"{outcome.reload_error}",
+                severity="warning",
+            )
+            self._start_snapshot_load(
+                keep_provider=outcome.provider,
+                emit_snapshot=True,
+            )
+            return
+        self.notify(  # type: ignore[attr-defined]
+            f"Could not refresh provider routing: {outcome.reload_error}",
+            severity="warning",
+        )
+
+    def _refresh_launch_indicators_after_write(self) -> None:
+        try:
+            refresh = getattr(self.app, "_refresh_launch_indicators", None)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        if callable(refresh):
+            refresh(provider_routing_changed=True)
 
     def _apply_snapshot(
         self,

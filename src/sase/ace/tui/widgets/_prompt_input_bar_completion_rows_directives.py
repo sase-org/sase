@@ -39,6 +39,9 @@ _FINALIZER_STATE_STYLES = {
     "remove": "bold",
     "clear": "bold #D7AF5F",
 }
+_MODEL_PRIORITY_STYLE = "bold #87D7FF"
+_MODEL_BACKUP_STYLE = "#87AFC7"
+_MODEL_SOFT_STYLE = "bold #FFD75F"
 
 
 def append_directive_completion_row(
@@ -186,10 +189,7 @@ def append_model_completion_row(
         kind_label = "model"
         kind_style = "bold magenta"
         state = Text(metadata.short_alias, style="dim")
-        if metadata.provenance == "soft":
-            if metadata.short_alias:
-                state.append(" · ", style="dim")
-            state.append("soft", style="bold #FFD75F")
+        _append_model_routing_state(state, metadata)
     else:
         kind_style = MODEL_ALIAS_KIND_STYLES.get(metadata.alias_kind, "bold magenta")
         name_style = _selected_style(kind_style, is_selected)
@@ -245,9 +245,10 @@ def _append_provider_completion_row(
     target = _model_completion_target_text(metadata)
     target.truncate(target_width, overflow="ellipsis", pad=True)
     content.append_text(target)
-    if metadata.provenance == "soft":
+    route_state = _model_routing_state_text(metadata)
+    if route_state:
         content.append("  ")
-        content.append("soft", style="bold #FFD75F")
+        content.append_text(route_state)
 
 
 def _model_completion_target_text(metadata: ModelCompletionMetadata) -> Text:
@@ -267,6 +268,27 @@ def _model_completion_target_text(metadata: ModelCompletionMetadata) -> Text:
         metadata.target_model,
         metadata.target_effort,
     )
+
+
+def _append_model_routing_state(text: Text, metadata: ModelCompletionMetadata) -> None:
+    """Append routing provenance to an existing completion state cell."""
+    state = _model_routing_state_text(metadata)
+    if not state:
+        return
+    if text:
+        text.append(" · ", style="dim")
+    text.append_text(state)
+
+
+def _model_routing_state_text(metadata: ModelCompletionMetadata) -> Text:
+    """Return the provider-routing state tag for a model completion row."""
+    if metadata.provenance == "priority":
+        return Text("priority", style=_MODEL_PRIORITY_STYLE)
+    if metadata.provenance == "backup":
+        return Text("backup", style=_MODEL_BACKUP_STYLE)
+    if metadata.provenance == "soft":
+        return Text("soft", style=_MODEL_SOFT_STYLE)
+    return Text("")
 
 
 def _model_completion_is_degraded_alias(

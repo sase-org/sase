@@ -12,6 +12,8 @@ from sase.ace.tui.modals.models_panel_provider_rendering import (
     duration_suffix,
     provider_description_text,
     provider_duration_modal,
+    provider_priority_duration_modal,
+    provider_summary_text,
     provider_title_line,
     render_provider_row,
 )
@@ -20,7 +22,8 @@ from sase.ace.tui.modals.models_panel_provider_state import (
     soft_explicit_provider_note,
 )
 from sase.llm_provider.provider_disable import PROVIDER_DISABLE_MODE_SOFT
-from tests._models_panel_provider_routing_helpers import disable, status
+from sase.llm_provider.load_balancing import MemberAvailability
+from tests._models_panel_provider_routing_helpers import disable, priority, status
 
 
 def test_provider_disable_provenance_labels_known_and_unknown_sources() -> None:
@@ -83,6 +86,51 @@ def test_render_provider_row_shows_soft_state() -> None:
     assert row.plain == "CLAUDE         2 models     soft · manual · 1h2m left"
 
 
+def test_render_provider_rows_show_priority_and_backup_states() -> None:
+    record = priority("codex", expires_at=3_820.0)
+    preferred = render_provider_row(
+        status(
+            "codex",
+            priority=record,
+            provenance=("priority",),
+        ),
+        colors={"codex": "#10A37F"},
+        now=100.0,
+    )
+    backup = render_provider_row(
+        status(
+            "claude",
+            availability=MemberAvailability.SPARING,
+            priority=record,
+            provenance=("priority_backup",),
+        ),
+        colors={"claude": "#D97757"},
+        now=100.0,
+    )
+
+    assert preferred.plain == "CODEX          2 models     ★ priority · 1h2m left"
+    assert backup.plain == "CLAUDE         2 models     backup · CODEX priority"
+
+
+def test_render_provider_row_shows_unavailable_priority_intent() -> None:
+    record = priority("codex", expires_at=3_820.0)
+    row = render_provider_row(
+        status(
+            "codex",
+            cli_available=False,
+            availability=MemberAvailability.UNAVAILABLE,
+            priority=record,
+            provenance=("cli_missing", "priority"),
+        ),
+        colors={"codex": "#10A37F"},
+        now=100.0,
+    )
+
+    assert row.plain == (
+        "CODEX          2 models     CLI missing · ★ priority unavailable"
+    )
+
+
 def test_provider_description_lists_disabled_effect_and_aliases() -> None:
     description = provider_description_text(
         status(
@@ -135,6 +183,45 @@ def test_provider_description_lists_soft_rules() -> None:
     assert "Affected aliases: @large, @medium." in description.plain
 
 
+def test_provider_description_distinguishes_priority_backup() -> None:
+    record = priority("codex", expires_at=3_820.0)
+    description = provider_description_text(
+        status(
+            "claude",
+            availability=MemberAvailability.SPARING,
+            priority=record,
+            provenance=("priority_backup",),
+        ),
+        now=100.0,
+        priority=record,
+    )
+
+    assert "Enabled; CODEX has priority. Press c to clear priority." in (
+        description.plain
+    )
+    assert "this provider remains usable" in description.plain
+
+
+def test_provider_summary_text_mentions_active_priority() -> None:
+    record = priority("codex", expires_at=3_820.0)
+    text = provider_summary_text(
+        (
+            status("codex", priority=record, provenance=("priority",)),
+            status(
+                "claude",
+                availability=MemberAvailability.SPARING,
+                priority=record,
+                provenance=("priority_backup",),
+            ),
+        ),
+        priority=record,
+        now=100.0,
+    )
+
+    assert "★ CODEX priority · 1h2m left" in text.plain
+    assert "other providers remain backups" in text.plain
+
+
 def test_provider_title_line_marks_soft_entries() -> None:
     text = provider_title_line(
         {
@@ -152,6 +239,26 @@ def test_provider_title_line_marks_soft_entries() -> None:
     assert text.plain == "disabled providers: CLAUDE soft until cleared · CODEX 1h2m"
 
 
+def test_provider_title_line_marks_priority_entries() -> None:
+    record = priority("codex", expires_at=3_820.0)
+    text = provider_title_line(
+        {
+            "claude": disable(
+                "claude",
+                expires_at=None,
+                mode=PROVIDER_DISABLE_MODE_SOFT,
+            ),
+        },
+        now=100.0,
+        priority=record,
+    )
+
+    assert text is not None
+    assert text.plain == (
+        "priority: CODEX ★ 1h2m · disabled providers: CLAUDE soft until cleared"
+    )
+
+
 def test_provider_duration_modal_titles_follow_mode() -> None:
     hard = provider_duration_modal("claude")
     soft = provider_duration_modal("claude", mode=PROVIDER_DISABLE_MODE_SOFT)
@@ -165,6 +272,20 @@ def test_provider_duration_modal_titles_follow_mode() -> None:
     assert soft._title == "Soft-disable CLAUDE"
     assert keep._choices[0].key == "x"
     assert "until cleared" in keep._choices[0].title
+
+
+def test_provider_priority_duration_modal_titles_follow_state() -> None:
+    active = priority("codex", expires_at=3_820.0)
+    same = provider_priority_duration_modal("codex", current_priority=active, now=100.0)
+    replacing = provider_priority_duration_modal(
+        "claude",
+        current_priority=active,
+        now=100.0,
+    )
+
+    assert same._title == "Change CODEX priority"
+    assert replacing._title == "Prioritize CLAUDE"
+    assert "Replaces CODEX priority" in replacing._choices[0].subtitle
 
 
 def test_duration_suffix_keep_current_window() -> None:

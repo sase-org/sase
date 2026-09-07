@@ -12,10 +12,15 @@ from sase.llm_provider import (
     TemporaryEffortOverride,
     TemporaryLLMOverride,
     TemporaryProviderDisable,
+    TemporaryProviderPriority,
 )
 from sase.llm_provider.config import ModelAliasSelectorMember
-from sase.llm_provider.load_balancing import ModelAliasSelectorMode
+from sase.llm_provider.load_balancing import MemberAvailability, ModelAliasSelectorMode
 from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
+from sase.llm_provider.provider_priority import (
+    PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
+    ProviderAvailabilityProvenance,
+)
 from sase.config import EffectiveRunnerLimitSnapshot, TemporaryRunnerLimitOverride
 
 
@@ -109,6 +114,21 @@ def provider_disable(
     )
 
 
+def provider_priority(
+    provider: str,
+    *,
+    expires_at: float | None = FROZEN_NOW + 2_520.0,
+    source: str = "visual",
+) -> TemporaryProviderPriority:
+    return TemporaryProviderPriority(
+        version=PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        created_at=FROZEN_NOW,
+        expires_at=expires_at,
+        source=source,
+    )
+
+
 def provider_status(
     provider: str,
     *,
@@ -116,6 +136,10 @@ def provider_status(
     cli_available: bool = True,
     active_disable: TemporaryProviderDisable | None = None,
     affected_aliases: tuple[str, ...] = (),
+    availability: MemberAvailability = MemberAvailability.PREFERRED,
+    provenance: tuple[ProviderAvailabilityProvenance, ...] = ("ordinary_available",),
+    priority: TemporaryProviderPriority | None = None,
+    eligible_for_priority: bool = True,
 ) -> ProviderRoutingStatus:
     return ProviderRoutingStatus(
         provider=provider,
@@ -124,6 +148,10 @@ def provider_status(
         active_disable=active_disable,
         hidden_from_model_pickers=False,
         affected_aliases=affected_aliases,
+        availability=availability,
+        provenance=provenance,
+        priority=priority,
+        eligible_for_priority=eligible_for_priority,
     )
 
 

@@ -6,7 +6,10 @@ import pytest
 from rich.text import Text
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.widgets._override_pill import PROVIDER_SOFT_DISABLE_PALETTE
+from sase.ace.tui.widgets._override_pill import (
+    PROVIDER_PRIORITY_PALETTE,
+    PROVIDER_SOFT_DISABLE_PALETTE,
+)
 from sase.ace.tui.widgets.provider_disables_indicator import (
     ProviderDisablesIndicator,
     _ACTIVE_STYLE,
@@ -15,6 +18,10 @@ from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_MODE_SOFT,
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
     TemporaryProviderDisable,
+)
+from sase.llm_provider.provider_priority import (
+    PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
+    TemporaryProviderPriority,
 )
 
 _MODULE = "sase.ace.tui.widgets.provider_disables_indicator"
@@ -34,6 +41,21 @@ def _disable(
         expires_at=expires_at,
         source=source,
         mode=mode,
+    )
+
+
+def _priority(
+    provider: str = "codex",
+    *,
+    expires_at: float | None = 1_000.0,
+    source: str = "test",
+) -> TemporaryProviderPriority:
+    return TemporaryProviderPriority(
+        version=PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        created_at=100.0,
+        expires_at=expires_at,
+        source=source,
     )
 
 
@@ -190,6 +212,27 @@ def test_soft_only_multiple_provider_disables_use_soft_palette() -> None:
     assert str(text.style) == PROVIDER_SOFT_DISABLE_PALETTE.base_style
 
 
+def test_provider_priority_renders_priority_pill() -> None:
+    text = ProviderDisablesIndicator._build_content(
+        {},
+        priority=_priority("codex", expires_at=3_820.0),
+        now=100.0,
+    )
+
+    assert text.plain == " CODEX ★ priority 1h2m "
+    assert str(text.style) == PROVIDER_PRIORITY_PALETTE.base_style
+
+
+def test_provider_priority_combines_with_disable_pill() -> None:
+    text = ProviderDisablesIndicator._build_content(
+        {"claude": _disable("claude", expires_at=None)},
+        priority=_priority("codex", expires_at=3_820.0),
+        now=100.0,
+    )
+
+    assert text.plain == " CODEX ★ 1h2m +1 "
+
+
 def test_tooltip_lists_soft_mode() -> None:
     tooltip = ProviderDisablesIndicator._build_tooltip(
         {
@@ -208,10 +251,27 @@ def test_tooltip_lists_soft_mode() -> None:
     assert "Pools spare a soft provider" in tooltip
 
 
+def test_tooltip_lists_provider_priority() -> None:
+    tooltip = ProviderDisablesIndicator._build_tooltip(
+        {"claude": _disable("claude", expires_at=None, source="ace")},
+        priority=_priority("codex", expires_at=3_820.0),
+        now=100.0,
+    )
+
+    assert tooltip is not None
+    assert tooltip.startswith("Provider routing state:\n")
+    assert "CODEX - preferred · 1h2m left" in tooltip
+    assert "CLAUDE - hard · manual, until cleared" in tooltip
+
+
 def test_initial_content_uses_peek_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         f"{_MODULE}.peek_active_provider_disables",
         lambda: {"claude": _disable(expires_at=None)},
+    )
+    monkeypatch.setattr(
+        f"{_MODULE}.peek_active_provider_priority",
+        lambda _now=None: None,
     )
 
     rendered = ProviderDisablesIndicator()._build_initial_content()

@@ -14,6 +14,7 @@ from sase.llm_provider import ProviderRoutingStatus
 
 from .models_panel_provider_rendering import (
     provider_description_text,
+    provider_summary_text,
     render_provider_row,
 )
 from .models_panel_provider_state import ProviderRoutingSnapshot
@@ -122,13 +123,53 @@ class ProviderRoutingOptionsMixin(_MixinBase):
         return self._statuses_by_provider.get(provider)
 
     def _update_description(self) -> None:
+        now = self._now()
+        self._update_summary(now)
+        self._update_footer()
         try:
             description = self.query_one("#provider-routing-description", Static)  # type: ignore[attr-defined]
         except Exception:
             return
         description.update(
-            provider_description_text(self._selected_status(), now=self._now())
+            provider_description_text(
+                self._selected_status(),
+                now=now,
+                priority=self._snapshot.provider_priority,
+            )
         )
+
+    def _update_summary(self, now: float) -> None:
+        try:
+            summary = self.query_one("#provider-routing-summary", Static)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        summary.update(
+            provider_summary_text(
+                self._snapshot.visible_statuses,
+                priority=self._snapshot.provider_priority,
+                now=now,
+            )
+        )
+
+    def _footer_markup(self) -> str:
+        priority = self._snapshot.provider_priority
+        clear = ""
+        if priority is not None and priority.is_active(self._now()):
+            clear = f" [green]c[/green]=Clear {priority.provider.upper()} priority "
+        return (
+            "[green]p[/green]=Prioritize/change "
+            f"{clear} [green]d/enter[/green]=Disable  "
+            "[yellow]s[/yellow]=Soft disable "
+            "[green]x[/green]=Enable\n"
+            "[dim]j/k[/dim]=Navigate  [dim]esc[/dim]=Back"
+        )
+
+    def _update_footer(self) -> None:
+        try:
+            footer = self.query_one("#provider-routing-footer", Static)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        footer.update(self._footer_markup())
 
     def on_option_list_option_highlighted(
         self,

@@ -155,7 +155,9 @@ class ModelsPanelProvidersMixin(_MixinBase):
 
     def _provider_title_text(self) -> Text | None:
         return provider_title_line(
-            self._provider_disables, now=self._models_panel_now()
+            self._provider_disables,
+            now=self._models_panel_now(),
+            priority=self._provider_snapshot.provider_priority,
         )
 
     def _visible_snapshot_keep(

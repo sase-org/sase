@@ -234,6 +234,34 @@ def test_state_tag_counts_sparing_members_as_available() -> None:
     assert _state_tag(view, now=0.0).plain == "configured · pool 2/2"
 
 
+def test_state_tag_pool_marks_priority_route() -> None:
+    view = make_alias_view(
+        "pool",
+        "user",
+        configured=True,
+        configured_value="claude/opus | codex/gpt-5.5",
+        selector_mode="round_robin",
+        selector_members=make_pool_members((True, True)),
+        provenance=("priority",),
+    )
+
+    assert _state_tag(view, now=0.0).plain == "configured · pool 2/2 · priority"
+
+
+def test_state_tag_pool_marks_priority_backup_route() -> None:
+    view = make_alias_view(
+        "pool",
+        "user",
+        configured=True,
+        configured_value="claude/opus | codex/gpt-5.5",
+        selector_mode="round_robin",
+        selector_members=make_pool_members((True, True), sparing=(True, False)),
+        provenance=("priority_backup",),
+    )
+
+    assert _state_tag(view, now=0.0).plain == "configured · pool 2/2 · backup"
+
+
 def test_state_tag_overridden_pool_keeps_override_chip() -> None:
     view = make_alias_view(
         "pool",

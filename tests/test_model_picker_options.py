@@ -3,16 +3,18 @@
 from rich.text import Text
 
 from sase.ace.tui.modals.model_picker_modal import CUSTOM_SENTINEL, DEFAULT_SENTINEL
-from sase.llm_provider.provider_disable import (
-    PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
-    TemporaryProviderDisable,
-)
 from sase.ace.tui.modals.model_picker_options import (
     build_model_options,
     rows_to_options,
 )
 from sase.ace.tui.modals.model_picker_rows import ModelPickerRow, build_model_rows
 from sase.ace.tui.provider_styles import _provider_style_for
+from sase.llm_provider.provider_disable import (
+    PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+    TemporaryProviderDisable,
+)
+from sase.llm_provider.provider_priority import provider_routing_context_from_parts
+from tests._models_panel_provider_routing_helpers import priority as _priority
 
 
 def test_build_model_options_has_default() -> None:
@@ -233,3 +235,26 @@ def test_model_picker_keeps_soft_disabled_provider_models_marked() -> None:
     assert model_option is not None
     assert not model_option.disabled
     assert any("dim" in str(span.style).lower() for span in model_option.prompt.spans)
+
+
+def test_model_picker_marks_priority_and_backup_provider_groups() -> None:
+    record = _priority("codex", expires_at=None)
+    context = provider_routing_context_from_parts({}, record, captured_at=100.0)
+    rows = build_model_rows(include_default_option=False, routing_context=context)
+    options = [option for option in rows_to_options(rows) if option is not None]
+    codex_header = next(row for row in rows if row.option_id == "__header_codex__")
+    claude_header = next(row for row in rows if row.option_id == "__header_claude__")
+    claude_model = next(row for row in rows if row.option_id == "claude-fable-5")
+    codex_option = next(option for option in options if option.id == "__header_codex__")
+    claude_option = next(
+        option for option in options if option.id == "__header_claude__"
+    )
+    model_option = next(option for option in options if option.id == "claude-fable-5")
+
+    assert codex_header.priority is True
+    assert claude_header.backup is True
+    assert claude_model.backup is True
+    assert "priority" in codex_option.prompt.plain
+    assert "backup" in claude_option.prompt.plain
+    assert "backup" in model_option.prompt.plain
+    assert "soft" not in model_option.prompt.plain

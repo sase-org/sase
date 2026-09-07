@@ -123,6 +123,39 @@ def test_provider_completion_row_uses_model_grid_and_provider_style() -> None:
     assert provider_color in str(text.spans[0].style).lower()
 
 
+def test_model_completion_rows_mark_priority_and_backup_routes() -> None:
+    provider = _candidate(
+        "codex/",
+        kind="provider",
+        alias_kind="",
+        provider="codex",
+        provider_display="Codex",
+        target_provider="",
+        target_model="",
+        provenance="priority",
+        description="Codex",
+        provider_model_count=2,
+    )
+    model = _candidate(
+        "claude-fable-5",
+        kind="model",
+        alias_kind="",
+        provider="claude",
+        provider_display="Claude",
+        short_alias="fable",
+        target_provider="",
+        target_model="",
+        provenance="backup",
+    )
+
+    provider_text = _render(provider)
+    model_text = _render(model)
+
+    assert "priority" in provider_text.plain
+    assert "backup" in model_text.plain
+    assert "soft" not in model_text.plain
+
+
 @pytest.mark.parametrize(
     ("candidate", "kind_label", "state"),
     [

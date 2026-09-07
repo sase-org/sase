@@ -133,6 +133,44 @@ def test_description_keeps_green_red_and_ambers_soft_members() -> None:
     assert "#d78787" in _style_covering(text, "× gemini/gemini-2.5-pro")
 
 
+def test_description_names_priority_and_backup_members() -> None:
+    members = (
+        ModelAliasSelectorMember(
+            value="codex/gpt-5.5",
+            target="codex/gpt-5.5",
+            effort=None,
+            provider="codex",
+            available=True,
+            selected=True,
+            provenance=("priority",),
+        ),
+        ModelAliasSelectorMember(
+            value="claude/opus",
+            target="claude/opus",
+            effort=None,
+            provider="claude",
+            available=True,
+            sparing=True,
+            provenance=("priority_backup",),
+        ),
+    )
+    view = make_alias_view(
+        "pool",
+        "user",
+        configured=True,
+        configured_value="codex/gpt-5.5 | claude/opus",
+        selector_mode="round_robin",
+        selector_members=members,
+    )
+
+    text = _description_text_for_view(view)
+    assert text.plain.splitlines()[-1] == (
+        "pool: → ✓ codex/gpt-5.5 priority · × claude/opus backup"
+    )
+    assert "#87d7ff" in _style_covering(text, "✓ codex/gpt-5.5 priority")
+    assert "#87afc7" in _style_covering(text, "× claude/opus backup")
+
+
 def test_description_dims_sparing_members_when_pool_is_suspended() -> None:
     view = make_alias_view(
         "pool",

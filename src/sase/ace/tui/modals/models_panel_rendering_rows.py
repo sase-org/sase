@@ -42,6 +42,9 @@ from .models_panel_rows import (
     RunnerLimitSettingRow,
 )
 
+_PRIORITY_TAG_STYLE = "bold #87D7FF"
+_BACKUP_TAG_STYLE = "#87AFC7"
+
 
 def kind_label(view: AliasView) -> str:
     """Return the small kind badge text for *view*."""
@@ -88,9 +91,21 @@ def state_tag(view: AliasView, now: float) -> Text:
             sum(member.available for member in members),
             len(members),
         )
+        _append_priority_route_chip(text, view.provenance)
     elif reference:
         append_alias_reference(text, reference, view.reference_effort or "")
+        _append_priority_route_chip(text, view.provenance)
     return text
+
+
+def _append_priority_route_chip(text: Text, provenance: tuple[str, ...]) -> None:
+    """Append priority routing provenance without conflating it with soft state."""
+    if "priority" in provenance:
+        text.append(" · ", style=_IMPLICIT_TAG_STYLE)
+        text.append("priority", style=_PRIORITY_TAG_STYLE)
+    elif "priority_backup" in provenance:
+        text.append(" · ", style=_IMPLICIT_TAG_STYLE)
+        text.append("backup", style=_BACKUP_TAG_STYLE)
 
 
 def _provider_model_text(view: AliasView) -> Text:

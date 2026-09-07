@@ -18,6 +18,10 @@ from .model_picker_rows import (
     build_model_rows,
 )
 
+_PRIORITY_STYLE = "bold #87D7FF"
+_BACKUP_STYLE = "#87AFC7"
+_SOFT_STYLE = "bold #FFD75F"
+
 
 def _row_matches(row: ModelPickerRow, query: str) -> bool:
     if not query:
@@ -139,8 +143,7 @@ def rows_to_options(
             label.overflow = "ellipsis"
         elif row.kind == "provider" and row.provider is not None:
             label = provider_header_text(row.provider, row.model_count or 0)
-            if row.soft:
-                label.append("  soft", style="bold #FFD75F")
+            _append_routing_state(label, row)
         elif row.kind == "model" and row.model_id is not None:
             label = model_option_text(
                 provider=row.provider,
@@ -152,6 +155,7 @@ def rows_to_options(
             )
             if row.soft:
                 label.stylize("dim")
+            _append_routing_state(label, row)
         elif jump_hints is not None and not row.disabled:
             hint = jump_hints.get(row.option_id)
             label = Text()
@@ -188,3 +192,13 @@ def build_model_options(
             routing_context=routing_context,
         )
     )
+
+
+def _append_routing_state(label: Text, row: ModelPickerRow) -> None:
+    """Append provider-routing state without treating priority backups as soft."""
+    if row.soft:
+        label.append("  soft", style=_SOFT_STYLE)
+    if row.priority:
+        label.append("  ★ priority", style=_PRIORITY_STYLE)
+    elif row.backup:
+        label.append("  backup", style=_BACKUP_STYLE)

@@ -20,8 +20,13 @@ from sase.llm_provider import (
 )
 from sase.llm_provider.load_balancing import MAX_POOL_MEMBER_WEIGHT
 from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
+from sase.llm_provider.provider_priority import (
+    provider_availability_facts,
+    provider_routing_context_from_parts,
+)
 from tests._model_picker_modal_helpers import ModelPickerTestApp, make_alias_context
 from tests._models_panel_helpers import make_alias_view
+from tests._models_panel_provider_routing_helpers import priority as _priority
 
 
 def _snapshot(configured_effort: str | None = "high") -> EffectiveDefaultEffortSnapshot:
@@ -36,6 +41,7 @@ def _modal(
     current_value: str,
     views: list[AliasView] | None = None,
     provider_disables: dict[str, TemporaryProviderDisable] | None = None,
+    routing_context=None,
 ) -> SelectorBuilderModal:
     return SelectorBuilderModal(
         alias="blogger",
@@ -44,6 +50,7 @@ def _modal(
         effort_snapshot=_snapshot(),
         now=0.0,
         provider_disables=provider_disables,
+        routing_context=routing_context,
     )
 
 
@@ -221,6 +228,30 @@ async def test_custom_member_allows_soft_disabled_explicit_provider() -> None:
         assert modal._members == ["claude/sonnet@xhigh"]
         modal.notify.assert_called_once()
         assert "CLAUDE is soft-disabled until cleared" in modal.notify.call_args.args[0]
+
+
+def test_selector_builder_marks_priority_backup_members(monkeypatch) -> None:
+    record = _priority("codex", expires_at=None)
+    context = provider_routing_context_from_parts({}, record, captured_at=100.0)
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.provider_routing_facts",
+        lambda provider: provider_availability_facts(
+            provider,
+            registered=True,
+            user_facing=True,
+            cli_available=True,
+        ),
+    )
+
+    modal = _modal("claude/opus | codex/o3", routing_context=context)
+    rendered = [
+        option.prompt.plain
+        for option in modal._render_options()
+        if option.prompt is not None
+    ]
+
+    assert any("CLAUDE(opus)" in row and "backup" in row for row in rendered)
+    assert any("CODEX(o3)" in row and "priority" in row for row in rendered)
 
 
 async def test_custom_member_rejects_unknown_alias() -> None:

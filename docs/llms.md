@@ -30,6 +30,7 @@ preprocessing, invocation, and postprocessing.
 - [Role Aliases for Delegated Work](#role-aliases-for-delegated-work)
 - [Temporary Model Overrides](#temporary-model-overrides)
 - [Temporary Provider Disables](#temporary-provider-disables)
+- [Temporary Provider Priority](#temporary-provider-priority)
 - [Usage-Limit Auto-Disable](#usage-limit-auto-disable)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
@@ -95,6 +96,8 @@ Key design principles:
 | `src/sase/llm_provider/temporary_override.py`              | Primary/worker temporary override state and resolution                                   |
 | `src/sase/llm_provider/provider_disable.py`                | Rust-backed temporary provider-disable facade                                            |
 | `src/sase/llm_provider/provider_disable_peek.py`           | Lock-free display peek for active provider disables                                      |
+| `src/sase/llm_provider/provider_priority.py`               | Rust-backed temporary provider-priority facade and routing context                       |
+| `src/sase/llm_provider/provider_priority_peek.py`          | Lock-free display peek for active provider priority and routing context                  |
 | `src/sase/finalizers/controller.py`                        | Provider-neutral finalizer planning and orchestration                                    |
 | `src/sase/finalizers/commit.py`                            | Bundled dirty-workspace commit finalizer                                                 |
 | `src/sase/llm_provider/types.py`                           | `ModelTier`, `InvokeResult`, `LoggingContext` types                                      |
@@ -1175,6 +1178,13 @@ candidate for the ordinary provider lookup to report: fallback (and a last-resor
 preserves its first member, while a pool with no tail preserves its current rotation
 choice.
 
+A temporary provider priority is a preference layer for `|` pools. When the priority
+provider is an available member, that member is preferred and other usable providers
+remain labeled backups; the selector expression, weights, and cursor are not rewritten.
+Priority does not reorder `||` fallback chains and does not displace direct
+`%model:provider/model` intent. Hard disables and missing CLIs still make a provider
+unavailable, even if it has active priority intent.
+
 Both selectors accept two or more members using the same single-target grammar,
 including candidate-specific trailing reasoning effort. A load-balanced pool member may
 be prefixed with a positive integer weight and at least one space (`A | 3 B` selects B
@@ -1222,11 +1232,13 @@ editors through the xprompt LSP: alias rows sit beneath the concrete model names
 their kind, resolved `PROVIDER(model)` target, and provenance, and typing `@` right
 after the colon narrows the menu to aliases only. Concrete model rows and provider-scope
 rows for **hard**-disabled providers are omitted, while aliases remain and show their
-current fallback target. **Soft**-disabled providers stay in the menu, annotated `soft`.
-Provider rows such as `claude/` sit at the bottom of the broad menu; accepting one opens
-that provider's scoped model list and inserts qualified values such as `claude/opus`.
-See [xprompt directive syntax](xprompt.md#syntax) for the row anatomy. The completion
-menu is read-only; the ACE Launch Control (`,m`) remains the authoritative place to edit
+current fallback target. **Soft**-disabled providers stay in the menu, annotated `soft`;
+priority providers are annotated `priority`, and providers left behind the active
+priority provider are annotated `backup`. Provider rows such as `claude/` sit at the
+bottom of the broad menu; accepting one opens that provider's scoped model list and
+inserts qualified values such as `claude/opus`. See
+[xprompt directive syntax](xprompt.md#syntax) for the row anatomy. The completion menu
+is read-only; the ACE Launch Control (`,m`) remains the authoritative place to edit
 alias targets and to set or clear temporary overrides.
 
 There are no built-in Launch Control buckets: the compact five-size-alias contract ships
@@ -1959,6 +1971,75 @@ key:
 - Launch Control, highlight an alias, `x` → that alias's override is cleared; when the
   last override is removed the state file is deleted and defaults revert to permanent
   config / autodetect.
+
+## Temporary Provider Priority
+
+The ACE Launch Control's Provider Routing modal can set one machine-wide provider
+priority for new routing. Press `p` on an enabled, installed, user-facing provider row,
+then choose a relative duration, exact local time, or `Until cleared`. Press `c` from
+the same modal to clear the active priority. The modal stays open after writes,
+refreshes rows in place, and keeps selection stable so you can manage priority and
+disables together.
+
+Provider-priority state lives in `~/.sase/llm_provider_priority.json`, owned by the Rust
+core and exposed through `src/sase/llm_provider/provider_priority.py`. Display-only
+paths use the lock-free `provider_priority_peek.py` reader. Authoritative routing
+captures disables and priority together as one `ProviderRoutingContext`, then carries
+that snapshot through alias resolution, autodetection, model-picker rows, completion
+overlays, and the final provider dispatch gate.
+
+The top bar renders priority alone as `CODEX ★ priority 42m`. When disables are also
+active, it compacts to a priority-led count such as `CODEX ★ 42m +1`; hover text lists
+the exact priority and disable details.
+
+Priority is a preference layer, not a disable:
+
+| Request                  | Priority provider present? | Result                                                                 |
+| ------------------------ | -------------------------- | ---------------------------------------------------------------------- |
+| round-robin alias        | available pool member      | priority provider wins; other usable members stay backups              |
+| ordered fallback         | any candidate              | fallback order is unchanged                                            |
+| direct provider/model    | target provider            | explicit target still runs directly                                    |
+| temporary alias override | override target            | override still bypasses selector routing                               |
+| missing or hard-disabled | priority provider          | priority intent remains; routing uses backups until the provider works |
+
+Writes are optimistic. Launch Control sends the provider facts and the priority record
+seen in its current snapshot. If another process changed priority first, the write
+returns `conflict`, the modal reloads the current state, and the user repeats `p` or `c`
+against that fresh view. If the write commits but the follow-up refresh fails, the toast
+says the routing write succeeded and the modal remains open for retry.
+
+The state file is a versioned envelope with a single optional priority record:
+
+```json
+{
+  "version": 1,
+  "priority": {
+    "version": 1,
+    "provider": "codex",
+    "created_at": 1777470000.0,
+    "expires_at": 1777473600.0,
+    "source": "ace"
+  }
+}
+```
+
+`expires_at: null` means until cleared. Finite expiries are exclusive:
+`now >= expires_at` clears active priority. Malformed, expired, ineligible, or
+non-user-facing priority records do not make an unavailable provider usable.
+
+Public provider-priority helpers:
+
+| Function                                                                                   | Purpose                                                          |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `get_active_provider_priority(now=None)`                                                   | Read the active priority, self-cleaning stale state.             |
+| `set_provider_priority(provider, duration_seconds, source=, facts=, expected=, now=None)`  | Set or replace priority for a relative duration.                 |
+| `set_provider_priority_until(provider, expires_at, source=, facts=, expected=, now=None)`  | Set or replace priority until an exact Unix timestamp.           |
+| `clear_provider_priority(expected=, now=None)`                                             | Clear priority when live state matches the expected snapshot.    |
+| `capture_provider_routing_context(now=None)`                                               | Capture disables and priority under one routing-state lock.      |
+| `provider_routing_context_from_parts(disables, priority, captured_at=None)`                | Build a context from already decoded records without filesystem. |
+| `resolve_provider_routing_context(routing_context=None, provider_disables=None, now=None)` | Normalize explicit or freshly captured routing inputs.           |
+| `classify_provider_availability(context, facts)`                                           | Classify one provider against a captured routing context.        |
+| `peek_active_provider_priority(now=None)`                                                  | Read-only display snapshot for high-frequency TUI paths.         |
 
 ## Usage-Limit Auto-Disable
 

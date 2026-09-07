@@ -13,6 +13,7 @@ from sase.bead.config import (
 )
 from sase.llm_provider import (
     AliasView,
+    ProviderPriorityWriteStatus,
     ProviderRoutingContext,
     ProviderRoutingStatus,
     TemporaryProviderDisable,
@@ -66,13 +67,17 @@ class ProviderRoutingSnapshot:
 class ProviderWriteOutcome:
     """Result returned by a provider-routing write worker."""
 
-    action: Literal["disable", "enable"]
+    action: Literal["disable", "enable", "priority_set", "priority_clear"]
     provider: str
     changed: bool
     snapshot: ProviderRoutingSnapshot | None
     error: str | None = None
     mode: str | None = None
     previous_mode: str | None = None
+    priority_status: ProviderPriorityWriteStatus | None = None
+    priority_current: TemporaryProviderPriority | None = None
+    priority_reason: str | None = None
+    reload_error: str | None = None
     drain_preview: ProviderDrainPlan | None = None
     drain_preview_error: str | None = None
 

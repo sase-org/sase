@@ -3178,9 +3178,10 @@ a state tag — `configured`, `implicit` / `implicit → @<fallback>` /
 `override · until cleared` chip when a temporary override is active. Configured
 references use the same `configured → @<target> @ <effort>` form. A model-specific
 effort carried by an override appears beside the effective provider/model badge. When
-one or more providers are temporarily disabled, the title adds a compact
-`disabled providers:` line with each active provider and its remaining time, or
-`until cleared` for a no-expiry disable. Soft disables render as `CLAUDE soft <time>`.
+one or more providers have temporary routing state, the title adds a compact line for
+active priority and/or disables. Priority renders as `priority: CODEX ★ <time>`, hard
+disables as `disabled providers: CODEX <time>`, and soft disables as
+`CLAUDE soft <time>`.
 
 The alias area is split into **Built-in size aliases** and **Your aliases**. Each header
 reports the aliases represented by its rows (including members of collapsed custom
@@ -3219,7 +3220,9 @@ derived from that same selected member. Temporarily **hard**-disabled providers 
 unavailable for this display and render as a red `×`. Soft-disabled members stay
 selectable and still count in `pool <available>/<total>`: a selected one renders as
 amber `→ ✓ provider/model@effort`, and a spared one as amber `× provider/model@effort`,
-with no trailing `soft` chip. If a temporary alias override targets a **hard**-disabled
+with no trailing `soft` chip. Temporary provider priority uses distinct wording: the
+preferred member is labeled `priority`, and other usable members that remain behind it
+are labeled `backup`. If a temporary alias override targets a **hard**-disabled
 provider, the override is preserved but paused: the row shows the live fallback/pool
 target, the state tag says the override is paused, and the description names the
 disabled provider that must expire or be re-enabled before the override resumes. An
@@ -3249,7 +3252,7 @@ Navigation, and jump hints, skip headers, spacer rows, and the empty-custom hint
 | `x`                   | **Clear** — remove the active temporary override on the highlighted override-capable row                            |
 | `e`                   | **Edit** — change the persistent configured value                                                                   |
 | `r`                   | **Reset** — unset an alias/model setting or the big-epic threshold                                                  |
-| `p`                   | **Providers** — disable, extend, or re-enable registered providers for future routing                               |
+| `p`                   | **Providers** — disable, prioritize, or re-enable registered providers for future routing                           |
 | `t`                   | **tmux Agent** — launch an interactive agent CLI in a new tmux window                                               |
 | `H`                   | **History** — view recorded prior runs for the highlighted alias, alias-backed launch setting, or bucket            |
 | `Ctrl+E`              | **Effort** — persistently edit, temporarily override, or clear the global default effort                            |
@@ -3344,11 +3347,14 @@ these states:
 | State                                            | Meaning                                                              |
 | ------------------------------------------------ | -------------------------------------------------------------------- |
 | `available`                                      | The provider is registered and its declared CLI is present.          |
-| `CLI unavailable`                                | Automatic alias routing already skips it because its CLI is missing. |
+| `CLI missing`                                    | Automatic alias routing already skips it because its CLI is missing. |
 | `disabled · manual · <time> left`                | Launch Control manually hard-disabled it until expiry or clearing.   |
 | `disabled · usage-limit automatic · <time> left` | Usage-limit detection automatically hard-disabled it.                |
 | `soft · manual · <time> left`                    | Launch Control manually soft-disabled it until expiry or clearing.   |
 | `soft · usage-limit automatic · <time> left`     | A usage-limit automatic disable that was flipped to soft.            |
+| `★ priority · <time> left`                       | This provider is preferred in pools that include it.                 |
+| `backup · CODEX priority`                        | This provider remains usable behind the active priority provider.    |
+| `CLI missing · ★ priority unavailable`           | Priority intent remains, but routing uses backups until it can run.  |
 
 Hidden testing providers stay out of this human-facing modal. Disabling a provider does
 not unregister it, change `sase.yml`, change model aliases, or stop provider processes
@@ -3356,7 +3362,10 @@ that are already running. A **hard** disable (`d` / Enter) keeps today's fail-cl
 behavior: new launches, follow-ups, later retry/fallback resolution, model pickers, and
 `%model` completion drop that provider. A **soft** disable (`s`) spares the provider in
 `|` pools while another member can cover, never diverts a `||` fallback, and still
-accepts explicit `%model` / picker / completion choices for that provider.
+accepts explicit `%model` / picker / completion choices for that provider. Provider
+priority (`p` inside the modal) is temporary preference state, not a disable: pools
+prefer that provider when it is a usable member, while explicit choices and `||`
+fallback order continue to do what they say.
 
 On any row, press `d` or Enter for a hard disable or `s` for a soft disable, then choose
 how long. The duration picker is the same set of choices as alias overrides: `15m`,
@@ -3371,19 +3380,33 @@ Control title, alias routing rows, and the top-bar indicators without closing th
 so several providers can be managed in one pass. Unknown disable sources are shown as
 readable labels instead of being folded into the manual state.
 
+On an enabled, installed, user-facing row, press `p` to set or change provider priority,
+then choose the same relative, until-cleared, custom, or exact-time duration used by
+provider disables. Press `c` to clear the active priority, even when no selectable
+provider rows remain. The modal keeps the current selection after writes and refreshes
+the rows in place. If another session changed priority between the modal's snapshot and
+the attempted write, the modal reloads the current state and asks you to press `p` or
+`c` again against the fresh snapshot. If a write commits but the follow-up refresh
+fails, the toast says the routing write succeeded and leaves the modal open for retry.
+
 A sparing (soft) pool member still counts toward `pool <available>/<total>` and remains
 selectable. In the alias description it renders as amber `→ ✓ provider/model@effort`
 when selected or amber `× provider/model@effort` when skipped, with no `soft` chip.
-Soft-disabled providers stay in the model picker (header labelled `soft`, rows dimmed
-one step) and in `%model` completion (annotated `soft` in the provenance column).
-Hard-disabled providers are still omitted from both.
+Priority members render with `priority` and backup members with `backup`, including in
+the guided selector builder, model picker, and `%model` completion. Soft-disabled
+providers stay in the model picker (header labelled `soft`, rows dimmed one step) and in
+`%model` completion (annotated `soft` in the provenance column). Hard-disabled providers
+are still omitted from both.
 
-ACE also shows active provider disables in a compact top-bar pill beside the model
+ACE also shows active provider routing state in compact top-bar pills beside the model
 override indicators. One hard-disabled provider renders like `CLAUDE off 42m`; one
-soft-disabled provider renders like `CLAUDE soft 42m`. Several render the most severe
-(hard first) provider plus a count, such as `CLAUDE +2`, and use the soft palette only
-when every active disable is soft. Hover lists every active provider, its mode,
-provenance, and expiry, and clicking the pill opens Launch Control.
+soft-disabled provider renders like `CLAUDE soft 42m`; active priority renders like
+`CODEX ★ priority 42m`. When priority and disables are both active, the top bar keeps a
+single priority-led pill with the disable count, such as `CODEX ★ 42m +1`. Several
+disables without priority render the most severe (hard first) provider plus a count,
+such as `CLAUDE +2`, and use the soft palette only when every active disable is soft.
+Hover lists active priority plus every active provider disable, mode, provenance, and
+expiry; clicking the pill opens Launch Control.
 
 ### Disabled-provider launch panel
 
@@ -3565,16 +3588,17 @@ with a concise reason. `Custom...` accepts a concrete model string, `provider/mo
 path, or bare `@alias` reference in both flows and applies the same safety check to
 free-form `@alias` values. Concrete model rows for **hard**-disabled providers are
 omitted; **soft**-disabled providers stay in the picker (header labelled `soft`, rows
-dimmed one step) and remain selectable. Alias rows remain visible and show their current
-live fallback target. Free-form explicit input is validated before submission and
-reports the same disabled-provider diagnostic as a launch. In `Edit`, `Custom...`
-additionally accepts a typed `|` pool or `||` fallback expression and opens prefilled
-with the alias's current value, so changing one member of an existing selector no longer
-means retyping the whole expression; `Edit` also offers a guided `Pool / fallback...`
-row next to `Custom...` that builds a selector from the picker without typing `|` by
-hand (see [Persistent edits](#persistent-edits) below). In `Override`, a typed pool or
-fallback is refused outright with a message pointing at `e` — selectors are config-only
-and overrides take a single target, so `Override`'s `Custom...` never shows the
+dimmed one step), priority providers are labeled `priority`, and priority backups are
+labeled `backup`. Alias rows remain visible and show their current live fallback target.
+Free-form explicit input is validated before submission and reports the same
+disabled-provider diagnostic as a launch. In `Edit`, `Custom...` additionally accepts a
+typed `|` pool or `||` fallback expression and opens prefilled with the alias's current
+value, so changing one member of an existing selector no longer means retyping the whole
+expression; `Edit` also offers a guided `Pool / fallback...` row next to `Custom...`
+that builds a selector from the picker without typing `|` by hand (see
+[Persistent edits](#persistent-edits) below). In `Override`, a typed pool or fallback is
+refused outright with a message pointing at `e` — selectors are config-only and
+overrides take a single target, so `Override`'s `Custom...` never shows the
 `Pool / fallback...` row.
 
 `Override` continues from the picker to the duration picker (`15m`, `30m`, `1h`, `2h`,

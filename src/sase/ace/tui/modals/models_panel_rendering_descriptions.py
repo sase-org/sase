@@ -26,6 +26,8 @@ from .models_panel_rows import (
 )
 
 _POOL_SOFT_STYLE = "bold #FFD75F"
+_POOL_PRIORITY_STYLE = "bold #87D7FF"
+_POOL_BACKUP_STYLE = "#87AFC7"
 
 _CUSTOM_ALIASES_PATH = "llm_provider.model_aliases.custom"
 _BUILTIN_ALIASES_PATH = "llm_provider.model_aliases.builtin"
@@ -211,17 +213,21 @@ def description_text_for_view(
                     target = f"{target}@{member.effort}"
                 if member.sparing:
                     marker = "✓" if member.selected else "×"
-                    style = "dim #FFD75F" if suspended else _POOL_SOFT_STYLE
+                    style = _member_sparing_style(member, suspended=suspended)
                 else:
                     marker = "✓" if member.available else "×"
-                    color = (
-                        _POOL_AVAILABLE_STYLE
-                        if member.available
-                        else _POOL_UNAVAILABLE_STYLE
-                    )
                     dimmed = suspended or not member.selected
-                    style = f"dim {color}" if dimmed else color
-                text.append(f"{marker} {target}", style=style)
+                    if "priority" in member.provenance:
+                        style = "dim #87D7FF" if dimmed else _POOL_PRIORITY_STYLE
+                    else:
+                        color = (
+                            _POOL_AVAILABLE_STYLE
+                            if member.available
+                            else _POOL_UNAVAILABLE_STYLE
+                        )
+                        style = f"dim {color}" if dimmed else color
+                suffix = _member_routing_suffix(member)
+                text.append(f"{marker} {target}{suffix}", style=style)
             else:
                 style = (
                     "dim #FFD75F"
@@ -251,6 +257,26 @@ def description_text_for_view(
                 style="dim",
             )
     return text
+
+
+def _member_routing_suffix(member: object) -> str:
+    """Return the user-facing routing suffix for a selector member."""
+    provenance = getattr(member, "provenance", ())
+    if "priority" in provenance:
+        return " priority"
+    if "priority_backup" in provenance:
+        return " backup"
+    return ""
+
+
+def _member_sparing_style(member: object, *, suspended: bool) -> str:
+    """Return the correct style for sparing selector members."""
+    provenance = getattr(member, "provenance", ())
+    if "priority_backup" in provenance:
+        style = _POOL_BACKUP_STYLE
+    else:
+        style = _POOL_SOFT_STYLE
+    return f"dim {style}" if suspended else style
 
 
 def _description_text_for_bucket(bucket: BucketView) -> Text:

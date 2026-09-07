@@ -89,6 +89,9 @@ def alias_state_text(
         "override": _OVERRIDE_TAG_STYLE,
         "configured": _CONFIGURED_TAG_STYLE,
         "implicit": _IMPLICIT_TAG_STYLE,
+        "soft": "bold #FFD75F",
+        "priority": "bold #87D7FF",
+        "backup": "#87AFC7",
     }
     text = Text(provenance, style=styles.get(provenance, "dim"))
     if not provenance:

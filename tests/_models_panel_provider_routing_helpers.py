@@ -14,10 +14,17 @@ from sase.llm_provider.config import (
     EPIC_LANDER_MODEL_FIELD,
     LaunchModelSettingSnapshot,
 )
+from sase.llm_provider.load_balancing import MemberAvailability
 from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_MODE_HARD,
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
     TemporaryProviderDisable,
+)
+from sase.llm_provider.provider_priority import (
+    PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
+    ProviderAvailabilityProvenance,
+    TemporaryProviderPriority,
+    provider_routing_context_from_parts,
 )
 from tests._models_panel_helpers import make_alias_view
 
@@ -39,6 +46,21 @@ def disable(
     )
 
 
+def priority(
+    provider: str,
+    *,
+    expires_at: float | None = 3_820.0,
+    source: str = "test",
+) -> TemporaryProviderPriority:
+    return TemporaryProviderPriority(
+        version=PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        created_at=100.0,
+        expires_at=expires_at,
+        source=source,
+    )
+
+
 def status(
     provider: str,
     *,
@@ -47,6 +69,10 @@ def status(
     active_disable: TemporaryProviderDisable | None = None,
     hidden: bool = False,
     affected_aliases: tuple[str, ...] = ("medium",),
+    availability: MemberAvailability = MemberAvailability.PREFERRED,
+    provenance: tuple[ProviderAvailabilityProvenance, ...] = ("ordinary_available",),
+    priority: TemporaryProviderPriority | None = None,
+    eligible_for_priority: bool = True,
 ) -> ProviderRoutingStatus:
     return ProviderRoutingStatus(
         provider=provider,
@@ -55,6 +81,10 @@ def status(
         active_disable=active_disable,
         hidden_from_model_pickers=hidden,
         affected_aliases=affected_aliases,
+        availability=availability,
+        provenance=provenance,
+        priority=priority,
+        eligible_for_priority=eligible_for_priority,
     )
 
 
@@ -89,14 +119,41 @@ def snapshot(
     disables: dict[str, TemporaryProviderDisable] | None = None,
     alias_views=None,
     launch_model_rows: tuple[LaunchModelSettingRow, ...] = (),
+    provider_priority: TemporaryProviderPriority | None = None,
 ) -> ProviderRoutingSnapshot:
+    provider_disables = disables or {}
+    routing_context = (
+        provider_routing_context_from_parts(
+            provider_disables,
+            provider_priority,
+            captured_at=100.0,
+        )
+        if _records_fit_routing_context(provider_disables, provider_priority)
+        else None
+    )
     return ProviderRoutingSnapshot(
         statuses=tuple(statuses),
-        provider_disables=disables or {},
+        provider_disables=provider_disables,
         alias_views=tuple(alias_views or (make_alias_view("medium", "role"),)),
         provider_colors={"claude": "#D97757", "codex": "#10A37F"},
         captured_at=100.0,
+        routing_context=routing_context,
+        provider_priority=provider_priority,
         launch_model_rows=launch_model_rows,
+    )
+
+
+def _records_fit_routing_context(
+    disables: dict[str, TemporaryProviderDisable],
+    priority_record: TemporaryProviderPriority | None,
+) -> bool:
+    return all(
+        disable.expires_at is None or disable.expires_at > disable.created_at
+        for disable in disables.values()
+    ) and (
+        priority_record is None
+        or priority_record.expires_at is None
+        or priority_record.expires_at > priority_record.created_at
     )
 
 

@@ -22,23 +22,39 @@ import pytest
 
 import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicator
 import sase.ace.tui.widgets.llm_override_indicator as llm_override_indicator
+import sase.ace.tui.widgets._override_pill as override_pill
 import sase.ace.tui.widgets.provider_disables_indicator as provider_disables_indicator
 from sase.ace.testing import AcePage
-from sase.llm_provider import TemporaryLLMOverride, TemporaryProviderDisable
+from sase.llm_provider import (
+    TemporaryLLMOverride,
+    TemporaryProviderDisable,
+    TemporaryProviderPriority,
+)
 from sase.llm_provider.config import (
     DEFAULT_MODEL_FIELD,
     launch_model_setting_override_key,
 )
 from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
+from sase.llm_provider.provider_priority import PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+@pytest.fixture(autouse=True)
+def _no_provider_priority(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        provider_disables_indicator,
+        "peek_active_provider_priority",
+        lambda *a, **k: None,
+    )
 
 
 # Frozen creation clock; every override is until-cleared so no countdown runs.
@@ -75,6 +91,20 @@ def _disable(
         expires_at=expires_at,
         source="visual",
         mode=mode,
+    )
+
+
+def _priority(
+    provider: str,
+    *,
+    expires_at: float | None = None,
+) -> TemporaryProviderPriority:
+    return TemporaryProviderPriority(
+        version=PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        created_at=_FROZEN_NOW,
+        expires_at=expires_at,
+        source="visual",
     )
 
 
@@ -221,4 +251,36 @@ async def test_provider_disables_indicator_soft_png_snapshot(
             page,
             "provider_disables_indicator_soft_120x40",
             title="ACE CLAUDE soft-disabled provider pill",
+        )
+
+
+async def test_provider_priority_indicator_combined_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(override_pill.time, "time", lambda: _FROZEN_NOW)
+    monkeypatch.setattr(
+        provider_disables_indicator,
+        "peek_active_provider_disables",
+        lambda: {"claude": _disable("claude")},
+    )
+    monkeypatch.setattr(
+        provider_disables_indicator,
+        "peek_active_provider_priority",
+        lambda *a, **k: _priority("codex", expires_at=_FROZEN_NOW + 42 * 60),
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        await wait_for_svg_contains(page, "CODEX ★")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "provider_priority_indicator_combined_120x40",
+            title="ACE provider priority and disabled-provider pills",
         )

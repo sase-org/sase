@@ -43,6 +43,7 @@ from sase.llm_provider.load_balancing import (
 from sase.llm_provider.model_alias_resolution import (
     resolved_target_availability,
     resolved_target_is_available,
+    resolved_target_routing,
 )
 from sase.llm_provider.provider_priority import resolve_provider_routing_context
 from sase.xprompt.effort import split_model_effort
@@ -68,6 +69,8 @@ _MODE_LABELS: dict[ModelAliasSelectorMode, str] = {
 _AVAILABLE_STYLE = "#87D787"
 _UNAVAILABLE_STYLE = "#D78787"
 _SOFT_STYLE = "bold #FFD75F"
+_PRIORITY_STYLE = "bold #87D7FF"
+_BACKUP_STYLE = "#87AFC7"
 _INVALID_STYLE = "bold #FF875F"
 _KEYS_HINT = (
     "a=add  f=fallback  d=remove  J/K=reorder  E=effort  w/W=weight  "
@@ -144,12 +147,21 @@ def _member_option(
             routing_context=routing_context,
             available=available,
         )
+        routing = resolved_target_routing(
+            resolved_target,
+            routing_context=routing_context,
+            available=available,
+        )
         text.append("  ")
         if state is MemberAvailability.UNAVAILABLE:
             text.append("×", style=_UNAVAILABLE_STYLE)
         else:
             text.append("✓", style=_AVAILABLE_STYLE)
-            if state is MemberAvailability.SPARING:
+            if "priority" in routing.provenance:
+                text.append(" priority", style=_PRIORITY_STYLE)
+            elif "priority_backup" in routing.provenance:
+                text.append(" backup", style=_BACKUP_STYLE)
+            elif state is MemberAvailability.SPARING:
                 text.append(" soft", style=_SOFT_STYLE)
     else:
         text.append(member, style=_INVALID_STYLE)
