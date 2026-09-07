@@ -39,6 +39,7 @@ dependencies = [
     "packaging",
     "pillow",
     "pluggy",
+    "pygments==2.19.2",
     "pyinstrument",
     "pyyaml",
     "rich",
