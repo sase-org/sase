@@ -66,6 +66,20 @@ def test_empty_remote_hosts_keep_facade_disabled_without_rust_binding(
         facade.resolve_attention_sync("apollo", {"schema_version": 1})
 
 
+def test_federation_worker_resolver_checks_active_python_environment(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    worker = tmp_path / federation.FEDERATION_WORKER_COMMAND
+    worker.write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.setattr(federation._supervisor.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(
+        federation._supervisor.sys, "executable", str(tmp_path / "python")
+    )
+
+    assert federation.resolve_federation_worker_command() == (str(worker),)
+
+
 def test_host_config_validates_plan_and_redacts_secret(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

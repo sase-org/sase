@@ -305,6 +305,17 @@ class BootstrapBundle:
 
 
 @dataclass(frozen=True)
+class BootstrapIssueResult:
+    """Fresh one-time enrollment bundle plus non-secret display metadata."""
+
+    bundle: Mapping[str, object] = field(repr=False)
+    bootstrap_id: str
+    expires_at_unix: float
+    pinned_installation_id: str
+    requested_scopes: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class EnrollmentResult:
     """Successful or quarantined enrollment response."""
 

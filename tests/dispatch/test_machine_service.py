@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 import json
 from pathlib import Path
 from typing import Any
@@ -8,7 +9,7 @@ import pytest
 
 from sase.dispatch.config import load_dispatch_config
 from sase.dispatch.credentials import LocalCredentialStore
-from sase.dispatch.machine_service import MachineService
+from sase.dispatch.machine_service import MachineService, _parse_enrollment_bundle
 from sase.dispatch.models import CredentialRecord
 from tests.conftest import redirect_sase_home
 
@@ -143,6 +144,83 @@ def test_list_machines_is_offline(
     )
 
     assert [machine.alias for machine in service.list_machines()] == ["alpha"]
+
+
+def test_issue_bootstrap_builds_parseable_bundle_with_injected_binding(
+    isolated_dispatch: tuple[Path, Path],
+) -> None:
+    _config_dir, credential_path = isolated_dispatch
+    pin = _pin()
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    def issue(home: str, request: Mapping[str, object]) -> Mapping[str, object]:
+        calls.append((home, dict(request)))
+        return {
+            "schema_version": 1,
+            "bootstrap_id": "boot_1",
+            "bootstrap_secret": "one-time-secret",
+            "expires_at_unix": 1_060.0,
+            "allowed_scopes": ["fleet.hello"],
+            "pinned_installation_id": pin,
+            "protocol_versions": [1],
+        }
+
+    result = MachineService(
+        credential_store=LocalCredentialStore(credential_path),
+        bootstrap_issuer=issue,
+        time_fn=lambda: 1_000.0,
+    ).issue_bootstrap(
+        expires_seconds=60,
+        scopes=("fleet.summary.read",),
+    )
+
+    assert calls == [
+        (
+            str(credential_path.parent / ".sase"),
+            {
+                "schema_version": 1,
+                "requested_scopes": ["fleet.summary.read"],
+                "supported_protocol_versions": [1],
+                "expires_at_unix": 1_060.0,
+                "installation_pin": None,
+            },
+        )
+    ]
+    parsed = _parse_enrollment_bundle(json.dumps(result.bundle))
+    assert parsed.bootstrap_id == "boot_1"
+    assert parsed.bootstrap_secret == "one-time-secret"
+    assert parsed.pinned_installation_id == pin
+    assert parsed.requested_scopes == ("fleet.hello",)
+    assert result.bundle["requested_scopes"] == ["fleet.hello"]
+    assert "allowed_scopes" not in result.bundle
+
+
+def test_issue_bootstrap_omits_expiry_for_store_default(
+    isolated_dispatch: tuple[Path, Path],
+) -> None:
+    _config_dir, credential_path = isolated_dispatch
+    pin = _pin()
+    observed_request: dict[str, object] = {}
+
+    def issue(_home: str, request: Mapping[str, object]) -> Mapping[str, object]:
+        observed_request.update(request)
+        return {
+            "schema_version": 1,
+            "bootstrap_id": "boot_1",
+            "bootstrap_secret": "one-time-secret",
+            "expires_at_unix": 1_600.0,
+            "allowed_scopes": [],
+            "pinned_installation_id": pin,
+            "protocol_versions": [1],
+        }
+
+    MachineService(
+        credential_store=LocalCredentialStore(credential_path),
+        bootstrap_issuer=issue,
+    ).issue_bootstrap()
+
+    assert observed_request["expires_at_unix"] is None
+    assert observed_request["requested_scopes"] == []
 
 
 def test_status_quarantines_installation_mismatch(

@@ -287,6 +287,9 @@ def _resolve_gateway_command() -> tuple[str, ...]:
     path = shutil.which("sase_gateway")
     if path:
         return (path,)
+    sibling = _python_environment_command("sase_gateway")
+    if sibling:
+        return sibling
 
     repo_root = Path(__file__).resolve().parents[3]
     sibling_core = repo_root.parent / "sase-core"
@@ -297,6 +300,21 @@ def _resolve_gateway_command() -> tuple[str, ...]:
         if candidate.is_file():
             return (str(candidate),)
     return ()
+
+
+def _python_environment_command(command: str) -> tuple[str, ...]:
+    scripts_dir = Path(sys.executable).parent
+    for name in _console_script_names(command):
+        candidate = scripts_dir / name
+        if candidate.is_file():
+            return (str(candidate),)
+    return ()
+
+
+def _console_script_names(command: str) -> tuple[str, ...]:
+    if sys.platform == "win32" and not command.lower().endswith(".exe"):
+        return (f"{command}.exe", command)
+    return (command,)
 
 
 def _terminate_process(proc: subprocess.Popen[Any]) -> None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -34,6 +35,9 @@ def resolve_federation_worker_command(
     packaged = shutil.which(FEDERATION_WORKER_COMMAND)
     if packaged:
         return (packaged,)
+    sibling = _python_environment_command(FEDERATION_WORKER_COMMAND)
+    if sibling:
+        return sibling
 
     repo_root = Path(__file__).resolve().parents[4]
     for target_root in (
@@ -46,6 +50,21 @@ def resolve_federation_worker_command(
             if candidate.is_file():
                 return (str(candidate),)
     return ()
+
+
+def _python_environment_command(command: str) -> tuple[str, ...]:
+    scripts_dir = Path(sys.executable).parent
+    for name in _console_script_names(command):
+        candidate = scripts_dir / name
+        if candidate.is_file():
+            return (str(candidate),)
+    return ()
+
+
+def _console_script_names(command: str) -> tuple[str, ...]:
+    if os.name == "nt" and not command.lower().endswith(".exe"):
+        return (f"{command}.exe", command)
+    return (command,)
 
 
 @dataclass

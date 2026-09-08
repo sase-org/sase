@@ -81,6 +81,94 @@ def test_dispatch_live_skips_with_no_machines_configured(
     assert "no remote machines are configured" in check.summary
 
 
+def test_dispatch_worker_skips_with_no_machines_configured(
+    isolated_dispatch_config: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_resolver(_settings: object) -> tuple[str, ...]:
+        raise AssertionError("unused zero-machine dispatch should not resolve worker")
+
+    monkeypatch.setattr(
+        "sase.doctor.checks_dispatch.resolve_federation_worker_command",
+        fail_resolver,
+    )
+
+    check = _run_dispatch_check("dispatch.worker")
+
+    assert check.status == "SKIP"
+    assert check.summary == "no remote machines are configured"
+    assert check.data["machine_count"] == 0
+
+
+def test_dispatch_worker_errors_when_machines_configured_without_worker_command(
+    isolated_dispatch_config: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (isolated_dispatch_config / "sase.yml").write_text(
+        "\n".join(
+            [
+                "dispatch:",
+                "  machines:",
+                "    alpha:",
+                "      provider: builtin@https",
+                "      endpoint: https://fleet.example.test",
+                "      credential_ref: fleet:alpha",
+                f"      installation_pin: {_pin()}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_dispatch.resolve_federation_worker_command",
+        lambda _settings: (),
+    )
+
+    check = _run_dispatch_check("dispatch.worker")
+
+    assert check.status == "ERROR"
+    assert (
+        check.summary
+        == "dispatch machines are configured but no sase_federation_worker command resolves"
+    )
+    assert "active Python environment" in check.details[0]
+    assert check.data["machine_count"] == 1
+    assert check.data["command_resolved"] is False
+
+
+def test_dispatch_worker_ok_when_machines_configured_and_worker_resolves(
+    isolated_dispatch_config: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (isolated_dispatch_config / "sase.yml").write_text(
+        "\n".join(
+            [
+                "dispatch:",
+                "  machines:",
+                "    alpha:",
+                "      provider: builtin@https",
+                "      endpoint: https://fleet.example.test",
+                "      credential_ref: fleet:alpha",
+                f"      installation_pin: {_pin()}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_dispatch.resolve_federation_worker_command",
+        lambda _settings: ("/opt/sase/bin/sase_federation_worker",),
+    )
+
+    check = _run_dispatch_check("dispatch.worker")
+
+    assert check.status == "OK"
+    assert check.summary == (
+        "sase_federation_worker command resolves for dispatch machines"
+    )
+    assert check.data["command_resolved"] is True
+
+
 def test_dispatch_config_reports_provider_not_installed(
     isolated_dispatch_config: Path,
     monkeypatch: pytest.MonkeyPatch,

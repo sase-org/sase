@@ -264,6 +264,37 @@ def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     add_operation_io_flags(approve_parser)
 
+    bootstrap_parser = machine_subparsers.add_parser(
+        "bootstrap",
+        help="Issue a target-local one-time enrollment bundle",
+        description=(
+            "Issue a live single-use enrollment bundle on the target machine, "
+            "as the same OS user and SASE home used by the gateway. The secret "
+            "is written only to stdout and is never accepted as a command-line "
+            "argument."
+        ),
+    )
+    bootstrap_parser.add_argument(
+        "-e",
+        "--expires",
+        type=float,
+        metavar="SECONDS",
+        help="Expire the bundle after SECONDS; omitted uses the store default",
+    )
+    bootstrap_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit the raw enrollment bundle JSON",
+    )
+    bootstrap_parser.add_argument(
+        "-s",
+        "--scope",
+        action="append",
+        metavar="SCOPE",
+        help="Allowed enrollment scope; repeatable, omitted uses the store default",
+    )
+
     discover_parser = machine_subparsers.add_parser(
         "discover",
         help="Run explicit provider discovery",

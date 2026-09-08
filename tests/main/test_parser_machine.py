@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import argparse
+import json
 import sys
+from types import SimpleNamespace
 
 import pytest
 
+from sase.dispatch.machine_service import _parse_enrollment_bundle
+from sase.dispatch.models import BootstrapIssueResult
 from sase.main.parser import create_parser, default_list_delegation_notice
+from sase.main.machine_handler import _handle_bootstrap
 from tests.main.parser_help_helpers import (
     assert_metavar_option_documented,
     flat_help,
@@ -19,6 +25,7 @@ def test_machine_help_renders_sorted_subcommands_and_defaults_to_list() -> None:
         "add",
         "agent",
         "attention",
+        "bootstrap",
         "discover",
         "list",
         "remove",
@@ -37,7 +44,7 @@ def test_machine_help_renders_sorted_subcommands_and_defaults_to_list() -> None:
         expected
     )
     assert (
-        "{add,agent,attention,discover,list,remove,rename,repair,status}"
+        "{add,agent,attention,bootstrap,discover,list,remove,rename,repair,status}"
         in machine_parser.format_help()
     )
 
@@ -71,6 +78,112 @@ def test_machine_add_help_has_no_secret_cli_value() -> None:
     assert_metavar_option_documented(add_help, "-B", "--bootstrap-file", "PATH")
     assert "no secret value is accepted as a command-line option" in add_help
     assert "--bootstrap-secret" not in add_help
+
+
+def test_machine_bootstrap_help_has_no_secret_cli_value() -> None:
+    bootstrap_help = flat_help(
+        parser_for(("sase", "machine", "bootstrap")).format_help()
+    )
+
+    assert_metavar_option_documented(bootstrap_help, "-e", "--expires", "SECONDS")
+    assert "-j, --json" in bootstrap_help
+    assert_metavar_option_documented(bootstrap_help, "-s", "--scope", "SCOPE")
+    assert "same OS user and SASE home used by the gateway" in bootstrap_help
+    assert "never accepted as a command-line argument" in bootstrap_help
+    assert "--bootstrap-secret" not in bootstrap_help
+
+
+def test_machine_bootstrap_parser_accepts_expiry_json_and_scopes() -> None:
+    args = create_parser().parse_args(
+        [
+            "machine",
+            "bootstrap",
+            "--expires",
+            "60",
+            "--json",
+            "--scope",
+            "fleet.hello",
+            "--scope",
+            "fleet.summary.read",
+        ]
+    )
+
+    assert args.machine_subcommand == "bootstrap"
+    assert args.expires == 60
+    assert args.json is True
+    assert args.scope == ["fleet.hello", "fleet.summary.read"]
+
+
+def test_machine_bootstrap_human_output_is_parseable_and_redacts_stderr(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    secret = "one-time-secret"
+    pin = "sase_inst_v1_" + "a" * 64
+    result = BootstrapIssueResult(
+        bundle={
+            "schema_version": 1,
+            "bootstrap_id": "boot_1",
+            "bootstrap_secret": secret,
+            "expires_at_unix": 2_000_000_000.0,
+            "pinned_installation_id": pin,
+            "protocol_versions": [1],
+            "requested_scopes": ["fleet.hello"],
+        },
+        bootstrap_id="boot_1",
+        expires_at_unix=2_000_000_000.0,
+        pinned_installation_id=pin,
+        requested_scopes=("fleet.hello",),
+    )
+    service = SimpleNamespace(
+        issue_bootstrap=lambda **_kwargs: result,
+    )
+
+    code = _handle_bootstrap(
+        argparse.Namespace(json=False, expires=None, scope=None),
+        service,  # type: ignore[arg-type]
+    )
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert _parse_enrollment_bundle(captured.out).bootstrap_secret == secret
+    assert secret not in captured.err
+    assert "Secret: <redacted>" in captured.err
+
+
+def test_machine_bootstrap_json_output_is_raw_bundle_only(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    secret = "one-time-secret"
+    pin = "sase_inst_v1_" + "a" * 64
+    result = BootstrapIssueResult(
+        bundle={
+            "schema_version": 1,
+            "bootstrap_id": "boot_1",
+            "bootstrap_secret": secret,
+            "expires_at_unix": 2_000_000_000.0,
+            "pinned_installation_id": pin,
+            "protocol_versions": [1],
+            "requested_scopes": [],
+        },
+        bootstrap_id="boot_1",
+        expires_at_unix=2_000_000_000.0,
+        pinned_installation_id=pin,
+    )
+    service = SimpleNamespace(
+        issue_bootstrap=lambda **_kwargs: result,
+    )
+
+    code = _handle_bootstrap(
+        argparse.Namespace(json=True, expires=30, scope=["fleet.hello"]),
+        service,  # type: ignore[arg-type]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert code == 0
+    assert payload["bootstrap_secret"] == secret
+    assert captured.out.count(secret) == 1
+    assert captured.err == ""
 
 
 def test_init_machine_check_alias_does_not_discover(

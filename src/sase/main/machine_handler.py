@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import getpass
 import json
 from pathlib import Path
 import sys
 from typing import Any
 
+from sase.core.time import format_local
 from sase.dispatch.config import load_dispatch_config
 from sase.dispatch.fleet_client import FleetGatewayError
 from sase.dispatch.machine_service import MachineService
 from sase.dispatch.models import (
+    BootstrapIssueResult,
     DispatchError,
     DiscoveryCandidate,
     EnrollmentResult,
@@ -37,6 +40,8 @@ def handle_machine_command(args: argparse.Namespace) -> int:
             )
 
             return handle_machine_attention_command(args)
+        if subcommand == "bootstrap":
+            return _handle_bootstrap(args, service)
         if subcommand == "discover":
             return _handle_discover(args, service)
         if subcommand == "list":
@@ -68,6 +73,20 @@ def handle_machine_command(args: argparse.Namespace) -> int:
             print(f"sase machine {subcommand}: {_safe_error(exc)}", file=sys.stderr)
         return 1
     return 1
+
+
+def _handle_bootstrap(args: argparse.Namespace, service: MachineService) -> int:
+    result = service.issue_bootstrap(
+        expires_seconds=getattr(args, "expires", None),
+        scopes=tuple(getattr(args, "scope", None) or ()),
+    )
+    bundle_json = _bootstrap_bundle_json(result)
+    if getattr(args, "json", False):
+        print(bundle_json)
+    else:
+        _print_bootstrap_summary(result)
+        print(_base64url(bundle_json))
+    return 0
 
 
 def _handle_add(args: argparse.Namespace, service: MachineService) -> int:
@@ -220,6 +239,30 @@ def _json(payload: dict[str, Any]) -> str:
         indent=2,
         sort_keys=True,
     )
+
+
+def _bootstrap_bundle_json(result: BootstrapIssueResult) -> str:
+    return json.dumps(result.bundle, sort_keys=True)
+
+
+def _base64url(value: str) -> str:
+    return base64.urlsafe_b64encode(value.encode("utf-8")).decode("ascii").rstrip("=")
+
+
+def _print_bootstrap_summary(result: BootstrapIssueResult) -> None:
+    scopes = (
+        ", ".join(result.requested_scopes) if result.requested_scopes else "(default)"
+    )
+    print("Issued target-local SASE enrollment bundle.", file=sys.stderr)
+    print(f"Bootstrap ID: {result.bootstrap_id}", file=sys.stderr)
+    print(f"Expires at: {_format_expiry(result.expires_at_unix)}", file=sys.stderr)
+    print(f"Scopes: {scopes}", file=sys.stderr)
+    print(f"Installation pin: {result.pinned_installation_id}", file=sys.stderr)
+    print("Secret: <redacted>; bundle written once to stdout.", file=sys.stderr)
+
+
+def _format_expiry(expires_at_unix: float) -> str:
+    return format_local(expires_at_unix, fmt="%Y-%m-%dT%H:%M:%S%z")
 
 
 def _machine_row(machine: MachineRecord) -> dict[str, object]:

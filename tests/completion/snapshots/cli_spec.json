@@ -12783,6 +12783,70 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "a55d8c354d0a72af",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "bootstrap",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "expires",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-e",
+                  "--expires"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "scope",
+                "hidden": false,
+                "kind": null,
+                "repeatable": true,
+                "strings": [
+                  "-s",
+                  "--scope"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "machine",
+              "bootstrap"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "bf2fdc1a794bc01b",
             "hidden": false,
             "mutex_groups": [],

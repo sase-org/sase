@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+import sase.integrations.mobile_gateway as mobile_gateway
 from sase.integrations.mobile_gateway import (
     _MobileGatewayConfig,
     _MobileGatewayError,
@@ -45,6 +46,18 @@ def _args(**overrides: Any) -> argparse.Namespace:
 def test_load_mobile_gateway_config_defaults() -> None:
     with patch("sase.integrations.mobile_gateway.load_merged_config", return_value={}):
         assert _load_mobile_gateway_config() == _MobileGatewayConfig()
+
+
+def test_resolve_gateway_command_checks_active_python_environment(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    gateway = tmp_path / "sase_gateway"
+    gateway.write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.setattr(mobile_gateway.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(mobile_gateway.sys, "executable", str(tmp_path / "python"))
+
+    assert mobile_gateway.resolve_gateway_command() == (str(gateway),)
 
 
 def test_load_mobile_gateway_config_normalizes_values(tmp_path: Path) -> None:

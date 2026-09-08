@@ -2,16 +2,26 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING
 
+from sase.config import core as config_core
 from sase.diagnostics import CheckSpec, DiagnosticCheck
 from sase.dispatch.config import load_dispatch_config, validate_connection_plan
 from sase.dispatch.credentials import CredentialStoreError, LocalCredentialStore
+from sase.dispatch.federation import (
+    FEDERATION_WORKER_COMMAND,
+    FederationWorkerSettings,
+    resolve_federation_worker_command,
+)
+from sase.dispatch.federation._settings import resolve_worker_settings
 from sase.dispatch.machine_service import MachineService
 from sase.dispatch.providers import collect_dispatch_providers
 
 if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
+
+WorkerCommandResolver = Callable[[FederationWorkerSettings], tuple[str, ...]]
 
 
 def dispatch_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
@@ -30,12 +40,73 @@ def dispatch_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=lambda: _check_dispatch_credentials(context),
         ),
         CheckSpec(
+            id="dispatch.worker",
+            group="dispatch",
+            title="Dispatch federation worker",
+            runner=lambda: _check_dispatch_worker(context),
+        ),
+        CheckSpec(
             id="dispatch.live",
             group="dispatch",
             title="Dispatch gateway hello",
             runner=lambda: _check_dispatch_live(context),
             deep=True,
         ),
+    )
+
+
+def _check_dispatch_worker(
+    context: DoctorContext,
+    *,
+    resolve_worker_command: WorkerCommandResolver | None = None,
+) -> DiagnosticCheck:
+    del context
+    config = load_dispatch_config()
+    settings = _load_worker_settings()
+    resolve_worker_command = resolve_worker_command or resolve_federation_worker_command
+    data = {
+        "machine_count": len(config.machines),
+        "worker_enabled": settings.enabled,
+        "command_configured": bool(settings.command),
+        "command_resolved": False,
+        "resolver": FEDERATION_WORKER_COMMAND,
+    }
+    if not config.machines:
+        return _check(
+            "dispatch.worker",
+            "Dispatch federation worker",
+            "SKIP",
+            "no remote machines are configured",
+            data=data,
+        )
+
+    command = resolve_worker_command(settings)
+    data = {**data, "command_resolved": bool(command)}
+    if command:
+        return _check(
+            "dispatch.worker",
+            "Dispatch federation worker",
+            "OK",
+            f"{FEDERATION_WORKER_COMMAND} command resolves for dispatch machines",
+            data=data,
+        )
+
+    return _check(
+        "dispatch.worker",
+        "Dispatch federation worker",
+        "ERROR",
+        (
+            "dispatch machines are configured but no "
+            f"{FEDERATION_WORKER_COMMAND} command resolves"
+        ),
+        details=(
+            "Checked PATH, the active Python environment, and linked-core development build locations.",
+        ),
+        next_steps=(
+            "Install or repair the `sase-core-rs` wheel that provides the federation worker.",
+            "Build the Rust worker with `cargo build -p sase_gateway --manifest-path ../sase-core/Cargo.toml`.",
+        ),
+        data=data,
     )
 
 
@@ -199,6 +270,16 @@ def _check_dispatch_live(context: DoctorContext) -> DiagnosticCheck:
         "all configured dispatch gateways answered hello",
         data={"checked": len(statuses), "failed": 0},
     )
+
+
+def _load_worker_settings() -> FederationWorkerSettings:
+    raw_config = config_core.load_merged_config()
+    dispatch = _mapping(raw_config.get("dispatch"))
+    return resolve_worker_settings(_mapping(dispatch.get("federation_worker")))
+
+
+def _mapping(value: object) -> Mapping[str, object]:
+    return value if isinstance(value, Mapping) else {}
 
 
 def _check(

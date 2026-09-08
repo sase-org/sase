@@ -15,6 +15,8 @@ import yaml  # type: ignore[import-untyped]
 
 import sase
 
+from sase.core.paths import sase_home
+
 from .config import (
     load_dispatch_config,
     remove_machine_record,
@@ -30,6 +32,8 @@ from .fleet_client import (
 )
 from .models import (
     BootstrapBundle,
+    BootstrapIssueResult,
+    DispatchError,
     DiscoveryCandidate,
     EnrollmentBundleError,
     EnrollmentResult,
@@ -43,6 +47,7 @@ from .models import (
 from .providers import discover_dispatch_candidates
 
 InputFunc = Callable[[str], str]
+BootstrapIssuer = Callable[[str, Mapping[str, object]], Mapping[str, Any]]
 
 
 class MachineService:
@@ -54,11 +59,13 @@ class MachineService:
         credential_store: LocalCredentialStore | None = None,
         gateway_client: FleetGatewayClient | None = None,
         discover_fn: Callable[..., tuple[DiscoveryCandidate, ...]] | None = None,
+        bootstrap_issuer: BootstrapIssuer | None = None,
         time_fn: Callable[[], float] = time.time,
     ) -> None:
         self.credential_store = credential_store or LocalCredentialStore()
         self.gateway_client = gateway_client or FleetGatewayClient()
         self.discover_fn = discover_fn or discover_dispatch_candidates
+        self.bootstrap_issuer = bootstrap_issuer
         self.time_fn = time_fn
 
     def list_machines(self) -> tuple[MachineRecord, ...]:
@@ -77,6 +84,37 @@ class MachineService:
             provider_refs=tuple(provider_refs),
             timeout_seconds=timeout_seconds,
         )
+
+    def issue_bootstrap(
+        self,
+        *,
+        expires_seconds: float | None = None,
+        scopes: Sequence[str] = (),
+    ) -> BootstrapIssueResult:
+        """Issue a target-local one-time enrollment bundle."""
+        expires_at_unix = None
+        if expires_seconds is not None:
+            if expires_seconds <= 0:
+                raise MachineRegistryError("bootstrap expiry must be positive")
+            expires_at_unix = self.time_fn() + expires_seconds
+
+        request: dict[str, object] = {
+            "schema_version": 1,
+            "requested_scopes": [str(scope) for scope in scopes],
+            "supported_protocol_versions": [FLEET_PROTOCOL_VERSION],
+            "expires_at_unix": expires_at_unix,
+            "installation_pin": None,
+        }
+        issuer = self.bootstrap_issuer or _load_bootstrap_issuer()
+        try:
+            response = issuer(str(sase_home()), request)
+        except DispatchError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - boundary to Rust validation.
+            raise MachineRegistryError(
+                f"could not issue enrollment bundle: {exc}"
+            ) from exc
+        return _issue_result_from_response(response)
 
     def add_machine(
         self,
@@ -355,6 +393,50 @@ def _parse_enrollment_bundle(text: str) -> BootstrapBundle:
     )
 
 
+def _load_bootstrap_issuer() -> BootstrapIssuer:
+    """Resolve the Rust bootstrap binding lazily."""
+    from sase.core.rust import require_rust_binding
+
+    try:
+        return require_rust_binding("fleet_issue_bootstrap")
+    except (ImportError, AttributeError) as exc:
+        raise MachineRegistryError(
+            f"fleet bootstrap issuer is unavailable: {exc}"
+        ) from exc
+
+
+def _issue_result_from_response(response: Mapping[str, Any]) -> BootstrapIssueResult:
+    bootstrap_id = _string_field(response, "bootstrap_id")
+    bootstrap_secret = _string_field(response, "bootstrap_secret")
+    pinned = _string_field(response, "pinned_installation_id")
+    expires_at_unix = _float_field(response, "expires_at_unix")
+    protocols = _int_tuple(
+        response.get("protocol_versions", response.get("supported_protocol_versions")),
+        default=(FLEET_PROTOCOL_VERSION,),
+    )
+    scopes = _string_tuple(
+        response.get("allowed_scopes", response.get("requested_scopes", ())),
+        field_name="allowed_scopes",
+    )
+    bundle: dict[str, object] = {
+        "schema_version": 1,
+        "bootstrap_id": bootstrap_id,
+        "bootstrap_secret": bootstrap_secret,
+        "expires_at_unix": expires_at_unix,
+        "pinned_installation_id": pinned,
+        "protocol_versions": list(protocols),
+        "requested_scopes": list(scopes),
+    }
+    _parse_enrollment_bundle(json.dumps(bundle))
+    return BootstrapIssueResult(
+        bundle=bundle,
+        bootstrap_id=bootstrap_id,
+        expires_at_unix=expires_at_unix,
+        pinned_installation_id=pinned,
+        requested_scopes=scopes,
+    )
+
+
 def _credential_ref_for_alias(alias: str, *, rotate: bool = False) -> str:
     validate_machine_alias(alias)
     if not rotate:
@@ -411,6 +493,21 @@ def _int_tuple(value: object, *, default: tuple[int, ...]) -> tuple[int, ...]:
         raise EnrollmentBundleError("supported_protocol_versions must be a list")
     ints = tuple(int(item) for item in value if isinstance(item, int))
     return ints or default
+
+
+def _float_field(payload: Mapping[str, Any], name: str) -> float:
+    value = payload.get(name)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise EnrollmentBundleError(f"bootstrap issue response is missing {name}")
+    return float(value)
+
+
+def _string_tuple(value: object, *, field_name: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        raise EnrollmentBundleError(f"{field_name} must be a list")
+    return tuple(str(item) for item in value if isinstance(item, str) and item)
 
 
 def _controller_metadata() -> dict[str, object]:
@@ -504,5 +601,6 @@ def _capability_mapping(value: object) -> dict[str, tuple[str, ...]]:
 
 
 __all__ = [
+    "BootstrapIssuer",
     "MachineService",
 ]
