@@ -14,6 +14,7 @@ from sase.core.agent_artifact_paths import canonical_agent_artifact_path
 from sase.core.artifact_file_facade import list_explicit_artifact_files
 from sase.gate_shell.followup import launch_gate_followup_agent
 from sase.gate_shell.followup_policy import GateFollowupPolicy
+from sase.running_field import WorkspaceClaimError
 
 from tests.monitor._fixtures import make_starter_agent, write_project_file
 
@@ -238,6 +239,51 @@ def test_raw_prompt_omits_wrapper_and_inherited_model_prefix(
     assert captured["prompt"] == "Verify the cleanup landed."
 
 
+def test_raw_prompt_appends_degraded_workspace_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    member_dir, meta = _make_member(tmp_path)
+    captured: dict[str, Any] = {}
+    calls = 0
+
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        nonlocal calls
+        calls += 1
+        if kwargs["retry_transfer_from_pid"] is not None:
+            raise WorkspaceClaimError(
+                "transfer lost",
+                workspace_num=int(kwargs["workspace_num"]),
+            )
+        captured.update(kwargs)
+        return _fake_result()
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+
+    result = launch_gate_followup_agent(
+        member_dir,
+        meta,
+        project_name="proj",
+        gate_state="answered",
+        policy=GateFollowupPolicy(
+            branch_key="cleanup",
+            prompt="Verify the cleanup landed.",
+            output=("results",),
+            fork="none",
+            model=None,
+            raw_prompt=True,
+        ),
+        envelope=_envelope(),
+        response=_response(),
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
+
+    assert result.launched is True
+    assert calls == 2
+    assert captured["prompt"].startswith("Verify the cleanup landed.\n\n")
+    assert "WARNING (degraded workspace):" in captured["prompt"]
+    assert "transfer lost" in captured["prompt"]
+
+
 def test_fork_prefix_is_dropped_when_the_creator_never_settles(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -292,6 +338,36 @@ def test_inherit_workspace_transfers_from_the_creator_claim_pid(
 
     assert result.launched is True
     assert captured["retry_transfer_from_pid"] == 4_242_424
+
+
+def test_inherit_workspace_transfers_from_settlement_holder_pid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    member_dir, meta = _make_member(
+        tmp_path, workspace_policy="inherit", creator_pid=4_242_424
+    )
+    meta["gate_claim_holder_pid"] = 9_999
+    captured: dict[str, Any] = {}
+
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        captured.update(kwargs)
+        return _fake_result()
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+
+    result = launch_gate_followup_agent(
+        member_dir,
+        meta,
+        project_name="proj",
+        gate_state="answered",
+        policy=_policy(),
+        envelope=_envelope(),
+        response=_response(),
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
+
+    assert result.launched is True
+    assert captured["retry_transfer_from_pid"] == 9_999
 
 
 def test_release_workspace_passes_no_transfer_pid(

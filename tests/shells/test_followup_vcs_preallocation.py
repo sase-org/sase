@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +77,9 @@ def _workspace_messages() -> ShellFollowupWorkspace:
             f"unpaired {original} -> {primary}"
         ),
         fresh_claim_reason=lambda num, error: f"fresh #{num}: {error}",
+        pool_claim_reason=lambda num, error, pool_num, pool_dir: (
+            f"pool from #{num} to #{pool_num} ({pool_dir}): {error}"
+        ),
         workspace_zero_reason=lambda num, error, directory: (
             f"zero from #{num} ({directory}): {error}"
         ),
@@ -180,7 +184,7 @@ def test_launch_shell_followup_forwards_resolved_vcs_ref(
     }
 
 
-def test_launch_shell_followup_zero_fallback_advertises_workspace_zero(
+def test_launch_shell_followup_without_vcs_still_falls_back_to_workspace_zero(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, gh_git_workflows: None
 ) -> None:
     del gh_git_workflows
@@ -233,7 +237,9 @@ def test_launch_shell_followup_zero_fallback_advertises_workspace_zero(
         meta_workspace_dir=str(tmp_path / "ws3"),
         transfer_from_pid=42,
         compose_prompt=lambda reason: (
-            "#gh:sase continue" if reason is None else f"#gh:sase continue\n{reason}"
+            "continue without vcs"
+            if reason is None
+            else f"continue without vcs\n{reason}"
         ),
         spawn=spawn_zero_ok,
         workspace=_workspace_messages(),
@@ -256,15 +262,187 @@ def test_launch_shell_followup_zero_fallback_advertises_workspace_zero(
     assert result.pid == 1
     assert [call["workspace_num"] for call in calls] == [3, 3, 0]
     zero = calls[-1]
-    assert zero["vcs_ref"] == ("gh", "sase")
+    assert zero["vcs_ref"] is None
+    assert (
+        _preallocated_workspace_env(
+            zero["vcs_ref"],
+            workspace_num=zero["workspace_num"],
+            workspace_dir=zero["workspace_dir"],
+        )
+        == {}
+    )
+
+
+def test_launch_shell_followup_vcs_uses_fresh_pool_workspace_when_original_is_taken(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, gh_git_workflows: None
+) -> None:
+    del gh_git_workflows
+    write_project_file("proj")
+    pool = tmp_path / "pool11"
+    pool.mkdir()
+    calls: list[dict[str, Any]] = []
+    claim_calls: list[dict[str, Any]] = []
+
+    monkeypatch.setattr(
+        "sase.shells.followup._workspace_is_claimed",
+        lambda project_name, workspace_num: True,
+    )
+
+    def claim_pool(
+        project_file: str,
+        workflow: str,
+        pid: int,
+        project_basename: str,
+        **kwargs: Any,
+    ) -> tuple[int, str, str | None]:
+        claim_calls.append(
+            {
+                "project_file": project_file,
+                "workflow": workflow,
+                "pid": pid,
+                "project_basename": project_basename,
+                **kwargs,
+            }
+        )
+        return 11, str(pool), "proj_11"
+
+    monkeypatch.setattr("sase.shells.followup.claim_next_axe_workspace_dir", claim_pool)
+
+    def spawn_pool_ok(
+        prompt: str,
+        workspace_dir: str,
+        workspace_num: int,
+        transfer_pid: int | None,
+        vcs_ref: tuple[str, str] | None,
+    ) -> AgentLaunchResult:
+        calls.append(
+            {
+                "prompt": prompt,
+                "workspace_dir": workspace_dir,
+                "workspace_num": workspace_num,
+                "transfer_pid": transfer_pid,
+                "vcs_ref": vcs_ref,
+            }
+        )
+        if workspace_num != 11:
+            raise WorkspaceClaimError(
+                f"workspace #{workspace_num} is already claimed",
+                workspace_num=workspace_num,
+            )
+        return AgentLaunchResult(
+            pid=1,
+            workspace_num=workspace_num,
+            workspace_dir=workspace_dir,
+            output_path="/tmp/out",
+            agent_name="acme--1",
+        )
+
+    result = launch_shell_followup(
+        project_name="proj",
+        meta_workspace_num=3,
+        meta_workspace_dir=str(tmp_path / "ws3"),
+        transfer_from_pid=42,
+        compose_prompt=lambda reason: (
+            "#gh:sase continue" if reason is None else f"#gh:sase continue\n{reason}"
+        ),
+        spawn=spawn_pool_ok,
+        workspace=_workspace_messages(),
+        record_launched=lambda name, *, degraded_reason=None, artifacts_dir=None, pid=None: (
+            FollowupLaunchResult(
+                launched=True,
+                agent_name=name,
+                degraded_reason=degraded_reason,
+                artifacts_dir=artifacts_dir,
+                pid=pid,
+            )
+        ),
+        record_not_launchable=lambda error, prompt: FollowupLaunchResult(
+            launched=False, error=error, prompt_path=None
+        ),
+        recorded_vcs_ref=("gh", "sase"),
+    )
+
+    assert result.launched is True
+    assert (
+        result.degraded_reason
+        == f"pool from #3 to #11 ({pool}): workspace #3 is already claimed"
+    )
+    assert [call["workspace_num"] for call in calls] == [3, 3, 11]
+    assert [call["transfer_pid"] for call in calls] == [42, None, os.getpid()]
+    assert len(claim_calls) == 1
+    assert claim_calls[0]["pid"] == os.getpid()
+    pool_call = calls[-1]
+    assert pool_call["vcs_ref"] == ("gh", "sase")
     env = _preallocated_workspace_env(
-        zero["vcs_ref"],
-        workspace_num=zero["workspace_num"],
-        workspace_dir=zero["workspace_dir"],
+        pool_call["vcs_ref"],
+        workspace_num=pool_call["workspace_num"],
+        workspace_dir=pool_call["workspace_dir"],
     )
     assert env["SASE_GH_PRE_ALLOCATED"] == "1"
-    assert env["SASE_GH_WORKSPACE_NUM"] == "0"
-    assert env["SASE_GH_WORKSPACE_DIR"] == str(primary)
+    assert env["SASE_GH_WORKSPACE_NUM"] == "11"
+    assert env["SASE_GH_WORKSPACE_DIR"] == str(pool)
+
+
+def test_launch_shell_followup_vcs_records_not_launchable_when_pool_is_exhausted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, gh_git_workflows: None
+) -> None:
+    del gh_git_workflows
+    write_project_file("proj")
+    calls: list[int] = []
+    recorded: dict[str, str] = {}
+
+    monkeypatch.setattr(
+        "sase.shells.followup._workspace_is_claimed",
+        lambda project_name, workspace_num: True,
+    )
+    monkeypatch.setattr(
+        "sase.shells.followup.claim_next_axe_workspace_dir",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            WorkspaceClaimError("all workspaces are claimed")
+        ),
+    )
+
+    def spawn_always_claim_fails(
+        prompt: str,
+        workspace_dir: str,
+        workspace_num: int,
+        transfer_pid: int | None,
+        vcs_ref: tuple[str, str] | None,
+    ) -> AgentLaunchResult:
+        del prompt, workspace_dir, transfer_pid, vcs_ref
+        calls.append(workspace_num)
+        raise WorkspaceClaimError(
+            f"workspace #{workspace_num} is already claimed",
+            workspace_num=workspace_num,
+        )
+
+    def record_not_launchable(error: str, prompt: str) -> FollowupLaunchResult:
+        recorded["error"] = error
+        recorded["prompt"] = prompt
+        return FollowupLaunchResult(launched=False, error=error, prompt_path=None)
+
+    result = launch_shell_followup(
+        project_name="proj",
+        meta_workspace_num=3,
+        meta_workspace_dir=str(tmp_path / "ws3"),
+        transfer_from_pid=42,
+        compose_prompt=lambda reason: (
+            "#gh:sase continue" if reason is None else f"#gh:sase continue\n{reason}"
+        ),
+        spawn=spawn_always_claim_fails,
+        workspace=_workspace_messages(),
+        record_launched=lambda name, *, degraded_reason=None, artifacts_dir=None, pid=None: (
+            FollowupLaunchResult(launched=True, agent_name=name)
+        ),
+        record_not_launchable=record_not_launchable,
+        recorded_vcs_ref=("gh", "sase"),
+    )
+
+    assert result.launched is False
+    assert calls == [3, 3]
+    assert "all workspaces are claimed" in recorded["error"]
+    assert "same-workspace fresh claim failed" in recorded["error"]
+    assert "fresh #3: workspace #3 is already claimed" in recorded["prompt"]
 
 
 def test_launch_shell_followup_without_vcs_sets_no_preallocation_env(

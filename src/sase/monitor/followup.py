@@ -163,6 +163,7 @@ def launch_followup_agent(
         workspace=ShellFollowupWorkspace(
             meta_pairing_reason=_meta_pairing_degraded_reason,
             fresh_claim_reason=_fresh_claim_degraded_reason,
+            pool_claim_reason=_pool_claim_degraded_reason,
             workspace_zero_reason=_workspace_zero_degraded_reason,
         ),
         record_launched=_record_launched_result,
@@ -229,6 +230,22 @@ def _workspace_zero_degraded_reason(
         f"The follow-up was launched in workspace #0 ({workspace_dir}) instead. Do not "
         "assume the monitored command's workspace files are present; use the monitor "
         "artifacts and log paths in this prompt."
+    )
+
+
+def _pool_claim_degraded_reason(
+    workspace_num: int,
+    error: BaseException,
+    pool_workspace_num: int,
+    pool_workspace_dir: str,
+) -> str:
+    return (
+        f"The monitor workspace claim transfer failed, and workspace #{workspace_num} "
+        f"could not be freshly claimed because it is already claimed: {error}. "
+        f"The follow-up was launched in freshly claimed workspace #{pool_workspace_num} "
+        f"({pool_workspace_dir}) instead. The prompt carries a VCS workflow tag, "
+        "so the successor will run workspace setup there instead of using the "
+        "monitored command's original workspace."
     )
 
 

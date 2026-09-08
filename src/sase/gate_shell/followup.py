@@ -154,7 +154,8 @@ def launch_gate_followup_agent(
     transfer_from_pid = (
         None
         if workspace_policy == "release"
-        else _optional_int(meta.get("gate_creator_claim_pid"))
+        else _optional_int(meta.get("gate_claim_holder_pid"))
+        or _optional_int(meta.get("gate_creator_claim_pid"))
     )
 
     return launch_shell_followup(
@@ -168,6 +169,7 @@ def launch_gate_followup_agent(
         workspace=ShellFollowupWorkspace(
             meta_pairing_reason=_meta_pairing_degraded_reason,
             fresh_claim_reason=_fresh_claim_degraded_reason,
+            pool_claim_reason=_pool_claim_degraded_reason,
             workspace_zero_reason=_workspace_zero_degraded_reason,
         ),
         record_launched=_record_launched_result,
@@ -279,19 +281,22 @@ def _compose_policy_prompt(
     reasoning_effort: str | None,
     next_model: str | None,
     next_action: str,
+    workspace_degraded_reason: str | None = None,
     **kwargs: Any,
 ) -> str:
     """Compose either the legacy gate wrapper or a kind-provided raw prompt."""
     if policy.raw_prompt:
         del model, reasoning_effort
         prefix = shell_routing_prefix(fork_target, None, None, next_model)
-        return f"{prefix}\n{next_action}" if prefix else next_action
+        prompt = f"{prefix}\n{next_action}" if prefix else next_action
+        return _append_raw_prompt_degraded_warning(prompt, workspace_degraded_reason)
     return compose_gate_followup_prompt(
         fork_target=fork_target,
         model=model,
         reasoning_effort=reasoning_effort,
         next_model=next_model,
         next_action=next_action,
+        workspace_degraded_reason=workspace_degraded_reason,
         **kwargs,
     )
 
@@ -372,6 +377,23 @@ def _workspace_zero_degraded_reason(
     )
 
 
+def _pool_claim_degraded_reason(
+    workspace_num: int,
+    error: BaseException,
+    pool_workspace_num: int,
+    pool_workspace_dir: str,
+) -> str:
+    return (
+        f"The gate shell workspace claim transfer failed, and workspace "
+        f"#{workspace_num} could not be freshly claimed because it is already "
+        f"claimed: {error}. The follow-up was launched in freshly claimed "
+        f"workspace #{pool_workspace_num} ({pool_workspace_dir}) instead. "
+        "The prompt carries a VCS workflow tag, so the successor will run "
+        "workspace setup there instead of using the gate shell's original "
+        "workspace."
+    )
+
+
 def _meta_pairing_degraded_reason(
     original_workspace_dir: str,
     primary_workspace_dir: str,
@@ -385,6 +407,12 @@ def _meta_pairing_degraded_reason(
         "gate's approved-command workspace files are present; use the gate "
         "shell artifacts and log paths in this prompt."
     )
+
+
+def _append_raw_prompt_degraded_warning(prompt: str, reason: str | None) -> str:
+    if not reason:
+        return prompt
+    return f"{prompt.rstrip()}\n\nWARNING (degraded workspace): {reason}"
 
 
 def _clean_str(value: object) -> str | None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -20,8 +21,10 @@ from sase.plan_chain import agent_family_base
 from sase.running_field import (
     WorkspaceClaim,
     WorkspaceClaimError,
+    claim_next_axe_workspace_dir,
     get_claimed_workspaces,
     get_workspace_directory_for_num,
+    release_workspace,
 )
 from sase.workflows.utils import get_project_file_path
 from sase.workspace_provider import resolve_consistent_workspace_pair
@@ -30,6 +33,7 @@ from sase.workspace_provider import resolve_consistent_workspace_pair
 #: follow-up prompt without a ``#fork:`` prefix.
 DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS = 60.0
 STARTER_SETTLE_POLL_SECONDS = 0.5
+_POOL_FOLLOWUP_CLAIM_WORKFLOW = "ace-followup"
 
 
 @dataclass(frozen=True)
@@ -54,6 +58,7 @@ class ShellFollowupWorkspace:
 
     meta_pairing_reason: Callable[[str, str], str]
     fresh_claim_reason: Callable[[int, BaseException], str]
+    pool_claim_reason: Callable[[int, BaseException, int, str], str]
     workspace_zero_reason: Callable[[int, BaseException, str], str]
 
 
@@ -133,10 +138,11 @@ def launch_shell_followup(
     workspace, composing the prompt without a degraded-workspace note; (2) on
     a claim failure, a fresh claim on the same workspace number, composing the
     prompt with a degraded-workspace note explaining the transfer failed; (3)
-    on a further claim failure, workspace ``#0``, unless the original
-    workspace turns out not to be claimed at all -- an unrecoverable state
-    reported as not launchable instead. Every terminal outcome is recorded
-    through *record_launched* / *record_not_launchable*.
+    for VCS-tagged follow-ups, a freshly claimed pool workspace; (4) for
+    non-VCS follow-ups, workspace ``#0``, unless the original workspace turns
+    out not to be claimed at all -- an unrecoverable state reported as not
+    launchable instead. Every terminal outcome is recorded through
+    *record_launched* / *record_not_launchable*.
 
     ``recorded_vcs_ref`` is the starter VCS workflow ref stored on the shell
     member. Each spawn attempt resolves it against the composed prompt and
@@ -214,6 +220,19 @@ def launch_shell_followup(
                 f"with degraded reason: {fresh_reason}"
             )
             return record_not_launchable(error, degraded_prompt)
+        if degraded_vcs_ref is not None:
+            return _launch_vcs_followup_in_pool_workspace(
+                project_name=project_name,
+                original_workspace_num=original_workspace_num,
+                claim_error=claim_exc,
+                compose_prompt=compose_prompt,
+                spawn=spawn,
+                workspace=workspace,
+                record_launched=record_launched,
+                record_not_launchable=record_not_launchable,
+                recorded_vcs_ref=recorded_vcs_ref,
+                pool_failure_prompt=degraded_prompt,
+            )
         zero_workspace_dir = _workspace_dir_for_num(project_name, 0)
         zero_reason = workspace.workspace_zero_reason(
             original_workspace_num, claim_exc, zero_workspace_dir
@@ -236,6 +255,77 @@ def launch_shell_followup(
     return record_launched(
         result.agent_name,
         degraded_reason=fresh_reason,
+        artifacts_dir=result.artifacts_dir or None,
+        pid=result.pid,
+    )
+
+
+def _launch_vcs_followup_in_pool_workspace(
+    *,
+    project_name: str,
+    original_workspace_num: int,
+    claim_error: WorkspaceClaimError,
+    compose_prompt: Callable[[str | None], str],
+    spawn: Callable[
+        [str, str, int, int | None, tuple[str, str] | None], AgentLaunchResult
+    ],
+    workspace: ShellFollowupWorkspace,
+    record_launched: Callable[..., FollowupLaunchResult],
+    record_not_launchable: Callable[[str, str], FollowupLaunchResult],
+    recorded_vcs_ref: tuple[str, str] | None,
+    pool_failure_prompt: str,
+) -> FollowupLaunchResult:
+    project_file = get_project_file_path(project_name)
+    holder_pid = os.getpid()
+    try:
+        pool_workspace_num, pool_workspace_dir, _ = claim_next_axe_workspace_dir(
+            project_file,
+            _POOL_FOLLOWUP_CLAIM_WORKFLOW,
+            holder_pid,
+            project_name,
+            caller_tag="shell-followup-pool",
+        )
+    except WorkspaceClaimError as pool_exc:
+        error = (
+            f"{pool_exc}; original workspace #{original_workspace_num} was still "
+            f"claimed after the same-workspace fresh claim failed: {claim_error}"
+        )
+        return record_not_launchable(error, pool_failure_prompt)
+
+    pool_reason = workspace.pool_claim_reason(
+        original_workspace_num,
+        claim_error,
+        pool_workspace_num,
+        pool_workspace_dir,
+    )
+    pool_prompt = compose_prompt(pool_reason)
+    pool_vcs_ref = _resolve_shell_followup_vcs_ref(recorded_vcs_ref, pool_prompt)
+    try:
+        result = spawn(
+            pool_prompt,
+            pool_workspace_dir,
+            pool_workspace_num,
+            holder_pid,
+            pool_vcs_ref,
+        )
+    except (WorkspaceClaimError, RuntimeError, OSError, ValueError) as exc:
+        release_result = release_workspace(
+            project_file,
+            pool_workspace_num,
+            _POOL_FOLLOWUP_CLAIM_WORKFLOW,
+            caller_tag="shell-followup-pool",
+        )
+        error = str(exc)
+        if not release_result.success:
+            error = (
+                f"{error}; failed to release follow-up pool workspace "
+                f"#{pool_workspace_num}: {release_result.error or 'unknown reason'}"
+            )
+        return record_not_launchable(error, pool_prompt)
+
+    return record_launched(
+        result.agent_name,
+        degraded_reason=pool_reason,
         artifacts_dir=result.artifacts_dir or None,
         pid=result.pid,
     )

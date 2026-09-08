@@ -27,7 +27,10 @@ from sase.gate_shell.followup_policy import (
 )
 from sase.gate_shell.log import gate_shell_output_tail
 from sase.gate_shell.models import GateShellRecord, GateShellState
-from sase.gate_shell.start_claim import release_gate_shell_claim
+from sase.gate_shell.start_claim import (
+    hold_gate_shell_claim_for_settlement,
+    release_gate_shell_claim,
+)
 from sase.history.chat import save_chat_history
 from sase.notification_gates.branches import GateBranchData
 from sase.notification_gates.durability import read_json_object
@@ -120,6 +123,17 @@ def settle_gate_shell(
     meta["chat_path"] = _write_settlement_chat(artifacts_dir, meta, decision_text)
     _write_meta(artifacts_dir, meta)
 
+    project_name = project_name_from_artifacts_dir(artifacts_dir)
+    if project_name and not creator_live:
+        from sase.workflows.utils import get_project_file_path
+
+        hold_gate_shell_claim_for_settlement(
+            get_project_file_path(project_name),
+            meta,
+            artifacts_dir=artifacts_dir,
+            update_meta_field=update_meta_field,
+        )
+
     done_marker = _done_marker(meta, gate_state=gate_state, reason=reason)
     write_done_marker_and_update_index(artifacts_dir, done_marker)
     finalize_shell_workflow_state(artifacts_dir)
@@ -129,7 +143,6 @@ def settle_gate_shell(
     meta["stopped_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     _write_meta(artifacts_dir, meta)
 
-    project_name = project_name_from_artifacts_dir(artifacts_dir)
     if creator_live:
         _suppress_live_creator_followup(
             artifacts_dir,
@@ -242,6 +255,7 @@ def _done_marker(
         "gate_followup_error",
         "gate_followup_degraded_reason",
         "gate_followup_prompt_path",
+        "gate_claim_holder_pid",
         "gate_decision_path",
         "chat_path",
     ):

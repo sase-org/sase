@@ -29,6 +29,11 @@ def gate_claim_is_releasable(project_file: str, claim: _GateWorkspaceClaim) -> b
     gate-shell member's own markers say it is terminal; read failures fail
     closed. Every sweep that reaps claims by PID liveness must ask here
     first, or the gate's own settlement finds its workspace gone.
+
+    Once settlement starts, ``hold_gate_shell_claim_for_settlement`` moves
+    the claim onto the live settling process before the terminal marker is
+    published. If that process crashes, the existing terminal-marker rule
+    below still lets the stale holder claim be released.
     """
     if not claim.artifacts_timestamp:
         return False

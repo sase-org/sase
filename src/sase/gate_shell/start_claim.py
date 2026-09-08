@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
+from pathlib import Path
+from collections.abc import Callable
 
 from sase.ace.hooks.processes import is_process_running
 from sase.gate_shell.claims import GATE_WORKSPACE_CLAIM_WORKFLOW
@@ -25,6 +28,9 @@ class GateClaimMove:
     creator_claim: WorkspaceClaim | None
     gate_pid: int | None
     workspace_policy: str
+
+
+UpdateMetaFieldFn = Callable[[str, str, object], None]
 
 
 def move_gate_shell_claim(
@@ -88,6 +94,55 @@ def move_gate_shell_claim(
         gate_pid=creator_pid,
         workspace_policy=workspace_policy,
     )
+
+
+def hold_gate_shell_claim_for_settlement(
+    project_file: str,
+    meta: dict[str, object],
+    *,
+    artifacts_dir: str | None,
+    update_meta_field: UpdateMetaFieldFn,
+    holder_pid: int | None = None,
+) -> int | None:
+    """Move a pending gate claim onto the live settling process, if possible."""
+    if meta.get("gate_workspace_policy") == "release":
+        return None
+    workspace_num = _optional_int(meta.get("workspace_num"))
+    creator_pid = _optional_int(meta.get("gate_creator_claim_pid"))
+    if workspace_num is None or workspace_num == 0 or creator_pid is None:
+        return None
+    creator_claim = _find_claim(
+        project_file,
+        workspace_num=workspace_num,
+        pid=creator_pid,
+    )
+    if creator_claim is None:
+        return None
+    holder = os.getpid() if holder_pid is None else holder_pid
+    artifacts_timestamp = _settlement_artifacts_timestamp(artifacts_dir)
+    result = transfer_workspace_claim(
+        project_file,
+        workspace_num,
+        from_pid=creator_pid,
+        to_pid=holder,
+        new_workflow=GATE_WORKSPACE_CLAIM_WORKFLOW,
+        new_artifacts_timestamp=artifacts_timestamp,
+        cl_name=creator_claim.cl_name,
+        caller_tag="gate-shell-settle-hold",
+    )
+    if not result.success:
+        _append_settle_hold_failure_log(
+            artifacts_dir,
+            workspace_num=workspace_num,
+            creator_pid=creator_pid,
+            holder_pid=holder,
+            error=result.error or "workspace claim transfer failed",
+        )
+        return None
+    meta["gate_claim_holder_pid"] = holder
+    if artifacts_dir is not None:
+        update_meta_field(artifacts_dir, "gate_claim_holder_pid", holder)
+    return holder
 
 
 def restore_gate_shell_claim(
@@ -184,7 +239,7 @@ def _restore_live_creator_claim(
     move = GateClaimMove(
         result=ClaimResult(True),
         creator_claim=creator_claim,
-        gate_pid=creator_claim.pid,
+        gate_pid=_optional_int(meta.get("gate_claim_holder_pid")) or creator_claim.pid,
         workspace_policy="inherit",
     )
     result = restore_gate_shell_claim(
@@ -250,6 +305,26 @@ def _append_live_creator_restore_log(
     )
 
 
+def _append_settle_hold_failure_log(
+    artifacts_dir: str | None,
+    *,
+    workspace_num: int,
+    creator_pid: int,
+    holder_pid: int,
+    error: str,
+) -> None:
+    if artifacts_dir is None:
+        return
+    append_gate_shell_log_text(
+        artifacts_dir,
+        (
+            "! gate-shell-settle-hold: could not transfer workspace "
+            f"#{workspace_num} from creator pid {creator_pid} to settling "
+            f"pid {holder_pid}: {error}\n"
+        ),
+    )
+
+
 def _find_claim(
     project_file: str,
     *,
@@ -264,6 +339,13 @@ def _find_claim(
         ),
         None,
     )
+
+
+def _settlement_artifacts_timestamp(artifacts_dir: str | None) -> str | None:
+    if not artifacts_dir:
+        return None
+    name = Path(artifacts_dir).expanduser().name
+    return name or None
 
 
 def _optional_int(value: object) -> int | None:
@@ -283,6 +365,7 @@ def _optional_str(value: object) -> str | None:
 
 __all__ = [
     "GateClaimMove",
+    "hold_gate_shell_claim_for_settlement",
     "move_gate_shell_claim",
     "release_gate_shell_claim",
     "restore_gate_shell_claim",
