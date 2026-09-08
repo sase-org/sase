@@ -44,6 +44,9 @@ prints a single section without decoration and separates multiple sections with
 terminal (`/dev/tty`) for input, it falls back to the same plain output instead of
 starting an unusable app.
 
+`bead:<id>` inputs and followed bead links read the live bead store for the owning
+project; they do not require generated Markdown pages under `pages/`.
+
 ## Syntax highlighting
 
 Recognized source files, Markdown documents, and diffs pick up a muted language overlay

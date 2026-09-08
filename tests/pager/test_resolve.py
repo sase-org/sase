@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -200,25 +199,25 @@ def test_bead_link_target_enriches_the_link_neighborhood_without_exiting(
     `detail_enricher` fills it, and the CLI's own enricher calls `sys.exit` on
     failure, which a keypress handler cannot survive.
     """
-    from contextlib import contextmanager
-
-    from sase.bead import cli_common, cli_show_batch
-    from sase.pager.resolve import _bead_link_target
+    from sase.bead import cli_show_batch
+    from sase.pager import beads
+    from sase.artifact_refs import parse_artifact_ref
+    from sase.pager.beads import bead_link_resolution
 
     seen: list[object] = []
-
-    @contextmanager
-    def fake_read_view() -> Iterator[object]:
-        yield object()
 
     def spy(*_args: object, **kwargs: object) -> object:
         seen.append(kwargs.get("detail_enricher"))
         raise LookupError("stop after recording the enricher")
 
-    monkeypatch.setattr(cli_common, "get_read_view", fake_read_view)
+    monkeypatch.setattr(
+        beads,
+        "_open_contextual_store",
+        lambda _stack, _context: SimpleNamespace(view=object(), workspace=None),
+    )
     monkeypatch.setattr(cli_show_batch, "resolve_show_batch", spy)
 
-    assert _bead_link_target("bead:sase-uk") is None
+    assert bead_link_resolution(parse_artifact_ref("bead:sase-uk")).target is None
     assert seen == [cli_show_batch.enrich_with_artifact_link_neighborhood]
 
 
@@ -226,12 +225,12 @@ def test_bead_link_target_resolves_foreign_bead(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from contextlib import contextmanager
-
-    from sase.bead import cli_common, cross_project
+    from sase.bead import cross_project
     from sase.bead.cross_project import BeadStoreOrigin
     from sase.bead.model import Issue, IssueType
-    from sase.pager.resolve import _bead_link_target
+    from sase.artifact_refs import parse_artifact_ref
+    from sase.pager import beads
+    from sase.pager.beads import bead_link_resolution
 
     class _View:
         def __init__(self, issues: dict[str, Issue]) -> None:
@@ -254,10 +253,6 @@ def test_bead_link_target_resolves_foreign_bead(
         def list_issues(self) -> list[Issue]:
             return list(self.issues.values())
 
-    @contextmanager
-    def fake_read_view() -> Iterator[_View]:
-        yield _View({})
-
     foreign = _View(
         {
             "bob-cli-1": Issue(
@@ -273,14 +268,18 @@ def test_bead_link_target_resolves_foreign_bead(
         primary_workspace=tmp_path / "bob-cli",
         beads_dir=tmp_path / "bob-cli" / "sdd" / "beads",
     )
-    monkeypatch.setattr(cli_common, "get_read_view", fake_read_view)
+    monkeypatch.setattr(
+        beads,
+        "_open_contextual_store",
+        lambda _stack, _context: None,
+    )
     monkeypatch.setattr(cross_project, "origin_for_bead_id", lambda _id: origin)
     monkeypatch.setattr(
         "sase.bead.cli_show_router.open_bead_project_for_beads_dir",
         lambda _path: foreign,
     )
 
-    target = _bead_link_target("bead:bob-cli-1")
+    target = bead_link_resolution(parse_artifact_ref("bead:bob-cli-1")).target
 
     assert target is not None
     assert target.kind is LinkTargetKind.DOCUMENT
@@ -514,7 +513,7 @@ def test_resolve_ref_typed_ref_none_context_keeps_legacy_call(
     calls: list[dict[str, object]] = []
 
     def fake_resolve_cli_reference(ref: str, **kwargs: object) -> None:
-        assert ref == "bead:sase-uk.5"
+        assert ref == "plan:202608/demo.md"
         calls.append(kwargs)
         raise ValueError("stop")
 
@@ -522,7 +521,7 @@ def test_resolve_ref_typed_ref_none_context_keeps_legacy_call(
         "sase.pager.resolve.resolve_cli_reference", fake_resolve_cli_reference
     )
 
-    assert resolve_ref("bead:sase-uk.5") is None
+    assert resolve_ref("plan:202608/demo.md") is None
     assert calls == [{}]
 
 
@@ -539,7 +538,7 @@ def test_resolve_ref_typed_ref_empty_context_keeps_legacy_call(
         "sase.pager.resolve.resolve_cli_reference", fake_resolve_cli_reference
     )
 
-    assert resolve_ref("bead:sase-uk.5", context=LinkResolutionContext()) is None
+    assert resolve_ref("plan:202608/demo.md", context=LinkResolutionContext()) is None
     assert calls == [{}]
 
 

@@ -149,7 +149,7 @@ def enrich_with_artifact_link_neighborhood(detail: IssueDetail) -> IssueDetail:
 
 
 def resolve_show_batch(
-    view: Any,
+    view: Any | None,
     ids: Sequence[str],
     *,
     format_name: str,
@@ -272,16 +272,28 @@ def _resolve_existing_issue_store(
     router: ShowStoreRouter,
     requested_id: str,
 ) -> tuple[RoutedShowStore, Issue]:
-    primary = router.primary_store()
+    primary_error: ShowStoreRoutingError | None = None
     try:
-        return primary, primary.view.show(requested_id)
-    except KeyError:
+        primary = router.primary_store()
+    except ShowStoreRoutingError as exc:
         if router.is_project_pinned:
             raise
+        primary_error = exc
+    else:
+        try:
+            return primary, primary.view.show(requested_id)
+        except KeyError:
+            if router.is_project_pinned:
+                raise
+
+    if not router.is_project_pinned:
         foreign = router.foreign_store_for_bead_id(requested_id)
         if foreign is None:
-            raise
+            if primary_error is not None:
+                raise primary_error
+            raise KeyError(requested_id)
         return foreign, foreign.view.show(requested_id)
+    raise KeyError(requested_id)
 
 
 def _resolve_show_request(
@@ -299,26 +311,38 @@ def _resolve_show_request(
             include_links=include_links,
         )
 
-    primary = router.primary_store()
+    primary_error: ShowStoreRoutingError | None = None
     try:
-        return _resolve_in_store(
-            primary,
-            request.requested_id,
-            format_name=format_name,
-            include_links=include_links,
-        )
-    except KeyError:
+        primary = router.primary_store()
+    except ShowStoreRoutingError as exc:
         if router.is_project_pinned:
             raise
+        primary_error = exc
+    else:
+        try:
+            return _resolve_in_store(
+                primary,
+                request.requested_id,
+                format_name=format_name,
+                include_links=include_links,
+            )
+        except KeyError:
+            if router.is_project_pinned:
+                raise
+
+    if not router.is_project_pinned:
         foreign = router.foreign_store_for_bead_id(request.requested_id)
         if foreign is None:
-            raise
+            if primary_error is not None:
+                raise primary_error
+            raise KeyError(request.requested_id)
         return _resolve_in_store(
             foreign,
             request.requested_id,
             format_name=format_name,
             include_links=include_links,
         )
+    raise KeyError(request.requested_id)
 
 
 def _resolve_in_store(
@@ -340,6 +364,7 @@ def _resolve_in_store(
 
 def default_show_render_context_resolver(
     *,
+    default_workspace: Path | None = None,
     design_paths_are_relative_fn: Callable[..., bool] | None = None,
     plan_reference_roots_fn: Callable[..., tuple[Path, ...]] | None = None,
     artifact_reference_context_fn: Callable[..., ArtifactRefContext | None]
@@ -357,8 +382,12 @@ def default_show_render_context_resolver(
 
     def resolve(origin: BeadStoreOrigin | None) -> _ShowRenderContext:
         key = _render_context_key(origin)
+        if origin is None and default_workspace is not None:
+            key = (key, default_workspace)
         if key not in cache:
-            workspace = origin.primary_workspace if origin is not None else None
+            workspace = (
+                origin.primary_workspace if origin is not None else default_workspace
+            )
             cache[key] = _ShowRenderContext(
                 relativize_design=_call_workspace_fn(design_fn, workspace),
                 plan_roots=_call_workspace_fn(plan_roots_fn, workspace),

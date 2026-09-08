@@ -52,6 +52,7 @@ from sase.pager.landings import (
     card_link_target,
     commit_link_target,
 )
+from sase.pager.beads import bead_entry_target_resolution, bead_link_resolution
 from sase.pager.owner import (
     artifact_context_for_link_context,
     document_owner_from_path,
@@ -99,8 +100,9 @@ def resolve_ref(
     ``ref`` is a normalized ref string: a typed artifact reference
     (``bead:sase-uk.5``), or a plain filesystem path. Never called for URL
     spans — the press table copies those directly (D6) without resolving.
-    ``context`` is computed lazily for file paths; typed refs with ``None``
-    or empty anchors keep today's ``resolve_cli_reference(ref)`` call.
+    ``context`` is computed lazily for file paths and live bead detail refs;
+    other typed refs with ``None`` or empty anchors keep today's
+    ``resolve_cli_reference(ref)`` call.
     """
     return resolve_link(ref, context=context).target
 
@@ -119,9 +121,11 @@ def resolve_link(
     if not stripped:
         return LinkResolution()
     try:
-        parse_artifact_ref(stripped)
+        parsed = parse_artifact_ref(stripped)
     except (ImportError, RuntimeError, ValueError):
         return _resolve_file_path_link(stripped, context=context)
+    if parsed.kind_type == "bead":
+        return bead_link_resolution(parsed, context=context)
     return _resolve_artifact_ref_link(stripped, context=context)
 
 
@@ -144,7 +148,7 @@ def link_target_for_artifact_entry_target(
     if target.pane_id == "files" and target.parts:
         return _resolve_file_path_target(str(target.parts[-1]), context=context)
     if target.pane_id == "beads" and target.parts:
-        return _bead_link_target(f"bead:{target.parts[-1]}")
+        return bead_entry_target_resolution(target, context=context).target
     canonical_ref = _ref_for_artifact_entry_target(target) or ref
     return _resolve_artifact_ref_target(canonical_ref, context=context)
 
@@ -222,7 +226,7 @@ def _resolve_artifact_result(
 
     kind_type = result.parsed.kind_type
     if kind_type == "bead":
-        return LinkResolution(target=_bead_link_target(result.canonical_reference))
+        return bead_link_resolution(result.parsed, context=link_context)
     if kind_type in {"stitch", "commit"}:
         return LinkResolution(target=commit_link_target(result, context=link_context))
 
@@ -373,48 +377,6 @@ def _link_target_for_existing_path(
         edit_line=requested_line,
         edit_column=requested_column,
     )
-
-
-def _bead_link_target(canonical_ref: str) -> LinkTarget | None:
-    bead_id = canonical_ref.split(":", 1)[-1]
-    from sase.agent.names._registry import name_registry_load_session
-    from sase.bead.cli_common import get_read_view
-    from sase.bead.cli_detail_style import DetailStyle
-    from sase.bead.cli_show_router import ShowStoreRouter
-    from sase.bead.cli_show_batch import (
-        build_show_batch_document,
-        default_show_render_context_resolver,
-        enrich_with_artifact_link_neighborhood,
-        resolve_show_batch,
-    )
-
-    try:
-        with name_registry_load_session(), get_read_view() as view:
-            with ShowStoreRouter(view) as router:
-                batch = resolve_show_batch(
-                    view,
-                    [bead_id],
-                    format_name="full",
-                    include_links=True,
-                    # `sase bead show`'s own enricher exits the process when the
-                    # link store cannot be read; a keypress handler cannot.
-                    detail_enricher=enrich_with_artifact_link_neighborhood,
-                    router=router,
-                )
-                if batch.failures or not batch.entries:
-                    return None
-                return LinkTarget(
-                    kind=LinkTargetKind.DOCUMENT,
-                    document=build_show_batch_document(
-                        batch,
-                        style=DetailStyle.RICH,
-                        wrap=None,
-                        render_context_for=default_show_render_context_resolver(),
-                    ),
-                )
-    except Exception:
-        log.exception("pager: could not resolve bead ref %r", canonical_ref)
-        return None
 
 
 def _directory_link_target(

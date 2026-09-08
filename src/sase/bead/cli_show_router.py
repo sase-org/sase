@@ -28,7 +28,12 @@ class RoutedShowStore:
 class ShowStoreRouter:
     """Reuse local and foreign bead stores across one ``show`` invocation."""
 
-    def __init__(self, local_view: Any, *, project_ref: str | None = None) -> None:
+    def __init__(
+        self,
+        local_view: Any | None,
+        *,
+        project_ref: str | None = None,
+    ) -> None:
         self.local_view = local_view
         self.project_ref = project_ref
         self._stack = ExitStack()
@@ -50,6 +55,8 @@ class ShowStoreRouter:
     def primary_store(self) -> RoutedShowStore:
         """Return the store that should be consulted before prefix routing."""
         if self.project_ref is None:
+            if self.local_view is None:
+                raise ShowStoreRoutingError("no local bead store is available")
             return RoutedShowStore(self.local_view, None)
         if self._pinned is None:
             self._pinned = self._resolve_pinned_store()

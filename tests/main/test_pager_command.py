@@ -8,11 +8,14 @@ from pathlib import Path
 
 import pytest
 
+from sase.bead.model import IssueType
+from sase.bead.project import BeadProject
 from sase.main import pager_handler
 from sase.main.parser import create_parser
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.resolve import LinkTarget, LinkTargetKind
 from tests.main.parser_help_helpers import flat_help, parser_for
+from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
 
 
 class _Stream(StringIO):
@@ -198,6 +201,36 @@ def test_plain_positional_input_uses_pager_resolver(
     )
     assert stdout.getvalue() == "resolved\n"
     assert contexts and contexts[0] is not None
+
+
+def test_plain_positional_bead_input_uses_live_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with BeadProject.init(tmp_path):
+        pass
+    isolate_bead_store_resolution(monkeypatch, tmp_path, project_name="sase")
+    with BeadProject(tmp_path) as project:
+        issue = project.create(
+            "Pager command bead",
+            IssueType.TASK,
+            description="command detail",
+            task_type="bug",
+            size="small",
+        )
+
+    stdout = _Stream(tty=False)
+    monkeypatch.setattr(pager_handler.sys, "stdout", stdout)
+
+    assert (
+        pager_handler.handle_pager_command(
+            _args(inputs=[f"bead:{issue.id}"], plain=True)
+        )
+        == 0
+    )
+    assert not (tmp_path / "pages").exists()
+    assert "Pager command bead" in stdout.getvalue()
+    assert "command detail" in stdout.getvalue()
 
 
 def test_combined_inputs_preserve_each_section_origin(
