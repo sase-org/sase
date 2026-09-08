@@ -116,3 +116,7 @@ class HintMixinBase:
         self._agent_hint_render_identity = None
         self._agent_hint_render_ready = None
         self._agent_hint_render_task = None
+
+    def _remove_hint_input_bar(self, *, refresh: bool = True) -> None:
+        """Remove the transient hint input bar."""
+        raise NotImplementedError

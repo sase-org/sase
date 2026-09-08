@@ -128,7 +128,7 @@ async def test_tool_call_report_materialization_runs_off_event_loop_thread(
         return report_path
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.write_tool_call_report",
+        "sase.ace.tui.actions.hints._view_processing.write_tool_call_report",
         write_report,
     )
 
@@ -200,7 +200,7 @@ async def test_tool_call_report_materialization_failure_drops_path(
     app._hint_tool_call_reports = {report_path: _report_spec(report_path)}
     app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.write_tool_call_report",
+        "sase.ace.tui.actions.hints._view_processing.write_tool_call_report",
         lambda _spec: None,
     )
 
@@ -253,7 +253,7 @@ async def test_glossary_report_materialization_runs_off_event_loop_thread(
         return report_path
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.write_glossary_read_report",
+        "sase.ace.tui.actions.hints._view_processing.write_glossary_read_report",
         write_report,
     )
 
@@ -302,7 +302,7 @@ async def test_memory_report_hint_is_materialized_for_pager(
         return report_path
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.write_memory_read_report",
+        "sase.ace.tui.actions.hints._view_processing.write_memory_read_report",
         write_report,
     )
 
@@ -329,7 +329,7 @@ async def test_memory_report_materialization_runs_off_event_loop_thread(
         return report_path
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.write_memory_read_report",
+        "sase.ace.tui.actions.hints._view_processing.write_memory_read_report",
         write_report,
     )
 
@@ -354,7 +354,7 @@ async def test_memory_report_hint_is_materialized_for_editor(
         return report_path
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.write_memory_read_report",
+        "sase.ace.tui.actions.hints._view_processing.write_memory_read_report",
         write_report,
     )
 
@@ -379,7 +379,7 @@ async def test_memory_report_hint_is_materialized_for_clipboard(
         return report_path
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.write_memory_read_report",
+        "sase.ace.tui.actions.hints._view_processing.write_memory_read_report",
         write_report,
     )
 
@@ -416,15 +416,15 @@ async def test_mixed_memory_glossary_tool_call_and_file_selection_preserves_orde
         return tool_path
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.write_memory_read_report",
+        "sase.ace.tui.actions.hints._view_processing.write_memory_read_report",
         write_memory,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.write_glossary_read_report",
+        "sase.ace.tui.actions.hints._view_processing.write_glossary_read_report",
         write_glossary,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.write_tool_call_report",
+        "sase.ace.tui.actions.hints._view_processing.write_tool_call_report",
         write_tool,
     )
 
@@ -444,7 +444,7 @@ async def test_memory_report_materialization_failure_drops_path(
     app._hint_memory_reports = {report_path: _memory_spec(report_path)}
     app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.write_memory_read_report",
+        "sase.ace.tui.actions.hints._view_processing.write_memory_read_report",
         lambda _spec: None,
     )
 
