@@ -20,6 +20,7 @@ import subprocess
 import time
 from collections.abc import Callable
 from pathlib import Path
+from urllib.parse import unquote
 
 from sase.ace.tui.graphics import ArtifactFileViewSpec, artifact_file_view_mode
 from sase.artifact_cli.references import (
@@ -43,6 +44,7 @@ from sase.pager.link_context import (
     LinkResolutionContext,
     default_link_context,
 )
+from sase.pager.known_kinds import known_kinds_from_link_context
 from sase.pager.link_scan import LinkSpanKind
 from sase.pager.landings import (
     ambiguous_source_resolution,
@@ -75,6 +77,9 @@ _MEDIA_MODES = frozenset({"image", "video", "pdf"})
 _LINE_COL_SUFFIX_RE = re.compile(r"(.+):(\d+):(\d+)$")
 _LINE_SUFFIX_RE = re.compile(r"(.+):(\d+)$")
 _TRAILING_LINE_DIGITS_RE = re.compile(r":\d+$")
+_LINE_FRAGMENT_RE = re.compile(r"L(\d+)(?:-L?\d+)?", re.IGNORECASE)
+_HEADING_RE = re.compile(r"^#{1,6}\s+(.+?)\s*#*\s*$")
+_MARKDOWN_SUFFIXES = frozenset({".md", ".markdown", ".mdown", ".mkd"})
 _NUMBERED_CHECKOUT_RE = re.compile(r"^.+_\d+$")
 _DIFF_PREFIXES = ("a/", "b/")
 _GIT_LS_FILES_TIMEOUT_SECONDS = 2.0
@@ -281,20 +286,19 @@ def _resolve_file_path_link(
     owned = _owned_file_path_resolution(text, context=resolved_context)
     if owned is not None:
         return owned
-    found, line, column, locations = _search_existing_path(
+    found, line, column, fragment, locations = _search_existing_path(
         text, context=resolved_context
     )
     if found is None:
         return LinkResolution(
             unresolved_message=f"{text} not found (searched {locations} locations)",
         )
-    return LinkResolution(
-        target=_link_target_for_existing_path(
-            found,
-            requested_line=line,
-            requested_column=column,
-            context=resolved_context,
-        )
+    return _link_resolution_for_existing_path(
+        found,
+        requested_line=line,
+        requested_column=column,
+        fragment=fragment,
+        context=resolved_context,
     )
 
 
@@ -307,82 +311,28 @@ def _owned_file_path_resolution(
         return None
     last: ArtifactRefTargetResolution | None = None
     last_path = text
-    last_line: int | None = None
-    last_column: int | None = None
-    for path_text, line, column in _path_candidates(text):
+    for path_text, line, column, fragment in _path_candidates(text):
         owned = lookup_owned_source_path(path_text, context=context)
         if owned is None:
             continue
         last = owned
         last_path = path_text
-        last_line = line
-        last_column = column
         if owned_source_is_success(owned) and owned.resolved_path is not None:
-            return LinkResolution(
-                target=_link_target_for_existing_path(
-                    owned.resolved_path,
-                    requested_line=line,
-                    requested_column=column,
-                    context=context,
-                )
+            return _link_resolution_for_existing_path(
+                owned.resolved_path,
+                requested_line=line,
+                requested_column=column,
+                fragment=fragment,
+                context=context,
             )
         if owned.status == "ambiguous" or owned.failure_category == "ambiguous":
             return ambiguous_source_resolution(path_text, owned, context)
     if last is None:
         return None
-    existing = _existing_owner_scoped_path(last_path, context)
-    if existing is not None:
-        return LinkResolution(
-            target=_link_target_for_existing_path(
-                existing,
-                requested_line=last_line,
-                requested_column=last_column,
-                context=context,
-            )
-        )
     return LinkResolution(
         unresolved_message=owned_source_unresolved_message(last_path, last),
         retryable=owned_source_is_retryable(last),
     )
-
-
-def _existing_owner_scoped_path(
-    path_text: str, context: LinkResolutionContext
-) -> Path | None:
-    """Return an existing owner-scoped path the suffix index may omit.
-
-    Directories and other unindexed checkout entries must not fall through
-    to cwd, where an unrelated same-named file would steal the press.
-    """
-    relative = Path(path_text)
-    if relative.is_absolute():
-        return None
-    if relative.parts and relative.parts[0] == ".":
-        relative = Path(*relative.parts[1:]) if len(relative.parts) > 1 else Path()
-        if not relative.parts:
-            return None
-    bases: list[Path] = []
-    owner = context.owner
-    if owner is not None:
-        bases.extend(owner.checkout_candidates)
-    artifact_context = artifact_context_for_link_context(context)
-    if artifact_context is not None:
-        for repository in artifact_context.repositories:
-            bases.extend(repository.checkout_paths)
-            if repository.checkout_path is not None:
-                bases.append(repository.checkout_path)
-    seen: set[Path] = set()
-    for base in bases:
-        try:
-            candidate = (base / relative).expanduser().resolve(strict=False)
-        except OSError:
-            continue
-        if candidate in seen:
-            continue
-        seen.add(candidate)
-        if candidate.exists():
-            return candidate
-    return None
 
 
 def _link_target_for_existing_path(
@@ -511,6 +461,7 @@ def _file_link_target(
         logical_filename=logical_filename,
         category=category,
         subject_ref=subject_ref,
+        known_kinds=known_kinds_from_link_context(context),
     )
     document = PagerDocument(
         sections=(section,),
@@ -590,10 +541,13 @@ def copy_text_for_target(
         if owned is not None and owned.target is not None:
             if owned.target.edit_path is not None:
                 return str(owned.target.edit_path)
-        found, _line, _column, _locations = _search_existing_path(
+        found, _line, _column, fragment, _locations = _search_existing_path(
             ref, context=resolved_context
         )
         if found is not None:
+            _fragment_line, fragment_message = _fragment_target_line(found, fragment)
+            if fragment_message is not None:
+                return ref
             return str(found)
         return ref
     return ref
@@ -612,8 +566,8 @@ def _search_existing_path(
     *,
     context: LinkResolutionContext,
     cache: _GitLsFilesCache | None = None,
-) -> tuple[Path | None, int | None, int | None, int]:
-    """Return ``(path, line, column, locations_probed)`` for the first existing hit."""
+) -> tuple[Path | None, int | None, int | None, str | None, int]:
+    """Return ``(path, line, column, fragment, locations_probed)`` for the first hit."""
     git_cache: _GitLsFilesCache = {} if cache is None else cache
     probed: list[Path] = []
     seen: set[Path] = set()
@@ -628,18 +582,18 @@ def _search_existing_path(
         return None
 
     candidates = _path_candidates(text)
-    for path_text, line, column in candidates:
+    for path_text, line, column, fragment in candidates:
         found = _probe_direct(path_text, context, consider)
         if found is not None:
-            return found, line, column, len(probed)
-    for path_text, line, column in candidates:
+            return found, line, column, fragment, len(probed)
+    for path_text, line, column, fragment in candidates:
         needle = _suffix_needle(path_text, context)
         if needle is None:
             continue
         found = _unique_suffix_hit(needle, context, git_cache, consider)
         if found is not None:
-            return found, line, column, len(probed)
-    return None, None, None, len(probed)
+            return found, line, column, fragment, len(probed)
+    return None, None, None, None, len(probed)
 
 
 def _probe_direct(
@@ -689,15 +643,18 @@ def _unique_suffix_hit(
     return consider(hits[0])
 
 
-def _path_candidates(text: str) -> tuple[tuple[str, int | None, int | None], ...]:
+def _path_candidates(
+    text: str,
+) -> tuple[tuple[str, int | None, int | None, str | None], ...]:
     seen: set[str] = set()
-    candidates: list[tuple[str, int | None, int | None]] = []
+    candidates: list[tuple[str, int | None, int | None, str | None]] = []
     for variant in _candidate_texts(text):
-        path_text, line, column = _split_line_suffix(variant)
-        if not path_text or path_text in seen:
+        path_text, line, column, fragment = _split_target_suffix(variant)
+        key = f"{path_text}#{fragment}" if fragment is not None else path_text
+        if not path_text or key in seen:
             continue
-        seen.add(path_text)
-        candidates.append((path_text, line, column))
+        seen.add(key)
+        candidates.append((path_text, line, column, fragment))
     return tuple(candidates)
 
 
@@ -720,6 +677,21 @@ def _candidate_texts(text: str) -> tuple[str, ...]:
     return tuple(variants)
 
 
+def _split_target_suffix(
+    text: str,
+) -> tuple[str, int | None, int | None, str | None]:
+    path_text, fragment = _split_hash_fragment(text)
+    path_text, line, column = _split_line_suffix(path_text)
+    return path_text, line, column, fragment
+
+
+def _split_hash_fragment(text: str) -> tuple[str, str | None]:
+    if "#" not in text:
+        return text, None
+    path_text, fragment = text.split("#", 1)
+    return path_text, fragment
+
+
 def _split_line_suffix(text: str) -> tuple[str, int | None, int | None]:
     match = _LINE_COL_SUFFIX_RE.fullmatch(text)
     if match is not None:
@@ -732,6 +704,96 @@ def _split_line_suffix(text: str) -> tuple[str, int | None, int | None]:
         if not _TRAILING_LINE_DIGITS_RE.search(path_text):
             return path_text, int(match.group(2)), None
     return text, None, None
+
+
+def _link_resolution_for_existing_path(
+    path: Path,
+    *,
+    requested_line: int | None,
+    requested_column: int | None,
+    fragment: str | None,
+    context: LinkResolutionContext,
+) -> LinkResolution:
+    fragment_line, fragment_message = _fragment_target_line(path, fragment)
+    if fragment_message is not None:
+        return LinkResolution(unresolved_message=fragment_message)
+    return LinkResolution(
+        target=_link_target_for_existing_path(
+            path,
+            requested_line=fragment_line
+            if fragment_line is not None
+            else requested_line,
+            requested_column=requested_column,
+            context=context,
+        )
+    )
+
+
+def _fragment_target_line(
+    path: Path,
+    fragment: str | None,
+) -> tuple[int | None, str | None]:
+    if fragment is None:
+        return None, None
+    decoded = unquote(fragment)
+    if not decoded:
+        return None, None
+    line_match = _LINE_FRAGMENT_RE.fullmatch(decoded)
+    if line_match is not None:
+        return int(line_match.group(1)), None
+    if decoded[:1].lower() == "l" and any(char.isdigit() for char in decoded):
+        return None, f"fragment #{decoded} is not a supported line fragment for {path}"
+    if not _is_markdown_path(path):
+        return None, f"fragment #{decoded} is not supported for {path}"
+    line = _heading_fragment_line(path, decoded)
+    if line is None:
+        return None, f"fragment #{decoded} was not found in {path}"
+    return line, None
+
+
+def _is_markdown_path(path: Path) -> bool:
+    return path.suffix.lower() in _MARKDOWN_SUFFIXES
+
+
+def _heading_fragment_line(path: Path, fragment: str) -> int | None:
+    wanted = _heading_slug(fragment)
+    if not wanted:
+        return None
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+    seen: dict[str, int] = {}
+    for line_number, line in enumerate(lines, start=1):
+        match = _HEADING_RE.match(line)
+        if match is None:
+            continue
+        base = _heading_slug(match.group(1))
+        if not base:
+            continue
+        ordinal = seen.get(base, 0)
+        seen[base] = ordinal + 1
+        slug = base if ordinal == 0 else f"{base}-{ordinal}"
+        if slug == wanted:
+            return line_number
+    return None
+
+
+def _heading_slug(text: str) -> str:
+    output: list[str] = []
+    last_dash = False
+    for character in text.strip().lower():
+        if character.isspace() or character == "-":
+            if output and not last_dash:
+                output.append("-")
+                last_dash = True
+            continue
+        if character.isalnum() or character == "_":
+            output.append(character)
+            last_dash = False
+    while output and output[-1] == "-":
+        output.pop()
+    return "".join(output)
 
 
 def _stale_absolute_remainder(

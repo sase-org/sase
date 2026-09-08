@@ -8,7 +8,7 @@ resolving the reference it names.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 import re
@@ -23,6 +23,7 @@ from sase.ace.tui.widgets.prompt_panel._hint_caps import (
     bound_hint_content,
 )
 from sase.artifact_refs import scan_artifact_ref_document
+from sase.artifact_ref_models import ArtifactRefDocumentTarget
 
 # A bare bead id such as ``sase-uk.1`` or ``sase-ug.land``. Scoped to this
 # checkout's own project key: generalizing to other bead stores' keys is
@@ -67,6 +68,7 @@ class LinkSpan:
     end: int
     text: str
     target: str | None = None
+    semantic_target: ArtifactRefDocumentTarget | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,12 +80,17 @@ class BoundedLinkScan:
     notice: Text | None
 
 
-def scan_links(text: str, origin: PagerOrigin) -> tuple[LinkSpan, ...]:
+def scan_links(
+    text: str,
+    origin: PagerOrigin,
+    *,
+    known_kinds: Iterable[str] = (),
+) -> tuple[LinkSpan, ...]:
     """Scan *text* for precedence-ordered link spans, with no I/O."""
     occupied: list[tuple[int, int]] = []
     spans: list[LinkSpan] = []
 
-    scan = scan_artifact_ref_document(text)
+    scan = scan_artifact_ref_document(text, known_kinds=known_kinds)
     if scan.links:
         byte_to_char = _byte_to_character_offsets(text)
         for target in scan.links:
@@ -101,6 +108,7 @@ def scan_links(text: str, origin: PagerOrigin) -> tuple[LinkSpan, ...]:
                     end,
                     target.text,
                     target.target,
+                    target,
                 )
             )
 
@@ -122,6 +130,7 @@ def scan_bounded_links(
     origin: PagerOrigin,
     *,
     budget: HintContentBudget | None = None,
+    known_kinds: Iterable[str] = (),
 ) -> BoundedLinkScan:
     """Bound *text* to the shared hint-content budget, then scan it for links.
 
@@ -134,7 +143,7 @@ def scan_bounded_links(
     )
     return BoundedLinkScan(
         content=bounded.content,
-        spans=scan_links(bounded.content, origin),
+        spans=scan_links(bounded.content, origin, known_kinds=known_kinds),
         notice=bounded.notice,
     )
 

@@ -13,6 +13,7 @@ from dataclasses import replace
 
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.link_context import LinkResolutionContext, default_link_context
+from sase.pager.known_kinds import known_kinds_from_link_context
 from sase.pager.resolve import LinkTarget, LinkTargetKind, resolve_ref
 from sase.pager.syntax_policy import (
     PagerSyntaxError,
@@ -80,6 +81,7 @@ def _build_pager_document(
         resolved_title = title or "stdin"
         context = default_link_context()
         body = sys.stdin.read()
+        known_kinds = known_kinds_from_link_context(context)
         return PagerDocument(
             sections=(
                 PagerSection(
@@ -88,6 +90,7 @@ def _build_pager_document(
                     kind="stdin",
                     body=body,
                     raw_source=classify_source(category="stdin", source=body),
+                    known_kinds=known_kinds,
                 ),
             ),
             title=resolved_title,
@@ -180,6 +183,7 @@ def _media_document(
                 kind="file",
                 body=body,
                 subject_ref=value,
+                known_kinds=known_kinds_from_link_context(context),
             ),
         ),
         title=value,

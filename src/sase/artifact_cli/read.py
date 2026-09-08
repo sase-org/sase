@@ -65,6 +65,7 @@ from sase.pager.link_context import (
     merge_link_context,
     workspace_link_context,
 )
+from sase.pager.known_kinds import known_kinds_from_artifact_context
 from sase.pager.owner import document_owner_from_artifact
 from sase.pager.syntax_policy import (
     artifact_syntax_category,
@@ -373,6 +374,7 @@ def _page_markdown(result: ResolvedArtifactReference, body: str) -> None:
                     raw_source=_artifact_raw_source(result, body),
                     origin=_pager_origin(result),
                     owner=document_owner_from_artifact(result),
+                    known_kinds=known_kinds_from_artifact_context(result.context),
                 ),
             ),
             title=result.canonical_reference,

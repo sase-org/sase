@@ -31,6 +31,7 @@ from sase.pager.document import (
     PagerSection,
     PagerTargetSpan,
     section_target_spans,
+    target_resolution_cache_identity,
     target_resolution_ref,
 )
 from sase.pager.link_scan import LinkSpanKind
@@ -225,7 +226,7 @@ def _resolve_dangling(
 ) -> bool:
     if is_dangling is not None:
         return is_dangling(section_index, target)
-    return target_resolution_ref(target, origin) in dangling_refs
+    return target_resolution_cache_identity(target, origin) in dangling_refs
 
 
 def render_section_with_labels(

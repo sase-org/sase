@@ -807,6 +807,79 @@ def test_owned_missing_checkout_is_retryable(
     assert "unavailable" in resolution.unresolved_message
 
 
+def test_owned_failure_does_not_probe_owner_candidate_decoys(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkout = tmp_path / "checkout"
+    decoy = _write(checkout / "src" / "secret.py", "decoy\n")
+
+    def fake_lookup(
+        path_text: str, *, context: LinkResolutionContext | None
+    ) -> ArtifactRefTargetResolution:
+        assert path_text == "src/secret.py"
+        assert context is not None and context.owner is not None
+        return _owned_resolution(
+            status="missing",
+            failure_category="proven_missing",
+            diagnostic="core-owned lookup says missing",
+        )
+
+    monkeypatch.setattr("sase.pager.resolve.lookup_owned_source_path", fake_lookup)
+
+    resolution = resolve_link(
+        "src/secret.py",
+        context=LinkResolutionContext(
+            anchors=(LinkAnchor(directory=tmp_path),),
+            owner=ArtifactRefDocumentOwner(
+                source_reference="plan:demo.md",
+                repository="checkout",
+                source_directory=str(checkout),
+                checkout_candidates=(checkout,),
+            ),
+        ),
+    )
+
+    assert decoy.is_file()
+    assert resolution.target is None
+    assert resolution.unresolved_message == "core-owned lookup says missing"
+
+
+def test_resolve_ref_parses_markdown_line_fragment(tmp_path: Path) -> None:
+    path = _write(tmp_path / "docs" / "guide.md", "one\ntwo\nthree\nfour\n")
+
+    target = resolve_ref("docs/guide.md#L3-L4", context=_context(tmp_path))
+
+    assert target is not None
+    assert target.edit_path == path.resolve()
+    assert target.scroll_line == 3
+    assert target.edit_line == 3
+
+
+def test_resolve_ref_parses_markdown_heading_fragment(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path / "docs" / "guide.md",
+        "# Intro\nbody\n## Target Heading\nsection\n",
+    )
+
+    target = resolve_ref("docs/guide.md#target-heading", context=_context(tmp_path))
+
+    assert target is not None
+    assert target.edit_path == path.resolve()
+    assert target.scroll_line == 3
+    assert target.edit_line == 3
+
+
+def test_resolve_link_reports_missing_markdown_fragment(tmp_path: Path) -> None:
+    path = _write(tmp_path / "docs" / "guide.md", "# Intro\nbody\n")
+
+    resolution = resolve_link("docs/guide.md#missing", context=_context(tmp_path))
+
+    assert resolution.target is None
+    assert resolution.unresolved_message == (
+        f"fragment #missing was not found in {path.resolve()}"
+    )
+
+
 def test_commit_link_shows_identifiable_details() -> None:
     from sase.pager.landings import commit_link_target
 

@@ -10,7 +10,7 @@ from typing import Literal
 from rich.console import Console, RenderableType
 from rich.text import Text
 
-from sase.artifact_ref_models import ArtifactRefDocumentOwner
+from sase.artifact_ref_models import ArtifactRefDocumentOwner, ArtifactRefDocumentTarget
 from sase.pager.link_context import LinkAnchor, LinkResolutionContext
 from sase.pager.link_scan import LinkSpan, LinkSpanKind, PagerOrigin, scan_links
 
@@ -45,6 +45,7 @@ class PagerTargetSpan:
     end: int
     text: str
     source: PagerTargetSource
+    semantic_target: ArtifactRefDocumentTarget | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +77,7 @@ class PagerSection:
     raw_source: RawSourceSpec | None = None
     origin: PagerOrigin | None = None
     owner: ArtifactRefDocumentOwner | None = None
+    known_kinds: tuple[str, ...] = ()
     _body_text: Text = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -95,6 +97,7 @@ class PagerSection:
         )
         object.__setattr__(self, "targets", targets)
         object.__setattr__(self, "link_anchors", tuple(self.link_anchors))
+        object.__setattr__(self, "known_kinds", tuple(dict.fromkeys(self.known_kinds)))
 
     @property
     def plain_text(self) -> str:
@@ -163,6 +166,33 @@ def target_resolution_ref(target: PagerTargetSpan, origin: PagerOrigin) -> str |
     return target.target if isinstance(target.target, str) else target.text
 
 
+def target_resolution_cache_identity(
+    target: PagerTargetSpan, origin: PagerOrigin
+) -> object | None:
+    """Return the stable dangling-cache identity for *target*.
+
+    Scanned links keep the full Rust target record in the identity so two
+    equal visible strings with different Markdown or hosted destinations do
+    not share stale failure state. Attached targets retain their caller-owned
+    object identity and continue through their handler path.
+    """
+    ref = target_resolution_ref(target, origin)
+    if ref is None:
+        return None
+    semantic = target.semantic_target
+    if semantic is None:
+        return ref
+    return (
+        ref,
+        semantic.target_kind,
+        semantic.target,
+        semantic.markdown_destination,
+        semantic.hosted_destination,
+        semantic.artifact_reference,
+        semantic.reference_label,
+    )
+
+
 def section_origin(section: PagerSection, origin: PagerOrigin) -> PagerOrigin:
     """Return the origin that scans and resolves *section*."""
     return section.origin if section.origin is not None else origin
@@ -184,7 +214,7 @@ def section_target_spans(
     attached_ranges = [(target.start, target.end) for target in attached]
     scanned = tuple(
         _scanned_target_span(span)
-        for span in scan_links(plain, effective_origin)
+        for span in scan_links(plain, effective_origin, known_kinds=section.known_kinds)
         if not _overlaps(span.start, span.end, attached_ranges)
     )
     return tuple(sorted((*attached, *scanned), key=_target_span_sort_key))
@@ -213,6 +243,7 @@ def _attached_target_span(target: AttachedTarget, plain: str) -> PagerTargetSpan
         if target.text is not None
         else plain[target.start : target.end],
         source="attached",
+        semantic_target=None,
     )
 
 
@@ -224,6 +255,7 @@ def _scanned_target_span(span: LinkSpan) -> PagerTargetSpan:
         end=span.end,
         text=span.text,
         source="scanned",
+        semantic_target=span.semantic_target,
     )
 
 
@@ -318,6 +350,7 @@ __all__ = [
     "RawSourceSpec",
     "section_origin",
     "section_syntax_language",
+    "target_resolution_cache_identity",
     "section_target_spans",
     "target_resolution_ref",
 ]

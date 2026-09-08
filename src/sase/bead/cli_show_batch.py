@@ -43,6 +43,7 @@ from sase.pager.link_context import (
     default_link_context,
     link_anchor_for_directory,
 )
+from sase.pager.known_kinds import known_kinds_from_artifact_context
 from sase.pager.owner import document_owner_from_path
 
 if TYPE_CHECKING:
@@ -583,8 +584,7 @@ def _show_batch_sections(
     def context_for(
         entry: _ShowEntry, render_context: _ShowRenderContext
     ) -> ArtifactRefContext | None:
-        issue = entry.issue
-        if not issue.refs:
+        if not entry.issue.refs:
             return None
         key = _render_context_key(entry.origin)
         if key not in reference_contexts:
@@ -596,6 +596,7 @@ def _show_batch_sections(
         issue = entry.issue
         context = render_context_for(entry.origin)
         subject_ref = f"bead:{issue.id}"
+        reference_context = context_for(entry, context)
         sections.append(
             PagerSection(
                 identity=subject_ref,
@@ -606,7 +607,7 @@ def _show_batch_sections(
                     relativize_design=context.relativize_design,
                     plan_roots=context.plan_roots,
                     design_cwd=context.design_cwd,
-                    reference_context=context_for(entry, context),
+                    reference_context=reference_context,
                     creator_url=(
                         context.creator_url_for(issue.created_by)
                         if issue.created_by
@@ -625,6 +626,7 @@ def _show_batch_sections(
                 owner=document_owner_from_path(
                     context.design_cwd, source_reference=subject_ref
                 ),
+                known_kinds=known_kinds_from_artifact_context(reference_context),
             )
         )
     return tuple(sections)

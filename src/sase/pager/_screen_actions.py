@@ -26,6 +26,7 @@ from sase.pager.document import (
     PagerOrigin,
     PagerTargetSpan,
     section_origin,
+    target_resolution_cache_identity,
     target_resolution_ref,
 )
 from sase.pager.link_context import LinkResolutionContext, merge_link_context
@@ -43,9 +44,9 @@ from sase.pager.resolve import (
 #: doc section D8) instead of an invalid label key.
 _PENDING_ACTION_KEYS: dict[PendingAction, str] = {"copy": "y", "edit": "E"}
 _DanglingRefKey = tuple[
-    str,
+    object,
     tuple[tuple[Path, int | None], ...],
-    tuple[str | None, str | None, str | None, str | None, tuple[str, ...]],
+    object,
 ]
 
 
@@ -216,7 +217,12 @@ class PagerActionMixin:
         if ref is None:
             self.notify("Nothing to edit here.", severity="warning")
             return
-        self._resolve_and_dispatch(ref, intent="edit", context=context)
+        self._resolve_and_dispatch(
+            ref,
+            intent="edit",
+            context=context,
+            cache_identity=target_resolution_cache_identity(target, origin),
+        )
 
     def _follow_target(
         self: Any,
@@ -229,7 +235,12 @@ class PagerActionMixin:
         if ref is None:
             self.notify("Nothing to follow here.", severity="warning")
             return
-        self._resolve_and_dispatch(ref, intent="follow", context=context)
+        self._resolve_and_dispatch(
+            ref,
+            intent="follow",
+            context=context,
+            cache_identity=target_resolution_cache_identity(target, origin),
+        )
 
     def _resolve_and_dispatch(
         self: Any,
@@ -237,8 +248,9 @@ class PagerActionMixin:
         *,
         intent: Literal["follow", "edit"],
         context: LinkResolutionContext | None = None,
+        cache_identity: object | None = None,
     ) -> None:
-        key = self._dangling_ref_key(ref, context)
+        key = self._dangling_ref_key(cache_identity or ref, context)
         cached = self._dangling_refs.get(key)
         if cached is not None:
             self.notify(cached, severity="warning")
@@ -267,6 +279,7 @@ class PagerActionMixin:
                 result,
                 intent=intent,
                 context=context,
+                cache_identity=cache_identity,
             )
 
         spawn_pump_free_task(
@@ -283,6 +296,7 @@ class PagerActionMixin:
         *,
         intent: Literal["follow", "edit"],
         context: LinkResolutionContext | None = None,
+        cache_identity: object | None = None,
     ) -> None:
         self._set_footer_status(None)
         resolution = _as_link_resolution(result)
@@ -290,7 +304,9 @@ class PagerActionMixin:
         if target is None:
             message = resolution.unresolved_message or f"{ref} could not be resolved."
             if not resolution.retryable:
-                self._dangling_refs[self._dangling_ref_key(ref, context)] = message
+                self._dangling_refs[
+                    self._dangling_ref_key(cache_identity or ref, context)
+                ] = message
             self.notify(message, severity="warning")
             self._repaint_label_state()
             return
@@ -385,14 +401,13 @@ class PagerActionMixin:
         section_index: int,
         target: PagerTargetSpan,
     ) -> bool:
-        ref = target_resolution_ref(
-            target, self._origin_for_section_index(section_index)
-        )
-        if ref is None:
+        origin = self._origin_for_section_index(section_index)
+        identity = target_resolution_cache_identity(target, origin)
+        if identity is None:
             return False
         return (
             self._dangling_ref_key(
-                ref,
+                identity,
                 self._link_context_for_section_index(section_index),
             )
             in self._dangling_refs
@@ -400,7 +415,7 @@ class PagerActionMixin:
 
     def _dangling_ref_key(
         self: Any,
-        ref: str,
+        ref: object,
         context: LinkResolutionContext | None,
     ) -> _DanglingRefKey:
         del self

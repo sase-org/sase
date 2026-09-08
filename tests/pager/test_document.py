@@ -9,6 +9,11 @@ from pathlib import Path
 import pytest
 from rich.text import Text
 
+from sase.artifact_ref_models import (
+    ArtifactRefContext,
+    ArtifactRefDocumentRoot,
+    ArtifactRefProject,
+)
 from sase.bead.cli_show_batch import (
     _ShowRenderContext,
     _show_entry_link_anchors,
@@ -30,6 +35,7 @@ from sase.pager.document import (
     section_target_spans,
 )
 from sase.pager.link_context import LinkAnchor
+from sase.pager.link_scan import LinkSpanKind
 
 
 @contextmanager
@@ -220,6 +226,39 @@ def test_path_list_adapter_builds_one_file_section_per_path(tmp_path: Path) -> N
     assert [section.link_anchors[0].directory for section in document.sections] == [
         tmp_path.resolve(),
         tmp_path.resolve(),
+    ]
+
+
+def test_path_list_adapter_freezes_context_known_kinds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "note.md"
+    source.write_text("see designs:202609/spec.md\n", encoding="utf-8")
+    designs = tmp_path / "designs"
+    context = ArtifactRefContext(
+        document_roots=(ArtifactRefDocumentRoot("designs", designs),),
+        chats_root=tmp_path / "chats",
+        artifact_index_path=tmp_path / "artifacts" / "index.jsonl",
+        repositories=(),
+        projects=(ArtifactRefProject(name="demo", key="gh_demo__repo"),),
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sase.artifact_ref_context.artifact_ref_context",
+        lambda *_args, **_kwargs: context,
+    )
+
+    document = document_from_paths([source], cwd=tmp_path)
+    spans = section_target_spans(document.sections[0], document.origin)
+
+    assert "designs" in document.sections[0].known_kinds
+    assert [(span.kind, span.text, span.target) for span in spans] == [
+        (
+            LinkSpanKind.ARTIFACT_REF.value,
+            "designs:202609/spec.md",
+            "designs:202609/spec.md",
+        )
     ]
 
 

@@ -73,8 +73,10 @@ def document_owner_from_artifact(
     if result.context is not None:
         if project_key is None:
             project_key = result.context.selected_project
-        for repository_record in result.context.repositories:
-            checkout_candidates.extend(repository_record.checkout_paths)
+        if repository is not None:
+            for repository_record in result.context.repositories:
+                if _repository_matches(repository_record, repository):
+                    checkout_candidates.extend(repository_record.checkout_paths)
 
     unique_checkouts = _unique_paths(checkout_candidates)
     if project_key is None:
@@ -123,17 +125,36 @@ def artifact_context_for_link_context(
 
 def owner_cache_key(
     owner: ArtifactRefDocumentOwner | None,
-) -> tuple[str | None, str | None, str | None, str | None, tuple[str, ...]]:
+) -> tuple[
+    str | None,
+    str | None,
+    str | None,
+    str | None,
+    str | None,
+    tuple[str, ...],
+    tuple[str, ...] | None,
+]:
     """Return a hashable identity for dangling-ref cache keys."""
     if owner is None:
-        return (None, None, None, None, ())
+        return (None, None, None, None, None, (), None)
     return (
         owner.source_reference,
         owner.project_key,
         owner.repository,
         owner.revision,
+        owner.source_directory,
         tuple(str(path) for path in owner.checkout_candidates),
+        None if owner.path_globs is None else tuple(owner.path_globs),
     )
+
+
+def _repository_matches(
+    repository_record: object,
+    repository: str,
+) -> bool:
+    name = getattr(repository_record, "name", None)
+    aliases = getattr(repository_record, "aliases", ())
+    return repository == name or repository in aliases
 
 
 def _context_directories(

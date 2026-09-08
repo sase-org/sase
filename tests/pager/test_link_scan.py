@@ -142,6 +142,19 @@ def test_generated_links_table_ref_keeps_artifact_target_and_hosted_url() -> Non
             "https://github.com/bobs-org/bob-cli/blob/main/.sase/plans/202609/capture_line_edge_cycling.md",
         ),
     ]
+    artifact_target = spans[0].semantic_target
+    assert artifact_target is not None
+    assert artifact_target.artifact_reference == (
+        "plan:202609/capture_line_edge_cycling.md"
+    )
+    assert artifact_target.hosted_destination == (
+        "https://github.com/bobs-org/bob-cli/blob/main/.sase/plans/"
+        "202609/capture_line_edge_cycling.md"
+    )
+    assert artifact_target.reference_label == "2"
+    url_target = spans[1].semantic_target
+    assert url_target is not None
+    assert url_target.hosted_destination == spans[1].target
 
 
 def test_markdown_link_uses_declared_destination_as_target() -> None:
@@ -152,6 +165,38 @@ def test_markdown_link_uses_declared_destination_as_target() -> None:
     assert spans[0].kind is LinkSpanKind.FILE_PATH
     assert spans[0].text == "[not the path](src/sase/pager/link_scan.py:12)"
     assert spans[0].target == "src/sase/pager/link_scan.py:12"
+    assert spans[0].semantic_target is not None
+    assert (
+        spans[0].semantic_target.markdown_destination
+        == "src/sase/pager/link_scan.py:12"
+    )
+
+
+def test_scan_links_uses_frozen_known_kinds_for_configured_document_kind() -> None:
+    text = "see designs:202609/spec.md"
+
+    default_spans = scan_links(text, PagerOrigin.FILE)
+    configured_spans = scan_links(
+        text,
+        PagerOrigin.FILE,
+        known_kinds=("designs",),
+    )
+
+    assert [(span.kind, span.text) for span in default_spans] == [
+        (LinkSpanKind.FILE_PATH, "202609/spec.md")
+    ]
+    assert [(span.kind, span.text, span.target) for span in configured_spans] == [
+        (
+            LinkSpanKind.ARTIFACT_REF,
+            "designs:202609/spec.md",
+            "designs:202609/spec.md",
+        )
+    ]
+    assert configured_spans[0].semantic_target is not None
+    assert (
+        configured_spans[0].semantic_target.artifact_reference
+        == "designs:202609/spec.md"
+    )
 
 
 def test_malformed_artifact_candidate_does_not_mask_at_file_path() -> None:

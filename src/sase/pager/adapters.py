@@ -12,6 +12,7 @@ from sase.pager.link_context import (
     default_link_context,
     link_anchor_for_directory,
 )
+from sase.pager.known_kinds import freeze_known_kinds, known_kinds_from_link_context
 from sase.pager.owner import document_owner_from_path
 from sase.pager.syntax_policy import classify_source
 
@@ -24,12 +25,14 @@ def document_from_paths(
     link_context: LinkResolutionContext | None = None,
 ) -> PagerDocument:
     """Build one pager document containing one section per file path."""
-    sections = path_sections(paths, cwd=cwd)
+    resolved_context = default_link_context() if link_context is None else link_context
+    known_kinds = known_kinds_from_link_context(resolved_context)
+    sections = path_sections(paths, cwd=cwd, known_kinds=known_kinds)
     return PagerDocument(
         sections=sections,
         title=title or _path_document_title(len(sections)),
         origin=PagerOrigin.FILE,
-        link_context=default_link_context() if link_context is None else link_context,
+        link_context=resolved_context,
     )
 
 
@@ -37,9 +40,13 @@ def path_sections(
     paths: Sequence[str | Path],
     *,
     cwd: str | Path | None = None,
+    known_kinds: Sequence[str] = (),
 ) -> tuple[PagerSection, ...]:
     """Build pager sections by reading each file in *paths*."""
-    return tuple(path_section(path, cwd=cwd) for path in paths)
+    frozen_known_kinds = freeze_known_kinds(known_kinds)
+    return tuple(
+        path_section(path, cwd=cwd, known_kinds=frozen_known_kinds) for path in paths
+    )
 
 
 def path_section(
@@ -50,6 +57,7 @@ def path_section(
     category: str = "raw_file",
     subject_ref: str | None = None,
     origin: PagerOrigin | None = None,
+    known_kinds: Sequence[str] = (),
 ) -> PagerSection:
     """Build one file-backed pager section.
 
@@ -83,6 +91,7 @@ def path_section(
         owner=document_owner_from_path(
             absolute_path, source_reference=resolved_subject
         ),
+        known_kinds=freeze_known_kinds(known_kinds),
     )
 
 
