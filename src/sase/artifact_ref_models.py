@@ -667,7 +667,10 @@ class ArtifactRefDocumentOwner:
     Lets an unqualified source path resolve in the repository that actually
     owns the document naming it, rather than the viewer's cwd. Every field is
     optional: absent provenance falls back to searching every repository in
-    the caller's resolution context.
+    the caller's resolution context. ``path_globs`` is an optional source-path
+    policy for that resolver; the host currently has no repository-source
+    filter of its own, so production callers omit it. Typed document
+    filtering remains on document roots.
     """
 
     source_reference: str | None = None
@@ -676,6 +679,11 @@ class ArtifactRefDocumentOwner:
     revision: str | None = None
     source_directory: str | None = None
     checkout_candidates: tuple[Path, ...] = ()
+    # Optional source-path policy for ``resolve_document_source_target``.
+    # ``None`` means the host has no repository-source filter (typed document
+    # ``path_globs`` stay on document roots). ``()`` is an explicit empty
+    # policy and denies every path.
+    path_globs: tuple[str, ...] | None = None
 
     def to_wire(self) -> dict[str, object]:
         raw: dict[str, object] = {
@@ -691,6 +699,8 @@ class ArtifactRefDocumentOwner:
             value = getattr(self, name)
             if value is not None:
                 raw[name] = value
+        if self.path_globs is not None:
+            raw["path_globs"] = list(self.path_globs)
         return raw
 
 

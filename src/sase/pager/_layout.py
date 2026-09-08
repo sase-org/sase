@@ -165,7 +165,8 @@ def _paint_section_body(
             accent=accent,
         )
         return guttered.text, guttered.row_count, guttered.line_rows
-    height = _measure_section_heights((section,), paint_width)[0]
+    console = Console(width=max(paint_width, 1), color_system=None, highlight=False)
+    height = max(len(console.render_lines(renderable, pad=False)), 1)
     return renderable, height, _estimated_line_rows(section.plain_text, paint_width)
 
 

@@ -98,3 +98,14 @@ def test_explicit_owner_repository_excludes_unrelated_repositories(
 
     assert resolution.status == "missing_checkout"
     assert all(candidate.repository != "other" for candidate in resolution.candidates)
+
+
+def test_document_owner_wire_carries_optional_source_path_globs() -> None:
+    owner = ArtifactRefDocumentOwner(
+        repository="sase",
+        path_globs=("src/**", "!src/secret.rs"),
+    )
+    raw = owner.to_wire()
+    assert raw["repository"] == "sase"
+    assert raw["path_globs"] == ["src/**", "!src/secret.rs"]
+    assert "path_globs" not in ArtifactRefDocumentOwner().to_wire()
