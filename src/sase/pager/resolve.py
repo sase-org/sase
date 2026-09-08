@@ -428,6 +428,7 @@ def _directory_link_target(
         return None
     lines = [f"{entry}{'/' if entry.is_dir() else ''}" for entry in entries]
     body = "\n".join(lines) + "\n" if lines else "(empty directory)\n"
+    link_context = inherit_owner_context(path, context)
     document = PagerDocument(
         sections=(
             PagerSection(
@@ -437,11 +438,12 @@ def _directory_link_target(
                 body=body,
                 subject_ref=f"file:{path}",
                 owner=document_owner_from_path(path, source_reference=f"file:{path}"),
+                known_kinds=known_kinds_from_link_context(link_context),
             ),
         ),
         title=f"{len(entries)} entries · {path.name or str(path)}",
         origin=PagerOrigin.FILE,
-        link_context=inherit_owner_context(path, context),
+        link_context=link_context,
     )
     return LinkTarget(kind=LinkTargetKind.DOCUMENT, document=document, edit_path=path)
 
@@ -531,16 +533,19 @@ def copy_text_for_target(
 ) -> str:
     """Return the text ``y`` should copy for a scanned/attached target.
 
-    A file path copies its first existing resolution. Unavailable paths
-    copy the original logical token rather than inventing a cwd-joined
-    path. Every other kind copies its ref text verbatim.
+    A file path copies its first existing resolution. Owner-scoped
+    outcomes are terminal: a selected path copies that path, and every
+    other returned lookup copies the original logical token without a
+    second generic search. Unavailable generic paths copy the original
+    logical token rather than inventing a cwd-joined path. Every other
+    kind copies its ref text verbatim.
     """
     if kind == LinkSpanKind.FILE_PATH.value:
         resolved_context = _file_path_context(context)
         owned = _owned_file_path_resolution(ref, context=resolved_context)
-        if owned is not None and owned.target is not None:
-            if owned.target.edit_path is not None:
-                return str(owned.target.edit_path)
+        if owned is not None:
+            path = None if owned.target is None else owned.target.edit_path
+            return str(path) if path is not None else ref
         found, _line, _column, fragment, _locations = _search_existing_path(
             ref, context=resolved_context
         )

@@ -182,11 +182,13 @@ def test_show_without_references_omits_refs_section(
         issue = project.create("Plain", IssueType.PLAN)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
+    context_calls: list[int] = []
     monkeypatch.setattr(
         "sase.bead.cli_query.artifact_reference_context",
-        lambda: pytest.fail("reference context built for an empty list"),
+        lambda: context_calls.append(1) or None,
     )
 
     bead_cli.handle_bead_show(create_parser().parse_args(["bead", "show", issue.id]))
 
+    assert context_calls == [1]
     assert "\nREFS\n" not in capsys.readouterr().out

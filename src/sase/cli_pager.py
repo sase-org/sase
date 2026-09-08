@@ -96,6 +96,9 @@ def _run_sase_pager(
     )
     pager_document = document
     if pager_document is None:
+        from sase.pager.known_kinds import known_kinds_from_link_context
+
+        context = default_link_context()
         pager_document = PagerDocument(
             sections=(
                 PagerSection(
@@ -104,11 +107,12 @@ def _run_sase_pager(
                     kind="stdin",
                     body=text,
                     raw_source=classify_source(category="stdin", source=text),
+                    known_kinds=known_kinds_from_link_context(context),
                 ),
             ),
             title="stdin",
             origin=PagerOrigin.FILE,
-            link_context=default_link_context(),
+            link_context=context,
         )
     SasePager(pager_document, syntax_session=session).run()
 

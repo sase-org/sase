@@ -9,7 +9,13 @@ import pytest
 
 from sase import cli_pager
 from sase.cli_pager import PagerMode, page_or_print
-from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+from sase.pager.document import (
+    PagerDocument,
+    PagerOrigin,
+    PagerSection,
+    section_target_spans,
+)
+from sase.pager.link_scan import LinkSpanKind
 
 
 class _Stream:
@@ -211,6 +217,46 @@ def test_sase_pager_startup_failure_falls_back_to_direct_write(
 def test_row_estimate_strips_sgr_and_counts_wrapped_cells() -> None:
     assert cli_pager._estimated_display_rows("\x1b[31mabcd\x1b[0m", columns=2) == 2
     assert cli_pager._estimated_display_rows("abcdef", columns=3) == 2
+
+
+def test_fallback_stdin_section_freezes_context_known_kinds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[PagerDocument] = []
+
+    class _FakePager:
+        def __init__(
+            self, document: PagerDocument, *, syntax_session: object = None
+        ) -> None:
+            captured.append(document)
+
+        def run(self) -> None:
+            return None
+
+    monkeypatch.setattr("sase.pager.app.SasePager", _FakePager)
+    monkeypatch.setattr(
+        "sase.pager.known_kinds.known_kinds_from_link_context",
+        lambda _context: ("designs",),
+    )
+
+    cli_pager._run_sase_pager(
+        "see designs:202609/spec.md\n",
+        document=None,
+        syntax_session=object(),
+    )
+
+    document = captured[0]
+    section = document.sections[0]
+    spans = section_target_spans(section, document.origin)
+
+    assert "designs" in section.known_kinds
+    assert [(span.kind, span.text, span.target) for span in spans] == [
+        (
+            LinkSpanKind.ARTIFACT_REF.value,
+            "designs:202609/spec.md",
+            "designs:202609/spec.md",
+        )
+    ]
 
 
 def test_direct_write_does_not_classify_or_lex(

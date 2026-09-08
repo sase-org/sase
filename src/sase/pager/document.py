@@ -166,6 +166,32 @@ def target_resolution_ref(target: PagerTargetSpan, origin: PagerOrigin) -> str |
     return target.target if isinstance(target.target, str) else target.text
 
 
+def target_action_destination(
+    target: PagerTargetSpan, origin: PagerOrigin
+) -> str | None:
+    """Return the destination copy/follow/edit should act on.
+
+    Visible label text is never the action target when the scanner recorded
+    a distinct Markdown, hosted, or artifact destination. URL spans copy
+    their hosted destination and are not resolved.
+    """
+    semantic = target.semantic_target
+    if target.kind == LinkSpanKind.URL.value:
+        if semantic is not None and semantic.hosted_destination:
+            return semantic.hosted_destination
+        return target.target if isinstance(target.target, str) else target.text
+    ref = target_resolution_ref(target, origin)
+    if ref is None:
+        return None
+    if semantic is None:
+        return ref
+    if target.kind == LinkSpanKind.FILE_PATH.value:
+        return semantic.markdown_destination or semantic.target or ref
+    if target.kind == LinkSpanKind.ARTIFACT_REF.value:
+        return semantic.artifact_reference or semantic.target or ref
+    return semantic.target or ref
+
+
 def target_resolution_cache_identity(
     target: PagerTargetSpan, origin: PagerOrigin
 ) -> object | None:
@@ -350,6 +376,7 @@ __all__ = [
     "RawSourceSpec",
     "section_origin",
     "section_syntax_language",
+    "target_action_destination",
     "target_resolution_cache_identity",
     "section_target_spans",
     "target_resolution_ref",

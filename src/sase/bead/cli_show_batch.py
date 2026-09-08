@@ -584,8 +584,6 @@ def _show_batch_sections(
     def context_for(
         entry: _ShowEntry, render_context: _ShowRenderContext
     ) -> ArtifactRefContext | None:
-        if not entry.issue.refs:
-            return None
         key = _render_context_key(entry.origin)
         if key not in reference_contexts:
             reference_contexts[key] = render_context.reference_context_factory()

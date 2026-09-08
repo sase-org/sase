@@ -26,8 +26,8 @@ from sase.pager.document import (
     PagerOrigin,
     PagerTargetSpan,
     section_origin,
+    target_action_destination,
     target_resolution_cache_identity,
-    target_resolution_ref,
 )
 from sase.pager.link_context import LinkResolutionContext, merge_link_context
 from sase.pager.link_scan import LinkSpanKind
@@ -180,18 +180,17 @@ class PagerActionMixin:
         context: LinkResolutionContext | None,
         origin: PagerOrigin,
     ) -> None:
-        if target.kind == LinkSpanKind.URL.value:
-            ref = target.target if isinstance(target.target, str) else target.text
-            self._copy_ref(ref, label="link")
-            return
-        resolution_ref = target_resolution_ref(target, origin)
-        if resolution_ref is None:
+        destination = target_action_destination(target, origin)
+        if destination is None:
             self.notify("Nothing to copy here.", severity="warning")
+            return
+        if target.kind == LinkSpanKind.URL.value:
+            self._copy_ref(destination, label="link")
             return
         kind = target.kind
         schedule_copy_delivery(
             self,
-            lambda: copy_text_for_target(resolution_ref, kind, context=context),
+            lambda: copy_text_for_target(destination, kind, context=context),
             copied_label="link",
             task_name="sase-pager-copy",
             on_failure="toast",
@@ -213,12 +212,12 @@ class PagerActionMixin:
         context: LinkResolutionContext | None,
         origin: PagerOrigin,
     ) -> None:
-        ref = target_resolution_ref(target, origin)
-        if ref is None:
+        destination = target_action_destination(target, origin)
+        if destination is None:
             self.notify("Nothing to edit here.", severity="warning")
             return
         self._resolve_and_dispatch(
-            ref,
+            destination,
             intent="edit",
             context=context,
             cache_identity=target_resolution_cache_identity(target, origin),
@@ -231,12 +230,12 @@ class PagerActionMixin:
         context: LinkResolutionContext | None,
         origin: PagerOrigin,
     ) -> None:
-        ref = target_resolution_ref(target, origin)
-        if ref is None:
+        destination = target_action_destination(target, origin)
+        if destination is None:
             self.notify("Nothing to follow here.", severity="warning")
             return
         self._resolve_and_dispatch(
-            ref,
+            destination,
             intent="follow",
             context=context,
             cache_identity=target_resolution_cache_identity(target, origin),

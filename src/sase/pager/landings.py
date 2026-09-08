@@ -7,6 +7,7 @@ from pathlib import Path
 from sase.artifact_cli.references import ResolvedArtifactReference
 from sase.artifact_ref_models import ArtifactRefTargetResolution
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+from sase.pager.known_kinds import known_kinds_from_link_context
 from sase.pager.link_context import LinkResolutionContext
 from sase.pager.owner import document_owner_from_path, inherit_owner_context
 from sase.pager.targets import LinkResolution, LinkTarget, LinkTargetKind
@@ -46,6 +47,7 @@ def commit_link_target(
         if path is None
         else document_owner_from_path(path, source_reference=result.canonical_reference)
     )
+    link_context = inherit_owner_context(path, context) if path is not None else context
     document = PagerDocument(
         sections=(
             PagerSection(
@@ -56,13 +58,12 @@ def commit_link_target(
                 subject_ref=result.canonical_reference,
                 origin=PagerOrigin.DIFF,
                 owner=owner,
+                known_kinds=known_kinds_from_link_context(link_context),
             ),
         ),
         title=result.canonical_reference,
         origin=PagerOrigin.DIFF,
-        link_context=(
-            inherit_owner_context(path, context) if path is not None else context
-        ),
+        link_context=link_context,
     )
     return LinkTarget(kind=LinkTargetKind.DOCUMENT, document=document, edit_path=path)
 
@@ -87,6 +88,7 @@ def ambiguous_source_resolution(
                 body=body,
                 subject_ref=path_text,
                 owner=context.owner,
+                known_kinds=known_kinds_from_link_context(context),
             ),
         ),
         title=f"ambiguous · {path_text}",
@@ -135,13 +137,20 @@ def binary_card_document(
     lines.append(f"mime_type: {mime or '-'}")
     lines.append(f"path: {path if path is not None else '-'}")
     body = "\n".join(lines) + "\n"
+    link_context = inherit_owner_context(path, context) if path is not None else context
     return PagerDocument(
-        sections=(PagerSection(identity=title, title=title, kind="file", body=body),),
+        sections=(
+            PagerSection(
+                identity=title,
+                title=title,
+                kind="file",
+                body=body,
+                known_kinds=known_kinds_from_link_context(link_context),
+            ),
+        ),
         title=title,
         origin=PagerOrigin.FILE,
-        link_context=(
-            inherit_owner_context(path, context) if path is not None else context
-        ),
+        link_context=link_context,
     )
 
 

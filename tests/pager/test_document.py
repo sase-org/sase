@@ -12,7 +12,9 @@ from rich.text import Text
 from sase.artifact_ref_models import (
     ArtifactRefContext,
     ArtifactRefDocumentRoot,
+    ArtifactRefDocumentTarget,
     ArtifactRefProject,
+    ArtifactRefSpan,
 )
 from sase.bead.cli_show_batch import (
     _ShowRenderContext,
@@ -23,16 +25,19 @@ from sase.bead.cli_show_batch import (
     resolve_show_batch,
 )
 from sase.bead.cli_detail_style import DetailStyle
-from sase.bead.model import Issue, IssueType
+from sase.bead.model import BeadNote, Issue, IssueType
 from sase.pager.adapters import document_from_paths
 from sase.pager.document import (
     AttachedTarget,
     PagerDocument,
     PagerOrigin,
     PagerSection,
+    PagerTargetSpan,
     RawSourceSpec,
     section_syntax_language,
     section_target_spans,
+    target_action_destination,
+    target_resolution_cache_identity,
 )
 from sase.pager.link_context import LinkAnchor
 from sase.pager.link_scan import LinkSpanKind
@@ -260,6 +265,160 @@ def test_path_list_adapter_freezes_context_known_kinds(
             "designs:202609/spec.md",
         )
     ]
+
+
+_SOURCE_SPAN = ArtifactRefSpan(0, 5)
+
+
+def _semantic_target(**overrides: object) -> ArtifactRefDocumentTarget:
+    values: dict[str, object] = {
+        "schema_version": 1,
+        "target_kind": "file_path",
+        "text": "guide",
+        "target": "docs/a.md",
+        "well_formed": True,
+        "source_span": _SOURCE_SPAN,
+        "candidate_span": _SOURCE_SPAN,
+        "target_span": _SOURCE_SPAN,
+        "label_span": None,
+        "destination_span": None,
+        "reference_label": None,
+        "markdown_destination": None,
+        "hosted_destination": None,
+        "artifact_reference": None,
+        "quoted": False,
+    }
+    values.update(overrides)
+    return ArtifactRefDocumentTarget(**values)  # type: ignore[arg-type]
+
+
+def _scanned_span(
+    kind: LinkSpanKind,
+    *,
+    text: str = "guide",
+    target: str,
+    semantic: ArtifactRefDocumentTarget,
+) -> PagerTargetSpan:
+    return PagerTargetSpan(
+        kind=kind.value,
+        target=target,
+        start=0,
+        end=len(text),
+        text=text,
+        source="scanned",
+        semantic_target=semantic,
+    )
+
+
+def test_equal_visible_labels_keep_distinct_action_destinations() -> None:
+    markdown = _scanned_span(
+        LinkSpanKind.FILE_PATH,
+        target="guide",
+        semantic=_semantic_target(
+            target="docs/a.md",
+            markdown_destination="docs/a.md",
+        ),
+    )
+    artifact = _scanned_span(
+        LinkSpanKind.ARTIFACT_REF,
+        target="guide",
+        semantic=_semantic_target(
+            target_kind="artifact_ref",
+            target="plan:a.md",
+            artifact_reference="plan:a.md",
+            reference_label="2",
+        ),
+    )
+    hosted = _scanned_span(
+        LinkSpanKind.URL,
+        target="guide",
+        semantic=_semantic_target(
+            target_kind="url",
+            target="https://example.test/a.md",
+            hosted_destination="https://example.test/a.md",
+            reference_label="2",
+        ),
+    )
+    other_markdown = _scanned_span(
+        LinkSpanKind.FILE_PATH,
+        target="guide",
+        semantic=_semantic_target(
+            target="docs/b.md",
+            markdown_destination="docs/b.md",
+        ),
+    )
+
+    assert markdown.text == artifact.text == hosted.text == other_markdown.text
+    assert target_action_destination(markdown, PagerOrigin.FILE) == "docs/a.md"
+    assert target_action_destination(artifact, PagerOrigin.FILE) == "plan:a.md"
+    assert (
+        target_action_destination(hosted, PagerOrigin.FILE)
+        == "https://example.test/a.md"
+    )
+    assert target_action_destination(other_markdown, PagerOrigin.FILE) == "docs/b.md"
+    assert target_resolution_cache_identity(
+        markdown, PagerOrigin.FILE
+    ) != target_resolution_cache_identity(other_markdown, PagerOrigin.FILE)
+    assert target_resolution_cache_identity(
+        artifact, PagerOrigin.FILE
+    ) != target_resolution_cache_identity(hosted, PagerOrigin.FILE)
+
+
+def test_bead_show_freezes_kinds_for_note_refs_when_issue_has_no_refs(
+    tmp_path: Path,
+) -> None:
+    designs = tmp_path / "designs"
+    designs.mkdir()
+    context = ArtifactRefContext(
+        document_roots=(ArtifactRefDocumentRoot("designs", designs),),
+        chats_root=tmp_path / "chats",
+        artifact_index_path=tmp_path / "artifacts" / "index.jsonl",
+        repositories=(),
+        projects=(ArtifactRefProject(name="demo", key="gh_demo__repo"),),
+    )
+    issue = Issue(
+        id="sase-1",
+        title="First",
+        issue_type=IssueType.TASK,
+        notes=[
+            BeadNote(
+                id="note-1",
+                timestamp="2026-01-01T00:00:00Z",
+                author="tester",
+                text="see designs:202609/spec.md",
+            )
+        ],
+    )
+    assert issue.refs == []
+    with _view({issue.id: issue}) as view:
+        batch = resolve_show_batch(
+            view,
+            [issue.id],
+            format_name="full",
+            include_links=True,
+        )
+
+    document = build_show_batch_document(
+        batch,
+        style=DetailStyle.PLAIN,
+        wrap=80,
+        render_context_for=default_show_render_context_resolver(
+            design_paths_are_relative_fn=lambda: False,
+            plan_reference_roots_fn=lambda: (),
+            artifact_reference_context_fn=lambda: context,
+            resolve_bead_creator_url_fn=lambda _name: None,
+            resolve_bead_page_url_fn=lambda _id: None,
+        ),
+    )
+    section = document.sections[0]
+    spans = section_target_spans(section, document.origin)
+
+    assert "designs" in section.known_kinds
+    assert "designs:202609/spec.md" in section.plain_text
+    assert (
+        LinkSpanKind.ARTIFACT_REF.value,
+        "designs:202609/spec.md",
+    ) in [(span.kind, span.target) for span in spans]
 
 
 def test_bead_show_batch_adapter_matches_single_bead_rendering() -> None:
