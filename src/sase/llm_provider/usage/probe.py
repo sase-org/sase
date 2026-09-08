@@ -34,6 +34,7 @@ DEFAULT_PROBE_DEADLINE_SECONDS = 10.0
 _WORKER_MODULE = "sase.llm_provider.usage.worker"
 _ALLOWED_ENV_NAMES = frozenset(
     {
+        "CODEX_HOME",
         "HOME",
         "LANG",
         "LC_ALL",

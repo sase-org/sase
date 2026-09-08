@@ -22,6 +22,7 @@ from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
+    from .usage.types import UsageProbeContext
     from .usage_limit_config import ProviderUsageLimitConfig
 
 # Map model tiers to Codex model names
@@ -41,7 +42,7 @@ _DISABLE_SHADOW_HOME_ENV = "SASE_CODEX_DISABLE_SHADOW_HOME"
 _CODEX_PATH_ENV = "SASE_CODEX_PATH"
 
 
-def _resolve_codex_executable() -> str:
+def resolve_codex_executable() -> str:
     """Return the Codex executable SASE should launch."""
     explicit_path = os.environ.get(_CODEX_PATH_ENV)
     if explicit_path:
@@ -340,6 +341,18 @@ class CodexProvider(LLMProvider):
             exclude_patterns=["usage limit approaching"],
         )
 
+    @hookimpl
+    def llm_usage_capabilities(self) -> dict[str, object]:
+        # Normal `codex exec --json` token events are not subscription
+        # capacity (epic sase-y5 plan); collection is probe-only.
+        return {"probe": True, "passive_events": False}
+
+    @hookimpl
+    def llm_usage_probe(self, context: UsageProbeContext) -> dict[str, object] | None:
+        from .usage.codex_collector import collect_codex_usage
+
+        return collect_codex_usage(context)
+
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
         """Translate a resolved reasoning effort into ``-c`` config args."""
         return effort_cli_args(
@@ -396,7 +409,7 @@ class CodexProvider(LLMProvider):
         model = model_override if model_override else _TIER_TO_MODEL[model_tier]
 
         base_args = [
-            _resolve_codex_executable(),
+            resolve_codex_executable(),
             "exec",
             "--model",
             model,

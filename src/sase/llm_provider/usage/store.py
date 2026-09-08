@@ -11,7 +11,7 @@ from typing import Any
 from sase.core.paths import sase_home
 from sase.core.rust import require_rust_binding
 
-from .provider_disable import is_finite_number, is_provider_id, require_provider_id
+from ..provider_disable import is_finite_number, is_provider_id, require_provider_id
 
 PROVIDER_USAGE_OBSERVATION_SCHEMA_VERSION = 1
 PROVIDER_USAGE_PUBLIC_SCHEMA_VERSION = 1
