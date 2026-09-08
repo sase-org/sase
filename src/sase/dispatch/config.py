@@ -246,6 +246,11 @@ def _positive_float(value: object, *, default: float) -> float:
     return candidate
 
 
+def machine_registry_target_path() -> Path:
+    """Return the applied machine-overlay path the runtime config loader reads."""
+    return _registry_target_path()
+
+
 def _registry_target_path() -> Path:
     snapshot = config_core.get_agent_owner_config_snapshot()
     if snapshot.selected_overlay is not None:
@@ -302,6 +307,7 @@ def _edit_machine_mapping(
 __all__ = [
     "DEFAULT_PROVIDER_REFS",
     "load_dispatch_config",
+    "machine_registry_target_path",
     "provider_config",
     "remove_machine_record",
     "rename_machine_record",

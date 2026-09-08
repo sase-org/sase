@@ -11377,7 +11377,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "7797bb81ba10b2aa",
+            "description_digest": "1bcb7e7ad73634cb",
             "hidden": false,
             "mutex_groups": [],
             "name": "machine",
@@ -11396,6 +11396,18 @@
               },
               {
                 "choices": null,
+                "dest": "bootstrap_file",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-B",
+                  "--bootstrap-file"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
                 "dest": "check",
                 "hidden": false,
                 "kind": null,
@@ -11405,6 +11417,30 @@
                   "--check"
                 ],
                 "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "timeout",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--timeout"
+                ],
+                "takes_value": true
               }
             ],
             "path": [
@@ -12905,6 +12941,82 @@
             "path": [
               "machine",
               "discover"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "68d17eacb4831438",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "init",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "bootstrap_file",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-B",
+                  "--bootstrap-file"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "check",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-c",
+                  "--check"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "timeout",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--timeout"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "machine",
+              "init"
             ],
             "positionals": [],
             "subcommands": []

@@ -1,47 +1,36 @@
-"""Optional remote-machine enrollment for ``sase init``."""
+"""Optional remote-machine enrollment for ``sase init`` and ``sase machine init``."""
 
 from __future__ import annotations
 
 import argparse
 from collections.abc import Callable
+import getpass
 from pathlib import Path
-from typing import TextIO
 import sys
+from typing import TextIO
 
-from sase.dispatch.config import load_dispatch_config
-from sase.dispatch.machine_service import MachineService
-from sase.dispatch.models import DiscoveryCandidate, DispatchError
-
-from .init_plan import InitAction, InitPlan
+from sase.dispatch.machine_init import (
+    MachineInitApplyResult,
+    MachineInitPlan,
+    MachineInitService,
+)
+from sase.dispatch.models import EnrollmentResult
+from sase.main.init_plan import InitAction, InitPlan
 
 
 def plan_init_machine(args: argparse.Namespace) -> InitPlan:
     """Return a read-only plan for optional remote-machine enrollment."""
+    stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
     check_mode = bool(getattr(args, "check", False))
-    config = load_dispatch_config()
-    if config.machines:
-        aliases = ", ".join(machine.alias for machine in config.machines)
-        return InitPlan(
-            command="machine",
-            label="Machine",
-            summary=f"remote machines are configured: {aliases}",
-            actions=(),
-            warnings=_diagnostic_messages(config),
-        )
-    if not config.discovery_enabled_provider_refs:
-        return InitPlan(
-            command="machine",
-            label="Machine",
-            summary="no remote machine discovery providers are configured",
-            actions=(),
-            warnings=_diagnostic_messages(config),
-        )
+    plan: MachineInitPlan = MachineInitService().plan(
+        check_mode=check_mode, is_tty=stdin.isatty()
+    )
     return InitPlan(
         command="machine",
         label="Machine",
-        summary="remote machine enrollment can discover configured providers",
+        summary=plan.summary,
         actions=()
-        if check_mode
+        if not plan.offer_enrollment
         else (
             InitAction(
                 path=Path("remote machine enrollment"),
@@ -49,13 +38,13 @@ def plan_init_machine(args: argparse.Namespace) -> InitPlan:
                 detail="discover providers and optionally enroll selected machines",
             ),
         ),
-        warnings=_diagnostic_messages(config),
-        requires_tty=not check_mode,
+        warnings=plan.warnings,
+        requires_tty=plan.offer_enrollment,
     )
 
 
 def run_init_machine(args: argparse.Namespace) -> int:
-    """Interactively discover and optionally enroll remote machines."""
+    """Discover, enroll, and activate remote machines, or print a check plan."""
     if getattr(args, "check", False):
         from .init_onboarding import run_init_check
         from .init_registry import InitCommandSpec
@@ -72,52 +61,50 @@ def run_init_machine(args: argparse.Namespace) -> int:
             ),
         )
 
+    from .machine_handler import read_enrollment_bundle
+
     input_func: Callable[[str], str] = getattr(args, "_init_input_func", None) or input
     stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
-    if not stdin.isatty():
+    getpass_func: Callable[[str], str] = (
+        getattr(args, "_init_getpass_func", None) or getpass.getpass
+    )
+    if getattr(args, "_init_input_func", None) is None and not stdin.isatty():
         print(
             "error: remote machine enrollment requires an interactive TTY",
             file=sys.stderr,
         )
         return 1
-    service = MachineService()
-    try:
-        candidates = service.discover()
-    except DispatchError as exc:
-        print(f"error: remote machine discovery failed: {exc}", file=sys.stderr)
-        return 1
-    if not candidates:
-        print("No remote machine candidates found.")
-        return 0
 
-    _print_candidates(candidates)
-    try:
-        selected = _select_candidates(input_func, candidates)
-    except (EOFError, KeyboardInterrupt):
-        print("\nremote machine enrollment cancelled.", file=sys.stderr)
-        return 1
-    if not selected:
-        print("No remote machines enrolled.")
-        return 0
+    bundle_text: str | None = None
+    if getattr(args, "bootstrap_file", None) or not stdin.isatty():
+        bundle_text = read_enrollment_bundle(
+            args,
+            stdin=stdin,
+            getpass_func=getpass_func,
+        )
 
-    for candidate in selected:
-        try:
-            alias = input_func(f"Alias for {candidate.endpoint}: ").strip()
-            bundle = input_func(f"Enrollment bundle for {alias}: ")
-            service.add_machine(
-                alias=alias,
-                endpoint=candidate.endpoint,
-                provider_ref=candidate.provider_ref,
-                bundle_text=bundle,
-            )
-        except Exception as exc:  # noqa: BLE001 - interactive command boundary.
-            print(
-                f"error: failed to enroll {candidate.endpoint}: {exc}",
-                file=sys.stderr,
-            )
-            return 1
-        print(f"Enrolled {alias}.")
-    return 0
+    service = MachineInitService(
+        machine_service=getattr(args, "_init_machine_service", None),
+        apply_chezmoi_fn=getattr(args, "_init_apply_chezmoi_fn", None),
+        use_chezmoi_fn=getattr(args, "_init_use_chezmoi_fn", None),
+        registry_target_fn=getattr(args, "_init_registry_target_fn", None),
+    )
+    result = service.apply(
+        input_func=input_func,
+        getpass_func=getpass_func,
+        stdin=stdin,
+        bundle_text=bundle_text,
+        timeout_seconds=getattr(args, "timeout", None),
+        provider_refs=tuple(getattr(args, "provider", None) or ()),
+    )
+    json_mode = bool(getattr(args, "json", False))
+    if json_mode:
+        from .machine_handler import machine_json_document
+
+        print(machine_json_document(_apply_json_payload(result)))
+    else:
+        _print_apply_result(result)
+    return result.exit_code
 
 
 def handle_init_machine_command(args: argparse.Namespace) -> None:
@@ -125,37 +112,60 @@ def handle_init_machine_command(args: argparse.Namespace) -> None:
     sys.exit(run_init_machine(args))
 
 
-def _diagnostic_messages(config: object) -> tuple[str, ...]:
-    diagnostics = getattr(config, "diagnostics", ())
-    return tuple(
-        item.message for item in diagnostics if getattr(item, "severity", "") != "info"
-    )
+def _apply_json_payload(result: MachineInitApplyResult) -> dict[str, object]:
+    from .machine_handler import enrollment_result_row
+
+    return {
+        "subcommand": "init",
+        "ok": result.exit_code == 0,
+        "results": [enrollment_result_row(item) for item in result.enrollments],
+        "skipped": [_reconciled_row(item) for item in result.skipped],
+        "repair": [_reconciled_row(item) for item in result.repair],
+        "recovery": list(result.recovery_messages),
+        "errors": list(result.errors),
+        "cancelled": result.cancelled,
+    }
 
 
-def _print_candidates(candidates: tuple[DiscoveryCandidate, ...]) -> None:
-    print("Remote machine candidates:")
-    for index, candidate in enumerate(candidates, start=1):
-        label = candidate.display_name or candidate.endpoint
-        print(f"  {index}. {label} ({candidate.provider_ref})")
+def _reconciled_row(item: object) -> dict[str, object]:
+    from sase.dispatch.machine_init import ReconciledCandidate
+
+    assert isinstance(item, ReconciledCandidate)
+    candidate = item.candidate
+    return {
+        "alias": item.alias,
+        "status": item.status,
+        "reason": item.reason,
+        "provider": candidate.provider_ref,
+        "endpoint": candidate.endpoint,
+        "display_name": candidate.display_name,
+        "installation_pin": candidate.installation_pin,
+    }
 
 
-def _select_candidates(
-    input_func: Callable[[str], str],
-    candidates: tuple[DiscoveryCandidate, ...],
-) -> tuple[DiscoveryCandidate, ...]:
-    answer = input_func(
-        "Enroll which candidates? [comma-separated numbers, blank=skip] "
-    )
-    indexes: list[int] = []
-    for part in answer.split(","):
-        part = part.strip()
-        if not part:
+def _print_apply_result(result: MachineInitApplyResult) -> None:
+    for message in result.errors:
+        print(f"error: {message}", file=sys.stderr)
+    for message in result.recovery_messages:
+        print(message, file=sys.stderr)
+    for item in result.repair:
+        print(
+            f"{item.alias}: {item.reason}. The existing pin was not overwritten.",
+            file=sys.stderr,
+        )
+    if result.cancelled or result.nothing_to_enroll:
+        return
+    for enrollment in result.enrollments:
+        if result.exit_code != 0 and not enrollment.quarantined:
             continue
-        index = int(part)
-        if index < 1 or index > len(candidates):
-            raise ValueError(f"candidate selection out of range: {index}")
-        indexes.append(index - 1)
-    return tuple(candidates[index] for index in indexes)
+        print(_enrollment_line(enrollment))
+
+
+def _enrollment_line(result: EnrollmentResult) -> str:
+    if result.quarantined:
+        reason = result.quarantine_reason or "quarantined"
+        return f"{result.alias}: quarantined as {result.machine_selector or 'remote machine'} ({reason})"
+    return f"{result.alias}: enrolled as {result.machine_selector or 'remote machine'}"
 
 
 __all__ = ["handle_init_machine_command", "plan_init_machine", "run_init_machine"]

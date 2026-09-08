@@ -324,6 +324,45 @@ def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Per-provider discovery timeout in seconds",
     )
 
+    init_parser = machine_subparsers.add_parser(
+        "init",
+        help="Discover, enroll, and activate remote machines",
+        description=(
+            "Canonical remote-machine initialization. Check and preview modes are "
+            "offline. Explicit apply discovers configured providers, lists enrolled "
+            "machines beside new candidates, and enrolls selected identities. "
+            "The enrollment bundle is read from --bootstrap-file, piped stdin, or "
+            "a hidden prompt; no secret value is accepted as a command-line option. "
+            "Success is reported only after the applied config reloads and an "
+            "authenticated hello succeeds."
+        ),
+    )
+    init_parser.add_argument(
+        "-B",
+        "--bootstrap-file",
+        metavar="PATH",
+        help="Read the enrollment bundle from PATH instead of prompting",
+    )
+    init_parser.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        help="Report whether remote-machine enrollment can be offered; performs no discovery",
+    )
+    init_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a schema-versioned JSON result",
+    )
+    init_parser.add_argument(
+        "-t",
+        "--timeout",
+        type=float,
+        metavar="SECONDS",
+        help="Per-request gateway timeout in seconds",
+    )
+
     list_parser = machine_subparsers.add_parser(
         "list",
         help="List configured machine aliases without network IO",

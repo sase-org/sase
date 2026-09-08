@@ -27,6 +27,7 @@ def test_machine_help_renders_sorted_subcommands_and_defaults_to_list() -> None:
         "attention",
         "bootstrap",
         "discover",
+        "init",
         "list",
         "remove",
         "rename",
@@ -44,7 +45,7 @@ def test_machine_help_renders_sorted_subcommands_and_defaults_to_list() -> None:
         expected
     )
     assert (
-        "{add,agent,attention,bootstrap,discover,list,remove,rename,repair,status}"
+        "{add,agent,attention,bootstrap,discover,init,list,remove,rename,repair,status}"
         in machine_parser.format_help()
     )
 
@@ -186,6 +187,43 @@ def test_machine_bootstrap_json_output_is_raw_bundle_only(
     assert captured.err == ""
 
 
+def test_machine_init_help_documents_offline_check_and_hidden_bundle() -> None:
+    init_help = flat_help(parser_for(("sase", "machine", "init")).format_help())
+    alias_help = flat_help(parser_for(("sase", "init", "machine")).format_help())
+
+    assert_metavar_option_documented(init_help, "-B", "--bootstrap-file", "PATH")
+    assert "-c, --check" in init_help
+    assert "-j, --json" in init_help
+    assert_metavar_option_documented(init_help, "-t", "--timeout", "SECONDS")
+    assert "no secret value is accepted as a command-line option" in init_help
+    assert "--bootstrap-secret" not in init_help
+    assert "performs no discovery" in init_help
+    assert "sase machine init" in alias_help
+    assert "Compatibility alias" in alias_help
+    assert_metavar_option_documented(alias_help, "-B", "--bootstrap-file", "PATH")
+
+
+def test_machine_init_parser_accepts_check_json_timeout_and_bundle_file() -> None:
+    args = create_parser().parse_args(
+        [
+            "machine",
+            "init",
+            "--check",
+            "--json",
+            "--timeout",
+            "2.5",
+            "--bootstrap-file",
+            "bundle.json",
+        ]
+    )
+
+    assert args.machine_subcommand == "init"
+    assert args.check is True
+    assert args.json is True
+    assert args.timeout == 2.5
+    assert args.bootstrap_file == "bundle.json"
+
+
 def test_init_machine_check_alias_does_not_discover(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -197,6 +235,26 @@ def test_init_machine_check_alias_does_not_discover(
         raise AssertionError("init machine --check must not discover providers")
 
     monkeypatch.setattr(sys, "argv", ["sase", "init", "machine", "--check"])
+    monkeypatch.setattr(providers, "discover_dispatch_candidates", _fail_discovery)
+
+    with pytest.raises(SystemExit) as exc:
+        entry.main()
+
+    assert exc.value.code == 0
+    assert "Checked: machine." in capsys.readouterr().out
+
+
+def test_machine_init_check_does_not_discover(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.main import entry
+    from sase.dispatch import providers
+
+    def _fail_discovery(*args: object, **kwargs: object) -> object:
+        raise AssertionError("machine init --check must not discover providers")
+
+    monkeypatch.setattr(sys, "argv", ["sase", "machine", "init", "--check"])
     monkeypatch.setattr(providers, "discover_dispatch_candidates", _fail_discovery)
 
     with pytest.raises(SystemExit) as exc:

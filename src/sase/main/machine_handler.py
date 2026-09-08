@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import argparse
 import base64
+from collections.abc import Callable
 import getpass
 import json
 from pathlib import Path
 import sys
-from typing import Any
+from typing import Any, TextIO
 
 from sase.core.time import format_local
 from sase.dispatch.config import load_dispatch_config
@@ -45,6 +46,10 @@ def handle_machine_command(args: argparse.Namespace) -> int:
             return _handle_bootstrap(args, service)
         if subcommand == "discover":
             return _handle_discover(args, service)
+        if subcommand == "init":
+            from .init_machine_handler import run_init_machine
+
+            return run_init_machine(args)
         if subcommand == "list":
             return _handle_list(args)
         if subcommand == "remove":
@@ -81,7 +86,7 @@ def _handle_bootstrap(args: argparse.Namespace, service: MachineService) -> int:
         expires_seconds=getattr(args, "expires", None),
         scopes=tuple(getattr(args, "scope", None) or ()),
     )
-    bundle_json = _bootstrap_bundle_json(result)
+    bundle_json = _bootstrap_bundlemachine_json_document(result)
     if getattr(args, "json", False):
         print(bundle_json)
     else:
@@ -98,11 +103,11 @@ def _handle_add(args: argparse.Namespace, service: MachineService) -> int:
         alias=args.alias,
         endpoint=endpoint,
         provider_ref=provider_ref,
-        bundle_text=_read_bundle(args),
+        bundle_text=read_enrollment_bundle(args),
         timeout_seconds=getattr(args, "timeout", None),
     )
     if getattr(args, "json", False):
-        print(_json({"result": _enrollment_row(result)}))
+        print(machine_json_document({"result": enrollment_result_row(result)}))
     else:
         state = "quarantined" if result.quarantined else "enrolled"
         print(f"{args.alias}: {state} as {result.machine_selector or 'remote machine'}")
@@ -117,7 +122,7 @@ def _handle_discover(args: argparse.Namespace, service: MachineService) -> int:
     candidates = result.candidates
     if getattr(args, "json", False):
         print(
-            _json(
+            machine_json_document(
                 {
                     "candidates": [_candidate_row(item) for item in candidates],
                     "diagnostics": [
@@ -153,7 +158,7 @@ def _handle_list(args: argparse.Namespace) -> int:
     config = load_dispatch_config()
     if getattr(args, "json", False):
         print(
-            _json(
+            machine_json_document(
                 {
                     "machines": [_machine_row(machine) for machine in config.machines],
                     "diagnostics": [
@@ -187,7 +192,7 @@ def _handle_remove(args: argparse.Namespace, service: MachineService) -> int:
             return 1
     record = service.remove_machine(args.alias)
     if getattr(args, "json", False):
-        print(_json({"removed": _machine_row(record)}))
+        print(machine_json_document({"removed": _machine_row(record)}))
     else:
         print(f"Removed remote machine alias {record.alias}.")
     return 0
@@ -196,7 +201,7 @@ def _handle_remove(args: argparse.Namespace, service: MachineService) -> int:
 def _handle_rename(args: argparse.Namespace, service: MachineService) -> int:
     record = service.rename_machine(args.old_alias, args.new_alias)
     if getattr(args, "json", False):
-        print(_json({"renamed": _machine_row(record)}))
+        print(machine_json_document({"renamed": _machine_row(record)}))
     else:
         print(f"Renamed remote machine alias {args.old_alias} to {record.alias}.")
     return 0
@@ -205,11 +210,11 @@ def _handle_rename(args: argparse.Namespace, service: MachineService) -> int:
 def _handle_repair(args: argparse.Namespace, service: MachineService) -> int:
     result = service.repair_machine(
         alias=args.alias,
-        bundle_text=_read_bundle(args),
+        bundle_text=read_enrollment_bundle(args),
         timeout_seconds=getattr(args, "timeout", None),
     )
     if getattr(args, "json", False):
-        print(_json({"result": _enrollment_row(result)}))
+        print(machine_json_document({"result": enrollment_result_row(result)}))
     else:
         state = "quarantined" if result.quarantined else "repaired"
         print(f"{args.alias}: {state}")
@@ -222,7 +227,11 @@ def _handle_status(args: argparse.Namespace, service: MachineService) -> int:
         timeout_seconds=getattr(args, "timeout", None),
     )
     if getattr(args, "json", False):
-        print(_json({"statuses": [_status_row(status) for status in statuses]}))
+        print(
+            machine_json_document(
+                {"statuses": [_status_row(status) for status in statuses]}
+            )
+        )
     else:
         for status in statuses:
             print(f"{status.alias}\t{status.state}\t{status.message}")
@@ -243,18 +252,28 @@ def _resolve_provider_endpoint(args: argparse.Namespace) -> tuple[str, str]:
     return provider, endpoint
 
 
-def _read_bundle(args: argparse.Namespace) -> str:
+def read_enrollment_bundle(
+    args: argparse.Namespace,
+    *,
+    stdin: TextIO | None = None,
+    getpass_func: Callable[[str], str] | None = None,
+) -> str:
+    """Read an enrollment bundle from file, stdin, or a hidden prompt.
+
+    Never uses echoing ``input()``. Secrets are accepted from
+    ``-B/--bootstrap-file``, piped stdin, or ``getpass``.
+    """
     path = getattr(args, "bootstrap_file", None)
     if path:
         return Path(path).read_text(encoding="utf-8")
-    if not sys.stdin.isatty():
-        raise DispatchError(
-            "enrollment bundle requires --bootstrap-file or an interactive TTY"
-        )
-    return getpass.getpass("Paste enrollment bundle: ")
+    stream = stdin if stdin is not None else sys.stdin
+    if not stream.isatty():
+        return stream.read()
+    prompt = getpass_func or getpass.getpass
+    return prompt("Paste enrollment bundle: ")
 
 
-def _json(payload: dict[str, Any]) -> str:
+def machine_json_document(payload: dict[str, Any]) -> str:
     return json.dumps(
         {
             "schema_version": 1,
@@ -266,7 +285,7 @@ def _json(payload: dict[str, Any]) -> str:
     )
 
 
-def _bootstrap_bundle_json(result: BootstrapIssueResult) -> str:
+def _bootstrap_bundlemachine_json_document(result: BootstrapIssueResult) -> str:
     return json.dumps(result.bundle, sort_keys=True)
 
 
@@ -340,7 +359,7 @@ def _status_row(status: MachineStatus) -> dict[str, object]:
     }
 
 
-def _enrollment_row(result: EnrollmentResult) -> dict[str, object]:
+def enrollment_result_row(result: EnrollmentResult) -> dict[str, object]:
     return {
         "alias": result.alias,
         "credential_ref": result.credential_ref,
@@ -360,4 +379,9 @@ def _safe_error(exc: BaseException) -> str:
     return str(exc).replace("\n", " ")
 
 
-__all__ = ["handle_machine_command"]
+__all__ = [
+    "enrollment_result_row",
+    "handle_machine_command",
+    "machine_json_document",
+    "read_enrollment_bundle",
+]

@@ -103,8 +103,8 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Initialize SASE-managed resources",
         description=(
             "Check and initialize SASE-managed resources. With no subcommand, "
-            "runs the onboarding coordinator for config, memory, repositories, "
-            "and skills."
+            "runs the onboarding coordinator for config, machine, memory, "
+            "repositories, and skills."
         ),
         epilog=(
             "Advanced deploy controls live on explicit subcommands; for example, "
@@ -181,18 +181,39 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
 
     machine_parser = init_subparsers.add_parser(
         "machine",
-        help="Alias for `sase machine discover` plus optional enrollment",
+        help="Alias for `sase machine init`",
         description=(
-            "Compatibility alias for optional remote-machine enrollment during "
-            "initialization. Check mode is read-only and performs no discovery."
+            "Compatibility alias for `sase machine init`, which discovers, "
+            "enrolls, and activates remote machines. Check mode is read-only "
+            "and performs no discovery."
         ),
+    )
+    machine_parser.add_argument(
+        "-B",
+        "--bootstrap-file",
+        metavar="PATH",
+        help="Read the enrollment bundle from PATH instead of prompting",
     )
     machine_parser.add_argument(
         "-c",
         "--check",
         action="store_true",
         default=argparse.SUPPRESS,
-        help="Report whether remote-machine enrollment can be offered",
+        help="Report whether remote-machine enrollment can be offered; performs no discovery",
+    )
+    machine_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Emit a schema-versioned JSON result",
+    )
+    machine_parser.add_argument(
+        "-t",
+        "--timeout",
+        type=float,
+        metavar="SECONDS",
+        help="Per-request gateway timeout in seconds",
     )
 
     memory_parser = init_subparsers.add_parser(
