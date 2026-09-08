@@ -6,6 +6,14 @@ from sase.ace.tui.models.fleet_agents import (
     project_fleet_agents,
 )
 from sase.dispatch.follow_store import FollowStoreSnapshot
+from tests.ace.tui.fleet_fixture import (
+    fleet_attention_response,
+    fleet_follow_snapshot,
+    fleet_host_response,
+    fleet_installation_id,
+    fleet_logical_locator,
+    fleet_summary,
+)
 
 
 def test_project_fleet_agents_marks_followed_and_preserves_machine_sections() -> None:
@@ -211,3 +219,79 @@ def test_followed_logical_keys_reads_active_records_only() -> None:
 
     assert followed_logical_keys(snapshot) == ("logical-active",)
     assert followed_logical_keys(None) == ()
+
+
+def test_offline_fleet_fixture_projects_rows_counts_and_diagnostics() -> None:
+    installation_id = fleet_installation_id("c")
+    logical = fleet_logical_locator(
+        installation_id=installation_id,
+        agent_id="fixture-agent",
+    )
+    summary = fleet_summary(
+        installation_id=installation_id,
+        agent_id="fixture-agent",
+        needs_attention=True,
+        bounded_intent="reuse from visual and perf tests",
+    )
+    response = fleet_host_response(
+        alias="apollo",
+        installation_id=installation_id,
+        summaries=(summary,),
+        diagnostics=(
+            {
+                "code": "fixture_warning",
+                "severity": "warning",
+                "message": "offline fixture diagnostic",
+            },
+        ),
+        partial=True,
+    )
+    attention = fleet_attention_response(
+        (
+            {
+                "kind": "question",
+                "state": "pending",
+                "logical_key": summary["logical_key"],
+            },
+        ),
+        alias="apollo",
+    )
+
+    projection = project_fleet_agents(
+        summary_response=response,
+        catalog_response=response,
+        followed_response=response,
+        attention_response=attention,
+        follow_snapshot=fleet_follow_snapshot(logical),
+        local_agent_count=2,
+    )
+
+    assert len(projection.fleet_rows) == 1
+    assert len(projection.focus_rows) == 1
+    assert projection.configured_host_count == 1
+    assert projection.partial is True
+    assert projection.counts["local"] == 2
+    assert projection.counts["focus_total"] == 3
+    assert projection.counts["fleet"] == 1
+    assert projection.diagnostics == (
+        {
+            "code": "fixture_warning",
+            "severity": "warning",
+            "message": "offline fixture diagnostic",
+        },
+        {
+            "code": "fixture_warning",
+            "severity": "warning",
+            "message": "offline fixture diagnostic",
+        },
+        {
+            "code": "fixture_warning",
+            "severity": "warning",
+            "message": "offline fixture diagnostic",
+        },
+    )
+    row = projection.focus_rows[0]
+    assert row.fleet_origin_alias == "apollo"
+    assert row.fleet_followed is True
+    assert row.status == "QUESTION"
+    assert row.fleet_bounded_intent == "reuse from visual and perf tests"
