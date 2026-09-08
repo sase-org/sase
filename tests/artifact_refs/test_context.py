@@ -42,6 +42,7 @@ def test_context_wire_carries_required_schema_and_preserves_filter_intent(
     wire = context.to_wire()
 
     assert wire["schema_version"] == ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION == 2
+    assert wire["selected_project"] is None
     assert wire["document_roots"] == [
         {
             "kind": "plans",
@@ -49,6 +50,20 @@ def test_context_wire_carries_required_schema_and_preserves_filter_intent(
             "path_globs": [],
         }
     ]
+
+
+def test_context_wire_carries_selected_project(tmp_path: Path) -> None:
+    context = make_context(tmp_path)
+    context = ArtifactRefContext(
+        document_roots=context.document_roots,
+        chats_root=context.chats_root,
+        artifact_index_path=context.artifact_index_path,
+        repositories=context.repositories,
+        projects=context.projects,
+        selected_project="sase",
+    )
+
+    assert context.to_wire()["selected_project"] == "sase"
 
 
 def test_context_assembles_dynamic_document_role_and_namespaces(

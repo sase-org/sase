@@ -455,6 +455,7 @@ class ArtifactRefContext:
             "home_dir": None if self.home_dir is None else str(self.home_dir),
             "file_capture_max_bytes": self.file_capture_max_bytes,
             "utc_offset_seconds": _utc_offset_seconds(),
+            "selected_project": self.selected_project,
         }
 
 

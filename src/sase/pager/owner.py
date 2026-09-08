@@ -115,9 +115,12 @@ def artifact_context_for_link_context(
         return None
     from sase.artifact_ref_context import artifact_ref_context
 
+    owner_project = None if context.owner is None else context.owner.project_key
     for directory, workspace_num in _context_directories(context):
         try:
-            return artifact_ref_context(directory, workspace_num or 1)
+            return artifact_ref_context(
+                directory, workspace_num or 1, project=owner_project
+            )
         except (ImportError, OSError, RuntimeError, TypeError, ValueError):
             continue
     return None
