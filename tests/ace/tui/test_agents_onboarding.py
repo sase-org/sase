@@ -159,6 +159,16 @@ def test_agents_onboarding_predicate_hides_for_active_query() -> None:
     assert app._should_show_agents_onboarding() is False
 
 
+def test_agents_onboarding_predicate_hides_for_active_empty_fleet() -> None:
+    app = _PredicateApp(loaded=True)
+    app.current_agents_subtab = "fleet"
+    app._agents_fleet_available = True
+    app._agents_fleet_loading = False
+    app._agents_fleet_last_error = None
+
+    assert app._should_show_agents_onboarding() is False
+
+
 async def test_agents_onboarding_visible_after_empty_load_tab_switch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

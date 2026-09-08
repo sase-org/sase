@@ -68,6 +68,21 @@ class _FleetRefreshHarness(AgentFleetMixin):
         pass
 
 
+def test_fleet_status_text_labels_partial_and_zero_results() -> None:
+    app = _FleetRefreshHarness(mode="fleet")
+    app._agents_fleet_loading = False
+    app._agents_fleet_projection = FleetRowsProjection(
+        configured_host_count=2,
+        partial=True,
+        counts={"fleet": 0},
+    )
+
+    assert app._fleet_status_text() == "2 machines · partial · 0 results"
+
+    app.current_agents_subtab = "focus"
+    assert app._fleet_status_text() == "2 machines · partial"
+
+
 @pytest.mark.asyncio
 async def test_hidden_fleet_refresh_skips_catalog_hydration(
     monkeypatch: pytest.MonkeyPatch,

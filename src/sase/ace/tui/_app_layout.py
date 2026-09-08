@@ -104,6 +104,7 @@ class AppLayoutMixin:
                         active_tab=getattr(self, "current_agents_subtab", "focus"),
                         compact_below=72,
                         reflow_to_fit=True,
+                        fill_width=False,
                         id="agents-mode-tabs",
                     )
                     yield Static("", id="agents-fleet-status")

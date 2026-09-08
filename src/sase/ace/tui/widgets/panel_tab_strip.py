@@ -52,6 +52,7 @@ class PanelTabStrip(Static):
         micro_below: int | None = None,
         micro_separator: str = "│",
         reflow_to_fit: bool = False,
+        fill_width: bool = True,
         **kwargs: Any,
     ) -> None:
         self._tabs = tuple(tabs)
@@ -67,7 +68,8 @@ class PanelTabStrip(Static):
         self._tab_ranges: dict[str, tuple[int, int]] = {}
         self._line_width = 0
         super().__init__(self._build_content(), **kwargs)
-        self.styles.width = "100%"
+        if fill_width:
+            self.styles.width = "100%"
 
     def set_active_tab(self, active_tab: str | None) -> None:
         """Refresh the active tab indicator."""

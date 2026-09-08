@@ -56,7 +56,7 @@ def _append_fleet_badge(text: Text, agent: Agent) -> None:
     alias = agent.fleet_origin_alias
     if not alias:
         return
-    glyph = "◆" if agent.fleet_followed else "◇"
+    glyph = "★" if agent.fleet_followed else "☆"
     style = "bold #5FD7FF" if agent.fleet_followed else "#5FAFD7"
     text.append(f"{glyph}{alias} ", style=style)
 

@@ -144,6 +144,26 @@ class TestAgentListAutoApproveIcon:
         assert left.plain.startswith("⚡E ")
 
 
+class TestAgentListFleetMarker:
+    def test_remote_rows_use_star_shape_for_follow_state(self) -> None:
+        followed = make_agent(
+            fleet_origin_alias="apollo",
+            fleet_followed=True,
+            llm_provider=None,
+        )
+        unfollowed = make_agent(
+            fleet_origin_alias="apollo",
+            fleet_followed=False,
+            llm_provider=None,
+        )
+
+        followed_left, _, _ = format_agent_option(followed, 0, is_selected=False)
+        unfollowed_left, _, _ = format_agent_option(unfollowed, 1, is_selected=False)
+
+        assert "★apollo" in followed_left.plain
+        assert "☆apollo" in unfollowed_left.plain
+
+
 class TestStartingStatusRendering:
     def test_agent_row_renders_starting_status_with_distinct_style(self) -> None:
         agent = make_agent(status="STARTING")

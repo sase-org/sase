@@ -538,12 +538,29 @@ class AgentFleetMixin:
         projection = getattr(self, "_agents_fleet_projection", FleetRowsProjection())
         issue_count = len(projection.diagnostics)
         host_count = projection.configured_host_count
+        raw_fleet_count = projection.counts.get("fleet")
+        fleet_count = (
+            raw_fleet_count
+            if isinstance(raw_fleet_count, int)
+            else len(projection.fleet_rows)
+        )
+        partial = bool(projection.partial)
         if issue_count:
             suffix = "issue" if issue_count == 1 else "issues"
-            return f"{issue_count} {suffix}"
+            text = f"{issue_count} {suffix}"
+            if partial:
+                text = f"{text} · partial"
+            return text
         if host_count:
             suffix = "machine" if host_count == 1 else "machines"
-            return f"{host_count} {suffix}"
+            text = f"{host_count} {suffix}"
+            if partial:
+                text = f"{text} · partial"
+            if self.current_agents_subtab == "fleet" and fleet_count == 0:
+                text = f"{text} · 0 results"
+            return text
+        if partial:
+            return "partial"
         return ""
 
     @staticmethod
