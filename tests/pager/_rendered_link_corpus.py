@@ -233,7 +233,9 @@ def build_corpus(tmp_path: Path) -> RenderedLinkCorpus:
         other / "plans",
         root / "other-store",
         repositories=(
-            ArtifactRefRepository("other", checkout_paths=(other,), kind="primary"),
+            ArtifactRefRepository(
+                "other-project", checkout_paths=(other,), kind="primary"
+            ),
         ),
         project=("other", "gh_example__other"),
     )
