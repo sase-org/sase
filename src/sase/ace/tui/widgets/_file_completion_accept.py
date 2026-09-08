@@ -24,6 +24,11 @@ from sase.ace.tui.widgets.history_word_completion import (
     HistoryWordCompletionPlaceholder,
 )
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
+from sase.ace.tui.widgets.model_alias_completion import (
+    MODEL_ALIAS_COMPLETION_KIND,
+    is_model_alias_completion_placeholder,
+    plan_model_alias_completion_edit,
+)
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
     PlaceholderCompletionMetadata,
@@ -293,6 +298,10 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
                 "" if artifact_ctx is None else artifact_ctx.prefix
             )
             return True
+        if self._completion_kind == MODEL_ALIAS_COMPLETION_KIND:
+            context = self._get_model_alias_completion_context()
+            self._update_file_completion_panel("" if context is None else context.query)
+            return True
         ctx = self._get_token_context()
         self._update_file_completion_panel("" if ctx is None else ctx[3])
         return True
@@ -312,6 +321,8 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             return self._accept_vcs_repo_completion(selected)
         if self._completion_kind == ARTIFACT_REF_COMPLETION_KIND:
             return self._accept_artifact_ref_completion(selected)
+        if self._completion_kind == MODEL_ALIAS_COMPLETION_KIND:
+            return self._accept_model_alias_completion(selected)
         if self._completion_kind == "jinja":
             jinja_result = build_jinja_completion_result(
                 self.text,
@@ -429,6 +440,35 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
                 self._refresh_xprompt_arg_hint_from_cursor()
             else:
                 self._clear_xprompt_arg_hint()
+        return True
+
+    def _accept_model_alias_completion(self, selected: CompletionCandidate) -> bool:
+        """Accept a ``*alias`` shortcut candidate using the Rust edit plan."""
+        if is_model_alias_completion_placeholder(selected):
+            return False
+        context = self._get_model_alias_completion_context()
+        state, entries = self._model_completion_catalog_state()
+        if context is None or state != "warm" or entries is None:
+            self._clear_file_completion()
+            return False
+        candidates = self._model_alias_completion_rows(context)
+        if selected.insertion not in {candidate.insertion for candidate in candidates}:
+            self._clear_file_completion()
+            return False
+        planned = plan_model_alias_completion_edit(
+            self.text,
+            self.cursor_location,
+            entries,
+            selected,
+        )
+        if planned is None:
+            self._clear_file_completion()
+            return False
+        start = self._location_from_absolute(planned.replacement_start)
+        end = self._location_from_absolute(planned.replacement_end)
+        self._replace_via_keyboard(planned.replacement, start, end)
+        self.cursor_location = self._location_from_absolute(planned.caret_offset)
+        self._clear_file_completion()
         return True
 
     def _accept_artifact_ref_completion(

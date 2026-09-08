@@ -62,6 +62,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         def _try_artifact_ref_completion(self, *, force: bool = False) -> bool: ...
         def _try_artifact_ref_completion_tab(self) -> bool: ...
         def _try_auto_directive_arg_completion(self) -> bool: ...
+        def _try_model_alias_completion(self, *, force: bool = False) -> bool: ...
         def _try_file_history_completion(self) -> bool: ...
         def _accept_directive_completion_candidate(
             self,
@@ -112,6 +113,8 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
             if arg_ctx is not None:
                 return self._try_xprompt_arg_completion_tab(arg_ctx)
             if self._try_artifact_ref_completion_tab():
+                return True
+            if self._try_model_alias_completion(force=True):
                 return True
 
             self._clear_xprompt_arg_hint()

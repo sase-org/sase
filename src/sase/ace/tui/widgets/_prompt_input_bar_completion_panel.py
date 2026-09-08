@@ -45,6 +45,9 @@ from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
     completion_visible_rows,
 )
+from sase.ace.tui.widgets.model_alias_completion import (
+    MODEL_ALIAS_MODE_SUBTITLE,
+)
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
@@ -200,6 +203,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
                 rows,
                 selected_index,
                 max(0, panel.size.width - 2),
+                alias_shortcut=kinds.model_alias,
             )
         elif kinds.finalizer:
             panel.border_subtitle = finalizer_completion_subtitle(
@@ -221,6 +225,12 @@ class PromptInputBarCompletionMixin(_MixinBase):
         self._completion_visible = True
         self._completion_panel_kind = "completion"
         self._completion_line_count = _reserved_panel_rows(_content_line_count(content))
+        if kinds.model_alias:
+            self._subtitle_base = MODEL_ALIAS_MODE_SUBTITLE
+            self.border_subtitle = self._render_subtitle(MODEL_ALIAS_MODE_SUBTITLE)
+        elif self._subtitle_base == MODEL_ALIAS_MODE_SUBTITLE:
+            self._subtitle_base = self._mode_subtitle
+            self.border_subtitle = self._render_subtitle(self._mode_subtitle)
         self._update_height()
 
     def hide_file_completions(self) -> None:
@@ -237,6 +247,9 @@ class PromptInputBarCompletionMixin(_MixinBase):
         self._completion_visible = False
         self._completion_panel_kind = None
         self._completion_line_count = 0
+        if self._subtitle_base == MODEL_ALIAS_MODE_SUBTITLE:
+            self._subtitle_base = self._mode_subtitle
+            self.border_subtitle = self._render_subtitle(self._mode_subtitle)
         self._update_height()
         if not was_jinja:
             self._maybe_show_active_jinja_diagnostics()

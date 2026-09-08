@@ -20,7 +20,7 @@ from sase.ace.tui.widgets._directive_completion_tokens import (
 from sase.xprompt._directive_types import AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS
 from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
-from sase.xprompt.model_completion import _ModelCompletionEntry
+from sase.xprompt.model_completion import ModelCompletionEntry
 
 from ._directive_completion_helpers import (
     MODEL_CATALOG_PATCH,
@@ -362,19 +362,19 @@ def test_directive_arg_completion_marks_provider_candidates_as_directories() -> 
 
 def test_provider_scoped_model_completion_has_no_shared_extension() -> None:
     catalog = [
-        _ModelCompletionEntry(
+        ModelCompletionEntry(
             value="opus",
             display="opus",
             description="Claude",
             provider="claude",
         ),
-        _ModelCompletionEntry(
+        ModelCompletionEntry(
             value="sonnet",
             display="sonnet",
             description="Claude",
             provider="claude",
         ),
-        _ModelCompletionEntry(
+        ModelCompletionEntry(
             value="claude/",
             display="claude/",
             description="Claude",
@@ -399,7 +399,7 @@ def test_provider_scoped_model_completion_has_no_shared_extension() -> None:
 def test_directive_arg_completion_filters_leading_at_to_model_aliases() -> None:
     catalog = [
         *model_entries(),
-        _ModelCompletionEntry(
+        ModelCompletionEntry(
             value="@default",
             display="@default",
             description="default model when a prompt has no %model",
@@ -431,7 +431,7 @@ def test_qualified_model_at_suffix_routes_to_effort_completion() -> None:
 
 def test_model_alias_candidate_carries_resolution_and_provenance() -> None:
     catalog = [
-        _ModelCompletionEntry(
+        ModelCompletionEntry(
             value="@medium",
             display="@medium",
             description="Medium phase worker model.",

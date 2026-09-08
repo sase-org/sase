@@ -20,6 +20,9 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
 from sase.ace.tui.widgets.file_completion import (
     build_file_history_completion_candidates,
 )
+from sase.ace.tui.widgets.model_alias_completion import (
+    MODEL_ALIAS_COMPLETION_KIND,
+)
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
     PlaceholderCompletionResult,
@@ -42,6 +45,10 @@ from sase.ace.tui.widgets.vcs_repo_completion import (
 from sase.xprompt.vcs_repo_completion import peek_cached_repo_candidates
 
 if TYPE_CHECKING:
+    from sase.ace.tui.widgets.file_completion import CompletionCandidate
+    from sase.ace.tui.widgets.model_alias_completion import (
+        ModelAliasShortcutContext,
+    )
     from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 
 
@@ -56,6 +63,15 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
             include_common_when_prefix_empty: bool = False,
         ) -> PlaceholderCompletionResult | None: ...
         def _prompt_completion_settings(self) -> PromptCompletionSettings: ...
+        def _get_model_alias_completion_context(
+            self,
+        ) -> ModelAliasShortcutContext | None: ...
+        def _model_alias_completion_rows(
+            self,
+            context: ModelAliasShortcutContext,
+            *,
+            retry_unavailable: bool = False,
+        ) -> list[CompletionCandidate]: ...
 
     def _try_auto_placeholder_completion(self) -> bool:
         """Open placeholder completion when automatic completion is enabled.
@@ -221,12 +237,37 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         if settings.auto_xprompt_menu:
             if self._try_auto_xprompt_arg_completion():
                 return True
+        if settings.auto_directive_menu and self._try_model_alias_completion():
+            return True
         if settings.auto_artifact_menu and self._try_artifact_ref_completion():
             return True
         if settings.auto_xprompt_menu:
             if self._try_auto_xprompt_completion():
                 return True
         return False
+
+    def _try_model_alias_completion(self, *, force: bool = False) -> bool:
+        """Open alias-only model completion at a valid ``*alias`` token."""
+        bar = self._find_prompt_bar()
+        if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":
+            return False
+        context = self._get_model_alias_completion_context()
+        if context is None:
+            return False
+        candidates = self._model_alias_completion_rows(
+            context,
+            retry_unavailable=force,
+        )
+        if not candidates:
+            self._clear_file_completion()
+            return True
+
+        self._completion_kind = MODEL_ALIAS_COMPLETION_KIND
+        self._file_completion_active = True
+        self._file_completion_candidates = candidates
+        self._file_completion_index = 0
+        self._update_file_completion_panel(context.query)
+        return True
 
     def _try_artifact_ref_completion(self, *, force: bool = False) -> bool:
         """Open shared ``@`` rows from warm artifact and path inventories."""

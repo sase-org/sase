@@ -20,7 +20,7 @@ from sase.ace.tui.widgets.directive_completion import (
     build_directive_clause_candidates,
     classify_directive_completion,
 )
-from sase.xprompt.model_completion import _ModelCompletionEntry
+from sase.xprompt.model_completion import ModelCompletionEntry
 from tests._xprompt_directive_completion_parity_helpers import _FINALIZER_ROWS
 from tests._xprompt_directive_completion_parity_lsp import (
     LspSession,
@@ -211,16 +211,16 @@ def _model_documentation(metadata: ModelCompletionMetadata) -> str:
     return "\n\n".join(sections)
 
 
-def _model_entries() -> list[_ModelCompletionEntry]:
+def _model_entries() -> list[ModelCompletionEntry]:
     return [
-        _ModelCompletionEntry(
+        ModelCompletionEntry(
             value="claude-fable-5",
             display="claude-fable-5",
             description="Claude (fable)",
             provider="claude",
             aliases=("fable",),
         ),
-        _ModelCompletionEntry(
+        ModelCompletionEntry(
             value="@medium",
             display="@medium",
             description="Medium phase worker model.",

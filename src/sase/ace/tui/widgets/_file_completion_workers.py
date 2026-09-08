@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from textual.worker import Worker, WorkerState
 
@@ -13,6 +13,7 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.ace.tui.widgets.model_alias_completion import MODEL_ALIAS_COMPLETION_KIND
 from sase.ace.tui.widgets.prompt_commit_inventory import (
     PromptCommitSnapshot,
     load_prompt_commit_snapshot,
@@ -34,6 +35,7 @@ from sase.xprompt.vcs_repo_completion import (
     VcsRepoTrigger,
     fetch_repo_candidates,
 )
+from sase.xprompt.model_completion import build_model_completion_catalog
 
 
 @dataclass(frozen=True)
@@ -90,6 +92,14 @@ class _MachineInventoryWorkerResult:
     available: bool
 
 
+@dataclass(frozen=True)
+class _ModelCompletionCatalogWorkerResult:
+    """Result returned by a model completion catalog worker."""
+
+    rows: tuple[Any, ...]
+    available: bool
+
+
 class FileCompletionWorkerMixin(FileCompletionContextMixin):
     """Mixin providing background inventory loading and result routing."""
 
@@ -117,6 +127,9 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
         _machine_inventory: tuple[dict[str, str], ...] | None
         _machine_available: bool
         _machine_inflight: bool
+        _model_completion_catalog_loaded: bool
+        _model_completion_catalog_available: bool
+        _model_completion_catalog_inflight: bool
 
         def _clear_file_completion(
             self,
@@ -128,6 +141,54 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
         def _update_file_completion_panel(self, token: str) -> None: ...
         def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
         def _wait_bead_project_key(self) -> str | None: ...
+
+    def _schedule_model_completion_catalog_load(
+        self,
+        *,
+        force: bool = False,
+    ) -> None:
+        """Coalesce one model catalog warm on a background worker."""
+        if callable(
+            getattr(self._prompt_app_or_none(), "model_completion_catalog", None)
+        ):
+            return
+        if self._model_completion_catalog_inflight:
+            return
+        if (
+            not force
+            and self._model_completion_catalog_loaded
+            and not self._model_completion_catalog_available
+        ):
+            return
+        self._model_completion_catalog_inflight = True
+
+        def task() -> _ModelCompletionCatalogWorkerResult:
+            try:
+                rows = tuple(build_model_completion_catalog())
+            except Exception:  # noqa: BLE001 - degrade rather than freeze the prompt.
+                return _ModelCompletionCatalogWorkerResult(rows=(), available=False)
+            return _ModelCompletionCatalogWorkerResult(rows=rows, available=True)
+
+        self.run_worker(
+            task,
+            name="prompt-model-catalog",
+            group="prompt-model-catalog",
+            thread=True,
+        )
+
+    def _apply_model_completion_catalog_result(
+        self,
+        result: _ModelCompletionCatalogWorkerResult,
+    ) -> None:
+        """Record catalog availability and refresh a matching open alias menu."""
+        self._model_completion_catalog_loaded = True
+        self._model_completion_catalog_available = result.available
+        if (
+            not self._file_completion_active
+            or self._completion_kind != MODEL_ALIAS_COMPLETION_KIND
+        ):
+            return
+        self._refresh_file_completion_from_cursor()
 
     def _schedule_vcs_repo_completion_fetch(self, trigger: VcsRepoTrigger) -> None:
         """Fetch repo candidates in a background worker with key dedupe."""
@@ -579,6 +640,29 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
                 if self._machine_inventory is None:
                     self._apply_machine_inventory_result(
                         _MachineInventoryWorkerResult(rows=(), available=False)
+                    )
+                return
+            handler = getattr(super(), "on_worker_state_changed", None)
+            if callable(handler):
+                handler(event)
+            return
+
+        if event.worker.group == "prompt-model-catalog":
+            if event.state in (
+                WorkerState.SUCCESS,
+                WorkerState.ERROR,
+                WorkerState.CANCELLED,
+            ):
+                self._model_completion_catalog_inflight = False
+            if event.state == WorkerState.SUCCESS:
+                result = event.worker.result
+                if isinstance(result, _ModelCompletionCatalogWorkerResult):
+                    self._apply_model_completion_catalog_result(result)
+                    return
+            if event.state in (WorkerState.ERROR, WorkerState.CANCELLED):
+                if not self._model_completion_catalog_loaded:
+                    self._apply_model_completion_catalog_result(
+                        _ModelCompletionCatalogWorkerResult(rows=(), available=False)
                     )
                 return
             handler = getattr(super(), "on_worker_state_changed", None)

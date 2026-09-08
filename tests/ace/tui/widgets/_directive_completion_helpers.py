@@ -19,7 +19,7 @@ from sase.ace.tui.widgets.directive_completion import (
     build_directive_completion_candidates,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.xprompt.model_completion import _ModelCompletionEntry
+from sase.xprompt.model_completion import ModelCompletionEntry
 
 _SPECIAL_KEYWORD_NAMES = {
     "clan_keyword": "clan",
@@ -160,16 +160,16 @@ def model_metadata(candidate: CompletionCandidate) -> ModelCompletionMetadata:
     return candidate.metadata
 
 
-def model_entries() -> list[_ModelCompletionEntry]:
+def model_entries() -> list[ModelCompletionEntry]:
     return [
-        _ModelCompletionEntry(
+        ModelCompletionEntry(
             value="claude-fable-5",
             display="claude-fable-5",
             description="Claude (fable)",
             provider="claude",
             aliases=("fable",),
         ),
-        _ModelCompletionEntry(
+        ModelCompletionEntry(
             value="gpt-5.6-sol",
             display="gpt-5.6-sol",
             description="Codex (gpt56sol)",
@@ -179,10 +179,10 @@ def model_entries() -> list[_ModelCompletionEntry]:
     ]
 
 
-def model_entries_with_providers() -> list[_ModelCompletionEntry]:
+def model_entries_with_providers() -> list[ModelCompletionEntry]:
     return [
         *model_entries(),
-        _ModelCompletionEntry(
+        ModelCompletionEntry(
             value="claude/",
             display="claude/",
             description="Claude",
@@ -190,7 +190,7 @@ def model_entries_with_providers() -> list[_ModelCompletionEntry]:
             provider="claude",
             provider_model_count=1,
         ),
-        _ModelCompletionEntry(
+        ModelCompletionEntry(
             value="codex/",
             display="codex/",
             description="Codex",

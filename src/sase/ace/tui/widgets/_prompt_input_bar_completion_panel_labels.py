@@ -61,6 +61,8 @@ def completion_panel_title(
         return "%final values"
     if kinds.directive_arg_agent:
         return "wait targets"
+    if kinds.model_alias:
+        return "model aliases"
     if kinds.model:
         if scoped_title := _model_completion_provider_scope_title(token, rows):
             return scoped_title
@@ -159,6 +161,8 @@ def model_completion_subtitle(
     rows: list[CompletionCandidate],
     selected_index: int,
     inner_width: int,
+    *,
+    alias_shortcut: bool = False,
 ) -> Text:
     """Return the contextual subtitle for an enriched model menu."""
     if not 0 <= selected_index < len(rows):
@@ -166,7 +170,11 @@ def model_completion_subtitle(
     metadata = rows[selected_index].metadata
     if not isinstance(metadata, ModelCompletionMetadata):
         return Text()
-    if metadata.kind == "model":
+    if alias_shortcut:
+        subtitle = f"Enter -> %m:{metadata.value}"
+        if metadata.description:
+            subtitle = f"{subtitle} · {metadata.description}"
+    elif metadata.kind == "model":
         subtitle = "[@] model aliases"
     elif metadata.kind == "provider":
         label = metadata.provider_display or metadata.description or metadata.provider

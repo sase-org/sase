@@ -5611,6 +5611,18 @@ token under the cursor:
   bead rows come from ACE's warmed snapshots rather than synchronous prompt-bar
   bead-store reads; if a dynamic refresh is unavailable, static directive names,
   aliases, keyword rows, and fixed values remain available.
+- **Model alias shortcut**: When the cursor is on a `*alias` token at the start of a
+  logical line or immediately after a literal ASCII space, completion opens the
+  alias-only model menu. For example, typing `*la` can select `@large`; accepting it
+  rewrites the whole star token, including any same-token suffix to the right of the
+  cursor, to `%m:@large`. If the token already has a following ASCII space, ACE reuses
+  it and leaves the cursor after that space; before a tab it inserts no extra space;
+  before a newline or prompt end it appends one ASCII space. `Enter` and `Ctrl+L` accept
+  the highlighted alias and never submit the prompt while the alias menu is open. No
+  matches dismiss the panel and leave the literal `*query` text intact, so an unknown
+  star token submits as ordinary prose. The shortcut does not fire inside inline code,
+  fenced code, frontmatter, placeholder/directive contexts, escaped stars, Markdown
+  emphasis, or path-like tokens such as `path/*`.
 - **`@` reference completion**: A bare `@` opens the artifact-kind menu before a `:`
   appears. Local file rows such as `@src/` and `@Justfile` from the prompt-selected base
   directory stay hidden while the typed text prefix-matches an artifact kind; the panel
@@ -6125,12 +6137,14 @@ the filesystem while typing; enable it with
 `ace.prompt_completion.auto_file_paths: true`. The xprompt/skill menu also opens
 automatically while typing matching `#name`, `#!name`, or `/skill` tokens; disable that
 xprompt auto-open behavior with `ace.prompt_completion.auto_xprompt_menu: false`. The
-directive menu likewise opens automatically while typing matching `%id` tokens; disable
-it with `ace.prompt_completion.auto_directive_menu: false`. Both auto-menus open only
-once at least one identifier character follows the marker (bare `#`, `/`, and `%` stay
-quiet) and never auto-accept a single match. The grouped `@` reference menu opens from a
-bare `@`, narrowed artifact/file queries such as `@pl` or `@src/`, and syntactically
-valid `@kind:` payload contexts; disable automatic opening with
+directive menu likewise opens automatically while typing matching `%` directive tokens,
+fixed values such as `%model:`, and `*alias` model-alias shortcuts; disable it with
+`ace.prompt_completion.auto_directive_menu: false`. The xprompt/skill auto-menu opens
+only once at least one identifier character follows its marker, so bare `#` and `/` stay
+quiet. Directive completion opens from a valid bare `%`, and no automatic menu ever
+auto-accepts a single match. The grouped `@` reference menu opens from a bare `@`,
+narrowed artifact/file queries such as `@pl` or `@src/`, and syntactically valid
+`@kind:` payload contexts; disable automatic opening with
 `ace.prompt_completion.auto_artifact_menu: false`. On an un-narrowed bare-`@` menu,
 `Enter` still submits the prompt and dismisses the menu until you type a query character
 or move the selection. The project/Patch picker opens when `+` completes a token at
@@ -6144,10 +6158,11 @@ join automatic results after the prefix is non-empty, while manual `Ctrl+T` can 
 them from a bare `<`. Manual `Ctrl+T` inserts a lone match in the highest-priority
 placeholder source group outright; automatic completion only opens the menu, even for
 one match. Manual `Ctrl+T` completion still supports file paths, xprompt names,
-directives, skills, `@` references, project/Patch tags, VCS ref roots, VCS repository
-refs, prompt-local prose words, placeholders, and enabled history words regardless of
-the automatic settings. Live suggestions pause while the manual completion panel is
-open, while snippet tabstops are active, in NORMAL mode, and during feedback prompts.
+directives, skills, `*alias` model shortcuts, `@` references, project/Patch tags, VCS
+ref roots, VCS repository refs, prompt-local prose words, placeholders, and enabled
+history words regardless of the automatic settings. Live suggestions pause while the
+manual completion panel is open, while snippet tabstops are active, in NORMAL mode, and
+during feedback prompts.
 
 For file completion, directories appear before files in the candidate list. Dotfiles are
 hidden unless the partial prefix starts with `.`. Accepting a directory automatically

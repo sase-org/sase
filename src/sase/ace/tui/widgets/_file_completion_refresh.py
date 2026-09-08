@@ -20,6 +20,7 @@ from sase.ace.tui.widgets.file_completion import (
     is_path_like_token,
 )
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
+from sase.ace.tui.widgets.model_alias_completion import MODEL_ALIAS_COMPLETION_KIND
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
     HistoryWordCompletionPlaceholder,
@@ -123,6 +124,19 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                         self._file_completion_index = index
                         break
             self._update_file_completion_panel(placeholder_result.prefix)
+            return
+
+        if self._completion_kind == MODEL_ALIAS_COMPLETION_KIND:
+            alias_context = self._get_model_alias_completion_context()
+            if alias_context is None:
+                self._clear_file_completion()
+                return
+            candidates = self._model_alias_completion_rows(alias_context)
+            if not candidates:
+                self._clear_file_completion()
+                return
+            self._replace_completion_candidates_preserving_selection(candidates)
+            self._update_file_completion_panel(alias_context.query)
             return
 
         if self._completion_kind == "jinja":
@@ -468,6 +482,8 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
         if self._get_directive_arg_token_context() is not None:
             return True
         if self._get_xprompt_arg_completion_context() is not None:
+            return True
+        if self._get_model_alias_completion_context() is not None:
             return True
 
         directive_ctx = self._get_directive_token_context()

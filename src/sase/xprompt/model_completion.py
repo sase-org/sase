@@ -10,7 +10,7 @@ payload remains a launch-time configuration snapshot.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -81,7 +81,7 @@ _IMPLICIT_ALIASES: tuple[str, ...] = BUILTIN_MODEL_ALIAS_NAMES
 
 
 @dataclass(frozen=True, slots=True)
-class _ModelCompletionEntry:
+class ModelCompletionEntry:
     """One inline-completable ``%model`` value."""
 
     value: str
@@ -107,7 +107,7 @@ class _ModelCompletionEntry:
     provider_model_count: int = 0
 
 
-_CatalogCache = tuple[tuple[object, ...], tuple[_ModelCompletionEntry, ...]]
+_CatalogCache = tuple[tuple[object, ...], tuple[ModelCompletionEntry, ...]]
 _CATALOG_CACHE: _CatalogCache | None = None
 
 
@@ -117,7 +117,7 @@ def build_model_completion_catalog(
     overrides: Mapping[str, TemporaryLLMOverride] | None = None,
     provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
     routing_context: ProviderRoutingContext | None = None,
-) -> list[_ModelCompletionEntry]:
+) -> list[ModelCompletionEntry]:
     """Return ordered inline-completable ``%model`` values.
 
     Canonical model names come from the cached LLM metadata payload. Short
@@ -136,23 +136,30 @@ def build_model_completion_catalog(
         if use_cache:
             assert token is not None
             _CATALOG_CACHE = (token, tuple(entries))
-    if routing_context is not None and provider_disables is not None:
-        raise ValueError("pass routing_context or provider_disables, not both")
-    context = (
-        peek_provider_routing_context()
-        if routing_context is None and provider_disables is None
-        else resolve_provider_routing_context(
-            routing_context=routing_context,
-            provider_disables=provider_disables,
-        )
+    return _overlay_live_model_completion_entries(
+        entries,
+        overrides=overrides,
+        provider_disables=provider_disables,
+        routing_context=routing_context,
     )
-    if context.provider_disables or context.priority is not None:
-        entries = _apply_provider_routing(entries, context, overrides=overrides)
-    elif overrides is not None:
-        entries = _apply_alias_overrides(entries, overrides)
-    if overrides is None and not context.provider_disables and context.priority is None:
-        return entries
-    return entries
+
+
+def peek_cached_model_completion_catalog(
+    *,
+    overrides: Mapping[str, TemporaryLLMOverride] | None = None,
+    provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
+    routing_context: ProviderRoutingContext | None = None,
+) -> list[ModelCompletionEntry] | None:
+    """Return the warm model catalog without building it on a cache miss."""
+    token = current_config_token()
+    if _CATALOG_CACHE is None or _CATALOG_CACHE[0] != token:
+        return None
+    return _overlay_live_model_completion_entries(
+        list(_CATALOG_CACHE[1]),
+        overrides=overrides,
+        provider_disables=provider_disables,
+        routing_context=routing_context,
+    )
 
 
 def model_completion_catalog_payload() -> dict[str, object]:
@@ -171,22 +178,26 @@ def model_completion_catalog_payload() -> dict[str, object]:
 
 
 def filter_model_completion_entries(
-    entries: list[_ModelCompletionEntry],
+    entries: list[ModelCompletionEntry],
     partial: str,
-) -> list[_ModelCompletionEntry]:
+) -> list[ModelCompletionEntry]:
     """Return entries whose value or alias hint prefix-matches ``partial``."""
     binding = require_rust_binding("filter_model_completion_entries")
-    payload: Any = binding(
-        [_model_completion_entry_to_wire(entry) for entry in entries],
-        partial,
-    )
+    payload: Any = binding(model_completion_entry_wire_rows(entries), partial)
     if not isinstance(payload, list):
         raise TypeError("filter_model_completion_entries returned a non-list payload")
     return [_model_completion_entry_from_wire(row) for row in payload]
 
 
+def model_completion_entry_wire_rows(
+    entries: Sequence[ModelCompletionEntry],
+) -> list[dict[str, object]]:
+    """Return rectangular Rust/Python wire rows for model catalog entries."""
+    return [_model_completion_entry_to_wire(entry) for entry in entries]
+
+
 def _model_completion_entry_to_wire(
-    entry: _ModelCompletionEntry,
+    entry: ModelCompletionEntry,
 ) -> dict[str, object]:
     """Return the rectangular Rust/Python wire row for one entry."""
     row: dict[str, object] = {}
@@ -198,7 +209,7 @@ def _model_completion_entry_to_wire(
 
 def _model_completion_entry_from_wire(
     payload: object,
-) -> _ModelCompletionEntry:
+) -> ModelCompletionEntry:
     """Rehydrate one Rust-returned wire row into the Python dataclass."""
     if not isinstance(payload, Mapping):
         raise TypeError("model completion filter row must be a mapping")
@@ -211,13 +222,38 @@ def _model_completion_entry_from_wire(
             values[field_name] = raw if isinstance(raw, int) else 0
         else:
             values[field_name] = raw if isinstance(raw, str) else ""
-    return _ModelCompletionEntry(**values)  # type: ignore[arg-type]
+    return ModelCompletionEntry(**values)  # type: ignore[arg-type]
+
+
+def _overlay_live_model_completion_entries(
+    entries: list[ModelCompletionEntry],
+    *,
+    overrides: Mapping[str, TemporaryLLMOverride] | None,
+    provider_disables: Mapping[str, TemporaryProviderDisable] | None,
+    routing_context: ProviderRoutingContext | None,
+) -> list[ModelCompletionEntry]:
+    """Apply live provider and temporary-alias overlays to a static catalog."""
+    if routing_context is not None and provider_disables is not None:
+        raise ValueError("pass routing_context or provider_disables, not both")
+    context = (
+        peek_provider_routing_context()
+        if routing_context is None and provider_disables is None
+        else resolve_provider_routing_context(
+            routing_context=routing_context,
+            provider_disables=provider_disables,
+        )
+    )
+    if context.provider_disables or context.priority is not None:
+        return _apply_provider_routing(entries, context, overrides=overrides)
+    if overrides is not None:
+        return _apply_alias_overrides(entries, overrides)
+    return entries
 
 
 def _apply_alias_overrides(
-    entries: list[_ModelCompletionEntry],
+    entries: list[ModelCompletionEntry],
     overrides: Mapping[str, TemporaryLLMOverride],
-) -> list[_ModelCompletionEntry]:
+) -> list[ModelCompletionEntry]:
     """Return *entries* with temporary targets overlaid on matching aliases."""
     if not overrides:
         return list(entries)
@@ -249,13 +285,13 @@ def _apply_alias_overrides(
 
 
 def _apply_provider_routing(
-    entries: list[_ModelCompletionEntry],
+    entries: list[ModelCompletionEntry],
     routing_context: ProviderRoutingContext,
     *,
     overrides: Mapping[str, TemporaryLLMOverride] | None,
-) -> list[_ModelCompletionEntry]:
+) -> list[ModelCompletionEntry]:
     """Drop unavailable concrete entries and refresh alias target metadata."""
-    filtered: list[_ModelCompletionEntry] = []
+    filtered: list[ModelCompletionEntry] = []
     for entry in entries:
         if entry.kind not in {"model", "provider"}:
             filtered.append(entry)
@@ -275,7 +311,7 @@ def _apply_provider_routing(
     except Exception:  # noqa: BLE001 - keep concrete filtering if aliases fail.
         return _apply_alias_overrides(filtered, overrides or {})
 
-    overlaid: list[_ModelCompletionEntry] = []
+    overlaid: list[ModelCompletionEntry] = []
     for entry in filtered:
         if entry.kind not in {"implicit_alias", "user_alias"}:
             overlaid.append(entry)
@@ -343,7 +379,7 @@ def _completion_provenance(routing: ProviderAvailability) -> str:
     return ""
 
 
-def _build_static_catalog() -> list[_ModelCompletionEntry]:
+def _build_static_catalog() -> list[ModelCompletionEntry]:
     payload = get_llm_metadata_payload()
     providers = _dict(payload.get("providers"))
     model_to_provider = _str_dict(payload.get("model_to_provider"))
@@ -363,7 +399,7 @@ def _build_static_catalog() -> list[_ModelCompletionEntry]:
     except Exception:  # noqa: BLE001 - plain aliases are the safe fallback.
         alias_views = {}
 
-    entries: list[_ModelCompletionEntry] = []
+    entries: list[ModelCompletionEntry] = []
     seen: set[str] = set()
     contributing_providers: dict[str, tuple[str, int]] = {}
     for provider in provider_order:
@@ -449,7 +485,7 @@ def _build_static_catalog() -> list[_ModelCompletionEntry]:
 
 
 def _append_implicit_alias_entries(
-    entries: list[_ModelCompletionEntry],
+    entries: list[ModelCompletionEntry],
     seen: set[str],
     *,
     user_aliases: dict[str, str],
@@ -475,7 +511,7 @@ def _append_implicit_alias_entries(
 
 
 def _append_model_entry(
-    entries: list[_ModelCompletionEntry],
+    entries: list[ModelCompletionEntry],
     seen: set[str],
     *,
     model: str,
@@ -497,7 +533,7 @@ def _append_model_entry(
         glyph = model_advisory_marker(advisory_severity)
         description = f"{description} — {glyph} {advisory_label}"
     entries.append(
-        _ModelCompletionEntry(
+        ModelCompletionEntry(
             value=model,
             display=model,
             description=description,
@@ -513,7 +549,7 @@ def _append_model_entry(
 
 
 def _append_provider_entry(
-    entries: list[_ModelCompletionEntry],
+    entries: list[ModelCompletionEntry],
     seen: set[str],
     *,
     provider: str,
@@ -524,7 +560,7 @@ def _append_provider_entry(
     if value in seen or not _is_inline_completable(value):
         return
     entries.append(
-        _ModelCompletionEntry(
+        ModelCompletionEntry(
             value=value,
             display=value,
             description=provider_display,
@@ -547,7 +583,7 @@ def _advisory_labels(value: object) -> dict[str, tuple[str, str]]:
 
 
 def _append_alias_entry(
-    entries: list[_ModelCompletionEntry],
+    entries: list[ModelCompletionEntry],
     seen: set[str],
     *,
     value: str,
@@ -565,7 +601,7 @@ def _append_alias_entry(
         selector_members = tuple(
             member for member in view.selector_members if not member.last_resort
         )
-        entry = _ModelCompletionEntry(
+        entry = ModelCompletionEntry(
             value=display_value,
             display=display_value,
             description=description,
@@ -586,7 +622,7 @@ def _append_alias_entry(
             bucket=view.bucket or "",
         )
     else:
-        entry = _ModelCompletionEntry(
+        entry = ModelCompletionEntry(
             value=display_value,
             display=display_value,
             description=description,
@@ -656,7 +692,10 @@ def _dict_list(value: object) -> list[dict[str, object]]:
 __all__ = [
     "MODEL_COMPLETION_CATALOG_SCHEMA_VERSION",
     "MODEL_COMPLETION_ENTRY_WIRE_FIELDS",
+    "ModelCompletionEntry",
     "build_model_completion_catalog",
     "filter_model_completion_entries",
+    "model_completion_entry_wire_rows",
     "model_completion_catalog_payload",
+    "peek_cached_model_completion_catalog",
 ]

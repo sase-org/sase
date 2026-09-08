@@ -16,6 +16,12 @@ from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
     completion_scroll_offset,
 )
+from sase.ace.tui.widgets.model_alias_completion import (
+    ModelAliasShortcutContext,
+    build_loading_model_alias_placeholder,
+    build_model_alias_completion_candidates,
+    build_unavailable_model_alias_placeholder,
+)
 from sase.ace.tui.widgets.prompt_word_completion import (
     WordCompletionResult,
     build_prompt_word_completion_result,
@@ -28,7 +34,9 @@ from sase.ace.tui.widgets.vcs_repo_completion import (
     VCS_REPO_COMPLETION_KIND,
     vcs_repo_completion_title,
 )
-from sase.xprompt.model_completion import build_model_completion_catalog
+from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
+from sase.llm_provider.temporary_override import peek_active_alias_overrides
+from sase.xprompt.model_completion import peek_cached_model_completion_catalog
 from sase.xprompt.vcs_project_completion import build_vcs_project_completion_entries
 
 if TYPE_CHECKING:
@@ -91,6 +99,9 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
         _machine_inventory: tuple[dict[str, str], ...] | None
         _machine_available: bool
         _machine_inflight: bool
+        _model_completion_catalog_loaded: bool
+        _model_completion_catalog_available: bool
+        _model_completion_catalog_inflight: bool
         _artifact_ref_bug_projection: (
             tuple[object, str | None, tuple[ArtifactRefBugCandidate, ...]] | None
         )
@@ -143,6 +154,11 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
         def _schedule_wait_bead_inventory_load(self, project_key: str) -> None: ...
         def _schedule_finalizer_inventory_load(self) -> None: ...
         def _schedule_machine_inventory_load(self) -> None: ...
+        def _schedule_model_completion_catalog_load(
+            self,
+            *,
+            force: bool = False,
+        ) -> None: ...
         def _prompt_app_or_none(self) -> object | None: ...
         def _artifact_ref_sync_row(
             self,
@@ -478,6 +494,55 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
             return
         self._schedule_machine_inventory_load()
 
+    def _model_completion_catalog_state(
+        self,
+    ) -> tuple[str, tuple[Any, ...] | None]:
+        """Return the model catalog state without building on the UI thread."""
+        provider = getattr(self._prompt_app_or_none(), "model_completion_catalog", None)
+        if callable(provider):
+            try:
+                provided = provider()
+            except Exception:
+                return "unavailable", ()
+            if isinstance(provided, tuple) and len(provided) == 2:
+                rows, available = provided
+                if rows is None:
+                    return "loading", None
+                if available:
+                    return "warm", tuple(rows)
+                return "unavailable", ()
+
+        cached = peek_cached_model_completion_catalog(
+            overrides=peek_active_alias_overrides(),
+            routing_context=peek_provider_routing_context(),
+        )
+        if cached is not None:
+            return "warm", tuple(cached)
+        if (
+            self._model_completion_catalog_loaded
+            and not self._model_completion_catalog_available
+        ):
+            return "unavailable", ()
+        return "loading", None
+
+    def _model_alias_completion_rows(
+        self,
+        context: ModelAliasShortcutContext,
+        *,
+        retry_unavailable: bool = False,
+    ) -> list[CompletionCandidate]:
+        """Build shortcut rows, scheduling a cold catalog load when needed."""
+        state, entries = self._model_completion_catalog_state()
+        if state == "warm" and entries is not None:
+            return build_model_alias_completion_candidates(context, entries)
+        if state == "unavailable" and retry_unavailable:
+            self._schedule_model_completion_catalog_load(force=True)
+            return [build_loading_model_alias_placeholder()]
+        if state == "loading":
+            self._schedule_model_completion_catalog_load()
+            return [build_loading_model_alias_placeholder()]
+        return [build_unavailable_model_alias_placeholder()]
+
     def _placeholder_completion_includes_common_at_empty_prefix(self) -> bool:
         """Return the empty-prefix rule for the placeholder menu that is open.
 
@@ -534,16 +599,9 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
 
     def _warm_model_completion_catalog(self) -> None:
         """Warm the static ``%model`` catalog off the keystroke path."""
-        if getattr(self, "_model_completion_catalog_warmed", False):
-            return
         if not callable(getattr(self.app, "get_prompt_completion_settings", None)):
             return
-        self._model_completion_catalog_warmed = True
-        self.run_worker(
-            build_model_completion_catalog,
-            name="prompt-model-catalog",
-            thread=True,
-        )
+        self._schedule_model_completion_catalog_load()
 
 
 def _warm_vcs_completion_catalogs() -> None:

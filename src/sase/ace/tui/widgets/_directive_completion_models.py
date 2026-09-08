@@ -17,6 +17,7 @@ from sase.llm_provider.temporary_override import peek_active_alias_overrides
 from sase.xprompt.model_completion import filter_model_completion_entries
 
 ModelCatalogBuilder = Callable[..., list[Any]]
+_MODEL_ALIAS_ENTRY_KINDS = frozenset({"implicit_alias", "user_alias"})
 
 
 class _ModelEntryDisplay(Protocol):
@@ -81,36 +82,7 @@ def _build_model_arg_completion_candidates(
         ),
         partial,
     )
-    candidates = [
-        CompletionCandidate(
-            display=entry.display,
-            insertion=entry.value,
-            is_dir=entry.kind == "provider",
-            name=entry.value,
-            metadata=ModelCompletionMetadata(
-                value=entry.value,
-                kind=entry.kind,
-                alias_kind=entry.alias_kind,
-                provider=entry.provider,
-                provider_display=_model_provider_display(entry),
-                short_alias=(
-                    entry.aliases[0] if entry.kind == "model" and entry.aliases else ""
-                ),
-                target_provider=entry.target_provider,
-                target_model=entry.target_model,
-                target_effort=entry.target_effort,
-                provenance=entry.provenance,
-                reference=entry.reference,
-                reference_effort=entry.reference_effort,
-                pool_available=entry.pool_available,
-                pool_total=entry.pool_total,
-                description=entry.description,
-                config_source=entry.config_source,
-                provider_model_count=entry.provider_model_count,
-            ),
-        )
-        for entry in entries
-    ]
+    candidates = [_model_entry_completion_candidate(entry) for entry in entries]
 
     shared = ""
     partial_lower = partial.lower()
@@ -123,6 +95,51 @@ def _build_model_arg_completion_candidates(
             partial,
         )
     return candidates, shared
+
+
+def build_model_alias_shortcut_candidates(
+    partial: str,
+    entries: Sequence[Any],
+) -> tuple[list[CompletionCandidate], str]:
+    """Build ``*alias`` rows from an already-warm model catalog."""
+    alias_entries = [
+        entry
+        for entry in filter_model_completion_entries(list(entries), f"@{partial}")
+        if entry.kind in _MODEL_ALIAS_ENTRY_KINDS
+    ]
+    candidates = [_model_entry_completion_candidate(entry) for entry in alias_entries]
+    return candidates, ""
+
+
+def _model_entry_completion_candidate(entry: Any) -> CompletionCandidate:
+    """Project one model-catalog row into the shared completion UI type."""
+    return CompletionCandidate(
+        display=entry.display,
+        insertion=entry.value,
+        is_dir=entry.kind == "provider",
+        name=entry.value,
+        metadata=ModelCompletionMetadata(
+            value=entry.value,
+            kind=entry.kind,
+            alias_kind=entry.alias_kind,
+            provider=entry.provider,
+            provider_display=_model_provider_display(entry),
+            short_alias=(
+                entry.aliases[0] if entry.kind == "model" and entry.aliases else ""
+            ),
+            target_provider=entry.target_provider,
+            target_model=entry.target_model,
+            target_effort=entry.target_effort,
+            provenance=entry.provenance,
+            reference=entry.reference,
+            reference_effort=entry.reference_effort,
+            pool_available=entry.pool_available,
+            pool_total=entry.pool_total,
+            description=entry.description,
+            config_source=entry.config_source,
+            provider_model_count=entry.provider_model_count,
+        ),
+    )
 
 
 def _build_model_alias_key_completion_candidates(
