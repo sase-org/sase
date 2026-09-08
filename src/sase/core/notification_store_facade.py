@@ -6,14 +6,20 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.notification_store_wire import (
+    NotificationPlusOneOutcomeWire,
+    NotificationPlusOneRequestWire,
     NotificationStateUpdateWire,
     NotificationStoreSnapshotWire,
     NotificationTabClassificationWire,
     NotificationUpdateOutcomeWire,
+    NotificationUpsertOutcomeWire,
+    NotificationUpsertRequestWire,
+    notification_plus_one_outcome_from_dict,
     notification_snapshot_from_dict,
     notification_store_wire_to_json_dict,
     notification_tab_classification_from_dict,
     notification_update_outcome_from_dict,
+    notification_upsert_outcome_from_dict,
 )
 from sase.core.rust import require_rust_binding
 from sase.notifications.models import Notification
@@ -129,6 +135,30 @@ def rewrite_notifications_counts(
     return notification_update_outcome_from_dict(payload)
 
 
+def append_notification_plus_one(
+    path: Path | str,
+    request: NotificationPlusOneRequestWire | dict[str, Any],
+) -> NotificationPlusOneOutcomeWire:
+    """Append one +1, addressed by id or ``(sender, dedup_key)``, through Rust."""
+    binding = require_rust_binding("append_notification_plus_one")
+    payload: dict[str, Any] = binding(
+        str(path), notification_store_wire_to_json_dict(request)
+    )
+    return notification_plus_one_outcome_from_dict(payload)
+
+
+def upsert_notification(
+    path: Path | str,
+    request: NotificationUpsertRequestWire | dict[str, Any],
+) -> NotificationUpsertOutcomeWire:
+    """Create a minted row, or +1 the matching ``dedup_key`` row, through Rust."""
+    binding = require_rust_binding("upsert_notification")
+    payload: dict[str, Any] = binding(
+        str(path), notification_store_wire_to_json_dict(request)
+    )
+    return notification_upsert_outcome_from_dict(payload)
+
+
 __all__ = [
     "NotificationStateUpdateWire",
     "NotificationStoreSnapshotWire",
@@ -136,6 +166,7 @@ __all__ = [
     "NotificationUpdateOutcomeWire",
     "append_notification",
     "append_notification_counts",
+    "append_notification_plus_one",
     "apply_notification_state_update",
     "apply_notification_state_update_counts",
     "classify_notification_tabs",
@@ -143,4 +174,5 @@ __all__ = [
     "read_notifications_snapshot",
     "rewrite_notifications",
     "rewrite_notifications_counts",
+    "upsert_notification",
 ]

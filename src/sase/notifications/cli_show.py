@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 
+from sase.bead.plus_one_presentation import PLUS_ONE_SECTION_LABEL
 from sase.notifications.catalog import (
     NotificationInfo,
     notification_info_to_json,
@@ -101,6 +102,21 @@ def _print_markdown(info: NotificationInfo) -> None:
         sys.stdout.write(f"  - snooze_until: `{info.snooze_until}`\n")
     else:
         sys.stdout.write("  - snooze_until: none\n")
+    sys.stdout.write(
+        f"- dedup_key: `{info.dedup_key}`\n"
+        if info.dedup_key
+        else "- dedup_key: none\n"
+    )
+    sys.stdout.write(f"\n## {PLUS_ONE_SECTION_LABEL}\n\n")
+    if info.plus_ones:
+        for plus_one in info.plus_ones:
+            sys.stdout.write(f"- +1 {plus_one.sender} · {plus_one.timestamp}\n")
+            sys.stdout.write(f"  {_humanize_text(plus_one.note)}\n")
+        if info.plus_one_count > len(info.plus_ones):
+            dropped = info.plus_one_count - len(info.plus_ones)
+            sys.stdout.write(f"- ({dropped} older entries dropped)\n")
+    else:
+        sys.stdout.write("- none\n")
 
 
 def _bool_text(value: bool) -> str:

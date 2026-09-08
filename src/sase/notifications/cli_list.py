@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 
+from sase.bead.plus_one_presentation import plus_one_badge
 from sase.notifications.catalog import (
     NotificationInfo,
     list_notification_infos,
@@ -56,7 +57,7 @@ def _print_pretty(infos: list[NotificationInfo]) -> None:
         print("No notifications found.")
         return
 
-    print("ID\tAGE\tRESURFACED\tSENDER\tTAGS\tSTATE\tNOTES")
+    print("ID\tAGE\tRESURFACED\tSENDER\tTAGS\tSTATE\t+1\tNOTES")
     for info in infos:
         print(
             "\t".join(
@@ -71,6 +72,7 @@ def _print_pretty(infos: list[NotificationInfo]) -> None:
                     info.sender,
                     ",".join(info.tags) if info.tags else "-",
                     _state_label(info),
+                    plus_one_badge(info.plus_one_count) or "-",
                     _truncate(
                         _humanize_text(" | ".join(info.notes)),
                         _PRETTY_NOTES_MAX_CHARS,

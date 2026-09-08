@@ -139,6 +139,73 @@ def append_notification(n: Notification) -> None:
     _invalidate_load_cache()
 
 
+def append_notification_plus_one(
+    *,
+    note: str,
+    sender: str,
+    timestamp: str,
+    notification_id: str | None = None,
+    dedup_key: str | None = None,
+) -> Any:
+    """Append one +1 by id or ``(sender, dedup_key)`` through the Rust store.
+
+    Exactly one of ``notification_id``/``dedup_key`` addresses the target row.
+    """
+    from sase.core import notification_store_facade
+    from sase.core.notification_store_wire import NotificationPlusOneRequestWire
+
+    request = NotificationPlusOneRequestWire(
+        id=notification_id,
+        dedup_key=dedup_key,
+        timestamp=timestamp,
+        sender=sender,
+        note=note,
+    )
+    outcome = notification_store_facade.append_notification_plus_one(
+        _notifications_path(), request
+    )
+    if outcome.action == "applied":
+        _invalidate_load_cache()
+    return outcome
+
+
+def upsert_notification(
+    n: Notification,
+    *,
+    plus_one_note: str | None = None,
+    plus_one_timestamp: str | None = None,
+    supersedes: str | None = None,
+) -> Any:
+    """Create ``n``, or +1 the row matching ``(n.sender, n.dedup_key)``.
+
+    No ``n.dedup_key`` is today's plain create. A matching key appends a +1
+    with ``plus_one_note`` instead of creating; ``supersedes`` retires rows
+    matching an older dedup key on the create branch only.
+    """
+    from sase.core import notification_store_facade
+    from sase.core.notification_store_wire import NotificationUpsertRequestWire
+
+    _ensure_notifications_dir()
+    request = NotificationUpsertRequestWire(
+        notification=n,
+        plus_one_note=plus_one_note,
+        plus_one_timestamp=plus_one_timestamp,
+        supersedes=supersedes,
+    )
+    outcome = notification_store_facade.upsert_notification(
+        _notifications_path(), request
+    )
+    if outcome.action == "created":
+        try:
+            from sase.notifications.pending_actions import register_notification
+
+            register_notification(n)
+        except Exception:
+            log.warning("Failed to register pending notification action", exc_info=True)
+    _invalidate_load_cache()
+    return outcome
+
+
 def append_notification_strict(n: Notification) -> None:
     """Append a gate notification and require pending registration to succeed.
 

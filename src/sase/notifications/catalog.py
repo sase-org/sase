@@ -7,6 +7,7 @@ from pathlib import Path
 
 from sase.notifications.models import (
     Notification,
+    NotificationPlusOne,
     format_relative_time,
     notification_activity_sort_key,
     normalize_notification_tags,
@@ -37,6 +38,9 @@ class NotificationInfo:
     muted: bool
     snooze_until: str | None
     resurfaced_at: str | None
+    plus_ones: list[NotificationPlusOne]
+    plus_one_count: int
+    dedup_key: str | None
 
 
 def _normalize_home_path(value: str) -> str:
@@ -71,6 +75,9 @@ def _notification_info(notification: Notification) -> NotificationInfo:
         muted=notification.muted,
         snooze_until=notification.snooze_until,
         resurfaced_at=notification.resurfaced_at,
+        plus_ones=list(notification.plus_ones),
+        plus_one_count=notification.plus_one_count,
+        dedup_key=notification.dedup_key,
     )
 
 
@@ -87,6 +94,9 @@ def _query_values(notification: Notification) -> list[str]:
     if notification.action:
         values.append(notification.action)
     values.extend(str(value) for value in notification.action_data.values())
+    for plus_one in notification.plus_ones:
+        values.append(plus_one.note)
+        values.append(plus_one.sender)
     return values
 
 
@@ -170,12 +180,40 @@ def notification_info_to_json(info: NotificationInfo) -> dict[str, object]:
         "muted": info.muted,
         "snooze_until": info.snooze_until,
         "resurfaced_at": info.resurfaced_at,
+        "plus_ones": [
+            {
+                "timestamp": plus_one.timestamp,
+                "sender": plus_one.sender,
+                "note": plus_one.note,
+            }
+            for plus_one in info.plus_ones
+        ],
+        "plus_one_count": info.plus_one_count,
+        "dedup_key": info.dedup_key,
     }
+
+
+def resolve_notification_id_prefix(prefix: str) -> str | None:
+    """Resolve a full notification id or unique id prefix, dismissed included.
+
+    Returns ``None`` for no match or an ambiguous prefix; callers that need
+    to tell those apart should resolve against :func:`list_notification_infos`
+    ids directly.
+    """
+    snapshot = read_current_notification_snapshot(include_dismissed=True)
+    ids = [notification.id for notification in snapshot.notifications]
+    if prefix in ids:
+        return prefix
+    matches = [
+        notification_id for notification_id in ids if notification_id.startswith(prefix)
+    ]
+    return matches[0] if len(matches) == 1 else None
 
 
 __all__ = [
     "NotificationInfo",
     "list_notification_infos",
     "notification_info_to_json",
+    "resolve_notification_id_prefix",
     "resolve_notification_ref",
 ]

@@ -17,7 +17,7 @@ from sase.notification_gates.models import (
 )
 from sase.notification_gates.registry import PRIVILEGED_GATE_ACTIONS
 from sase.notifications.models import Notification, normalize_notification_tags
-from sase.notifications.store import append_notification
+from sase.notifications.store import append_notification, upsert_notification
 
 
 def handle_notify_command(args: argparse.Namespace) -> NoReturn:
@@ -29,6 +29,10 @@ def handle_notify_command(args: argparse.Namespace) -> NoReturn:
         sys.exit(handle_notify_operation(args))
     if subcommand == "create":
         _handle_notify_create(args)
+    if subcommand == "+1":
+        from sase.notifications.cli_plus_one import handle_notify_plus_one
+
+        handle_notify_plus_one(args)
     if subcommand in (None, "list"):
         from sase.notifications.cli_list import handle_notify_list
 
@@ -40,7 +44,7 @@ def handle_notify_command(args: argparse.Namespace) -> NoReturn:
         handle_notify_show(args)
         sys.exit(0)
     print(
-        "Usage: sase notify {apply-state,apply-state-many,create,list,show}",
+        "Usage: sase notify {+1,apply-state,apply-state-many,create,list,show}",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -79,6 +83,22 @@ def _handle_notify_create(args: argparse.Namespace) -> NoReturn:
         print(f"Error [{exc.code}] {exc.target}: {exc}", file=sys.stderr)
         sys.exit(1)
 
+    dedup_key = _create_optional_str(
+        getattr(args, "dedup_key", None), data.get("dedup_key")
+    )
+    plus_one_note = _create_optional_str(
+        getattr(args, "plus_one_note", None), data.get("plus_one_note")
+    )
+    supersedes = _create_optional_str(
+        getattr(args, "supersedes", None), data.get("supersedes")
+    )
+    if dedup_key and not plus_one_note:
+        print(
+            "Error: -k/--dedup-key requires -p/--plus-one-note",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     notification = Notification(
         id=str(uuid.uuid4()),
         timestamp=datetime.now(get_timezone()).isoformat(),
@@ -91,6 +111,7 @@ def _handle_notify_create(args: argparse.Namespace) -> NoReturn:
         action=None if data.get("action") is None else str(data["action"]),
         action_data=_create_action_data(data.get("action_data")),
         silent=bool(data.get("silent", False)),
+        dedup_key=dedup_key,
     )
 
     if notification.action in PRIVILEGED_GATE_ACTIONS:
@@ -100,9 +121,27 @@ def _handle_notify_create(args: argparse.Namespace) -> NoReturn:
         )
         sys.exit(1)
 
+    if dedup_key:
+        outcome = upsert_notification(
+            notification,
+            plus_one_note=plus_one_note,
+            plus_one_timestamp=notification.timestamp,
+            supersedes=supersedes,
+        )
+        print(json.dumps({"action": outcome.action, "id": outcome.id}))
+        sys.exit(0)
+
     append_notification(notification)
     print(notification.id)
     sys.exit(0)
+
+
+def _create_optional_str(cli_value: object, json_value: object) -> str | None:
+    if cli_value is not None:
+        return str(cli_value)
+    if json_value is not None:
+        return str(json_value)
+    return None
 
 
 def _create_tags(json_tags: object, cli_tags: list[str] | None) -> list[str]:

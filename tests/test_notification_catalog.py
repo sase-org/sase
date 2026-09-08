@@ -110,6 +110,9 @@ def test_lists_newest_first_with_limit_and_stable_json_keys(
         "muted",
         "snooze_until",
         "resurfaced_at",
+        "plus_ones",
+        "plus_one_count",
+        "dedup_key",
     ]
     assert payload["icon"] == "🚨"
     assert payload["priority"] is True

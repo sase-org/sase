@@ -246,6 +246,38 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="notify_subcommand", help="Notification subcommands"
     )
 
+    plus_one_parser = notify_sub.add_parser(
+        "+1",
+        help="Append a +1 corroboration note to an existing notification",
+        description=(
+            "Append a +1 corroboration note to an existing notification, by id "
+            "or by (sender, dedup key). A +1 never changes read/dismissed/"
+            "muted/snooze state, order, or delivery."
+        ),
+    )
+    plus_one_parser.add_argument(
+        "id",
+        nargs="?",
+        default=None,
+        help="Notification id or unique prefix (omit when using -k)",
+    )
+    plus_one_parser.add_argument(
+        "note",
+        help="Corroboration note text",
+    )
+    plus_one_parser.add_argument(
+        "-k",
+        "--dedup-key",
+        default=None,
+        help="Address the newest row matching (sender, dedup key) instead of id",
+    )
+    plus_one_parser.add_argument(
+        "-s",
+        "--sender",
+        default=None,
+        help="+1 sender (default: the resolved current agent/user identity)",
+    )
+
     from sase.ops.commands.notify import add_notify_operation_parsers
 
     add_notify_operation_parsers(notify_sub)
@@ -269,10 +301,35 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     create_parser.add_argument(
+        "-k",
+        "--dedup-key",
+        default=None,
+        help=(
+            "Sender-scoped dedup key. No existing (sender, key) row: create it "
+            "with this key. A match: append -p/--plus-one-note to it instead "
+            "of creating (requires -p)."
+        ),
+    )
+    create_parser.add_argument(
+        "-p",
+        "--plus-one-note",
+        default=None,
+        help="Note appended when -k/--dedup-key matches an existing row",
+    )
+    create_parser.add_argument(
         "-s",
         "--sender",
         default=None,
         help="Notification sender name (overrides sender in JSON input)",
+    )
+    create_parser.add_argument(
+        "-S",
+        "--supersedes",
+        default=None,
+        help=(
+            "Old dedup key to retire on create: matching rows get a "
+            "superseding +1 and are dismissed"
+        ),
     )
     create_parser.add_argument(
         "-t",

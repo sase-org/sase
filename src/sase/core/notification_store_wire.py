@@ -102,6 +102,48 @@ class NotificationStateUpdateWire:
     tab_key: str | None = None
 
 
+@dataclass(frozen=True)
+class NotificationPlusOneRequestWire:
+    """Request accepted by ``append_notification_plus_one``: id or dedup key."""
+
+    timestamp: str
+    sender: str
+    note: str
+    id: str | None = None
+    dedup_key: str | None = None
+
+
+@dataclass(frozen=True)
+class NotificationPlusOneOutcomeWire:
+    schema_version: int
+    action: str  # "applied" | "no_match"
+    id: str | None = None
+    plus_one_count: int = 0
+    plus_ones_dropped: int = 0
+    notification: Notification | None = None
+
+
+@dataclass(frozen=True)
+class NotificationUpsertRequestWire:
+    """Create a fully minted row, or +1 the newest matching ``dedup_key`` row."""
+
+    notification: Notification
+    plus_one_note: str | None = None
+    plus_one_timestamp: str | None = None
+    supersedes: str | None = None
+
+
+@dataclass(frozen=True)
+class NotificationUpsertOutcomeWire:
+    schema_version: int
+    action: str  # "created" | "plus_oned"
+    id: str | None = None
+    plus_one_count: int = 0
+    plus_ones_dropped: int = 0
+    superseded_ids: list[str] = field(default_factory=list)
+    notification: Notification | None = None
+
+
 def notification_store_wire_to_json_dict(record: Any) -> Any:
     """Project notification wire records to the dict shape expected by Rust."""
     if isinstance(record, (list, tuple)):
@@ -274,17 +316,72 @@ def notification_update_outcome_from_dict(
     )
 
 
+def notification_plus_one_outcome_from_dict(
+    data: dict[str, Any],
+) -> NotificationPlusOneOutcomeWire:
+    schema = int(data["schema_version"])
+    if schema != NOTIFICATION_STORE_WIRE_SCHEMA_VERSION:
+        raise ValueError(
+            f"notification store wire schema mismatch: got {schema}, "
+            f"expected {NOTIFICATION_STORE_WIRE_SCHEMA_VERSION}"
+        )
+    notification_data = data.get("notification")
+    return NotificationPlusOneOutcomeWire(
+        schema_version=schema,
+        action=str(data["action"]),
+        id=None if data.get("id") is None else str(data["id"]),
+        plus_one_count=int(data.get("plus_one_count", 0)),
+        plus_ones_dropped=int(data.get("plus_ones_dropped", 0)),
+        notification=(
+            None
+            if notification_data is None
+            else _notification_from_dict(notification_data)
+        ),
+    )
+
+
+def notification_upsert_outcome_from_dict(
+    data: dict[str, Any],
+) -> NotificationUpsertOutcomeWire:
+    schema = int(data["schema_version"])
+    if schema != NOTIFICATION_STORE_WIRE_SCHEMA_VERSION:
+        raise ValueError(
+            f"notification store wire schema mismatch: got {schema}, "
+            f"expected {NOTIFICATION_STORE_WIRE_SCHEMA_VERSION}"
+        )
+    notification_data = data.get("notification")
+    return NotificationUpsertOutcomeWire(
+        schema_version=schema,
+        action=str(data["action"]),
+        id=None if data.get("id") is None else str(data["id"]),
+        plus_one_count=int(data.get("plus_one_count", 0)),
+        plus_ones_dropped=int(data.get("plus_ones_dropped", 0)),
+        superseded_ids=[str(item) for item in data.get("superseded_ids") or []],
+        notification=(
+            None
+            if notification_data is None
+            else _notification_from_dict(notification_data)
+        ),
+    )
+
+
 __all__ = [
     "NOTIFICATION_STORE_WIRE_SCHEMA_VERSION",
     "NotificationAgentKeyWire",
+    "NotificationPlusOneOutcomeWire",
+    "NotificationPlusOneRequestWire",
     "NotificationStateUpdateWire",
     "NotificationStoreSnapshotWire",
     "_NotificationStoreStatsWire",
     "NotificationTabClassificationWire",
     "_NotificationTabWire",
     "NotificationUpdateOutcomeWire",
+    "NotificationUpsertOutcomeWire",
+    "NotificationUpsertRequestWire",
+    "notification_plus_one_outcome_from_dict",
     "notification_snapshot_from_dict",
     "notification_tab_classification_from_dict",
     "notification_store_wire_to_json_dict",
     "notification_update_outcome_from_dict",
+    "notification_upsert_outcome_from_dict",
 ]
