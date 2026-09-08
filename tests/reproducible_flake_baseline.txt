@@ -231,12 +231,12 @@ tests/test_global_state_leak_detector.py::test_snapshot_includes_live_config_tok
 # directive-completion parity nodes shared the same <=5-failure full-run
 # records as that master break; they pass after just install on this tree
 # (sase_core 0.31.6). Already recorded as DISCOVERED ISSUE on sase-s6; no
-# dedicated flake task. The directive-name node has a later y5.2 cutoff below
-# because fixed-at entries are unique per node and later evidence reused the
-# same node ID.
+# dedicated flake task. directive_name_rows_match was re-retired by the
+# sase-xe / sase-y9 block below after later core-skew evidence; a node may
+# have only one fixed-at entry, and that block's 2026-09-08T00:40:36Z instant
+# is a strict superset of the 00:21:54Z cutoff sase-y5.2 briefly added here.
 # fixed-at: 2026-08-23T14:09:41Z tests/test_launch_admission_mixed_matrix.py::test_plan_digest_mismatch_is_rejected
 # fixed-at: 2026-08-23T14:09:41Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_directive_argument_rows_match[%wait(]
-# fixed-at: 2026-09-08T00:21:54Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_directive_name_rows_match
 # fixed-at: 2026-08-23T14:09:41Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_include_typed_launch_directives_when_enabled
 # fixed-at: 2026-08-23T14:09:41Z tests/test_xprompt_directive_completion_parity.py::test_failure_degradation_retains_static_directive_rows
 #
