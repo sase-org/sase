@@ -19,6 +19,7 @@ from sase.dispatch.models import (
     DispatchError,
     DiscoveryCandidate,
     EnrollmentResult,
+    MachineDiagnostic,
     MachineRecord,
     MachineStatus,
 )
@@ -109,19 +110,43 @@ def _handle_add(args: argparse.Namespace, service: MachineService) -> int:
 
 
 def _handle_discover(args: argparse.Namespace, service: MachineService) -> int:
-    candidates = service.discover(
+    result = service.discover_detailed(
         provider_refs=tuple(getattr(args, "provider", None) or ()),
         timeout_seconds=getattr(args, "timeout", None),
     )
+    candidates = result.candidates
     if getattr(args, "json", False):
-        print(_json({"candidates": [_candidate_row(item) for item in candidates]}))
+        print(
+            _json(
+                {
+                    "candidates": [_candidate_row(item) for item in candidates],
+                    "diagnostics": [
+                        _diagnostic_row(item) for item in result.diagnostics
+                    ],
+                }
+            )
+        )
     elif not candidates:
         print("No remote machine candidates found.")
     else:
         for candidate in candidates:
             label = candidate.display_name or candidate.endpoint
-            print(f"{candidate.key}\t{label}")
-    return 0
+            detail = f"\t{candidate.detail}" if candidate.detail else ""
+            print(f"{candidate.key}\t{label}{detail}")
+    if not getattr(args, "json", False):
+        for diagnostic in result.diagnostics:
+            print(
+                (
+                    f"{diagnostic.severity}: {diagnostic.message}"
+                    if not diagnostic.alias
+                    else (
+                        f"{diagnostic.severity}: {diagnostic.alias}: "
+                        f"{diagnostic.message}"
+                    )
+                ),
+                file=sys.stderr,
+            )
+    return 1 if any(item.severity == "error" for item in result.diagnostics) else 0
 
 
 def _handle_list(args: argparse.Namespace) -> int:
@@ -286,6 +311,15 @@ def _candidate_row(candidate: DiscoveryCandidate) -> dict[str, object]:
         "machine_selector": candidate.machine_selector,
         "installation_pin": candidate.installation_pin,
         "detail": candidate.detail,
+    }
+
+
+def _diagnostic_row(diagnostic: MachineDiagnostic) -> dict[str, object]:
+    return {
+        "code": diagnostic.code,
+        "severity": diagnostic.severity,
+        "message": diagnostic.message,
+        "alias": diagnostic.alias,
     }
 
 

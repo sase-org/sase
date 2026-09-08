@@ -1,0 +1,28 @@
+{
+  "Self": {
+    "ID": "self-node",
+    "DNSName": "athena.tail297af1.ts.net."
+  },
+  "Peer": {
+    "peer-no-dns": {
+      "ID": "peer-no-dns",
+      "HostName": "no-dns",
+      "Online": true
+    },
+    "peer-invalid-dns": {
+      "ID": "peer-invalid-dns",
+      "DNSName": "bad_name.tail297af1.ts.net.",
+      "HostName": "bad-name",
+      "Online": true
+    },
+    "peer-extra": {
+      "ID": "peer-extra",
+      "DNSName": "extra.tail297af1.ts.net.",
+      "HostName": "extra",
+      "Online": true,
+      "Unexpected": {
+        "nested": true
+      }
+    }
+  }
+}

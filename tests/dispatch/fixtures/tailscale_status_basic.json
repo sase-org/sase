@@ -1,0 +1,37 @@
+{
+  "Self": {
+    "ID": "self-node",
+    "PublicKey": "nodekey:self",
+    "DNSName": "athena.tail297af1.ts.net.",
+    "HostName": "athena",
+    "Online": true,
+    "OS": "linux"
+  },
+  "Peer": {
+    "self-node": {
+      "ID": "self-node",
+      "PublicKey": "nodekey:self",
+      "DNSName": "athena.tail297af1.ts.net.",
+      "HostName": "athena",
+      "Online": true,
+      "OS": "linux"
+    },
+    "peer-apollo": {
+      "ID": "peer-apollo",
+      "PublicKey": "nodekey:apollo",
+      "DNSName": "apollo.tail297af1.ts.net.",
+      "HostName": "apollo",
+      "Online": true,
+      "OS": "linux",
+      "ExtraFutureField": "ignored"
+    },
+    "peer-pixel": {
+      "ID": "peer-pixel",
+      "PublicKey": "nodekey:pixel",
+      "DNSName": "pixel.tail297af1.ts.net.",
+      "HostName": "pixel",
+      "Online": false,
+      "OS": "android"
+    }
+  }
+}

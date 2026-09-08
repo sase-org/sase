@@ -188,6 +188,11 @@ def test_config_schema_validates_dispatch_machine_records() -> None:
     validator = Draft7Validator(schema())
     pin = "sase_inst_v1_" + "a" * 64
 
+    dispatch_discovery = schema()["definitions"]["dispatchConfig"]["properties"][
+        "discovery"
+    ]["properties"]
+    assert dispatch_discovery["enabled_providers"]["default"] == ["builtin@tailnet"]
+
     validator.validate(
         {
             "dispatch": {

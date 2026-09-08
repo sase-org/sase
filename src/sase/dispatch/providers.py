@@ -2,21 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 import importlib.metadata
-import json
 import os
-import sys
+import queue
+import threading
 from typing import Any
 
 import pluggy
 
-from sase.finalizers.bounded_subprocess import (
-    HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS,
-    STDOUT_CAP_BYTES,
-    run_bounded_subprocess,
-)
 from sase.plugins.qualified_id import (
     PluginQualifiedIdError,
     canonical_plugin_prefix,
@@ -26,41 +21,30 @@ from sase.version._utils import metadata_value
 
 from .config import load_dispatch_config, provider_config
 from .models import (
+    DiagnosticSeverity,
     DispatchConfig,
     DispatchProviderSpec,
     DiscoveryCandidate,
+    DiscoveryResult,
     MachineDiagnostic,
     MachineRecord,
 )
 from .provider_protocol import DISPATCH_PROVIDER_PROTOCOL_VERSION
+from .provider_runtime import (
+    DispatchProviderExecutionError as _DispatchProviderExecutionError,
+    DispatchProviderOperationRunner as _DispatchProviderOperationRunner,
+    DispatchProviderRecord as _DispatchProviderRecord,
+    machine_payload as _machine_payload,
+    provider_error_message as _provider_error_message,
+    provider_ref_key,
+    run_dispatch_provider_operation as _run_dispatch_provider_operation,
+    validate_provider_result as _validate_provider_result,
+)
+from .tailnet_discovery import discover_tailnet
 
 DISPATCH_ENTRY_POINT_GROUP = "sase_dispatch"
 _BUILTIN_PROVIDER_REFS = frozenset({"builtin@https", "builtin@tailnet"})
-_PROVIDER_OPERATION_TIMEOUT_SECONDS = 30.0
-_BASE_PROVIDER_ENV_KEYS = (
-    "HOME",
-    "LANG",
-    "LC_ALL",
-    "LC_CTYPE",
-    "LOGNAME",
-    "PATH",
-    "SHELL",
-    "TERM",
-    "TMPDIR",
-    "USER",
-)
-_PROVIDER_RESULT_KEYS = frozenset(
-    {
-        "schema_version",
-        "operation",
-        "provider_ref",
-        "status",
-        "diagnostics",
-        "specs",
-        "candidates",
-        "plan",
-    }
-)
+_DISCOVERY_MIN_TIMEOUT_SECONDS = 0.001
 
 hookspec = pluggy.HookspecMarker("sase_dispatch")
 hookimpl = pluggy.HookimplMarker("sase_dispatch")
@@ -132,9 +116,9 @@ class BuiltinDispatchProviders:
         config: Mapping[str, Any],
         timeout_seconds: float,
     ) -> tuple[Mapping[str, Any], ...]:
-        del config, timeout_seconds
         if provider_ref == "builtin@tailnet":
-            return ()
+            result = discover_tailnet(config, timeout_seconds)
+            return (_discovery_result_payload(result),)
         return ()
 
 
@@ -150,26 +134,11 @@ class _DispatchProviderInventory:
 
 
 @dataclass(frozen=True)
-class _DispatchProviderRecord:
-    """Metadata-only dispatch provider record."""
+class _RawDiscoveryResult:
+    """Raw provider payloads plus normalized diagnostics."""
 
-    provider_ref: str
-    provider_id: str
-    package: str
-    version: str
-    entry_point: str | None
-    builtin: bool
-    disabled_by: tuple[str, ...] = ()
-
-
-class _DispatchProviderExecutionError(RuntimeError):
-    """Raised when an isolated dispatch provider operation fails."""
-
-
-_DispatchProviderOperationRunner = Callable[
-    [_DispatchProviderRecord, str, Mapping[str, Any], float],
-    Mapping[str, Any],
-]
+    payloads: tuple[Mapping[str, Any], ...] = ()
+    diagnostics: tuple[MachineDiagnostic, ...] = ()
 
 
 def collect_dispatch_providers(
@@ -255,42 +224,117 @@ def discover_dispatch_candidates(
     entry_points_fn: Any = importlib.metadata.entry_points,
     operation_runner: _DispatchProviderOperationRunner | None = None,
 ) -> tuple[DiscoveryCandidate, ...]:
-    """Run explicit provider discovery for enabled providers only."""
+    """Run explicit provider discovery and return candidates only."""
+    return discover_dispatch_result(
+        config=config,
+        provider_refs=provider_refs,
+        timeout_seconds=timeout_seconds,
+        entry_points_fn=entry_points_fn,
+        operation_runner=operation_runner,
+    ).candidates
+
+
+def discover_dispatch_result(
+    *,
+    config: DispatchConfig | None = None,
+    provider_refs: Sequence[str] = (),
+    timeout_seconds: float | None = None,
+    entry_points_fn: Any = importlib.metadata.entry_points,
+    operation_runner: _DispatchProviderOperationRunner | None = None,
+) -> DiscoveryResult:
+    """Run explicit provider discovery for enabled providers."""
     resolved_config = load_dispatch_config() if config is None else config
-    selected_refs = (
+    selected_refs = _unique_refs(
         tuple(provider_refs) or resolved_config.discovery_enabled_provider_refs
     )
     if not selected_refs:
-        return ()
+        return DiscoveryResult()
 
+    diagnostics: list[MachineDiagnostic] = []
     candidates: list[DiscoveryCandidate] = []
+    enabled_refs: list[str] = []
+    for provider_ref in selected_refs:
+        if resolved_config.provider_enabled(provider_ref):
+            enabled_refs.append(provider_ref)
+            continue
+        diagnostics.append(
+            MachineDiagnostic(
+                code="dispatch_provider_disabled",
+                severity="warning",
+                message=(
+                    f"dispatch provider {provider_ref} is selected for discovery "
+                    "but disabled"
+                ),
+            )
+        )
+
+    if not enabled_refs:
+        return DiscoveryResult(diagnostics=tuple(diagnostics))
+
+    inventory = collect_dispatch_providers(entry_points_fn=entry_points_fn)
+    diagnostics.extend(inventory.diagnostics)
+    installed = {
+        provider_ref_key(provider_ref): spec
+        for provider_ref, spec in inventory.by_ref().items()
+    }
+    discoverable_refs: list[str] = []
+    for provider_ref in enabled_refs:
+        spec = installed.get(provider_ref_key(provider_ref))
+        if spec is None:
+            diagnostics.append(
+                MachineDiagnostic(
+                    code="dispatch_provider_not_installed",
+                    severity="error",
+                    message=(
+                        f"dispatch provider {provider_ref} is selected for discovery "
+                        "but is not installed"
+                    ),
+                )
+            )
+        elif not spec.supports_discovery:
+            diagnostics.append(
+                MachineDiagnostic(
+                    code="dispatch_provider_discovery_unsupported",
+                    severity="warning",
+                    message=(
+                        f"dispatch provider {provider_ref} does not support discovery"
+                    ),
+                )
+            )
+        else:
+            discoverable_refs.append(spec.ref)
+
     for provider, provider_ref in _iter_providers_for_refs(
-        selected_refs,
+        discoverable_refs,
         entry_points_fn=entry_points_fn,
     ):
-        if not resolved_config.provider_enabled(provider_ref):
-            continue
         provider_timeout = timeout_seconds or resolved_config.request_timeout_seconds
         provider_settings = provider_config(resolved_config, provider_ref)
         if provider.builtin:
-            payloads = _safe_discover(
+            result = _safe_discover(
                 BuiltinDispatchProviders(),
                 provider_ref=provider_ref,
                 config=provider_settings,
                 timeout_seconds=provider_timeout,
             )
         else:
-            payloads = _safe_discover_external(
+            result = _safe_discover_external(
                 provider,
                 config=provider_settings,
                 timeout_seconds=provider_timeout,
                 operation_runner=operation_runner or _run_dispatch_provider_operation,
             )
-        for payload in payloads:
+        diagnostics.extend(result.diagnostics)
+        for payload in result.payloads:
             candidate = _candidate_from_payload(provider_ref, payload)
             if candidate is not None:
                 candidates.append(candidate)
-    return tuple(sorted(_dedupe_candidates(candidates), key=lambda item: item.key))
+    return DiscoveryResult(
+        candidates=tuple(
+            sorted(_dedupe_candidates(candidates), key=lambda item: item.key)
+        ),
+        diagnostics=tuple(diagnostics),
+    )
 
 
 def connection_plan_for_machine(
@@ -344,76 +388,6 @@ def connection_plan_for_machine(
     if isinstance(plan, Mapping):
         return dict(plan)
     return machine.to_connection_plan()
-
-
-def _run_dispatch_provider_operation(
-    provider: _DispatchProviderRecord,
-    operation: str,
-    request: Mapping[str, Any],
-    timeout_seconds: float,
-) -> Mapping[str, Any]:
-    """Run one external dispatch provider operation in a bounded subprocess."""
-
-    argv = [
-        sys.executable,
-        "-m",
-        "sase.dispatch.worker_entry",
-        "--provider-ref",
-        provider.provider_ref,
-        "--operation",
-        operation,
-    ]
-    try:
-        payload = json.dumps(dict(request), sort_keys=True).encode("utf-8")
-    except Exception as exc:
-        raise _DispatchProviderExecutionError(
-            f"dispatch provider request is not JSON-serializable: {exc}"
-        ) from exc
-    if len(payload) > STDOUT_CAP_BYTES:
-        raise _DispatchProviderExecutionError("dispatch provider request exceeded cap")
-    timeout = min(
-        timeout_seconds,
-        _PROVIDER_OPERATION_TIMEOUT_SECONDS,
-        HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS,
-    )
-    try:
-        completed = run_bounded_subprocess(
-            argv,
-            cwd=os.getcwd(),
-            env=_sanitized_provider_env(request.get("config")),
-            input_bytes=payload,
-            timeout=timeout,
-        )
-    except Exception as exc:
-        raise _DispatchProviderExecutionError(
-            f"dispatch provider operation {operation!r} could not start: "
-            f"{type(exc).__name__}: {exc}"
-        ) from exc
-    if completed.timed_out:
-        raise _DispatchProviderExecutionError(
-            f"dispatch provider operation {operation!r} timed out after {timeout:g}s"
-        )
-    if completed.stdout_truncated or completed.stderr_truncated:
-        raise _DispatchProviderExecutionError(
-            "dispatch provider operation exceeded output cap"
-        )
-    try:
-        result = json.loads(completed.stdout.decode("utf-8"))
-    except Exception as exc:
-        raise _DispatchProviderExecutionError(
-            f"dispatch provider operation {operation!r} emitted malformed JSON: "
-            f"{type(exc).__name__}: {exc}"
-        ) from exc
-    if not isinstance(result, Mapping):
-        raise _DispatchProviderExecutionError(
-            f"dispatch provider operation {operation!r} must return a JSON object"
-        )
-    if completed.returncode != 0 and result.get("status") != "failed":
-        raise _DispatchProviderExecutionError(
-            f"dispatch provider operation {operation!r} exited with "
-            f"{completed.returncode}"
-        )
-    return result
 
 
 def _collect_plugin_specs(
@@ -525,22 +499,194 @@ def _safe_discover(
     provider_ref: str,
     config: Mapping[str, Any],
     timeout_seconds: float,
-) -> tuple[Mapping[str, Any], ...]:
+) -> _RawDiscoveryResult:
+    timeout = _positive_timeout(timeout_seconds)
+    outcomes: queue.Queue[_RawDiscoveryResult | Exception] = queue.Queue(maxsize=1)
+
+    def worker() -> None:
+        try:
+            outcomes.put(
+                _run_discovery_hook(
+                    plugin,
+                    provider_ref=provider_ref,
+                    config=config,
+                    timeout_seconds=timeout,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - discovery diagnostics only.
+            outcomes.put(exc)
+
+    thread = threading.Thread(
+        target=worker,
+        name=f"sase-dispatch-discover-{provider_ref}",
+        daemon=True,
+    )
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        return _RawDiscoveryResult(
+            diagnostics=(
+                MachineDiagnostic(
+                    code="dispatch_provider_discovery_timeout",
+                    severity="error",
+                    message=(
+                        f"dispatch provider {provider_ref} discovery exceeded "
+                        f"{timeout:g}s"
+                    ),
+                ),
+            )
+        )
+
+    try:
+        outcome = outcomes.get_nowait()
+    except queue.Empty:  # pragma: no cover - defensive thread invariant.
+        return _RawDiscoveryResult(
+            diagnostics=(
+                MachineDiagnostic(
+                    code="dispatch_provider_discovery_failed",
+                    severity="error",
+                    message=f"dispatch provider {provider_ref} discovery produced no result",
+                ),
+            )
+        )
+    if isinstance(outcome, Exception):
+        return _RawDiscoveryResult(
+            diagnostics=(
+                MachineDiagnostic(
+                    code="dispatch_provider_discovery_failed",
+                    severity="error",
+                    message=(
+                        f"dispatch provider {provider_ref} discovery failed: "
+                        f"{type(outcome).__name__}"
+                    ),
+                ),
+            )
+        )
+    return outcome
+
+
+def _run_discovery_hook(
+    plugin: object,
+    *,
+    provider_ref: str,
+    config: Mapping[str, Any],
+    timeout_seconds: float,
+) -> _RawDiscoveryResult:
     pm = pluggy.PluginManager("sase_dispatch")
     pm.add_hookspecs(DispatchProviderHookSpec)
-    try:
-        pm.register(plugin)
-        results = pm.hook.dispatch_discover(
-            provider_ref=provider_ref,
-            config=config,
-            timeout_seconds=timeout_seconds,
-        )
-    except Exception:
-        return ()
+    pm.register(plugin)
+    results = pm.hook.dispatch_discover(
+        provider_ref=provider_ref,
+        config=config,
+        timeout_seconds=timeout_seconds,
+    )
     payloads: list[Mapping[str, Any]] = []
+    diagnostics: list[MachineDiagnostic] = []
     for result in results:
-        payloads.extend(iter_mapping_specs(result))
-    return tuple(payloads)
+        _collect_discovery_hook_result(result, payloads, diagnostics)
+    return _RawDiscoveryResult(payloads=tuple(payloads), diagnostics=tuple(diagnostics))
+
+
+def _collect_discovery_hook_result(
+    value: object,
+    payloads: list[Mapping[str, Any]],
+    diagnostics: list[MachineDiagnostic],
+) -> None:
+    if value is None:
+        return
+    if isinstance(value, Mapping):
+        candidates = value.get("candidates")
+        if candidates is not None:
+            payloads.extend(iter_mapping_specs(candidates))
+        raw_diagnostics = value.get("diagnostics")
+        if raw_diagnostics is not None:
+            diagnostics.extend(
+                diagnostic
+                for diagnostic in (
+                    _diagnostic_from_payload(item)
+                    for item in iter_mapping_specs(raw_diagnostics)
+                )
+                if diagnostic is not None
+            )
+        if "endpoint" in value or (candidates is None and raw_diagnostics is None):
+            payloads.append(value)
+        return
+    if isinstance(value, Iterable) and not isinstance(value, (str, bytes, bytearray)):
+        for item in value:
+            _collect_discovery_hook_result(item, payloads, diagnostics)
+
+
+def _diagnostic_from_payload(payload: Mapping[str, Any]) -> MachineDiagnostic | None:
+    code = payload.get("code")
+    message = payload.get("message")
+    if not isinstance(code, str) or not code:
+        return None
+    if not isinstance(message, str) or not message:
+        return None
+    severity = payload.get("severity")
+    alias = payload.get("alias")
+    severity_value: DiagnosticSeverity
+    if severity == "info":
+        severity_value = "info"
+    elif severity == "error":
+        severity_value = "error"
+    else:
+        severity_value = "warning"
+    return MachineDiagnostic(
+        code=code,
+        message=message,
+        severity=severity_value,
+        alias=alias if isinstance(alias, str) else "",
+    )
+
+
+def _discovery_result_payload(result: DiscoveryResult) -> dict[str, object]:
+    return {
+        "candidates": [
+            _candidate_payload(candidate) for candidate in result.candidates
+        ],
+        "diagnostics": [
+            _diagnostic_payload(diagnostic) for diagnostic in result.diagnostics
+        ],
+    }
+
+
+def _candidate_payload(candidate: DiscoveryCandidate) -> dict[str, object]:
+    return {
+        "endpoint": candidate.endpoint,
+        "display_name": candidate.display_name,
+        "machine_selector": candidate.machine_selector,
+        "installation_pin": candidate.installation_pin,
+        "detail": candidate.detail,
+    }
+
+
+def _diagnostic_payload(diagnostic: MachineDiagnostic) -> dict[str, object]:
+    return {
+        "code": diagnostic.code,
+        "severity": diagnostic.severity,
+        "message": diagnostic.message,
+        "alias": diagnostic.alias,
+    }
+
+
+def _unique_refs(values: Sequence[str]) -> tuple[str, ...]:
+    seen: set[str] = set()
+    refs: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        refs.append(value)
+    return tuple(refs)
+
+
+def _positive_timeout(value: float) -> float:
+    try:
+        timeout = float(value)
+    except (TypeError, ValueError):
+        timeout = _DISCOVERY_MIN_TIMEOUT_SECONDS
+    return max(_DISCOVERY_MIN_TIMEOUT_SECONDS, timeout)
 
 
 def _safe_discover_external(
@@ -549,7 +695,7 @@ def _safe_discover_external(
     config: Mapping[str, Any],
     timeout_seconds: float,
     operation_runner: _DispatchProviderOperationRunner,
-) -> tuple[Mapping[str, Any], ...]:
+) -> _RawDiscoveryResult:
     request = {
         "schema_version": DISPATCH_PROVIDER_PROTOCOL_VERSION,
         "operation": "discover",
@@ -560,16 +706,45 @@ def _safe_discover_external(
     try:
         result = operation_runner(provider, "discover", request, timeout_seconds)
         _validate_provider_result(provider, "discover", result)
-    except _DispatchProviderExecutionError:
-        return ()
+    except _DispatchProviderExecutionError as exc:
+        return _RawDiscoveryResult(
+            diagnostics=(
+                MachineDiagnostic(
+                    code="dispatch_provider_discovery_failed",
+                    severity="error",
+                    message=(
+                        f"dispatch provider {provider.provider_ref} discovery failed: "
+                        f"{exc}"
+                    ),
+                ),
+            )
+        )
     if result.get("status") != "ok":
-        return ()
+        return _RawDiscoveryResult(
+            diagnostics=(
+                MachineDiagnostic(
+                    code="dispatch_provider_discovery_failed",
+                    severity="error",
+                    message=(
+                        f"dispatch provider {provider.provider_ref} discovery failed: "
+                        f"{_provider_error_message(result, 'provider returned failed status')}"
+                    ),
+                ),
+            )
+        )
+    diagnostics = list(_provider_result_diagnostics(result))
     raw_candidates = result.get("candidates")
     if not isinstance(raw_candidates, Sequence) or isinstance(
         raw_candidates, (str, bytes, bytearray)
     ):
-        return ()
-    return tuple(item for item in raw_candidates if isinstance(item, Mapping))
+        return _RawDiscoveryResult(diagnostics=tuple(diagnostics))
+    payloads: list[Mapping[str, Any]] = []
+    for item in raw_candidates:
+        _collect_discovery_hook_result(item, payloads, diagnostics)
+    return _RawDiscoveryResult(
+        payloads=tuple(payloads),
+        diagnostics=tuple(diagnostics),
+    )
 
 
 def _record_from_entry_point(
@@ -597,79 +772,19 @@ def _record_from_entry_point(
     )
 
 
-def _validate_provider_result(
-    provider: _DispatchProviderRecord,
-    operation: str,
+def _provider_result_diagnostics(
     result: Mapping[str, Any],
-) -> None:
-    unknown = sorted(set(result) - _PROVIDER_RESULT_KEYS)
-    if unknown:
-        raise _DispatchProviderExecutionError(
-            f"dispatch provider operation {operation!r} returned unknown field(s): "
-            + ", ".join(unknown)
-        )
-    if result.get("schema_version") != DISPATCH_PROVIDER_PROTOCOL_VERSION:
-        raise _DispatchProviderExecutionError(
-            f"dispatch provider operation {operation!r} returned unsupported schema "
-            f"{result.get('schema_version')!r}"
-        )
-    if result.get("operation") != operation:
-        raise _DispatchProviderExecutionError(
-            f"dispatch provider operation {operation!r} returned operation "
-            f"{result.get('operation')!r}"
-        )
-    result_provider_ref = result.get("provider_ref")
-    if not isinstance(result_provider_ref, str) or provider_ref_key(
-        result_provider_ref
-    ) != provider_ref_key(provider.provider_ref):
-        raise _DispatchProviderExecutionError(
-            f"dispatch provider operation {operation!r} returned provider "
-            f"{result.get('provider_ref')!r}"
-        )
-    status = result.get("status")
-    if status not in {"ok", "failed"}:
-        raise _DispatchProviderExecutionError(
-            f"dispatch provider operation {operation!r} returned status {status!r}"
-        )
-
-
-def _provider_error_message(result: Mapping[str, Any], fallback: str) -> str:
+) -> tuple[MachineDiagnostic, ...]:
     raw = result.get("diagnostics")
     if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes, bytearray)):
-        return fallback
-    messages = [
-        str(item.get("message"))
-        for item in raw
-        if isinstance(item, Mapping) and isinstance(item.get("message"), str)
-    ]
-    return messages[0] if messages else fallback
-
-
-def _machine_payload(machine: MachineRecord) -> dict[str, object]:
-    return {
-        "alias": machine.alias,
-        "provider_ref": machine.provider_ref,
-        "endpoint": machine.endpoint,
-        "credential_ref": machine.credential_ref,
-        "pinned_installation_id": machine.pinned_installation_id,
-        "connection_kind": machine.connection_kind,
-        "tls": machine.tls.to_plan(),
-        "quarantined": machine.quarantined,
-        "quarantine_reason": machine.quarantine_reason,
-    }
-
-
-def _sanitized_provider_env(config: object) -> dict[str, str]:
-    allowed = set(_BASE_PROVIDER_ENV_KEYS)
-    if isinstance(config, Mapping):
-        env_names = config.get("env")
-        if isinstance(env_names, Sequence) and not isinstance(
-            env_names, (str, bytes, bytearray)
-        ):
-            allowed.update(item for item in env_names if isinstance(item, str))
-    env = {key: os.environ[key] for key in sorted(allowed) if key in os.environ}
-    env["SASE_DISPATCH_PROVIDER_SUBPROCESS"] = "1"
-    return env
+        return ()
+    return tuple(
+        diagnostic
+        for diagnostic in (
+            _diagnostic_from_payload(item) for item in iter_mapping_specs(raw)
+        )
+        if diagnostic is not None
+    )
 
 
 def _spec_from_payload(
@@ -785,15 +900,6 @@ def _canonical_provider_ref_for_entry(*, package: str, name: str) -> str:
     return canonical_plugin_qualified_id(f"{canonical_plugin_prefix(package)}@{name}")
 
 
-def provider_ref_key(value: str) -> str:
-    """Return a canonical lookup key for syntactically valid provider refs."""
-
-    try:
-        return canonical_plugin_qualified_id(value)
-    except PluginQualifiedIdError:
-        return value
-
-
 def _distribution_version(name: str) -> str:
     try:
         return importlib.metadata.version(name)
@@ -807,6 +913,7 @@ __all__ = [
     "collect_dispatch_providers",
     "connection_plan_for_machine",
     "discover_dispatch_candidates",
+    "discover_dispatch_result",
     "hookimpl",
     "hookspec",
     "iter_mapping_specs",

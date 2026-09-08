@@ -33,10 +33,10 @@ dispatch:
     builtin@https:
       enabled: true
     builtin@tailnet:
-      enabled: false
+      enabled: true
   machines: {}
   discovery:
-    enabled_providers: []
+    enabled_providers: [builtin@tailnet]
   request_timeout_seconds: 5
   status_cache_seconds: 60
   federation_worker:

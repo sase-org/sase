@@ -146,7 +146,7 @@ def _merge_with_built_in(
     )
 
 
-def get_usage_limit_config(provider_name: str) -> ProviderUsageLimitConfig | None:
+def _get_usage_limit_config(provider_name: str) -> ProviderUsageLimitConfig | None:
     """Load usage-limit config for a specific provider.
 
     Merges user-configured values (from
@@ -211,7 +211,7 @@ def detect_usage_limit(
     if not settings.enabled:
         return None
 
-    config = get_usage_limit_config(provider)
+    config = _get_usage_limit_config(provider)
     if config is None:
         return None
 

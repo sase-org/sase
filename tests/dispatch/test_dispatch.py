@@ -13,6 +13,7 @@ import io
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,7 @@ from sase.dispatch.providers import (
     connection_plan_for_machine,
     collect_dispatch_providers,
     discover_dispatch_candidates,
+    discover_dispatch_result,
     hookimpl,
 )
 from sase.dispatch.worker_entry import main as dispatch_worker_main
@@ -323,6 +325,13 @@ def test_discover_returns_candidates_from_enabled_provider() -> None:
     assert lab_ep.load_calls == 0
 
 
+def test_dispatch_defaults_enable_tailnet_discovery() -> None:
+    config = load_dispatch_config({"dispatch": {}})
+
+    assert config.provider_enabled("builtin@tailnet") is True
+    assert config.discovery_enabled_provider_refs == ("builtin@tailnet",)
+
+
 def test_discover_skips_disabled_provider() -> None:
     def run_provider(
         provider: Any,
@@ -342,11 +351,32 @@ def test_discover_skips_disabled_provider() -> None:
     assert candidates == ()
 
 
+def test_discover_reports_disabled_selected_provider() -> None:
+    result = discover_dispatch_result(
+        config=load_dispatch_config(
+            {
+                "dispatch": {
+                    "providers": {LAB_REF: False},
+                    "discovery": {"enabled_providers": [LAB_REF]},
+                }
+            }
+        ),
+        entry_points_fn=_entry_points_fn(),
+    )
+
+    assert result.candidates == ()
+    assert [diagnostic.code for diagnostic in result.diagnostics] == [
+        "dispatch_provider_disabled"
+    ]
+
+
 def test_discover_without_selected_providers_does_no_work() -> None:
     lab_ep = _FakeEntryPoint("lab", _FakeProvider())
 
     candidates = discover_dispatch_candidates(
-        config=load_dispatch_config({"dispatch": {}}),
+        config=load_dispatch_config(
+            {"dispatch": {"discovery": {"enabled_providers": []}}}
+        ),
         entry_points_fn=_entry_points_fn(lab_ep),
     )
 
@@ -475,7 +505,9 @@ def test_run_dispatch_provider_operation_reports_timeout(
             timed_out=True,
         )
 
-    monkeypatch.setattr("sase.dispatch.providers.run_bounded_subprocess", run_timeout)
+    monkeypatch.setattr(
+        "sase.dispatch.provider_runtime.run_bounded_subprocess", run_timeout
+    )
 
     with pytest.raises(_DispatchProviderExecutionError, match="timed out"):
         _run_dispatch_provider_operation(
@@ -626,6 +658,61 @@ def test_dispatch_worker_runs_connection_plan_hook(
 
     assert returncode == 0
     assert payload["plan"]["endpoint"] == "https://lab.example.test/provider"
+
+
+def test_discover_reports_provider_hook_exception() -> None:
+    def run_provider(
+        provider: Any,
+        operation: str,
+        request: Mapping[str, Any],
+        timeout_seconds: float,
+    ) -> Mapping[str, Any]:
+        del provider, operation, request, timeout_seconds
+        raise _DispatchProviderExecutionError("boom")
+
+    result = discover_dispatch_result(
+        config=_lab_config(enabled=True),
+        entry_points_fn=_entry_points_fn(_FakeEntryPoint("lab", object())),
+        operation_runner=run_provider,
+    )
+
+    assert result.candidates == ()
+    assert [diagnostic.code for diagnostic in result.diagnostics] == [
+        "dispatch_provider_discovery_failed"
+    ]
+
+
+def test_discover_reports_provider_subprocess_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def run_timeout(*args: object, **kwargs: object) -> BoundedCompletedProcess:
+        del args, kwargs
+        return BoundedCompletedProcess(
+            returncode=-15,
+            stdout=b"",
+            stderr=b"",
+            duration_seconds=0.01,
+            timed_out=True,
+        )
+
+    monkeypatch.setattr(
+        "sase.dispatch.provider_runtime.run_bounded_subprocess", run_timeout
+    )
+    started = time.monotonic()
+
+    result = discover_dispatch_result(
+        config=_lab_config(enabled=True),
+        timeout_seconds=0.01,
+        entry_points_fn=_entry_points_fn(_FakeEntryPoint("lab", object())),
+    )
+
+    elapsed = time.monotonic() - started
+    assert elapsed < 0.5
+    assert result.candidates == ()
+    assert [diagnostic.code for diagnostic in result.diagnostics] == [
+        "dispatch_provider_discovery_failed"
+    ]
+    assert "timed out" in result.diagnostics[0].message
 
 
 def _credential(

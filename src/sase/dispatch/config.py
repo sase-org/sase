@@ -64,7 +64,7 @@ def load_dispatch_config(
         machines=machines,
         diagnostics=tuple(diagnostics),
         discovery_enabled_provider_refs=coerce_string_tuple(
-            discovery.get("enabled_providers", ())
+            discovery.get("enabled_providers", ("builtin@tailnet",))
         ),
         request_timeout_seconds=_positive_float(
             raw_dispatch.get("request_timeout_seconds"),
@@ -179,7 +179,10 @@ def rename_machine_record(
 
 def _load_provider_settings(raw: object) -> dict[str, ProviderSettings]:
     settings = {
-        ref: ProviderSettings(ref=ref, enabled=(ref == "builtin@https"))
+        ref: ProviderSettings(
+            ref=ref,
+            enabled=ref in {"builtin@https", "builtin@tailnet"},
+        )
         for ref in DEFAULT_PROVIDER_REFS
     }
     if raw is None:

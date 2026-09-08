@@ -1027,7 +1027,7 @@
             "enabled_providers": {
               "type": "array",
               "description": "Provider refs allowed for explicit machine discovery.",
-              "default": [],
+              "default": ["builtin@tailnet"],
               "items": {
                 "type": "string",
                 "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}$"

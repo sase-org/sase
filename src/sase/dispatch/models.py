@@ -294,6 +294,14 @@ class DiscoveryCandidate:
 
 
 @dataclass(frozen=True)
+class DiscoveryResult:
+    """Candidates plus diagnostics from explicit provider discovery."""
+
+    candidates: tuple[DiscoveryCandidate, ...] = ()
+    diagnostics: tuple[MachineDiagnostic, ...] = ()
+
+
+@dataclass(frozen=True)
 class BootstrapBundle:
     """Pasteable one-time enrollment bundle."""
 
@@ -438,6 +446,7 @@ __all__ = [
     "DispatchError",
     "DispatchProviderSpec",
     "DiscoveryCandidate",
+    "DiscoveryResult",
     "EnrollmentBundleError",
     "EnrollmentResult",
     "FLEET_API_BASE_PATH",

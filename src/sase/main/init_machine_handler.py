@@ -17,7 +17,7 @@ from .init_plan import InitAction, InitPlan
 
 def plan_init_machine(args: argparse.Namespace) -> InitPlan:
     """Return a read-only plan for optional remote-machine enrollment."""
-    del args
+    check_mode = bool(getattr(args, "check", False))
     config = load_dispatch_config()
     if config.machines:
         aliases = ", ".join(machine.alias for machine in config.machines)
@@ -40,7 +40,9 @@ def plan_init_machine(args: argparse.Namespace) -> InitPlan:
         command="machine",
         label="Machine",
         summary="remote machine enrollment can discover configured providers",
-        actions=(
+        actions=()
+        if check_mode
+        else (
             InitAction(
                 path=Path("remote machine enrollment"),
                 operation="validate",
@@ -48,7 +50,7 @@ def plan_init_machine(args: argparse.Namespace) -> InitPlan:
             ),
         ),
         warnings=_diagnostic_messages(config),
-        requires_tty=True,
+        requires_tty=not check_mode,
     )
 
 

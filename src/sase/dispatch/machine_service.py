@@ -35,6 +35,7 @@ from .models import (
     BootstrapIssueResult,
     DispatchError,
     DiscoveryCandidate,
+    DiscoveryResult,
     EnrollmentBundleError,
     EnrollmentResult,
     FLEET_PROTOCOL_VERSION,
@@ -44,7 +45,7 @@ from .models import (
     is_installation_id,
     validate_machine_alias,
 )
-from .providers import discover_dispatch_candidates
+from .providers import discover_dispatch_candidates, discover_dispatch_result
 
 InputFunc = Callable[[str], str]
 BootstrapIssuer = Callable[[str, Mapping[str, object]], Mapping[str, Any]]
@@ -60,12 +61,14 @@ class MachineService:
         gateway_client: FleetGatewayClient | None = None,
         discover_fn: Callable[..., tuple[DiscoveryCandidate, ...]] | None = None,
         bootstrap_issuer: BootstrapIssuer | None = None,
+        discover_result_fn: Callable[..., DiscoveryResult] | None = None,
         time_fn: Callable[[], float] = time.time,
     ) -> None:
         self.credential_store = credential_store or LocalCredentialStore()
         self.gateway_client = gateway_client or FleetGatewayClient()
         self.discover_fn = discover_fn or discover_dispatch_candidates
         self.bootstrap_issuer = bootstrap_issuer
+        self.discover_result_fn = discover_result_fn or discover_dispatch_result
         self.time_fn = time_fn
 
     def list_machines(self) -> tuple[MachineRecord, ...]:
@@ -115,6 +118,19 @@ class MachineService:
                 f"could not issue enrollment bundle: {exc}"
             ) from exc
         return _issue_result_from_response(response)
+
+    def discover_detailed(
+        self,
+        *,
+        provider_refs: Sequence[str] = (),
+        timeout_seconds: float | None = None,
+    ) -> DiscoveryResult:
+        config = load_dispatch_config()
+        return self.discover_result_fn(
+            config=config,
+            provider_refs=tuple(provider_refs),
+            timeout_seconds=timeout_seconds,
+        )
 
     def add_machine(
         self,

@@ -13,8 +13,8 @@ import pytest
 
 from sase.llm_provider.registry import iter_plugins
 from sase.llm_provider.usage_limit_config import (
+    _get_usage_limit_config as get_usage_limit_config,
     detect_usage_limit,
-    get_usage_limit_config,
     is_usage_limit_error,
 )
 

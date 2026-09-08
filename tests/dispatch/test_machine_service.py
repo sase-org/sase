@@ -273,8 +273,20 @@ def test_add_machine_rejects_disabled_provider(
 ) -> None:
     from sase.dispatch.models import MachineRegistryError
 
-    _config_dir, credential_path = isolated_dispatch
+    config_dir, credential_path = isolated_dispatch
     pin = _pin()
+    (config_dir / "sase.yml").write_text(
+        "\n".join(
+            [
+                "dispatch:",
+                "  providers:",
+                "    builtin@tailnet:",
+                "      enabled: false",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
 
     with pytest.raises(MachineRegistryError, match="provider is not enabled"):
         MachineService(

@@ -5,8 +5,8 @@ from unittest.mock import patch
 from sase.llm_provider.usage_limit_config import (
     ProviderUsageLimitConfig,
     UsageLimitSettings,
+    _get_usage_limit_config as get_usage_limit_config,
     detect_usage_limit,
-    get_usage_limit_config,
     get_usage_limit_settings,
     is_usage_limit_error,
 )
