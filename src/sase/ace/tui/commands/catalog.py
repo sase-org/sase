@@ -224,12 +224,38 @@ def _iter_statistics_command() -> Iterator[CommandSpec]:
     )
 
 
+def _iter_provider_usage_command() -> Iterator[CommandSpec]:
+    """Yield the keyless Providers · Usage command.
+
+    No new global chord is required: the Providers home is discoverable
+    through the persistent Launch Control ``u`` binding and this searchable
+    palette entry, which opens the same read-only view directly.
+    """
+    yield CommandSpec(
+        id="provider_usage",
+        label="Open Providers · Usage",
+        key_sequence=(),
+        key_display="",
+        category="Display",
+        tabs=ALL_TABS,
+        executor=CommandExecutor(kind="app_action", action="open_provider_usage"),
+        aliases=(
+            "usage",
+            "quota",
+            "limits",
+            "capacity",
+            "subscription",
+            "providers",
+        ),
+    )
+
+
 def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     """Construct the full catalog from a :class:`KeymapRegistry`.
 
     Order is deterministic: app commands (in ``_APP_COMMAND_META``
     order), then saved-query sequences, numbered Artifacts jumps, the keyless
-    Tasks, Statistics, Logs, and Projects commands, then
+    Tasks, Statistics, Logs, Projects, and Provider Usage commands, then
     mode commands (fold, copy, leader, bang, custom; each in registry
     insertion order).
     """
@@ -241,6 +267,7 @@ def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     catalog.extend(_iter_statistics_command())
     catalog.extend(_iter_logs_command())
     catalog.extend(_iter_projects_command())
+    catalog.extend(_iter_provider_usage_command())
     catalog.extend(iter_mode_commands(registry))
     return catalog
 

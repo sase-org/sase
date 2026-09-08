@@ -129,6 +129,25 @@ def test_tasks_command_is_keyless_and_global() -> None:
     assert "proc queue" in spec.aliases
 
 
+def test_provider_usage_command_is_keyless_and_global() -> None:
+    catalog = build_command_catalog(_registry())
+    # No new global chord is required: Providers · Usage is discoverable
+    # through the persistent Launch Control ``u`` binding and this keyless,
+    # searchable command that opens the same read-only view directly.
+    spec = next(c for c in catalog if c.id == "provider_usage")
+
+    assert spec.label == "Open Providers · Usage"
+    assert spec.key_display == ""
+    assert spec.key_sequence == ()
+    assert spec.tabs == ("artifacts", "agents", "axe")
+    assert spec.executor.kind == "app_action"
+    assert spec.executor.action == "open_provider_usage"
+    assert "usage" in spec.aliases
+    assert "quota" in spec.aliases
+    assert "limits" in spec.aliases
+    assert "capacity" in spec.aliases
+
+
 def test_jump_to_next_unread_done_agent_leader_command_is_agents_only() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.jump_to_next_unread_done_agent")
@@ -294,6 +313,7 @@ def test_command_specs_are_well_formed() -> None:
             "projects",
             "tasks",
             "statistics",
+            "provider_usage",
         }:
             # These Admin Center panels are intentionally keyless: searchable
             # commands with no direct binding that open the corresponding tab.

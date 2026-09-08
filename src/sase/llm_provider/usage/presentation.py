@@ -169,28 +169,28 @@ def render_usage_rich(
                 "-",
                 "-",
                 _age_from_timestamp(provider.get("last_attempt_at"), clock),
-                _provider_status_label(provider),
+                provider_status_label(provider),
             ]
             if verbose:
                 values.append(_optional_text(provider.get("diagnostic")) or "-")
-            table.add_row(*values, style=_provider_style(provider))
+            table.add_row(*values, style=provider_style(provider))
             continue
         for index, window in enumerate(windows):
             provider_label = str(provider.get("provider") or "-") if index == 0 else ""
             values = [
                 provider_label,
                 _remaining_label(window),
-                _window_label(window),
-                _reset_label(window, clock, verbose=verbose),
-                _age_label(window),
-                _window_status_label(window),
+                window_label(window),
+                reset_label(window, clock, verbose=verbose),
+                age_label(window),
+                window_status_label(window),
             ]
             if verbose:
                 values.append(_window_source_label(window))
             table.add_row(*values, style=_window_style(window))
 
     diagnostic_lines = tuple(
-        _diagnostic_line(_usage_diagnostic_to_json(item)) for item in diagnostics
+        diagnostic_line(_usage_diagnostic_to_json(item)) for item in diagnostics
     )
     if diagnostic_lines:
         return Group(table, Text("\n".join(diagnostic_lines), style="yellow"))
@@ -318,8 +318,8 @@ def _provider_plain_record(
     if verbose:
         values["plan"] = provider.get("plan")
         values["account_mode"] = provider.get("account_mode")
-        values["last_attempt"] = _timestamp_label(provider.get("last_attempt_at"), now)
-        values["last_full_observation"] = _timestamp_label(
+        values["last_attempt"] = timestamp_label(provider.get("last_attempt_at"), now)
+        values["last_full_observation"] = timestamp_label(
             provider.get("last_full_observation_at"), now
         )
     return _plain_record("provider", **values)
@@ -341,16 +341,16 @@ def _window_plain_record(
         if used is None
         else provider_usage_format_remaining_text(used),
         "used_percent": "-" if used is None else _format_number(used),
-        "reset": _reset_label(window, now, verbose=False),
-        "age": _age_label(window),
+        "reset": reset_label(window, now, verbose=False),
+        "age": age_label(window),
         "freshness": window.get("freshness") or "unknown",
         "state": window.get("vendor_state") or "unknown",
         "source": window.get("source") or "unknown",
-        "scope": _applicability_label(window.get("applicability")),
+        "scope": applicability_label(window.get("applicability")),
     }
     if verbose:
-        values["observed_at"] = _timestamp_label(window.get("observed_at"), now)
-        values["resets_at"] = _timestamp_label(window.get("resets_at"), now)
+        values["observed_at"] = timestamp_label(window.get("observed_at"), now)
+        values["resets_at"] = timestamp_label(window.get("resets_at"), now)
         exceeded = _number(window.get("exceeded_by_percent"))
         if exceeded is not None:
             values["exceeded_by_percent"] = _format_number(exceeded)
@@ -379,7 +379,7 @@ def _plain_value(value: Any) -> str:
     return json.dumps(text, ensure_ascii=True)
 
 
-def _provider_status_label(provider: Mapping[str, Any]) -> str:
+def provider_status_label(provider: Mapping[str, Any]) -> str:
     status = str(provider.get("collection_status") or "unknown")
     label = _STATE_STATUS_LABELS.get(status, status.replace("_", " "))
     reason = _optional_text(provider.get("collection_reason"))
@@ -388,7 +388,7 @@ def _provider_status_label(provider: Mapping[str, Any]) -> str:
     return label
 
 
-def _window_status_label(window: Mapping[str, Any]) -> str:
+def window_status_label(window: Mapping[str, Any]) -> str:
     state = str(window.get("vendor_state") or "unknown")
     return _WINDOW_STATE_LABELS.get(state, state.replace("_", " "))
 
@@ -397,7 +397,7 @@ def _window_source_label(window: Mapping[str, Any]) -> str:
     parts = [
         _optional_text(window.get("source")),
         _optional_text(window.get("freshness")),
-        _applicability_label(window.get("applicability")),
+        applicability_label(window.get("applicability")),
     ]
     return " · ".join(part for part in parts if part)
 
@@ -409,12 +409,12 @@ def _remaining_label(window: Mapping[str, Any]) -> str:
     return provider_usage_format_remaining_text(used)
 
 
-def _window_label(window: Mapping[str, Any]) -> str:
+def window_label(window: Mapping[str, Any]) -> str:
     label = _optional_text(window.get("label")) or _optional_text(window.get("key"))
     return label or "-"
 
 
-def _reset_label(
+def reset_label(
     window: Mapping[str, Any],
     now: float,
     *,
@@ -426,27 +426,27 @@ def _reset_label(
         return "unknown"
     if reset_passed or resets_at <= now:
         return "reset passed"
-    relative = f"in {_duration_label(resets_at - now)}"
+    relative = f"in {duration_label(resets_at - now)}"
     if verbose:
-        return f"{relative} ({_timestamp_label(resets_at, now)})"
+        return f"{relative} ({timestamp_label(resets_at, now)})"
     return relative
 
 
-def _age_label(window: Mapping[str, Any]) -> str:
+def age_label(window: Mapping[str, Any]) -> str:
     age = _number(window.get("age_seconds"))
     if age is None:
         return "unknown"
-    return _duration_label(age)
+    return duration_label(age)
 
 
 def _age_from_timestamp(value: Any, now: float) -> str:
     timestamp = _number(value)
     if timestamp is None:
         return "unknown"
-    return _duration_label(max(now - timestamp, 0.0))
+    return duration_label(max(now - timestamp, 0.0))
 
 
-def _timestamp_label(value: Any, now: float) -> str:
+def timestamp_label(value: Any, now: float) -> str:
     timestamp = _number(value)
     if timestamp is None:
         return "unknown"
@@ -455,10 +455,10 @@ def _timestamp_label(value: Any, now: float) -> str:
     absolute = format_local(timestamp, "%Y-%m-%d %H:%M:%S %Z", default="unknown")
     if absolute == "unknown":
         return "unknown"
-    return f"{absolute} ({_duration_label(max(now - timestamp, 0.0))} ago)"
+    return f"{absolute} ({duration_label(max(now - timestamp, 0.0))} ago)"
 
 
-def _duration_label(seconds: float) -> str:
+def duration_label(seconds: float) -> str:
     if not math.isfinite(seconds):
         return "unknown"
     whole = max(int(round(seconds)), 0)
@@ -475,7 +475,7 @@ def _duration_label(seconds: float) -> str:
     return f"{days}d"
 
 
-def _applicability_label(value: Any) -> str:
+def applicability_label(value: Any) -> str:
     if not isinstance(value, Mapping):
         return "unknown"
     kind = _optional_text(value.get("kind")) or "unknown"
@@ -495,7 +495,7 @@ def _applicability_label(value: Any) -> str:
     return kind
 
 
-def _provider_style(provider: Mapping[str, Any]) -> str:
+def provider_style(provider: Mapping[str, Any]) -> str:
     status = str(provider.get("collection_status") or "")
     if status in {"error", "unauthenticated"}:
         return "yellow"
@@ -514,7 +514,7 @@ def _window_style(window: Mapping[str, Any]) -> str:
     return ""
 
 
-def _diagnostic_line(diagnostic: Mapping[str, Any]) -> str:
+def diagnostic_line(diagnostic: Mapping[str, Any]) -> str:
     provider = diagnostic.get("provider") or "store"
     message = diagnostic.get("message") or ""
     return f"{provider}: {message}"
@@ -549,8 +549,18 @@ def _string_list(value: Any) -> tuple[str, ...]:
 
 
 __all__ = [
+    "age_label",
+    "applicability_label",
+    "diagnostic_line",
+    "duration_label",
+    "provider_status_label",
+    "provider_style",
     "render_refresh_receipt_plain",
     "render_usage_plain",
     "render_usage_rich",
+    "reset_label",
+    "timestamp_label",
     "usage_snapshot_json_payload",
+    "window_label",
+    "window_status_label",
 ]

@@ -26,6 +26,7 @@ from .models_panel_rows import (
     LaunchModelSettingRow,
     build_launch_model_setting_rows,
 )
+from .models_panel_usage_modal import ProviderUsageModal
 
 if TYPE_CHECKING:
     from textual.screen import ModalScreen as _MixinBase
@@ -254,6 +255,10 @@ class ModelsPanelProvidersMixin(_MixinBase):
             ),
             callback=self._on_provider_modal_dismissed,
         )
+
+    def action_providers_usage(self) -> None:
+        """Open the read-only Providers · Usage view."""
+        self.app.push_screen(ProviderUsageModal())  # type: ignore[attr-defined]
 
     def _on_provider_modal_snapshot(
         self,

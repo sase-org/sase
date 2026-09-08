@@ -136,6 +136,7 @@ _LAUNCH_PANE_BINDINGS: list[Binding | tuple[str, str] | tuple[str, str, str]] = 
     ("ctrl+e", "manage_default_effort", "Effort"),
     ("ctrl+r", "manage_runner_limit", "Limit"),
     ("p", "providers", "Providers"),
+    ("u", "providers_usage", "Usage"),
     ("t", "tmux_agent", "tmux Agent"),
 ]
 

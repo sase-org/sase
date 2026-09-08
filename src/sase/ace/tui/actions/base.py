@@ -146,6 +146,12 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         """Open the SASE Admin Center on the Statistics tab."""
         self._open_config_center("statistics")
 
+    def action_open_provider_usage(self) -> None:
+        """Open the read-only Providers · Usage view."""
+        from ..modals.models_panel_usage_modal import ProviderUsageModal
+
+        self.push_screen(ProviderUsageModal())  # type: ignore[attr-defined]
+
     def action_open_updates_panel(self) -> None:
         """Open the SASE Admin Center on the Updates tab."""
         self._open_config_center("updates")
