@@ -301,6 +301,7 @@ def test_outbox_drain_skips_primary_owned_root(
     append_artifact_link_outbox_entry(
         project_key="gh_sase-org__sase",
         agent_name="reader",
+        run_id="run-1",
         row=_row(
             source="agent:reader",
             relation="read",
@@ -309,8 +310,8 @@ def test_outbox_drain_skips_primary_owned_root(
         ),
     )
     monkeypatch.setattr(
-        "sase.sdd.artifact_link_outbox._agent_is_published",
-        lambda _name: True,
+        "sase.sdd.artifact_link_outbox._entry_is_eligible",
+        lambda _entry: True,
     )
     before = _worktree_snapshot(plans)
     before_head = _git_output(plans, "rev-parse", "HEAD")

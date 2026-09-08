@@ -13,6 +13,10 @@ from sase.agents_sync.commit_publication import _CommitPublicationOutcome
 from sase.agents_sync.publication_outbox import list_agent_publications
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.core.commit_footer_facade import LinkedCommitTagValue
+from sase.sdd.artifact_link_release_evidence import (
+    artifact_link_run_has_release_evidence,
+)
+from sase.sdd.artifact_link_store import ArtifactLinkStore
 from sase.workflows.commit.checkpoint import CommitCheckpoint
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
 from sase.workflows.commit.workflow_publication import run_agent_publication_step
@@ -21,6 +25,7 @@ from tests._commit_workflow_fixtures import (
     make_provider,
     no_commit_hooks,  # noqa: F401 (imported for fixture discovery, re-used below)
 )
+from tests._conftest_environment import redirect_sase_home
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
 
@@ -91,6 +96,78 @@ def test_commit_publishes_every_sidecar_inline_in_order(
         "drain_artifact_link_outbox",
         "publish_agent_hood",
     ]
+
+
+def test_publication_step_records_release_evidence_for_this_run(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A real commit's publication step earns this run's own release evidence."""
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260908_120000")
+    store = ArtifactLinkStore(project_key="gh_sase-org__sase", sidecar_roots={})
+    cp = CommitCheckpoint(
+        method="create_commit",
+        payload={"message": "fix: archive"},
+        cwd=str(tmp_path),
+        primary_revision="a" * 40,
+        commit_sha="c" * 40,
+        publication_agent="worker",
+    )
+    monkeypatch.setattr(
+        "sase.sdd.checkout_anchor.resolve_checkout_anchor",
+        lambda _cwd: SimpleNamespace(primary_root=tmp_path, project_name="Project"),
+    )
+    monkeypatch.setattr(
+        "sase.bead_pages.publication.publish_committed_bead_pages",
+        lambda *_args, **_kwargs: SimpleNamespace(changed=True, error=None),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.publish_prompt_archive",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            error=None, skip_reason=None, prompt_path=None
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_header_refresh.refresh_committed_plan_header",
+        lambda *_args, **_kwargs: SimpleNamespace(changed=True, error=None),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+        lambda *_args, **_kwargs: _CommitPublicationOutcome(published=True),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_store.resolve_artifact_link_store",
+        lambda: store,
+    )
+    drained: list[str] = []
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_outbox.drain_artifact_link_outbox",
+        lambda **_kwargs: drained.append("outbox"),
+    )
+
+    assert (
+        artifact_link_run_has_release_evidence(
+            project_key="gh_sase-org__sase",
+            run_id="260908_120000",
+            agent_id="worker",
+        )
+        is False
+    )
+
+    assert run_agent_publication_step(
+        cp,
+        "create_commit",
+        checkpoint_save=lambda _cp: None,
+        get_vcs_provider=lambda _cwd: pytest.fail("revision is already resolved"),
+    )
+
+    assert drained == ["outbox"]
+    assert artifact_link_run_has_release_evidence(
+        project_key="gh_sase-org__sase",
+        run_id="260908_120000",
+        agent_id="worker",
+    )
 
 
 def test_fully_tagged_commit_and_resume_publish_each_sidecar_once(

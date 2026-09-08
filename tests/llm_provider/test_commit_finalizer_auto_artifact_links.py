@@ -26,7 +26,10 @@ from sase.llm_provider.commit_finalizer_baseline import capture_dirty_baseline
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult
-from sase.sdd._artifact_link_ignore import ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN
+from sase.sdd.artifact_link_outbox import (
+    append_artifact_link_outbox_entry,
+    _read_artifact_link_outbox_entries,
+)
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     ArtifactLinkStore,
@@ -127,6 +130,16 @@ def _read_row(target: str) -> dict[str, object]:
 
 
 def _record_reads(plans: Path, *targets: str) -> ArtifactLinkStore:
+    """Materialize already-dirty link-index rows directly in the sidecar.
+
+    A bare ``sase artifact read`` no longer writes synchronously (see
+    ``test_two_implicit_plan_reads_produce_no_dirt_or_commit`` below), so
+    this helper now stands in for whatever *does* still write a link index
+    directly -- an explicit ``sase artifact link`` mutation, a backfill
+    repair, or dirt left over from before this run. The reconciliation
+    machinery under test does not care why an index is dirty, only that it
+    is, so this remains meaningful coverage of that machinery.
+    """
     store = ArtifactLinkStore(
         project_key="gh_sase-org__sase",
         sidecar_roots={"plan": plans},
@@ -148,9 +161,18 @@ def _prepare(artifacts_dir: Path):
     )
 
 
-def test_two_implicit_plan_reads_commit_once_without_declaration(
+def test_two_implicit_plan_reads_produce_no_dirt_or_commit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Reads recorded through the real outbox path create no VCS dirt.
+
+    This reverses the module's original premise: a bare read used to write
+    its link-index row straight to the sidecar, which the finalizer then
+    auto-committed with no model declaration at all. Reads now only queue a
+    pending row in the read-link outbox (see
+    ``sase.sdd.artifact_link_outbox``), so two implicit reads and no other
+    edits must leave the sidecar completely clean.
+    """
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
     main = _create_primary(tmp_path)
     plans = _create_sidecar(tmp_path, "plans")
@@ -158,40 +180,29 @@ def test_two_implicit_plan_reads_commit_once_without_declaration(
     monkeypatch.setattr(
         "sase.sdd.store.resolve_sdd_store", lambda *_args: _sdd_store(plans)
     )
-    _record_reads(
-        plans,
-        "plan:202608/one.md",
-        "plan:202608/two.md",
-    )
-    sidecars = list((plans / "links").rglob("*"))
-    assert len([path for path in sidecars if path.is_file()]) == 4
+    for target in ("plan:202608/one.md", "plan:202608/two.md"):
+        append_artifact_link_outbox_entry(
+            project_key="gh_sase-org__sase",
+            agent_name="alice.athena.09l",
+            run_id="260821_120000",
+            row=_read_row(target),
+        )
+    assert not list((plans / "links").rglob("*"))
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
 
     state = _prepare(artifacts)
 
-    assert state.artifact_links_auto_committed is True
+    assert state.artifact_links_auto_committed is False
     assert state.artifact_link_publication_error is None
     assert state.dirty_state.is_clean
     assert _run_git(plans, "status", "--porcelain", "--untracked-files=all") == ""
-    assert "chore(artifact-links): persist link indexes" in _run_git(
-        plans, "log", "-1", "--pretty=%s"
-    )
-    files = _head_files(plans)
-    assert files == {
-        "links/202608/one.md.json",
-        "links/202608/two.md.json",
-        ".gitignore",
-    }
-    assert ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN in (plans / ".gitignore").read_text(
-        encoding="utf-8"
-    )
-    assert (plans / "links" / "202608" / "one.md.lock").is_file()
-    assert (plans / "links" / "202608" / "two.md.lock").is_file()
+    assert int(_run_git(plans, "rev-list", "--count", "HEAD").strip()) == 1
+    assert len(_read_artifact_link_outbox_entries("gh_sase-org__sase")) == 2
 
     second = _prepare(artifacts)
     assert second.artifact_links_auto_committed is False
-    assert int(_run_git(plans, "rev-list", "--count", "HEAD").strip()) == 2
+    assert int(_run_git(plans, "rev-list", "--count", "HEAD").strip()) == 1
 
 
 def test_mixed_unrelated_dirt_is_left_for_the_declaration(

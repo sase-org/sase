@@ -13,13 +13,17 @@ from sase.artifact_cli.read import handle_read
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.sdd._artifact_link_ignore import ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN
 from sase.sdd.artifact_link_outbox import (
+    append_artifact_link_outbox_entry,
     drain_artifact_link_outbox,
     _read_artifact_link_outbox_entries,
+)
+from sase.sdd.artifact_link_release_evidence import (
+    record_artifact_link_release_evidence,
 )
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
 from tests.main.artifact_cli_reference_helpers import resolved_reference
-from tests.sdd._artifact_link_store_helpers import allow_machine_sidecar_writes
+from tests.sdd._artifact_link_store_helpers import _row, allow_machine_sidecar_writes
 
 
 def _run_git(repo: Path, *args: str) -> str:
@@ -75,20 +79,16 @@ def _patch_read_context(
     *,
     doc: Path,
     store: ArtifactLinkStore,
-    agent_published: bool,
+    run_id: str = "run-1",
 ) -> None:
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_AGENT_NAME", "reader")
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", run_id)
     monkeypatch.setattr(
         "sase.config.require_agent_owner_identity",
         lambda: AgentOwnerIdentity("alice", "athena"),
     )
     plan_result = resolved_reference(doc, reference="plan:doc.md")
-    agent_result = resolved_reference(
-        None,
-        reference="agent:reader",
-        status="exact" if agent_published else "missing",
-    )
     monkeypatch.setattr(
         "sase.artifact_cli.read.resolve_cli_reference",
         lambda _value: plan_result,
@@ -96,18 +96,6 @@ def _patch_read_context(
     monkeypatch.setattr(
         "sase.artifact_cli.read.resolve_artifact_link_store",
         lambda: store,
-    )
-
-    def resolve_for_publication(value: str):
-        if value == "agent:reader":
-            return agent_result
-        if value == "plan:doc.md":
-            return plan_result
-        raise RuntimeError(f"unexpected reference: {value}")
-
-    monkeypatch.setattr(
-        "sase.artifact_cli.references.resolve_cli_reference",
-        resolve_for_publication,
     )
 
 
@@ -118,10 +106,11 @@ def _index_rows(repo: Path) -> list[dict[str, object]]:
     return rows
 
 
-def test_drain_published_agent_commits_dirty_index_without_double_counting(
+def test_read_records_no_dirty_state_and_drain_publishes_once_evidence_exists(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A bare read must never dirty the sidecar; a real change publishes it."""
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
     allow_machine_sidecar_writes(monkeypatch)
     repo = tmp_path / "plans"
@@ -130,20 +119,35 @@ def test_drain_published_agent_commits_dirty_index_without_double_counting(
         project_key="gh_sase-org__sase",
         sidecar_roots={"plan": repo},
     )
-    _patch_read_context(
-        monkeypatch,
-        doc=doc,
-        store=store,
-        agent_published=True,
-    )
+    _patch_read_context(monkeypatch, doc=doc, store=store, run_id="run-1")
     before = _commit_count(repo)
 
     assert handle_read(_read_args()) == 0
     assert handle_read(_read_args()) == 0
     assert len(_read_artifact_link_outbox_entries("gh_sase-org__sase")) == 2
     assert _commit_count(repo) == before
-    assert "links/doc.md.json" in _run_git(
-        repo, "status", "--porcelain", "--untracked-files=all"
+    assert not list((repo / "links").rglob("*"))
+    assert _run_git(repo, "status", "--porcelain", "--untracked-files=all") == ""
+
+    # No release evidence yet, so this run's own reads stay queued.
+    unqualified = drain_artifact_link_outbox(
+        store=store,
+        agent_name="reader",
+        drop_stale_terminal=False,
+        push_after_commit=False,
+    )
+    assert unqualified.drained == 0
+    assert unqualified.retained == 2
+    assert unqualified.committed is False
+    assert len(_read_artifact_link_outbox_entries("gh_sase-org__sase")) == 2
+
+    # The run then authors a real change and its commit is verified,
+    # recording this run's own release evidence.
+    record_artifact_link_release_evidence(
+        project_key="gh_sase-org__sase",
+        run_id="run-1",
+        agent_id="reader",
+        qualifying_repo_ids=(str(repo),),
     )
 
     report = drain_artifact_link_outbox(
@@ -163,7 +167,7 @@ def test_drain_published_agent_commits_dirty_index_without_double_counting(
     assert _run_git(repo, "status", "--porcelain", "--untracked-files=all") == ""
 
 
-def test_drain_unpublished_agent_leaves_entry_queued_and_uncommitted(
+def test_drain_run_without_release_evidence_leaves_entry_queued_and_uncommitted(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -174,12 +178,7 @@ def test_drain_unpublished_agent_leaves_entry_queued_and_uncommitted(
         project_key="gh_sase-org__sase",
         sidecar_roots={"plan": repo},
     )
-    _patch_read_context(
-        monkeypatch,
-        doc=doc,
-        store=store,
-        agent_published=False,
-    )
+    _patch_read_context(monkeypatch, doc=doc, store=store, run_id="run-1")
     before = _commit_count(repo)
 
     assert handle_read(_read_args()) == 0
@@ -195,6 +194,120 @@ def test_drain_unpublished_agent_leaves_entry_queued_and_uncommitted(
     assert report.committed is False
     assert _commit_count(repo) == before
     assert len(_read_artifact_link_outbox_entries("gh_sase-org__sase")) == 1
-    assert "links/doc.md.json" in _run_git(
-        repo, "status", "--porcelain", "--untracked-files=all"
+    assert not list((repo / "links").rglob("*"))
+    assert _run_git(repo, "status", "--porcelain", "--untracked-files=all") == ""
+
+
+def test_repeated_drain_after_partial_failure_does_not_double_count_uses(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A retried drain over the same queued reads must not double-count."""
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    repo = tmp_path / "plans"
+    doc = _init_plans_repo(repo)
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": repo},
     )
+    _patch_read_context(monkeypatch, doc=doc, store=store, run_id="run-1")
+    assert handle_read(_read_args()) == 0
+    assert handle_read(_read_args()) == 0
+    record_artifact_link_release_evidence(
+        project_key="gh_sase-org__sase",
+        run_id="run-1",
+        agent_id="reader",
+        qualifying_repo_ids=(str(repo),),
+    )
+
+    first = drain_artifact_link_outbox(
+        store=store,
+        agent_name="reader",
+        drop_stale_terminal=False,
+        push_after_commit=False,
+    )
+    assert first.drained == 2
+    assert first.committed is True
+    [row] = _index_rows(repo)
+    assert row["uses"] == 2
+
+    # A third read is queued for the same run after the first drain landed.
+    assert handle_read(_read_args()) == 0
+    second = drain_artifact_link_outbox(
+        store=store,
+        agent_name="reader",
+        drop_stale_terminal=False,
+        push_after_commit=False,
+    )
+    assert second.drained == 1
+    assert second.committed is True
+    [row] = _index_rows(repo)
+    assert row["uses"] == 3
+
+    # Draining again with nothing new queued is a safe no-op.
+    idle = drain_artifact_link_outbox(
+        store=store,
+        agent_name="reader",
+        drop_stale_terminal=False,
+        push_after_commit=False,
+    )
+    assert idle.queued == 0
+    [row] = _index_rows(repo)
+    assert row["uses"] == 3
+
+
+def test_drain_does_not_release_a_different_run_of_the_same_agent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A same-named agent's other run must not borrow this run's evidence."""
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    repo = tmp_path / "plans"
+    _init_plans_repo(repo)
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": repo},
+    )
+    append_artifact_link_outbox_entry(
+        project_key="gh_sase-org__sase",
+        agent_name="reader",
+        run_id="run-1",
+        row=_row(
+            source="agent:reader",
+            relation="read",
+            target="plan:doc.md",
+            origin="read",
+        ),
+    )
+    append_artifact_link_outbox_entry(
+        project_key="gh_sase-org__sase",
+        agent_name="reader",
+        run_id="run-2",
+        row=_row(
+            source="agent:reader",
+            relation="read",
+            target="plan:other.md",
+            origin="read",
+        ),
+    )
+    record_artifact_link_release_evidence(
+        project_key="gh_sase-org__sase",
+        run_id="run-1",
+        agent_id="reader",
+        qualifying_repo_ids=(str(repo),),
+    )
+
+    report = drain_artifact_link_outbox(
+        store=store,
+        agent_name="reader",
+        drop_stale_terminal=False,
+        push_after_commit=False,
+    )
+
+    assert report.drained == 1
+    assert report.retained == 1
+    remaining = _read_artifact_link_outbox_entries("gh_sase-org__sase")
+    assert len(remaining) == 1
+    assert remaining[0].run_id == "run-2"

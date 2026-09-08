@@ -26,11 +26,10 @@ from sase.sdd._artifact_link_store_support import (
 )
 from sase.sdd.artifact_link_store import ArtifactLinkStore, resolve_artifact_link_store
 
-ARTIFACT_LINK_OUTBOX_SCHEMA_VERSION = 1
+ARTIFACT_LINK_OUTBOX_SCHEMA_VERSION = 2
 ARTIFACT_LINK_OUTBOX_FILENAME = "artifact-link-outbox.jsonl"
 ARTIFACT_LINK_OUTBOX_DROPPED_FILENAME = "artifact-link-outbox-dropped.jsonl"
 
-_PUBLISHED_AGENT_STATUSES = frozenset({"exact", "drifted", "vcs_backed"})
 _TERMINAL_AGENT_STATES = frozenset({"completed", "failed", "stopped", "dismissed"})
 _TERMINAL_AGENT_STATUSES = frozenset({"DONE", "FAILED", "STOPPED", "CANCELED"})
 _SECONDS_PER_DAY = 24 * 60 * 60
@@ -39,13 +38,20 @@ _DEFAULT_RETENTION_DAYS = 90
 
 @dataclass(frozen=True, slots=True)
 class _ArtifactLinkOutboxEntry:
-    """One queued artifact-link row plus its recording agent."""
+    """One queued artifact-link row plus its recording run's identity.
+
+    ``run_id`` binds this entry to the specific run that recorded it (see
+    ``sase.sdd.artifact_link_release_evidence``): a different run of the same
+    agent, or another agent in the same family, must not be able to release
+    it merely by publishing something of its own.
+    """
 
     schema_version: int
     id: str
     created_at: float
     project_key: str
     agent_name: str
+    run_id: str
     row: dict[str, Any]
 
     @property
@@ -59,6 +65,7 @@ class _ArtifactLinkOutboxEntry:
             "created_at": self.created_at,
             "project_key": self.project_key,
             "agent_name": self.agent_name,
+            "run_id": self.run_id,
             "row": dict(self.row),
         }
 
@@ -102,11 +109,18 @@ def append_artifact_link_outbox_entry(
     *,
     project_key: str,
     agent_name: str,
+    run_id: str,
     row: Mapping[str, Any],
     now: float | None = None,
     entry_id: str | None = None,
 ) -> _ArtifactLinkOutboxEntry:
-    """Append one replayable artifact-link row to the project outbox."""
+    """Append one replayable artifact-link row to the project outbox.
+
+    *run_id* identifies the specific run that recorded this row (typically
+    ``SASE_AGENT_TIMESTAMP``). A blank value is accepted -- it simply means
+    this entry can never earn release evidence and stays local until it is
+    pruned by the existing retention policy.
+    """
 
     entry = _ArtifactLinkOutboxEntry(
         schema_version=ARTIFACT_LINK_OUTBOX_SCHEMA_VERSION,
@@ -114,6 +128,7 @@ def append_artifact_link_outbox_entry(
         created_at=float(time.time() if now is None else now),
         project_key=project_key,
         agent_name=_required_text(agent_name, "agent_name"),
+        run_id=str(run_id or ""),
         row=validate_artifact_link_row(row),
     )
     path = _artifact_link_outbox_path(project_key)
@@ -254,7 +269,7 @@ def _partition_stale_terminal(
             terminal_cutoff is not None
             and finished_at is not None
             and finished_at <= terminal_cutoff
-            and not _agent_is_published(entry.agent_name)
+            and not _entry_is_eligible(entry)
         ):
             stale.append(entry)
         else:
@@ -268,7 +283,7 @@ def _partition_publishable(
     publishable: list[_ArtifactLinkOutboxEntry] = []
     retained: list[_ArtifactLinkOutboxEntry] = []
     for entry in entries:
-        if _agent_is_published(entry.agent_name):
+        if _entry_is_eligible(entry):
             publishable.append(entry)
         else:
             retained.append(entry)
@@ -326,6 +341,11 @@ def _upsert_publishable_entries(
     for row in _converged_rows(store, entries):
         existing_uses = _existing_uses(store, row)
         desired_uses = _row_uses(row)
+        if str(row.get("origin") or "") == "read":
+            # A queued read row only ever knows this batch's own increment
+            # (see `_converged_rows`), never the durable total, so the
+            # target is what's already on disk plus that increment.
+            desired_uses += existing_uses
         if existing_uses >= desired_uses:
             changed_indexes.extend(_existing_index_paths(store, row))
             continue
@@ -340,6 +360,16 @@ def _converged_rows(
     store: ArtifactLinkStore,
     entries: Iterable[_ArtifactLinkOutboxEntry],
 ) -> tuple[dict[str, Any], ...]:
+    """Combine queued rows sharing one logical edge into one row each.
+
+    A ``read`` row represents one independent read event every time it is
+    queued -- the immediate store write that used to converge these
+    cumulatively no longer runs before queuing, so two reads must still
+    count twice here, added rather than maxed. Other origins keep the
+    higher observed count, matching the durable store's own convergence
+    rule for non-additive relations.
+    """
+
     by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
     order: list[tuple[str, str, str]] = []
     for entry in entries:
@@ -349,7 +379,11 @@ def _converged_rows(
             by_key[key] = dict(entry.row)
             continue
         current = by_key[key]
-        if _row_uses(entry.row) >= _row_uses(current):
+        if str(entry.row.get("origin") or "") == "read":
+            merged = dict(entry.row)
+            merged["uses"] = _row_uses(current) + _row_uses(entry.row)
+            by_key[key] = merged
+        elif _row_uses(entry.row) >= _row_uses(current):
             by_key[key] = dict(entry.row)
     return tuple(validate_artifact_link_row(by_key[key]) for key in order)
 
@@ -508,6 +542,7 @@ def _entry_from_mapping(
         created_at=float(created_at),
         project_key=entry_project,
         agent_name=_required_text(data.get("agent_name"), "agent_name"),
+        run_id=str(data.get("run_id") or ""),
         row=validate_artifact_link_row(row),
     )
 
@@ -524,14 +559,27 @@ def _count_jsonl_rows(path: Path) -> int:
             return 0
 
 
-def _agent_is_published(agent_name: str) -> bool:
-    try:
-        from sase.artifact_cli.references import resolve_cli_reference
+def _entry_is_eligible(entry: _ArtifactLinkOutboxEntry) -> bool:
+    """Return whether *entry*'s own recording run earned release evidence.
 
-        result = resolve_cli_reference(f"agent:{agent_name}")
-    except Exception:  # noqa: BLE001 - unresolved agents stay queued.
+    Eligibility is bound to the exact ``(run_id, agent_name)`` that recorded
+    this entry -- an agent name or family publication elsewhere is not
+    sufficient, so a read-only neighbor's queued rows never ride along on a
+    sibling run's real commit.
+    """
+
+    from sase.sdd.artifact_link_release_evidence import (
+        artifact_link_run_has_release_evidence,
+    )
+
+    try:
+        return artifact_link_run_has_release_evidence(
+            project_key=entry.project_key,
+            run_id=entry.run_id,
+            agent_id=entry.agent_name,
+        )
+    except Exception:  # noqa: BLE001 - unresolved evidence stays queued.
         return False
-    return result.resolution.status in _PUBLISHED_AGENT_STATUSES
 
 
 def _terminal_cutoff() -> float | None:

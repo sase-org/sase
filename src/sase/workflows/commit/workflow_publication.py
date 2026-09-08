@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import os
 
 from sase.output import print_status
 from sase.workflows.commit.checkpoint import CommitCheckpoint
@@ -176,6 +177,59 @@ def run_agent_publication_step(
     return True
 
 
+def _record_real_change_release_evidence(cp: CommitCheckpoint) -> None:
+    """Record that this run earned the right to publish its pending links.
+
+    Reaching this point only happens after a real ``create_commit``/
+    ``create_pull_request`` dispatch succeeded for *cp.cwd* -- the
+    finalizer's reconciliation pass already sweeps any dirt that is only
+    artifact-link bookkeeping before a repository ever reaches stitch
+    dispatch, so a repository that got here necessarily had a qualifying,
+    non-bookkeeping change. Publication of some other agent or family
+    member is not evidence for this run, so evidence is bound to this run's
+    own ``SASE_AGENT_TIMESTAMP``/``publication_agent`` identity.
+    """
+
+    run_id = os.environ.get("SASE_AGENT_TIMESTAMP", "")
+    if not run_id or not cp.publication_agent:
+        return
+    from sase.core.eligibility_facade import (
+        ArtifactLinkChangedPath,
+        ArtifactLinkRepoEvidence,
+        decide_artifact_link_eligibility,
+    )
+    from sase.sdd.artifact_link_release_evidence import (
+        record_artifact_link_release_evidence,
+    )
+    from sase.sdd.artifact_link_store import resolve_artifact_link_store
+
+    decision = decide_artifact_link_eligibility(
+        run_id=run_id,
+        agent_id=cp.publication_agent,
+        repos=(
+            ArtifactLinkRepoEvidence(
+                repo_id=cp.cwd,
+                kind="primary",
+                changed_paths=(
+                    ArtifactLinkChangedPath(
+                        path=cp.commit_sha or "HEAD",
+                        is_real=True,
+                    ),
+                ),
+            ),
+        ),
+    )
+    if not decision.eligible:
+        return
+    store = resolve_artifact_link_store()
+    record_artifact_link_release_evidence(
+        project_key=store.project_key,
+        run_id=decision.run_id,
+        agent_id=decision.agent_id,
+        qualifying_repo_ids=decision.qualifying_repo_ids,
+    )
+
+
 def _drain_artifact_link_outbox_for_agent(
     cp: CommitCheckpoint,
     *,
@@ -186,6 +240,7 @@ def _drain_artifact_link_outbox_for_agent(
     try:
         from sase.sdd.artifact_link_outbox import drain_artifact_link_outbox
 
+        _record_real_change_release_evidence(cp)
         drain_artifact_link_outbox(
             agent_name=cp.publication_agent,
             drop_stale_terminal=False,
