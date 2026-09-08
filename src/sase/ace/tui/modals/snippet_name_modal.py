@@ -350,7 +350,7 @@ class SnippetNameModal(ModalScreen[SnippetNameResult | None]):
         matches = _prefix_matches(
             trigger, target, locations, derived_snippets, derived_sources
         )
-        destination_exists = any(match.is_destination for match in matches)
+        destination_exists = any(match.is_destination for match in collision.matches)
         if not destination_exists and str(target.write_path) not in {
             location.path for location in locations
         }:

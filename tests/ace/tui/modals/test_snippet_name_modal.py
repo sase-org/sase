@@ -166,6 +166,33 @@ async def test_new_trigger_returns_empty_starting_body(tmp_path: Path) -> None:
     assert result.existing_body is None
 
 
+async def test_unused_prefix_of_destination_match_creates_new_snippet(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "sase.yml"
+    _write_snippets(config, {"rchat": "Review chat transcript"})
+    results: list[SnippetNameResult | None] = []
+    app = _ModalApp()
+
+    async with app.run_test(size=(100, 28)) as pilot:
+        app.push_screen(
+            SnippetNameModal(_target(config), [_location(config)], initial_trigger="r"),
+            results.append,
+        )
+        modal = await _wait_for_modal(pilot, app)
+        await wait_for(pilot, lambda: _contains(_matches_plain(modal), "rchat"))
+        await wait_for(pilot, lambda: _contains(_verdict_plain(modal), "Create ⇥ r"))
+        await pilot.press("enter")
+        await wait_for(pilot, lambda: bool(results))
+
+    result = results[0]
+    assert result is not None
+    assert result.trigger == "r"
+    assert result.target.write_path == config
+    assert result.exists is False
+    assert result.existing_body is None
+
+
 async def test_destination_collision_loads_own_template_off_thread(
     tmp_path: Path,
     monkeypatch,
