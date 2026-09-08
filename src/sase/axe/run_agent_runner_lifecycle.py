@@ -84,6 +84,7 @@ class RunnerShutdownDeps:
     was_killed: Callable[[], bool]
     all_steps_hidden: Callable[[str], bool]
     write_error_report: Callable[..., str | None]
+    write_error_done_marker: Callable[..., Any]
     send_completion_notification: Callable[..., Any]
     auto_dismiss_completed_agent: Callable[[str, str], Any]
 
@@ -167,6 +168,56 @@ def _held_bead_claim_for_shutdown(
     )
 
 
+def _ensure_failed_done_marker(
+    *,
+    context: RunnerShutdownContext,
+    state: RunnerShutdownState,
+    write_error_done_marker: Callable[..., Any],
+) -> None:
+    """Write a failed ``done.json`` when a hold (or error report) has none.
+
+    A pinned workspace claim with no done marker is invisible to ACE and
+    the stale-claim sweep, so a hold must never land without one. Best
+    effort: log loudly if the marker still cannot be written.
+    """
+    artifacts_dir = state.current_artifacts_dir
+    done_path = os.path.join(artifacts_dir, "done.json")
+    if os.path.isfile(done_path):
+        return
+    error = state.error_summary or "workspace held without a done.json marker"
+    traceback_str = state.error_traceback_str or ""
+    try:
+        write_error_done_marker(
+            current_artifacts_dir=artifacts_dir,
+            cl_name=context.cl_name,
+            project_file=context.project_file,
+            timestamp=context.artifacts_timestamp,
+            artifacts_timestamp=context.artifacts_timestamp,
+            workspace_num=state.workspace_num,
+            workspace_dir=state.workspace_dir,
+            output_path=context.output_path,
+            agent_name=state.agent_name,
+            agent_model=state.agent_model,
+            agent_llm_provider=state.agent_llm_provider,
+            agent_vcs_provider=None,
+            agent_hidden=state.agent_hidden,
+            error=error,
+            traceback_str=traceback_str,
+        )
+    except Exception as exc:
+        print(
+            f"Error writing failed done.json for workspace "
+            f"#{state.workspace_num}: {exc}",
+            file=sys.stderr,
+        )
+    if not os.path.isfile(done_path):
+        print(
+            f"Error: workspace #{state.workspace_num} still has no "
+            f"done.json at {done_path}",
+            file=sys.stderr,
+        )
+
+
 def finalize_runner_shutdown(
     *,
     context: RunnerShutdownContext,
@@ -183,6 +234,7 @@ def finalize_runner_shutdown(
 
     auto_dismiss = bool(os.environ.get("SASE_AGENT_AUTO_DISMISS"))
     workspace_held = False
+    hold_done_marker_ensured = False
     killed = deps.was_killed()
     steps_hidden = deps.all_steps_hidden(state.current_artifacts_dir)
     deferred_commits = (
@@ -212,6 +264,12 @@ def finalize_runner_shutdown(
                 steps_hidden=steps_hidden,
                 has_deferred_commit=bool(deferred_commits),
             ):
+                _ensure_failed_done_marker(
+                    context=context,
+                    state=state,
+                    write_error_done_marker=deps.write_error_done_marker,
+                )
+                hold_done_marker_ensured = True
                 from sase.running_field import hold_workspace_claim
 
                 result = hold_workspace_claim(
@@ -291,6 +349,12 @@ def finalize_runner_shutdown(
 
     error_report_path: str | None = None
     if not state.success and state.error_summary:
+        if not hold_done_marker_ensured:
+            _ensure_failed_done_marker(
+                context=context,
+                state=state,
+                write_error_done_marker=deps.write_error_done_marker,
+            )
         error_report_path = deps.write_error_report(
             state.current_artifacts_dir,
             agent_model=state.agent_model,

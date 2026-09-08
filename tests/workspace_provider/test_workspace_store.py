@@ -281,6 +281,28 @@ class TestDefaults:
         assert store.root_policy == DEFAULT_WORKSPACE_ROOT
         assert store.root_dir.startswith(str(tmp_path / "state" / "sase"))
         assert store.cleanup_ttl_days == 14
+        assert store.held_claim_ttl_days == 14
+
+    def test_held_claim_ttl_days_zero_disables(self) -> None:
+        store = WorkspaceStore(
+            "/tmp/proj",
+            config={"workspace": {"root": "adjacent", "held_claim_ttl_days": 0}},
+            env={},
+        )
+        assert store.held_claim_ttl_days == 0
+
+    def test_held_claim_ttl_days_from_config_reads_workspace_section(self) -> None:
+        from sase.workspace_provider.store import held_claim_ttl_days_from_config
+
+        assert held_claim_ttl_days_from_config(None) == 14
+        assert (
+            held_claim_ttl_days_from_config({"workspace": {"held_claim_ttl_days": 3}})
+            == 3
+        )
+        assert (
+            held_claim_ttl_days_from_config({"workspace": {"held_claim_ttl_days": 0}})
+            == 0
+        )
 
     def test_missing_workspace_root_defaults_to_xdg_state(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

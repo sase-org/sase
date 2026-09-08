@@ -7,6 +7,7 @@ metrics + structured run log, and the user-completion notification.
 
 import json
 import os
+import sys
 from datetime import datetime
 from typing import Any
 
@@ -100,8 +101,11 @@ def write_error_done_marker(
         with open(done_path, "w", encoding="utf-8") as f:
             json.dump(error_done, f, indent=2)
         update_agent_artifact_index_for_marker_mutation(current_artifacts_dir)
-    except Exception:
-        pass
+    except Exception as exc:
+        print(
+            f"Error writing failed done.json under {current_artifacts_dir}: {exc}",
+            file=sys.stderr,
+        )
 
 
 def record_completion_metrics(

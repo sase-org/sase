@@ -359,9 +359,10 @@ class TestRunStartedAtRecording:
 
         run_main(patches, tmp_path)
 
-        write_error.assert_called_once()
-        assert write_error.call_args.kwargs["error"] == "SystemExit: 1"
-        assert "SystemExit: 1" in write_error.call_args.kwargs["traceback_str"]
+        assert write_error.call_count >= 1
+        first_error = write_error.call_args_list[0].kwargs
+        assert first_error["error"] == "SystemExit: 1"
+        assert "SystemExit: 1" in first_error["traceback_str"]
         notify.assert_called_once()
         assert notify.call_args.kwargs["success"] is False
         assert notify.call_args.kwargs["error_summary"] == "SystemExit: 1"

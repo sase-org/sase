@@ -301,6 +301,7 @@ def main() -> None:
                 was_killed=was_killed,
                 all_steps_hidden=all_steps_hidden,
                 write_error_report=write_error_report,
+                write_error_done_marker=write_error_done_marker,
                 send_completion_notification=send_completion_notification,
                 auto_dismiss_completed_agent=auto_dismiss_completed_agent,
             ),

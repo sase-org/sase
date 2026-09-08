@@ -1409,6 +1409,11 @@ workspace:
   project_key: ""
   # Days before unclaimed managed workspaces are eligible for cleanup.
   cleanup_ttl_days: 14
+  # Days before a pinned (held) dead-PID workspace claim is released
+  # automatically. Artifacts are kept so the failed run stays dismissible
+  # in ACE; only the workspace hold is dropped. 0 disables age-based
+  # release.
+  held_claim_ttl_days: 14
 
 bead:
   # Epic plans with at least this many authored phases use

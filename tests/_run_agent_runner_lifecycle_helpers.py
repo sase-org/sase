@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 from sase.axe.run_agent_runner_lifecycle import (
@@ -67,6 +69,7 @@ def make_deps(
     was_killed: MagicMock | None = None,
     all_steps_hidden: MagicMock | None = None,
     write_error_report: MagicMock | None = None,
+    write_error_done_marker: Callable[..., Any] | None = None,
     send_completion_notification: MagicMock | None = None,
 ) -> RunnerShutdownDeps:
     """Return shutdown deps; pass mocks for the ones a test tunes or asserts on."""
@@ -82,6 +85,9 @@ def make_deps(
         ),
         write_error_report=(
             MagicMock() if write_error_report is None else write_error_report
+        ),
+        write_error_done_marker=(
+            MagicMock() if write_error_done_marker is None else write_error_done_marker
         ),
         send_completion_notification=(
             MagicMock()

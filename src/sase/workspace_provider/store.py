@@ -292,6 +292,9 @@ class WorkspaceStore:
         self._primary_workspace_dir = primary_workspace_dir
         self._env: Mapping[str, str] = env if env is not None else os.environ
         self._cleanup_ttl_days = _positive_int(section.get("cleanup_ttl_days"), 14)
+        self._held_claim_ttl_days = _positive_int(
+            section.get("held_claim_ttl_days"), 14
+        )
 
         explicit_key = section.get("project_key", "") or ""
         explicit_key = explicit_key.strip() if isinstance(explicit_key, str) else ""
@@ -326,6 +329,10 @@ class WorkspaceStore:
     @property
     def cleanup_ttl_days(self) -> int:
         return self._cleanup_ttl_days
+
+    @property
+    def held_claim_ttl_days(self) -> int:
+        return self._held_claim_ttl_days
 
     def resolve(self, workspace_num: int) -> WorkspacePath:
         """Return the resolved ``WorkspacePath`` for *workspace_num*.
@@ -393,6 +400,12 @@ def _positive_int(value: Any, default: int) -> int:
     return result if result >= 0 else default
 
 
+def held_claim_ttl_days_from_config(config: Mapping[str, Any] | None) -> int:
+    """Return ``workspace.held_claim_ttl_days`` (default 14; ``0`` disables)."""
+    section = _coerce_workspace_section(config)
+    return _positive_int(section.get("held_claim_ttl_days"), 14)
+
+
 __all__ = [
     "LEGACY_PRIMARY_WORKSPACE_NUM",
     "PRIMARY_WORKSPACE_NUM",
@@ -400,5 +413,6 @@ __all__ = [
     "WORKSPACE_ROOT_ENV",
     "WorkspacePath",
     "WorkspaceStore",
+    "held_claim_ttl_days_from_config",
     "managed_workspace_root",
 ]

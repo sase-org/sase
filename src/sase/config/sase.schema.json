@@ -3858,6 +3858,12 @@
           "description": "Days before unclaimed managed workspaces are eligible for `sase workspace cleanup --stale`.",
           "default": 14,
           "minimum": 0
+        },
+        "held_claim_ttl_days": {
+          "type": "integer",
+          "description": "Days before a pinned (held) dead-PID workspace claim is released automatically. Artifacts are kept so the failed run stays dismissible; only the workspace hold is dropped. 0 disables age-based release.",
+          "default": 14,
+          "minimum": 0
         }
       }
     },

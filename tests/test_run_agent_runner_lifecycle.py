@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.axe.run_agent_runner_finalize import send_completion_notification
+from sase.axe.run_agent_runner_finalize import (
+    send_completion_notification,
+    write_error_done_marker,
+)
 from sase.axe.run_agent_runner_lifecycle import (
     finalize_runner_shutdown,
     _should_hold_workspace,
@@ -114,6 +118,7 @@ def test_finalize_holds_failed_workspace_and_surfaces_recovery(
     deps = make_deps(
         all_steps_hidden=MagicMock(return_value=False),
         write_error_report=write_error_report,
+        write_error_done_marker=write_error_done_marker,
         send_completion_notification=send_notification,
     )
 
@@ -124,7 +129,11 @@ def test_finalize_holds_failed_workspace_and_surfaces_recovery(
         ) as hold,
         patch("sase.running_field.release_workspace") as release,
     ):
-        finalize_runner_shutdown(context=context, state=make_state(), deps=deps)
+        finalize_runner_shutdown(
+            context=context,
+            state=make_state(current_artifacts_dir=str(tmp_path)),
+            deps=deps,
+        )
 
     hold.assert_called_once_with(
         "/tmp/project.sase",
@@ -141,6 +150,69 @@ def test_finalize_holds_failed_workspace_and_surfaces_recovery(
         send_notification.call_args.kwargs["held_workspace_dir"] == "/tmp/workspace-17"
     )
     assert "Workspace #17 held (visible failed run)" in capsys.readouterr().out
+
+
+def test_finalize_hold_writes_failed_done_json_when_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A hold with no pre-existing done.json must leave a failed marker."""
+    monkeypatch.delenv("SASE_AGENT_AUTO_DISMISS", raising=False)
+    (tmp_path / "output.log").write_text("run output", encoding="utf-8")
+    context = make_context(tmp_path, workflow_name="ace(run)-260712_120000")
+    deps = make_deps(
+        all_steps_hidden=MagicMock(return_value=False),
+        write_error_done_marker=write_error_done_marker,
+    )
+
+    with (
+        patch(
+            "sase.running_field.hold_workspace_claim",
+            return_value=ClaimResult(success=True),
+        ),
+        patch("sase.running_field.release_workspace"),
+    ):
+        finalize_runner_shutdown(
+            context=context,
+            state=make_state(current_artifacts_dir=str(tmp_path)),
+            deps=deps,
+        )
+
+    done_path = tmp_path / "done.json"
+    assert done_path.is_file()
+    marker = json.loads(done_path.read_text(encoding="utf-8"))
+    assert marker["outcome"] == "failed"
+    assert marker["error"] == "RuntimeError: boom"
+
+
+def test_finalize_hold_preserves_existing_done_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SASE_AGENT_AUTO_DISMISS", raising=False)
+    (tmp_path / "output.log").write_text("run output", encoding="utf-8")
+    existing = {"outcome": "completed", "error": None}
+    (tmp_path / "done.json").write_text(json.dumps(existing), encoding="utf-8")
+    write_marker = MagicMock()
+    context = make_context(tmp_path)
+    deps = make_deps(
+        all_steps_hidden=MagicMock(return_value=False),
+        write_error_done_marker=write_marker,
+    )
+
+    with (
+        patch(
+            "sase.running_field.hold_workspace_claim",
+            return_value=ClaimResult(success=True),
+        ),
+        patch("sase.running_field.release_workspace"),
+    ):
+        finalize_runner_shutdown(
+            context=context,
+            state=make_state(current_artifacts_dir=str(tmp_path)),
+            deps=deps,
+        )
+
+    write_marker.assert_not_called()
+    assert json.loads((tmp_path / "done.json").read_text(encoding="utf-8")) == existing
 
 
 @pytest.mark.parametrize(

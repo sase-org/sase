@@ -2,11 +2,13 @@
 CHANGELOG.md
 
 # Planning artifacts — owned by planner/coder agents, not the project's prose style
+sdd/README.md
 sdd/epics/
 sdd/legends/
 sdd/tales/
 sdd/prompts/
 sdd/research/
+sdd/plans/
 sase_plan_*.md
 
 # Prompt source syntax: bare xprompt references like #_helper are not Markdown headings.

@@ -1,9 +1,11 @@
 """Stale RUNNING entry cleanup utilities for the axe scheduler."""
 
 from collections.abc import Callable
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from sase.core.paths import sase_projects_dir
+from sase.core.time import local_now
 from sase.running_field import (
     WorkspaceClaim,
     get_claimed_workspaces,
@@ -13,6 +15,9 @@ from sase.running_field import (
 from sase.workspace_provider.occupant import clear_occupant_record
 
 from ..hooks.processes import is_process_running
+
+_CLAIM_TIMESTAMP_FORMATS = ("%Y%m%d%H%M%S", "%Y%m%d_%H%M%S", "%y%m%d_%H%M%S")
+_DEFAULT_HELD_CLAIM_TTL_DAYS = 14
 
 
 def _held_agent_artifacts_exist(project_file: str, artifacts_timestamp: str) -> bool:
@@ -31,6 +36,74 @@ def _held_agent_artifacts_exist(project_file: str, artifacts_timestamp: str) -> 
         ).is_dir()
     except Exception:
         return True
+
+
+def _held_done_marker_exists(project_file: str, artifacts_timestamp: str) -> bool:
+    """Conservatively check whether a held agent has a dismissible done marker.
+
+    Read failures fail closed (assume a marker exists) so a transient path
+    error cannot reap a claim that ACE could still surface.
+    """
+    try:
+        from sase.core.agent_artifact_paths import (
+            ACE_RUN_WORKFLOW_DIR,
+            resolve_agent_artifact_timestamp_path,
+        )
+
+        project_name = Path(project_file).parent.name
+        artifacts_dir = resolve_agent_artifact_timestamp_path(
+            project_name,
+            ACE_RUN_WORKFLOW_DIR,
+            artifacts_timestamp,
+        )
+        return (artifacts_dir / "done.json").is_file()
+    except Exception:
+        return True
+
+
+def _held_claim_ttl_days() -> int:
+    """Return ``workspace.held_claim_ttl_days``, defaulting to 14 on error."""
+    try:
+        from sase.config import load_merged_config
+        from sase.workspace_provider.store import held_claim_ttl_days_from_config
+
+        return held_claim_ttl_days_from_config(load_merged_config())
+    except Exception:
+        return _DEFAULT_HELD_CLAIM_TTL_DAYS
+
+
+def _parse_claim_timestamp(artifacts_timestamp: str) -> datetime | None:
+    """Parse a RUNNING-field artifacts timestamp, or None if unparseable."""
+    for fmt in _CLAIM_TIMESTAMP_FORMATS:
+        try:
+            return datetime.strptime(artifacts_timestamp, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _now() -> datetime:
+    return local_now()
+
+
+def _held_claim_exceeds_ttl(
+    artifacts_timestamp: str,
+    ttl_days: int,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Return whether a pinned claim's launch stamp is older than the TTL.
+
+    ``ttl_days <= 0`` disables age-based release. Unparseable stamps keep
+    today's never-release behavior.
+    """
+    if ttl_days <= 0:
+        return False
+    parsed = _parse_claim_timestamp(artifacts_timestamp)
+    if parsed is None:
+        return False
+    current = _now() if now is None else now
+    return current - parsed > timedelta(days=ttl_days)
 
 
 def _monitor_claim_is_releasable(project_file: str, claim: WorkspaceClaim) -> bool:
@@ -104,6 +177,7 @@ def cleanup_stale_running_entries(
         monitor_workflow = MONITOR_WORKSPACE_CLAIM_WORKFLOW
 
     released_count = 0
+    held_ttl_days: int | None = None
 
     for project_file in _get_all_project_files():
         claims = get_claimed_workspaces(project_file)
@@ -119,8 +193,21 @@ def cleanup_stale_running_entries(
                     continue
                 if is_process_running(claim.pid):
                     continue
-                if _held_agent_artifacts_exist(project_file, claim.artifacts_timestamp):
-                    continue
+                # Keep a pinned dead claim only while it still has a
+                # dismissal path (artifacts + done.json) and is younger
+                # than the held-claim TTL. No done.json means ACE can
+                # never offer dismissal, so the conservative skip would
+                # preserve a leak. The claim's own PID is already dead,
+                # so no finalizer can still write the marker.
+                if _held_agent_artifacts_exist(
+                    project_file, claim.artifacts_timestamp
+                ) and _held_done_marker_exists(project_file, claim.artifacts_timestamp):
+                    if held_ttl_days is None:
+                        held_ttl_days = _held_claim_ttl_days()
+                    if not _held_claim_exceeds_ttl(
+                        claim.artifacts_timestamp, held_ttl_days
+                    ):
+                        continue
             elif is_process_running(claim.pid):
                 continue
             elif is_monitor_claim and not _monitor_claim_is_releasable(

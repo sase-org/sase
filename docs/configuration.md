@@ -3956,13 +3956,15 @@ workspace:
   root: xdg-state # "xdg-state", "adjacent", or an absolute path
   project_key: "" # explicit project-key override; empty = derive from git remote / primary path
   cleanup_ttl_days: 14 # age threshold for `sase workspace cleanup --stale`
+  held_claim_ttl_days: 14 # age threshold for releasing pinned dead workspace claims
 ```
 
-| Field                        | Type   | Default       | Description                                                                                                                                                                                                                                    |
-| ---------------------------- | ------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `workspace.root`             | string | `"xdg-state"` | Root policy. `"xdg-state"` uses the platform state dir; `"adjacent"` keeps the legacy `<primary>_<num>/` layout as an explicit opt-in; an absolute path is used as the managed-root base. `SASE_WORKSPACE_ROOT` overrides this base directory. |
-| `workspace.project_key`      | string | `""`          | Override the per-project namespace under managed roots. Empty derives a stable key from a single git remote slug or the primary-path basename plus a short hash.                                                                               |
-| `workspace.cleanup_ttl_days` | int    | `14`          | Minimum age (in days) of an unclaimed managed checkout before `sase workspace cleanup --stale` will remove it.                                                                                                                                 |
+| Field                           | Type   | Default       | Description                                                                                                                                                                                                                                    |
+| ------------------------------- | ------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workspace.root`                | string | `"xdg-state"` | Root policy. `"xdg-state"` uses the platform state dir; `"adjacent"` keeps the legacy `<primary>_<num>/` layout as an explicit opt-in; an absolute path is used as the managed-root base. `SASE_WORKSPACE_ROOT` overrides this base directory. |
+| `workspace.project_key`         | string | `""`          | Override the per-project namespace under managed roots. Empty derives a stable key from a single git remote slug or the primary-path basename plus a short hash.                                                                               |
+| `workspace.cleanup_ttl_days`    | int    | `14`          | Minimum age (in days) of an unclaimed managed checkout before `sase workspace cleanup --stale` will remove it.                                                                                                                                 |
+| `workspace.held_claim_ttl_days` | int    | `14`          | Minimum age (in days) of a pinned dead-PID workspace claim before the stale sweep releases it. Artifacts are kept so the failed run stays dismissible in ACE; only the workspace hold is dropped. `0` disables age-based release.              |
 
 Platform defaults for the `xdg-state` policy:
 
