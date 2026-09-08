@@ -35,7 +35,7 @@ from sase.sdd.artifact_link_backfill import (
     run_artifact_link_backfill_batch,
 )
 from sase.sdd.artifact_link_outbox import drain_artifact_link_outbox
-from sase.sdd.artifact_link_store import resolve_artifact_link_store
+from sase.sdd.artifact_link_store import resolve_machine_artifact_link_store
 
 _STATE_FILENAME = "artifact_link_backfill.json"
 _STATE_SCHEMA_VERSION = 1
@@ -201,7 +201,7 @@ def _run_project(
     runtime.log.info(f"[{_CHOP}] {project_key}: starting")
     elapsed: dict[str, float] = {}
     try:
-        store = resolve_artifact_link_store(cwd=Path(workspace_dir))
+        store = resolve_machine_artifact_link_store(project_key, Path(workspace_dir))
     except Exception as exc:  # noqa: BLE001 - one broken project cannot stall the rest.
         totals.failed_projects += 1
         totals.warnings.append(f"{project_key}: could not resolve link store: {exc}")

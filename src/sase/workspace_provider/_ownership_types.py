@@ -22,6 +22,11 @@ ProcessRunningProbe = Callable[[int], bool]
 # and ``#2``-``#9``). Machine-owned leases come from the unified claim pool.
 MACHINE_OWNED_MIN_WORKSPACE = 10
 
+# A host-owned hidden sidecar clone is not a numbered checkout at all: it has
+# no registry entry or live claim, so it cannot collide with a real
+# ``workspace_num``.
+HOST_OWNED_SIDECAR_WORKSPACE_NUM = -1
+
 
 class MutationOrigin(StrEnum):
     """Who initiated a repository mutation."""
@@ -37,6 +42,7 @@ class AccessKind(StrEnum):
     READ_ONLY_CANONICAL = "read_only_canonical"
     LEASED_OPERATIONAL = "leased_operational"
     PRIMARY_SIDECAR_SYNC = "primary_sidecar_sync"
+    HOST_OWNED_SIDECAR = "host_owned_sidecar"
 
 
 class WorkspaceOwnershipError(RuntimeError):
@@ -93,6 +99,7 @@ def path_is_within(path: Path, root: Path) -> bool:
 
 __all__ = [
     "AccessKind",
+    "HOST_OWNED_SIDECAR_WORKSPACE_NUM",
     "MACHINE_OWNED_MIN_WORKSPACE",
     "MutationOrigin",
     "OperationContext",

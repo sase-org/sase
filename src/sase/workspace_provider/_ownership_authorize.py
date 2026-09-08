@@ -21,6 +21,7 @@ from sase.workspace_provider._ownership_paths import (
 )
 from sase.workspace_provider._ownership_types import (
     AccessKind,
+    HOST_OWNED_SIDECAR_WORKSPACE_NUM,
     MutationOrigin,
     OperationContext,
     ProcessRunningProbe,
@@ -143,6 +144,9 @@ def _infer_machine_context(
     claims: Sequence[WorkspaceClaim] | None,
     process_running: ProcessRunningProbe | None,
 ) -> OperationContext:
+    hidden_sidecar = _hidden_sidecar_machine_context(target)
+    if hidden_sidecar is not None:
+        return hidden_sidecar
     identity = identify_checkout(
         target,
         project=project,
@@ -176,6 +180,58 @@ def _infer_machine_context(
         identity,
         access_kind=AccessKind.LEASED_OPERATIONAL,
         mutation_origin=MutationOrigin.MACHINE,
+    )
+
+
+def _hidden_sidecar_machine_context(target: Path) -> OperationContext | None:
+    """Recognize a host-owned hidden sidecar clone as machine-writable.
+
+    Confined to the canonical ``~/.sase/projects/<project_key>/repos/<role>``
+    root for a role the project's primary checkout has actually recorded, so
+    an unconfigured or foreign lookalike path under the same projects
+    directory is still refused. Returns ``None`` (never raises) so an
+    unrecognized target falls through to the ordinary marker/registry
+    inference below.
+    """
+
+    from sase.bead.workspace import resolve_primary_workspace_for_project
+    from sase.core.paths import sase_projects_dir
+    from sase.linked_repos import hidden_sidecar_clone_dir
+    from sase.sdd._store_records import is_materialized_record, read_sdd_store_record
+
+    try:
+        relative = target.relative_to(normalize_path(sase_projects_dir()))
+    except ValueError:
+        return None
+    parts = relative.parts
+    if len(parts) < 3 or parts[1] != "repos":
+        return None
+    project_key, role = parts[0], parts[2]
+
+    try:
+        root = normalize_path(hidden_sidecar_clone_dir(project_key, role))
+    except ValueError:
+        return None
+    if not path_is_within(target, root):
+        return None
+
+    primary = resolve_primary_workspace_for_project(project_key)
+    if primary is None:
+        return None
+    record = read_sdd_store_record(primary)
+    if not is_materialized_record(record) or record is None:
+        return None
+    if role not in record.sidecars:
+        return None
+
+    return OperationContext(
+        project=project_key,
+        access_kind=AccessKind.HOST_OWNED_SIDECAR,
+        mutation_origin=MutationOrigin.MACHINE,
+        workspace_num=HOST_OWNED_SIDECAR_WORKSPACE_NUM,
+        checkout_dir=root,
+        primary_checkout_dir=normalize_path(primary),
+        sidecar_role=role,
     )
 
 

@@ -88,11 +88,13 @@ def _record_failure(
 
 
 def _resolve_store(target: ProjectTarget) -> SddStore:
-    from sase.sdd.plan_refs import workspace_context_for_plan_resolution
-    from sase.sdd.store import resolve_sdd_store
+    from sase.sdd.artifact_link_store import resolve_machine_artifact_link_store
 
-    workspace, number = workspace_context_for_plan_resolution(target.primary_checkout)
-    return resolve_sdd_store(workspace, number)
+    link_store = resolve_machine_artifact_link_store(
+        target.project_key, target.primary_checkout
+    )
+    assert link_store.sdd_store is not None
+    return link_store.sdd_store
 
 
 __all__ = ["drain_referenced_by_requests"]

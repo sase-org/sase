@@ -149,7 +149,9 @@ def test_runs_every_job_and_aggregates_totals(
         backfill_chop, "_enabled_project_records", lambda: [_project(tmp_path)]
     )
     monkeypatch.setattr(
-        backfill_chop, "resolve_artifact_link_store", lambda cwd=None: object()
+        backfill_chop,
+        "resolve_machine_artifact_link_store",
+        lambda project_key, primary_checkout: object(),
     )
     monkeypatch.setattr(
         backfill_chop,
@@ -187,6 +189,39 @@ def test_runs_every_job_and_aggregates_totals(
     assert "plan:202608/a.md" in state
 
 
+def test_resolves_the_machine_store_with_the_project_key_and_primary_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, name="widget")
+    monkeypatch.setattr(backfill_chop, "_enabled_project_records", lambda: [project])
+    calls: list[tuple[str, Path]] = []
+
+    def _resolve(project_key: str, primary_checkout: Path) -> object:
+        calls.append((project_key, primary_checkout))
+        return object()
+
+    monkeypatch.setattr(backfill_chop, "resolve_machine_artifact_link_store", _resolve)
+    monkeypatch.setattr(
+        backfill_chop,
+        "run_artifact_link_backfill_batch",
+        lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "drain_artifact_link_outbox",
+        lambda store=None: SimpleNamespace(drained=0, dropped=0),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "reconcile_and_repair_artifact_links",
+        lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
+    )
+
+    backfill_chop._run(_runtime(tmp_path))
+
+    assert calls == [("widget", Path(project.workspace_dir))]
+
+
 def test_a_broken_project_is_recorded_and_does_not_stop_the_sweep(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -196,12 +231,12 @@ def test_a_broken_project_is_recorded_and_does_not_stop_the_sweep(
         lambda: [_project(tmp_path, name="broken"), _project(tmp_path, name="ok")],
     )
 
-    def _resolve(cwd: Path | None = None) -> object:
-        if cwd is not None and Path(cwd).name == "broken":
+    def _resolve(project_key: str, primary_checkout: Path) -> object:
+        if Path(primary_checkout).name == "broken":
             raise RuntimeError("no project here")
         return object()
 
-    monkeypatch.setattr(backfill_chop, "resolve_artifact_link_store", _resolve)
+    monkeypatch.setattr(backfill_chop, "resolve_machine_artifact_link_store", _resolve)
     monkeypatch.setattr(
         backfill_chop,
         "run_artifact_link_backfill_batch",
@@ -231,7 +266,9 @@ def test_checkpoint_survives_across_ticks(
         backfill_chop, "_enabled_project_records", lambda: [_project(tmp_path)]
     )
     monkeypatch.setattr(
-        backfill_chop, "resolve_artifact_link_store", lambda cwd=None: object()
+        backfill_chop,
+        "resolve_machine_artifact_link_store",
+        lambda project_key, primary_checkout: object(),
     )
     seen_already_swept: list[frozenset[str]] = []
 
@@ -271,7 +308,9 @@ def test_later_jobs_defer_after_sweep_budget(
         backfill_chop, "_enabled_project_records", lambda: [_project(tmp_path)]
     )
     monkeypatch.setattr(
-        backfill_chop, "resolve_artifact_link_store", lambda cwd=None: object()
+        backfill_chop,
+        "resolve_machine_artifact_link_store",
+        lambda project_key, primary_checkout: object(),
     )
     now = [0.0]
     monkeypatch.setattr(backfill_chop.time, "monotonic", lambda: now[0])
@@ -320,7 +359,9 @@ def test_chop_stops_starting_projects_past_the_chop_budget(
     projects = [_project(tmp_path, name=name) for name in ("p1", "p2", "p3")]
     monkeypatch.setattr(backfill_chop, "_enabled_project_records", lambda: projects)
     monkeypatch.setattr(
-        backfill_chop, "resolve_artifact_link_store", lambda cwd=None: object()
+        backfill_chop,
+        "resolve_machine_artifact_link_store",
+        lambda project_key, primary_checkout: object(),
     )
     monkeypatch.setattr(
         backfill_chop,
@@ -364,7 +405,9 @@ def test_per_project_progress_is_logged(
         lambda: [_project(tmp_path, name="proj")],
     )
     monkeypatch.setattr(
-        backfill_chop, "resolve_artifact_link_store", lambda cwd=None: object()
+        backfill_chop,
+        "resolve_machine_artifact_link_store",
+        lambda project_key, primary_checkout: object(),
     )
     monkeypatch.setattr(
         backfill_chop,
@@ -399,7 +442,9 @@ def test_chop_passes_budget_through_and_warns_on_deferred_refs(
         lambda: [_project(tmp_path, name="proj")],
     )
     monkeypatch.setattr(
-        backfill_chop, "resolve_artifact_link_store", lambda cwd=None: object()
+        backfill_chop,
+        "resolve_machine_artifact_link_store",
+        lambda project_key, primary_checkout: object(),
     )
     monkeypatch.setattr(
         backfill_chop,
