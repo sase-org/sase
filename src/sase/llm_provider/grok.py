@@ -24,6 +24,7 @@ from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
+    from .usage.types import UsageProbeContext
     from .usage_limit_config import ProviderUsageLimitConfig
 
 _TIER_TO_MODEL: dict[ModelTier, str] = {
@@ -225,6 +226,18 @@ class GrokProvider(LLMProvider):
                 "usage limit reached",
             ],
             disable_seconds=172800,
+        )
+
+    @hookimpl
+    def llm_usage_capabilities(self) -> dict[str, object]:
+        return {"probe": True, "passive_events": False}
+
+    @hookimpl
+    def llm_usage_probe(self, context: UsageProbeContext) -> dict[str, object] | None:
+        from .usage.grok import collect_grok_usage
+
+        return collect_grok_usage(
+            context, executable=context.executable or _resolve_grok_executable()
         )
 
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
