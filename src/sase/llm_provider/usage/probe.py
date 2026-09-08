@@ -141,7 +141,11 @@ def probe_in_process(
             reason_code="malformed_payload",
         )
     try:
-        return validate_observation(_bind_observation(raw, context, now), now=now)
+        validation_now = max(time.time(), now)
+        return validate_observation(
+            _bind_observation(raw, context, validation_now),
+            now=validation_now,
+        )
     except (TypeError, ValueError, AttributeError):
         log.warning(
             "usage probe returned an invalid observation for provider %r",

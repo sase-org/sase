@@ -18,6 +18,7 @@ from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
+    from .usage.types import UsageProbeContext
     from .usage_limit_config import ProviderUsageLimitConfig
 
 # Map model tiers to Claude CLI aliases
@@ -212,6 +213,16 @@ class ClaudeCodeProvider(LLMProvider):
             ],
         )
 
+    @hookimpl
+    def llm_usage_capabilities(self) -> dict[str, object]:
+        return {"probe": True, "passive_events": True}
+
+    @hookimpl
+    def llm_usage_probe(self, context: UsageProbeContext) -> dict[str, object] | None:
+        from .usage.claude import collect_claude_usage
+
+        return collect_claude_usage(context)
+
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
         """Translate a resolved reasoning effort into ``--effort`` args."""
         return effort_cli_args(
@@ -389,6 +400,9 @@ class ClaudeCodeProvider(LLMProvider):
         Returns:
             Tuple of (stdout_content, stderr_content, return_code, usage_totals).
         """
+        from .usage.claude import capture_claude_passive_usage_context
+
+        usage_context = capture_claude_passive_usage_context(executable=args[0])
         process = subprocess.Popen(
             args,
             stdin=subprocess.PIPE,
@@ -408,4 +422,8 @@ class ClaudeCodeProvider(LLMProvider):
         )
 
         # Stream JSON output and extract assistant text
-        return stream_and_parse_json_output(process, suppress_output=suppress_output)
+        return stream_and_parse_json_output(
+            process,
+            suppress_output=suppress_output,
+            usage_context=usage_context,
+        )

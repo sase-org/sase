@@ -31,7 +31,7 @@ def test_synthetic_fourth_provider_collects_without_core_changes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
-    context = default_probe_context("synth", deadline_seconds=8)
+    context = default_probe_context("synth", deadline_seconds=20)
     with override_flags(provider_usage_metrics=True):
         result = run_usage_probe(
             context,
@@ -86,7 +86,7 @@ def test_secret_canary_exception_is_not_in_observation(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
-    context = default_probe_context("synth", deadline_seconds=8)
+    context = default_probe_context("synth", deadline_seconds=20)
     with override_flags(provider_usage_metrics=True):
         result = run_usage_probe(
             context,

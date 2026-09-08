@@ -17,6 +17,7 @@ from ._subprocess_artifacts import (
 from ._subprocess_diagnostics import record_stdout_json_decode_diagnostic
 from ._subprocess_stream import append_error_events, stream_json_lines
 from ._tool_calls import append_claude_tool_call_event
+from .usage.types import UsageProbeContext
 
 ToolCallWriter = Callable[[Mapping[str, Any]], None]
 ThinkingSink = Callable[[Mapping[str, Any], Mapping[str, Any], IO[str]], None]
@@ -26,6 +27,8 @@ ThinkingSinkOption = ThinkingSink | bool | None
 def stream_and_parse_json_output(
     process: subprocess.Popen[str],
     suppress_output: bool = False,
+    *,
+    usage_context: UsageProbeContext | None = None,
 ) -> tuple[str, str, int, dict[str, int]]:
     """Stream stdout as JSON events and extract assistant text.
 
@@ -36,6 +39,7 @@ def stream_and_parse_json_output(
     return _stream_and_parse_messages_json_output(
         process,
         suppress_output=suppress_output,
+        usage_context=usage_context,
     )
 
 
@@ -46,6 +50,7 @@ def stream_and_parse_messages_json_output(
     runtime: str = "claude",
     tool_call_writer: ToolCallWriter = append_claude_tool_call_event,
     thinking_sink: ThinkingSinkOption = None,
+    usage_context: UsageProbeContext | None = None,
 ) -> tuple[str, str, int, dict[str, int]]:
     """Stream Anthropic Messages JSON events for Claude-compatible CLIs."""
     return _stream_and_parse_messages_json_output(
@@ -54,6 +59,7 @@ def stream_and_parse_messages_json_output(
         runtime=runtime,
         tool_call_writer=tool_call_writer,
         thinking_sink=thinking_sink,
+        usage_context=usage_context,
     )
 
 
@@ -64,6 +70,7 @@ def _stream_and_parse_messages_json_output(
     runtime: str = "claude",
     tool_call_writer: ToolCallWriter = append_claude_tool_call_event,
     thinking_sink: ThinkingSinkOption = None,
+    usage_context: UsageProbeContext | None = None,
 ) -> tuple[str, str, int, dict[str, int]]:
     """Stream Anthropic Messages JSON events and extract assistant text."""
     assistant_texts: list[str] = []
@@ -91,6 +98,7 @@ def _stream_and_parse_messages_json_output(
                 tool_call_writer=tool_call_writer,
                 thinking_sink=resolved_thinking_sink,
                 thinking_file=thinking_file,
+                usage_context=usage_context,
             ),
             suppress_output,
         )
@@ -101,6 +109,10 @@ def _stream_and_parse_messages_json_output(
             timestamps_file.close()
         if thinking_file:
             thinking_file.close()
+        if runtime == "claude" and usage_context is not None:
+            from .usage.claude import flush_claude_passive_usage_events
+
+            flush_claude_passive_usage_events()
 
     combined_text = "\n\n".join(assistant_texts)
     write_usage_artifact(usage_totals)
@@ -122,6 +134,7 @@ def _process_json_line(
     tool_call_writer: ToolCallWriter = append_claude_tool_call_event,
     thinking_sink: ThinkingSinkOption = None,
     thinking_file: IO[str] | None = None,
+    usage_context: UsageProbeContext | None = None,
 ) -> None:
     """Parse a single JSON line and extract assistant text if present.
 
@@ -144,6 +157,10 @@ def _process_json_line(
         return
 
     event_type = event.get("type")
+    if event_type == "rate_limit_event" and runtime == "claude":
+        from .usage.claude import submit_claude_passive_usage_event
+
+        submit_claude_passive_usage_event(event, usage_context)
     tool_call_writer(event)
     resolved_thinking_sink = _resolve_thinking_sink(thinking_sink)
 
