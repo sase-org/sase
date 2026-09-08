@@ -5,7 +5,7 @@ import pytest
 from sase.core.eligibility_facade import (
     ArtifactLinkChangedPath,
     ArtifactLinkRepoEvidence,
-    artifact_link_eligibility_wire_schema_version,
+    _artifact_link_eligibility_wire_schema_version,
     artifact_link_release_evidence,
     decide_artifact_link_eligibility,
     validate_artifact_link_release_evidence,
@@ -15,7 +15,7 @@ pytestmark = pytest.mark.contract
 
 
 def test_facade_resolves_schema_version() -> None:
-    assert artifact_link_eligibility_wire_schema_version() >= 1
+    assert _artifact_link_eligibility_wire_schema_version() >= 1
 
 
 def test_bookkeeping_only_evidence_is_ineligible() -> None:

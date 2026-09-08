@@ -49,7 +49,7 @@ class ArtifactLinkReleaseEvidence(NamedTuple):
 
 
 @lru_cache(maxsize=1)
-def artifact_link_eligibility_wire_schema_version() -> int:
+def _artifact_link_eligibility_wire_schema_version() -> int:
     binding = require_rust_binding("artifact_link_eligibility_wire_schema_version")
     return int(binding())
 
@@ -64,7 +64,7 @@ def decide_artifact_link_eligibility(
 
     binding = require_rust_binding("decide_artifact_link_eligibility")
     request = {
-        "schema_version": artifact_link_eligibility_wire_schema_version(),
+        "schema_version": _artifact_link_eligibility_wire_schema_version(),
         "run_id": run_id,
         "agent_id": agent_id,
         "repos": [_repo_to_wire(repo) for repo in repos],
@@ -116,7 +116,7 @@ def _repo_to_wire(repo: ArtifactLinkRepoEvidence) -> dict[str, Any]:
 
 def _decision_to_wire(decision: ArtifactLinkEligibilityDecision) -> dict[str, Any]:
     return {
-        "schema_version": artifact_link_eligibility_wire_schema_version(),
+        "schema_version": _artifact_link_eligibility_wire_schema_version(),
         "run_id": decision.run_id,
         "agent_id": decision.agent_id,
         "eligible": decision.eligible,
@@ -139,7 +139,7 @@ def _release_evidence_to_wire(
     evidence: ArtifactLinkReleaseEvidence,
 ) -> dict[str, Any]:
     return {
-        "schema_version": artifact_link_eligibility_wire_schema_version(),
+        "schema_version": _artifact_link_eligibility_wire_schema_version(),
         "run_id": evidence.run_id,
         "agent_id": evidence.agent_id,
         "qualifying_repo_ids": list(evidence.qualifying_repo_ids),
@@ -163,7 +163,6 @@ __all__ = [
     "ArtifactLinkEligibilityDecision",
     "ArtifactLinkReleaseEvidence",
     "ArtifactLinkRepoEvidence",
-    "artifact_link_eligibility_wire_schema_version",
     "artifact_link_release_evidence",
     "decide_artifact_link_eligibility",
     "validate_artifact_link_release_evidence",
