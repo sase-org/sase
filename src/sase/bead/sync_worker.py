@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import fcntl
 import json
+import os
 import subprocess
 import sys
 import time
@@ -37,6 +39,7 @@ def run_managed_sync_worker(
     *,
     log_path: Path,
     worker_lock_wait: float = 0.0,
+    deadline: float | None = None,
 ) -> _ManagedSyncOutcome:
     """Fetch, rebase with bead conflict repair, and push without prompting."""
     repo_root = repo_root.expanduser().resolve()
@@ -52,7 +55,7 @@ def run_managed_sync_worker(
         wait_started = time.monotonic()
         acquired = _acquire_worker_lock(
             lock_file.fileno(),
-            timeout=worker_lock_wait,
+            timeout=_bounded_wait(worker_lock_wait, deadline),
         )
         waited_seconds = time.monotonic() - wait_started
         if not acquired:
@@ -79,7 +82,12 @@ def run_managed_sync_worker(
             )
 
         try:
-            return _run_locked_sync(repo_root, beads_dir, log_path)
+            return _run_locked_sync(
+                repo_root,
+                beads_dir,
+                log_path,
+                deadline=deadline,
+            )
         finally:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
@@ -106,7 +114,11 @@ def _acquire_worker_lock(fd: int, *, timeout: float) -> bool:
 
 
 def _run_locked_sync(
-    repo_root: Path, beads_dir: Path, log_path: Path
+    repo_root: Path,
+    beads_dir: Path,
+    log_path: Path,
+    *,
+    deadline: float | None,
 ) -> _ManagedSyncOutcome:
     _log(log_path, "started", repo_root=str(repo_root), beads_dir=str(beads_dir))
 
@@ -133,11 +145,14 @@ def _run_locked_sync(
 
     integrated = False
     bead_relocations: tuple[Any, ...] = ()
+    git_runner = _git_runner_for_deadline(deadline)
     for push_attempt in range(1, _MAX_PUSH_ATTEMPTS + 1):
         integration = _integrate_with_transient_dirty_retry(
             repo_root,
             beads_dir,
             log_path,
+            git_runner=git_runner,
+            deadline=deadline,
         )
         integrated = integrated or integration.integrated
         integration_relocations = _integration_relocations(integration)
@@ -180,14 +195,15 @@ def _run_locked_sync(
         # cooldown, not only the pull path that recorded it.
         clear_failed_integration_marker(
             repo_root,
-            git_runner=_git,
+            git_runner=git_runner,
             lock_factory=store_git_write_lock_factory(
                 op="bead.sync.integration_success",
                 mutates_worktree=False,
+                timeout=_deadline_timeout(deadline),
             ),
         )
 
-        pushed = _git(
+        pushed = git_runner(
             repo_root,
             ["push"],
             op="bead.sync.push",
@@ -239,6 +255,9 @@ def _integrate_with_transient_dirty_retry(
     repo_root: Path,
     beads_dir: Path,
     log_path: Path,
+    *,
+    git_runner: Callable[..., subprocess.CompletedProcess[str]],
+    deadline: float | None,
 ) -> SddIntegrationOutcome:
     """Retry a short-lived dirty state without accepting persistent edits."""
     from sase.sdd._git_contention import store_git_write_lock_factory
@@ -252,10 +271,11 @@ def _integrate_with_transient_dirty_retry(
             repo_root,
             beads_dir=beads_dir,
             op_prefix="bead.sync",
-            git_runner=_git,
+            git_runner=git_runner,
             lock_factory=store_git_write_lock_factory(
                 op="bead.sync.transaction",
                 mutates_worktree=True,
+                timeout=_deadline_timeout(deadline),
             ),
             event_logger=lambda event, **fields: _log(log_path, event, **fields),
         )
@@ -283,7 +303,14 @@ def _integrate_with_transient_dirty_retry(
             attempt=attempt,
             max_attempts=_MAX_LOCAL_CHANGES_ATTEMPTS,
         )
-        time.sleep(_LOCAL_CHANGES_RETRY_DELAY_SECONDS)
+        time.sleep(
+            min(
+                _LOCAL_CHANGES_RETRY_DELAY_SECONDS,
+                _deadline_remaining(deadline)
+                if deadline is not None
+                else _LOCAL_CHANGES_RETRY_DELAY_SECONDS,
+            )
+        )
 
     raise AssertionError("bounded local-changes loop ended without an outcome")
 
@@ -302,6 +329,62 @@ def _is_non_fast_forward_rejection(
         or "fetch first" in output
         or ("[rejected]" in output and "failed to push some refs" in output)
     )
+
+
+def _git_runner_for_deadline(
+    deadline: float | None,
+) -> Callable[..., subprocess.CompletedProcess[str]]:
+    if deadline is None:
+        return _git
+
+    from sase.sdd._git import network_git_timeout
+    from sase.sdd._git_contention import run_sdd_git_write
+
+    def _run(
+        repo_root: Path,
+        args: list[str],
+        *,
+        op: str,
+        network: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        return run_sdd_git_write(
+            args,
+            cwd=repo_root,
+            op=op,
+            timeout=_deadline_timeout(
+                deadline,
+                network_git_timeout() if network else None,
+            ),
+            check=False,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        )
+
+    return _run
+
+
+def _bounded_wait(wait_seconds: float, deadline: float | None) -> float:
+    wait = max(0.0, wait_seconds)
+    if deadline is None:
+        return wait
+    return min(wait, _deadline_remaining(deadline))
+
+
+def _deadline_timeout(
+    deadline: float | None,
+    cap: float | None = None,
+) -> float | None:
+    if deadline is None:
+        return cap
+    remaining = max(0.001, _deadline_remaining(deadline))
+    return remaining if cap is None else min(cap, remaining)
+
+
+def _deadline_remaining(deadline: float | None) -> float:
+    if deadline is None:
+        return 0.0
+    return max(0.0, deadline - time.monotonic())
 
 
 def _failure(

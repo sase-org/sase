@@ -34,6 +34,7 @@ def push_bead_work_launch(
     beads_dir: Path,
     *,
     worker_lock_wait: float,
+    deadline: float | None = None,
     find_git_root: Callable[[Path], Path | None],
     new_sync_log_path: Callable[[], Path],
 ) -> PushOutcome:
@@ -55,6 +56,7 @@ def push_bead_work_launch(
             semantic_beads_dir,
             log_path=log_path,
             worker_lock_wait=worker_lock_wait,
+            deadline=deadline,
         )
         if result.pushed:
             return PushOutcome(

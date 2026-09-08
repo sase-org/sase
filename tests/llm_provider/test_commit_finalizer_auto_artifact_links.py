@@ -348,6 +348,8 @@ def test_publication_failure_is_recoverable(
     assert "was committed locally but NOT published" in error
     assert "unpublished artifact-link commit(s)" in error
     assert str(plans) in error
+    assert "destroyed if this workspace is evicted" not in error
+    assert "durable on this machine but invisible to other machines" in error
     assert "chore(artifact-links): persist link indexes" in _run_git(
         plans, "log", "-1", "--pretty=%s"
     )

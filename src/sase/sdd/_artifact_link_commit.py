@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 import subprocess
@@ -51,10 +51,20 @@ class _ArtifactLinkCommitResult:
         return self.committed
 
 
+@dataclass(frozen=True)
+class _ArtifactLinkPublicationContext:
+    """Identity for recording retry state for one document sidecar root."""
+
+    project_key: str
+    role: str
+    remote_url: str
+
+
 def commit_artifact_link_indexes(
     index_paths: Iterable[Path],
     *,
     store: SddStore | None = None,
+    project_key: str | None = None,
     repo_roots: Sequence[Path] = (),
     artifacts_dir: str | Path | None = None,
     already_locked: bool = False,
@@ -105,7 +115,12 @@ def commit_artifact_link_indexes(
     )
     publication_error = None
     if committed and verify_publication:
-        publication_error = _publication_error_for_roots(committed_roots)
+        contexts = _publication_contexts_for_roots(store, project_key=project_key)
+        publication_error = _publication_error_for_roots(
+            committed_roots,
+            contexts=contexts,
+            register_retry=mutation_origin == "machine",
+        )
     return _ArtifactLinkCommitResult(
         committed=committed,
         repo_roots=tuple(committed_roots),
@@ -131,6 +146,7 @@ def persist_artifact_link_graph_mutation(
         result = commit_artifact_link_indexes(
             changed_indexes,
             store=link_store.sdd_store,
+            project_key=link_store.project_key,
             repo_roots=tuple(link_store.sidecar_roots.values()),
             artifacts_dir=artifacts_dir,
             verify_publication=True,
@@ -150,11 +166,20 @@ def persist_artifact_link_graph_mutation(
 
 
 def _ensure_artifact_link_commit_published(
-    repo_root: Path, *, description: str | None = None
+    repo_root: Path,
+    *,
+    description: str | None = None,
+    publication_context: _ArtifactLinkPublicationContext | None = None,
+    register_retry: bool = False,
 ) -> str | None:
     """Publish a finalizer-created sidecar commit or return a diagnostic."""
 
-    return _unpublished_sidecar_error(repo_root, description=description)
+    return _unpublished_sidecar_error(
+        repo_root,
+        description=description,
+        publication_context=publication_context,
+        register_retry=register_retry,
+    )
 
 
 def _group_valid_indexes(
@@ -311,11 +336,21 @@ def _commit_bead_link_events(
         raise ArtifactLinkPersistError(str(exc), diagnostic=exc.diagnostic) from exc
 
 
-def _publication_error_for_roots(repo_roots: Sequence[Path]) -> str | None:
+def _publication_error_for_roots(
+    repo_roots: Sequence[Path],
+    *,
+    contexts: Mapping[Path, _ArtifactLinkPublicationContext] | None = None,
+    register_retry: bool = False,
+) -> str | None:
     errors: list[str] = []
     for root in repo_roots:
         error = _ensure_artifact_link_commit_published(
-            root, description=ARTIFACT_LINK_COMMIT_MESSAGE
+            root,
+            description=ARTIFACT_LINK_COMMIT_MESSAGE,
+            publication_context=(contexts or {}).get(
+                root.expanduser().resolve(strict=False)
+            ),
+            register_retry=register_retry,
         )
         if error:
             errors.append(error)
@@ -325,7 +360,11 @@ def _publication_error_for_roots(repo_roots: Sequence[Path]) -> str | None:
 
 
 def _unpublished_sidecar_error(
-    repo_root: Path, *, description: str | None
+    repo_root: Path,
+    *,
+    description: str | None,
+    publication_context: _ArtifactLinkPublicationContext | None = None,
+    register_retry: bool = False,
 ) -> str | None:
     from sase.bead._sync_publication import head_is_published
     from sase.bead.sync import (
@@ -337,8 +376,9 @@ def _unpublished_sidecar_error(
         return None
     if head_is_published(repo_root):
         return None
+    outcome = None
     try:
-        push_bead_work_launch(
+        outcome = push_bead_work_launch(
             repo_root,
             worker_lock_wait=MUTATION_PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
         )
@@ -348,14 +388,85 @@ def _unpublished_sidecar_error(
         return None
     subject = description or "artifact-link mutation"
     unpushed = _unpushed_commit_count(repo_root)
+    retry_note = _record_publication_retry_note(
+        repo_root,
+        publication_context=publication_context,
+        outcome=outcome,
+        enabled=register_retry,
+    )
     return (
         f"ERROR: {subject} was committed locally but NOT published.\n"
         f"  unpublished artifact-link commit(s): {unpushed}\n"
         f"  sidecar repository: {repo_root}\n"
-        "  This mutation exists only in this checkout. It is invisible to "
-        "everyone else and is destroyed if this workspace is evicted.\n"
+        "  This mutation is durable on this machine but invisible to other "
+        "machines until published.\n"
         f"  Remediation: git -C {repo_root} push"
+        f"{retry_note}"
     )
+
+
+def _publication_contexts_for_roots(
+    store: SddStore | None, *, project_key: str | None
+) -> dict[Path, _ArtifactLinkPublicationContext]:
+    if store is None or project_key is None or not store.is_sidecar_storage:
+        return {}
+    contexts: dict[Path, _ArtifactLinkPublicationContext] = {}
+    roles = document_sidecar_roles(store.split_sidecar_roles(), include_plans=True)
+    for role in roles:
+        remote_url = store.remote_url_for_kind(role)
+        if remote_url is None:
+            continue
+        try:
+            root = store.repo_root_for_kind(role).expanduser().resolve(strict=False)
+        except (OSError, ValueError, RuntimeError):
+            continue
+        contexts[root] = _ArtifactLinkPublicationContext(
+            project_key=project_key,
+            role=role,
+            remote_url=remote_url,
+        )
+    return contexts
+
+
+def _record_publication_retry_note(
+    repo_root: Path,
+    *,
+    publication_context: _ArtifactLinkPublicationContext | None,
+    outcome: object,
+    enabled: bool,
+) -> str:
+    if not enabled or publication_context is None:
+        return ""
+    from sase.sdd._artifact_link_publication_retry import (
+        register_artifact_link_publication_failure,
+    )
+
+    log_path = getattr(outcome, "log_path", None)
+    skipped_locked = bool(getattr(outcome, "skipped_locked", False))
+    error = getattr(outcome, "error", None)
+    if skipped_locked:
+        attempt_status = "deferred"
+        message = "managed sync worker already holds the publication lock"
+    else:
+        attempt_status = "failed"
+        message = str(error or "publication worker did not publish HEAD")
+    registration = register_artifact_link_publication_failure(
+        project_key=publication_context.project_key,
+        role=publication_context.role,
+        repo_root=repo_root,
+        remote_url=publication_context.remote_url,
+        error=message,
+        log_path=log_path,
+        attempt_status=attempt_status,
+    )
+    if registration.recorded:
+        return (
+            "\n  Scheduled artifact_link_backfill will retry publication from "
+            "durable host state."
+        )
+    if registration.diagnostic:
+        return f"\n  Retry state: {registration.diagnostic}"
+    return ""
 
 
 def _has_tracking_upstream(repo_root: Path) -> bool:

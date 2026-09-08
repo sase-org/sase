@@ -137,6 +137,11 @@ REQUIRED_BINDINGS = (
     "referenced_by_wire_schema_version",
     "artifact_link_row_schema_version",
     "artifact_row_resolution_wire_schema_version",
+    "artifact_link_publication_state_wire_schema_version",
+    "artifact_link_publication_record_key",
+    "artifact_link_publication_register_pending",
+    "artifact_link_publication_due",
+    "artifact_link_publication_mark_attempt",
     "artifact_link_ref_parts",
     "artifact_row_index_keys",
     "artifact_row_ref_lookup_keys",
@@ -339,6 +344,7 @@ def _validate_artifact_link_schema(module: ModuleType) -> bool:
     expected = {
         "artifact_link_row_schema_version": 2,
         "artifact_row_resolution_wire_schema_version": 1,
+        "artifact_link_publication_state_wire_schema_version": 1,
     }
     valid = True
     for binding_name, expected_version in expected.items():

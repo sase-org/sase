@@ -41,6 +41,11 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
     bindings = {
         "artifact_link_row_schema_version",
         "artifact_row_resolution_wire_schema_version",
+        "artifact_link_publication_state_wire_schema_version",
+        "artifact_link_publication_record_key",
+        "artifact_link_publication_register_pending",
+        "artifact_link_publication_due",
+        "artifact_link_publication_mark_attempt",
         "artifact_link_ref_parts",
         "artifact_row_index_keys",
         "artifact_row_ref_lookup_keys",
@@ -70,18 +75,28 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
         SimpleNamespace(
             artifact_link_row_schema_version=lambda: 2,
             artifact_row_resolution_wire_schema_version=lambda: 1,
+            artifact_link_publication_state_wire_schema_version=lambda: 1,
         )
     )
     assert not validator._validate_artifact_link_schema(
         SimpleNamespace(
             artifact_link_row_schema_version=lambda: 1,
             artifact_row_resolution_wire_schema_version=lambda: 1,
+            artifact_link_publication_state_wire_schema_version=lambda: 1,
         )
     )
     assert not validator._validate_artifact_link_schema(
         SimpleNamespace(
             artifact_link_row_schema_version=lambda: 2,
             artifact_row_resolution_wire_schema_version=lambda: 2,
+            artifact_link_publication_state_wire_schema_version=lambda: 1,
+        )
+    )
+    assert not validator._validate_artifact_link_schema(
+        SimpleNamespace(
+            artifact_link_row_schema_version=lambda: 2,
+            artifact_row_resolution_wire_schema_version=lambda: 1,
+            artifact_link_publication_state_wire_schema_version=lambda: 2,
         )
     )
 

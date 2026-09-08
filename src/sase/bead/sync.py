@@ -59,11 +59,13 @@ def push_bead_work_launch(
     beads_dir: Path,
     *,
     worker_lock_wait: float = 0.0,
+    deadline: float | None = None,
 ) -> _PushOutcome:
     """Synchronize and push just-committed bead state without raising."""
     return _sync_publication.push_bead_work_launch(
         beads_dir,
         worker_lock_wait=worker_lock_wait,
+        deadline=deadline,
         find_git_root=_find_git_root,
         new_sync_log_path=_new_sync_log_path,
     )

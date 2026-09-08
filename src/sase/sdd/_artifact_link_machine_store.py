@@ -21,7 +21,8 @@ the hidden clones this module writes only through the existing pull-based
 
 from __future__ import annotations
 
-from dataclasses import replace
+import os
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from sase.sdd._artifact_link_store_impl import ArtifactLinkStore
@@ -50,6 +51,39 @@ def resolve_machine_artifact_link_store(
 
     hidden_store = _hidden_document_store(project_key, store)
     return ArtifactLinkStore.from_sdd_store(hidden_store, project_key)
+
+
+@dataclass(frozen=True)
+class MachineArtifactLinkRoot:
+    """One hidden document sidecar root eligible for machine publication retry."""
+
+    project_key: str
+    role: str
+    repo_root: Path
+    remote_url: str
+
+
+def machine_document_sidecar_roots(
+    project_key: str,
+    primary_checkout: str | Path,
+) -> tuple[tuple[MachineArtifactLinkRoot, ...], tuple[str, ...]]:
+    """Return hidden document sidecar roots without requiring all roles to sync.
+
+    This path is intentionally lazier than
+    :func:`resolve_machine_artifact_link_store`: an already-present hidden
+    clone is only identity-checked, not freshly integrated, so local-only
+    publication work can be observed before any pull/rebase path runs.
+    """
+
+    from sase.sdd.store import resolve_sdd_store
+
+    try:
+        store = resolve_sdd_store(Path(primary_checkout), PRIMARY_WORKSPACE_NUM)
+    except Exception as exc:  # noqa: BLE001 - caller logs per project.
+        return (), (f"could not resolve SDD store for publication retry: {exc}",)
+    if not store.is_sidecar_storage:
+        return (), ()
+    return _hidden_document_roots(project_key, store)
 
 
 def _hidden_document_store(project_key: str, store: SddStore) -> SddStore:
@@ -87,6 +121,67 @@ def _hidden_document_store(project_key: str, store: SddStore) -> SddStore:
     )
 
 
+def _hidden_document_roots(
+    project_key: str, store: SddStore
+) -> tuple[tuple[MachineArtifactLinkRoot, ...], tuple[str, ...]]:
+    from sase.linked_repos import hidden_sidecar_clone_dir
+    import sase.sdd._store_link as store_link
+
+    roots: list[MachineArtifactLinkRoot] = []
+    diagnostics: list[str] = []
+    document_roles = document_sidecar_roles(
+        store.split_sidecar_roles(), include_plans=True
+    )
+    for role in document_roles:
+        remote_url = store.remote_url_for_kind(role)
+        if remote_url is None:
+            continue
+        hidden_dir = Path(hidden_sidecar_clone_dir(project_key, role))
+        try:
+            if not _matching_hidden_clone(hidden_dir, remote_url):
+                if os.path.lexists(hidden_dir):
+                    diagnostics.append(
+                        f"{role}: hidden clone missing or has wrong remote; "
+                        f"replacing {hidden_dir}"
+                    )
+                store_link.ensure_sidecar_sdd_clone(
+                    hidden_dir,
+                    remote_url,
+                    reference_repo=_primary_reference_repo(store, role),
+                    strict=True,
+                    fresh=False,
+                )
+            if not _matching_hidden_clone(hidden_dir, remote_url):
+                diagnostics.append(
+                    f"{role}: hidden clone not available for publication retry"
+                )
+                continue
+        except Exception as exc:  # noqa: BLE001 - one role must not block another.
+            diagnostics.append(f"{role}: hidden clone unavailable: {exc}")
+            continue
+        roots.append(
+            MachineArtifactLinkRoot(
+                project_key=project_key,
+                role=role,
+                repo_root=hidden_dir.expanduser().resolve(strict=False),
+                remote_url=remote_url,
+            )
+        )
+    return tuple(roots), tuple(diagnostics)
+
+
+def _matching_hidden_clone(root: Path, remote_url: str) -> bool:
+    from sase.sdd._store_git import (
+        git_remote_url as _git_remote_url,
+        same_git_remote as _same_git_remote,
+    )
+
+    if not (root / ".git").is_dir():
+        return False
+    origin = _git_remote_url(root)
+    return origin is not None and _same_git_remote(origin, remote_url)
+
+
 def _primary_reference_repo(store: SddStore, role: str) -> Path | None:
     """Return the primary's materialized clone for *role* as a reference repo.
 
@@ -102,4 +197,8 @@ def _primary_reference_repo(store: SddStore, role: str) -> Path | None:
     return candidate if (candidate / ".git").is_dir() else None
 
 
-__all__ = ["resolve_machine_artifact_link_store"]
+__all__ = [
+    "MachineArtifactLinkRoot",
+    "machine_document_sidecar_roots",
+    "resolve_machine_artifact_link_store",
+]

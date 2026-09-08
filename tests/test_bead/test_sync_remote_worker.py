@@ -269,11 +269,18 @@ def test_managed_sync_worker_locks_local_integration_only(tmp_path, monkeypatch)
     operations: list[tuple[str, bool, bool]] = []
 
     @contextmanager
-    def probe_store_write_lock(repo_root, *, op=None, mutates_worktree=False):
+    def probe_store_write_lock(
+        repo_root,
+        *,
+        op=None,
+        mutates_worktree=False,
+        timeout=None,
+    ):
         nonlocal lock_active
         assert repo_root == tmp_path.resolve()
         assert op == "bead.sync.transaction"
         assert mutates_worktree is True
+        assert timeout is None
         assert lock_active is False
         lock_active = True
         try:

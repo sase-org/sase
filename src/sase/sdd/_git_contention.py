@@ -235,6 +235,7 @@ def store_git_write_lock_factory(
     *,
     op: str,
     mutates_worktree: bool = False,
+    timeout: float | None = None,
 ) -> Callable[[Path], AbstractContextManager[bool]]:
     """Bind an operation label to the store write lock for ``LockFactory`` use.
 
@@ -245,6 +246,7 @@ def store_git_write_lock_factory(
         store_git_write_lock,
         op=op,
         mutates_worktree=mutates_worktree,
+        timeout=timeout,
     )
 
 

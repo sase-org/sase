@@ -19,6 +19,30 @@ from sase.sdd.artifact_link_backfill import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _default_no_publication_retry(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        backfill_chop,
+        "machine_document_sidecar_roots",
+        lambda *_args, **_kwargs: ((), ()),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "sweep_artifact_link_publication_retries",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            attempted=0,
+            published=0,
+            deferred=0,
+            failed=0,
+            aged=0,
+            discovered=0,
+            cleared=0,
+            diagnostics=(),
+            details=(),
+        ),
+    )
+
+
 def _runtime(tmp_path: Path) -> BuiltinChopRuntime:
     return _runtime_with_logs(tmp_path)[0]
 
@@ -187,6 +211,105 @@ def test_runs_every_job_and_aggregates_totals(
         encoding="utf-8"
     )
     assert "plan:202608/a.md" in state
+
+
+def test_publication_retry_runs_before_store_resolution_and_reports_counts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, name="widget")
+    order: list[str] = []
+    monkeypatch.setattr(backfill_chop, "_enabled_project_records", lambda: [project])
+    monkeypatch.setattr(
+        backfill_chop,
+        "machine_document_sidecar_roots",
+        lambda project_key, primary_checkout: (
+            order.append(f"roots:{project_key}") or (object(),),
+            ("plans: diagnostic",),
+        ),
+    )
+
+    def _sweep(roots: object, **kwargs: object) -> SimpleNamespace:
+        order.append("retry")
+        assert kwargs["deadline"] is not None
+        return SimpleNamespace(
+            attempted=2,
+            published=1,
+            deferred=1,
+            failed=0,
+            aged=1,
+            discovered=1,
+            cleared=1,
+            diagnostics=("widget/plans: aged",),
+            details=(),
+        )
+
+    def _resolve(project_key: str, primary_checkout: Path) -> object:
+        order.append("resolve")
+        return object()
+
+    monkeypatch.setattr(
+        backfill_chop, "sweep_artifact_link_publication_retries", _sweep
+    )
+    monkeypatch.setattr(backfill_chop, "resolve_machine_artifact_link_store", _resolve)
+    monkeypatch.setattr(
+        backfill_chop,
+        "run_artifact_link_backfill_batch",
+        lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "drain_artifact_link_outbox",
+        lambda store=None: SimpleNamespace(drained=0, dropped=0),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "reconcile_and_repair_artifact_links",
+        lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
+    )
+
+    runtime, _stdout, stderr = _runtime_with_logs(tmp_path)
+    result = backfill_chop._run(runtime)
+
+    assert order == ["roots:widget", "retry", "resolve"]
+    assert result.counters["publication_attempted"] == 2
+    assert result.counters["publication_published"] == 1
+    assert result.counters["publication_deferred"] == 1
+    assert result.counters["publication_aged"] == 1
+    assert result.counters["publication_discovered"] == 1
+    assert result.counters["publication_cleared"] == 1
+    warnings = stderr.getvalue()
+    assert "plans: diagnostic" in warnings
+    assert "widget/plans: aged" in warnings
+
+
+def test_project_cursor_starts_after_last_started_project() -> None:
+    records = [
+        ProjectRecordWire(
+            schema_version=3,
+            project_name=name,
+            project_dir=f"/tmp/{name}",
+            project_file=f"/tmp/{name}/{name}.sase",
+            archive_file=None,
+            workspace_dir=f"/tmp/work/{name}",
+            state="enabled",
+            state_explicit=False,
+            system_managed=False,
+            active_claim_count=0,
+            launchable=True,
+            aliases=[],
+            warnings=[],
+            parse_warnings=[],
+            display_name=None,
+            is_project=True,
+            vcs_kind="gh",
+        )
+        for name in ("p1", "p2", "p3")
+    ]
+
+    rotated = backfill_chop._rotate_records(records, "p2")
+
+    assert [record.project_name for record in rotated] == ["p2", "p3", "p1"]
+    assert backfill_chop._next_cursor_after(rotated, "p2") == "p3"
 
 
 def test_resolves_the_machine_store_with_the_project_key_and_primary_checkout(

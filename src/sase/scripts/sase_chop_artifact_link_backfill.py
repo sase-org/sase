@@ -35,10 +35,19 @@ from sase.sdd.artifact_link_backfill import (
     run_artifact_link_backfill_batch,
 )
 from sase.sdd.artifact_link_outbox import drain_artifact_link_outbox
-from sase.sdd.artifact_link_store import resolve_machine_artifact_link_store
+from sase.sdd._artifact_link_publication_retry import (
+    ArtifactLinkPublicationRetryDetail,
+    sweep_artifact_link_publication_retries,
+)
+from sase.sdd.artifact_link_store import (
+    machine_document_sidecar_roots,
+    resolve_machine_artifact_link_store,
+)
 
 _STATE_FILENAME = "artifact_link_backfill.json"
 _STATE_SCHEMA_VERSION = 1
+_CURSOR_FILENAME = "artifact_link_backfill_cursor.json"
+_CURSOR_SCHEMA_VERSION = 1
 _CHOP = "artifact_link_backfill"
 _SWEEP_BATCH_SIZE = 500
 _WORKSPACE_HINT_ENV = (
@@ -160,6 +169,68 @@ def _write_state(path: Path, swept: dict[str, list[str]]) -> None:
         raise
 
 
+def _read_cursor(path: Path) -> str | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema_version") != _CURSOR_SCHEMA_VERSION
+    ):
+        return None
+    value = payload.get("next_project")
+    return value if isinstance(value, str) and value else None
+
+
+def _write_cursor(path: Path, next_project: str | None) -> None:
+    if not next_project:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": _CURSOR_SCHEMA_VERSION,
+        "next_project": next_project,
+    }
+    fd, temporary_path = tempfile.mkstemp(
+        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream)
+            stream.write("\n")
+        os.replace(temporary_path, path)
+    except BaseException:
+        try:
+            os.unlink(temporary_path)
+        except OSError:
+            pass
+        raise
+
+
+def _rotate_records(
+    records: list[ProjectRecordWire], next_project: str | None
+) -> list[ProjectRecordWire]:
+    if not records or not next_project:
+        return records
+    for index, record in enumerate(records):
+        if record.project_name == next_project:
+            return [*records[index:], *records[:index]]
+    return records
+
+
+def _next_cursor_after(
+    records: list[ProjectRecordWire], last_started: str | None
+) -> str | None:
+    if not records:
+        return None
+    if last_started is None:
+        return records[0].project_name
+    for index, record in enumerate(records):
+        if record.project_name == last_started:
+            return records[(index + 1) % len(records)].project_name
+    return records[0].project_name
+
+
 @dataclass
 class _Totals:
     projects: int = 0
@@ -169,6 +240,13 @@ class _Totals:
     sweep_remaining: int = 0
     outbox_drained: int = 0
     outbox_dropped: int = 0
+    publication_attempted: int = 0
+    publication_published: int = 0
+    publication_deferred: int = 0
+    publication_failed: int = 0
+    publication_aged: int = 0
+    publication_discovered: int = 0
+    publication_cleared: int = 0
     reconciled: int = 0
     repaired_renames: int = 0
     deferred_projects: int = 0
@@ -186,6 +264,22 @@ def _log_project_done(
     runtime.log.info(f"[{_CHOP}] {project_key}: done in {total:.2f}s ({jobs})")
 
 
+def _publication_detail_line(detail: ArtifactLinkPublicationRetryDetail) -> str:
+    parts = [
+        f"{detail.project_key}/{detail.role}: publication {detail.status}",
+        f"age={detail.age_seconds:.0f}s",
+    ]
+    if detail.last_error:
+        parts.append(f"last_error={detail.last_error}")
+    if detail.next_due_at is not None:
+        parts.append(f"next_due_at={detail.next_due_at:.0f}")
+    if detail.log_path is not None:
+        parts.append(f"log={detail.log_path}")
+    if detail.diagnostic:
+        parts.append(f"diagnostic={detail.diagnostic}")
+    return "; ".join(parts)
+
+
 def _run_project(
     project_key: str,
     workspace_dir: str,
@@ -200,6 +294,31 @@ def _run_project(
     started = time.monotonic()
     runtime.log.info(f"[{_CHOP}] {project_key}: starting")
     elapsed: dict[str, float] = {}
+
+    publication_started = time.monotonic()
+    roots, root_diagnostics = machine_document_sidecar_roots(
+        project_key, Path(workspace_dir)
+    )
+    totals.warnings.extend(f"{project_key}: {item}" for item in root_diagnostics)
+    if roots and time.monotonic() < chop_deadline:
+        retry_report = sweep_artifact_link_publication_retries(
+            roots,
+            deadline=chop_deadline,
+            worker_lock_wait=5.0,
+        )
+        totals.publication_attempted += retry_report.attempted
+        totals.publication_published += retry_report.published
+        totals.publication_deferred += retry_report.deferred
+        totals.publication_failed += retry_report.failed
+        totals.publication_aged += retry_report.aged
+        totals.publication_discovered += retry_report.discovered
+        totals.publication_cleared += retry_report.cleared
+        totals.warnings.extend(retry_report.diagnostics)
+        for detail in retry_report.details:
+            if detail.status in {"failed", "deferred"} or detail.last_error:
+                totals.warnings.append(_publication_detail_line(detail))
+    elapsed["publication_retry"] = time.monotonic() - publication_started
+
     try:
         store = resolve_machine_artifact_link_store(project_key, Path(workspace_dir))
     except Exception as exc:  # noqa: BLE001 - one broken project cannot stall the rest.
@@ -289,8 +408,9 @@ def _run_project(
 
 @builtin_chop("artifact_link_backfill")
 def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
-    records = _enabled_project_records()
     state_path = Path(runtime.context.state_dir) / _STATE_FILENAME
+    cursor_path = Path(runtime.context.state_dir) / _CURSOR_FILENAME
+    records = _rotate_records(_enabled_project_records(), _read_cursor(cursor_path))
     swept = _read_state(state_path)
     live_keys = {record.project_name for record in records}
     for stale_key in set(swept) - live_keys:
@@ -299,6 +419,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     totals = _Totals()
     deadline = time.monotonic() + _SWEEP_WORK_BUDGET_SECONDS
     chop_deadline = time.monotonic() + _CHOP_WORK_BUDGET_SECONDS
+    last_started: str | None = None
     for index, record in enumerate(records):
         assert record.workspace_dir is not None
         if time.monotonic() >= chop_deadline:
@@ -309,6 +430,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
                 + ", ".join(deferred_names)
             )
             break
+        last_started = record.project_name
         _run_project(
             record.project_name,
             record.workspace_dir,
@@ -324,6 +446,10 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         _write_state(state_path, swept)
     except Exception as exc:  # noqa: BLE001 - retry on the next tick.
         totals.warnings.append(f"failed to persist sweep checkpoint: {exc}")
+    try:
+        _write_cursor(cursor_path, _next_cursor_after(records, last_started))
+    except Exception as exc:  # noqa: BLE001 - fairness retries on the next tick.
+        totals.warnings.append(f"failed to persist project cursor: {exc}")
 
     for warning in totals.warnings:
         runtime.log.warning(f"[{_CHOP}] {warning}")
@@ -342,6 +468,13 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "sweep_remaining": totals.sweep_remaining,
             "outbox_drained": totals.outbox_drained,
             "outbox_dropped": totals.outbox_dropped,
+            "publication_attempted": totals.publication_attempted,
+            "publication_published": totals.publication_published,
+            "publication_deferred": totals.publication_deferred,
+            "publication_failed": totals.publication_failed,
+            "publication_aged": totals.publication_aged,
+            "publication_discovered": totals.publication_discovered,
+            "publication_cleared": totals.publication_cleared,
             "reconciled": totals.reconciled,
             "repaired_renames": totals.repaired_renames,
             "deferred_projects": totals.deferred_projects,

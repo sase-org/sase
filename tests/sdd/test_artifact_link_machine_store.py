@@ -8,7 +8,10 @@ from typing import Any
 import pytest
 
 from sase.linked_repos import hidden_sidecar_clone_dir
-from sase.sdd.artifact_link_store import resolve_machine_artifact_link_store
+from sase.sdd.artifact_link_store import (
+    machine_document_sidecar_roots,
+    resolve_machine_artifact_link_store,
+)
 from sase.sdd.store import write_sdd_store_record
 from tests.sdd_store._helpers import clone, commit_all, git, init_bare_repo
 
@@ -209,6 +212,38 @@ class TestMaterializationAndIntegration:
         resolve_machine_artifact_link_store("acme_widget", primary)
 
         assert calls[0]["reference_repo"] is None
+
+    def test_lazy_root_discovery_keeps_other_roles_after_one_clone_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+        plans_remote = _seeded_remote(tmp_path, "plans")
+        research_remote = _seeded_remote(tmp_path, "research")
+        primary = _sidecar_repos_primary(
+            tmp_path, roles={"plans": plans_remote, "research": research_remote}
+        )
+
+        calls: list[dict[str, object]] = []
+        import sase.sdd._store_link as store_link_mod
+
+        original = store_link_mod.ensure_sidecar_sdd_clone
+
+        def _spy(clone_dir: Path, remote_url: str, **kwargs: Any) -> None:
+            calls.append({"clone_dir": clone_dir, "remote_url": remote_url, **kwargs})
+            if clone_dir.name == "research":
+                raise RuntimeError("network unavailable")
+            original(clone_dir, remote_url, **kwargs)
+
+        monkeypatch.setattr(store_link_mod, "ensure_sidecar_sdd_clone", _spy)
+
+        roots, diagnostics = machine_document_sidecar_roots("acme_widget", primary)
+
+        assert [root.role for root in roots] == ["plans"]
+        assert roots[0].repo_root == Path(
+            hidden_sidecar_clone_dir("acme_widget", "plans")
+        )
+        assert any("research: hidden clone unavailable" in item for item in diagnostics)
+        assert {call["fresh"] for call in calls} == {False}
 
 
 class TestNonSplitStorageFallsBackUnchanged:

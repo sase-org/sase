@@ -226,13 +226,15 @@ def test_timed_out_summary_script_exits_on_sigterm_without_sigkill(
         "signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))\n"
         "time.sleep(30)\n",
     )
+    timeout_seconds = 0.4
+    kill_grace_seconds = 2.0
     monkeypatch.setattr(
         "sase.axe.clan_summary_script.CLAN_SUMMARY_TIMEOUT_SECONDS",
-        0.4,
+        timeout_seconds,
     )
     monkeypatch.setattr(
         "sase.axe.clan_summary_script.CLAN_SUMMARY_KILL_GRACE_SECONDS",
-        2.0,
+        kill_grace_seconds,
     )
     signals = _spy_killpg(monkeypatch)
     started = time.monotonic()
