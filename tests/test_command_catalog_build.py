@@ -279,6 +279,17 @@ def test_update_sase_leader_command_uses_uppercase_u() -> None:
     assert spec.executor.subkey == "U"
 
 
+def test_update_everything_leader_command_uses_uppercase_e() -> None:
+    catalog = build_command_catalog(_registry())
+    spec = next(c for c in catalog if c.id == "leader.update_everything")
+
+    assert spec.label == "Update Everything (no confirmation)"
+    assert spec.key_display == ",E"
+    assert spec.tabs == ("artifacts", "agents", "axe")
+    assert spec.executor.kind == "leader_mode_key"
+    assert spec.executor.subkey == "E"
+
+
 def test_review_mentors_leader_command_uses_uppercase_c() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.review_mentors")

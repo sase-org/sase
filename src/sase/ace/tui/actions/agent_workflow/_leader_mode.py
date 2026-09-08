@@ -306,6 +306,12 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["update_everything"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            self.action_update_everything_shortcut()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["jump_to_last_error"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             self.action_jump_to_last_error()  # type: ignore[attr-defined]

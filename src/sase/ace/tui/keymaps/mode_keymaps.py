@@ -181,6 +181,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "agent_run_log": "A",
             "models_panel": "m",
             "update_sase": "U",
+            "update_everything": "E",
             "capture_agents_repro": "B",
             "toggle_agents_repro_checks": "T",
             "jump_to_notification": "n",

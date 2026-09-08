@@ -353,9 +353,10 @@ binary landed and whether that directory is on `PATH`, and prints the exact expo
 to add when it is not. **SASE never edits your shell startup files.**
 
 Runs from `sase agent-cli install` and `sase agent-cli update` are journaled with the
-same bounded history used by ACE and `,U` at `~/.sase/logs/agent_cli_updates.jsonl`. Set
-`SASE_AGENT_CLI_UPDATE_JOURNAL_MAX_BYTES` to override that file's maximum size; runs
-where no command reaches a terminal outcome are not recorded.
+same bounded history used by ACE, `,U`, and `,E` at
+`~/.sase/logs/agent_cli_updates.jsonl`. Set `SASE_AGENT_CLI_UPDATE_JOURNAL_MAX_BYTES` to
+override that file's maximum size; runs where no command reaches a terminal outcome are
+not recorded.
 
 This command manages the provider CLIs only. Use [`sase update`](cli.md) to upgrade SASE
 itself and its plugins.

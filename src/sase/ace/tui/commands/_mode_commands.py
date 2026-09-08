@@ -76,6 +76,7 @@ _LEADER_LABELS: dict[str, str] = {
     # Back-compat: a user keymap may still bind the pre-rename action id.
     "temporary_llm_override": "Config > Launch",
     "update_sase": "Update panel (SASE, providers)",
+    "update_everything": "Update Everything (no confirmation)",
     "capture_agents_repro": "Capture Agents-tab repro bundle",
     "toggle_agents_repro_checks": "Toggle Agents-tab repro checks",
     "jump_to_last_error": "Jump to the last error in Logs",

@@ -267,6 +267,13 @@ def test_leader_mode_updates_sase_with_uppercase_u() -> None:
     assert LeaderModeKeymaps().keys["update_sase"] == "U"
 
 
+def test_leader_mode_updates_everything_with_uppercase_e() -> None:
+    """LeaderModeKeymaps default binds direct Everything update to ``,E``."""
+    reg = load_keymap_registry({})
+    assert reg.leader_mode.keys["update_everything"] == "E"
+    assert LeaderModeKeymaps().keys["update_everything"] == "E"
+
+
 def test_merged_default_config_marks_all_unread_done_agents_read_with_u(
     tmp_path: Path,
 ) -> None:
@@ -284,6 +291,7 @@ def test_merged_default_config_marks_all_unread_done_agents_read_with_u(
     assert isinstance(ace_cfg, dict)
     reg = load_keymap_registry(ace_cfg)
     assert reg.leader_mode.keys["mark_all_unread_done_agents_read"] == "u"
+    assert reg.leader_mode.keys["update_everything"] == "E"
     assert reg.app.toggle_agent_unread == "U"
 
     agent_pairs = {
@@ -299,6 +307,38 @@ def test_help_advertises_update_sase_on_all_tabs() -> None:
     """The global ``,U`` update shortcut appears in every help binding list."""
     reg = load_keymap_registry({})
     expected = (",U", "Update panel (SASE, providers)")
+    for bindings in (cls_bindings, agents_bindings, axe_bindings):
+        pairs = {
+            (key, label) for _section, rows in bindings(reg) for key, label in rows
+        }
+        assert expected in pairs
+
+
+def test_help_advertises_update_everything_on_all_tabs() -> None:
+    """The global ``,E`` direct Everything shortcut appears in all Help lists."""
+    reg = load_keymap_registry({})
+    expected = (",E", "Update Everything (no confirmation)")
+    for bindings in (cls_bindings, agents_bindings, axe_bindings):
+        pairs = {
+            (key, label) for _section, rows in bindings(reg) for key, label in rows
+        }
+        assert expected in pairs
+
+
+def test_help_uses_configured_update_everything_leader_key() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "leader_mode": {
+                        "prefix": "semicolon",
+                        "keys": {"update_everything": "Q"},
+                    }
+                }
+            }
+        }
+    )
+    expected = (";Q", "Update Everything (no confirmation)")
     for bindings in (cls_bindings, agents_bindings, axe_bindings):
         pairs = {
             (key, label) for _section, rows in bindings(reg) for key, label in rows

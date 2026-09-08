@@ -116,6 +116,32 @@ def test_auto_approve_result_copies_explicit_flag_into_request(
     assert request.auto_approve is True
 
 
+def test_update_everything_shortcut_submits_auto_approved_request_without_panel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("direct shortcut must not touch panel-only helpers")
+
+    monkeypatch.setattr("time.time", fail)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.base.build_update_panel_state",
+        fail,
+    )
+    harness = _ShortcutHarness()
+    harness._automatic_update_provider_names = ("claude", "codex")
+
+    harness.action_update_everything_shortcut()
+
+    assert harness.pushed_modals == []
+    assert harness.pushed_callbacks == []
+    assert harness.submitted is not None
+    assert len(harness.preview_requests) == 1
+    request = harness.preview_requests[0]
+    assert request.provider_names == ("claude", "codex")
+    assert request.scope is UpdateScope.EVERYTHING
+    assert request.auto_approve is True
+
+
 def test_canceling_the_panel_does_not_submit_a_preview_proc(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

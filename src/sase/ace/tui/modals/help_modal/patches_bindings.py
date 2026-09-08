@@ -248,6 +248,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Update panel (SASE, providers)",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'update_everything'))}",
+                    "Update Everything (no confirmation)",
+                ),
+                (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'jump_to_last_error'))}",
                     "Jump to last error log",
                 ),

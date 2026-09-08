@@ -1051,6 +1051,7 @@ Help is not a leader command: press the app-level `?` on any tab to open the Hel
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                     |
 | `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control)) |
 | `,U`       | Open Update panel (SASE, providers)                                                         |
+| `,E`       | Plan Everything from cached update snapshots and skip confirmation if runnable              |
 | `,L`       | Jump to the log entry for the most recent error toast                                       |
 | `,M`       | Kill running mentors                                                                        |
 | `,R`       | Show runners info                                                                           |
@@ -2361,6 +2362,7 @@ modal.
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                             |
 | `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control))       |
 | `,U`       | Open Update panel (SASE, providers)                                                               |
+| `,E`       | Plan Everything from cached update snapshots and skip confirmation if runnable                    |
 | `,L`       | Jump to the log entry for the most recent error toast                                             |
 | `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication          |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                 |
@@ -2734,6 +2736,7 @@ Help is not a leader command: press the app-level `?` on any tab to open the Hel
 | `,h`      | Run agent from home prompt context; bare prompts default to `#git:home`                     |
 | `,m`      | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control)) |
 | `,U`      | Open Update panel (SASE, providers)                                                         |
+| `,E`      | Plan Everything from cached update snapshots and skip confirmation if runnable              |
 | `,L`      | Jump to the log entry for the most recent error toast                                       |
 | `,R`      | Show runners info                                                                           |
 | `,.`      | Open prompt history modal                                                                   |
@@ -6736,8 +6739,8 @@ Fakey provider, are omitted from the Agent CLIs section. The plain substring fil
 (`/`) searches every row's own fields — name, description, topics for plugins; binary
 and install method for agent CLIs — across all sections at once.
 
-Every sase-managed agent-CLI update run from `,U`, `A`, or `sase agent-cli update` is
-appended to `~/.sase/logs/agent_cli_updates.jsonl`. Runs where no command reaches a
+Every sase-managed agent-CLI update run from `,U`, `,E`, `A`, or `sase agent-cli update`
+is appended to `~/.sase/logs/agent_cli_updates.jsonl`. Runs where no command reaches a
 terminal outcome are not recorded. Highlighting an Agent CLI row renders that journal
 below its details; `H` toggles between this CLI's executed update rows and a run-grouped
 timeline across all CLIs. Configure the panel with `ace.updates.agent_cli_history` and
@@ -6758,13 +6761,15 @@ inventory load. `e` / `s` / `p` (or `⏎` on the highlighted row) choose Everyth
 or providers and then show the same `y`/`n` confirmation ACE uses elsewhere, containing
 only the selected legs. `E` / `S` / `P` plan those same scopes and skip only that final
 confirmation after a runnable preview succeeds; failed or already-current previews still
-do not mutate. `r` re-checks in place; `q` / `Esc` cancel. An Everything confirmation
-groups SASE and Agent CLI work into labeled sections with update/current/skipped glyphs,
-counts, and commands. The tracked proc runs Agent CLI commands first and the
-SASE/core/plugin leg second. A failure in one leg is reported alongside the independent
-earlier results. After a changed core/plugin update restarts ACE, the one-shot result
-toast can show applied commits grouped by repository as well as file/line statistics.
-Configure the toast with `ace.updates.post_update_toast_commits`,
+do not mutate. `,E` is the global direct alias for `,U` then capital `E`: it uses the
+same cached snapshots, preview planning, no-op handling, and error reporting without
+mounting the panel. `r` re-checks in place; `q` / `Esc` cancel. An Everything
+confirmation groups SASE and Agent CLI work into labeled sections with
+update/current/skipped glyphs, counts, and commands. The tracked proc runs Agent CLI
+commands first and the SASE/core/plugin leg second. A failure in one leg is reported
+alongside the independent earlier results. After a changed core/plugin update restarts
+ACE, the one-shot result toast can show applied commits grouped by repository as well as
+file/line statistics. Configure the toast with `ace.updates.post_update_toast_commits`,
 `post_update_toast_max_commits`, and `post_update_toast_diffstat`.
 
 The providers leg still captures the agent-CLI candidates from the latest completed

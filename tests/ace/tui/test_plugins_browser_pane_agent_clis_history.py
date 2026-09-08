@@ -289,7 +289,10 @@ def test_history_error_and_empty_states() -> None:
     assert "disk gone" in error
     for rendered in (empty_selected, empty_all):
         assert "No sase-managed agent CLI updates recorded yet." in rendered
-        assert "Press A to update agent CLIs, or ,U to update everything." in rendered
+        assert (
+            "Press A to update agent CLIs, ,U for the panel, or ,E for everything."
+            in rendered
+        )
 
 
 def test_history_selected_cli_empty_points_to_other_cli_runs() -> None:

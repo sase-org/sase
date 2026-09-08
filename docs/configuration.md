@@ -393,9 +393,11 @@ snapshots (no Admin Center, no live inventory load). Lowercase `e` / `s` / `p` (
 mouse on the highlighted row) choose Everything, SASE, or providers and still require
 the final `y`/`n` confirmation. Capital `E` / `S` / `P` plan the same scopes and skip
 only that confirmation after a runnable preview succeeds; failed or already-current
-previews still do not mutate. The providers leg still captures provider names from the
-latest completed automatic snapshot and never adds a newly discovered provider to that
-invocation. Safe commands run sequentially; Homebrew, non-writable npm, and
+previews still do not mutate. Global `,E` is equivalent to `,U` then capital `E`: it
+submits the same Everything preview from cached snapshots and only the runnable preview
+continues to the tracked update proc. The providers leg still captures provider names
+from the latest completed automatic snapshot and never adds a newly discovered provider
+to that invocation. Safe commands run sequentially; Homebrew, non-writable npm, and
 unknown-provenance installs remain visible with manual guidance. The pane-wide `u`
 remains SASE/core/plugins-only, pane-wide `A` remains the deliberate action for the
 current agent-CLI inventory, and pane-wide `a` runs a tracked agents-sidecar publication
@@ -731,6 +733,7 @@ ace:
           edit_query: "slash" # Agents structured query; defaults render as `,/`
           models_panel: "m"
           update_sase: "U"
+          update_everything: "E"
           full_history_refresh: "y"
       fold_mode:
         prefix: "z"
@@ -1200,6 +1203,10 @@ structured-query chord and defaults to `,/`; bare `/` on Agents starts inline me
 search. Help is an app-level action controlled by `ace.keymaps.app.show_help` and
 defaults to bare `?`; the retired `leader_mode.keys.show_help` override is dropped at
 load time.
+
+The leader update keys are separate remappable actions. `update_sase` opens the cached
+Update panel, while `update_everything` directly runs the same previewed Everything flow
+as `,U` then capital `E`, including failed-preview and already-current no-op behavior.
 
 A small allowlist of app actions intentionally shares a key because the two actions can
 never be available on the same surface. Validation permits exactly these pairs and

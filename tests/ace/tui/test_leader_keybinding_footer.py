@@ -116,6 +116,16 @@ def test_footer_surfaces_update_sase_on_all_tabs() -> None:
         assert "update panel" in _last_labels(captured)
 
 
+def test_footer_surfaces_update_everything_on_all_tabs() -> None:
+    footer = KeybindingFooter()
+    captured = _capture_bindings(footer)
+
+    for tab in ("patches", "agents", "axe"):
+        footer.update_leader_bindings(current_tab=tab)
+        assert "E" in _last_keys(captured)
+        assert "update everything" in _last_labels(captured)
+
+
 def test_footer_surfaces_last_error_on_all_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)

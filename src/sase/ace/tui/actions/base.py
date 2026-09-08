@@ -156,6 +156,28 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         """Open the SASE Admin Center on the Updates tab."""
         self._open_config_center("updates")
 
+    def _submit_scoped_update_request(
+        self,
+        *,
+        scope: UpdateScope,
+        auto_approve: bool = False,
+    ) -> bool:
+        """Submit one scoped update request from the cached provider projection."""
+        submit = getattr(self, "_submit_update_preview_proc", None)
+        if not callable(submit):
+            return False
+        return bool(
+            submit(
+                ComprehensiveUpdateRequest(
+                    provider_names=getattr(
+                        self, "_automatic_update_provider_names", None
+                    ),
+                    scope=scope,
+                    auto_approve=auto_approve,
+                )
+            )
+        )
+
     def action_update_sase_shortcut(self) -> None:
         """Open the Update panel from already-fetched evidence."""
         # Keystroke dispatch is allocation-only: project the in-memory
@@ -169,20 +191,19 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         def on_result(result: UpdatePanelResult | None) -> None:
             if not isinstance(result, UpdatePanelResult):
                 return
-            submit = getattr(self, "_submit_update_preview_proc", None)
-            if not callable(submit):
-                return
-            submit(
-                ComprehensiveUpdateRequest(
-                    provider_names=getattr(
-                        self, "_automatic_update_provider_names", None
-                    ),
-                    scope=UpdateScope(result.scope),
-                    auto_approve=result.auto_approve,
-                )
+            self._submit_scoped_update_request(
+                scope=UpdateScope(result.scope),
+                auto_approve=result.auto_approve,
             )
 
         self.push_screen(UpdatePanel(state), on_result)  # type: ignore[attr-defined]
+
+    def action_update_everything_shortcut(self) -> None:
+        """Plan an Everything update and skip confirmation when runnable."""
+        self._submit_scoped_update_request(
+            scope=UpdateScope.EVERYTHING,
+            auto_approve=True,
+        )
 
     def action_show_diff(self) -> None:
         """Show diff for the current Patch."""

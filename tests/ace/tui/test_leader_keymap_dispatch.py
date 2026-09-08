@@ -8,6 +8,7 @@ from sase.ace.tui.actions.agents._unread_state import (
     BulkUnreadToggleOutcome,
     _BulkUnreadToggleResult,
 )
+from sase.ace.tui.keymaps import load_keymap_registry
 from tests.ace.tui._leader_keymap_helpers import _FakeApp, _make_cs
 
 
@@ -508,6 +509,38 @@ def test_leader_uppercase_u_opens_sase_update_shortcut() -> None:
     assert app.update_sase_shortcut_count == 1
     assert app._last_leader_key == "U"
     assert app.refresh_count == 1
+
+
+def test_leader_uppercase_e_runs_update_everything_on_all_tabs() -> None:
+    for tab in ("patches", "agents", "axe"):
+        app = _FakeApp(current_tab=tab)
+
+        handled = app._handle_leader_key("E")
+
+        assert handled is True
+        assert app._leader_mode_active is False
+        assert app.update_everything_shortcut_count == 1
+        assert app.update_sase_shortcut_count == 0
+        assert app._last_leader_key == "E"
+        assert app.refresh_count == 1
+
+
+def test_leader_update_everything_repeat_and_remap_use_configured_key() -> None:
+    app = _FakeApp(current_tab="axe")
+    app._keymap_registry = load_keymap_registry(
+        {"keymaps": {"modes": {"leader_mode": {"keys": {"update_everything": "Q"}}}}}
+    )
+
+    assert app._handle_leader_key("E") is True
+    assert app.update_everything_shortcut_count == 0
+    assert app._last_leader_key is None
+    assert app.refresh_count == 1
+
+    assert app._handle_leader_key("Q") is True
+    assert app._handle_leader_key("comma") is True
+    assert app.update_everything_shortcut_count == 2
+    assert app._last_leader_key == "Q"
+    assert app.refresh_count == 3
 
 
 def test_leader_uppercase_l_jumps_to_last_error() -> None:

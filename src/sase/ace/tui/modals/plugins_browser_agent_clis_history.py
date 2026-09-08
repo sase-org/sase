@@ -129,7 +129,7 @@ def _panel(
 def _empty_history_text() -> Text:
     body = Text("No sase-managed agent CLI updates recorded yet.")
     body.append(
-        "\nPress A to update agent CLIs, or ,U to update everything.",
+        "\nPress A to update agent CLIs, ,U for the panel, or ,E for everything.",
         style="dim",
     )
     return body
