@@ -28,7 +28,7 @@ _NON_ARTIFACT_DIRS = frozenset({".git", ".sase"})
 def materialization_lock(primary: Path) -> Iterator[None]:
     """Serialize the primary sidecar create/adopt transaction."""
 
-    lock_path = primary / ".sase" / "sdd-materialize.lock"
+    lock_path = _materialization_lock_path(primary)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open("a+", encoding="utf-8") as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
@@ -36,6 +36,28 @@ def materialization_lock(primary: Path) -> Iterator[None]:
             yield
         finally:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+@contextmanager
+def try_materialization_lock(primary: Path) -> Iterator[bool]:
+    """Try to serialize sidecar maintenance without blocking launch work."""
+
+    lock_path = _materialization_lock_path(primary)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as lock_file:
+        try:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            yield False
+            return
+        try:
+            yield True
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _materialization_lock_path(primary: Path) -> Path:
+    return primary / ".sase" / "sdd-materialize.lock"
 
 
 def new_staging_path(primary: Path) -> Path:

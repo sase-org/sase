@@ -411,3 +411,12 @@ tests/test_vcs_log_filter_query.py::test_canonical_query_round_trip_property
 # fixed-at: 2026-09-08T00:40:36Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_include_dispatch_directive
 # fixed-at: 2026-09-08T00:40:36Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_include_dispatch_machine_rows
 # fixed-at: 2026-09-08T00:40:36Z tests/test_xprompt_directive_contract.py::test_runtime_directive_vocabulary_matches_core_contract
+#
+# sase-xe.16.8.f0: landing retries retired two full-lane flake-gate
+# promotions that pass on this tree. The Grok probe now has scheduler
+# headroom for descendant reaping; the binding audit passes after rebuilding
+# the dirty linked core into the workspace venv. Both passed together in a
+# focused run before this cutoff, and this records fixed historical evidence
+# rather than adding live baseline suppressions.
+# fixed-at: 2026-09-08T22:11:29Z tests/llm_provider/test_grok_usage_probe.py::test_grok_usage_probe_reaps_descendant_processes
+# fixed-at: 2026-09-08T22:11:29Z tests/test_check_sase_core_rs_bindings_tool.py::test_dev_extension_exposes_every_collected_name

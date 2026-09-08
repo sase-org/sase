@@ -69,6 +69,7 @@ class SidecarSyncResult:
     role: str
     status: SidecarSyncStatus
     detail: str
+    clone_dir: str | None = None
 
     @property
     def refreshed(self) -> bool:
@@ -181,7 +182,11 @@ def sync_primary_sidecar_role(
 
     if not clone_dir.is_dir():
         return SidecarSyncResult(
-            project, role, "missing", f"sidecar clone not materialized at {clone_dir}"
+            project,
+            role,
+            "missing",
+            f"sidecar clone not materialized at {clone_dir}",
+            str(clone_dir),
         )
 
     expected_remote = entry.get(_SIDECAR_REMOTE_URL_KEY)
@@ -194,6 +199,7 @@ def sync_primary_sidecar_role(
                 "remote_mismatch",
                 f"clone origin {origin!r} does not match configured remote "
                 f"{expected_remote!r}",
+                str(clone_dir),
             )
 
     # Only fetch-independent facts (dirty/detached/no-upstream) are safe to
@@ -208,27 +214,31 @@ def sync_primary_sidecar_role(
         subprocess.CalledProcessError,
         subprocess.TimeoutExpired,
     ) as exc:
-        return SidecarSyncResult(project, role, "error", str(exc))
+        return SidecarSyncResult(project, role, "error", str(exc), str(clone_dir))
 
     if pre_fetch_status.dirty:
         return SidecarSyncResult(
-            project, role, "dirty", "sidecar clone has local changes"
+            project, role, "dirty", "sidecar clone has local changes", str(clone_dir)
         )
     if pre_fetch_status.detached:
         return SidecarSyncResult(
-            project, role, "detached", "sidecar clone HEAD is detached"
+            project, role, "detached", "sidecar clone HEAD is detached", str(clone_dir)
         )
     if not pre_fetch_status.has_upstream:
         return SidecarSyncResult(
-            project, role, "no_upstream", "sidecar clone branch has no upstream"
+            project,
+            role,
+            "no_upstream",
+            "sidecar clone branch has no upstream",
+            str(clone_dir),
         )
 
     try:
         refreshed = refresh_clean_linked_checkout(str(clone_dir))
     except Exception as exc:  # noqa: BLE001 - best-effort convergence; never raise.
-        return SidecarSyncResult(project, role, "error", str(exc))
+        return SidecarSyncResult(project, role, "error", str(exc), str(clone_dir))
     if refreshed is not None:
-        return SidecarSyncResult(project, role, "refreshed", refreshed)
+        return SidecarSyncResult(project, role, "refreshed", refreshed, str(clone_dir))
 
     # Nothing changed. Reclassify post-fetch to explain why, for diagnostics.
     try:
@@ -239,19 +249,23 @@ def sync_primary_sidecar_role(
         subprocess.CalledProcessError,
         subprocess.TimeoutExpired,
     ) as exc:
-        return SidecarSyncResult(project, role, "error", str(exc))
+        return SidecarSyncResult(project, role, "error", str(exc), str(clone_dir))
 
     if status.dirty:
         return SidecarSyncResult(
-            project, role, "dirty", "sidecar clone has local changes"
+            project, role, "dirty", "sidecar clone has local changes", str(clone_dir)
         )
     if status.detached:
         return SidecarSyncResult(
-            project, role, "detached", "sidecar clone HEAD is detached"
+            project, role, "detached", "sidecar clone HEAD is detached", str(clone_dir)
         )
     if not status.has_upstream:
         return SidecarSyncResult(
-            project, role, "no_upstream", "sidecar clone branch has no upstream"
+            project,
+            role,
+            "no_upstream",
+            "sidecar clone branch has no upstream",
+            str(clone_dir),
         )
     if status.diverged:
         return SidecarSyncResult(
@@ -259,13 +273,18 @@ def sync_primary_sidecar_role(
             role,
             "diverged",
             f"{status.ahead} ahead / {status.behind} behind {status.upstream}",
+            str(clone_dir),
         )
     if status.up_to_date:
         return SidecarSyncResult(
-            project, role, "up_to_date", f"already at {status.upstream}"
+            project, role, "up_to_date", f"already at {status.upstream}", str(clone_dir)
         )
     return SidecarSyncResult(
-        project, role, "error", "fetch/merge did not converge the sidecar clone"
+        project,
+        role,
+        "error",
+        "fetch/merge did not converge the sidecar clone",
+        str(clone_dir),
     )
 
 

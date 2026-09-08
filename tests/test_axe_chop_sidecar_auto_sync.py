@@ -136,6 +136,88 @@ def test_hinted_role_refreshes_and_clears_its_hint(
     assert result.counters["refreshed"] == 1
 
 
+def test_successful_sync_runs_sidecar_maintenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _project(tmp_path)
+    clone_dir = Path(project.workspace_dir) / "sase" / "repos" / "beads"
+    _configure(
+        monkeypatch,
+        tmp_path,
+        records=[project],
+        roles_by_project={"proj": ("beads",)},
+    )
+    monkeypatch.setattr(
+        sidecar_sync_chop,
+        "sync_primary_sidecar_role",
+        MagicMock(
+            return_value=SidecarSyncResult(
+                "proj",
+                "beads",
+                "up_to_date",
+                "already fresh",
+                str(clone_dir),
+            )
+        ),
+    )
+    maintained: list[tuple[Path, Path]] = []
+
+    def record_maintenance(clone: Path, primary: Path) -> bool:
+        maintained.append((clone, primary))
+        return True
+
+    monkeypatch.setattr(sidecar_sync_chop, "maybe_gc_sidecar_clone", record_maintenance)
+
+    result = sidecar_sync_chop._run(_runtime(tmp_path))
+
+    assert result.counters["up_to_date"] == 1
+    assert maintained == [(clone_dir, Path(project.workspace_dir))]
+
+
+def test_successful_sync_defers_maintenance_when_work_budget_is_exhausted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _project(tmp_path)
+    clone_dir = Path(project.workspace_dir) / "sase" / "repos" / "plans"
+    _configure(
+        monkeypatch,
+        tmp_path,
+        records=[project],
+        roles_by_project={"proj": ("plans",)},
+    )
+    monkeypatch.setattr(
+        sidecar_sync_chop,
+        "sync_primary_sidecar_role",
+        MagicMock(
+            return_value=SidecarSyncResult(
+                "proj",
+                "plans",
+                "refreshed",
+                "fast-forwarded",
+                str(clone_dir),
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        sidecar_sync_chop,
+        "maybe_gc_sidecar_clone",
+        lambda *_a: pytest.fail("budget-exhausted maintenance ran"),
+    )
+    clock = iter([0.0, 0.0, sidecar_sync_chop._WORK_BUDGET_SECONDS + 1.0])
+    monkeypatch.setattr(
+        sidecar_sync_chop,
+        "time",
+        SimpleNamespace(monotonic=lambda: next(clock)),
+    )
+
+    result = sidecar_sync_chop._run(_runtime(tmp_path))
+
+    assert result.counters["refreshed"] == 1
+    assert result.counters["deferred"] == 1
+
+
 def test_unhinted_role_backstops_then_skips_within_interval(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

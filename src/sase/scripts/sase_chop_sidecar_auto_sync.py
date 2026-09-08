@@ -47,6 +47,7 @@ from sase.core.agent_scan_wire import (
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import ProjectRecordWire
+from sase.sdd._store_maintenance import maybe_gc_sidecar_clone
 from sase.sdd._store_types import BEADS_SIDECAR_ROLE
 
 _BACKOFF_STATE_FILENAME = "sidecar_auto_sync_schedule.json"
@@ -293,6 +294,26 @@ def _targets_for_project(
     return targets
 
 
+def _maintain_synced_sidecar(
+    runtime: BuiltinChopRuntime,
+    target: _Target,
+    result: SidecarSyncResult,
+) -> bool:
+    if result.status not in {"refreshed", "up_to_date"} or result.clone_dir is None:
+        return False
+    try:
+        return maybe_gc_sidecar_clone(
+            Path(result.clone_dir),
+            Path(target.primary_workspace_dir),
+        )
+    except Exception as exc:  # noqa: BLE001 - maintenance cannot fail the chop.
+        runtime.log.warning(
+            f"[sidecar_auto_sync] Failed to run sidecar maintenance for "
+            f"{target.project_key}:{target.role}: {exc}"
+        )
+        return False
+
+
 def _summary(
     runtime: BuiltinChopRuntime,
     *,
@@ -388,6 +409,11 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
                 missing += 1
             else:
                 skipped += 1
+            if result.status in {"refreshed", "up_to_date"} and result.clone_dir:
+                if time.monotonic() >= work_deadline:
+                    deferred += 1
+                else:
+                    _maintain_synced_sidecar(runtime, target, result)
         _persist_schedule_state(runtime, state_path, schedule_state)
 
     reason = None

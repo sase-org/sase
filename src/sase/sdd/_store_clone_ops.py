@@ -19,6 +19,7 @@ from sase.sdd._store_types import SddMaterializationError
 _logger = logging.getLogger(__name__)
 
 _REMOTE_CLONE_RETRY_DELAYS = (0.25, 1.0, 2.0)
+_MAX_TIMEOUT_RETRIES_WITHOUT_REFERENCE = 1
 _TRANSIENT_REMOTE_CLONE_ERRORS = (
     "broken pipe",
     "closed by remote host",
@@ -59,15 +60,9 @@ def clone_sdd_store(
 
     clone_env = os.environ.copy()
     clone_env["GIT_TERMINAL_PROMPT"] = "0"
-    clone_args = ["clone"]
     reference = _matching_clone_reference(reference_repo, remote_url)
-    if reference is not None:
-        # Borrow matching local objects to reduce the remote transfer, then
-        # dissociate so numbered workspaces never depend on the reference
-        # clone remaining at the same path. Refs still come from the recorded
-        # remote, so unpublished commits in the reference cannot leak in.
-        clone_args.extend(["--reference-if-able", str(reference), "--dissociate"])
-    clone_args.extend([remote_url, str(workspace_sdd)])
+    clone_args = _remote_clone_args(remote_url, workspace_sdd, reference=reference)
+    timeout_retries_without_reference = 0
 
     for attempt in range(len(_REMOTE_CLONE_RETRY_DELAYS) + 1):
         try:
@@ -83,6 +78,27 @@ def clone_sdd_store(
                 env=clone_env,
             )
         except SddGitCommandTimeout as exc:
+            can_retry_without_reference = (
+                reference is not None
+                and timeout_retries_without_reference
+                < _MAX_TIMEOUT_RETRIES_WITHOUT_REFERENCE
+                and attempt < len(_REMOTE_CLONE_RETRY_DELAYS)
+            )
+            if can_retry_without_reference:
+                _remove_partial_sdd_clone(workspace_sdd)
+                timeout_retries_without_reference += 1
+                _logger.warning(
+                    "Timed out cloning SDD store %s into %s with local object "
+                    "reference %s; retrying without the reference",
+                    remote_url,
+                    workspace_sdd,
+                    reference,
+                )
+                reference = None
+                clone_args = _remote_clone_args(
+                    remote_url, workspace_sdd, reference=reference
+                )
+                continue
             return handle_failed_sdd_clone(
                 workspace_sdd,
                 f"timed out cloning SDD store {remote_url} into {workspace_sdd}",
@@ -126,6 +142,23 @@ def clone_sdd_store(
         time.sleep(delay)
 
     raise AssertionError("remote clone retry loop did not return")
+
+
+def _remote_clone_args(
+    remote_url: str,
+    workspace_sdd: Path,
+    *,
+    reference: Path | None,
+) -> list[str]:
+    clone_args = ["clone"]
+    if reference is not None:
+        # Borrow matching local objects to reduce the remote transfer, then
+        # dissociate so numbered workspaces never depend on the reference
+        # clone remaining at the same path. Refs still come from the recorded
+        # remote, so unpublished commits in the reference cannot leak in.
+        clone_args.extend(["--reference-if-able", str(reference), "--dissociate"])
+    clone_args.extend([remote_url, str(workspace_sdd)])
+    return clone_args
 
 
 def _matching_clone_reference(
