@@ -166,6 +166,9 @@ class PromptTextArea(
         self._model_completion_catalog_loaded: bool = False
         self._model_completion_catalog_available: bool = False
         self._model_completion_catalog_inflight: bool = False
+        self._model_completion_catalog_request: (
+            tuple[str | None, str, int, str] | None
+        ) = None
         self._active_xprompt_arg_hint: ActiveXPromptArgHint | None = None
         self._pending_xprompt_completion_spacer: (
             PendingXPromptCompletionSpacer | None

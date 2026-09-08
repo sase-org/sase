@@ -39,6 +39,7 @@ from tests.pager._rendered_link_pilot import (
     pager_screen,
     press_hint,
     settle,
+    wait_for_notification,
 )
 
 
@@ -207,9 +208,13 @@ async def test_kitchen_follow_copy_edit_and_media_for_each_supported_action(
                 await press_hint(pilot, label.hint)
                 assert screen.document is document
                 assert list(screen._back_trail) == trail
-                assert any(
-                    occurrence.unavailable_contains in message
-                    for message, _severity in notifications
+                unavailable_fragment = occurrence.unavailable_contains
+                await wait_for_notification(
+                    pilot,
+                    notifications,
+                    lambda message, _severity, fragment=unavailable_fragment: (
+                        fragment in message
+                    ),
                 )
                 continue
             if occurrence.outcome != "document":

@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pytest
 
+from sase.ace.tui.widgets.model_alias_completion import (
+    ModelAliasShortcutContext,
+    build_model_alias_completion_candidates,
+)
 from sase.llm_provider.config import ModelAliasSelectorMember
+from sase.llm_provider.config import resolve_model_alias
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
 from sase.xprompt import model_completion
 
@@ -13,6 +18,7 @@ from tests._xprompt_model_completion_helpers import (
     clear_model_completion_cache as clear_model_completion_cache,
     metadata_payload,
 )
+from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 
 def test_model_completion_configured_retired_coder_alias_is_user_alias(
@@ -118,6 +124,124 @@ def test_model_completion_alias_enrichment_and_pool_counts(
     assert blogger.target_effort == "high"
     assert blogger.config_source == "custom"
     assert blogger.bucket == "writing"
+
+
+def test_model_completion_catalog_uses_effective_merged_aliases_for_shortcut(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {"large": "claude/opus"},
+                "custom": {
+                    "large": {
+                        "model": "codex/gpt-5.6-sol",
+                        "description": "Custom large target.",
+                    },
+                    "plugin_fast": {
+                        "model": "claude/opus",
+                        "description": "Plugin supplied fast alias.",
+                    },
+                    "writer": {
+                        "model": "@large@high",
+                        "description": "Writer alias.",
+                    },
+                    "degraded": {
+                        "model": "missing-provider/model",
+                        "description": "Missing target metadata.",
+                    },
+                },
+            },
+        },
+    )
+    monkeypatch.setattr(model_completion, "get_llm_metadata_payload", metadata_payload)
+    monkeypatch.setattr(
+        model_completion,
+        "build_alias_views",
+        lambda **_kwargs: [
+            alias_view(
+                "large",
+                kind="role",
+                configured=True,
+                configured_value="codex/gpt-5.6-sol",
+                provider="codex",
+                model="gpt-5.6-sol",
+                description="Custom large target.",
+                config_source="custom",
+            ),
+            alias_view(
+                "plugin_fast",
+                kind="user",
+                configured=True,
+                configured_value="claude/opus",
+                provider="claude",
+                model="opus",
+                description="Plugin supplied fast alias.",
+                config_source="custom",
+            ),
+            alias_view(
+                "writer",
+                kind="user",
+                configured=True,
+                configured_value="@large@high",
+                provider="codex",
+                model="gpt-5.6-sol",
+                description="Writer alias.",
+                config_source="custom",
+                effort="high",
+            ),
+            alias_view(
+                "degraded",
+                kind="user",
+                configured=True,
+                configured_value="missing-provider/model",
+                provider=None,
+                model="missing-provider/model",
+                description="Missing target metadata.",
+                config_source="custom",
+            ),
+        ],
+    )
+
+    entries = model_completion.build_model_completion_catalog()
+    candidates = build_model_alias_completion_candidates(
+        ModelAliasShortcutContext(
+            query="",
+            token="*",
+            replacement_start=0,
+            replacement_end=1,
+        ),
+        entries,
+    )
+    insertions = [candidate.insertion for candidate in candidates]
+
+    assert insertions == [
+        "@xsmall",
+        "@small",
+        "@medium",
+        "@xlarge",
+        "@degraded",
+        "@large",
+        "@plugin_fast",
+        "@writer",
+    ]
+    assert insertions.count("@large") == 1
+    assert all(
+        getattr(candidate.metadata, "kind", "") in {"implicit_alias", "user_alias"}
+        for candidate in candidates
+    )
+
+    by_value = {entry.value: entry for entry in entries}
+    large = by_value["@large"]
+    assert large.kind == "user_alias"
+    assert large.alias_kind == "role"
+    assert large.config_source == "custom"
+    assert (large.target_provider, large.target_model) == ("codex", "gpt-5.6-sol")
+    assert by_value["@writer"].reference == "large"
+    assert by_value["@writer"].reference_effort == "high"
+    assert resolve_model_alias("@writer") == "codex/gpt-5.6-sol"
 
 
 def test_model_completion_override_overlay_rewrites_only_alias_target(

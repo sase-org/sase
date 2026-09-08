@@ -130,6 +130,8 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
         _model_completion_catalog_loaded: bool
         _model_completion_catalog_available: bool
         _model_completion_catalog_inflight: bool
+        _model_completion_catalog_request: tuple[str | None, str, int, str] | None
+        _vim_mode: str
 
         def _clear_file_completion(
             self,
@@ -137,6 +139,8 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
             clear_xprompt_arg_hint: bool = True,
         ) -> None: ...
 
+        def _absolute_offset(self, location: tuple[int, int]) -> int: ...
+        def _find_prompt_bar(self) -> Any: ...
         def _refresh_file_completion_from_cursor(self) -> None: ...
         def _update_file_completion_panel(self, token: str) -> None: ...
         def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
@@ -181,14 +185,46 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
         result: _ModelCompletionCatalogWorkerResult,
     ) -> None:
         """Record catalog availability and refresh a matching open alias menu."""
+        request_current = self._model_completion_catalog_request_is_current()
         self._model_completion_catalog_loaded = True
         self._model_completion_catalog_available = result.available
         if (
             not self._file_completion_active
             or self._completion_kind != MODEL_ALIAS_COMPLETION_KIND
+            or not request_current
         ):
             return
         self._refresh_file_completion_from_cursor()
+
+    def _model_completion_catalog_request_is_current(self) -> bool:
+        """Consume the latest alias catalog request and validate it still applies."""
+        request = self._model_completion_catalog_request
+        self._model_completion_catalog_request = None
+        if request is None or not self.is_mounted:
+            return False
+
+        pane_id, text, cursor_offset, vim_mode = request
+        if pane_id != self.id:
+            return False
+        if text != self.text:
+            return False
+        if cursor_offset != self._absolute_offset(self.cursor_location):
+            return False
+        if vim_mode != self._vim_mode:
+            return False
+
+        try:
+            bar = self._find_prompt_bar()
+        except Exception:  # noqa: BLE001 - stale workers should degrade silently.
+            return False
+        active_text_area = getattr(bar, "active_text_area", None)
+        if callable(active_text_area):
+            try:
+                if active_text_area() is not self:
+                    return False
+            except Exception:  # noqa: BLE001 - stale workers should degrade silently.
+                return False
+        return True
 
     def _schedule_vcs_repo_completion_fetch(self, trigger: VcsRepoTrigger) -> None:
         """Fetch repo candidates in a background worker with key dedupe."""

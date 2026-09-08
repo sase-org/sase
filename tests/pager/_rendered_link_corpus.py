@@ -358,14 +358,14 @@ def kitchen_expected(corpus: RenderedLinkCorpus) -> tuple[ExpectedOccurrence, ..
             kind=LinkSpanKind.ARTIFACT_REF.value,
             resolution_ref="bead:sase-zz.n0",
             outcome="unavailable",
-            unavailable_contains="no local bead store is available",
+            unavailable_contains="no local bead store",
         ),
         ExpectedOccurrence(
             display="@bead:sase-zz.n0",
             kind=LinkSpanKind.ARTIFACT_REF.value,
             resolution_ref="bead:sase-zz.n0",
             outcome="unavailable",
-            unavailable_contains="no local bead store is available",
+            unavailable_contains="no local bead store",
         ),
         ExpectedOccurrence(
             display="patch:fixture-patch",

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
 
 import pytest
 from textual.pilot import Pilot
 
+from sase.ace.testing.wait import wait_for
 from sase.pager.app import SasePager
 from sase.pager.screen import PagerScreen
 from sase.pager._labels import PagerLabel
@@ -41,6 +42,22 @@ async def press_hint(pilot: Pilot[Any], hint: str) -> None:
     for character in hint:
         await pilot.press(character)
     await settle(pilot)
+
+
+async def wait_for_notification(
+    pilot: Pilot[Any],
+    notifications: list[tuple[str, str]],
+    predicate: Callable[[str, str], bool],
+    *,
+    timeout: float = 5.0,
+) -> None:
+    await wait_for(
+        pilot,
+        lambda: any(
+            predicate(message, severity) for message, severity in notifications
+        ),
+        timeout=timeout,
+    )
 
 
 async def follow_display(pilot: Pilot[Any], display: str) -> PagerScreen:

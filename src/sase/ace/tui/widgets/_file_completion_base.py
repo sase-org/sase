@@ -102,6 +102,8 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
         _model_completion_catalog_loaded: bool
         _model_completion_catalog_available: bool
         _model_completion_catalog_inflight: bool
+        _model_completion_catalog_request: tuple[str | None, str, int, str] | None
+        _vim_mode: str
         _artifact_ref_bug_projection: (
             tuple[object, str | None, tuple[ArtifactRefBugCandidate, ...]] | None
         )
@@ -315,6 +317,7 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
         self._vcs_repo_completion_result = None
         self._vcs_ref_completion_has_namespaces = False
         self._prompt_path_completion_directory_key = None
+        self._model_completion_catalog_request = None
         self._update_file_completion_panel("")
         if clear_xprompt_arg_hint:
             self._clear_xprompt_arg_hint()
@@ -536,12 +539,23 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
         if state == "warm" and entries is not None:
             return build_model_alias_completion_candidates(context, entries)
         if state == "unavailable" and retry_unavailable:
+            self._remember_model_completion_catalog_request()
             self._schedule_model_completion_catalog_load(force=True)
             return [build_loading_model_alias_placeholder()]
         if state == "loading":
+            self._remember_model_completion_catalog_request()
             self._schedule_model_completion_catalog_load()
             return [build_loading_model_alias_placeholder()]
         return [build_unavailable_model_alias_placeholder()]
+
+    def _remember_model_completion_catalog_request(self) -> None:
+        """Record the prompt state that asked a worker to warm model aliases."""
+        self._model_completion_catalog_request = (
+            self.id,
+            self.text,
+            self._absolute_offset(self.cursor_location),
+            self._vim_mode,
+        )
 
     def _placeholder_completion_includes_common_at_empty_prefix(self) -> bool:
         """Return the empty-prefix rule for the placeholder menu that is open.
