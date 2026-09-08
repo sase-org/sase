@@ -261,13 +261,17 @@ def reject_discarded_dirty_work(
         after,
         artifacts_dir=str(artifacts) if artifacts is not None else None,
     )
+    commit_results = _load_commit_results(artifacts)
     proven = {
         normalize_path(str(marker.get("cwd", "")))
-        for marker in _new_commit_markers(
-            ledger_before, _load_commit_results(artifacts)
-        )
+        for marker in _new_commit_markers(ledger_before, commit_results)
         if marker.get("cwd")
     }
+    proven.update(
+        normalize_path(str(marker.get("cwd", "")))
+        for marker in commit_results
+        if marker.get("cwd") and marker.get("pushed") is False
+    )
     remaining = tuple(
         item for item in discarded if normalize_path(item.repo_path) not in proven
     )

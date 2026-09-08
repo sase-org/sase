@@ -136,7 +136,7 @@ def _resume_unpushed_already_clean_repos(
     resume_runner: ResumeRunner,
     ledger: InstanceLedger | None,
     current_result: InvokeResult,
-) -> tuple[list[FinalizerAttemptWire], list[FinalizerOutcomeEvidenceWire]]:
+) -> tuple[int | None, list[FinalizerAttemptWire], list[FinalizerOutcomeEvidenceWire]]:
     markers = _load_commit_results(artifacts)
     work = [
         (repo, repo_markers[-1])
@@ -144,7 +144,7 @@ def _resume_unpushed_already_clean_repos(
         if (repo_markers := _unpushed_markers_for_repo(markers, repo))
     ]
     if not work:
-        return ([], [])
+        return (None, [], [])
 
     attempt_id = _consume_unpushed_resume_attempt(ledger, instance_id, current_result)
     attempts = [FinalizerAttemptWire(attempt=attempt_id, status="failed")]
@@ -166,6 +166,12 @@ def _resume_unpushed_already_clean_repos(
             attempt_id,
             resumed,
             label=f"{repo.name}-unpushed-resume",
+            inputs={
+                "resume_unpushed": True,
+                "repo_path": repo.path,
+                "commit_sha": marker.get("commit_sha"),
+                "result": marker.get("result"),
+            },
         )
         if resumed.timed_out or resumed.stdout_truncated or resumed.stderr_truncated:
             code = "stitch_timeout" if resumed.timed_out else "stitch_output_cap"
@@ -214,9 +220,23 @@ def _resume_unpushed_already_clean_repos(
         ]
         if resumed_markers:
             evidence.extend(_marker_evidence(resumed_markers[-1]))
+        else:
+            latest = _latest_marker_for_repo(_load_commit_results(artifacts), repo)
+            if latest is not None:
+                evidence.extend(_marker_evidence(latest))
 
     attempts[0] = FinalizerAttemptWire(attempt=attempt_id, status="success")
-    return (attempts, evidence)
+    return (attempt_id, attempts, evidence)
+
+
+def _latest_marker_for_repo(
+    markers: Sequence[Mapping[str, Any]],
+    repo: DirtyRepo,
+) -> Mapping[str, Any] | None:
+    for marker in reversed(markers):
+        if _marker_matches_repo(marker, repo):
+            return marker
+    return None
 
 
 def execute_commit_finalizer(
@@ -375,20 +395,6 @@ def execute_commit_finalizer(
         if _repository_decision_id(repo) not in current_by_id
     )
     if already_clean:
-        resume_attempts, resume_evidence = _resume_unpushed_already_clean_repos(
-            already_clean,
-            artifacts=artifacts,
-            context=context,
-            instance_id=instance.instance_id,
-            resume_runner=resume,
-            ledger=ledger,
-            current_result=current_result,
-        )
-        if resume_attempts:
-            attempts = resume_attempts
-            evidence.extend(resume_evidence)
-            attempt_id = resume_attempts[0].attempt
-            state = prepare_commit_dirty_state(project_dir, artifacts)
         _reject_discarded_dirty_work(
             DirtyState(
                 project_dir=state.dirty_state.project_dir,
@@ -408,6 +414,34 @@ def execute_commit_finalizer(
             invoke_result=current_result,
             ledger_before=already_clean_ledger_before,
         )
+        (
+            resumed_attempt_id,
+            resume_attempts,
+            resume_evidence,
+        ) = _resume_unpushed_already_clean_repos(
+            already_clean,
+            artifacts=artifacts,
+            context=context,
+            instance_id=instance.instance_id,
+            resume_runner=resume,
+            ledger=ledger,
+            current_result=current_result,
+        )
+        if resume_attempts:
+            attempts = resume_attempts
+            evidence.extend(resume_evidence)
+            attempt_id = resume_attempts[0].attempt
+            state = prepare_commit_dirty_state(project_dir, artifacts)
+        state = prepare_commit_dirty_state(project_dir, artifacts)
+        ordered = _dirty_repos_in_context_order(
+            state.dirty_state,
+            decisions,
+            accepted_context,
+            attempt=_peek_attempt(ledger),
+            ledger=ledger,
+        )
+    else:
+        resumed_attempt_id = None
 
     if not accepted_repos and state.dirty_state.is_clean:
         _raise_if_unpublished_machine_state(
@@ -424,37 +458,40 @@ def execute_commit_finalizer(
             ),
         )
 
-    if ordered:
-        dispatched = _dispatch_commit_decisions(
-            ordered,
-            decisions,
-            state=state,
-            context=context,
-            instance_id=instance.instance_id,
-            artifacts=artifacts,
-            project_dir=project_dir,
-            provider=provider,
-            invoke_result=current_result,
-            model_tier=model_tier,
-            suppress_output=suppress_output,
-            model_override=model_override,
-            options=options,
-            stitch_runner=runner,
-            resume_runner=resume,
-            ledger=ledger,
-            prepare_dirty_state=prepare_commit_dirty_state,
-            protected_path_resolver=_protected_baseline_paths,
-            unexpected_path_resolver=_unexpected_remaining_paths,
-            baseline_record_resolver=_protected_baseline_record,
-            accepted_deferrals=accepted_deferrals,
-        )
-        current_result = dispatched.invoke_result
-        state = dispatched.state
-        attempt_id = dispatched.attempt_id
-        attempts = dispatched.attempts
-        evidence = dispatched.evidence
-        diagnostics = dispatched.diagnostics
-        deferred_outcomes = dispatched.deferred
+    dispatched = _dispatch_commit_decisions(
+        ordered,
+        decisions,
+        state=state,
+        context=context,
+        instance_id=instance.instance_id,
+        artifacts=artifacts,
+        project_dir=project_dir,
+        provider=provider,
+        invoke_result=current_result,
+        model_tier=model_tier,
+        suppress_output=suppress_output,
+        model_override=model_override,
+        options=options,
+        stitch_runner=runner,
+        resume_runner=resume,
+        ledger=ledger,
+        prepare_dirty_state=prepare_commit_dirty_state,
+        protected_path_resolver=_protected_baseline_paths,
+        unexpected_path_resolver=_unexpected_remaining_paths,
+        baseline_record_resolver=_protected_baseline_record,
+        accepted_deferrals=accepted_deferrals,
+        initial_attempt_id=resumed_attempt_id,
+        initial_attempts=attempts,
+        initial_evidence=evidence,
+        initial_diagnostics=diagnostics,
+    )
+    current_result = dispatched.invoke_result
+    state = dispatched.state
+    attempt_id = dispatched.attempt_id
+    attempts = dispatched.attempts
+    evidence = dispatched.evidence
+    diagnostics = dispatched.diagnostics
+    deferred_outcomes = dispatched.deferred
 
     _reject_discarded_dirty_work(
         dirty_before_decisions,

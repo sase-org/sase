@@ -20,8 +20,8 @@ from sase.llm_provider.usage.store import (
     ProviderUsageRefreshMarkDueOutcome,
     ProviderUsageRefreshReservation,
 )
-from sase.llm_provider.usage.synthetic import SYNTHETIC_PLUGIN_SPEC
 from sase.procs import ProcSubmitRequest
+from sase.testing.usage_synthetic import SYNTHETIC_PLUGIN_SPEC
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 

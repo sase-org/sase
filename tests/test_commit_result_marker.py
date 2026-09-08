@@ -298,6 +298,29 @@ class TestWriteResultMarker:
                 }
             ]
 
+    def test_records_unpushed_dispatch_failure_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = {"message": "fix: bug"}
+            with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
+                write_result_marker(
+                    "create_commit",
+                    payload,
+                    None,
+                    "a" * 40,
+                    None,
+                    commit_sha="a" * 40,
+                    commit_tree="b" * 40,
+                    pushed=False,
+                    dispatch_error="git push failed: refused",
+                )
+
+            data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
+            assert data["pushed"] is False
+            assert data["dispatch_error"] == "git push failed: refused"
+            results = json.loads((Path(tmpdir) / "commit_results.json").read_text())
+            assert results[0]["pushed"] is False
+            assert results[0]["dispatch_error"] == "git push failed: refused"
+
     def test_omits_commit_sha_and_tree_when_not_resolved(self) -> None:
         """A resolution failure must not add placeholder keys to the marker."""
         with tempfile.TemporaryDirectory() as tmpdir:

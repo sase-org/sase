@@ -480,7 +480,7 @@ def _run_budgeted_commit(
                     current_result = exc.invoke_result
                 continue
             raise BuiltinCommitFinalizerError(
-                str(exc),
+                _result_failure_message(merged),
                 result=merged,
                 invoke_result=exc.invoke_result,
             ) from exc

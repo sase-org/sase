@@ -222,6 +222,8 @@ class TestRestartSafeResolution:
                 )
             # Materialize the target dir on ``git clone`` so the marker
             # write sees an on-disk checkout.
+            if argv == ["git", "remote", "get-url", "origin"]:
+                return MagicMock(returncode=0, stdout="git@example.com:k/repo.git\n")
             if len(argv) >= 4 and argv[0] == "git" and argv[1] == "clone":
                 target = argv[3].rstrip("/")
                 os.makedirs(target, exist_ok=True)

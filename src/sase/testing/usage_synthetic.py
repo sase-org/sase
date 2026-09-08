@@ -20,8 +20,8 @@ SYNTHETIC_PIDFILE_ENV = "SASE_USAGE_SYNTHETIC_PIDFILE"
 SECRET_CANARY = "token=SECRET_CANARY_USAGE"
 SYNTHETIC_PLUGIN_SPEC = {
     "kind": "import",
-    "module": "sase.llm_provider.usage.synthetic",
-    "qualname": "_SyntheticUsageProvider",
+    "module": "sase.testing.usage_synthetic",
+    "qualname": "SyntheticUsageProvider",
 }
 
 
@@ -57,6 +57,9 @@ class _SyntheticUsageProvider:
         if mode == "invalid":
             return {"not": "an observation"}
         return _ok_observation(context)
+
+
+SyntheticUsageProvider = _SyntheticUsageProvider
 
 
 def _ok_observation(context: UsageProbeContext) -> dict[str, Any]:

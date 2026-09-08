@@ -162,5 +162,5 @@ def record_instance_metrics(
 def result_failure_message(result: FinalizerInstanceResultWire) -> str:
     """Return the most useful error message exposed by a failed result."""
     if result.diagnostics:
-        return result.diagnostics[0].message
+        return result.diagnostics[-1].message
     return f"finalizer {result.instance_id!r} failed"

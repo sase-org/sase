@@ -284,7 +284,7 @@ def test_grok_usage_probe_reaps_descendant_processes(tmp_path: Path) -> None:
     }
     now = time.time()
     context = default_probe_context(
-        "grok", now=now, deadline_seconds=0.75, executable=str(fake)
+        "grok", now=now, deadline_seconds=3.0, executable=str(fake)
     )
     probe_result = run_usage_probe(
         context,
@@ -298,7 +298,13 @@ def test_grok_usage_probe_reaps_descendant_processes(tmp_path: Path) -> None:
     assert result["outcome"] == "error"
     assert result["reason_code"] == "timeout"
     deadline = time.time() + 2.0
-    while time.time() < deadline and not pidfile.exists():
+    pid_text = ""
+    while time.time() < deadline:
+        if pidfile.exists():
+            pid_text = pidfile.read_text(encoding="utf-8").strip()
+            if pid_text:
+                break
         time.sleep(0.05)  # sase-test-wait: pidfile from descendant grok child
-    child_pid = int(pidfile.read_text(encoding="utf-8"))
+    assert pid_text
+    child_pid = int(pid_text)
     assert not _pid_alive(child_pid)

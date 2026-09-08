@@ -125,6 +125,59 @@ def test_resume_failed_finalize_returns_failed(
     assert (artifacts_dir / "commit_state.json").exists()
 
 
+@patch(PROVIDER_TARGET)
+def test_resume_updates_unpushed_marker_after_finalize(
+    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+) -> None:
+    provider = make_resume_provider(head_subject="fix: bug")
+    provider.revision_id.side_effect = ["a" * 40, "b" * 40]
+    mock_get.return_value = provider
+    marker = {
+        "method": "create_commit",
+        "run_id": artifacts_dir.name,
+        "cwd": str(tmp_path),
+        "result": "a" * 40,
+        "commit_result": "a" * 40,
+        "message": "fix: bug",
+        "pushed": False,
+        "dispatch_error": "git push failed: refused",
+    }
+    (artifacts_dir / "commit_results.json").write_text(
+        json.dumps([marker]),
+        encoding="utf-8",
+    )
+
+    save_resume_checkpoint(
+        cwd=str(tmp_path),
+        payload={"message": "fix: bug"},
+        dispatch_result="a" * 40,
+        pushed=False,
+        dispatch_error="git push failed: refused",
+    )
+
+    with (
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value="1",
+        ),
+        patch(
+            "sase.workflows.commit.commit_tracking._resolve_commit_created_at",
+            return_value=None,
+        ),
+    ):
+        assert CommitWorkflow.resume() == RunResult.OK
+
+    results = json.loads((artifacts_dir / "commit_results.json").read_text())
+    assert len(results) == 1
+    assert results[0]["cwd"] == str(tmp_path)
+    assert results[0]["result"] == "a" * 40
+    assert results[0]["commit_sha"] == "a" * 40
+    assert results[0]["commit_tree"] == "b" * 40
+    assert results[0]["pushed"] is True
+    assert "dispatch_error" not in results[0]
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
 def test_append_commits_entry_idempotent_on_resume(
     tmp_path: Path, artifacts_dir: Path
 ) -> None:

@@ -281,8 +281,6 @@ def marker_evidence(
         value = marker.get(key)
         if isinstance(value, str) and value:
             evidence.append(FinalizerOutcomeEvidenceWire(kind=key, value=value))
-    if marker.get("pushed") is False:
-        evidence.append(FinalizerOutcomeEvidenceWire(kind="pushed", value="false"))
     if not any(item.kind == "commit_sha" for item in evidence):
         evidence.append(
             FinalizerOutcomeEvidenceWire(
@@ -295,6 +293,22 @@ def marker_evidence(
             FinalizerOutcomeEvidenceWire(
                 kind="warning",
                 value="commit_results entry omitted commit_tree",
+            )
+        )
+    pushed = marker.get("pushed")
+    if isinstance(pushed, bool):
+        evidence.append(
+            FinalizerOutcomeEvidenceWire(
+                kind="pushed",
+                value="true" if pushed else "false",
+            )
+        )
+    dispatch_error = marker.get("dispatch_error")
+    if isinstance(dispatch_error, str) and dispatch_error:
+        evidence.append(
+            FinalizerOutcomeEvidenceWire(
+                kind="dispatch_error",
+                value=_bound_stream(dispatch_error),
             )
         )
     return evidence

@@ -17,6 +17,13 @@ def _record_json(path: str | None, payload: object) -> None:
         handle.write(json.dumps(payload) + "\n")
 
 
+def _write_text_atomic(path: str, text: str) -> None:
+    tmp_path = f"{path}.tmp.{os.getpid()}"
+    with open(tmp_path, "w", encoding="utf-8") as handle:
+        handle.write(text)
+    os.replace(tmp_path, path)
+
+
 def _respond(payload: object) -> None:
     print(json.dumps(payload), flush=True)
 
@@ -41,10 +48,19 @@ def main() -> int:
     mode = os.environ.get("SASE_FAKE_GROK_MODE", "native")
     pidfile = os.environ.get("SASE_FAKE_GROK_CHILD_PID")
     if mode == "descendants":
-        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        fork = getattr(os, "fork", None)
+        if fork is not None:
+            child_pid = fork()
+            if child_pid == 0:
+                time.sleep(60)  # sase-test-wait: descendant survives until reaped
+                os._exit(0)
+        else:
+            child = subprocess.Popen(
+                [sys.executable, "-c", "import time; time.sleep(60)"]
+            )
+            child_pid = child.pid
         if pidfile:
-            with open(pidfile, "w", encoding="utf-8") as handle:
-                handle.write(str(child.pid))
+            _write_text_atomic(pidfile, str(child_pid))
         time.sleep(60)  # sase-test-wait: hang until the probe deadline kills us
         return 0
 

@@ -185,7 +185,7 @@ class TestEnsureGitCloneAt:
         assert fetch_kwargs["env"]["GIT_TERMINAL_PROMPT"] == "0"
 
     @patch("sase.workspace_provider.utils.subprocess.run")
-    def test_fresh_clone_raises_when_primary_origin_unreadable(
+    def test_fresh_clone_raises_when_primary_origin_command_errors(
         self, mock_run: MagicMock, tmp_path: Path
     ) -> None:
         def run(cmd: list[str], **_kwargs: object) -> MagicMock:
@@ -281,6 +281,80 @@ class TestEnsureGitCloneAt:
         assert result == str(target) + "/"
         assert not (target / "stale.txt").exists()
         assert mock_run.call_count == 5
+
+    @patch("sase.workspace_provider.utils.subprocess.run")
+    def test_fresh_clone_raises_when_primary_origin_returns_failure(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        mock_run.return_value = MagicMock(
+            returncode=1,
+            stdout="",
+            stderr="fatal: could not read config\n",
+        )
+        primary = tmp_path / "repo"
+        primary.mkdir()
+        target = tmp_path / "repo_2"
+
+        with pytest.raises(RuntimeError, match="Could not read primary.*origin"):
+            ensure_git_clone_at(str(primary), 2, str(target))
+
+        commands = [call.args[0] for call in mock_run.call_args_list]
+        assert commands == [["git", "remote", "get-url", "origin"]]
+        assert not target.exists()
+
+    @patch("sase.workspace_provider.utils.subprocess.run")
+    def test_reuse_heals_origin_that_points_at_primary_path(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        primary = tmp_path / "repo"
+        target = tmp_path / "repo_2"
+        primary.mkdir()
+        target.mkdir()
+        real_origin = "git@github.com:sase-org/sase.git"
+
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),  # target status
+            MagicMock(returncode=0, stdout=str(primary) + "\n", stderr=""),
+            MagicMock(returncode=0, stdout=real_origin + "\n", stderr=""),
+            MagicMock(returncode=0, stdout="", stderr=""),  # set-url
+        ]
+
+        result = ensure_git_clone_at(str(primary), 2, str(target))
+
+        assert result == str(target)
+        commands = [call.args[0] for call in mock_run.call_args_list]
+        assert commands == [
+            ["git", "status"],
+            ["git", "remote", "get-url", "origin"],
+            ["git", "remote", "get-url", "origin"],
+            ["git", "remote", "set-url", "origin", real_origin],
+        ]
+
+    @patch("sase.workspace_provider.utils.subprocess.run")
+    def test_reuse_matching_origin_is_untouched(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        primary = tmp_path / "repo"
+        target = tmp_path / "repo_2"
+        primary.mkdir()
+        target.mkdir()
+        real_origin = "git@github.com:sase-org/sase.git"
+
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),  # target status
+            MagicMock(returncode=0, stdout=real_origin + "\n", stderr=""),
+            MagicMock(returncode=0, stdout=real_origin + "\n", stderr=""),
+        ]
+
+        result = ensure_git_clone_at(str(primary), 2, str(target))
+
+        assert result == str(target)
+        commands = [call.args[0] for call in mock_run.call_args_list]
+        assert commands == [
+            ["git", "status"],
+            ["git", "remote", "get-url", "origin"],
+            ["git", "remote", "get-url", "origin"],
+        ]
 
 
 # ── ensure_workspace_checkout ───────────────────────────────────────

@@ -9,7 +9,7 @@ import pytest
 
 from sase.feature_flags import override_flags
 from sase.llm_provider.usage.probe import default_probe_context, run_usage_probe
-from sase.llm_provider.usage.synthetic import (
+from sase.testing.usage_synthetic import (
     SECRET_CANARY,
     SYNTHETIC_MODE_ENV,
     SYNTHETIC_PIDFILE_ENV,

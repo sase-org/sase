@@ -54,9 +54,6 @@ from sase.workflows.commit.workflow_support import (
     classify_dispatch_failure as _classify_dispatch_failure,
 )
 from sase.workflows.commit.workflow_support import (
-    dispatch_created_unpushed_commit as _dispatch_created_unpushed_commit,
-)
-from sase.workflows.commit.workflow_support import (
     explicit_parent_resolves as _explicit_parent_resolves,
 )
 from sase.workflows.commit.workflow_support import (
@@ -267,6 +264,9 @@ class CommitWorkflow(BaseWorkflow):
 
         # Snapshot the post-mutation payload + resolved fields so the resume
         # path can replay tracking even if dispatch crashes.
+        primary_revision = None
+        if self._method in ("create_commit", "create_pull_request"):
+            primary_revision = resolve_head_commit_sha(provider, cwd)
         cp = CommitCheckpoint(
             method=self._method,
             payload=self._payload,
@@ -277,6 +277,7 @@ class CommitWorkflow(BaseWorkflow):
             base_cl_name=self._base_cl_name,
             reserved_name=self._reserved_name,
             parent_cl_name=self._parent_cl_name,
+            primary_revision=primary_revision,
             publication_agent=resolve_local_agent_name(),
         )
         checkpoint_save(cp)
@@ -302,17 +303,11 @@ class CommitWorkflow(BaseWorkflow):
                 )
                 return RunResult.CONFLICT
             failure_reason = _classify_dispatch_failure(result)
-            if self._method == "create_commit" and _dispatch_created_unpushed_commit(
-                result
-            ):
-                cp.commit_sha = resolve_head_commit_sha(provider, cwd)
-                cp.commit_tree = resolve_head_tree_id(provider, cwd)
-                cp.dispatch_result = cp.commit_sha
-                checkpoint_save(cp)
+            if self._record_unpushed_commit_marker_if_present(cp, provider, result):
                 print_status(
-                    f"{self._method} created a local commit but push failed: "
-                    f"{result}. Run `sase stitch create --resume` to retry "
-                    "the push and finish tracking.",
+                    f"{self._method} created local commit {cp.commit_sha} "
+                    f"but failed before publishing it: {result}. Run "
+                    "`sase stitch create --resume` to retry the push.",
                     "error",
                 )
                 _log_commit_failed(self._method, failure_reason)
@@ -350,6 +345,42 @@ class CommitWorkflow(BaseWorkflow):
 
         checkpoint_delete()
         return RunResult.OK
+
+    def _record_unpushed_commit_marker_if_present(
+        self,
+        cp: CommitCheckpoint,
+        provider: object,
+        dispatch_error: str | None,
+    ) -> bool:
+        """Persist recoverable local commits when dispatch failed during push."""
+        if self._method not in ("create_commit", "create_pull_request"):
+            return False
+        if _classify_dispatch_failure(dispatch_error) != "push_failed":
+            return False
+
+        head_sha = resolve_head_commit_sha(provider, cp.cwd)
+        if not head_sha or head_sha == cp.primary_revision:
+            return False
+
+        cp.commit_sha = head_sha
+        cp.commit_tree = resolve_head_tree_id(provider, cp.cwd)
+        cp.dispatch_result = head_sha
+        cp.pushed = False
+        cp.dispatch_error = dispatch_error
+        checkpoint_save(cp)
+        write_result_marker(
+            self._method,
+            self._payload,
+            self._diff_path,
+            head_sha,
+            cp.cs_name,
+            commit_sha=cp.commit_sha,
+            commit_tree=cp.commit_tree,
+            commit_cwd=cp.cwd,
+            pushed=False,
+            dispatch_error=dispatch_error,
+        )
+        return True
 
     def _run_file_hooks(self, cp: CommitCheckpoint, provider: object) -> None:
         """Capture a committed revision once without gating the workflow."""
@@ -475,6 +506,8 @@ class CommitWorkflow(BaseWorkflow):
                 commit_sha=cp.commit_sha,
                 commit_tree=cp.commit_tree,
                 commit_cwd=cp.cwd,
+                pushed=cp.pushed,
+                dispatch_error=cp.dispatch_error,
             )
             cp.completed_steps.append("write_result_marker")
             checkpoint_save(cp)
@@ -511,6 +544,8 @@ class CommitWorkflow(BaseWorkflow):
                     commit_sha=cp.commit_sha,
                     commit_tree=cp.commit_tree,
                     commit_cwd=cp.cwd,
+                    pushed=cp.pushed,
+                    dispatch_error=cp.dispatch_error,
                 )
                 cp.completed_steps.append("final_result_marker")
                 checkpoint_save(cp)

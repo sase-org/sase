@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.llm_provider.usage.synthetic import SECRET_CANARY
+from sase.testing.usage_synthetic import SECRET_CANARY
 from sase.llm_provider.usage.transport import JsonLineSession, JsonLineTransportError
 
 _FIXTURE = (

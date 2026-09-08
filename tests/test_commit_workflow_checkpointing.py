@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -116,6 +117,73 @@ def test_run_failure_without_conflict_deletes_checkpoint(
         event="commit_failed", method="create_commit", reason="other"
     )
     assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_run_push_failure_after_local_commit_records_unpushed_marker(
+    mock_get: MagicMock, artifacts_dir: Path
+) -> None:
+    provider = make_provider(
+        dispatch_result=(
+            False,
+            "commit 1111111111111111111111111111111111111111 "
+            "created locally; git push failed: refused",
+        ),
+        is_conflict=False,
+    )
+    provider.revision_id.side_effect = [
+        "0" * 40,
+        "1" * 40,
+        "2" * 40,
+    ]
+    mock_get.return_value = provider
+
+    with patch(
+        "sase.workflows.commit.commit_tracking._resolve_commit_created_at",
+        return_value=None,
+    ):
+        assert CommitWorkflow({"message": "fix: bug"}, "create_commit").run() == (
+            RunResult.FAILED
+        )
+
+    loaded = checkpoint.checkpoint_load(str(artifacts_dir / "commit_state.json"))
+    assert loaded is not None
+    assert loaded.completed_steps == []
+    assert loaded.primary_revision == "0" * 40
+    assert loaded.commit_sha == "1" * 40
+    assert loaded.commit_tree == "2" * 40
+    assert loaded.dispatch_result == "1" * 40
+    assert loaded.pushed is False
+
+    markers = json.loads((artifacts_dir / "commit_results.json").read_text())
+    assert markers == [
+        {
+            "method": "create_commit",
+            "run_id": artifacts_dir.name,
+            "cwd": ANY,
+            "result": "1" * 40,
+            "commit_result": "1" * 40,
+            "message": "fix: bug\n\nSASE_TYPE=stitch",
+            "name": "",
+            "bead_id": "",
+            "patch_name": None,
+            "changespec_name": None,
+            "commit_patch_name": None,
+            "commit_changespec_name": None,
+            "entry_id": None,
+            "stitch_id": None,
+            "commit_entry_id": None,
+            "diff_path": None,
+            "commit_diff_path": None,
+            "commit_sha": "1" * 40,
+            "commit_tree": "2" * 40,
+            "pushed": False,
+            "dispatch_error": (
+                "commit 1111111111111111111111111111111111111111 "
+                "created locally; git push failed: refused"
+            ),
+        }
+    ]
 
 
 @patch(_PROVIDER_TARGET)

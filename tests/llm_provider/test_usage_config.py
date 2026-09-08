@@ -15,7 +15,7 @@ from sase.llm_provider.usage.probe import (
     run_usage_probe,
     worker_environ,
 )
-from sase.llm_provider.usage.synthetic import (
+from sase.testing.usage_synthetic import (
     SECRET_CANARY,
     SYNTHETIC_PLUGIN_SPEC,
     _SyntheticUsageProvider,

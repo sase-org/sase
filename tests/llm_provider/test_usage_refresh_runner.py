@@ -12,7 +12,7 @@ from sase.chops.builtin import run_builtin_chop
 from sase.feature_flags import override_flags
 from sase.llm_provider.usage.refresh import UsageRefreshReceipt
 from sase.llm_provider.usage.refresh_runner import _run_admitted_refresh
-from sase.llm_provider.usage.synthetic import (
+from sase.testing.usage_synthetic import (
     SECRET_CANARY,
     SYNTHETIC_MODE_ENV,
     SYNTHETIC_PLUGIN_SPEC,

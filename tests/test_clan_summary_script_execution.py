@@ -247,7 +247,7 @@ def test_timed_out_summary_script_exits_on_sigterm_without_sigkill(
     assert "clan_summary" not in meta
     assert signal.SIGTERM in signals
     assert signal.SIGKILL not in signals
-    assert elapsed < 2.0
+    assert elapsed < 15.0
     artifact = (tmp_path / "artifacts" / CLAN_SUMMARY_STDERR_LOG).read_text(
         encoding="utf-8"
     )

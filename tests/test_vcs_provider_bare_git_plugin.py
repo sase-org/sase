@@ -299,15 +299,13 @@ def test_vcs_create_commit_push_fails(
     mock_run: MagicMock, bare_git_provider: VCSPluginManager
 ) -> None:
     """Returns error tuple when push fails."""
-    mock_run.side_effect = [
-        MagicMock(returncode=0, stdout="", stderr=""),  # git add
-        MagicMock(returncode=0, stdout="", stderr=""),  # git commit
-        MagicMock(returncode=1, stdout="", stderr="push rejected"),  # git push
-    ]
+    mock_run.side_effect = _git_cmd_handler(stdout="abc1234\n", push_rc=1)
     ok, err = bare_git_provider.create_commit({"message": "test", "files": []}, "/ws")
 
     assert ok is False
     assert isinstance(err, str)
+    assert "commit abc1234 created locally" in err
+    assert "git push failed" in err
 
 
 @patch("sase.workflows.commit_utils.workspace.clean_workspace")

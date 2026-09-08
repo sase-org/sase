@@ -12,7 +12,7 @@ from sase.llm_provider._plugin_manager import LLMPluginManager
 from sase.llm_provider._registry_metadata import provider_metadata
 from sase.llm_provider.types import InvokeResult, ModelTier
 from sase.llm_provider.usage.probe import run_usage_probe
-from sase.llm_provider.usage.synthetic import (
+from sase.testing.usage_synthetic import (
     SYNTHETIC_PLUGIN_SPEC,
     _SyntheticUsageProvider,
 )

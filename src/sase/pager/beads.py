@@ -228,8 +228,10 @@ def _failure_message(bead_id: str, failures: tuple[object, ...]) -> str:
     messages = [str(getattr(failure, "message", "")) for failure in failures]
     messages = [message for message in messages if message]
     if not messages:
-        return f"issue not found: {bead_id}"
-    return "; ".join(dict.fromkeys(messages))
+        detail = f"issue not found: {bead_id}"
+    else:
+        detail = "; ".join(dict.fromkeys(messages))
+    return f"bead:{bead_id} could not be resolved - {detail}"
 
 
 def _failure_is_retryable(message: str) -> bool:

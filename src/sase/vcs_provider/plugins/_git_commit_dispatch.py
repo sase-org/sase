@@ -329,6 +329,26 @@ class GitCommitDispatchMixin(CommandRunner):
                 )
         return (False, f"git push failed after rebase retries: {last_err}")
 
+    def _head_commit_id(self, cwd: str) -> str | None:
+        out = self._run(["git", "rev-parse", "HEAD"], cwd)
+        if not out.success:
+            return None
+        sha = out.stdout.strip()
+        return sha or None
+
+    def _local_commit_push_failure(
+        self,
+        cwd: str,
+        error: str | None,
+        *,
+        prefix: str = "commit",
+    ) -> str:
+        detail = error or "git push failed"
+        sha = self._head_commit_id(cwd)
+        if sha:
+            return f"{prefix} {sha} created locally; {detail}"
+        return f"{prefix} created locally; {detail}"
+
     def _remote_branch_exists(self, name: str, cwd: str) -> bool:
         """Return True when ``name`` already exists as a remote head on origin."""
         out = self._run(
@@ -438,7 +458,7 @@ class GitCommitDispatchMixin(CommandRunner):
         push_error: str | None,
     ) -> str:
         commit_sha = self._record_unpushed_commit_marker(payload, cwd, push_error)
-        commit = commit_sha[:12] if commit_sha else "HEAD"
+        commit = commit_sha if commit_sha else "HEAD"
         if push_error:
             return f"commit {commit} created locally; git push failed: {push_error}"
         return f"commit {commit} created locally; git push failed"
@@ -554,7 +574,14 @@ class GitCommitDispatchMixin(CommandRunner):
             if self._remote_branch_exists(name, cwd):
                 ok, err = self._resuffix_and_push(payload, cwd, name)
             if not ok:
-                return (False, err)
+                return (
+                    False,
+                    self._local_commit_push_failure(
+                        cwd,
+                        err,
+                        prefix="pull request commit",
+                    ),
+                )
         return (True, None)
 
     @hookimpl
@@ -568,7 +595,10 @@ class GitCommitDispatchMixin(CommandRunner):
             self._amend_bead_changes(payload, cwd)
         ok, err = self._push_current_branch_with_rebase_retry(cwd)
         if not ok:
-            return (False, err)
+            return (
+                False,
+                self._local_commit_push_failure(cwd, err, prefix="commit"),
+            )
         VCS_OPERATIONS.labels(
             provider=self._provider_name,
             operation="finalize_commit",

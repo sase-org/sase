@@ -47,7 +47,7 @@ def _git_result_adapter(result: Any) -> tuple[int, str]:
     return int(result.returncode), output
 
 
-def _git_remote_get_origin(cwd: str) -> subprocess.CompletedProcess[str]:
+def _run_git_remote_get_url(cwd: str) -> subprocess.CompletedProcess[str]:
     result, _outcome = run_with_git_lock_retry(
         lambda: subprocess.run(
             ["git", "remote", "get-url", "origin"],
@@ -64,14 +64,21 @@ def _git_remote_get_origin(cwd: str) -> subprocess.CompletedProcess[str]:
     return result
 
 
+def _command_output(result: subprocess.CompletedProcess[str]) -> str:
+    return (result.stderr or result.stdout or "").strip()
+
+
 def _origin_read_error(cwd: str, result: subprocess.CompletedProcess[str]) -> str:
-    detail = result.stderr.strip() or result.stdout.strip()
+    detail = _command_output(result)
     suffix = f": {detail}" if detail else ""
-    return f"could not read origin URL for git checkout {cwd}{suffix}"
+    return (
+        "Could not read primary workspace origin URL; "
+        f"could not read origin URL for git checkout {cwd}{suffix}"
+    )
 
 
 def _read_required_origin_url(primary_workspace_dir: str) -> str:
-    result = _git_remote_get_origin(primary_workspace_dir)
+    result = _run_git_remote_get_url(primary_workspace_dir)
     real_url = result.stdout.strip() if result.returncode == 0 else ""
     if real_url:
         return real_url
@@ -136,11 +143,12 @@ def _set_origin_url(cwd: str, origin_url: str) -> subprocess.CompletedProcess[st
     return result
 
 
-def _heal_reusable_clone_origin(
+def _heal_clone_origin_if_needed(
+    *,
     primary_workspace_dir: str,
     target_checkout_dir: str,
 ) -> None:
-    target_result = _git_remote_get_origin(target_checkout_dir)
+    target_result = _run_git_remote_get_url(target_checkout_dir)
     target_url = target_result.stdout.strip() if target_result.returncode == 0 else ""
     points_at_primary = bool(
         target_url
@@ -151,7 +159,7 @@ def _heal_reusable_clone_origin(
         )
     )
 
-    primary_result = _git_remote_get_origin(primary_workspace_dir)
+    primary_result = _run_git_remote_get_url(primary_workspace_dir)
     primary_url = (
         primary_result.stdout.strip() if primary_result.returncode == 0 else ""
     )
@@ -407,7 +415,10 @@ def ensure_git_clone_at(
             check=False,
         )
         if result.returncode == 0:
-            _heal_reusable_clone_origin(primary_workspace_dir, target_checkout_dir)
+            _heal_clone_origin_if_needed(
+                primary_workspace_dir=primary_workspace_dir.rstrip("/"),
+                target_checkout_dir=target_checkout_dir.rstrip("/"),
+            )
             return target_checkout_dir
         import shutil
 
@@ -425,7 +436,7 @@ def ensure_git_clone_at(
     if parent and not os.path.isdir(parent):
         os.makedirs(parent, exist_ok=True)
 
-    real_url = _read_required_origin_url(primary_workspace_dir)
+    real_url = _read_required_origin_url(primary_workspace_dir.rstrip("/"))
 
     # Clone builds a fresh target with no pre-existing index.lock to recover.
     try:
@@ -452,19 +463,19 @@ def ensure_git_clone_at(
                 check=False,
             )
             if check.returncode == 0:
+                _heal_clone_origin_if_needed(
+                    primary_workspace_dir=primary_workspace_dir.rstrip("/"),
+                    target_checkout_dir=target_checkout_dir.rstrip("/"),
+                )
                 return target_checkout_dir
         error_msg = f"git clone failed (exit code {e.returncode})"
         if e.stderr:
             error_msg += f": {e.stderr.strip()}"
         raise RuntimeError(error_msg) from e
 
-    set_url_result = _set_origin_url(target_checkout_dir, real_url)
+    set_url_result = _set_origin_url(target_checkout_dir.rstrip("/"), real_url)
     if set_url_result.returncode != 0:
-        detail = (
-            set_url_result.stderr.strip()
-            or set_url_result.stdout.strip()
-            or "unknown error"
-        )
+        detail = _command_output(set_url_result) or "unknown error"
         raise RuntimeError(
             "git clone succeeded, but rewriting clone origin to the primary "
             f"remote failed: {detail}"

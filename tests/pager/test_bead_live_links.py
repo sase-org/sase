@@ -115,7 +115,10 @@ def test_resolve_link_reports_missing_beads_without_materializing_store(
     resolution = resolve_link("bead:sase-missing", context=_bead_context(tmp_path))
 
     assert resolution.target is None
-    assert resolution.unresolved_message == "issue not found: sase-missing"
+    assert (
+        resolution.unresolved_message
+        == "bead:sase-missing could not be resolved - issue not found: sase-missing"
+    )
     assert resolution.retryable is False
     assert calls
     assert all(call["require_existing"] is True for call in calls)

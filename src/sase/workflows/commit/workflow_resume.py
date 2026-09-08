@@ -124,6 +124,10 @@ def resume_commit_workflow(
         # this resume actually finalized instead of a null result.
         cp.commit_sha = resolve_head_commit_sha(provider, cp.cwd)
         cp.commit_tree = resolve_head_tree_id(provider, cp.cwd)
+        if cp.dispatch_result is None:
+            cp.dispatch_result = cp.commit_sha
+        cp.pushed = True
+        cp.dispatch_error = None
         cp.completed_steps.append("dispatch")
         checkpoint_save(cp)
 

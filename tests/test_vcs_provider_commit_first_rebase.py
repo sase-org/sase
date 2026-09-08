@@ -129,3 +129,31 @@ def test_create_commit_records_unpushed_marker_when_push_refused(
     assert markers[0]["commit_sha"] == sha
     assert markers[0]["commit_tree"] == tree
     assert markers[0]["pushed"] is False
+
+
+def test_create_commit_reports_local_sha_when_push_to_checked_out_origin_refused(
+    tmp_path: Path,
+) -> None:
+    origin = tmp_path / "origin"
+    worker = tmp_path / "worker"
+    origin.mkdir()
+    _git(origin, "init", "--initial-branch=master")
+    _configure_user(origin)
+    (origin / "data.txt").write_text("base\n", encoding="utf-8")
+    _git(origin, "add", "data.txt")
+    _git(origin, "commit", "-m", "base")
+    _git(tmp_path, "clone", str(origin), str(worker))
+    _configure_user(worker)
+
+    (worker / "data.txt").write_text("worker\n", encoding="utf-8")
+    ok, err = BareGitPlugin().vcs_create_commit(
+        {"message": "worker change", "files": ["data.txt"]},
+        str(worker),
+    )
+
+    head = _git(worker, "rev-parse", "HEAD").stdout.strip()
+    assert ok is False
+    assert err is not None
+    assert f"commit {head} created locally" in err
+    assert "git push failed" in err
+    assert _git(worker, "status", "--porcelain").stdout == ""

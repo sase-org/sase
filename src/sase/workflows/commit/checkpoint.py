@@ -33,6 +33,8 @@ class CommitCheckpoint:
     primary_revision: str | None = None
     commit_sha: str | None = None
     commit_tree: str | None = None
+    pushed: bool | None = None
+    dispatch_error: str | None = None
     publication_agent: str | None = None
     no_commit_dispatched: bool = False
     cs_name: str | None = None

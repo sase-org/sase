@@ -90,6 +90,10 @@ def dispatch_commit_decisions(
     unexpected_path_resolver: UnexpectedPathResolver,
     baseline_record_resolver: BaselineRecordResolver,
     accepted_deferrals: Mapping[str, FinalizerDeferralWire] = {},
+    initial_attempt_id: int | None = None,
+    initial_attempts: Sequence[FinalizerAttemptWire] = (),
+    initial_evidence: Sequence[FinalizerOutcomeEvidenceWire] = (),
+    initial_diagnostics: Sequence[FinalizerDiagnosticWire] = (),
 ) -> _CommitDispatchResult:
     """Execute accepted commit decisions in host context order.
 
@@ -103,10 +107,10 @@ def dispatch_commit_decisions(
     needs_commit = any(
         repository_decision_id(repo) not in accepted_deferrals for repo in ordered_repos
     )
-    attempt_id: int | None = None
-    attempts: list[FinalizerAttemptWire] = []
-    evidence: list[FinalizerOutcomeEvidenceWire] = []
-    diagnostics: list[FinalizerDiagnosticWire] = []
+    attempt_id: int | None = initial_attempt_id
+    attempts: list[FinalizerAttemptWire] = list(initial_attempts)
+    evidence: list[FinalizerOutcomeEvidenceWire] = list(initial_evidence)
+    diagnostics: list[FinalizerDiagnosticWire] = list(initial_diagnostics)
     deferred: list[_DeferredRepoOutcome] = []
     current_result = invoke_result
 

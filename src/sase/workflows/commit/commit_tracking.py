@@ -531,6 +531,8 @@ def write_result_marker(
     commit_sha: str | None = None,
     commit_tree: str | None = None,
     commit_cwd: str | os.PathLike[str] | None = None,
+    pushed: bool | None = None,
+    dispatch_error: str | None = None,
 ) -> None:
     """Write commit result to a marker file for xprompt post-steps.
 
@@ -581,6 +583,10 @@ def write_result_marker(
         marker["commit_sha"] = commit_sha
     if commit_tree:
         marker["commit_tree"] = commit_tree
+    if pushed is not None:
+        marker["pushed"] = pushed
+    if dispatch_error:
+        marker["dispatch_error"] = dispatch_error
     committed_at = _resolve_commit_created_at(resolved_cwd, result)
     if committed_at is not None:
         marker["committed_at"] = committed_at
