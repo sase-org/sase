@@ -596,6 +596,70 @@ def write_result_marker(
     )
 
 
+def write_unpushed_commit_marker(
+    method: str,
+    payload: dict,
+    *,
+    cwd: str | os.PathLike[str],
+    result: str,
+    commit_sha: str,
+    commit_tree: str | None = None,
+    push_error: str | None = None,
+) -> None:
+    """Record a local commit whose post-commit push failed.
+
+    This intentionally writes only the multi-repository ledger. The ordinary
+    ``commit_result.json`` singleton remains reserved for completed tracking.
+    """
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return
+    if not os.path.isdir(artifacts_dir):
+        return
+
+    run_id = os.environ.get("SASE_AGENT_TIMESTAMP", "").strip()
+    if not run_id:
+        run_id = os.path.basename(os.path.normpath(artifacts_dir))
+    resolved_cwd = os.fspath(cwd)
+    workspace_dir = agent_workspace_dir(artifacts_dir)
+    repo_name = _external_repo_name_for_commit_cwd(resolved_cwd, workspace_dir)
+    if repo_name is None:
+        repo_name = _sdd_repo_name_for_commit_cwd(resolved_cwd, workspace_dir)
+
+    marker: dict[str, Any] = {
+        "method": method,
+        "run_id": run_id,
+        "cwd": resolved_cwd,
+        "result": result,
+        "commit_result": result,
+        "commit_sha": commit_sha,
+        "message": payload.get("message", ""),
+        "name": payload.get("name", ""),
+        "bead_id": payload.get("bead_id", ""),
+        "patch_name": None,
+        "changespec_name": None,
+        "commit_patch_name": None,
+        "commit_changespec_name": None,
+        "entry_id": None,
+        "stitch_id": None,
+        "commit_entry_id": None,
+        "diff_path": None,
+        "commit_diff_path": None,
+        "pushed": False,
+    }
+    if repo_name is not None:
+        marker["repo_name"] = repo_name
+    if commit_tree:
+        marker["commit_tree"] = commit_tree
+    if push_error:
+        marker["push_error"] = push_error
+    committed_at = _resolve_commit_created_at(resolved_cwd, commit_sha)
+    if committed_at is not None:
+        marker["committed_at"] = committed_at
+    _upsert_commit_results_marker(artifacts_dir, marker)
+    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+
+
 def create_patch(
     payload: dict,
     base_cl_name: str | None,

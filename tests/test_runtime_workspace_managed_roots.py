@@ -214,12 +214,18 @@ class TestRestartSafeResolution:
         config = {"workspace": {"root": str(managed_root), "project_key": "k"}}
 
         def fake_run(argv: list[str], **_: object) -> MagicMock:
+            if argv == ["git", "remote", "get-url", "origin"]:
+                return MagicMock(
+                    returncode=0,
+                    stdout="https://github.com/example/project.git\n",
+                    stderr="",
+                )
             # Materialize the target dir on ``git clone`` so the marker
             # write sees an on-disk checkout.
             if len(argv) >= 4 and argv[0] == "git" and argv[1] == "clone":
                 target = argv[3].rstrip("/")
                 os.makedirs(target, exist_ok=True)
-            return MagicMock(returncode=0, stdout="")
+            return MagicMock(returncode=0, stdout="", stderr="")
 
         with patch(
             "sase.workspace_provider.utils.subprocess.run", side_effect=fake_run

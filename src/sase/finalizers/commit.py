@@ -8,6 +8,7 @@ from typing import Any
 
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
+    FinalizerDiagnosticWire,
     FinalizerOutcomeEvidenceWire,
 )
 from sase.finalizers.config import ConfiguredFinalizerInstance
@@ -27,10 +28,17 @@ from sase.finalizers.commit_dispatch import (
     peek_attempt as _peek_attempt,
     preflight_attempt as _preflight_attempt,
 )
+from sase.finalizers.commit_dispatch_types import DeferredRepoOutcome
 from sase.finalizers.commit_repair import (
     load_commit_results as _load_commit_results,
+    marker_evidence as _marker_evidence,
+    marker_is_unpushed as _marker_is_unpushed,
+    marker_matches_repo as _marker_matches_repo,
+    new_commit_markers as _new_commit_markers,
+    record_stitch_artifacts as _record_stitch_artifacts,
     run_stitch_create,
     run_stitch_resume,
+    stitch_failure_message as _stitch_failure_message,
 )
 from sase.finalizers.commit_types import (
     BuiltinCommitExecution,
@@ -50,7 +58,7 @@ from sase.finalizers.commit_validation import (
     unexpected_remaining_paths,
 )
 from sase.finalizers.executor import FinalizerExecutionContext
-from sase.finalizers.ledger import InstanceLedger
+from sase.finalizers.ledger import FinalizerBudgetError, InstanceLedger
 from sase.finalizers.reconciliation import (
     pre_reconciliation_dirty_state,
     pre_reconciliation_fingerprints,
@@ -62,10 +70,153 @@ from sase.llm_provider.commit_finalizer_baseline import FinalizerBaselineRecord
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
 from sase.llm_provider.commit_finalizer_git import git_changed_files
 from sase.llm_provider.commit_finalizer_prompting import failure_message
-from sase.llm_provider.commit_finalizer_types import DirtyState
+from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
 
 _COMMIT_PROVIDER_REF = "builtin@commit"
+
+
+def _unpushed_markers_for_repo(
+    markers: Sequence[Mapping[str, Any]],
+    repo: DirtyRepo,
+) -> list[dict[str, Any]]:
+    return [
+        dict(marker)
+        for marker in markers
+        if _marker_is_unpushed(marker) and _marker_matches_repo(marker, repo)
+    ]
+
+
+def _consume_unpushed_resume_attempt(
+    ledger: InstanceLedger | None,
+    instance_id: str,
+    current_result: InvokeResult,
+) -> int:
+    try:
+        return ledger.consume_before_execute() if ledger is not None else 1
+    except FinalizerBudgetError as exc:
+        raise BuiltinCommitFinalizerError(
+            str(exc),
+            result=_failed_result(
+                instance_id,
+                "attempt_budget_exhausted",
+                str(exc),
+                attempts=[
+                    FinalizerAttemptWire(
+                        attempt=_peek_attempt(ledger),
+                        status="failed",
+                        diagnostic_code="attempt_budget_exhausted",
+                    )
+                ],
+            ),
+            invoke_result=current_result,
+        ) from exc
+
+
+def _unpushed_resume_failure_message(
+    repo: DirtyRepo,
+    marker: Mapping[str, Any],
+    result: StitchCommandResult,
+) -> str:
+    sha = marker.get("commit_sha")
+    commit = sha[:12] if isinstance(sha, str) and sha else "HEAD"
+    return (
+        f"commit {commit} already exists locally for {repo.name}; "
+        "sase stitch create --resume could not push it. "
+        + _stitch_failure_message(repo, result)
+    )
+
+
+def _resume_unpushed_already_clean_repos(
+    repos: Sequence[DirtyRepo],
+    *,
+    artifacts: Path | None,
+    context: FinalizerExecutionContext,
+    instance_id: str,
+    resume_runner: ResumeRunner,
+    ledger: InstanceLedger | None,
+    current_result: InvokeResult,
+) -> tuple[list[FinalizerAttemptWire], list[FinalizerOutcomeEvidenceWire]]:
+    markers = _load_commit_results(artifacts)
+    work = [
+        (repo, repo_markers[-1])
+        for repo in repos
+        if (repo_markers := _unpushed_markers_for_repo(markers, repo))
+    ]
+    if not work:
+        return ([], [])
+
+    attempt_id = _consume_unpushed_resume_attempt(ledger, instance_id, current_result)
+    attempts = [FinalizerAttemptWire(attempt=attempt_id, status="failed")]
+    evidence: list[FinalizerOutcomeEvidenceWire] = []
+
+    for repo, marker in work:
+        evidence.append(
+            FinalizerOutcomeEvidenceWire(
+                kind="unpushed_commit_resume",
+                value=repo.name,
+            )
+        )
+        evidence.extend(_marker_evidence(marker))
+        before_markers = _load_commit_results(artifacts)
+        resumed = resume_runner(repo, context)
+        _record_stitch_artifacts(
+            context,
+            instance_id,
+            attempt_id,
+            resumed,
+            label=f"{repo.name}-unpushed-resume",
+        )
+        if resumed.timed_out or resumed.stdout_truncated or resumed.stderr_truncated:
+            code = "stitch_timeout" if resumed.timed_out else "stitch_output_cap"
+            message_text = f"sase stitch create --resume {code} for {repo.name}"
+            attempts[0] = FinalizerAttemptWire(
+                attempt=attempt_id,
+                status="failed",
+                diagnostic_code=code,
+            )
+            raise BuiltinCommitFinalizerError(
+                message_text,
+                result=_failed_result(
+                    instance_id,
+                    code,
+                    message_text,
+                    attempts=attempts,
+                    evidence=evidence,
+                ),
+                invoke_result=current_result,
+            )
+        if resumed.returncode != 0:
+            message_text = _unpushed_resume_failure_message(repo, marker, resumed)
+            attempts[0] = FinalizerAttemptWire(
+                attempt=attempt_id,
+                status="failed",
+                diagnostic_code="stitch_failed",
+            )
+            raise BuiltinCommitFinalizerError(
+                message_text,
+                result=_failed_result(
+                    instance_id,
+                    "stitch_failed",
+                    message_text,
+                    attempts=attempts,
+                    evidence=evidence,
+                ),
+                invoke_result=current_result,
+            )
+        resumed_markers = [
+            item
+            for item in _new_commit_markers(
+                before_markers,
+                _load_commit_results(artifacts),
+            )
+            if _marker_matches_repo(item, repo)
+        ]
+        if resumed_markers:
+            evidence.extend(_marker_evidence(resumed_markers[-1]))
+
+    attempts[0] = FinalizerAttemptWire(attempt=attempt_id, status="success")
+    return (attempts, evidence)
 
 
 def execute_commit_finalizer(
@@ -180,6 +331,9 @@ def execute_commit_finalizer(
     )
     attempts: list[FinalizerAttemptWire] = []
     evidence: list[FinalizerOutcomeEvidenceWire] = []
+    diagnostics: Sequence[FinalizerDiagnosticWire] = ()
+    attempt_id: int | None = None
+    deferred_outcomes: Sequence[DeferredRepoOutcome] = ()
     runner = stitch_runner or run_stitch_create
     resume = resume_runner or run_stitch_resume
     accepted_repos = _accepted_repos_from_host(
@@ -221,6 +375,20 @@ def execute_commit_finalizer(
         if _repository_decision_id(repo) not in current_by_id
     )
     if already_clean:
+        resume_attempts, resume_evidence = _resume_unpushed_already_clean_repos(
+            already_clean,
+            artifacts=artifacts,
+            context=context,
+            instance_id=instance.instance_id,
+            resume_runner=resume,
+            ledger=ledger,
+            current_result=current_result,
+        )
+        if resume_attempts:
+            attempts = resume_attempts
+            evidence.extend(resume_evidence)
+            attempt_id = resume_attempts[0].attempt
+            state = prepare_commit_dirty_state(project_dir, artifacts)
         _reject_discarded_dirty_work(
             DirtyState(
                 project_dir=state.dirty_state.project_dir,
@@ -256,35 +424,37 @@ def execute_commit_finalizer(
             ),
         )
 
-    dispatched = _dispatch_commit_decisions(
-        ordered,
-        decisions,
-        state=state,
-        context=context,
-        instance_id=instance.instance_id,
-        artifacts=artifacts,
-        project_dir=project_dir,
-        provider=provider,
-        invoke_result=current_result,
-        model_tier=model_tier,
-        suppress_output=suppress_output,
-        model_override=model_override,
-        options=options,
-        stitch_runner=runner,
-        resume_runner=resume,
-        ledger=ledger,
-        prepare_dirty_state=prepare_commit_dirty_state,
-        protected_path_resolver=_protected_baseline_paths,
-        unexpected_path_resolver=_unexpected_remaining_paths,
-        baseline_record_resolver=_protected_baseline_record,
-        accepted_deferrals=accepted_deferrals,
-    )
-    current_result = dispatched.invoke_result
-    state = dispatched.state
-    attempt_id = dispatched.attempt_id
-    attempts = dispatched.attempts
-    evidence = dispatched.evidence
-    diagnostics = dispatched.diagnostics
+    if ordered:
+        dispatched = _dispatch_commit_decisions(
+            ordered,
+            decisions,
+            state=state,
+            context=context,
+            instance_id=instance.instance_id,
+            artifacts=artifacts,
+            project_dir=project_dir,
+            provider=provider,
+            invoke_result=current_result,
+            model_tier=model_tier,
+            suppress_output=suppress_output,
+            model_override=model_override,
+            options=options,
+            stitch_runner=runner,
+            resume_runner=resume,
+            ledger=ledger,
+            prepare_dirty_state=prepare_commit_dirty_state,
+            protected_path_resolver=_protected_baseline_paths,
+            unexpected_path_resolver=_unexpected_remaining_paths,
+            baseline_record_resolver=_protected_baseline_record,
+            accepted_deferrals=accepted_deferrals,
+        )
+        current_result = dispatched.invoke_result
+        state = dispatched.state
+        attempt_id = dispatched.attempt_id
+        attempts = dispatched.attempts
+        evidence = dispatched.evidence
+        diagnostics = dispatched.diagnostics
+        deferred_outcomes = dispatched.deferred
 
     _reject_discarded_dirty_work(
         dirty_before_decisions,
@@ -299,7 +469,7 @@ def execute_commit_finalizer(
     )
 
     deferred_repo_ids = {
-        _repository_decision_id(item.repo) for item in dispatched.deferred
+        _repository_decision_id(item.repo) for item in deferred_outcomes
     }
     residual_repos = tuple(
         repo
@@ -336,14 +506,14 @@ def execute_commit_finalizer(
         attempts=attempts,
         evidence=evidence,
     )
-    if dispatched.deferred:
+    if deferred_outcomes:
         assert attempt_id is not None
         attempts[0] = FinalizerAttemptWire(attempt=attempt_id, status="deferred")
         return BuiltinCommitExecution(
             invoke_result=current_result,
             result=_deferred_result(
                 instance.instance_id,
-                deferral=_merge_deferrals(dispatched.deferred),
+                deferral=_merge_deferrals(deferred_outcomes),
                 attempts=attempts,
                 evidence=evidence,
                 diagnostics=diagnostics,

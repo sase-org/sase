@@ -1,8 +1,7 @@
 """Synthetic fourth-provider fixture used by probe-runtime tests.
 
-Not registered as a ``sase_llm`` entry point. Tests and later refresh-service
-work import and instantiate it directly so adding a collector does not require
-core or CLI changes.
+Not registered as a ``sase_llm`` entry point. Tests import and instantiate it
+directly so adding a collector does not require core or CLI changes.
 """
 
 from __future__ import annotations
@@ -22,11 +21,11 @@ SECRET_CANARY = "token=SECRET_CANARY_USAGE"
 SYNTHETIC_PLUGIN_SPEC = {
     "kind": "import",
     "module": "sase.llm_provider.usage.synthetic",
-    "qualname": "SyntheticUsageProvider",
+    "qualname": "_SyntheticUsageProvider",
 }
 
 
-class SyntheticUsageProvider:
+class _SyntheticUsageProvider:
     """Deterministic usage collector with optional adversarial fixture modes."""
 
     @hookimpl

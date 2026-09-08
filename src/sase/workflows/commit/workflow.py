@@ -54,6 +54,9 @@ from sase.workflows.commit.workflow_support import (
     classify_dispatch_failure as _classify_dispatch_failure,
 )
 from sase.workflows.commit.workflow_support import (
+    dispatch_created_unpushed_commit as _dispatch_created_unpushed_commit,
+)
+from sase.workflows.commit.workflow_support import (
     explicit_parent_resolves as _explicit_parent_resolves,
 )
 from sase.workflows.commit.workflow_support import (
@@ -298,8 +301,24 @@ class CommitWorkflow(BaseWorkflow):
                     "warning",
                 )
                 return RunResult.CONFLICT
+            failure_reason = _classify_dispatch_failure(result)
+            if self._method == "create_commit" and _dispatch_created_unpushed_commit(
+                result
+            ):
+                cp.commit_sha = resolve_head_commit_sha(provider, cwd)
+                cp.commit_tree = resolve_head_tree_id(provider, cwd)
+                cp.dispatch_result = cp.commit_sha
+                checkpoint_save(cp)
+                print_status(
+                    f"{self._method} created a local commit but push failed: "
+                    f"{result}. Run `sase stitch create --resume` to retry "
+                    "the push and finish tracking.",
+                    "error",
+                )
+                _log_commit_failed(self._method, failure_reason)
+                return RunResult.FAILED
             print_status(f"{self._method} failed: {result}", "error")
-            _log_commit_failed(self._method, _classify_dispatch_failure(result))
+            _log_commit_failed(self._method, failure_reason)
             cleanup_reservation(self._reserved_name)
             checkpoint_delete()
             return RunResult.FAILED

@@ -262,14 +262,27 @@ def marker_matches_repo(marker: Mapping[str, Any], repo: DirtyRepo) -> bool:
     return isinstance(cwd, str) and normalize_path(cwd) == normalize_path(repo.path)
 
 
+def marker_is_unpushed(marker: Mapping[str, Any]) -> bool:
+    return marker.get("pushed") is False and bool(marker.get("commit_sha"))
+
+
 def marker_evidence(
     marker: Mapping[str, Any],
 ) -> list[FinalizerOutcomeEvidenceWire]:
     evidence: list[FinalizerOutcomeEvidenceWire] = []
-    for key in ("cwd", "result", "commit_sha", "commit_tree", "entry_id"):
+    for key in (
+        "cwd",
+        "result",
+        "commit_sha",
+        "commit_tree",
+        "entry_id",
+        "push_error",
+    ):
         value = marker.get(key)
         if isinstance(value, str) and value:
             evidence.append(FinalizerOutcomeEvidenceWire(kind=key, value=value))
+    if marker.get("pushed") is False:
+        evidence.append(FinalizerOutcomeEvidenceWire(kind="pushed", value="false"))
     if not any(item.kind == "commit_sha" for item in evidence):
         evidence.append(
             FinalizerOutcomeEvidenceWire(
@@ -614,6 +627,7 @@ __all__ = [
     "load_commit_results",
     "load_latest_stitch_attempt",
     "marker_evidence",
+    "marker_is_unpushed",
     "marker_matches_repo",
     "new_commit_markers",
     "record_stitch_artifacts",

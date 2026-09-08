@@ -311,9 +311,11 @@ def discarded_dirty_work_message(
         lines.append(f"  - HEAD: {item.before_head} -> {item.after_head}")
         if item.reason == "head_not_advanced":
             lines.append(
-                "  - next step: no commit exists anywhere in this repo's history "
-                "for the changed files below — this agent's work was reset or "
-                "never committed; recover or redo the changes."
+                "  - next step: HEAD did not advance and no run-owned commit "
+                "marker was recorded for this repository during this run. The "
+                "finalizer only verified that the changed files became clean "
+                "without an attributable marker; inspect the workspace before "
+                "recovering or redoing the changes."
             )
         else:
             if item.new_commits:

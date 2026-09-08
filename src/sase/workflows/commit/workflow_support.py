@@ -59,6 +59,12 @@ def classify_dispatch_failure(result: str | None) -> str:
     return "other"
 
 
+def dispatch_created_unpushed_commit(result: str | None) -> bool:
+    """Return whether dispatch created a commit but failed before push completed."""
+    text = (result or "").lower()
+    return "created locally" in text and "push failed" in text
+
+
 def log_commit_failed(method: str, reason: str) -> None:
     """Best-effort logging for commit workflow failures."""
     try:

@@ -14,7 +14,7 @@ from sase.llm_provider.types import InvokeResult, ModelTier
 from sase.llm_provider.usage.probe import run_usage_probe
 from sase.llm_provider.usage.synthetic import (
     SYNTHETIC_PLUGIN_SPEC,
-    SyntheticUsageProvider,
+    _SyntheticUsageProvider,
 )
 from sase.llm_provider.usage.types import UsageProbeContext, observation_schema_version
 
@@ -63,7 +63,7 @@ def test_omitted_usage_hooks_mean_unsupported_capabilities() -> None:
 
 
 def test_synthetic_capabilities_are_cached_without_observations() -> None:
-    metadata = provider_metadata("synth", SyntheticUsageProvider())
+    metadata = provider_metadata("synth", _SyntheticUsageProvider())
     assert metadata["usage_capabilities"] == {"probe": True, "passive_events": False}
     assert "windows" not in metadata
 
@@ -103,7 +103,7 @@ def test_probe_does_not_enter_registry_metadata_cache(
         run_usage_probe(
             _context("synth"),
             isolate=False,
-            plugin=SyntheticUsageProvider(),
+            plugin=_SyntheticUsageProvider(),
             plugin_spec=SYNTHETIC_PLUGIN_SPEC,
             now=1_800_000_000.0,
         )

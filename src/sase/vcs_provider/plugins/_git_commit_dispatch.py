@@ -154,6 +154,13 @@ class GitCommitDispatchMixin(CommandRunner):
         branch = branch_out.stdout.strip()
         return branch or None
 
+    def _head_revision(self, cwd: str, revision: str) -> str | None:
+        out = self._run(["git", "rev-parse", revision], cwd)
+        if not out.success:
+            return None
+        value = out.stdout.strip()
+        return value or None
+
     def _has_origin(self, cwd: str) -> bool:
         remote_check = self._run(["git", "remote", "get-url", "origin"], cwd)
         return remote_check.success
@@ -396,6 +403,46 @@ class GitCommitDispatchMixin(CommandRunner):
             if add_out.success:
                 self._run(["git", "commit", "--amend", "--no-edit", "--quiet"], cwd)
 
+    def _record_unpushed_commit_marker(
+        self,
+        payload: dict,
+        cwd: str,
+        push_error: str | None,
+    ) -> str | None:
+        commit_sha = self._head_revision(cwd, "HEAD")
+        if not commit_sha:
+            return None
+        commit_tree = self._head_revision(cwd, "HEAD^{tree}")
+        try:
+            from sase.workflows.commit.commit_tracking import (
+                write_unpushed_commit_marker,
+            )
+
+            write_unpushed_commit_marker(
+                "create_commit",
+                payload,
+                cwd=cwd,
+                result=commit_sha,
+                commit_sha=commit_sha,
+                commit_tree=commit_tree,
+                push_error=push_error,
+            )
+        except Exception:
+            pass
+        return commit_sha
+
+    def _format_unpushed_commit_failure(
+        self,
+        payload: dict,
+        cwd: str,
+        push_error: str | None,
+    ) -> str:
+        commit_sha = self._record_unpushed_commit_marker(payload, cwd, push_error)
+        commit = commit_sha[:12] if commit_sha else "HEAD"
+        if push_error:
+            return f"commit {commit} created locally; git push failed: {push_error}"
+        return f"commit {commit} created locally; git push failed"
+
     # --- Dispatch ---
 
     @hookimpl
@@ -437,7 +484,7 @@ class GitCommitDispatchMixin(CommandRunner):
 
         ok, err = self._push_current_branch_with_rebase_retry(cwd)
         if not ok:
-            return (False, err)
+            return (False, self._format_unpushed_commit_failure(payload, cwd, err))
 
         rev = self._run(["git", "rev-parse", "--short", "HEAD"], cwd)
         commit_hash = rev.stdout.strip() if rev.success else None

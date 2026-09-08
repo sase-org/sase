@@ -18,7 +18,7 @@ from sase.llm_provider.usage.probe import (
 from sase.llm_provider.usage.synthetic import (
     SECRET_CANARY,
     SYNTHETIC_PLUGIN_SPEC,
-    SyntheticUsageProvider,
+    _SyntheticUsageProvider,
 )
 from sase.llm_provider.usage.types import observation_schema_version
 from tests.llm_provider._provider_config_helpers import mock_provider_config
@@ -88,7 +88,7 @@ def test_flag_off_skips_probes_and_passive_writes(
         result = run_usage_probe(
             context,
             isolate=False,
-            plugin=SyntheticUsageProvider(),
+            plugin=_SyntheticUsageProvider(),
             now=1_800_000_000.0,
         )
         assert result.skipped == "flag_disabled"
@@ -109,7 +109,7 @@ def test_config_disabled_skips_when_flag_is_on(
         result = run_usage_probe(
             default_probe_context("synth", now=1_800_000_000.0),
             isolate=False,
-            plugin=SyntheticUsageProvider(),
+            plugin=_SyntheticUsageProvider(),
             plugin_spec=SYNTHETIC_PLUGIN_SPEC,
             now=1_800_000_000.0,
         )

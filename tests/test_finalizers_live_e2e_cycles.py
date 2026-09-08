@@ -27,6 +27,10 @@ from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 from sase.llm_provider.commit_finalizer_git import git_changed_files
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult
+from sase.workflows.commit.commit_tracking import (
+    write_result_marker,
+    write_unpushed_commit_marker,
+)
 from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
 from sase.xprompt.directives import PromptDirectives
 from tests.llm_provider._commit_finalizer_sibling_helpers import mark_opened_external
@@ -307,3 +311,148 @@ def test_live_first_repo_conflict_blocks_second_then_resumes(
     assert git_changed_files(str(other)) == []
     payload = load_result(artifacts)
     assert payload["status"] == "success"
+
+
+def _commit_locally_and_record_unpushed(
+    repo: DirtyRepo,
+    message: str,
+    push_error: str,
+) -> StitchCommandResult:
+    added = run_git(Path(repo.path), "add", "--", *repo.changed_files, check=False)
+    if added.returncode != 0:
+        return StitchCommandResult(
+            returncode=added.returncode,
+            stdout=added.stdout,
+            stderr=added.stderr,
+        )
+    committed = run_git(Path(repo.path), "commit", "-q", "-m", message, check=False)
+    if committed.returncode != 0:
+        return StitchCommandResult(
+            returncode=committed.returncode,
+            stdout=committed.stdout,
+            stderr=committed.stderr,
+        )
+    sha = run_git(Path(repo.path), "rev-parse", "HEAD").stdout.strip()
+    tree = run_git(Path(repo.path), "rev-parse", "HEAD^{tree}").stdout.strip()
+    write_unpushed_commit_marker(
+        "create_commit",
+        {"message": message},
+        cwd=repo.path,
+        result=sha,
+        commit_sha=sha,
+        commit_tree=tree,
+        push_error=push_error,
+    )
+    return StitchCommandResult(returncode=1, stderr=push_error)
+
+
+def _push_and_record_success(repo: DirtyRepo, message: str) -> StitchCommandResult:
+    pushed = run_git(Path(repo.path), "push", "-q", "origin", "HEAD", check=False)
+    if pushed.returncode != 0:
+        return StitchCommandResult(
+            returncode=pushed.returncode,
+            stdout=pushed.stdout,
+            stderr=pushed.stderr,
+        )
+    sha = run_git(Path(repo.path), "rev-parse", "HEAD").stdout.strip()
+    tree = run_git(Path(repo.path), "rev-parse", "HEAD^{tree}").stdout.strip()
+    write_result_marker(
+        "create_commit",
+        {"message": message},
+        None,
+        sha,
+        None,
+        commit_sha=sha,
+        commit_tree=tree,
+        commit_cwd=repo.path,
+    )
+    return StitchCommandResult(returncode=0, stdout=f"{sha}\n")
+
+
+def test_live_unpushed_marker_resume_completes_push_after_clean_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    isolate_host_config(monkeypatch, tmp_path)
+    repo = init_live_repo(tmp_path / "repo")
+    attach_bare_remote(repo, tmp_path / "remote.git")
+    artifacts = tmp_path / "artifacts"
+    prepare_live_env(monkeypatch, artifacts, repo)
+    (repo / "agent.py").write_text("print('local')\n", encoding="utf-8")
+    push_error = "git push failed: refusing to update checked out branch"
+    seen: list[str] = []
+
+    def stitch(
+        repo_arg: DirtyRepo,
+        message: str,
+        _excludes: tuple[str, ...],
+        _context: object,
+    ) -> StitchCommandResult:
+        seen.append("stitch")
+        return _commit_locally_and_record_unpushed(repo_arg, message, push_error)
+
+    def resume(repo_arg: DirtyRepo, _context: object) -> StitchCommandResult:
+        seen.append("resume")
+        return _push_and_record_success(
+            repo_arg,
+            "fix(final): live acceptance commit",
+        )
+
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", stitch)
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+
+    resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
+    submit_from_context(artifacts)
+    result = run_controller(artifacts)
+
+    assert result.content == "done"
+    assert seen == ["stitch", "resume"]
+    assert git_changed_files(str(repo)) == []
+    payload = load_result(artifacts)
+    assert payload["status"] == "success"
+    assert "dirty_work_discarded" not in json.dumps(payload)
+    markers = json.loads((artifacts / "commit_results.json").read_text())
+    assert len(markers) == 1
+    assert markers[0].get("pushed") is not False
+
+
+def test_live_unpushed_marker_resume_reports_push_error_not_discarded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    isolate_host_config(monkeypatch, tmp_path)
+    repo = init_live_repo(tmp_path / "repo")
+    attach_bare_remote(repo, tmp_path / "remote.git")
+    artifacts = tmp_path / "artifacts"
+    prepare_live_env(monkeypatch, artifacts, repo)
+    (repo / "agent.py").write_text("print('local')\n", encoding="utf-8")
+    push_error = "git push failed: refusing to update checked out branch"
+
+    def stitch(
+        repo_arg: DirtyRepo,
+        message: str,
+        _excludes: tuple[str, ...],
+        _context: object,
+    ) -> StitchCommandResult:
+        return _commit_locally_and_record_unpushed(repo_arg, message, push_error)
+
+    def resume(_repo_arg: DirtyRepo, _context: object) -> StitchCommandResult:
+        return StitchCommandResult(returncode=1, stderr=push_error)
+
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", stitch)
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+
+    resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
+    submit_from_context(artifacts)
+    with pytest.raises(Exception) as exc_info:
+        run_controller(artifacts)
+
+    message = str(exc_info.value)
+    assert "already exists locally" in message
+    assert "git push failed" in message
+    payload = load_result(artifacts)
+    serialized = json.dumps(payload)
+    assert "stitch_failed" in serialized
+    assert "dirty_work_discarded" not in serialized
+    markers = json.loads((artifacts / "commit_results.json").read_text())
+    assert markers[0]["pushed"] is False

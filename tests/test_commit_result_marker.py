@@ -6,7 +6,10 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.workflows.commit.commit_tracking import write_result_marker
+from sase.workflows.commit.commit_tracking import (
+    write_result_marker,
+    write_unpushed_commit_marker,
+)
 
 
 class TestWriteResultMarker:
@@ -239,6 +242,61 @@ class TestWriteResultMarker:
             results = json.loads((Path(tmpdir) / "commit_results.json").read_text())
             assert results[0]["commit_sha"] == "a" * 40
             assert results[0]["commit_tree"] == "b" * 40
+
+    def test_writes_unpushed_commit_marker_only_to_results_list(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = {"message": "fix: bug", "name": "feat-x"}
+            with (
+                patch.dict(
+                    "os.environ",
+                    {
+                        "SASE_ARTIFACTS_DIR": tmpdir,
+                        "SASE_AGENT_TIMESTAMP": "run-1",
+                    },
+                ),
+                patch(
+                    "sase.workflows.commit.commit_tracking._resolve_commit_created_at",
+                    return_value=1_700_000_000,
+                ),
+            ):
+                write_unpushed_commit_marker(
+                    "create_commit",
+                    payload,
+                    cwd="/workspace/sase_7",
+                    result="a" * 40,
+                    commit_sha="a" * 40,
+                    commit_tree="b" * 40,
+                    push_error="refusing to update checked out branch",
+                )
+
+            assert not (Path(tmpdir) / "commit_result.json").exists()
+            results = json.loads((Path(tmpdir) / "commit_results.json").read_text())
+            assert results == [
+                {
+                    "method": "create_commit",
+                    "run_id": "run-1",
+                    "cwd": "/workspace/sase_7",
+                    "result": "a" * 40,
+                    "commit_result": "a" * 40,
+                    "commit_sha": "a" * 40,
+                    "message": "fix: bug",
+                    "name": "feat-x",
+                    "bead_id": "",
+                    "patch_name": None,
+                    "changespec_name": None,
+                    "commit_patch_name": None,
+                    "commit_changespec_name": None,
+                    "entry_id": None,
+                    "stitch_id": None,
+                    "commit_entry_id": None,
+                    "diff_path": None,
+                    "commit_diff_path": None,
+                    "pushed": False,
+                    "commit_tree": "b" * 40,
+                    "push_error": "refusing to update checked out branch",
+                    "committed_at": 1_700_000_000,
+                }
+            ]
 
     def test_omits_commit_sha_and_tree_when_not_resolved(self) -> None:
         """A resolution failure must not add placeholder keys to the marker."""

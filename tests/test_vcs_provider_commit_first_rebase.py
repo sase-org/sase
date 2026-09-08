@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
+
+import pytest
 
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 
@@ -92,3 +95,37 @@ def test_create_commit_leaves_genuine_rebase_conflict_resumable(tmp_path: Path) 
     assert _git(worker, "diff", "--name-only", "--diff-filter=U").stdout.strip() == (
         "data.txt"
     )
+
+
+def test_create_commit_records_unpushed_marker_when_push_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _origin, seed, worker = _clone_origin(tmp_path)
+    _git(worker, "remote", "set-url", "origin", str(seed))
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
+
+    (worker / "data.txt").write_text("local\nthree\n", encoding="utf-8")
+
+    ok, err = BareGitPlugin().vcs_create_commit(
+        {"message": "worker local commit", "files": ["data.txt"]},
+        str(worker),
+    )
+
+    assert ok is False
+    assert err is not None
+    assert "created locally; git push failed" in err
+    assert "refusing to update checked out branch" in err
+    assert _git(worker, "status", "--short").stdout.strip() == ""
+    sha = _git(worker, "rev-parse", "HEAD").stdout.strip()
+    tree = _git(worker, "rev-parse", "HEAD^{tree}").stdout.strip()
+    markers = json.loads((artifacts / "commit_results.json").read_text())
+    assert len(markers) == 1
+    assert markers[0]["cwd"] == str(worker)
+    assert markers[0]["result"] == sha
+    assert markers[0]["commit_sha"] == sha
+    assert markers[0]["commit_tree"] == tree
+    assert markers[0]["pushed"] is False

@@ -185,6 +185,79 @@ class TestEnsureGitCloneAt:
         assert fetch_kwargs["env"]["GIT_TERMINAL_PROMPT"] == "0"
 
     @patch("sase.workspace_provider.utils.subprocess.run")
+    def test_fresh_clone_raises_when_primary_origin_unreadable(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        def run(cmd: list[str], **_kwargs: object) -> MagicMock:
+            if cmd == ["git", "remote", "get-url", "origin"]:
+                return MagicMock(returncode=1, stdout="", stderr="config locked")
+            raise AssertionError(f"unexpected command: {cmd}")
+
+        mock_run.side_effect = run
+        primary = tmp_path / "repo"
+        primary.mkdir()
+        target = tmp_path / "repo_2"
+
+        with pytest.raises(RuntimeError, match="could not read origin URL"):
+            ensure_git_clone_at(str(primary), 2, str(target))
+
+        assert not target.exists()
+
+    @patch("sase.workspace_provider.utils.subprocess.run")
+    def test_reusable_clone_origin_pointing_at_primary_is_healed(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        primary = tmp_path / "repo"
+        target = tmp_path / "repo_2"
+        primary.mkdir()
+        target.mkdir()
+        primary_url = "git@github.com:u/r.git"
+        set_url_calls: list[list[str]] = []
+
+        def run(cmd: list[str], *, cwd: str, **_kwargs: object) -> MagicMock:
+            if cmd == ["git", "status"] and Path(cwd).resolve() == target.resolve():
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if cmd == ["git", "remote", "get-url", "origin"]:
+                if Path(cwd).resolve() == target.resolve():
+                    return MagicMock(returncode=0, stdout=f"{primary}\n", stderr="")
+                if Path(cwd).resolve() == primary.resolve():
+                    return MagicMock(returncode=0, stdout=f"{primary_url}\n", stderr="")
+            if cmd[:4] == ["git", "remote", "set-url", "origin"]:
+                set_url_calls.append(cmd)
+                return MagicMock(returncode=0, stdout="", stderr="")
+            raise AssertionError(f"unexpected command: {cmd} cwd={cwd}")
+
+        mock_run.side_effect = run
+
+        result = ensure_git_clone_at(str(primary), 2, str(target))
+
+        assert result == str(target)
+        assert set_url_calls == [["git", "remote", "set-url", "origin", primary_url]]
+
+    @patch("sase.workspace_provider.utils.subprocess.run")
+    def test_reusable_clone_origin_already_matching_is_untouched(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        primary = tmp_path / "repo"
+        target = tmp_path / "repo_2"
+        primary.mkdir()
+        target.mkdir()
+        primary_url = "git@github.com:u/r.git"
+
+        def run(cmd: list[str], *, cwd: str, **_kwargs: object) -> MagicMock:
+            if cmd == ["git", "status"] and Path(cwd).resolve() == target.resolve():
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if cmd == ["git", "remote", "get-url", "origin"]:
+                return MagicMock(returncode=0, stdout=f"{primary_url}\n", stderr="")
+            if cmd[:4] == ["git", "remote", "set-url", "origin"]:
+                raise AssertionError("matching origin must not be rewritten")
+            raise AssertionError(f"unexpected command: {cmd} cwd={cwd}")
+
+        mock_run.side_effect = run
+
+        assert ensure_git_clone_at(str(primary), 2, str(target)) == str(target)
+
+    @patch("sase.workspace_provider.utils.subprocess.run")
     def test_corrupt_target_is_replaced(
         self, mock_run: MagicMock, tmp_path: Path
     ) -> None:

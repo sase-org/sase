@@ -5,11 +5,13 @@ utilities (default branch, cloning), and legacy VCS-type detection that
 will eventually delegate to workspace provider plugins.
 """
 
+import logging
 import os
 import subprocess
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 from sase.ace.patch import (
     patch_lock,
@@ -17,6 +19,8 @@ from sase.ace.patch import (
 )
 from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider.store import WorkspacePath, WorkspaceStore
+
+_logger = logging.getLogger(__name__)
 
 
 class ProjectProviderMismatchError(ValueError):
@@ -41,6 +45,158 @@ def _git_result_adapter(result: Any) -> tuple[int, str]:
         if isinstance(value, str) and value
     )
     return int(result.returncode), output
+
+
+def _git_remote_get_origin(cwd: str) -> subprocess.CompletedProcess[str]:
+    result, _outcome = run_with_git_lock_retry(
+        lambda: subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=non_interactive_git_env(),
+            stdin=subprocess.DEVNULL,
+        ),
+        cwd=cwd,
+        result_adapter=_git_result_adapter,
+    )
+    return result
+
+
+def _origin_read_error(cwd: str, result: subprocess.CompletedProcess[str]) -> str:
+    detail = result.stderr.strip() or result.stdout.strip()
+    suffix = f": {detail}" if detail else ""
+    return f"could not read origin URL for git checkout {cwd}{suffix}"
+
+
+def _read_required_origin_url(primary_workspace_dir: str) -> str:
+    result = _git_remote_get_origin(primary_workspace_dir)
+    real_url = result.stdout.strip() if result.returncode == 0 else ""
+    if real_url:
+        return real_url
+    raise RuntimeError(_origin_read_error(primary_workspace_dir, result))
+
+
+def _local_remote_path(origin_url: str, cwd: str) -> Path | None:
+    if origin_url.startswith(("http://", "https://", "git@", "ssh://")):
+        return None
+    if origin_url.startswith("file://"):
+        parsed = urlparse(origin_url)
+        path = unquote(parsed.path)
+        return Path(path).expanduser() if path else None
+    if ":" in origin_url and not origin_url.startswith(("/", "~", ".")):
+        return None
+    origin_path = Path(origin_url).expanduser()
+    if not origin_path.is_absolute():
+        origin_path = Path(cwd).expanduser() / origin_path
+    return origin_path
+
+
+def _same_path(left: Path, right: Path) -> bool:
+    try:
+        return left.resolve(strict=False) == right.resolve(strict=False)
+    except OSError:
+        left_norm = os.path.normcase(os.path.normpath(os.fspath(left)))
+        right_norm = os.path.normcase(os.path.normpath(os.fspath(right)))
+        return left_norm == right_norm
+
+
+def _remote_points_at_path(origin_url: str, expected_path: str, *, cwd: str) -> bool:
+    origin_path = _local_remote_path(origin_url, cwd)
+    if origin_path is None:
+        return False
+    return _same_path(origin_path, Path(expected_path).expanduser())
+
+
+def _remote_urls_match(actual: str, expected: str, *, cwd: str) -> bool:
+    if actual == expected:
+        return True
+    actual_path = _local_remote_path(actual, cwd)
+    expected_path = _local_remote_path(expected, cwd)
+    if actual_path is not None and expected_path is not None:
+        return _same_path(actual_path, expected_path)
+    return actual.rstrip("/") == expected.rstrip("/")
+
+
+def _set_origin_url(cwd: str, origin_url: str) -> subprocess.CompletedProcess[str]:
+    result, _outcome = run_with_git_lock_retry(
+        lambda: subprocess.run(
+            ["git", "remote", "set-url", "origin", origin_url],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=non_interactive_git_env(),
+            stdin=subprocess.DEVNULL,
+        ),
+        cwd=cwd,
+        result_adapter=_git_result_adapter,
+    )
+    return result
+
+
+def _heal_reusable_clone_origin(
+    primary_workspace_dir: str,
+    target_checkout_dir: str,
+) -> None:
+    target_result = _git_remote_get_origin(target_checkout_dir)
+    target_url = target_result.stdout.strip() if target_result.returncode == 0 else ""
+    points_at_primary = bool(
+        target_url
+        and _remote_points_at_path(
+            target_url,
+            primary_workspace_dir.rstrip("/"),
+            cwd=target_checkout_dir,
+        )
+    )
+
+    primary_result = _git_remote_get_origin(primary_workspace_dir)
+    primary_url = (
+        primary_result.stdout.strip() if primary_result.returncode == 0 else ""
+    )
+    if not primary_url:
+        message = _origin_read_error(primary_workspace_dir, primary_result)
+        if points_at_primary:
+            raise RuntimeError(
+                "Existing workspace clone has stale origin pointing at the "
+                f"primary checkout, but {message}."
+            )
+        _logger.warning(
+            "Could not verify reusable workspace clone origin for %s: %s",
+            target_checkout_dir,
+            message,
+        )
+        return
+
+    if target_url and _remote_urls_match(
+        target_url, primary_url, cwd=target_checkout_dir
+    ):
+        return
+
+    set_result = _set_origin_url(target_checkout_dir, primary_url)
+    if set_result.returncode == 0:
+        _logger.info(
+            "Rewrote reusable workspace clone origin for %s from %r to %r",
+            target_checkout_dir,
+            target_url or "<unreadable>",
+            primary_url,
+        )
+        return
+
+    detail = set_result.stderr.strip() or set_result.stdout.strip() or "unknown error"
+    _logger.warning(
+        "Failed to rewrite reusable workspace clone origin for %s from %r to %r: %s",
+        target_checkout_dir,
+        target_url or "<unreadable>",
+        primary_url,
+        detail,
+    )
+    if points_at_primary:
+        raise RuntimeError(
+            "Existing workspace clone has stale origin pointing at the primary "
+            f"checkout and could not be healed: {detail}"
+        )
 
 
 def get_default_branch(workspace_dir: str) -> str:
@@ -251,6 +407,7 @@ def ensure_git_clone_at(
             check=False,
         )
         if result.returncode == 0:
+            _heal_reusable_clone_origin(primary_workspace_dir, target_checkout_dir)
             return target_checkout_dir
         import shutil
 
@@ -268,14 +425,7 @@ def ensure_git_clone_at(
     if parent and not os.path.isdir(parent):
         os.makedirs(parent, exist_ok=True)
 
-    url_result = subprocess.run(
-        ["git", "remote", "get-url", "origin"],
-        cwd=primary_workspace_dir,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    real_url = url_result.stdout.strip() if url_result.returncode == 0 else ""
+    real_url = _read_required_origin_url(primary_workspace_dir)
 
     # Clone builds a fresh target with no pre-existing index.lock to recover.
     try:
@@ -308,17 +458,16 @@ def ensure_git_clone_at(
             error_msg += f": {e.stderr.strip()}"
         raise RuntimeError(error_msg) from e
 
-    if real_url:
-        run_with_git_lock_retry(
-            lambda: subprocess.run(
-                ["git", "remote", "set-url", "origin", real_url],
-                cwd=target_checkout_dir,
-                capture_output=True,
-                text=True,
-                check=False,
-            ),
-            cwd=target_checkout_dir,
-            result_adapter=_git_result_adapter,
+    set_url_result = _set_origin_url(target_checkout_dir, real_url)
+    if set_url_result.returncode != 0:
+        detail = (
+            set_url_result.stderr.strip()
+            or set_url_result.stdout.strip()
+            or "unknown error"
+        )
+        raise RuntimeError(
+            "git clone succeeded, but rewriting clone origin to the primary "
+            f"remote failed: {detail}"
         )
 
     run_with_git_lock_retry(

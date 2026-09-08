@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -34,6 +35,14 @@ def test_repo_open_registered_project_clones_locally_and_reopens_without_cleanin
     host_ctx = project_context(tmp_path)
     source = tmp_path / "other-primary"
     init_git_repo(source)
+    remote = tmp_path / "other-remote.git"
+    subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(remote)], cwd=source, check=True
+    )
+    subprocess.run(
+        ["git", "push", "-q", "-u", "origin", "HEAD"], cwd=source, check=True
+    )
     registered_project = project_record("other", source)
     inventory = RepoInventory((repo_record(tmp_path, name="demo", kind="primary"),))
     monkeypatch.setattr(

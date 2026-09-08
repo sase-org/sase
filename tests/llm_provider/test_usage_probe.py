@@ -14,7 +14,7 @@ from sase.llm_provider.usage.synthetic import (
     SYNTHETIC_MODE_ENV,
     SYNTHETIC_PIDFILE_ENV,
     SYNTHETIC_PLUGIN_SPEC,
-    SyntheticUsageProvider,
+    _SyntheticUsageProvider,
 )
 from sase.llm_provider.usage.types import validate_observation
 
@@ -55,7 +55,7 @@ def test_in_process_synthetic_probe_matches_isolated_shape(
         result = run_usage_probe(
             context,
             isolate=False,
-            plugin=SyntheticUsageProvider(),
+            plugin=_SyntheticUsageProvider(),
             now=1_800_000_000.0,
         )
     assert result.observation is not None
