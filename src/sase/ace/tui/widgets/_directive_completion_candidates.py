@@ -331,13 +331,9 @@ def _catalog_placeholder(
 
 
 def _enabled_feature_flags() -> list[str]:
-    from sase.feature_flags.registry import FeatureFlag
-    from sase.xprompt.code_value import typed_launch_units_enabled
+    from sase.xprompt.queue_directive import launch_feature_flag_keys
 
-    flags: list[str] = []
-    if typed_launch_units_enabled():
-        flags.append(str(FeatureFlag.typed_launch_units))
-    return flags
+    return launch_feature_flag_keys()
 
 
 def _directive_contract_visible(

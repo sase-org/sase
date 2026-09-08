@@ -20,16 +20,21 @@ _SPECIAL_RUNTIME_DIRECTIVES = frozenset({"alt", "xprompts_enabled"})
 def test_runtime_directive_vocabulary_matches_core_contract() -> None:
     contract = _contract_by_name()
     runtime_names = set(_KNOWN_DIRECTIVES) | set(_SPECIAL_RUNTIME_DIRECTIVES)
+    core_names = set(contract)
+    extra = core_names - runtime_names
 
-    assert set(contract) == runtime_names
-    assert _contract_aliases(contract) == {
+    assert extra == {"queue"}
+    assert runtime_names <= core_names
+    expected_aliases = {
         alias: name
         for alias, name in _DIRECTIVE_ALIASES.items()
         if name in runtime_names
     }
+    expected_aliases["q"] = "queue"
+    assert _contract_aliases(contract) == expected_aliases
     assert {
         name for name, row in contract.items() if bool(row["allows_multiple"])
-    } == set(_MULTI_VALUE_DIRECTIVES) | {"alt", "xprompts_enabled"}
+    } == set(_MULTI_VALUE_DIRECTIVES) | {"alt", "xprompts_enabled", "queue"}
     assert _contract_keywords(contract) == {
         "alt": (),
         "auto": (),
@@ -42,6 +47,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "model": (),
         "repeat": (),
         "wait": ("agent", "bead", "priority", "proc", "runners", "time", "unit"),
+        "queue": ("p", "priority", "runners"),
         "if": (),
         "proc": (
             "bash",
@@ -73,12 +79,16 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "model": ("colon", "parenthesized"),
         "repeat": ("colon",),
         "wait": ("colon", "parenthesized", "bare"),
+        "queue": ("colon", "parenthesized"),
         "if": ("double_colon",),
         "proc": ("parenthesized", "double_colon"),
         "xprompts_enabled": ("colon",),
     }
     assert contract["if"]["feature_flag"] == "typed_launch_units"
     assert contract["proc"]["feature_flag"] == "typed_launch_units"
+    assert contract["queue"]["feature_flag"] == "queue_directive"
+    assert contract["queue"]["alias"] == "q"
+    assert _suggested_values(contract["queue"]) == ("0", "1")
     assert contract["dispatch"].get("feature_flag") is None
     assert contract["if"]["body_kind"] == "fenced_code"
     assert contract["proc"]["body_kind"] == "optional_fenced_code"

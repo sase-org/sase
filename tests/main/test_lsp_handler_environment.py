@@ -13,6 +13,7 @@ import pytest
 from sase.feature_flags import override_flags
 from sase.integrations.xprompt_lsp import (
     SASE_DEFAULT_CONFIG_PATH_ENV,
+    SASE_QUEUE_DIRECTIVE_ENV,
     SASE_TYPED_LAUNCH_UNITS_ENV,
     SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV,
     SASE_XPROMPT_BUILTIN_DIR_ENV,
@@ -473,3 +474,16 @@ def test_prepare_lsp_environment_pins_typed_launch_units(
         _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert env[SASE_TYPED_LAUNCH_UNITS_ENV] == expected
+
+
+@pytest.mark.parametrize("enabled,expected", [(False, "0"), (True, "1")])
+def test_prepare_lsp_environment_pins_queue_directive(
+    tmp_path: Path,
+    enabled: bool,
+    expected: str,
+) -> None:
+    env: dict[str, str] = {}
+    with override_flags(queue_directive=enabled):
+        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+
+    assert env[SASE_QUEUE_DIRECTIVE_ENV] == expected

@@ -172,8 +172,15 @@ def plan_typed_launch_units(
 
     reject_disabled_code_directives(prompt)
     resolved_prompt = resolve_agent_name_key_markers([prompt])[0]
+    from sase.xprompt.queue_directive import launch_feature_flag_keys
+
     binding = require_rust_binding("plan_typed_launch_units")
-    payload = binding(resolved_prompt, launch_kind, selected_project)
+    payload = binding(
+        resolved_prompt,
+        launch_kind,
+        selected_project,
+        launch_feature_flag_keys(),
+    )
     return launch_plan_from_dict(dict(payload))
 
 
@@ -224,8 +231,12 @@ def admission_unit_results(
 def agent_unit_dispatch_prompt(agent: AgentUnitWire) -> str:
     """Rebuild an agent launch prompt from a typed unit without waits or %if."""
 
+    from sase.xprompt.queue_directive import launch_feature_flag_keys
+
     binding = require_rust_binding("agent_unit_dispatch_prompt")
-    return str(binding(agent_launch_wire_to_json_dict(agent)))
+    return str(
+        binding(agent_launch_wire_to_json_dict(agent), launch_feature_flag_keys())
+    )
 
 
 def classify_condition_status(

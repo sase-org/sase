@@ -335,6 +335,9 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-yj.2(collect_queue_fields)' \
+        --epic-symbol 'sase-yj.2(format_queue_directive)' \
+        --epic-symbol 'sase-yj.2(queue_directive_flag_key)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
