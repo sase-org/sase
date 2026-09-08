@@ -1039,6 +1039,46 @@ External provider packages own their CLI invocation details, model metadata, ski
 deployment path, auto-detect priority, and retry defaults. Install the provider package
 in the same environment as sase to make its `sase_llm` entry point available.
 
+### Subscription usage extension
+
+Subscription-capacity collection is an optional plugin capability. A fourth provider
+implements the same hooks; SASE core, the refresh service, CLI, and widgets must not
+branch on provider name.
+
+| Hook                       | I/O           | Cached           | Default when omitted                                 |
+| -------------------------- | ------------- | ---------------- | ---------------------------------------------------- |
+| `llm_usage_capabilities()` | none          | yes, as metadata | unsupported (`probe` and `passive_events` are false) |
+| `llm_usage_probe(context)` | collector I/O | never            | unsupported                                          |
+
+`llm_usage_capabilities()` is static: it must not touch the network, spawn processes, or
+read credential files. The registry may cache it. Live observations from
+`llm_usage_probe` must never enter that cache.
+
+`llm_usage_probe(context)` receives a typed context with schema version, deadline,
+resolved executable, opaque auth-context fingerprint, account generation, and operation
+identity. Return a provider-usage observation mapping that matches the Rust observation
+contract, or `None` if this plugin does not collect usage. Unexpected exceptions are
+caught at the probe-runtime boundary and become sanitized `error` observations. Do not
+put raw stdout/stderr, tokens, emails, account ids, or filesystem secrets in
+diagnostics.
+
+Probes run in isolated killable worker processes. Vendor CLIs are argv-only children of
+those workers. Collectors share the bounded JSON-line transport in
+`sase.llm_provider.usage.transport` and keep JSON-RPC or ACP handshakes in the collector
+module. The transport never services login, token-refresh, tool, or approval requests.
+
+Passive stream events (for example Claude `rate_limit_event`) go through
+`record_passive_usage_observation`, which accepts the same fenced envelope. Persistence
+is owned by the usage store.
+
+Existing plugins that omit these hooks keep invoking normally: `LLMProvider.invoke` and
+`InvokeResult` are unchanged.
+
+Collection is gated by the temporary `provider_usage_metrics` beta flag and the durable
+`llm_provider.usage_metrics.enabled` preference. Per-provider
+`llm_provider.usage_metrics.providers.<name>.enabled` overrides collection without
+hard-coding the initial three providers.
+
 ## Configuration
 
 The LLM provider reads its configuration from `~/.config/sase/sase.yml` under the
@@ -1096,6 +1136,7 @@ llm_provider:
 | `llm_provider.model_aliases.custom`      | dict   | -           | User-defined aliases for `%model:@<alias>` / `%m:@<alias>`. Each value is an object with required `model` and `description` fields; `model` accepts the same single-target and selector grammar. Descriptions are shown in completions and Launch Control.                                                                                                                                                                                                                                                                                                                                   |
 | `llm_provider.model_aliases.buckets`     | dict   | -           | Optional display-only ACE Launch Control bucket descriptions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `llm_provider.usage_limit`               | dict   | enabled     | Usage-limit classification and automatic temporary provider-disable policy. See [Usage-Limit Auto-Disable](#usage-limit-auto-disable).                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `llm_provider.usage_metrics`             | dict   | enabled     | Subscription-capacity collection cadence and opt-out. Behind the `provider_usage_metrics` beta flag. See [Subscription usage extension](#subscription-usage-extension).                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ## Per-Prompt Provider Switching
 

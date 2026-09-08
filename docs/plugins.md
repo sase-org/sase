@@ -1052,5 +1052,7 @@ my_llm = "my_sase_plugin.llm:MyLLMProvider"
 
 The provider implements hooks from `LLMHookSpec` using `@hookimpl`, including
 `llm_invoke()` for execution and metadata hooks such as `llm_provider_name()`,
-`llm_known_model_names()`, and `llm_autodetect_priority()`. See
+`llm_known_model_names()`, and `llm_autodetect_priority()`. Optional
+`llm_usage_capabilities()` (static, no I/O) and `llm_usage_probe(context)` collect
+subscription usage; omitting them leaves invoke unchanged. See
 [docs/llms.md](llms.md#external-provider-plugins) for the full provider contract.

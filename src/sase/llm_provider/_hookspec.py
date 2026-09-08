@@ -10,6 +10,7 @@ from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
+    from .usage.types import UsageProbeContext
     from .usage_limit_config import ProviderUsageLimitConfig
 
 hookspec = pluggy.HookspecMarker("sase_llm")
@@ -202,5 +203,27 @@ class LLMHookSpec:
         not affect routing, model resolution, autodetection, direct provider
         invocation, or doctor diagnostics. Omitting this hook means "visible",
         so third-party providers stay compatible without implementing it.
+        """
+        ...
+
+    @hookspec(firstresult=True)
+    def llm_usage_capabilities(self) -> dict[str, object] | None:
+        """Static subscription-usage capability. Must do no I/O.
+
+        Return ``{"probe": True}`` when ``llm_usage_probe`` is implemented,
+        and ``{"passive_events": True}`` when the provider can emit fenced
+        stream observations. Omitting the hook means unsupported. The registry
+        may cache this result; it must never include live observations.
+        """
+        ...
+
+    @hookspec(firstresult=True)
+    def llm_usage_probe(self, context: UsageProbeContext) -> dict[str, object] | None:
+        """Collect a subscription-usage observation for *context*.
+
+        Return a provider-usage observation dict, or ``None`` when this
+        plugin does not collect usage. Unexpected exceptions are caught at
+        the probe-runtime boundary. Observations must not be cached as
+        provider metadata. Omitting the hook means unsupported.
         """
         ...

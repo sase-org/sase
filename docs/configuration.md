@@ -1808,6 +1808,40 @@ enabled provider; the disabled provider remains skipped until expiry or clearing
 [Usage-Limit Auto-Disable](llms.md#usage-limit-auto-disable) for reset-hint parsing,
 notification, and replacement details.
 
+#### `llm_provider.usage_metrics`
+
+Subscription-capacity collection settings. This is distinct from
+`llm_provider.usage_limit`, which classifies provider error text and writes temporary
+routing disables. `usage_metrics` controls whether SASE probes installed provider CLIs
+for included-allowance windows.
+
+The temporary `provider_usage_metrics` beta flag defaults off. While it is off, probes,
+isolated workers, and passive observation writes stay off even when `enabled` is true.
+The durable `enabled` preference remains after the flag is removed.
+
+```yaml
+llm_provider:
+  usage_metrics:
+    enabled: true
+    refresh_seconds: 300
+    warn_percent: 75
+    critical_percent: 90
+    providers:
+      claude:
+        enabled: true
+```
+
+| Field                                                 | Type   | Default | Description                                                                                                                                  |
+| ----------------------------------------------------- | ------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.usage_metrics.enabled`                  | bool   | `true`  | Collect subscription usage. False stops probes, passive writes, scheduled requests, and attention; inspection can still explain the opt-out. |
+| `llm_provider.usage_metrics.refresh_seconds`          | number | `300`   | Background refresh cadence in seconds. Must be finite and at least `60`.                                                                     |
+| `llm_provider.usage_metrics.warn_percent`             | number | `75`    | Percentage _used_ that classifies a window as low. Must satisfy `0 <= warn_percent < critical_percent <= 100`. UI copy uses percentage left. |
+| `llm_provider.usage_metrics.critical_percent`         | number | `90`    | Percentage _used_ that classifies a window as very low.                                                                                      |
+| `llm_provider.usage_metrics.providers.<name>.enabled` | bool   | inherit | Optional per-provider override. Keys are registered provider names; the generic schema does not hard-code the initial three providers.       |
+
+Routing-disabled providers still refresh when collection is otherwise eligible, because
+reset information remains useful for them.
+
 The same panel's fixed `Ctrl+E` binding manages the separate machine-wide default-effort
 override at `~/.sase/llm_effort_override.json`. It uses the alias override duration and
 exact-time cards, but its state and precedence are independent: explicit prompt effort

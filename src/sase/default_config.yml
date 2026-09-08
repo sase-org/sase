@@ -1311,6 +1311,18 @@ llm_provider:
   #       disable_seconds: null
   #       # null inherits the global reset-hint policy; true/false overrides it.
   #       honor_reset_hint: null
+  # Subscription-capacity collection (beta: provider_usage_metrics). Distinct
+  # from usage_limit auto-disable. enabled is the durable user preference;
+  # the beta flag is temporary epic scaffolding. Do not hard-code provider
+  # names in the generic schema — keys under providers are registered names.
+  # usage_metrics:
+  #   enabled: true                 # false stops probes and passive writes
+  #   refresh_seconds: 300          # cadence; minimum 60
+  #   warn_percent: 75              # percentage used for local low attention
+  #   critical_percent: 90          # percentage used for local very-low attention
+  #   providers:
+  #     claude:
+  #       enabled: true             # optional per-provider override
 
 commit:
   message:

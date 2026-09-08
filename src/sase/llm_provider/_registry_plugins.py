@@ -18,6 +18,11 @@ def build_llm_plugin_manager() -> pluggy.PluginManager:
     return pm
 
 
+def load_llm_plugin_class(name: str) -> type | None:
+    """Look up an LLM plugin class by entry-point name."""
+    return _find_plugin_class(name)
+
+
 def _find_plugin_class(name: str) -> type | None:
     """Look up an LLM plugin class by name from ``sase_llm`` entry points.
 

@@ -3344,6 +3344,52 @@
               }
             }
           }
+        },
+        "usage_metrics": {
+          "type": "object",
+          "description": "Subscription-capacity collection settings. Distinct from usage_limit auto-disable. Behind the provider_usage_metrics beta flag; enabled remains the durable user preference after the flag is removed.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Collect subscription usage. False stops probes, passive writes, scheduled requests, and attention while inspection can still explain the opt-out.",
+              "default": true
+            },
+            "refresh_seconds": {
+              "type": "number",
+              "description": "Background refresh cadence in seconds. Must be finite and at least 60.",
+              "default": 300,
+              "minimum": 60
+            },
+            "warn_percent": {
+              "type": "number",
+              "description": "Percentage used that classifies a window as low. Must satisfy 0 <= warn_percent < critical_percent <= 100. UI copy uses percentage left.",
+              "default": 75,
+              "minimum": 0,
+              "maximum": 100
+            },
+            "critical_percent": {
+              "type": "number",
+              "description": "Percentage used that classifies a window as very low. Must satisfy 0 <= warn_percent < critical_percent <= 100.",
+              "default": 90,
+              "minimum": 0,
+              "maximum": 100
+            },
+            "providers": {
+              "type": "object",
+              "description": "Optional per-provider collection overrides. Keys are registered provider names; the generic schema does not hard-code the initial three providers.",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Per-provider collection override. When omitted, the provider inherits llm_provider.usage_metrics.enabled."
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -4201,6 +4247,11 @@
         "provider_drain": {
           "type": "boolean",
           "description": "Hard-disabling an LLM provider drains it: a usage-limit disable submits a durable 'sase agent drain' proc that relaunches the agents that provider stranded and sends one enriched usage-limit notification naming what moved and what did not, and a manual disable in Launch Control offers the same relaunch.",
+          "default": false
+        },
+        "provider_usage_metrics": {
+          "type": "boolean",
+          "description": "Beta gate for subscription usage probes and the optional provider usage hook.",
           "default": false
         },
         "ref_sync_gesture": {

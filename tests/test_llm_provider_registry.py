@@ -348,6 +348,19 @@ def test_provider_metadata_hidden_from_agent_cli_management_false() -> None:
     assert metadata["hidden_from_agent_cli_management"] is False
 
 
+def test_provider_metadata_usage_capabilities_default_to_unsupported() -> None:
+    """Omitting usage hooks leaves invoke-compatible plugins unsupported."""
+
+    class FakeProvider:
+        def llm_provider_name(self) -> str:
+            return "fake"
+
+    metadata = registry._provider_metadata("fake", FakeProvider())
+
+    assert metadata["usage_capabilities"] == {"probe": False, "passive_events": False}
+    assert "windows" not in metadata
+
+
 def test_provider_metadata_hidden_from_agent_cli_management_defaults_visible() -> None:
     """A provider that omits the hook is manageable (third-party compatible)."""
 

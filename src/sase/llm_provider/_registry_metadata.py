@@ -103,6 +103,19 @@ def provider_metadata(name: str, plugin: object) -> dict[str, Any]:
         "hidden_from_agent_cli_management": (
             _call_optional(plugin, "llm_hidden_from_agent_cli_management") is True
         ),
+        "usage_capabilities": _usage_capabilities(
+            _call_optional(plugin, "llm_usage_capabilities")
+        ),
+    }
+
+
+def _usage_capabilities(value: Any) -> dict[str, bool]:
+    """Normalize static usage capability flags. Unknown keys are dropped."""
+    if not isinstance(value, dict):
+        return {"probe": False, "passive_events": False}
+    return {
+        "probe": value.get("probe") is True,
+        "passive_events": value.get("passive_events") is True,
     }
 
 
