@@ -19,6 +19,9 @@ from tests._commit_workflow_fixtures import (
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
+_ORIGIN_PREFLIGHT_TARGET = (
+    "sase.workflows.commit.workflow.reconcile_managed_checkout_origin"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -49,6 +52,35 @@ def test_run_detects_conflict_and_returns_conflict_code(
     assert loaded.payload == payload
     assert loaded.method == "create_commit"
     assert loaded.no_commit_dispatched is False
+
+
+@patch(_ORIGIN_PREFLIGHT_TARGET)
+@patch(_PROVIDER_TARGET)
+def test_run_reconciles_managed_origin_before_provider_lookup(
+    mock_get: MagicMock,
+    mock_reconcile: MagicMock,
+    artifacts_dir: Path,
+    tmp_path: Path,
+) -> None:
+    events: list[tuple[str, str]] = []
+    provider = make_provider(dispatch_result=(True, "abc123"))
+
+    def reconcile(cwd: str) -> None:
+        events.append(("preflight", cwd))
+
+    def get_provider(cwd: str) -> object:
+        events.append(("provider", cwd))
+        return provider
+
+    mock_reconcile.side_effect = reconcile
+    mock_get.side_effect = get_provider
+    wf = CommitWorkflow({"message": "fix: bug"}, "create_commit")
+
+    with patch("sase.workflows.commit.workflow.os.getcwd", return_value=str(tmp_path)):
+        assert wf.run() == RunResult.OK
+
+    assert events[:2] == [("preflight", str(tmp_path)), ("provider", str(tmp_path))]
+    assert not (artifacts_dir / "commit_state.json").exists()
 
 
 @patch(_PROVIDER_TARGET)

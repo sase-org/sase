@@ -18,6 +18,10 @@ from tests._commit_workflow_resume_helpers import (
     save_resume_checkpoint,
 )
 
+_ORIGIN_PREFLIGHT_TARGET = (
+    "sase.workflows.commit.workflow_resume.reconcile_managed_checkout_origin"
+)
+
 
 @pytest.fixture(autouse=True)
 def _no_commit_hooks(no_commit_hooks):  # type: ignore[no-untyped-def]  # noqa: F811
@@ -43,6 +47,34 @@ def test_resume_returns_conflict_when_sync_still_in_progress(
     # Checkpoint must survive so the user can retry.
     assert (artifacts_dir / "commit_state.json").exists()
     provider.finalize_commit.assert_not_called()
+
+
+@patch(_ORIGIN_PREFLIGHT_TARGET)
+@patch(PROVIDER_TARGET)
+def test_resume_reconciles_checkpoint_cwd_before_provider_lookup(
+    mock_get: MagicMock,
+    mock_reconcile: MagicMock,
+    artifacts_dir: Path,
+    tmp_path: Path,
+) -> None:
+    events: list[tuple[str, str]] = []
+    provider = make_resume_provider(is_conflict=True)
+
+    def reconcile(cwd: str) -> None:
+        events.append(("preflight", cwd))
+
+    def get_provider(cwd: str) -> object:
+        events.append(("provider", cwd))
+        return provider
+
+    mock_reconcile.side_effect = reconcile
+    mock_get.side_effect = get_provider
+    save_resume_checkpoint(cwd=str(tmp_path))
+
+    assert CommitWorkflow.resume() == RunResult.CONFLICT
+
+    assert events[:2] == [("preflight", str(tmp_path)), ("provider", str(tmp_path))]
+    assert (artifacts_dir / "commit_state.json").exists()
 
 
 @patch(PROVIDER_TARGET)

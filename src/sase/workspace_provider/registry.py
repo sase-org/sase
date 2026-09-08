@@ -135,6 +135,15 @@ def _read_registry_file(
         return None
 
 
+def read_registry_file(
+    path: str,
+    *,
+    strict: bool = False,
+) -> WorkspaceRegistry | None:
+    """Read an existing registry file without deriving a store root."""
+    return _read_registry_file(path, strict=strict)
+
+
 def _write_registry_file(path: str, registry: WorkspaceRegistry) -> None:
     """Write *registry* to *path* atomically via tempfile + os.replace."""
     parent = os.path.dirname(path) or "."
@@ -285,6 +294,7 @@ __all__ = [
     "load_registry",
     "load_or_init_registry",
     "record_workspace",
+    "read_registry_file",
     "registry_path",
     "remove_workspace",
     "save_registry",

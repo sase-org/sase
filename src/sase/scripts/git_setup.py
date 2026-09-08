@@ -12,7 +12,10 @@ from sase.running_field import (
 )
 from sase.sdd.store import materialize_sdd_store
 from sase.workspace_provider.plugins.bare_git_workspace import resolve_git_ref
-from sase.workspace_provider.utils import ensure_workspace_checkout
+from sase.workspace_provider.utils import (
+    ensure_workspace_checkout,
+    reconcile_managed_checkout_origin,
+)
 
 _CALLER_TAG = "git-setup"
 
@@ -53,6 +56,12 @@ def main(
     if pre_allocated:
         workspace_num = int(os.environ["SASE_GIT_WORKSPACE_NUM"])
         workspace_dir = os.environ["SASE_GIT_WORKSPACE_DIR"]
+        if workspace_num > 1 and os.path.isdir(workspace_dir.rstrip("/")):
+            reconcile_managed_checkout_origin(
+                workspace_dir,
+                primary_workspace_dir=resolved.primary_workspace_dir,
+                assume_managed_checkout=True,
+            )
     elif n is not None:
         workspace_num = n
         claim_result = claim_workspace(

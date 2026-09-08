@@ -10,6 +10,7 @@ from sase.ace.deltas import refresh_deltas_after_commits_change
 from sase.telemetry.metrics import VCS_OPERATIONS
 from sase.vcs_provider import get_vcs_provider
 from sase.workflows.base import BaseWorkflow
+from sase.workspace_provider.utils import reconcile_managed_checkout_origin
 from sase.workflows.commit.checkpoint import (
     CommitCheckpoint,
     checkpoint_delete,
@@ -136,6 +137,7 @@ class CommitWorkflow(BaseWorkflow):
         provider = None
         provider_lookup_error: Exception | None = None
         try:
+            reconcile_managed_checkout_origin(cwd)
             provider = get_vcs_provider(cwd)
         except Exception as exc:
             provider_lookup_error = exc

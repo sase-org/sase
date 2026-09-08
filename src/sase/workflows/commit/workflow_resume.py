@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from sase.llm_provider.commit_finalizer_git_status import git_changed_files
 from sase.output import print_status
 from sase.telemetry.metrics import VCS_OPERATIONS
+from sase.workspace_provider.utils import reconcile_managed_checkout_origin
 from sase.workflows.commit.checkpoint import CommitCheckpoint
 from sase.workflows.commit.runtime_tags import (
     run_owned_commit_tags,
@@ -45,6 +46,7 @@ def resume_commit_workflow(
     wf._cl_name = cp.cl_name
     wf._project_file = cp.project_file
 
+    reconcile_managed_checkout_origin(cp.cwd)
     provider = get_vcs_provider(cp.cwd)
     provider_name = getattr(provider, "_provider_name", "unknown")
 
