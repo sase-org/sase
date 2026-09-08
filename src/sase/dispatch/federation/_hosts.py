@@ -90,7 +90,7 @@ def load_federation_config(
     store = credential_store or LocalCredentialStore()
     hosts: list[FederationHostConfig] = []
     for machine in dispatch_config.machines:
-        host, host_diagnostics = _machine_host_config(machine, store)
+        host, host_diagnostics = _machine_host_config(machine, store, dispatch_config)
         diagnostics.extend(host_diagnostics)
         if host is not None:
             hosts.append(host)
@@ -161,6 +161,7 @@ def _rust_connection_plan(plan: Mapping[str, Any]) -> dict[str, Any]:
 def _machine_host_config(
     machine: MachineRecord,
     store: LocalCredentialStore,
+    config: Any,
 ) -> tuple[FederationHostConfig | None, tuple[MachineDiagnostic, ...]]:
     diagnostics: list[MachineDiagnostic] = []
     if machine.quarantined:
@@ -207,14 +208,32 @@ def _machine_host_config(
     if any(diagnostic.severity == "error" for diagnostic in diagnostics):
         return None, tuple(diagnostics)
 
-    diagnostics.extend(validate_connection_plan(machine))
+    try:
+        from sase.dispatch.providers import connection_plan_for_machine
+
+        plan = connection_plan_for_machine(machine, config=config)
+    except Exception as exc:  # noqa: BLE001 - provider boundary.
+        diagnostics.append(
+            MachineDiagnostic(
+                code="connection_plan_failed",
+                alias=machine.alias,
+                severity="error",
+                message=(
+                    f"connection plan for {machine.alias} could not be resolved: "
+                    f"{type(exc).__name__}: {exc}"
+                ),
+            )
+        )
+        return None, tuple(diagnostics)
+
+    diagnostics.extend(validate_connection_plan(machine, config=config, plan=plan))
     if any(diagnostic.severity == "error" for diagnostic in diagnostics):
         return None, tuple(diagnostics)
 
     return (
         FederationHostConfig(
             alias=machine.alias,
-            plan=_rust_connection_plan(machine.to_connection_plan()),
+            plan=_rust_connection_plan(plan),
             bearer_token=credential.token,
             origin_installation_id=credential.installation_id,
         ),

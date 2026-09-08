@@ -61,7 +61,7 @@ def _check_dispatch_config(context: DoctorContext) -> DiagnosticCheck:
             errors.append(
                 f"{machine.alias}: provider {machine.provider_ref} is disabled"
             )
-        for diagnostic in validate_connection_plan(machine):
+        for diagnostic in validate_connection_plan(machine, config=config):
             if diagnostic.severity == "error":
                 errors.append(diagnostic.message)
             else:

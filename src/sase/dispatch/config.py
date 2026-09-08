@@ -77,19 +77,37 @@ def load_dispatch_config(
     )
 
 
-def validate_connection_plan(record: MachineRecord) -> tuple[MachineDiagnostic, ...]:
+def validate_connection_plan(
+    record: MachineRecord,
+    *,
+    config: DispatchConfig | None = None,
+    plan: Mapping[str, Any] | None = None,
+    timeout_seconds: float | None = None,
+    entry_points_fn: Any | None = None,
+    operation_runner: Any | None = None,
+) -> tuple[MachineDiagnostic, ...]:
     """Validate a machine's fleet connection plan with the Rust core backend."""
     from sase.core.rust import require_rust_binding
+    from sase.dispatch.providers import connection_plan_for_machine
 
     try:
         validator = require_rust_binding("fleet_validate_connection_plan")
-        plan = record.to_connection_plan()
+        if plan is None:
+            kwargs: dict[str, Any] = {
+                "config": config,
+                "timeout_seconds": timeout_seconds,
+                "operation_runner": operation_runner,
+            }
+            if entry_points_fn is not None:
+                kwargs["entry_points_fn"] = entry_points_fn
+            plan = connection_plan_for_machine(record, **kwargs)
+        rust_plan = dict(plan)
         # SASE provider refs commonly use ``plugin@provider`` while the Rust
         # fleet contract treats this field as routing metadata with a slightly
         # narrower opaque-reference grammar. Keep the configured ref intact and
         # validate the rest of the connection plan through the core boundary.
-        plan["provider_ref"] = str(plan["provider_ref"]).replace("@", ":")
-        validator(plan)
+        rust_plan["provider_ref"] = str(rust_plan["provider_ref"]).replace("@", ":")
+        validator(rust_plan)
     except Exception as exc:  # noqa: BLE001 - diagnostic boundary.
         return (
             MachineDiagnostic(

@@ -2,13 +2,27 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 import importlib.metadata
+import json
 import os
+import sys
 from typing import Any
 
 import pluggy
+
+from sase.finalizers.bounded_subprocess import (
+    HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS,
+    STDOUT_CAP_BYTES,
+    run_bounded_subprocess,
+)
+from sase.plugins.qualified_id import (
+    PluginQualifiedIdError,
+    canonical_plugin_prefix,
+    canonical_plugin_qualified_id,
+)
+from sase.version._utils import metadata_value
 
 from .config import load_dispatch_config, provider_config
 from .models import (
@@ -16,15 +30,43 @@ from .models import (
     DispatchProviderSpec,
     DiscoveryCandidate,
     MachineDiagnostic,
+    MachineRecord,
 )
+from .provider_protocol import DISPATCH_PROVIDER_PROTOCOL_VERSION
 
 DISPATCH_ENTRY_POINT_GROUP = "sase_dispatch"
+_BUILTIN_PROVIDER_REFS = frozenset({"builtin@https", "builtin@tailnet"})
+_PROVIDER_OPERATION_TIMEOUT_SECONDS = 30.0
+_BASE_PROVIDER_ENV_KEYS = (
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "LOGNAME",
+    "PATH",
+    "SHELL",
+    "TERM",
+    "TMPDIR",
+    "USER",
+)
+_PROVIDER_RESULT_KEYS = frozenset(
+    {
+        "schema_version",
+        "operation",
+        "provider_ref",
+        "status",
+        "diagnostics",
+        "specs",
+        "candidates",
+        "plan",
+    }
+)
 
 hookspec = pluggy.HookspecMarker("sase_dispatch")
 hookimpl = pluggy.HookimplMarker("sase_dispatch")
 
 
-class _DispatchProviderHookSpec:
+class DispatchProviderHookSpec:
     """Hook specifications for remote dispatch providers."""
 
     @hookspec
@@ -45,6 +87,20 @@ class _DispatchProviderHookSpec:
         timeout_seconds: float,
     ) -> Iterable[Mapping[str, Any]] | Mapping[str, Any] | None:
         """Return explicit remote machine discovery candidates."""
+        ...
+
+    @hookspec
+    def dispatch_connection_plan(
+        self,
+        # Hook argument names and kinds are a cross-repo compatibility
+        # boundary: pluggy invokes hookimpls positionally, so these must stay
+        # positional-or-keyword without defaults.
+        provider_ref: str,
+        machine: Mapping[str, Any],
+        config: Mapping[str, Any],
+        timeout_seconds: float,
+    ) -> Mapping[str, Any] | None:
+        """Return a serializable fleet connection plan for one machine."""
         ...
 
 
@@ -93,6 +149,29 @@ class _DispatchProviderInventory:
         return {spec.ref: spec for spec in self.specs}
 
 
+@dataclass(frozen=True)
+class _DispatchProviderRecord:
+    """Metadata-only dispatch provider record."""
+
+    provider_ref: str
+    provider_id: str
+    package: str
+    version: str
+    entry_point: str | None
+    builtin: bool
+    disabled_by: tuple[str, ...] = ()
+
+
+class _DispatchProviderExecutionError(RuntimeError):
+    """Raised when an isolated dispatch provider operation fails."""
+
+
+_DispatchProviderOperationRunner = Callable[
+    [_DispatchProviderRecord, str, Mapping[str, Any], float],
+    Mapping[str, Any],
+]
+
+
 def collect_dispatch_providers(
     *,
     entry_points_fn: Any = importlib.metadata.entry_points,
@@ -124,36 +203,36 @@ def collect_dispatch_providers(
     for ep in _entry_points(entry_points_fn):
         if _is_builtin_entry_point(ep) or disabled_by:
             continue
-        package = _entry_point_package(ep)
-        version = _entry_point_version(ep)
-        try:
-            loaded = ep.load()
-            plugin = loaded() if isinstance(loaded, type) else loaded
-        except Exception as exc:  # noqa: BLE001 - provider diagnostics only.
+        record = _record_from_entry_point(ep, disabled_by=())
+        if record is None:
             diagnostics.append(
                 MachineDiagnostic(
-                    code="dispatch_provider_load_failed",
+                    code="dispatch_provider_ref_invalid",
                     severity="error",
                     message=(
                         "dispatch provider entry point "
-                        f"{getattr(ep, 'name', '<unknown>')} could not be loaded: "
-                        f"{type(exc).__name__}"
+                        f"{getattr(ep, 'name', '<unknown>')} has an invalid "
+                        "<plugin>@<id> reference"
                     ),
                 )
             )
             continue
-        _collect_plugin_specs(
-            plugin,
-            package=package,
-            version=version,
-            specs=specs,
-            diagnostics=diagnostics,
+        specs.append(
+            DispatchProviderSpec(
+                ref=record.provider_ref,
+                display_name=record.provider_id,
+                supports_discovery=True,
+                package=record.package,
+                version=record.version,
+                builtin=False,
+            )
         )
 
     deduped: dict[str, DispatchProviderSpec] = {}
     for spec in specs:
-        if spec.ref not in deduped:
-            deduped[spec.ref] = spec
+        key = provider_ref_key(spec.ref)
+        if key not in deduped:
+            deduped[key] = spec
         else:
             diagnostics.append(
                 MachineDiagnostic(
@@ -174,6 +253,7 @@ def discover_dispatch_candidates(
     provider_refs: Sequence[str] = (),
     timeout_seconds: float | None = None,
     entry_points_fn: Any = importlib.metadata.entry_points,
+    operation_runner: _DispatchProviderOperationRunner | None = None,
 ) -> tuple[DiscoveryCandidate, ...]:
     """Run explicit provider discovery for enabled providers only."""
     resolved_config = load_dispatch_config() if config is None else config
@@ -184,23 +264,156 @@ def discover_dispatch_candidates(
         return ()
 
     candidates: list[DiscoveryCandidate] = []
-    for plugin, provider_ref in _iter_plugins_for_refs(
+    for provider, provider_ref in _iter_providers_for_refs(
         selected_refs,
         entry_points_fn=entry_points_fn,
     ):
         if not resolved_config.provider_enabled(provider_ref):
             continue
-        payloads = _safe_discover(
-            plugin,
-            provider_ref=provider_ref,
-            config=provider_config(resolved_config, provider_ref),
-            timeout_seconds=timeout_seconds or resolved_config.request_timeout_seconds,
-        )
+        provider_timeout = timeout_seconds or resolved_config.request_timeout_seconds
+        provider_settings = provider_config(resolved_config, provider_ref)
+        if provider.builtin:
+            payloads = _safe_discover(
+                BuiltinDispatchProviders(),
+                provider_ref=provider_ref,
+                config=provider_settings,
+                timeout_seconds=provider_timeout,
+            )
+        else:
+            payloads = _safe_discover_external(
+                provider,
+                config=provider_settings,
+                timeout_seconds=provider_timeout,
+                operation_runner=operation_runner or _run_dispatch_provider_operation,
+            )
         for payload in payloads:
             candidate = _candidate_from_payload(provider_ref, payload)
             if candidate is not None:
                 candidates.append(candidate)
     return tuple(sorted(_dedupe_candidates(candidates), key=lambda item: item.key))
+
+
+def connection_plan_for_machine(
+    machine: MachineRecord,
+    *,
+    config: DispatchConfig | None = None,
+    timeout_seconds: float | None = None,
+    entry_points_fn: Any = importlib.metadata.entry_points,
+    operation_runner: _DispatchProviderOperationRunner | None = None,
+) -> Mapping[str, Any]:
+    """Return the provider-authored connection plan for *machine*.
+
+    Builtin gateway-style providers derive their plan from the machine record.
+    Third-party providers are imported only inside the isolated helper
+    subprocess, and only for the selected machine's provider.
+    """
+
+    if machine.provider_ref in _BUILTIN_PROVIDER_REFS:
+        return machine.to_connection_plan()
+
+    resolved_config = load_dispatch_config() if config is None else config
+    provider = _provider_record_by_ref(
+        machine.provider_ref,
+        entry_points_fn=entry_points_fn,
+    )
+    if provider is None:
+        raise _DispatchProviderExecutionError(
+            f"dispatch provider {machine.provider_ref!r} is not installed"
+        )
+    provider_timeout = timeout_seconds or resolved_config.request_timeout_seconds
+    request = {
+        "schema_version": DISPATCH_PROVIDER_PROTOCOL_VERSION,
+        "operation": "connection_plan",
+        "provider_ref": provider.provider_ref,
+        "machine": _machine_payload(machine),
+        "config": dict(provider_config(resolved_config, machine.provider_ref)),
+        "timeout_seconds": provider_timeout,
+    }
+    result = (operation_runner or _run_dispatch_provider_operation)(
+        provider,
+        "connection_plan",
+        request,
+        provider_timeout,
+    )
+    _validate_provider_result(provider, "connection_plan", result)
+    if result.get("status") != "ok":
+        raise _DispatchProviderExecutionError(
+            _provider_error_message(result, "connection plan failed")
+        )
+    plan = result.get("plan")
+    if isinstance(plan, Mapping):
+        return dict(plan)
+    return machine.to_connection_plan()
+
+
+def _run_dispatch_provider_operation(
+    provider: _DispatchProviderRecord,
+    operation: str,
+    request: Mapping[str, Any],
+    timeout_seconds: float,
+) -> Mapping[str, Any]:
+    """Run one external dispatch provider operation in a bounded subprocess."""
+
+    argv = [
+        sys.executable,
+        "-m",
+        "sase.dispatch.worker_entry",
+        "--provider-ref",
+        provider.provider_ref,
+        "--operation",
+        operation,
+    ]
+    try:
+        payload = json.dumps(dict(request), sort_keys=True).encode("utf-8")
+    except Exception as exc:
+        raise _DispatchProviderExecutionError(
+            f"dispatch provider request is not JSON-serializable: {exc}"
+        ) from exc
+    if len(payload) > STDOUT_CAP_BYTES:
+        raise _DispatchProviderExecutionError("dispatch provider request exceeded cap")
+    timeout = min(
+        timeout_seconds,
+        _PROVIDER_OPERATION_TIMEOUT_SECONDS,
+        HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS,
+    )
+    try:
+        completed = run_bounded_subprocess(
+            argv,
+            cwd=os.getcwd(),
+            env=_sanitized_provider_env(request.get("config")),
+            input_bytes=payload,
+            timeout=timeout,
+        )
+    except Exception as exc:
+        raise _DispatchProviderExecutionError(
+            f"dispatch provider operation {operation!r} could not start: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+    if completed.timed_out:
+        raise _DispatchProviderExecutionError(
+            f"dispatch provider operation {operation!r} timed out after {timeout:g}s"
+        )
+    if completed.stdout_truncated or completed.stderr_truncated:
+        raise _DispatchProviderExecutionError(
+            "dispatch provider operation exceeded output cap"
+        )
+    try:
+        result = json.loads(completed.stdout.decode("utf-8"))
+    except Exception as exc:
+        raise _DispatchProviderExecutionError(
+            f"dispatch provider operation {operation!r} emitted malformed JSON: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+    if not isinstance(result, Mapping):
+        raise _DispatchProviderExecutionError(
+            f"dispatch provider operation {operation!r} must return a JSON object"
+        )
+    if completed.returncode != 0 and result.get("status") != "failed":
+        raise _DispatchProviderExecutionError(
+            f"dispatch provider operation {operation!r} exited with "
+            f"{completed.returncode}"
+        )
+    return result
 
 
 def _collect_plugin_specs(
@@ -212,7 +425,7 @@ def _collect_plugin_specs(
     diagnostics: list[MachineDiagnostic],
 ) -> None:
     pm = pluggy.PluginManager("sase_dispatch")
-    pm.add_hookspecs(_DispatchProviderHookSpec)
+    pm.add_hookspecs(DispatchProviderHookSpec)
     try:
         pm.register(plugin)
     except Exception as exc:  # noqa: BLE001 - provider diagnostics only.
@@ -237,7 +450,7 @@ def _collect_plugin_specs(
         )
         return
     for raw in raw_specs:
-        for payload in _iter_mapping_specs(raw):
+        for payload in iter_mapping_specs(raw):
             spec = _spec_from_payload(payload, package=package, version=version)
             if spec is None:
                 diagnostics.append(
@@ -251,40 +464,59 @@ def _collect_plugin_specs(
             specs.append(spec)
 
 
-def _iter_plugins_for_refs(
+def _iter_providers_for_refs(
     provider_refs: Sequence[str],
     *,
     entry_points_fn: Any,
-) -> Iterable[tuple[object, str]]:
-    refs = set(provider_refs)
-    builtin = BuiltinDispatchProviders()
-    for ref in refs & {"builtin@https", "builtin@tailnet"}:
-        yield builtin, ref
+) -> Iterable[tuple[_DispatchProviderRecord, str]]:
+    refs = tuple(dict.fromkeys(provider_refs))
+    builtin_records = {
+        ref: _DispatchProviderRecord(
+            provider_ref=ref,
+            provider_id=ref.partition("@")[2],
+            package="sase",
+            version=_distribution_version("sase"),
+            entry_point=None,
+            builtin=True,
+        )
+        for ref in _BUILTIN_PROVIDER_REFS
+    }
+    for ref in refs:
+        if ref in builtin_records:
+            yield builtin_records[ref], ref
     if _disabled_env_for_group():
         return
+    records = _third_party_records(entry_points_fn)
+    by_ref = {provider_ref_key(record.provider_ref): record for record in records}
+    for ref in refs:
+        if ref in _BUILTIN_PROVIDER_REFS:
+            continue
+        record = by_ref.get(provider_ref_key(ref))
+        if record is not None:
+            yield record, ref
+
+
+def _provider_record_by_ref(
+    provider_ref: str,
+    *,
+    entry_points_fn: Any,
+) -> _DispatchProviderRecord | None:
+    key = provider_ref_key(provider_ref)
+    for record in _third_party_records(entry_points_fn):
+        if provider_ref_key(record.provider_ref) == key:
+            return record
+    return None
+
+
+def _third_party_records(entry_points_fn: Any) -> tuple[_DispatchProviderRecord, ...]:
+    records: list[_DispatchProviderRecord] = []
     for ep in _entry_points(entry_points_fn):
         if _is_builtin_entry_point(ep):
             continue
-        try:
-            loaded = ep.load()
-            plugin = loaded() if isinstance(loaded, type) else loaded
-        except Exception:
-            continue
-        for spec in _plugin_specs(plugin):
-            if spec.ref in refs:
-                yield plugin, spec.ref
-
-
-def _plugin_specs(plugin: object) -> tuple[DispatchProviderSpec, ...]:
-    specs: list[DispatchProviderSpec] = []
-    _collect_plugin_specs(
-        plugin,
-        package="",
-        version="",
-        specs=specs,
-        diagnostics=[],
-    )
-    return tuple(specs)
+        record = _record_from_entry_point(ep, disabled_by=())
+        if record is not None:
+            records.append(record)
+    return tuple(records)
 
 
 def _safe_discover(
@@ -295,7 +527,7 @@ def _safe_discover(
     timeout_seconds: float,
 ) -> tuple[Mapping[str, Any], ...]:
     pm = pluggy.PluginManager("sase_dispatch")
-    pm.add_hookspecs(_DispatchProviderHookSpec)
+    pm.add_hookspecs(DispatchProviderHookSpec)
     try:
         pm.register(plugin)
         results = pm.hook.dispatch_discover(
@@ -307,8 +539,137 @@ def _safe_discover(
         return ()
     payloads: list[Mapping[str, Any]] = []
     for result in results:
-        payloads.extend(_iter_mapping_specs(result))
+        payloads.extend(iter_mapping_specs(result))
     return tuple(payloads)
+
+
+def _safe_discover_external(
+    provider: _DispatchProviderRecord,
+    *,
+    config: Mapping[str, Any],
+    timeout_seconds: float,
+    operation_runner: _DispatchProviderOperationRunner,
+) -> tuple[Mapping[str, Any], ...]:
+    request = {
+        "schema_version": DISPATCH_PROVIDER_PROTOCOL_VERSION,
+        "operation": "discover",
+        "provider_ref": provider.provider_ref,
+        "config": dict(config),
+        "timeout_seconds": timeout_seconds,
+    }
+    try:
+        result = operation_runner(provider, "discover", request, timeout_seconds)
+        _validate_provider_result(provider, "discover", result)
+    except _DispatchProviderExecutionError:
+        return ()
+    if result.get("status") != "ok":
+        return ()
+    raw_candidates = result.get("candidates")
+    if not isinstance(raw_candidates, Sequence) or isinstance(
+        raw_candidates, (str, bytes, bytearray)
+    ):
+        return ()
+    return tuple(item for item in raw_candidates if isinstance(item, Mapping))
+
+
+def _record_from_entry_point(
+    ep: Any,
+    *,
+    disabled_by: tuple[str, ...],
+) -> _DispatchProviderRecord | None:
+    package = _entry_point_package(ep)
+    provider_id = str(getattr(ep, "name", "") or "")
+    try:
+        provider_ref = _canonical_provider_ref_for_entry(
+            package=package,
+            name=provider_id,
+        )
+    except PluginQualifiedIdError:
+        return None
+    return _DispatchProviderRecord(
+        provider_ref=provider_ref,
+        provider_id=provider_id,
+        package=package,
+        version=_entry_point_version(ep),
+        entry_point=_entry_point_value(ep),
+        builtin=False,
+        disabled_by=disabled_by,
+    )
+
+
+def _validate_provider_result(
+    provider: _DispatchProviderRecord,
+    operation: str,
+    result: Mapping[str, Any],
+) -> None:
+    unknown = sorted(set(result) - _PROVIDER_RESULT_KEYS)
+    if unknown:
+        raise _DispatchProviderExecutionError(
+            f"dispatch provider operation {operation!r} returned unknown field(s): "
+            + ", ".join(unknown)
+        )
+    if result.get("schema_version") != DISPATCH_PROVIDER_PROTOCOL_VERSION:
+        raise _DispatchProviderExecutionError(
+            f"dispatch provider operation {operation!r} returned unsupported schema "
+            f"{result.get('schema_version')!r}"
+        )
+    if result.get("operation") != operation:
+        raise _DispatchProviderExecutionError(
+            f"dispatch provider operation {operation!r} returned operation "
+            f"{result.get('operation')!r}"
+        )
+    result_provider_ref = result.get("provider_ref")
+    if not isinstance(result_provider_ref, str) or provider_ref_key(
+        result_provider_ref
+    ) != provider_ref_key(provider.provider_ref):
+        raise _DispatchProviderExecutionError(
+            f"dispatch provider operation {operation!r} returned provider "
+            f"{result.get('provider_ref')!r}"
+        )
+    status = result.get("status")
+    if status not in {"ok", "failed"}:
+        raise _DispatchProviderExecutionError(
+            f"dispatch provider operation {operation!r} returned status {status!r}"
+        )
+
+
+def _provider_error_message(result: Mapping[str, Any], fallback: str) -> str:
+    raw = result.get("diagnostics")
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes, bytearray)):
+        return fallback
+    messages = [
+        str(item.get("message"))
+        for item in raw
+        if isinstance(item, Mapping) and isinstance(item.get("message"), str)
+    ]
+    return messages[0] if messages else fallback
+
+
+def _machine_payload(machine: MachineRecord) -> dict[str, object]:
+    return {
+        "alias": machine.alias,
+        "provider_ref": machine.provider_ref,
+        "endpoint": machine.endpoint,
+        "credential_ref": machine.credential_ref,
+        "pinned_installation_id": machine.pinned_installation_id,
+        "connection_kind": machine.connection_kind,
+        "tls": machine.tls.to_plan(),
+        "quarantined": machine.quarantined,
+        "quarantine_reason": machine.quarantine_reason,
+    }
+
+
+def _sanitized_provider_env(config: object) -> dict[str, str]:
+    allowed = set(_BASE_PROVIDER_ENV_KEYS)
+    if isinstance(config, Mapping):
+        env_names = config.get("env")
+        if isinstance(env_names, Sequence) and not isinstance(
+            env_names, (str, bytes, bytearray)
+        ):
+            allowed.update(item for item in env_names if isinstance(item, str))
+    env = {key: os.environ[key] for key in sorted(allowed) if key in os.environ}
+    env["SASE_DISPATCH_PROVIDER_SUBPROCESS"] = "1"
+    return env
 
 
 def _spec_from_payload(
@@ -361,7 +722,7 @@ def _dedupe_candidates(
     return tuple(seen.values())
 
 
-def _iter_mapping_specs(value: object) -> tuple[Mapping[str, Any], ...]:
+def iter_mapping_specs(value: object) -> tuple[Mapping[str, Any], ...]:
     if value is None:
         return ()
     if isinstance(value, Mapping):
@@ -400,14 +761,37 @@ def _is_builtin_entry_point(ep: Any) -> bool:
 def _entry_point_package(ep: Any) -> str:
     dist = getattr(ep, "dist", None)
     metadata = getattr(dist, "metadata", None)
-    name = metadata.get("Name") if metadata is not None else None
-    return str(name) if name else ""
+    name = metadata_value(metadata, "Name")
+    if name:
+        return name
+    direct_name = getattr(dist, "name", None)
+    if isinstance(direct_name, str) and direct_name:
+        return direct_name
+    return ""
 
 
 def _entry_point_version(ep: Any) -> str:
     dist = getattr(ep, "dist", None)
     version = getattr(dist, "version", None)
     return str(version) if version else ""
+
+
+def _entry_point_value(ep: Any) -> str | None:
+    value = getattr(ep, "value", None)
+    return value if isinstance(value, str) and value else None
+
+
+def _canonical_provider_ref_for_entry(*, package: str, name: str) -> str:
+    return canonical_plugin_qualified_id(f"{canonical_plugin_prefix(package)}@{name}")
+
+
+def provider_ref_key(value: str) -> str:
+    """Return a canonical lookup key for syntactically valid provider refs."""
+
+    try:
+        return canonical_plugin_qualified_id(value)
+    except PluginQualifiedIdError:
+        return value
 
 
 def _distribution_version(name: str) -> str:
@@ -419,8 +803,12 @@ def _distribution_version(name: str) -> str:
 
 __all__ = [
     "DISPATCH_ENTRY_POINT_GROUP",
+    "DispatchProviderHookSpec",
     "collect_dispatch_providers",
+    "connection_plan_for_machine",
     "discover_dispatch_candidates",
     "hookimpl",
     "hookspec",
+    "iter_mapping_specs",
+    "provider_ref_key",
 ]

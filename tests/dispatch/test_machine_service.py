@@ -90,7 +90,7 @@ def test_add_machine_stores_only_credential_ref_in_config(
     fake_gateway = _FakeGateway(pin)
     monkeypatch.setattr(
         "sase.dispatch.machine_service.validate_connection_plan",
-        lambda record: (),
+        lambda record, **kwargs: (),
     )
 
     result = MachineService(

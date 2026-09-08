@@ -30,7 +30,10 @@ Sase defines eleven entry point groups:
 
 Provider-class entry points resolve to a class that is instantiated and registered with
 pluggy. Package-module entry points resolve to a module whose package resources are read
-by Sase.
+by Sase. Third-party `sase_dispatch` providers are inventoried from entry point metadata
+only: their provider ref is `<normalized-distribution>@<entry-point-name>`, and provider
+code is imported later in an isolated helper subprocess only for the selected discovery
+or connection-plan operation.
 
 An `sase_xprompts` package may provide ordinary templates in `xprompts/`.
 

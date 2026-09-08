@@ -205,7 +205,7 @@ def test_dispatch_machines_resolve_local_credentials(
     monkeypatch.setattr(
         federation._hosts,
         "validate_connection_plan",
-        lambda _machine: (),
+        lambda _machine, **kwargs: (),
     )
 
     config = federation.load_federation_config(
@@ -244,7 +244,7 @@ def test_dispatch_machines_degrade_to_diagnostics(
     monkeypatch.setattr(
         federation._hosts,
         "validate_connection_plan",
-        lambda _machine: (
+        lambda _machine, **kwargs: (
             MachineDiagnostic(
                 code="invalid_connection_plan",
                 alias="unused",

@@ -7,6 +7,9 @@ on bead sase-xe).
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+import importlib
+import io
 import json
 import subprocess
 import sys
@@ -20,13 +23,22 @@ from sase.dispatch.credentials import (
     CredentialStoreError,
     LocalCredentialStore,
 )
-from sase.dispatch.models import CredentialRecord
+from sase.dispatch.models import CredentialRecord, MachineRecord
 from sase.dispatch.providers import (
+    _DispatchProviderExecutionError,
+    _run_dispatch_provider_operation,
+    connection_plan_for_machine,
     collect_dispatch_providers,
     discover_dispatch_candidates,
     hookimpl,
 )
+from sase.dispatch.worker_entry import main as dispatch_worker_main
+from sase.finalizers.bounded_subprocess import BoundedCompletedProcess
 from tests.conftest import redirect_sase_home
+
+LAB_REF = "fake-dispatch-plugin@lab"
+OTHER_REF = "fake-dispatch-plugin@other"
+MIXED_REF = "mixed-case-dispatch@lab"
 
 
 class _FakeDist:
@@ -46,6 +58,7 @@ class _FakeEntryPoint:
         error: Exception | None = None,
     ) -> None:
         self.name = name
+        self.value = f"fake_dispatch_plugin:{name}"
         self.dist = _FakeDist(package, version)
         self.load_calls = 0
         self._plugin = plugin
@@ -71,7 +84,7 @@ class _FakeProvider:
     def dispatch_provider_specs(self) -> tuple[dict[str, object], ...]:
         return (
             {
-                "ref": "fake@lab",
+                "ref": LAB_REF,
                 "display_name": "Lab Fleet Gateway",
                 "supports_discovery": True,
             },
@@ -85,7 +98,7 @@ class _FakeProvider:
         timeout_seconds: float,
     ) -> tuple[dict[str, Any], ...]:
         del config, timeout_seconds
-        if provider_ref != "fake@lab":
+        if provider_ref != LAB_REF:
             return ()
         return (
             {
@@ -104,24 +117,30 @@ class _FakeProvider:
         )
 
 
-class _DuplicateAndInvalidSpecProvider:
-    @hookimpl
-    def dispatch_provider_specs(self) -> tuple[dict[str, object], ...]:
-        return (
-            {"ref": "builtin@https", "display_name": "impostor"},
-            {"display_name": "spec without a ref"},
-        )
-
-
 def _lab_config(*, enabled: bool) -> Any:
     return load_dispatch_config(
         {
             "dispatch": {
-                "providers": {"fake@lab": enabled},
-                "discovery": {"enabled_providers": ["fake@lab"]},
+                "providers": {LAB_REF: enabled},
+                "discovery": {"enabled_providers": [LAB_REF]},
             }
         }
     )
+
+
+def _ok_result(
+    provider_ref: str,
+    operation: str,
+    **extra: object,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "schema_version": 1,
+        "operation": operation,
+        "provider_ref": provider_ref,
+        "status": "ok",
+    }
+    payload.update(extra)
+    return payload
 
 
 def test_collect_includes_builtin_providers_without_entry_points() -> None:
@@ -135,14 +154,15 @@ def test_collect_includes_builtin_providers_without_entry_points() -> None:
 
 
 def test_collect_includes_third_party_provider_specs() -> None:
-    inventory = collect_dispatch_providers(
-        entry_points_fn=_entry_points_fn(_FakeEntryPoint("lab", _FakeProvider()))
-    )
+    lab_ep = _FakeEntryPoint("lab", _FakeProvider())
+
+    inventory = collect_dispatch_providers(entry_points_fn=_entry_points_fn(lab_ep))
 
     by_ref = inventory.by_ref()
-    assert set(by_ref) == {"builtin@https", "builtin@tailnet", "fake@lab"}
-    lab = by_ref["fake@lab"]
-    assert lab.display_name == "Lab Fleet Gateway"
+    assert set(by_ref) == {"builtin@https", "builtin@tailnet", LAB_REF}
+    assert lab_ep.load_calls == 0
+    lab = by_ref[LAB_REF]
+    assert lab.display_name == "lab"
     assert lab.supports_discovery is True
     assert lab.package == "fake-dispatch-plugin"
     assert lab.version == "1.0.0"
@@ -173,32 +193,34 @@ def test_collect_skips_the_builtin_entry_point() -> None:
     )
 
 
-def test_collect_records_load_failure_and_keeps_builtins() -> None:
-    inventory = collect_dispatch_providers(
-        entry_points_fn=_entry_points_fn(
-            _FakeEntryPoint("broken", object(), error=RuntimeError("boom"))
-        )
-    )
+def test_collect_does_not_load_failing_third_party_entry_point() -> None:
+    broken = _FakeEntryPoint("broken", object(), error=RuntimeError("boom"))
 
-    assert [spec.ref for spec in inventory.specs] == [
-        "builtin@https",
-        "builtin@tailnet",
-    ]
+    inventory = collect_dispatch_providers(entry_points_fn=_entry_points_fn(broken))
+
+    assert broken.load_calls == 0
+    assert "fake-dispatch-plugin@broken" in inventory.by_ref()
     codes = [diagnostic.code for diagnostic in inventory.diagnostics]
-    assert "dispatch_provider_load_failed" in codes
+    assert "dispatch_provider_load_failed" not in codes
 
 
-def test_collect_reports_duplicate_and_invalid_specs() -> None:
+def test_collect_reports_duplicate_and_invalid_metadata_refs() -> None:
     inventory = collect_dispatch_providers(
         entry_points_fn=_entry_points_fn(
-            _FakeEntryPoint("impostor", _DuplicateAndInvalidSpecProvider())
+            _FakeEntryPoint(
+                "lab",
+                object(),
+                package="Fake.Dispatch_Plugin",
+            ),
+            _FakeEntryPoint("lab", object()),
+            _FakeEntryPoint("BadName", object()),
         )
     )
 
     codes = [diagnostic.code for diagnostic in inventory.diagnostics]
     assert "dispatch_provider_duplicate" in codes
-    assert "dispatch_provider_spec_invalid" in codes
-    # First registration wins: the builtin spec is kept, the impostor dropped.
+    assert "dispatch_provider_ref_invalid" in codes
+    # First registration wins: the builtin spec is kept.
     assert inventory.by_ref()["builtin@https"].builtin is True
 
 
@@ -254,22 +276,67 @@ def test_importing_sase_never_imports_dispatch_providers() -> None:
 
 
 def test_discover_returns_candidates_from_enabled_provider() -> None:
+    lab_ep = _FakeEntryPoint("lab", _FakeProvider())
+    calls: list[str] = []
+
+    def run_provider(
+        provider: Any,
+        operation: str,
+        request: Mapping[str, Any],
+        timeout_seconds: float,
+    ) -> Mapping[str, Any]:
+        del timeout_seconds
+        provider_ref = str(provider.provider_ref)
+        calls.append(provider_ref)
+        assert operation == "discover"
+        assert request["provider_ref"] == LAB_REF
+        return _ok_result(
+            provider_ref,
+            operation,
+            candidates=[
+                {
+                    "endpoint": "https://lab.example.test",
+                    "display_name": "Lab Box",
+                    "machine_selector": "lab",
+                },
+                {
+                    "endpoint": "https://lab.example.test",
+                    "display_name": "Lab Box",
+                    "machine_selector": "lab",
+                },
+                {"display_name": "no endpoint"},
+            ],
+        )
+
     candidates = discover_dispatch_candidates(
         config=_lab_config(enabled=True),
-        entry_points_fn=_entry_points_fn(_FakeEntryPoint("lab", _FakeProvider())),
+        entry_points_fn=_entry_points_fn(lab_ep),
+        operation_runner=run_provider,
     )
 
     assert [candidate.endpoint for candidate in candidates] == [
         "https://lab.example.test"
     ]
-    assert candidates[0].provider_ref == "fake@lab"
+    assert candidates[0].provider_ref == LAB_REF
     assert candidates[0].machine_selector == "lab"
+    assert calls == [LAB_REF]
+    assert lab_ep.load_calls == 0
 
 
 def test_discover_skips_disabled_provider() -> None:
+    def run_provider(
+        provider: Any,
+        operation: str,
+        request: Mapping[str, Any],
+        timeout_seconds: float,
+    ) -> Mapping[str, Any]:
+        del provider, operation, request, timeout_seconds
+        raise AssertionError("disabled provider must not run")
+
     candidates = discover_dispatch_candidates(
         config=_lab_config(enabled=False),
         entry_points_fn=_entry_points_fn(_FakeEntryPoint("lab", _FakeProvider())),
+        operation_runner=run_provider,
     )
 
     assert candidates == ()
@@ -285,6 +352,280 @@ def test_discover_without_selected_providers_does_no_work() -> None:
 
     assert candidates == ()
     assert lab_ep.load_calls == 0
+
+
+def test_discover_failure_isolated_to_selected_provider() -> None:
+    config = load_dispatch_config(
+        {
+            "dispatch": {
+                "providers": {LAB_REF: True, OTHER_REF: True},
+                "discovery": {"enabled_providers": [LAB_REF, OTHER_REF]},
+            }
+        }
+    )
+
+    def run_provider(
+        provider: Any,
+        operation: str,
+        request: Mapping[str, Any],
+        timeout_seconds: float,
+    ) -> Mapping[str, Any]:
+        del request, timeout_seconds
+        provider_ref = str(provider.provider_ref)
+        if provider_ref == LAB_REF:
+            raise _DispatchProviderExecutionError("boom")
+        assert operation == "discover"
+        return _ok_result(
+            provider_ref,
+            operation,
+            candidates=[{"endpoint": "https://other.example.test"}],
+        )
+
+    candidates = discover_dispatch_candidates(
+        config=config,
+        entry_points_fn=_entry_points_fn(
+            _FakeEntryPoint("lab", object()),
+            _FakeEntryPoint("other", object()),
+        ),
+        operation_runner=run_provider,
+    )
+
+    assert [candidate.endpoint for candidate in candidates] == [
+        "https://other.example.test"
+    ]
+
+
+def test_connection_plan_for_third_party_uses_isolated_runner() -> None:
+    machine = MachineRecord(
+        alias="lab",
+        provider_ref=LAB_REF,
+        endpoint="https://lab.example.test",
+        credential_ref="fleet:lab",
+        pinned_installation_id="sase_inst_v1_" + "a" * 64,
+    )
+    lab_ep = _FakeEntryPoint("lab", object())
+
+    def run_provider(
+        provider: Any,
+        operation: str,
+        request: Mapping[str, Any],
+        timeout_seconds: float,
+    ) -> Mapping[str, Any]:
+        del timeout_seconds
+        assert str(provider.provider_ref) == LAB_REF
+        assert operation == "connection_plan"
+        assert request["machine"]["alias"] == "lab"
+        return _ok_result(
+            LAB_REF,
+            operation,
+            plan={
+                "schema_version": 1,
+                "provider_ref": LAB_REF,
+                "endpoint": "https://lab.example.test/tunnel",
+                "credential_ref": "fleet:lab",
+                "pinned_installation_id": "sase_inst_v1_" + "a" * 64,
+                "connection_kind": "gateway",
+                "tls": request["machine"]["tls"],
+            },
+        )
+
+    plan = connection_plan_for_machine(
+        machine,
+        config=_lab_config(enabled=True),
+        entry_points_fn=_entry_points_fn(lab_ep),
+        operation_runner=run_provider,
+    )
+
+    assert plan["endpoint"] == "https://lab.example.test/tunnel"
+    assert lab_ep.load_calls == 0
+
+
+def test_run_dispatch_provider_operation_reports_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[object] = []
+
+    def capture_provider(
+        provider: Any,
+        operation: str,
+        request: Mapping[str, Any],
+        timeout_seconds: float,
+    ) -> Mapping[str, Any]:
+        del operation, request, timeout_seconds
+        captured.append(provider)
+        return _ok_result(str(provider.provider_ref), "discover")
+
+    discover_dispatch_candidates(
+        config=_lab_config(enabled=True),
+        entry_points_fn=_entry_points_fn(_FakeEntryPoint("lab", object())),
+        operation_runner=capture_provider,
+    )
+    provider = captured[0]
+
+    def run_timeout(*args: object, **kwargs: object) -> BoundedCompletedProcess:
+        del args
+        env = kwargs["env"]
+        assert isinstance(env, dict)
+        assert env["SASE_DISPATCH_PROVIDER_SUBPROCESS"] == "1"
+        return BoundedCompletedProcess(
+            returncode=-15,
+            stdout=b"",
+            stderr=b"",
+            duration_seconds=0.01,
+            timed_out=True,
+        )
+
+    monkeypatch.setattr("sase.dispatch.providers.run_bounded_subprocess", run_timeout)
+
+    with pytest.raises(_DispatchProviderExecutionError, match="timed out"):
+        _run_dispatch_provider_operation(
+            provider,
+            "discover",
+            {"config": {}, "provider_ref": LAB_REF},
+            0.01,
+        )
+
+
+def _install_dispatch_site(monkeypatch: pytest.MonkeyPatch, site: Path) -> None:
+    site.mkdir(parents=True)
+    (site / "mixed_case_dispatch.py").write_text(
+        """
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any
+
+from sase.dispatch.providers import hookimpl
+
+CALLS = []
+
+
+class Provider:
+    @hookimpl
+    def dispatch_provider_specs(self) -> tuple[dict[str, object], ...]:
+        return (
+            {
+                "ref": "mixed-case-dispatch@lab",
+                "display_name": "Mixed Lab",
+                "supports_discovery": True,
+            },
+        )
+
+    @hookimpl
+    def dispatch_discover(
+        self,
+        provider_ref: str,
+        config: Mapping[str, Any],
+        timeout_seconds: float,
+    ) -> tuple[dict[str, object], ...]:
+        CALLS.append(("discover", provider_ref, timeout_seconds))
+        return (
+            {
+                "endpoint": config["endpoint"],
+                "machine_selector": provider_ref,
+            },
+        )
+
+    @hookimpl
+    def dispatch_connection_plan(
+        self,
+        provider_ref: str,
+        machine: Mapping[str, Any],
+        config: Mapping[str, Any],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        CALLS.append(("connection_plan", provider_ref, timeout_seconds))
+        return {
+            "schema_version": 1,
+            "provider_ref": provider_ref,
+            "endpoint": str(machine["endpoint"]) + "/" + str(config["suffix"]),
+            "credential_ref": machine["credential_ref"],
+            "pinned_installation_id": machine["pinned_installation_id"],
+            "connection_kind": "gateway",
+            "tls": machine["tls"],
+        }
+""".lstrip(),
+        encoding="utf-8",
+    )
+    dist = site / "Mixed.Case_Dispatch-1.0.0.dist-info"
+    dist.mkdir()
+    dist.joinpath("METADATA").write_text(
+        "Metadata-Version: 2.1\nName: Mixed.Case_Dispatch\nVersion: 1.0.0\n",
+        encoding="utf-8",
+    )
+    dist.joinpath("entry_points.txt").write_text(
+        "[sase_dispatch]\nlab = mixed_case_dispatch:Provider\n",
+        encoding="utf-8",
+    )
+    sys.modules.pop("mixed_case_dispatch", None)
+    monkeypatch.syspath_prepend(str(site))
+    importlib.invalidate_caches()
+
+
+def _run_dispatch_worker(
+    monkeypatch: pytest.MonkeyPatch,
+    provider_ref: str,
+    request: Mapping[str, Any],
+) -> tuple[int, dict[str, Any]]:
+    stdout = io.StringIO()
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(dict(request))))
+    monkeypatch.setattr(sys, "stdout", stdout)
+    returncode = dispatch_worker_main(
+        ["--provider-ref", provider_ref, "--operation", str(request["operation"])]
+    )
+    return returncode, json.loads(stdout.getvalue())
+
+
+def test_dispatch_worker_loads_selected_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_dispatch_site(monkeypatch, tmp_path / "site")
+
+    returncode, payload = _run_dispatch_worker(
+        monkeypatch,
+        "Mixed.Case_Dispatch@lab",
+        {
+            "operation": "discover",
+            "config": {"endpoint": "https://lab.example.test"},
+            "timeout_seconds": 2,
+        },
+    )
+
+    assert returncode == 0
+    assert payload["provider_ref"] == MIXED_REF
+    assert payload["candidates"] == [
+        {
+            "endpoint": "https://lab.example.test",
+            "machine_selector": MIXED_REF,
+        }
+    ]
+
+
+def test_dispatch_worker_runs_connection_plan_hook(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_dispatch_site(monkeypatch, tmp_path / "site")
+
+    returncode, payload = _run_dispatch_worker(
+        monkeypatch,
+        MIXED_REF,
+        {
+            "operation": "connection_plan",
+            "config": {"suffix": "provider"},
+            "machine": {
+                "endpoint": "https://lab.example.test",
+                "credential_ref": "fleet:lab",
+                "pinned_installation_id": "sase_inst_v1_" + "a" * 64,
+                "tls": {"schema_version": 1, "mode": "system_roots"},
+            },
+            "timeout_seconds": 2,
+        },
+    )
+
+    assert returncode == 0
+    assert payload["plan"]["endpoint"] == "https://lab.example.test/provider"
 
 
 def _credential(

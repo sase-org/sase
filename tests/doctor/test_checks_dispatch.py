@@ -63,7 +63,7 @@ def test_dispatch_credentials_reports_missing_local_ref(
     )
     monkeypatch.setattr(
         "sase.doctor.checks_dispatch.validate_connection_plan",
-        lambda record: (),
+        lambda record, **kwargs: (),
     )
 
     check = _run_dispatch_check("dispatch.credentials")
@@ -102,7 +102,7 @@ def test_dispatch_config_reports_provider_not_installed(
     )
     monkeypatch.setattr(
         "sase.doctor.checks_dispatch.validate_connection_plan",
-        lambda record: (),
+        lambda record, **kwargs: (),
     )
 
     check = _run_dispatch_check("dispatch.config")
@@ -136,7 +136,7 @@ def test_dispatch_config_reports_disabled_provider(
     )
     monkeypatch.setattr(
         "sase.doctor.checks_dispatch.validate_connection_plan",
-        lambda record: (),
+        lambda record, **kwargs: (),
     )
 
     check = _run_dispatch_check("dispatch.config")

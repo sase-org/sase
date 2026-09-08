@@ -107,7 +107,7 @@ class MachineService:
             credential_ref=credential_ref,
             pinned_installation_id=bundle.pinned_installation_id,
         )
-        diagnostics = validate_connection_plan(record)
+        diagnostics = validate_connection_plan(record, config=config)
         errors = [item.message for item in diagnostics if item.severity == "error"]
         if errors:
             raise MachineRegistryError(errors[0])
@@ -191,7 +191,7 @@ class MachineService:
             quarantined=False,
             quarantine_reason="",
         )
-        diagnostics = validate_connection_plan(repaired)
+        diagnostics = validate_connection_plan(repaired, config=config)
         errors = [item.message for item in diagnostics if item.severity == "error"]
         if errors:
             raise MachineRegistryError(errors[0])
