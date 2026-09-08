@@ -33,6 +33,10 @@ def test_notification_modal_binds_lowercase_m_to_toggle_mark() -> None:
     assert ("m", "toggle_mark", "Mark") in NotificationModal.BINDINGS
 
 
+def test_notification_modal_binds_plus_to_cycle_plus_ones() -> None:
+    assert ("plus", "cycle_plus_ones", "+1") in NotificationModal.BINDINGS
+
+
 def test_notification_modal_binds_brackets_to_tag_tabs() -> None:
     """Square brackets switch notification tag tabs."""
     assert (
@@ -50,6 +54,9 @@ def test_notification_modal_binds_brackets_to_tag_tabs() -> None:
 def test_notification_modal_footer_hint_advertises_tag_tab_brackets() -> None:
     """The default footer exposes square-bracket tag navigation."""
     assert "[]: tags" in DEFAULT_HINT_TEXT
+    assert "+: +1" in DEFAULT_HINT_TEXT
+    assert "+: +1" in QUESTION_HINT_TEXT
+    assert "+: +1" in GATE_HINT_TEXT
     assert "V: view" in DEFAULT_HINT_TEXT
     assert Content.from_markup(DEFAULT_HINT_TEXT).plain == DEFAULT_HINT_TEXT
 

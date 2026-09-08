@@ -7,7 +7,7 @@ from typing import Any
 
 from sase.core.patch_metadata import canonicalize_patch_metadata
 from sase.core.wire import known_field_kwargs
-from sase.notifications.models import Notification
+from sase.notifications.models import Notification, NotificationPlusOne
 
 NOTIFICATION_STORE_WIRE_SCHEMA_VERSION = 1
 
@@ -109,7 +109,14 @@ def notification_store_wire_to_json_dict(record: Any) -> Any:
     if isinstance(record, dict):
         return {k: notification_store_wire_to_json_dict(v) for k, v in record.items()}
     if isinstance(record, Notification):
-        return asdict(record)
+        notification_payload = asdict(record)
+        if not notification_payload.get("plus_ones"):
+            notification_payload.pop("plus_ones", None)
+        if not notification_payload.get("plus_ones_dropped"):
+            notification_payload.pop("plus_ones_dropped", None)
+        if notification_payload.get("dedup_key") is None:
+            notification_payload.pop("dedup_key", None)
+        return notification_payload
     if isinstance(record, NotificationStateUpdateWire):
         payload: dict[str, Any] = {"kind": record.kind}
         for key in (
@@ -132,9 +139,23 @@ def notification_store_wire_to_json_dict(record: Any) -> Any:
     return record
 
 
+def _plus_one_from_dict(data: dict[str, Any]) -> NotificationPlusOne:
+    return NotificationPlusOne(
+        timestamp=str(data.get("timestamp") or ""),
+        sender=str(data.get("sender") or ""),
+        note=str(data.get("note") or ""),
+    )
+
+
 def _notification_from_dict(data: dict[str, Any]) -> Notification:
     action_data = {str(k): str(v) for k, v in (data.get("action_data") or {}).items()}
     canonicalize_patch_metadata(action_data)
+    plus_ones = [
+        _plus_one_from_dict(item)
+        for item in data.get("plus_ones") or []
+        if isinstance(item, dict)
+    ]
+    dropped = data.get("plus_ones_dropped") or 0
     return Notification(
         id=str(data["id"]),
         timestamp=str(data["timestamp"]),
@@ -156,6 +177,9 @@ def _notification_from_dict(data: dict[str, Any]) -> Notification:
         resurfaced_at=(
             None if data.get("resurfaced_at") is None else str(data["resurfaced_at"])
         ),
+        plus_ones=plus_ones,
+        plus_ones_dropped=int(dropped),
+        dedup_key=(None if data.get("dedup_key") is None else str(data["dedup_key"])),
     )
 
 

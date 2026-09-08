@@ -18,6 +18,10 @@ class TestNotificationModel:
         assert n.action_data == {}
         assert n.read is False
         assert n.dismissed is False
+        assert n.plus_ones == []
+        assert n.plus_ones_dropped == 0
+        assert n.dedup_key is None
+        assert n.plus_one_count == 0
 
     def test_all_fields(self) -> None:
         n = Notification(

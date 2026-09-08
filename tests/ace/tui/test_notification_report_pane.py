@@ -14,7 +14,7 @@ from sase.ace.tui.actions.agents._notification_handlers import handle_view_repor
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.modals.notification_modal_report import NotificationReportMixin
 from sase.ace.tui.modals.report_modal import ReportModal
-from sase.notifications import Notification
+from sase.notifications import Notification, NotificationPlusOne
 
 
 class _ReportPane(NotificationReportMixin):
@@ -148,6 +148,32 @@ def test_report_pane_lists_attachments_only_when_present() -> None:
     assert with_files is not None
     assert "attachments:" not in _render_plain(without_files[1])
     assert "attachments: audit.json, details.txt" in _render_plain(with_files[1])
+
+
+def test_report_pane_appends_plus_one_count_to_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.notification_modal_report.format_relative_time",
+        lambda _timestamp: "2m ago",
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.notification_modal_plus_ones.format_relative_time",
+        lambda _timestamp: "1m ago",
+    )
+    notification = _notification(action_data={"report": json.dumps(_document())})
+    notification.plus_ones = [
+        NotificationPlusOne(
+            timestamp="2026-07-29T10:15:00-04:00",
+            sender="ci_watch",
+            note="sase-org/sase recovered",
+        )
+    ]
+
+    pane = _ReportPane()._render_report_pane(notification)
+
+    assert pane is not None
+    assert "· +1 (latest 1m ago)" in _render_plain(pane[1])
 
 
 def test_display_file_dispatches_report_before_empty_attachment_state() -> None:

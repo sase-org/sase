@@ -47,6 +47,18 @@ class NotificationAttachmentMixin:
             content_widget.update(Group(*cleanup, "") if cleanup else "")
             return
 
+        plus_one_pane = self._render_plus_one_pane(notification)
+        if plus_one_pane is not None:
+            pane_title, pane_content = plus_one_pane
+            self._set_image_preview_mode(False)
+            title.update(self._detail_title(notification, pane_title))
+            cleanup = self._consume_image_cleanup_segments()
+            content_widget.update(
+                Group(*cleanup, pane_content) if cleanup else pane_content
+            )
+            self._reset_file_scroll()
+            return
+
         question_pane = self._render_question_pane(notification)
         if question_pane is not None:
             pane_title, pane_content = question_pane

@@ -29,6 +29,7 @@ from sase.notifications import Notification, format_relative_until
 from .gate_input_panel_model import option_input_count_label
 from .gate_primary_footer import primary_action_badge_for_label
 from .notification_modal_constants import ACTION_BADGES
+from .notification_modal_plus_ones import plus_one_evidence_renderables
 from .notification_modal_palette import (
     PANE_ACCENT,
     PANE_ANSWERED,
@@ -245,6 +246,7 @@ def _context_group(notification: Notification) -> list[RenderableType]:
                 f"#{shorten_notification_tag(tag)}", style=f"{PANE_MUTED} {PANE_KEY}"
             )
         parts.append(tag_line)
+    parts.extend(plus_one_evidence_renderables(notification))
     return parts
 
 

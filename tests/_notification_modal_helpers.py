@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 from textual.app import App, ComposeResult
 
 from sase.ace.tui.modals.notification_modal import NotificationModal
-from sase.notifications import Notification
+from sase.notifications import Notification, NotificationPlusOne
 
 
 def _make_notification(
@@ -16,6 +16,8 @@ def _make_notification(
     *,
     tags: list[str] | None = None,
     action_data: dict[str, str] | None = None,
+    plus_ones: list[NotificationPlusOne] | None = None,
+    plus_ones_dropped: int = 0,
 ) -> Notification:
     """Create a minimal notification object for modal tests."""
     return Notification(
@@ -25,6 +27,8 @@ def _make_notification(
         action=action,
         tags=list(tags or []),
         action_data=dict(action_data or {}),
+        plus_ones=list(plus_ones or []),
+        plus_ones_dropped=plus_ones_dropped,
     )
 
 

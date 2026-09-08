@@ -7,14 +7,16 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.modals.report_modal import ReportModal
-from sase.notifications import Notification, NotificationReport
+from sase.notifications import Notification, NotificationPlusOne, NotificationReport
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    assert_page_svg_styled_text_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -149,6 +151,14 @@ def _freeze_report_ages(monkeypatch: pytest.MonkeyPatch) -> None:
         "sase.ace.tui.modals.notification_modal_sent_at.format_relative_time",
         lambda _timestamp: "2m ago",
     )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.notification_modal_plus_ones.format_relative_time",
+        lambda _timestamp: "2m ago",
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.notification_modal_plus_ones.format_absolute_time",
+        lambda _timestamp, now=None: "today 10:14:00",
+    )
 
 
 def _resolved_report() -> NotificationReport:
@@ -221,4 +231,103 @@ async def test_notification_report_modal_png_snapshot(
             page,
             "notification_report_modal_120x40",
             title="ACE full release report",
+        )
+
+
+def _plus_one_entries() -> list[NotificationPlusOne]:
+    return [
+        NotificationPlusOne(
+            timestamp="2026-07-29T10:10:00-04:00",
+            sender="ci_watch",
+            note="sase-org/sase-core recovered",
+        ),
+        NotificationPlusOne(
+            timestamp="2026-07-29T10:12:00-04:00",
+            sender="ci_watch",
+            note="sase-org/sase: evidence changed (Master Gate › test (3))",
+        ),
+        NotificationPlusOne(
+            timestamp="2026-07-29T10:14:00-04:00",
+            sender="ci_watch",
+            note="sase-org/sase-github re-failed",
+        ),
+    ]
+
+
+def _plus_one_list_notification() -> Notification:
+    return Notification(
+        id="visual-plus-one-row",
+        timestamp="2026-07-29T10:14:17-04:00",
+        sender="ci",
+        icon="🚨",
+        notes=["CI red"],
+        plus_ones=_plus_one_entries(),
+    )
+
+
+def _plus_one_report_notification() -> Notification:
+    notification = _notification()
+    notification.plus_ones = _plus_one_entries()
+    return notification
+
+
+async def test_notification_plus_one_badge_row_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    notification = _plus_one_list_notification()
+    patch_startup_loaders(monkeypatch, agents=[])
+    _freeze_report_ages(monkeypatch)
+
+    async with AcePage(
+        query='"visual"',
+        size=(120, 40),
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(NotificationModal([notification]))
+        await page.expect_modal("NotificationModal")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_styled_text_contains(page, "[+3]")
+        assert_page_svg_contains(page, "+1 EVIDENCE")
+        assert_page_svg_contains(page, "sase-org/sase-github re-failed")
+        ace_png_visual.assert_page_png(
+            page,
+            "notification_plus_one_badge_120x40",
+            title="ACE notification list row +1 badge and evidence",
+        )
+
+
+async def test_notification_plus_one_pane_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    notification = _plus_one_report_notification()
+    patch_startup_loaders(monkeypatch, agents=[])
+    _freeze_report_ages(monkeypatch)
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.notification_modal_report.load_notification_report",
+        lambda _notification: _resolved_report(),
+    )
+
+    async with AcePage(
+        query='"visual"',
+        size=(120, 40),
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(NotificationModal([notification]))
+        await page.expect_modal("NotificationModal")
+        await wait_for_visual_idle(page)
+        await page.press("plus")
+        await wait_for_svg_contains(page, "+1 1/3")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "+1 1/3 · ci_watch · today 10:14:00")
+        assert_page_svg_contains(page, "sase-org/sase-github re-failed")
+        ace_png_visual.assert_page_png(
+            page,
+            "notification_plus_one_pane_120x40",
+            title="ACE notification +1 iteration pane",
         )

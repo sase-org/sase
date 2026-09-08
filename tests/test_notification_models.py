@@ -7,6 +7,7 @@ from inline_snapshot import snapshot
 
 from sase.notifications.models import (
     Notification,
+    NotificationPlusOne,
     format_relative_time,
     format_relative_until,
     notification_activity_at,
@@ -29,6 +30,26 @@ class TestNotificationDataclass:
         assert n.muted is False
         assert n.snooze_until is None
         assert n.resurfaced_at is None
+        assert n.plus_ones == []
+        assert n.plus_ones_dropped == 0
+        assert n.dedup_key is None
+        assert n.plus_one_count == 0
+
+    def test_plus_one_count_includes_dropped_overflow(self) -> None:
+        n = Notification(
+            id="abc",
+            timestamp="2025-01-01T00:00:00",
+            sender="crs",
+            plus_ones=[
+                NotificationPlusOne(
+                    timestamp="2025-01-01T01:00:00+00:00",
+                    sender="ci_watch",
+                    note="fingerprint changed",
+                )
+            ],
+            plus_ones_dropped=2,
+        )
+        assert n.plus_one_count == 3
 
     def test_activity_cursor_prefers_resurface_time_and_breaks_ties_by_id(
         self,

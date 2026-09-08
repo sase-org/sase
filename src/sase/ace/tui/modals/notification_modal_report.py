@@ -17,6 +17,8 @@ from sase.notifications import (
     load_notification_report,
 )
 
+from .notification_modal_plus_ones import plus_one_report_suffix
+
 _DEFAULT_REPORT_WIDTH = 72
 
 
@@ -60,6 +62,8 @@ class NotificationReportMixin:
                 f"snapshot · captured {age}",
                 style=TONE_STYLES["muted"],
             )
+        if suffix := plus_one_report_suffix(notification):
+            provenance.append_text(suffix)
 
         renderables = [
             provenance,

@@ -34,6 +34,7 @@ from .notification_modal_attachments import NotificationAttachmentMixin
 from .notification_modal_constants import DEFAULT_HINT_TEXT, HEADER_ID_PREFIX
 from .notification_modal_gate import NotificationGateMixin, NotificationSummaryMixin
 from .notification_modal_options import NotificationOptionMixin
+from .notification_modal_plus_ones import NotificationPlusOneMixin
 from .notification_modal_question import NotificationQuestionMixin
 from .notification_modal_report import NotificationReportMixin
 from .notification_section_modes import NotificationSectionModes
@@ -54,6 +55,7 @@ from ..widgets.notification_tab_style import notification_tab_config_key_for_tag
 class NotificationModal(
     NotificationQuestionMixin,
     NotificationReportMixin,
+    NotificationPlusOneMixin,
     NotificationGateMixin,
     NotificationSummaryMixin,
     NotificationAttachmentMixin,
@@ -90,6 +92,7 @@ class NotificationModal(
         ("m", "toggle_mark", "Mark"),
         ("s", "snooze", "Snooze"),
         ("apostrophe", "jump_to_entry", "Jump"),
+        ("plus", "cycle_plus_ones", "+1"),
         ("ctrl+d", "scroll_file_down", "Scroll down"),
         ("ctrl+u", "scroll_file_up", "Scroll up"),
         ("g", "scroll_file_top", "Top"),
@@ -124,6 +127,7 @@ class NotificationModal(
         self._gate_summary_cache: dict[str, tuple[tuple[int, ...], GateSummary]] = {}
         self._gate_summary_debouncer: DetailPanelDebouncer | None = None
         self._snooze_status_timer: Any | None = None
+        self._plus_one_cursor: int | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -233,6 +237,7 @@ class NotificationModal(
     ) -> None:
         """Update the right pane when a different notification is highlighted."""
         self._current_file_index = 0
+        self._reset_plus_one_pane()
         if (
             event.option
             and event.option.id is not None
@@ -474,6 +479,7 @@ class NotificationModal(
         self._marked_notification_ids.clear()
         self._pending_confirm_notification_id = None
         self._pending_confirm_notification_ids = None
+        self._reset_plus_one_pane()
 
     def _visible_notification_index_for_id(
         self, notification_id: str | None
@@ -608,6 +614,7 @@ class NotificationModal(
                 option_list.highlighted = row
 
         self._current_file_index = 0
+        self._reset_plus_one_pane()
         notification = self._get_highlighted_notification()
         self._display_file(notification)
 

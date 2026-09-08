@@ -8,6 +8,7 @@ from sase.notifications.catalog import (
 )
 from sase.notifications.models import (
     Notification,
+    NotificationPlusOne,
     format_absolute_time,
     format_relative_time,
     format_relative_until,
@@ -70,6 +71,7 @@ from sase.notifications.store import (
 
 __all__ = [
     "Notification",
+    "NotificationPlusOne",
     "NotificationInfo",
     "NotificationReport",
     "REPORT_ACTION",

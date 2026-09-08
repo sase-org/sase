@@ -6,6 +6,19 @@ from datetime import UTC, datetime
 
 
 @dataclass
+class NotificationPlusOne:
+    """One append-only corroboration entry on a notification row.
+
+    Unlike bead +1 evidence, the same sender may appear repeatedly: a
+    notification +1 is a new occurrence in time, not one-per-reporter.
+    """
+
+    timestamp: str
+    sender: str
+    note: str
+
+
+@dataclass
 class Notification:
     """A single notification entry."""
 
@@ -26,6 +39,14 @@ class Notification:
     muted: bool = False
     snooze_until: str | None = None  # ISO-8601 with timezone, or None
     resurfaced_at: str | None = None  # Durable activity time after snooze expiry
+    plus_ones: list[NotificationPlusOne] = field(default_factory=list)
+    plus_ones_dropped: int = 0
+    dedup_key: str | None = None
+
+    @property
+    def plus_one_count(self) -> int:
+        """Displayed +1 count: stored entries plus any overflow drops."""
+        return len(self.plus_ones) + int(self.plus_ones_dropped)
 
 
 def notification_activity_at(notification: Notification) -> str:

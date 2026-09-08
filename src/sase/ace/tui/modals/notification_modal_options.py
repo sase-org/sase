@@ -10,6 +10,7 @@ from textual.widgets import Label
 from textual.widgets.option_list import Option
 
 from sase.ace.tui.actions.navigation.jump_hints import normalize_jump_key
+from sase.bead.plus_one_presentation import PLUS_ONE_RICH_STYLE, plus_one_badge
 from sase.notification_gates import PRIVILEGED_GATE_ACTIONS
 from sase.notification_gates.presentation import gate_chip_from_action_data
 from sase.notifications import (
@@ -110,6 +111,9 @@ class NotificationOptionMixin(KeyedPaneEntryJumpMixin[int]):
             text.append(note, style=body_style)
         else:
             text.append("(no message)", style="dim italic")
+
+        if badge := plus_one_badge(notification.plus_one_count):
+            text.append(f"  [{badge}]", style=PLUS_ONE_RICH_STYLE)
 
         text.append(f"  {format_relative_time(notification.timestamp)}", style="dim")
 
@@ -291,6 +295,12 @@ class NotificationOptionMixin(KeyedPaneEntryJumpMixin[int]):
             if self.handle_jump_key(key):
                 event.prevent_default()
                 event.stop()
+            return
+
+        if event.key in {"plus"} or event.character == "+":
+            self.action_cycle_plus_ones()
+            event.prevent_default()
+            event.stop()
             return
 
         if event.key in {"G", "shift+g"} or event.character == "G":
