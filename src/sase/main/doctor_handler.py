@@ -18,6 +18,12 @@ from sase.diagnostics import (
     diagnostic_report_to_json,
     render_diagnostic_report,
 )
+from sase.doctor.checks_artifact_links import (
+    PrimarySidecarLinkDirt,
+    PrimarySidecarLinkDirtRepairResult,
+    apply_primary_sidecar_link_dirt_repairs,
+    plan_primary_sidecar_link_dirt_repairs,
+)
 from sase.doctor.runner import build_doctor_registry, default_doctor_context, run_doctor
 
 
@@ -70,11 +76,11 @@ def handle_doctor_command(args: argparse.Namespace) -> int:
         )
 
     exit_code = report.exit_code()
+    assume_yes = bool(getattr(args, "yes", False))
     if getattr(args, "fix_duplicate_blocks", False):
-        _handle_duplicate_block_repairs(
-            context,
-            assume_yes=bool(getattr(args, "yes", False)),
-        )
+        _handle_duplicate_block_repairs(context, assume_yes=assume_yes)
+    if getattr(args, "fix_primary_sidecar_links", False):
+        _handle_primary_sidecar_link_dirt_repairs(context, assume_yes=assume_yes)
     return exit_code
 
 
@@ -247,6 +253,85 @@ def _preview_reclaimable_bytes(preview: DuplicateBlockPreview) -> int:
     return (
         preview.active_scan.reclaimable_bytes + preview.archive_scan.reclaimable_bytes
     )
+
+
+def _handle_primary_sidecar_link_dirt_repairs(
+    context: Any, *, assume_yes: bool
+) -> None:
+    try:
+        dirt = plan_primary_sidecar_link_dirt_repairs(context)
+    except OSError as exc:
+        print(
+            "Primary sidecar link-index restore preview failed: "
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        return
+
+    if not dirt:
+        print("Primary sidecar link-index restore: nothing to repair.")
+        return
+
+    _render_primary_sidecar_link_dirt_preview(dirt)
+    if not (assume_yes or _confirm_primary_sidecar_link_dirt_repairs(len(dirt))):
+        print("Primary sidecar link-index restore cancelled; no changes applied.")
+        return
+
+    results = apply_primary_sidecar_link_dirt_repairs(dirt)
+    _render_primary_sidecar_link_dirt_results(results)
+
+
+def _render_primary_sidecar_link_dirt_preview(
+    dirt: tuple[PrimarySidecarLinkDirt, ...],
+) -> None:
+    print("Primary sidecar link-index restore preview:")
+    grouped: dict[str, list[PrimarySidecarLinkDirt]] = {}
+    for entry in dirt:
+        grouped.setdefault(entry.role, []).append(entry)
+    for role, entries in grouped.items():
+        clone = entries[0].clone
+        print(f"  {role}: {len(entries)} deletion(s) at {clone}")
+        for entry in entries[:10]:
+            print(f"    {entry.path}")
+        remaining = len(entries) - 10
+        if remaining > 0:
+            print(f"    ... {remaining} more")
+
+
+def _confirm_primary_sidecar_link_dirt_repairs(deletions: int) -> bool:
+    if not sys.stdin.isatty():
+        return False
+    try:
+        answer = input(
+            f"Restore {deletions} stranded link-index deletion"
+            f"{'' if deletions == 1 else 's'} in primary sidecar clones? [y/N] "
+        )
+    except EOFError:
+        return False
+    return answer.strip().lower() in {"y", "yes"}
+
+
+def _render_primary_sidecar_link_dirt_results(
+    results: tuple[PrimarySidecarLinkDirtRepairResult, ...],
+) -> None:
+    print("Primary sidecar link-index restore results:")
+    restored = 0
+    failures = 0
+    for result in results:
+        if result.error:
+            failures += 1
+            print(f"  ERROR: {result.role}: {result.error}")
+            continue
+        restored += len(result.restored)
+        print(
+            f"  {result.role}: restored {len(result.restored)} path(s) at "
+            f"{result.clone}"
+        )
+    print(
+        f"Total: restored {restored} path(s)"
+        + (f"; {failures} clone(s) failed" if failures else "")
+    )
+    print("Rerun `sase doctor -C project.primary_sidecar_link_dirt` to confirm.")
 
 
 __all__ = ["handle_doctor_command"]

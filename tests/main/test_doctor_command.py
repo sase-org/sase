@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 
 from sase.diagnostics import (
     CheckSpec,
     DiagnosticCheck,
     DiagnosticRegistry,
     DiagnosticReport,
+)
+from sase.doctor.checks_artifact_links import (
+    PrimarySidecarLinkDirt,
+    PrimarySidecarLinkDirtRepairResult,
 )
 from sase.doctor.runner import DoctorContext, build_doctor_registry
 from sase.main import doctor_handler
@@ -48,6 +53,7 @@ def test_parser_accepts_doctor_flags_and_help_is_sorted() -> None:
             "-s",
             "-L",
             "-F",
+            "-R",
             "-C",
             "runtime",
             "-C",
@@ -65,6 +71,7 @@ def test_parser_accepts_doctor_flags_and_help_is_sorted() -> None:
     assert args.strict is True
     assert args.list_checks is True
     assert args.fix_duplicate_blocks is True
+    assert args.fix_primary_sidecar_links is True
     assert args.check == ["runtime", "config.sdd"]
     assert args.project == "sase"
     assert args.yes is True
@@ -83,6 +90,7 @@ def test_parser_accepts_doctor_flags_and_help_is_sorted() -> None:
     assert "-v, --verbose" in help_text
     assert "-D, --deep" in help_text
     assert "-F, --fix-duplicate-blocks" in help_text
+    assert "-R, --fix-primary-sidecar-links" in help_text
     assert "-s, --strict" in help_text
     assert "-L, --list-checks" in help_text
     assert "-C, --check ID_OR_GROUP" in help_text
@@ -90,6 +98,7 @@ def test_parser_accepts_doctor_flags_and_help_is_sorted() -> None:
     assert "-y, --yes" in help_text
     assert "sase doctor -D -j" in help_text
     assert "sase doctor -F" in help_text
+    assert "sase doctor -R" in help_text
     assert "OK, WARN, and SKIP exit 0" in help_text
 
 
@@ -226,6 +235,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "project.beads",
         "project.referenced_by_index",
         "project.artifact_links_aggregate",
+        "project.primary_sidecar_link_dirt",
         "completion.install",
         "flags.registry",
         "flags.overrides",
@@ -285,3 +295,47 @@ def test_doctor_mixed_unknown_and_deep_only_selection_reports_both(capsys) -> No
     assert "unknown diagnostic check or group: bogus.check" in err
     assert "tools.optional selects deep checks only" in err
     assert "-D/--deep" in err
+
+
+def test_doctor_fix_primary_sidecar_links_restores_with_yes(
+    monkeypatch, capsys, tmp_path: Path
+) -> None:
+    clone = tmp_path / "research"
+    dirt = (
+        PrimarySidecarLinkDirt(
+            role="research",
+            clone=clone,
+            path="links/202609/example.md.json",
+            xy=" D",
+            restorable=True,
+        ),
+    )
+    monkeypatch.setattr(
+        doctor_handler, "run_doctor", lambda **_kwargs: _report("ERROR")
+    )
+    monkeypatch.setattr(
+        doctor_handler,
+        "plan_primary_sidecar_link_dirt_repairs",
+        lambda _context: dirt,
+    )
+    monkeypatch.setattr(
+        doctor_handler,
+        "apply_primary_sidecar_link_dirt_repairs",
+        lambda _dirt: (
+            PrimarySidecarLinkDirtRepairResult(
+                role="research",
+                clone=clone,
+                restored=("links/202609/example.md.json",),
+            ),
+        ),
+    )
+    args = create_parser().parse_args(["doctor", "-R", "-y"])
+
+    exit_code = doctor_handler.handle_doctor_command(args)
+    out = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "Primary sidecar link-index restore preview:" in out
+    assert "links/202609/example.md.json" in out
+    assert "restored 1 path(s)" in out
+    assert "project.primary_sidecar_link_dirt" in out

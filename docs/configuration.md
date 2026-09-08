@@ -5056,24 +5056,27 @@ provider setup, project/workspace state, bead store, agent index, and telemetry 
 configured. Default mode is bounded and safe to run before asking for help; deep mode
 adds slower read-only checks.
 
-| Flag                  | Values   | Default | Description                                                             |
-| --------------------- | -------- | ------- | ----------------------------------------------------------------------- |
-| `-j`, `--json`        | flag     | -       | Emit the `schema_version: 1` JSON support report.                       |
-| `-v`, `--verbose`     | flag     | -       | Show every check plus bounded details in human output.                  |
-| `-D`, `--deep`        | flag     | -       | Include slower read-only deep checks.                                   |
-| `-s`, `--strict`      | flag     | -       | Exit non-zero for warnings as well as errors.                           |
-| `-L`, `--list-checks` | flag     | -       | List registered default and deep check ids without running them.        |
-| `-C`, `--check`       | id/group | repeat  | Run only the selected check id or group; may be passed multiple times.  |
-| `-p`, `--project`     | string   | infer   | Inspect a named project when doctor cannot infer one from the checkout. |
+| Flag                                | Values   | Default | Description                                                                                                |
+| ----------------------------------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------- |
+| `-j`, `--json`                      | flag     | -       | Emit the `schema_version: 1` JSON support report.                                                          |
+| `-v`, `--verbose`                   | flag     | -       | Show every check plus bounded details in human output.                                                     |
+| `-D`, `--deep`                      | flag     | -       | Include slower read-only deep checks.                                                                      |
+| `-s`, `--strict`                    | flag     | -       | Exit non-zero for warnings as well as errors.                                                              |
+| `-L`, `--list-checks`               | flag     | -       | List registered default and deep check ids without running them.                                           |
+| `-C`, `--check`                     | id/group | repeat  | Run only the selected check id or group; may be passed multiple times.                                     |
+| `-F`, `--fix-duplicate-blocks`      | flag     | -       | Preview and, after confirmation or `-y`, keep one block per Patch name in every ProjectSpec.               |
+| `-R`, `--fix-primary-sidecar-links` | flag     | -       | Preview and, after confirmation or `-y`, restore stranded link-index deletions in primary-nested sidecars. |
+| `-p`, `--project`                   | string   | infer   | Inspect a named project when doctor cannot infer one from the checkout.                                    |
+| `-y`, `--yes`                       | flag     | -       | Apply requested repairs without an interactive confirmation.                                               |
 
 Use `sase doctor -L` to list targeted check IDs. Useful focused checks include
 `runtime`, `llm.default`, `plugins.required`, `plugins.resources`, `beads.task_types`,
-`project.junk_directories`, `workspace.missing_checkouts`,
-`workspace.occupancy_conflicts`, and `config.model_xprompts`. The two inventory checks
-report telemetry-only directories without ProjectSpecs and registered workspace paths
-missing from disk; both are read-only and provide cleanup/repair guidance.
-`workspace.occupancy_conflicts` reports RUNNING-field and occupant-record collisions and
-never auto-repairs.
+`project.junk_directories`, `project.primary_sidecar_link_dirt`,
+`workspace.missing_checkouts`, `workspace.occupancy_conflicts`, and
+`config.model_xprompts`. The two inventory checks report telemetry-only directories
+without ProjectSpecs and registered workspace paths missing from disk; both are
+read-only and provide cleanup/repair guidance. `workspace.occupancy_conflicts` reports
+RUNNING-field and occupant-record collisions and never auto-repairs.
 
 Default exit behavior is `0` for `OK`, `WARN`, and `SKIP`, and `1` for `ERROR`. Attach
 `sase doctor -v` or `sase doctor -j` when asking for help.

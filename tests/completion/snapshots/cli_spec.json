@@ -9210,7 +9210,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "a7ac629c87f6e6fb",
+        "description_digest": "aa594e274e6418b5",
         "hidden": false,
         "mutex_groups": [],
         "name": "doctor",
@@ -9260,6 +9260,18 @@
             "strings": [
               "-F",
               "--fix-duplicate-blocks"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "fix_primary_sidecar_links",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-R",
+              "--fix-primary-sidecar-links"
             ],
             "takes_value": false
           },

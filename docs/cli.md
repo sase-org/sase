@@ -442,7 +442,7 @@ surface can support plain git, GitHub pull requests, and other provider plugins.
 
 | Command                                 | Purpose                                                                                                                                                                                                                                                                                                                                                           | Details                                                                                                                          |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `sase doctor`                           | Run read-only install, config, provider, project, and state diagnostics for support. `-F` previews and applies the opt-in ProjectSpec duplicate-block repair after confirmation.                                                                                                                                                                                  | [Doctor support reports](#doctor-support-reports)                                                                                |
+| `sase doctor`                           | Run read-only install, config, provider, project, and state diagnostics for support. `-F` previews and applies the opt-in ProjectSpec duplicate-block repair after confirmation. `-R` restores stranded link-index deletions in primary-nested sidecar clones rather than committing them.                                                                        | [Doctor support reports](#doctor-support-reports)                                                                                |
 | `sase config layers`                    | Show the configuration merge chain.                                                                                                                                                                                                                                                                                                                               | [Configuration](configuration.md)                                                                                                |
 | `sase config init`                      | Write or refresh owner identity in the user config.                                                                                                                                                                                                                                                                                                               | [Initialization](init.md)                                                                                                        |
 | `sase config show`                      | Dump the final merged configuration, optionally filtered by key.                                                                                                                                                                                                                                                                                                  | [Configuration](configuration.md)                                                                                                |
@@ -558,6 +558,7 @@ sase doctor -C runtime      # run one group
 sase doctor -C llm.default  # run one check
 sase doctor -C project.junk_directories -C workspace.missing_checkouts
 sase doctor -F              # preview and confirm ProjectSpec duplicate-block repair
+sase doctor -R              # preview and confirm restore of stranded primary sidecar link-index deletions
 ```
 
 Exit codes are designed for support-first use. `OK`, `WARN`, and all-skipped reports
@@ -580,14 +581,20 @@ canonical ProjectSpec and gives a manual-review cleanup hint.
 `project.duplicate_patch_blocks` reports duplicate raw Patch blocks in active and
 archive ProjectSpec files. `sase doctor -F` / `--fix-duplicate-blocks` previews that
 repair and, after confirmation or `-y` / `--yes`, keeps the newest block per Patch name
-without changing the default read-only doctor behavior. `workspace.missing_checkouts`
-scans enabled and disabled projects through the shared inventory, lists registered
-checkout paths missing from disk, and suggests a per-project `sase workspace repair -n`
-preview. `workspace.occupancy_conflicts` reads every project's RUNNING field and each
-checkout's occupant record, then reports duplicate workspace-number claims, a live claim
-whose occupant names a different live pid, and occupant records with no matching claim.
-Conflicts include the last workspace-claim ledger mutation and caller tag when one
-exists; the check never auto-repairs. Default doctor checks do not mutate state.
+without changing the default read-only doctor behavior.
+`project.primary_sidecar_link_dirt` flags uncommitted `links/` dirt in sidecar clones
+nested under a project's primary checkout, which blocks pull-based sidecar auto-sync.
+`sase doctor -R` / `--fix-primary-sidecar-links` restores stranded canonical link-index
+deletions (`git restore`) as a user-origin action; it does not commit them, because
+durable deletions must land via the machine write lane and reach the primary through
+auto-sync. `workspace.missing_checkouts` scans enabled and disabled projects through the
+shared inventory, lists registered checkout paths missing from disk, and suggests a
+per-project `sase workspace repair -n` preview. `workspace.occupancy_conflicts` reads
+every project's RUNNING field and each checkout's occupant record, then reports
+duplicate workspace-number claims, a live claim whose occupant names a different live
+pid, and occupant records with no matching claim. Conflicts include the last
+workspace-claim ledger mutation and caller tag when one exists; the check never
+auto-repairs. Default doctor checks do not mutate state.
 
 When asking for help, attach `sase doctor -v` for a readable report or `sase doctor -j`
 for a machine-readable report.

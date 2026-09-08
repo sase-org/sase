@@ -35,7 +35,8 @@ def register_doctor_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase doctor -D -j\n"
             "  sase doctor -C runtime\n"
             "  sase doctor -C llm.default -s\n"
-            "  sase doctor -F\n\n"
+            "  sase doctor -F\n"
+            "  sase doctor -R\n\n"
             "Exit codes: OK, WARN, and SKIP exit 0; ERROR exits 1.\n"
             "--strict makes WARN exit 1."
         ),
@@ -62,6 +63,15 @@ def register_doctor_parser(subparsers: argparse._SubParsersAction) -> None:
         help=(
             "Preview and, after confirmation, keep one block per Patch name "
             "in every ProjectSpec"
+        ),
+    )
+    doctor_parser.add_argument(
+        "-R",
+        "--fix-primary-sidecar-links",
+        action="store_true",
+        help=(
+            "Preview and, after confirmation, restore stranded link-index "
+            "deletions in primary-nested sidecar clones"
         ),
     )
     doctor_parser.add_argument(

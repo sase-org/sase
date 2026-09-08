@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 
 from sase.doctor.checks_artifact_links import (
     _check_artifact_links_aggregate,
+    _check_primary_sidecar_link_dirt,
+    _collect_primary_sidecar_link_dirt,
+    apply_primary_sidecar_link_dirt_repairs,
     artifact_links_check_specs,
 )
 from sase.doctor.runner import DoctorContext
@@ -24,7 +28,10 @@ def test_artifact_links_check_specs_register_the_aggregate_check(
     tmp_path: Path,
 ) -> None:
     specs = artifact_links_check_specs(_context(tmp_path))
-    assert [spec.id for spec in specs] == ["project.artifact_links_aggregate"]
+    assert [spec.id for spec in specs] == [
+        "project.artifact_links_aggregate",
+        "project.primary_sidecar_link_dirt",
+    ]
 
 
 def test_artifact_links_check_skips_without_store(monkeypatch, tmp_path: Path) -> None:
@@ -127,3 +134,157 @@ def test_artifact_links_check_reports_row_level_and_projected_drift(
     assert check.data["missing_by_relation"] == {"cites": 1, "launched": 1}
     assert "missing 2 row(s)" in str(check.next_steps)
     assert "cites: 1" in str(check.next_steps)
+
+
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _init_sidecar_clone(repo: Path, *, relpath: str = "202609/example.md") -> Path:
+    repo.mkdir(parents=True)
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.email", "sase-test@example.com")
+    _git(repo, "config", "user.name", "SASE Test")
+    _git(repo, "config", "commit.gpgsign", "false")
+    index = repo / "links" / f"{relpath}.json"
+    index.parent.mkdir(parents=True)
+    index.write_text("{}\n", encoding="utf-8")
+    (repo / "README.md").write_text("# research\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "seed link index")
+    return index
+
+
+def _primary_store(primary: Path, research: Path) -> SddStore:
+    plans = primary / "sase" / "repos" / "plans"
+    plans.mkdir(parents=True, exist_ok=True)
+    return SddStore(
+        "sidecar_repos",
+        plans,
+        plans,
+        sidecar_dirs={"research": research},
+    )
+
+
+def test_primary_sidecar_link_dirt_skips_without_store(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_artifact_links._resolve_primary_sidecar_store",
+        lambda _context: None,
+    )
+    check = _check_primary_sidecar_link_dirt(_context(tmp_path))
+    assert check.status == "SKIP"
+    assert "no primary sidecar store" in check.summary
+
+
+def test_primary_sidecar_link_dirt_ok_when_clean(monkeypatch, tmp_path: Path) -> None:
+    primary = tmp_path / "primary"
+    research = primary / "sase" / "repos" / "research"
+    _init_sidecar_clone(research)
+    store = _primary_store(primary, research)
+    monkeypatch.setattr(
+        "sase.doctor.checks_artifact_links._resolve_primary_sidecar_store",
+        lambda _context: (primary, store),
+    )
+
+    check = _check_primary_sidecar_link_dirt(_context(tmp_path))
+
+    assert _collect_primary_sidecar_link_dirt(primary, store) == ()
+    assert check.status == "OK"
+    assert check.data["dirty_clones"] == 0
+
+
+def test_primary_sidecar_link_dirt_errors_on_stranded_deletions(
+    monkeypatch, tmp_path: Path
+) -> None:
+    primary = tmp_path / "primary"
+    research = primary / "sase" / "repos" / "research"
+    index = _init_sidecar_clone(research)
+    index.unlink()
+    store = _primary_store(primary, research)
+    monkeypatch.setattr(
+        "sase.doctor.checks_artifact_links._resolve_primary_sidecar_store",
+        lambda _context: (primary, store),
+    )
+
+    check = _check_primary_sidecar_link_dirt(_context(tmp_path))
+
+    assert check.status == "ERROR"
+    assert check.data["restorable_deletions"] == 1
+    assert "blocks auto-sync" in check.summary
+    assert any("sase doctor -R" in step for step in check.next_steps)
+    assert any("git -C" in step and "restore" in step for step in check.next_steps)
+    assert any("links/202609/example.md.json" in detail for detail in check.details)
+
+
+def test_primary_sidecar_link_dirt_ignores_non_links_changes(tmp_path: Path) -> None:
+    primary = tmp_path / "primary"
+    research = primary / "sase" / "repos" / "research"
+    _init_sidecar_clone(research)
+    (research / "README.md").write_text("# dirty\n", encoding="utf-8")
+    store = _primary_store(primary, research)
+
+    assert _collect_primary_sidecar_link_dirt(primary, store) == ()
+
+
+def test_primary_sidecar_link_dirt_ignores_clones_outside_primary(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "primary"
+    hidden = tmp_path / "hidden" / "research"
+    index = _init_sidecar_clone(hidden)
+    index.unlink()
+    store = _primary_store(primary, hidden)
+
+    assert _collect_primary_sidecar_link_dirt(primary, store) == ()
+
+
+def test_primary_sidecar_link_dirt_flags_untracked_links_but_does_not_restore(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "primary"
+    research = primary / "sase" / "repos" / "research"
+    _init_sidecar_clone(research)
+    extra = research / "links" / "202609" / "extra.md.json"
+    extra.write_text("{}\n", encoding="utf-8")
+    store = _primary_store(primary, research)
+
+    dirt = _collect_primary_sidecar_link_dirt(primary, store)
+
+    assert len(dirt) == 1
+    assert dirt[0].path == "links/202609/extra.md.json"
+    assert dirt[0].restorable is False
+    results = apply_primary_sidecar_link_dirt_repairs(dirt)
+    assert results == ()
+    assert extra.is_file()
+
+
+def test_primary_sidecar_link_dirt_restore_replays_deletions_without_commit(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "primary"
+    research = primary / "sase" / "repos" / "research"
+    index = _init_sidecar_clone(research)
+    index.unlink()
+    store = _primary_store(primary, research)
+    dirt = _collect_primary_sidecar_link_dirt(primary, store)
+    assert len(dirt) == 1
+    assert dirt[0].restorable is True
+    head_before = _git(research, "rev-parse", "HEAD").stdout.strip()
+
+    results = apply_primary_sidecar_link_dirt_repairs(dirt)
+
+    assert results[0].error is None
+    assert results[0].restored == ("links/202609/example.md.json",)
+    assert index.is_file()
+    status = _git(research, "status", "--porcelain")
+    assert status.stdout.strip() == ""
+    head_after = _git(research, "rev-parse", "HEAD").stdout.strip()
+    assert head_after == head_before

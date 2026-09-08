@@ -236,6 +236,13 @@ truth, repairs references whose files can be followed through Git rename history
 performs the ordinary artifact-index enrichment pass. It does not infer graph state by
 parsing hand-authored Markdown.
 
+`sase doctor -C project.primary_sidecar_link_dirt` flags uncommitted `links/` dirt in
+sidecar clones nested under a project's primary (human) checkout. That dirt blocks
+pull-based sidecar auto-sync. `sase doctor -R` / `--fix-primary-sidecar-links` restores
+stranded canonical link-index deletions rather than committing them: durable deletions
+must land via the machine write lane (hidden host-owned sidecar clones) and reach the
+primary through auto-sync.
+
 ## Storage lifecycle
 
 Artifact-link truth lives in several places with different durability:
