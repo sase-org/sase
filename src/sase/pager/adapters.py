@@ -23,11 +23,20 @@ def document_from_paths(
     cwd: str | Path | None = None,
     title: str | None = None,
     link_context: LinkResolutionContext | None = None,
+    known_kinds: Sequence[str] | None = None,
 ) -> PagerDocument:
-    """Build one pager document containing one section per file path."""
+    """Build one pager document containing one section per file path.
+
+    ``known_kinds`` lets a caller that already froze the context's
+    configured kinds reuse them instead of rediscovering them here.
+    """
     resolved_context = default_link_context() if link_context is None else link_context
-    known_kinds = known_kinds_from_link_context(resolved_context)
-    sections = path_sections(paths, cwd=cwd, known_kinds=known_kinds)
+    frozen_kinds = (
+        known_kinds_from_link_context(resolved_context)
+        if known_kinds is None
+        else freeze_known_kinds(known_kinds)
+    )
+    sections = path_sections(paths, cwd=cwd, known_kinds=frozen_kinds)
     return PagerDocument(
         sections=sections,
         title=title or _path_document_title(len(sections)),

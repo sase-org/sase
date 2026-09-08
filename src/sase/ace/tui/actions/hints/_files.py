@@ -20,7 +20,8 @@ from sase.pager import (
     document_from_paths,
 )
 from sase.pager.app import PendingAction
-from sase.pager.link_context import LinkResolutionContext
+from sase.pager.known_kinds import freeze_known_kinds, known_kinds_from_link_context
+from sase.pager.link_context import LinkResolutionContext, default_link_context
 from sase.pager.resolve import (
     LinkResolution,
     link_target_for_artifact_entry_target,
@@ -63,10 +64,17 @@ def build_pager_document(
     the event loop (`tui_perf` rule 1) — callers dispatch this through
     ``asyncio.to_thread`` before touching UI state.
     """
-    document = document_from_paths(files, link_context=link_context)
+    resolved_context = default_link_context() if link_context is None else link_context
+    known_kinds = known_kinds_from_link_context(resolved_context)
+    document = document_from_paths(
+        files, link_context=resolved_context, known_kinds=known_kinds
+    )
     if not commit_specs:
         return document
-    sections = (_commit_manifest_section(commit_specs), *document.sections)
+    sections = (
+        _commit_manifest_section(commit_specs, known_kinds=known_kinds),
+        *document.sections,
+    )
     return PagerDocument(
         sections=sections,
         title=document.title,
@@ -75,7 +83,11 @@ def build_pager_document(
     )
 
 
-def _commit_manifest_section(commit_specs: Sequence[CommitViewSpec]) -> PagerSection:
+def _commit_manifest_section(
+    commit_specs: Sequence[CommitViewSpec],
+    *,
+    known_kinds: Sequence[str] = (),
+) -> PagerSection:
     """One small section listing selected commits, keyed via `AttachedTarget`.
 
     A `CommitViewSpec` has no rendered text a scanner could ever discover
@@ -83,6 +95,10 @@ def _commit_manifest_section(commit_specs: Sequence[CommitViewSpec]) -> PagerSec
     substrings") — this is the one caller-cooperation point the `document`
     phase built `AttachedTarget` for. Materialized report hints need no such
     treatment: their written content already contains scannable typed refs.
+
+    The rendered commit subjects are ordinary prose, though, so this
+    section freezes the same configured kinds as the file sections beside
+    it — a typed ref in a subject must not be mis-scanned as a file path.
     """
     lines: list[str] = []
     targets: list[AttachedTarget] = []
@@ -108,6 +124,7 @@ def _commit_manifest_section(commit_specs: Sequence[CommitViewSpec]) -> PagerSec
         body=body,
         targets=tuple(targets),
         origin=PagerOrigin.DIFF,
+        known_kinds=freeze_known_kinds(known_kinds),
     )
 
 

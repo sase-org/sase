@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 import threading
@@ -36,7 +37,9 @@ from sase.pager.document import (
     PagerOrigin,
     PagerSection,
     PagerTargetSpan,
+    section_target_spans,
 )
+from sase.pager.link_scan import LinkSpanKind
 from sase.pager.link_context import LinkAnchor, LinkResolutionContext
 from sase.pager.resolve import (
     LinkResolution,
@@ -183,6 +186,30 @@ def test_build_pager_document_prepends_commit_manifest_section(tmp_path: Path) -
     assert target.kind == _COMMIT_TARGET_KIND
     assert target.target is spec
     assert document.sections[1].identity == f"file:{file_a}"
+
+
+def test_commit_manifest_section_freezes_context_known_kinds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    file_a = tmp_path / "a.md"
+    file_a.write_text("alpha", encoding="utf-8")
+    spec = replace(_commit_spec(), subject="feat: land designs:202609/spec.md")
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._files.known_kinds_from_link_context",
+        lambda _context: ("designs",),
+    )
+
+    document = build_pager_document([str(file_a)], [spec])
+
+    commit_section = document.sections[0]
+    assert "designs" in commit_section.known_kinds
+    assert "designs" in document.sections[1].known_kinds
+    scanned = [
+        (span.kind, span.text)
+        for span in section_target_spans(commit_section, document.origin)
+        if span.source == "scanned"
+    ]
+    assert scanned == [(LinkSpanKind.ARTIFACT_REF.value, "designs:202609/spec.md")]
 
 
 # -- _finish_view_request dispatch --------------------------------------------
