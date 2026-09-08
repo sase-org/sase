@@ -29,6 +29,7 @@ class ValueKind(StrEnum):
     MONITOR = "monitor"
     AGENT = "agent"
     MODEL = "model"
+    PROVIDER = "provider"
     SNIPPET = "snippet"
     TAG = "tag"
     PATH = "path"

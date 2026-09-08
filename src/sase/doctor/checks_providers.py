@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import shutil
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any, TYPE_CHECKING
 
 from sase.agent_clis.detect import resolve_executable
@@ -12,6 +12,16 @@ from sase.diagnostics import CheckSpec, DiagnosticCheck
 from sase.llm_provider import registry as llm_registry
 from sase.llm_provider.config import get_llm_provider_config
 from sase.llm_provider.temporary_override import get_active_temporary_override
+from sase.llm_provider.usage.config import (
+    get_usage_metrics_settings,
+    usage_metrics_feature_enabled,
+)
+from sase.llm_provider.usage.refresh import eligible_usage_providers
+from sase.llm_provider.usage.store import (
+    ProviderUsageStateError,
+    load_provider_usage,
+    provider_usage_state_path,
+)
 
 if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
@@ -98,6 +108,12 @@ def provider_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title="Model advisories",
             runner=_check_llm_model_advisory,
         ),
+        CheckSpec(
+            id="llm.usage",
+            group="llm",
+            title="Subscription usage cache",
+            runner=lambda: _check_llm_usage(context),
+        ),
     )
 
 
@@ -123,6 +139,181 @@ def _check_llm_model_advisory() -> DiagnosticCheck:
     from sase.doctor.checks_providers_advisory import check_llm_model_advisory
 
     return check_llm_model_advisory()
+
+
+def _check_llm_usage(context: DoctorContext) -> DiagnosticCheck:
+    """Check cached subscription-usage state without provider calls."""
+    feature_enabled = usage_metrics_feature_enabled()
+    settings = get_usage_metrics_settings()
+    data: dict[str, Any] = {
+        "critical_percent": settings.critical_percent,
+        "enabled": settings.enabled,
+        "feature_flag_enabled": feature_enabled,
+        "provider_overrides": dict(settings.providers),
+        "refresh_seconds": settings.refresh_seconds,
+        "sase_home": str(context.sase_home),
+        "warn_percent": settings.warn_percent,
+    }
+    try:
+        data["state_path"] = str(provider_usage_state_path())
+    except Exception as exc:  # noqa: BLE001 - stale bindings are reported below.
+        data["state_path_error"] = str(exc)
+
+    if not feature_enabled:
+        return DiagnosticCheck(
+            id="llm.usage",
+            group="llm",
+            status="SKIP",
+            title="Subscription usage cache",
+            summary="Subscription usage collection is disabled by provider_usage_metrics.",
+            next_steps=("Enable the beta flag, then run `sase usage refresh`.",),
+            data=data,
+        )
+    if not settings.enabled:
+        return DiagnosticCheck(
+            id="llm.usage",
+            group="llm",
+            status="SKIP",
+            title="Subscription usage cache",
+            summary="Subscription usage collection is disabled in llm_provider.usage_metrics.",
+            next_steps=(
+                "Set llm_provider.usage_metrics.enabled=true, then run "
+                "`sase usage refresh`.",
+            ),
+            data=data,
+        )
+
+    details: list[str] = []
+    try:
+        data["eligible_providers"] = list(eligible_usage_providers())
+    except Exception as exc:  # noqa: BLE001 - doctor should report, not crash.
+        details.append(f"eligible provider scan failed: {exc}")
+
+    try:
+        read = load_provider_usage(
+            cadence_seconds=settings.refresh_seconds,
+            warn_percent=settings.warn_percent,
+            critical_percent=settings.critical_percent,
+        )
+    except (ProviderUsageStateError, OSError, RuntimeError, AttributeError) as exc:
+        return DiagnosticCheck(
+            id="llm.usage",
+            group="llm",
+            status="ERROR",
+            title="Subscription usage cache",
+            summary="Subscription usage cache could not be read.",
+            details=(*details, str(exc)),
+            next_steps=(
+                "Run `sase usage refresh`; if this is a stale binding, run "
+                "`just install`.",
+            ),
+            data=data,
+        )
+
+    snapshot = read.snapshot
+    providers = [
+        dict(item)
+        for item in snapshot.get("providers", [])
+        if isinstance(item, Mapping)
+    ]
+    data.update(
+        {
+            "collection_health": snapshot.get("collection_health"),
+            "diagnostics": [
+                {"provider": item.provider, "message": item.message}
+                for item in read.diagnostics
+            ],
+            "provider_count": len(providers),
+            "stale_provider_count": _usage_stale_provider_count(providers),
+            "status_counts": _usage_status_counts(providers),
+        }
+    )
+    details.extend(
+        f"{item.provider or 'store'}: {item.message}" for item in read.diagnostics
+    )
+    problem_providers = _usage_problem_providers(providers)
+    if not providers:
+        return DiagnosticCheck(
+            id="llm.usage",
+            group="llm",
+            status="WARN",
+            title="Subscription usage cache",
+            summary="No subscription usage observations are cached.",
+            details=tuple(details),
+            next_steps=("Run `sase usage refresh`.",),
+            data=data,
+        )
+    if problem_providers or read.diagnostics:
+        return DiagnosticCheck(
+            id="llm.usage",
+            group="llm",
+            status="WARN",
+            title="Subscription usage cache",
+            summary="Subscription usage cache has collection problems.",
+            details=(*details, *problem_providers),
+            next_steps=(
+                "Run `sase usage refresh`; rerun provider login if a provider "
+                "is unauthenticated.",
+            ),
+            data=data,
+        )
+    if data["stale_provider_count"]:
+        return DiagnosticCheck(
+            id="llm.usage",
+            group="llm",
+            status="WARN",
+            title="Subscription usage cache",
+            summary="Subscription usage observations are stale.",
+            details=tuple(details),
+            next_steps=("Run `sase usage refresh`.",),
+            data=data,
+        )
+    return DiagnosticCheck(
+        id="llm.usage",
+        group="llm",
+        status="OK",
+        title="Subscription usage cache",
+        summary="Subscription usage cache is readable.",
+        details=tuple(details),
+        data=data,
+    )
+
+
+def _usage_problem_providers(providers: Sequence[Mapping[str, Any]]) -> tuple[str, ...]:
+    problems: list[str] = []
+    for provider in providers:
+        status = str(provider.get("collection_status") or "")
+        if status not in {"error", "unauthenticated"}:
+            continue
+        name = provider.get("provider") or "unknown"
+        diagnostic = optional_str(provider.get("diagnostic"))
+        suffix = f": {diagnostic}" if diagnostic else ""
+        problems.append(f"{name}: {status}{suffix}")
+    return tuple(problems)
+
+
+def _usage_stale_provider_count(providers: Sequence[Mapping[str, Any]]) -> int:
+    count = 0
+    for provider in providers:
+        summary = provider.get("summary")
+        if isinstance(summary, Mapping) and summary.get("freshness") == "stale":
+            count += 1
+            continue
+        windows = provider.get("windows")
+        if isinstance(windows, list) and any(
+            isinstance(window, Mapping) and window.get("freshness") == "stale"
+            for window in windows
+        ):
+            count += 1
+    return count
+
+
+def _usage_status_counts(providers: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for provider in providers:
+        status = str(provider.get("collection_status") or "unknown")
+        counts[status] = counts.get(status, 0) + 1
+    return counts
 
 
 def selection_context() -> dict[str, Any]:

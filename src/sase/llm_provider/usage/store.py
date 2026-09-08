@@ -455,6 +455,22 @@ def load_provider_usage(
     )
 
 
+def provider_usage_remaining_percent(used_percent: float) -> float:
+    """Return the remaining percentage using the Rust domain policy."""
+    if not is_finite_number(used_percent):
+        raise ValueError("used_percent must be finite")
+    binding = require_rust_binding("provider_usage_remaining_percent")
+    return float(binding(float(used_percent)))
+
+
+def provider_usage_format_remaining_text(used_percent: float) -> str:
+    """Return user-facing remaining text using the Rust domain policy."""
+    if not is_finite_number(used_percent):
+        raise ValueError("used_percent must be finite")
+    binding = require_rust_binding("provider_usage_format_remaining_text")
+    return str(binding(float(used_percent)))
+
+
 def record_provider_usage_observation(
     observation: Mapping[str, object],
     *,
@@ -770,6 +786,8 @@ __all__ = [
     "load_provider_usage",
     "mark_provider_usage_refresh_due",
     "prepare_provider_usage_account_context",
+    "provider_usage_format_remaining_text",
+    "provider_usage_remaining_percent",
     "provider_usage_state_path",
     "record_provider_usage_observation",
     "record_provider_usage_refresh_attempt",

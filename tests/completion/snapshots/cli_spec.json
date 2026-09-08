@@ -8575,6 +8575,7 @@
                   "plugin",
                   "proc",
                   "project",
+                  "provider",
                   "repo",
                   "skill",
                   "snippet",
@@ -23551,6 +23552,198 @@
         ],
         "positionals": [],
         "subcommands": []
+      },
+      {
+        "aliases": [],
+        "default_child": "list",
+        "description_digest": "a70d6c7d9837d943",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "usage",
+        "options": [
+          {
+            "choices": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false
+          }
+        ],
+        "path": [
+          "usage"
+        ],
+        "positionals": [],
+        "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "5b5593424c8f2f0b",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "list",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "plain",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-P",
+                  "--plain"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "provider",
+                "hidden": false,
+                "kind": "provider",
+                "repeatable": true,
+                "strings": [
+                  "-p",
+                  "--provider"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "verbose",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-v",
+                  "--verbose"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "usage",
+              "list"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "1e990eb6578264c5",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "refresh",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "background",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-b",
+                  "--background"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "plain",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-P",
+                  "--plain"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "provider",
+                "hidden": false,
+                "kind": "provider",
+                "repeatable": true,
+                "strings": [
+                  "-p",
+                  "--provider"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "verbose",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-v",
+                  "--verbose"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "usage",
+              "refresh"
+            ],
+            "positionals": [],
+            "subcommands": []
+          }
+        ]
       },
       {
         "aliases": [],

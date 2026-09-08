@@ -44,7 +44,7 @@ _RUNNER_MODULE = "sase.llm_provider.usage.refresh_runner"
 
 
 @dataclass(frozen=True)
-class UsageRefreshProviderResult:
+class _UsageRefreshProviderResult:
     """One provider's place in a batch receipt."""
 
     provider: str
@@ -75,7 +75,7 @@ class UsageRefreshReceipt:
     schema_version: int
     origin: str
     operation_ids: tuple[str, ...]
-    providers: tuple[UsageRefreshProviderResult, ...]
+    providers: tuple[_UsageRefreshProviderResult, ...]
 
     def to_json(self) -> dict[str, Any]:
         """Return a JSON-ready mapping."""
@@ -142,8 +142,8 @@ def submit_usage_refresh(
             providers=(),
         )
 
-    results: list[UsageRefreshProviderResult] = []
-    started: list[UsageRefreshProviderResult] = []
+    results: list[_UsageRefreshProviderResult] = []
+    started: list[_UsageRefreshProviderResult] = []
     operation_id = new_proc_id()
     specs = {str(name): dict(spec) for name, spec in (plugin_specs or {}).items()}
     cadence = settings.refresh_seconds
@@ -152,7 +152,7 @@ def submit_usage_refresh(
         skip = collection_skip_reason(provider)
         if skip is not None:
             results.append(
-                UsageRefreshProviderResult(
+                _UsageRefreshProviderResult(
                     provider=provider,
                     status="disabled",
                     reason=skip,
@@ -173,7 +173,7 @@ def submit_usage_refresh(
                 "usage refresh admission failed for %r", provider, exc_info=True
             )
             results.append(
-                UsageRefreshProviderResult(
+                _UsageRefreshProviderResult(
                     provider=provider,
                     status="error",
                     reason="admission_failed",
@@ -199,7 +199,7 @@ def submit_usage_refresh(
             _release_started(started, now=now)
             results = [
                 (
-                    UsageRefreshProviderResult(
+                    _UsageRefreshProviderResult(
                         provider=item.provider,
                         status="error",
                         reason="submit_failed",
@@ -231,7 +231,7 @@ def submit_usage_refresh(
     )
 
 
-def mark_usage_refresh_due(
+def _mark_usage_refresh_due(
     provider: str,
     reason: str,
     *,
@@ -262,9 +262,9 @@ def trigger_usage_refresh_after_limit_event(
 ) -> UsageRefreshReceipt | None:
     """Best-effort due mark and submit after a usage-limit disable."""
     try:
-        mark_usage_refresh_due(provider, "limit_event", now=now)
+        _mark_usage_refresh_due(provider, "limit_event", now=now)
         if expires_at is not None:
-            mark_usage_refresh_due(
+            _mark_usage_refresh_due(
                 provider,
                 "disable_expiry",
                 due_at=expires_at,
@@ -329,7 +329,7 @@ def _admit_one(
     explicit: bool,
     cadence_seconds: float,
     now: float | None,
-) -> UsageRefreshProviderResult:
+) -> _UsageRefreshProviderResult:
     context = prepare_provider_usage_account_context(
         provider, USAGE_REFRESH_CONTEXT_ID, now=now
     )
@@ -343,7 +343,7 @@ def _admit_one(
             now=now,
         )
         if not due.due:
-            return UsageRefreshProviderResult(
+            return _UsageRefreshProviderResult(
                 provider=provider,
                 status=PROVIDER_USAGE_REFRESH_DEFERRED,
                 reason=due.reason,
@@ -368,7 +368,7 @@ def _admit_one(
     result_operation = joined_operation
     if status == PROVIDER_USAGE_REFRESH_DEFERRED:
         result_operation = None
-    return UsageRefreshProviderResult(
+    return _UsageRefreshProviderResult(
         provider=provider,
         status=status,
         reason=admitted.reason,
@@ -380,7 +380,7 @@ def _admit_one(
 
 
 def _submit_started_proc(
-    started: Sequence[UsageRefreshProviderResult],
+    started: Sequence[_UsageRefreshProviderResult],
     *,
     operation_id: str,
     origin: str,
@@ -428,7 +428,7 @@ def _submit_started_proc(
 
 
 def _release_started(
-    started: Sequence[UsageRefreshProviderResult], *, now: float | None
+    started: Sequence[_UsageRefreshProviderResult], *, now: float | None
 ) -> None:
     for item in started:
         if item.lease_id is None:
@@ -449,7 +449,7 @@ def _disabled_receipt(
     providers: Sequence[str], origin: str, reason: str
 ) -> UsageRefreshReceipt:
     results = tuple(
-        UsageRefreshProviderResult(
+        _UsageRefreshProviderResult(
             provider=name,
             status="disabled",
             reason=reason,
@@ -522,10 +522,8 @@ __all__ = [
     "USAGE_REFRESH_OPERATION",
     "USAGE_REFRESH_PROVIDER_DEADLINE_SECONDS",
     "USAGE_REFRESH_RECEIPT_SCHEMA_VERSION",
-    "UsageRefreshProviderResult",
     "UsageRefreshReceipt",
     "eligible_usage_providers",
-    "mark_usage_refresh_due",
     "request_due_usage_refresh",
     "submit_usage_refresh",
     "trigger_usage_refresh_after_limit_event",

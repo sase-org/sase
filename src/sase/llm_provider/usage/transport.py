@@ -9,6 +9,7 @@ import signal
 import subprocess
 import time
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
 
 DEFAULT_MAX_LINE_BYTES = 1_048_576
@@ -274,17 +275,17 @@ def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
     """SIGTERM then SIGKILL the child's process group and reap it."""
     pid = process.pid
     if pid and process.poll() is None:
-        _signal_group(pid, signal.SIGTERM)
+        _signal_owned_process_groups(pid, signal.SIGTERM)
         deadline = time.time() + TERMINATE_GRACE_SECONDS
         while process.poll() is None and time.time() < deadline:
             time.sleep(0.02)
         if process.poll() is None:
-            _signal_group(pid, signal.SIGKILL)
+            _signal_owned_process_groups(pid, signal.SIGKILL)
     try:
         process.wait(timeout=1.0)
     except subprocess.TimeoutExpired:
         if pid:
-            _signal_group(pid, signal.SIGKILL)
+            _signal_owned_process_groups(pid, signal.SIGKILL)
         try:
             process.wait(timeout=1.0)
         except subprocess.TimeoutExpired:
@@ -298,14 +299,62 @@ def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
             pass
 
 
-def _signal_group(pid: int, sig: signal.Signals) -> None:
+def _signal_owned_process_groups(pid: int, sig: signal.Signals) -> None:
+    """Signal the root plus descendant process groups visible under ``pid``."""
+    groups: set[int] = set()
+    target_pids = [pid, *_descendant_pids(pid)]
+    for target_pid in target_pids:
+        try:
+            groups.add(os.getpgid(target_pid))
+        except ProcessLookupError:
+            continue
+        except OSError:
+            continue
+    for pgid in groups:
+        _signal_group(pgid, sig)
+    for target_pid in target_pids:
+        try:
+            os.kill(target_pid, sig)
+        except ProcessLookupError:
+            continue
+        except OSError:
+            continue
+
+
+def _descendant_pids(pid: int) -> list[int]:
+    """Return currently visible descendants on Linux; best-effort elsewhere."""
+    proc_root = Path("/proc")
+    if not proc_root.is_dir():
+        return []
+    children_by_parent: dict[int, list[int]] = {}
+    for entry in proc_root.iterdir():
+        if not entry.name.isdecimal():
+            continue
+        try:
+            child_pid = int(entry.name)
+            stat = (entry / "stat").read_text(encoding="utf-8")
+            after_comm = stat.rsplit(")", 1)[1].split()
+            parent_pid = int(after_comm[1])
+        except (IndexError, OSError, ValueError):
+            continue
+        children_by_parent.setdefault(parent_pid, []).append(child_pid)
+    descendants: list[int] = []
+    stack = list(children_by_parent.get(pid, ()))
+    while stack:
+        child_pid = stack.pop()
+        descendants.append(child_pid)
+        stack.extend(children_by_parent.get(child_pid, ()))
+    return descendants
+
+
+def _signal_group(pgid: int, sig: signal.Signals) -> None:
     try:
-        os.killpg(pid, sig)
+        os.killpg(pgid, sig)
     except ProcessLookupError:
         return
     except OSError:
         try:
-            os.kill(pid, sig)
+            os.kill(pgid, sig)
         except ProcessLookupError:
             return
 

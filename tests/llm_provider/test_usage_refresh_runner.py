@@ -11,7 +11,7 @@ from sase.axe.chop_script_context import ChopScriptContext, write_chop_context
 from sase.chops.builtin import run_builtin_chop
 from sase.feature_flags import override_flags
 from sase.llm_provider.usage.refresh import UsageRefreshReceipt
-from sase.llm_provider.usage.refresh_runner import run_admitted_refresh
+from sase.llm_provider.usage.refresh_runner import _run_admitted_refresh
 from sase.llm_provider.usage.synthetic import (
     SECRET_CANARY,
     SYNTHETIC_MODE_ENV,
@@ -31,7 +31,7 @@ def test_runner_collects_synthetic_provider(
 ) -> None:
     monkeypatch.delenv(SYNTHETIC_MODE_ENV, raising=False)
     with override_flags(provider_usage_metrics=True):
-        results = run_admitted_refresh(
+        results = _run_admitted_refresh(
             {
                 "batch_deadline_seconds": 8,
                 "provider_deadline_seconds": 6,
@@ -69,7 +69,7 @@ def test_runner_reports_providers_that_miss_the_batch_deadline(
         for index in range(4)
     ]
     with override_flags(provider_usage_metrics=True):
-        results = run_admitted_refresh(
+        results = _run_admitted_refresh(
             {
                 "batch_deadline_seconds": 1.2,
                 "provider_deadline_seconds": 0.4,

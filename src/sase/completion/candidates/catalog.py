@@ -40,6 +40,8 @@ from sase.completion.candidates.catalog_build import (
     model_source_path,
     plugin_candidates,
     plugin_source_path,
+    provider_candidates,
+    provider_source_path,
 )
 from sase.completion.candidates.catalog_content import (
     memory_candidates,
@@ -100,6 +102,7 @@ PROVIDERS: dict[ValueKind, tuple[_Fetch, _SourcePath]] = {
     ValueKind.TAG: (tag_candidates, tag_source_path),
     ValueKind.AGENT: (agent_candidates, agent_source_path),
     ValueKind.MODEL: (model_candidates, model_source_path),
+    ValueKind.PROVIDER: (provider_candidates, provider_source_path),
     ValueKind.SNIPPET: (snippet_candidates, snippet_source_path),
 }
 

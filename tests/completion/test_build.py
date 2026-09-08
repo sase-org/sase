@@ -104,6 +104,16 @@ def test_relation_show_slug_is_artifact_relation_kinded() -> None:
     assert slug_positional.kind is ValueKind.ARTIFACT_RELATION
 
 
+def test_usage_provider_filters_are_provider_kinded() -> None:
+    spec = build_spec()
+    for path in (("usage", "list"), ("usage", "refresh")):
+        command = _by_path(spec.root, path)
+        provider = next(
+            option for option in command.options if option.dest == "provider"
+        )
+        assert provider.kind is ValueKind.PROVIDER
+
+
 def test_flag_key_positionals_are_flag_kinded() -> None:
     spec = build_spec()
     flag_group = _by_path(spec.root, ("flag",))

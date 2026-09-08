@@ -510,6 +510,12 @@ def main() -> NoReturn:
 
         sys.exit(handle_update_command(args))
 
+    # --- usage ---
+    if args.command == "usage":
+        from .usage_handler import handle_usage_command
+
+        sys.exit(handle_usage_command(args))
+
     # --- validate ---
     if args.command == "validate":
         from .validate_handler import handle_validate_command

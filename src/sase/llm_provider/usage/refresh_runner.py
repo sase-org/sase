@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: ARG001
     payload = dict(request.payload)
     started = time.time()
     try:
-        results = run_admitted_refresh(payload, now=started)
+        results = _run_admitted_refresh(payload, now=started)
     except Exception as exc:
         log.warning("usage refresh runner failed", exc_info=True)
         return finish_operation(
@@ -57,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: ARG001
     )
 
 
-def run_admitted_refresh(
+def _run_admitted_refresh(
     payload: Mapping[str, Any],
     *,
     now: float | None = None,

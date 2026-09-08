@@ -57,6 +57,7 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
         "bead",
         "project",
         "stitch",
+        "usage",
         "workspace",
     }
     assert (
@@ -86,6 +87,9 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
     assert (
         "Inspect loaded memory, review proposals, and audit reference memory activity."
         in help_text
+    )
+    assert (
+        "Inspect and refresh cached LLM subscription-usage observations." in help_text
     )
 
 

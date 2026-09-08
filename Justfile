@@ -336,12 +336,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-n4(get_usage_limit_config)" \
-        --epic-symbol "sase-y5.8(UsageRefreshProviderResult)" \
-        --epic-symbol "sase-y5.8(UsageRefreshReceipt)" \
-        --epic-symbol "sase-y5.8(eligible_usage_providers)" \
-        --epic-symbol "sase-y5.8(mark_usage_refresh_due)" \
-        --epic-symbol "sase-y5.8(run_admitted_refresh)" \
-        --epic-symbol "sase-y5.8(submit_usage_refresh)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

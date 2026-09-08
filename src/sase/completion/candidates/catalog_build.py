@@ -7,6 +7,7 @@ of the running build rather than of any project; see
 
 from __future__ import annotations
 
+from importlib import metadata as importlib_metadata
 import json
 import os
 from pathlib import Path
@@ -150,6 +151,28 @@ def model_candidates(_project: str | None) -> list[Candidate]:
     return [Candidate(name, "builtin model alias") for name in _BUILTIN_MODEL_ALIASES]
 
 
+def provider_source_path(_project: str | None) -> Path | None:
+    """Return no cache-invalidation path: provider entry points are installed metadata."""
+    return None
+
+
+def provider_candidates(_project: str | None) -> list[Candidate]:
+    """Return installed LLM provider entry-point names without importing providers."""
+    try:
+        entry_points = importlib_metadata.entry_points(group="sase_llm")
+    except Exception:  # noqa: BLE001 - completion must not traceback
+        return []
+    candidates: list[Candidate] = []
+    seen: set[str] = set()
+    for entry_point in entry_points:
+        name = str(getattr(entry_point, "name", "") or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        candidates.append(Candidate(name, str(getattr(entry_point, "value", "") or "")))
+    return sorted(candidates, key=lambda item: item.value.casefold())
+
+
 __all__ = [
     "artifact_relation_candidates",
     "artifact_relation_source_path",
@@ -161,4 +184,6 @@ __all__ = [
     "model_source_path",
     "plugin_candidates",
     "plugin_source_path",
+    "provider_candidates",
+    "provider_source_path",
 ]

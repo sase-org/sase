@@ -9,10 +9,17 @@ from sase.doctor.checks_providers import (
     _check_llm_auth,
     _check_llm_default,
     _check_llm_registry,
+    _check_llm_usage,
     provider_check_specs,
     setup_hint,
 )
 from sase.doctor.runner import DoctorContext
+from sase.llm_provider.usage.config import UsageMetricsSettings
+from sase.llm_provider.usage.store import (
+    ProviderUsageStateError,
+    ProviderUsageStoreDiagnostic,
+    ProviderUsageStoreRead,
+)
 
 
 def _payload() -> dict[str, object]:
@@ -153,7 +160,136 @@ def _patch_codex_selection(monkeypatch, payload: dict[str, object]) -> None:
 def test_provider_check_specs_registers_llm_auth(tmp_path) -> None:
     ids = [spec.id for spec in provider_check_specs(_context(tmp_path))]
 
-    assert ids == ["llm.registry", "llm.default", "llm.auth", "llm.model_advisory"]
+    assert ids == [
+        "llm.registry",
+        "llm.default",
+        "llm.auth",
+        "llm.model_advisory",
+        "llm.usage",
+    ]
+
+
+def _usage_store_read(
+    *providers: dict[str, object],
+    diagnostics: tuple[ProviderUsageStoreDiagnostic, ...] = (),
+) -> ProviderUsageStoreRead:
+    return ProviderUsageStoreRead(
+        version=1,
+        snapshot={
+            "attention": None,
+            "collection_health": "ok" if providers else "empty",
+            "generated_at": 1_800_000_000.0,
+            "providers": list(providers),
+            "schema_version": 1,
+        },
+        diagnostics=diagnostics,
+    )
+
+
+def _usage_provider(status: str) -> dict[str, object]:
+    return {
+        "collection_status": status,
+        "diagnostic": "provider is logged out" if status == "unauthenticated" else None,
+        "provider": "codex",
+        "summary": {"freshness": "fresh"},
+        "windows": [],
+    }
+
+
+def _patch_usage_check_defaults(
+    monkeypatch, tmp_path, *, feature_enabled: bool
+) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.usage_metrics_feature_enabled",
+        lambda: feature_enabled,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.get_usage_metrics_settings",
+        lambda: UsageMetricsSettings(),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.provider_usage_state_path",
+        lambda: tmp_path / "llm_provider_usage.json",
+    )
+
+
+def test_llm_usage_skips_when_beta_flag_is_disabled(monkeypatch, tmp_path) -> None:
+    _patch_usage_check_defaults(monkeypatch, tmp_path, feature_enabled=False)
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.load_provider_usage",
+        lambda **kwargs: pytest.fail("disabled usage diagnostics must not read store"),
+    )
+
+    check = _check_llm_usage(_context(tmp_path))
+
+    assert check.status == "SKIP"
+    assert "provider_usage_metrics" in check.summary
+
+
+def test_llm_usage_warns_when_cache_is_empty(monkeypatch, tmp_path) -> None:
+    _patch_usage_check_defaults(monkeypatch, tmp_path, feature_enabled=True)
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.eligible_usage_providers",
+        lambda: ("codex",),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.load_provider_usage",
+        lambda **kwargs: _usage_store_read(),
+    )
+
+    check = _check_llm_usage(_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert "No subscription usage observations" in check.summary
+    assert check.next_steps == ("Run `sase usage refresh`.",)
+    assert check.data["eligible_providers"] == ("codex",)
+
+
+def test_llm_usage_errors_when_cache_is_unreadable(monkeypatch, tmp_path) -> None:
+    _patch_usage_check_defaults(monkeypatch, tmp_path, feature_enabled=True)
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.eligible_usage_providers",
+        lambda: (),
+    )
+
+    def fail_read(**kwargs: object) -> ProviderUsageStoreRead:
+        raise ProviderUsageStateError("bad cache")
+
+    monkeypatch.setattr("sase.doctor.checks_providers.load_provider_usage", fail_read)
+
+    check = _check_llm_usage(_context(tmp_path))
+
+    assert check.status == "ERROR"
+    assert "could not be read" in check.summary
+    assert "bad cache" in check.details
+
+
+def test_llm_usage_warns_for_provider_collection_problems(
+    monkeypatch, tmp_path
+) -> None:
+    _patch_usage_check_defaults(monkeypatch, tmp_path, feature_enabled=True)
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.eligible_usage_providers",
+        lambda: ("codex",),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.load_provider_usage",
+        lambda **kwargs: _usage_store_read(
+            _usage_provider("unauthenticated"),
+            diagnostics=(
+                ProviderUsageStoreDiagnostic(
+                    provider="codex",
+                    message="cached diagnostic",
+                ),
+            ),
+        ),
+    )
+
+    check = _check_llm_usage(_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert "collection problems" in check.summary
+    assert any("codex: unauthenticated" in detail for detail in check.details)
 
 
 def test_setup_hint_prefers_enriched_provider_metadata() -> None:

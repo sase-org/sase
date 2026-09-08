@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -70,6 +71,32 @@ def test_model_candidates_are_the_builtin_size_aliases() -> None:
         "medium",
         "large",
         "xlarge",
+    ]
+
+
+def test_provider_candidates_come_from_sase_llm_entry_points(monkeypatch) -> None:
+    from sase.completion.candidates import catalog_build
+
+    monkeypatch.setattr(
+        catalog_build.importlib_metadata,
+        "entry_points",
+        lambda *, group: (
+            [
+                SimpleNamespace(
+                    name="grok", value="sase.llm_provider.grok:GrokProvider"
+                ),
+                SimpleNamespace(
+                    name="codex", value="sase.llm_provider.codex:CodexProvider"
+                ),
+            ]
+            if group == "sase_llm"
+            else []
+        ),
+    )
+
+    assert candidates_for("provider", "", project=None, limit=200) == [
+        Candidate("codex", "sase.llm_provider.codex:CodexProvider"),
+        Candidate("grok", "sase.llm_provider.grok:GrokProvider"),
     ]
 
 

@@ -113,6 +113,7 @@ def test_stitch_parser_supports_canonical_command_and_legacy_alias(
         (["sase", "patch"], "patch"),
         (["sase", "stitch"], "stitch"),
         (["sase", "vcs"], "vcs"),
+        (["sase", "usage"], "usage"),
         (["sase", "commit"], None),
         (["sase"], None),
         (["sase", "--help"], None),
