@@ -205,6 +205,22 @@ REQUIRED_BINDINGS = (
     "provider_availability_wire_schema_version",
     "provider_availability_classify",
     "provider_availability_classify_many",
+    "provider_usage_observation_schema_version",
+    "provider_usage_public_schema_version",
+    "provider_usage_store_schema_version",
+    "provider_usage_state_path",
+    "provider_usage_load",
+    "provider_usage_record_observation",
+    "provider_usage_prepare_account_context",
+    "provider_usage_reserve_refresh",
+    "provider_usage_release_refresh",
+    "provider_usage_validate_observation",
+    "provider_usage_project_snapshot",
+    "provider_usage_remaining_percent",
+    "provider_usage_format_remaining_text",
+    "provider_usage_classify_freshness",
+    "provider_usage_window_applies",
+    "provider_usage_summarize_for_model",
     "finalizer_wire_schema_version",
     "validate_finalizer_provider_spec",
     "finalizer_provider_spec_digest",
@@ -1514,9 +1530,7 @@ def _validate_provider_priority_routing_contract(module: ModuleType) -> bool:
         )
         expired_context = module.provider_routing_context_from_parts(
             [],
-            _provider_priority_record(
-                "codex", now=now - 120.0, expires_at=now - 1.0
-            ),
+            _provider_priority_record("codex", now=now - 120.0, expires_at=now - 1.0),
             now,
         )
     except Exception as exc:
@@ -1558,7 +1572,10 @@ def _validate_provider_priority_routing_contract(module: ModuleType) -> bool:
         label="hard-disabled priority",
     ):
         return False
-    if not isinstance(expired_context, dict) or expired_context.get("priority") is not None:
+    if (
+        not isinstance(expired_context, dict)
+        or expired_context.get("priority") is not None
+    ):
         _error(
             "provider-priority from-parts probe kept an expired priority: "
             f"{expired_context!r}"

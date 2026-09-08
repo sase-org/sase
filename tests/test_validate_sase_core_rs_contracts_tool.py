@@ -249,6 +249,33 @@ def test_validate_sase_core_rs_requires_provider_disable_first_writer() -> None:
     assert not validator._validate_provider_disable_first_writer(stale)
 
 
+def test_validate_sase_core_rs_requires_provider_usage_store() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {
+        "provider_usage_observation_schema_version",
+        "provider_usage_public_schema_version",
+        "provider_usage_store_schema_version",
+        "provider_usage_state_path",
+        "provider_usage_load",
+        "provider_usage_record_observation",
+        "provider_usage_prepare_account_context",
+        "provider_usage_reserve_refresh",
+        "provider_usage_release_refresh",
+        "provider_usage_validate_observation",
+        "provider_usage_project_snapshot",
+        "provider_usage_remaining_percent",
+        "provider_usage_format_remaining_text",
+        "provider_usage_classify_freshness",
+        "provider_usage_window_applies",
+        "provider_usage_summarize_for_model",
+    }
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+
 def test_validate_sase_core_rs_requires_provider_priority_routing() -> None:
     validator = load_validate_sase_core_rs()
     bindings = {
