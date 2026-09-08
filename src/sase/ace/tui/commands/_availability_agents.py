@@ -118,6 +118,9 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.connect_agent_machine":
         return ctx.selected_agent_remote
 
+    if spec.id == "app.setup_agent_machine":
+        return not ctx.fleet_enabled
+
     if spec.id == "app.retry_remote_agent":
         return _remote_lifecycle_command_available(ctx, "lifecycle.retry")
 

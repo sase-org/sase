@@ -141,6 +141,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.toggle_agent_follow), "Follow/unfollow remote row"),
                 (d(a.view_agent_in_focus), "View followed remote row in Focus"),
                 (d(a.connect_agent_machine), "Show remote machine status"),
+                (d(a.setup_agent_machine), "Connect a machine"),
                 (d(a.retry_remote_agent), "Retry remote agent on its host"),
                 (d(a.view_remote_agent_content), "View remote content"),
                 (

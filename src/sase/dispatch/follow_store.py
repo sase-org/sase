@@ -71,14 +71,14 @@ class FollowStoreMutationOutcome:
     diagnostics: tuple[dict[str, Any], ...] = ()
 
 
-def follow_store_path() -> Path:
+def _follow_store_path() -> Path:
     """Return the viewer-local follow store path for the current SASE home."""
     return sase_home() / FOLLOW_STORE_DIRNAME / FOLLOW_STORE_FILENAME
 
 
 def load_follow_snapshot(path: Path | None = None) -> FollowStoreSnapshot:
     """Load and normalize the follow store without mutating it."""
-    store_path = path or follow_store_path()
+    store_path = path or _follow_store_path()
     payload = _read_store_unlocked(store_path)
     reconciled = _reconcile(
         payload["records"],
@@ -107,7 +107,7 @@ def record_follow(
         raise FollowStoreError(f"invalid follow state: {state!r}")
     if created_by == "dispatch" and operation_key is None:
         raise FollowStoreError("dispatch follow requires an operation_key")
-    store_path = path or follow_store_path()
+    store_path = path or _follow_store_path()
     now = _now(now_unix)
     locator = _copy_mapping(logical_locator)
     logical_key = _logical_locator_key(locator, path=store_path)
@@ -169,7 +169,7 @@ def activate_dispatch_follow(
     path: Path | None = None,
 ) -> FollowStoreMutationOutcome:
     """Activate a pending dispatch follow after receipt binding."""
-    store_path = path or follow_store_path()
+    store_path = path or _follow_store_path()
     now = _now(activated_at_unix)
     activation = {
         "schema_version": FOLLOW_STORE_SCHEMA_VERSION,
@@ -199,7 +199,7 @@ def unfollow(
     path: Path | None = None,
 ) -> FollowStoreMutationOutcome:
     """Remove local follow records and add an explicit unfollow tombstone."""
-    store_path = path or follow_store_path()
+    store_path = path or _follow_store_path()
     now = _now(unfollowed_at_unix)
     locator = _copy_mapping(logical_locator)
     logical_key = _logical_locator_key(locator, path=store_path)
@@ -241,7 +241,7 @@ def promote_family_follow(
     path: Path | None = None,
 ) -> FollowStoreMutationOutcome:
     """Promote a singleton follow to the durable family identity."""
-    store_path = path or follow_store_path()
+    store_path = path or _follow_store_path()
     now = _now(now_unix)
     promotion = {
         "schema_version": FOLLOW_STORE_SCHEMA_VERSION,
@@ -269,7 +269,7 @@ def reconcile_follow_store(
     path: Path | None = None,
 ) -> FollowStoreMutationOutcome:
     """Normalize persisted state after remote reconciliation."""
-    store_path = path or follow_store_path()
+    store_path = path or _follow_store_path()
     now = _now(now_unix)
     with _store_lock(store_path):
         payload = _read_store_unlocked(store_path)
@@ -282,15 +282,6 @@ def reconcile_follow_store(
             path=store_path,
         )
         return _finish_mutation(store_path, payload, reconciled)
-
-
-def is_followed(
-    snapshot: FollowStoreSnapshot,
-    logical_locator: Mapping[str, Any],
-) -> bool:
-    """Return whether *logical_locator* is actively followed in *snapshot*."""
-    logical_key = _logical_locator_key(logical_locator, path=snapshot.path)
-    return logical_key in snapshot.active_logical_keys
 
 
 def _store_lock(path: Path) -> AbstractContextManager[None]:
@@ -571,8 +562,6 @@ __all__ = [
     "FollowStoreMutationOutcome",
     "FollowStoreSnapshot",
     "activate_dispatch_follow",
-    "follow_store_path",
-    "is_followed",
     "load_follow_snapshot",
     "prewrite_dispatch_follow",
     "promote_family_follow",

@@ -704,3 +704,25 @@ def test_jump_to_next_stopped_agent_requires_stopped_agent() -> None:
         spec,
         CommandContext(tab="changespecs", stopped_agent_count=1),  # legacy tab id
     )
+
+
+def test_setup_agent_machine_is_the_zero_machine_escape_hatch() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.setup_agent_machine"]
+
+    # With no machine enrolled the Focus/Fleet strip is hidden, so the
+    # command menu must offer the enrollment guidance route.
+    assert is_command_available(
+        spec,
+        CommandContext(tab="agents", agent=None, fleet_enabled=False),
+    )
+    # Once a machine is enrolled the strip (and the per-row status command)
+    # take over.
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="agents", agent=None, fleet_enabled=True),
+    )
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="patches", agent=None, fleet_enabled=False),
+    )

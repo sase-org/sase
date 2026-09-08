@@ -7,9 +7,9 @@ from typing import Any
 from sase.core.rust import require_rust_binding
 from sase.dispatch.follow_store import (
     FOLLOW_STORE_SCHEMA_VERSION,
+    FollowStoreSnapshot,
     activate_dispatch_follow,
-    follow_store_path,
-    is_followed,
+    _follow_store_path,
     prewrite_dispatch_follow,
     promote_family_follow,
     reconcile_follow_store,
@@ -19,6 +19,13 @@ from sase.dispatch.follow_store import (
 from tests.conftest import redirect_sase_home
 
 INSTALLATION_ID_PREFIX = "sase_inst_v1_"
+
+
+def _is_followed(
+    snapshot: FollowStoreSnapshot,
+    logical_locator: dict[str, Any],
+) -> bool:
+    return _logical_key(logical_locator) in snapshot.active_logical_keys
 
 
 def _known_installation_id(hex_char: str) -> str:
@@ -103,22 +110,22 @@ def test_follow_store_persists_explicit_follow_and_unfollow(
     followed = record_follow(logical, now_unix=10.0)
 
     assert followed.changed is True
-    assert is_followed(followed.snapshot, logical)
-    assert follow_store_path().is_file()
+    assert _is_followed(followed.snapshot, logical)
+    assert _follow_store_path().is_file()
 
     removed = unfollow(logical, unfollowed_at_unix=11.0)
 
     assert removed.changed is True
     assert removed.snapshot.records == ()
     assert len(removed.snapshot.tombstones) == 1
-    assert not is_followed(removed.snapshot, logical)
+    assert not _is_followed(removed.snapshot, logical)
 
     refollowed = record_follow(logical, now_unix=12.0)
 
     assert refollowed.changed is True
-    assert is_followed(refollowed.snapshot, logical)
+    assert _is_followed(refollowed.snapshot, logical)
     assert refollowed.snapshot.tombstones == ()
-    assert json.loads(follow_store_path().read_text(encoding="utf-8")) == {
+    assert json.loads(_follow_store_path().read_text(encoding="utf-8")) == {
         "schema_version": FOLLOW_STORE_SCHEMA_VERSION,
         "records": list(refollowed.snapshot.records),
         "tombstones": [],
@@ -150,7 +157,7 @@ def test_dispatch_follow_activation_family_promotion_and_unfollow_wins(
 
     promoted = promote_family_follow(singleton, family, now_unix=22.0)
     assert promoted.snapshot.records[0]["logical_locator"] == family
-    assert is_followed(promoted.snapshot, family)
+    assert _is_followed(promoted.snapshot, family)
 
     removed = unfollow(family, unfollowed_at_unix=23.0)
     resurrected = prewrite_dispatch_follow(
@@ -166,7 +173,7 @@ def test_dispatch_follow_activation_family_promotion_and_unfollow_wins(
         for diagnostic in resurrected.diagnostics
     )
 
-    path = follow_store_path()
+    path = _follow_store_path()
     stale_payload = {
         "schema_version": FOLLOW_STORE_SCHEMA_VERSION,
         "records": [

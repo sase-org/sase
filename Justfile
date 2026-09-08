@@ -336,10 +336,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-n4(get_usage_limit_config)" \
-        --epic-symbol "sase-xe(FollowStoreMutationOutcome)" \
-        --epic-symbol "sase-xe(follow_store_path)" \
-        --epic-symbol "sase-xe(is_followed)" \
-        --epic-symbol "sase-xe(reconcile_follow_store)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

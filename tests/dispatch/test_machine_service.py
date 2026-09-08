@@ -188,3 +188,23 @@ def test_status_quarantines_installation_mismatch(
     reloaded = load_dispatch_config().machine_by_alias()["alpha"]
     assert reloaded.quarantined is True
     assert reloaded.quarantine_reason == "hello installation identity mismatch"
+
+
+def test_add_machine_rejects_disabled_provider(
+    isolated_dispatch: tuple[Path, Path],
+) -> None:
+    from sase.dispatch.models import MachineRegistryError
+
+    _config_dir, credential_path = isolated_dispatch
+    pin = _pin()
+
+    with pytest.raises(MachineRegistryError, match="provider is not enabled"):
+        MachineService(
+            credential_store=LocalCredentialStore(credential_path),
+            gateway_client=_FakeGateway(pin),  # type: ignore[arg-type]
+        ).add_machine(
+            alias="alpha",
+            endpoint="https://fleet.example.test",
+            provider_ref="builtin@tailnet",
+            bundle_text=_bundle(pin),
+        )

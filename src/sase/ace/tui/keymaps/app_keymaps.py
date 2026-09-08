@@ -93,6 +93,7 @@ class AppKeymaps:
     toggle_agent_follow: str
     view_agent_in_focus: str
     connect_agent_machine: str
+    setup_agent_machine: str
     retry_remote_agent: str
     view_remote_agent_content: str
     answer_remote_attention: str

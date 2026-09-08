@@ -17,6 +17,7 @@ from typing import Literal
 ENTRY_POINT_GROUPS: tuple[str, ...] = (
     "sase_artifact_refs",
     "sase_config",
+    "sase_dispatch",
     "sase_file_hooks",
     "sase_finalizers",
     "sase_llm",

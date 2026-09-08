@@ -79,3 +79,69 @@ def test_dispatch_live_skips_with_no_machines_configured(
 
     assert check.status == "SKIP"
     assert "no remote machines are configured" in check.summary
+
+
+def test_dispatch_config_reports_provider_not_installed(
+    isolated_dispatch_config: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (isolated_dispatch_config / "sase.yml").write_text(
+        "\n".join(
+            [
+                "dispatch:",
+                "  machines:",
+                "    alpha:",
+                "      provider: acme@tunnel",
+                "      endpoint: https://fleet.example.test",
+                "      credential_ref: fleet:alpha",
+                f"      installation_pin: {_pin()}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_dispatch.validate_connection_plan",
+        lambda record: (),
+    )
+
+    check = _run_dispatch_check("dispatch.config")
+
+    assert check.status == "ERROR"
+    assert any(
+        "provider acme@tunnel is not installed" in detail for detail in check.details
+    )
+
+
+def test_dispatch_config_reports_disabled_provider(
+    isolated_dispatch_config: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (isolated_dispatch_config / "sase.yml").write_text(
+        "\n".join(
+            [
+                "dispatch:",
+                "  providers:",
+                "    builtin@https: false",
+                "  machines:",
+                "    alpha:",
+                "      provider: builtin@https",
+                "      endpoint: https://fleet.example.test",
+                "      credential_ref: fleet:alpha",
+                f"      installation_pin: {_pin()}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_dispatch.validate_connection_plan",
+        lambda record: (),
+    )
+
+    check = _run_dispatch_check("dispatch.config")
+
+    assert check.status == "ERROR"
+    assert any(
+        "provider builtin@https is disabled" in detail for detail in check.details
+    )

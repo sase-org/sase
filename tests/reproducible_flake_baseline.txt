@@ -231,10 +231,11 @@ tests/test_global_state_leak_detector.py::test_snapshot_includes_live_config_tok
 # directive-completion parity nodes shared the same <=5-failure full-run
 # records as that master break; they pass after just install on this tree
 # (sase_core 0.31.6). Already recorded as DISCOVERED ISSUE on sase-s6; no
-# dedicated flake task.
+# dedicated flake task. directive_name_rows_match was re-retired by the
+# sase-xe / sase-y9 block below after later core-skew evidence; a node may
+# have only one fixed-at entry.
 # fixed-at: 2026-08-23T14:09:41Z tests/test_launch_admission_mixed_matrix.py::test_plan_digest_mismatch_is_rejected
 # fixed-at: 2026-08-23T14:09:41Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_directive_argument_rows_match[%wait(]
-# fixed-at: 2026-08-23T14:09:41Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_directive_name_rows_match
 # fixed-at: 2026-08-23T14:09:41Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_include_typed_launch_directives_when_enabled
 # fixed-at: 2026-08-23T14:09:41Z tests/test_xprompt_directive_completion_parity.py::test_failure_degradation_retains_static_directive_rows
 #
@@ -387,7 +388,25 @@ tests/test_vcs_log_filter_query.py::test_canonical_query_round_trip_property
 # The first two node ids are recorded under their post-ac1ba1be9 names: that
 # commit's flag removal dropped the `_when_enabled` suffix, and this commit was
 # authored before it, so the names it promoted would have been dead on arrival.
-tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_include_dispatch_directive
-tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_include_dispatch_machine_rows
-tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_directive_argument_rows_match[%dispatch:]
-tests/test_xprompt_directive_contract.py::test_runtime_directive_vocabulary_matches_core_contract
+# Rebase reconciliation (sase-xe landing onto the sase-xz promotion): the four
+# live node lines the sase-y9 stanza above proposed are not re-added, because
+# the sase-xe block below retires every one of them as fixed; a live entry
+# alongside its fixed-at line would grow a suppression over a landed fix.
+
+# sase-xe / sase-y9: ac1ba1be9 removed the remote_dispatch flag from Python
+# while published sase-core still gated dispatch in editor/wire.rs and LSP
+# startup config, so any run whose venv used the pinned core failed these
+# five directive nodes deterministically (source skew, not a parallel-lane
+# flake — see the 06k analysis on sase-xe note #9). The sase-xe landing
+# tree removes the core-side gate and rebuilds the binding + LSP; all five
+# nodes pass focused and in that landing's full test-cost lane, with the
+# commit assigned by host finalization. Until sase-core publishes the fix
+# and the pin ratchets, stale pinned-core trees can still record failures:
+# that is the header's transient self-healing red, not new evidence.
+# directive_name_rows_match's earlier sase-s6 fixed-at line was removed
+# rather than duplicated; this instant is a strict superset.
+# fixed-at: 2026-09-08T00:40:36Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_directive_argument_rows_match[%dispatch:]
+# fixed-at: 2026-09-08T00:40:36Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_directive_name_rows_match
+# fixed-at: 2026-09-08T00:40:36Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_include_dispatch_directive
+# fixed-at: 2026-09-08T00:40:36Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_include_dispatch_machine_rows
+# fixed-at: 2026-09-08T00:40:36Z tests/test_xprompt_directive_contract.py::test_runtime_directive_vocabulary_matches_core_contract

@@ -49,6 +49,7 @@ _AGENT_FLEET_ACTIONS = frozenset(
         "toggle_agent_follow",
         "view_agent_in_focus",
         "connect_agent_machine",
+        "setup_agent_machine",
         "retry_remote_agent",
         "view_remote_agent_content",
         "answer_remote_attention",
@@ -110,6 +111,8 @@ def check_app_action(
             )
         if action == "connect_agent_machine":
             return selected_agent_remote
+        if action == "setup_agent_machine":
+            return not (bool(fleet_available()) if callable(fleet_available) else False)
         if action == "retry_remote_agent":
             return _remote_lifecycle_available(selected_agent, "lifecycle.retry")
         if action == "view_remote_agent_content":

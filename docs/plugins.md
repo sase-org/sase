@@ -12,12 +12,14 @@ internal workflows, or integrations without changing the core package.
 
 ## Plugin Groups
 
-Sase defines nine entry point groups:
+Sase defines eleven entry point groups:
 
 | Entry Point Group      | Entry Point Value | Purpose                                             | Example Plugin                  |
 | ---------------------- | ----------------- | --------------------------------------------------- | ------------------------------- |
 | `sase_artifact_refs`   | Provider class    | Declarative document artifact-reference providers   | third-party document provider   |
+| `sase_dispatch`        | Provider class    | Remote dispatch machine-access providers            | built-in or third-party         |
 | `sase_file_hooks`      | Provider class    | Reusable declarative file-hook templates            | third-party integration         |
+| `sase_finalizers`      | Provider class    | Turn-finalizer providers (metadata-only inventory)  | third-party finalizer packages  |
 | `sase_task_types`      | Hook class        | Declarative task-type specs for typed task beads    | `sase-github` (`github`)        |
 | `sase_vcs`             | Provider class    | VCS provider plugins (git, hg, etc.)                | `sase-github`                   |
 | `sase_workspace`       | Provider class    | Workspace provider plugins (ref resolution, submit) | `sase-github`                   |
@@ -34,12 +36,12 @@ An `sase_xprompts` package may provide ordinary templates in `xprompts/`.
 
 ## Available Plugin Packages
 
-| Package         | Description                                                                             | Entry Points                                                                                                                                |
-| --------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase` (core)   | Bare-git VCS/workspaces, built-in LLMs, and the plan reference provider                 | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_artifact_refs: builtin`, `sase_llm: agy, claude, codex, grok, muse, opencode, qwen` |
-| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations             | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github`, `sase_task_types: github`           |
-| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                                                       |
-| `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                    | standalone Neovim plugin files (not Python entry points)                                                                                    |
+| Package         | Description                                                                             | Entry Points                                                                                                                                                          |
+| --------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase` (core)   | Bare-git VCS/workspaces, built-in LLMs, and the plan reference provider                 | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_artifact_refs: builtin`, `sase_dispatch: builtin`, `sase_llm: agy, claude, codex, grok, muse, opencode, qwen` |
+| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations             | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github`, `sase_task_types: github`                                     |
+| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                                                                                 |
+| `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                    | standalone Neovim plugin files (not Python entry points)                                                                                                              |
 
 ## Installation
 

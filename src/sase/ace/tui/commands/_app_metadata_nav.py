@@ -258,6 +258,13 @@ NAV_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("machine", "remote", "connection"),
     ),
     (
+        "setup_agent_machine",
+        "Agents: connect a machine",
+        "Agents",
+        AGENTS_ONLY,
+        ("machine", "connect", "enroll", "setup"),
+    ),
+    (
         "retry_remote_agent",
         "Agents: retry remote agent on its host",
         "Agents",

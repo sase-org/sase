@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 import importlib.metadata
+import os
 from typing import Any
 
 import pluggy
@@ -36,7 +37,9 @@ class _DispatchProviderHookSpec:
     @hookspec
     def dispatch_discover(
         self,
-        *,
+        # Hook argument names and kinds are a cross-repo compatibility
+        # boundary: pluggy invokes hookimpls positionally, so these must stay
+        # positional-or-keyword without defaults.
         provider_ref: str,
         config: Mapping[str, Any],
         timeout_seconds: float,
@@ -45,7 +48,8 @@ class _DispatchProviderHookSpec:
         ...
 
 
-class _BuiltinDispatchProviders:
+# symvision: pyproject.toml
+class BuiltinDispatchProviders:
     """Built-in providers that require explicit configuration to do work."""
 
     @hookimpl
@@ -68,7 +72,6 @@ class _BuiltinDispatchProviders:
     @hookimpl
     def dispatch_discover(
         self,
-        *,
         provider_ref: str,
         config: Mapping[str, Any],
         timeout_seconds: float,
@@ -99,14 +102,28 @@ def collect_dispatch_providers(
     diagnostics: list[MachineDiagnostic] = []
 
     _collect_plugin_specs(
-        _BuiltinDispatchProviders(),
+        BuiltinDispatchProviders(),
         package="sase",
         version=_distribution_version("sase"),
         specs=specs,
         diagnostics=diagnostics,
     )
 
+    disabled_by = _disabled_env_for_group()
+    if disabled_by:
+        diagnostics.append(
+            MachineDiagnostic(
+                code="dispatch_plugins_disabled",
+                severity="info",
+                message=(
+                    "third-party dispatch providers disabled by "
+                    + ", ".join(disabled_by)
+                ),
+            )
+        )
     for ep in _entry_points(entry_points_fn):
+        if _is_builtin_entry_point(ep) or disabled_by:
+            continue
         package = _entry_point_package(ep)
         version = _entry_point_version(ep)
         try:
@@ -240,10 +257,14 @@ def _iter_plugins_for_refs(
     entry_points_fn: Any,
 ) -> Iterable[tuple[object, str]]:
     refs = set(provider_refs)
-    builtin = _BuiltinDispatchProviders()
+    builtin = BuiltinDispatchProviders()
     for ref in refs & {"builtin@https", "builtin@tailnet"}:
         yield builtin, ref
+    if _disabled_env_for_group():
+        return
     for ep in _entry_points(entry_points_fn):
+        if _is_builtin_entry_point(ep):
+            continue
         try:
             loaded = ep.load()
             plugin = loaded() if isinstance(loaded, type) else loaded
@@ -353,6 +374,27 @@ def _iter_mapping_specs(value: object) -> tuple[Mapping[str, Any], ...]:
 def _entry_points(entry_points_fn: Any) -> tuple[Any, ...]:
     eps = entry_points_fn(group=DISPATCH_ENTRY_POINT_GROUP)
     return tuple(eps)
+
+
+def _disabled_env_for_group() -> tuple[str, ...]:
+    disabled: list[str] = []
+    if os.environ.get("SASE_DISABLE_PLUGINS"):
+        disabled.append("SASE_DISABLE_PLUGINS")
+    suffix = DISPATCH_ENTRY_POINT_GROUP.removeprefix("sase_").upper()
+    env_key = f"SASE_DISABLE_PLUGIN_{suffix}"
+    if os.environ.get(env_key):
+        disabled.append(env_key)
+    return tuple(disabled)
+
+
+def _is_builtin_entry_point(ep: Any) -> bool:
+    # The sase package registers its builtin providers both in code (above)
+    # and as an entry point for plugin-inventory visibility; skip the entry
+    # point so the providers are not collected twice.
+    return (
+        _entry_point_package(ep).lower() == "sase"
+        and str(getattr(ep, "name", "")) == "builtin"
+    )
 
 
 def _entry_point_package(ep: Any) -> str:

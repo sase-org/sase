@@ -21,7 +21,10 @@ from sase.dispatch.federation import (
 )
 from sase.dispatch.follow_store import (
     FollowStoreError,
+    FollowStoreMutationOutcome,
+    FollowStoreSnapshot,
     load_follow_snapshot,
+    reconcile_follow_store,
     record_follow,
     unfollow,
 )
@@ -140,6 +143,23 @@ class AgentFleetMixin:
         health = getattr(agent, "fleet_connection_health", None) or "unknown health"
         self.notify(f"{alias}: {health}")  # type: ignore[attr-defined]
 
+    def action_setup_agent_machine(self) -> None:
+        """Open enrollment guidance while no remote machine is configured."""
+        if self._fleet_mode_available():
+            self.notify(  # type: ignore[attr-defined]
+                "Remote machines are already enrolled; run 'sase machine list' "
+                "or 'sase machine status' from a shell for details"
+            )
+            return
+        self.notify(  # type: ignore[attr-defined]
+            "No remote machines are enrolled. From a shell, run "
+            "'sase machine discover' to list candidates, then "
+            "'sase machine add <alias> <https-endpoint>' to enroll one "
+            "(see 'sase machine add -h'). The Focus/Fleet strip appears "
+            "once a machine is enrolled.",
+            timeout=12,
+        )
+
     def _cycle_agents_subtab(self, *, reverse: bool) -> None:
         if not self._fleet_mode_available():
             self.notify("Fleet view is not configured")  # type: ignore[attr-defined]
@@ -253,7 +273,7 @@ class AgentFleetMixin:
     async def _run_agents_fleet_refresh(self, *, generation: int, source: str) -> None:
         try:
             config = await asyncio.to_thread(load_federation_config)
-            follow_snapshot = await asyncio.to_thread(load_follow_snapshot)
+            follow_snapshot = await asyncio.to_thread(_load_reconciled_follow_snapshot)
             summary_response: Mapping[str, Any] | None = None
             followed_response: Mapping[str, Any] | None = None
             catalog_response: Mapping[str, Any] | None = None
@@ -404,6 +424,7 @@ class AgentFleetMixin:
         *,
         currently_followed: bool,
     ) -> None:
+        outcome: FollowStoreMutationOutcome
         try:
             if currently_followed:
                 outcome = await asyncio.to_thread(unfollow, logical_locator)
@@ -535,3 +556,15 @@ class AgentFleetMixin:
             return repr(
                 sorted((str(key), repr(value)) for key, value in locator.items())
             )
+
+
+def _load_reconciled_follow_snapshot() -> FollowStoreSnapshot:
+    """Load the follow store, persisting reconciliation when state exists.
+
+    A store with no records or tombstones is left untouched so the
+    zero-machine, zero-follow path never writes under the sase home.
+    """
+    snapshot = load_follow_snapshot()
+    if not snapshot.records and not snapshot.tombstones:
+        return snapshot
+    return reconcile_follow_store().snapshot
