@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import copy
+
 from sase.ace.tui.models.fleet_agents import (
+    followed_batch_family_promotions,
     followed_logical_keys,
     followed_logical_locators,
     project_fleet_agents,
@@ -295,3 +298,92 @@ def test_offline_fleet_fixture_projects_rows_counts_and_diagnostics() -> None:
     assert row.fleet_followed is True
     assert row.status == "QUESTION"
     assert row.fleet_bounded_intent == "reuse from visual and perf tests"
+
+
+def test_followed_batch_family_promotions_promote_explicit_singleton() -> None:
+    installation_id = fleet_installation_id("d")
+    singleton = fleet_logical_locator(
+        installation_id=installation_id,
+        agent_id="worker",
+        family_id=None,
+    )
+    family = fleet_logical_locator(
+        installation_id=installation_id,
+        agent_id="worker",
+        family_id="family-1",
+    )
+    response = fleet_host_response(
+        installation_id=installation_id,
+        summaries=(
+            fleet_summary(
+                installation_id=installation_id,
+                agent_id="worker",
+            ),
+        ),
+    )
+
+    assert followed_batch_family_promotions(
+        fleet_follow_snapshot(singleton),
+        response,
+    ) == (
+        {
+            "schema_version": 1,
+            "from": singleton,
+            "to": family,
+        },
+    )
+
+
+def test_followed_batch_family_promotions_skip_ambiguous_families() -> None:
+    installation_id = fleet_installation_id("e")
+    singleton = fleet_logical_locator(
+        installation_id=installation_id,
+        agent_id="worker",
+        family_id=None,
+    )
+    first = fleet_summary(installation_id=installation_id, agent_id="worker")
+    second = copy.deepcopy(first)
+    second["logical_locator"]["family_id"] = "family-2"
+    response = fleet_host_response(
+        installation_id=installation_id,
+        summaries=(first, second),
+    )
+
+    assert (
+        followed_batch_family_promotions(
+            fleet_follow_snapshot(singleton),
+            response,
+        )
+        == ()
+    )
+
+
+def test_followed_batch_family_promotions_skip_family_and_dispatch_records() -> None:
+    installation_id = fleet_installation_id("f")
+    singleton = fleet_logical_locator(
+        installation_id=installation_id,
+        agent_id="worker",
+        family_id=None,
+    )
+    family = fleet_logical_locator(
+        installation_id=installation_id,
+        agent_id="worker",
+        family_id="family-1",
+    )
+    dispatch_record = {
+        **fleet_follow_snapshot(singleton).records[0],
+        "created_by": "dispatch",
+    }
+    family_record = fleet_follow_snapshot(family).records[0]
+    snapshot = FollowStoreSnapshot(
+        schema_version=1,
+        records=(dispatch_record, family_record),
+        tombstones=(),
+        path="/tmp/follows.json",
+    )
+    response = fleet_host_response(
+        installation_id=installation_id,
+        summaries=(fleet_summary(installation_id=installation_id, agent_id="worker"),),
+    )
+
+    assert followed_batch_family_promotions(snapshot, response) == ()

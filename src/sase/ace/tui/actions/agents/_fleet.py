@@ -31,6 +31,7 @@ from sase.dispatch.follow_store import (
 
 from ...models.fleet_agents import (
     FleetRowsProjection,
+    followed_batch_family_promotions,
     followed_logical_keys,
     followed_logical_locators,
     project_fleet_agents,
@@ -301,6 +302,11 @@ class AgentFleetMixin:
                             cache_only=False,
                             timeout_seconds=timeout,
                         ),
+                    )
+                    follow_snapshot = await asyncio.to_thread(
+                        _reconcile_followed_batch_family_promotions,
+                        follow_snapshot,
+                        followed_response,
                     )
                 logical_keys = followed_logical_keys(follow_snapshot)
                 if logical_keys:
@@ -585,3 +591,14 @@ def _load_reconciled_follow_snapshot() -> FollowStoreSnapshot:
     if not snapshot.records and not snapshot.tombstones:
         return snapshot
     return reconcile_follow_store().snapshot
+
+
+def _reconcile_followed_batch_family_promotions(
+    snapshot: FollowStoreSnapshot,
+    followed_response: Mapping[str, Any] | None,
+) -> FollowStoreSnapshot:
+    """Persist safe family promotions discovered during followed hydration."""
+    promotions = followed_batch_family_promotions(snapshot, followed_response)
+    if not promotions:
+        return snapshot
+    return reconcile_follow_store(promotions=promotions).snapshot

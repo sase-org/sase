@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import copy
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -168,6 +170,102 @@ def fleet_host_response(
     return response
 
 
+def fleet_host_payload(
+    *,
+    alias: str = "apollo",
+    installation_id: str | None = None,
+    summaries: Iterable[Mapping[str, Any]] | None = None,
+    freshness: str = "fresh",
+    connection_health: str = "online",
+    observed_at_unix: float | None = 1_800_000_000.0,
+    counts: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build one host payload for a multi-host federation response."""
+    return dict(
+        fleet_host_response(
+            alias=alias,
+            installation_id=installation_id,
+            summaries=summaries,
+            freshness=freshness,
+            connection_health=connection_health,
+            observed_at_unix=observed_at_unix,
+            counts=counts,
+        )["hosts"][0]
+    )
+
+
+def fleet_multi_host_response(
+    *hosts: Mapping[str, Any],
+    configured_hosts: int | None = None,
+    diagnostics: Iterable[Mapping[str, Any]] = (),
+    partial: bool = False,
+) -> dict[str, Any]:
+    """Build a deterministic federation response spanning multiple hosts."""
+    host_list = [copy.deepcopy(dict(host)) for host in hosts]
+    total = 0
+    running = 0
+    for host in host_list:
+        counts = host.get("counts")
+        if isinstance(counts, Mapping):
+            total += int(counts.get("total", 0) or 0)
+            running += int(counts.get("running", 0) or 0)
+            continue
+        summaries = _summary_payloads(host)
+        host_counts = _counts_for(summaries)
+        host["counts"] = host_counts
+        total += host_counts["total"]
+        running += host_counts["running"]
+
+    response: dict[str, Any] = {
+        "schema_version": 1,
+        "configured_hosts": configured_hosts
+        if configured_hosts is not None
+        else len(host_list),
+        "counts": {
+            "hosts": configured_hosts
+            if configured_hosts is not None
+            else len(host_list),
+            "total": total,
+            "running": running,
+        },
+        "hosts": host_list,
+    }
+    diagnostic_list = [dict(diagnostic) for diagnostic in diagnostics]
+    if diagnostic_list:
+        response["diagnostics"] = diagnostic_list
+    if partial:
+        response["partial"] = True
+    return response
+
+
+def fleet_fault_diagnostic(
+    *,
+    alias: str,
+    operation: str,
+    code: str,
+    message: str,
+    severity: str = "warning",
+) -> dict[str, str]:
+    """Build a host-scoped fault diagnostic for offline Fleet tests."""
+    return {
+        "alias": alias,
+        "operation": operation,
+        "code": code,
+        "severity": severity,
+        "message": message,
+    }
+
+
+def _summary_payloads(host: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
+    summaries = host.get("summaries")
+    if isinstance(summaries, Iterable) and not isinstance(
+        summaries,
+        (str, bytes, bytearray),
+    ):
+        return tuple(item for item in summaries if isinstance(item, Mapping))
+    return ()
+
+
 def _counts_for(summaries: Iterable[Mapping[str, Any]]) -> dict[str, int]:
     running_statuses = {"active", "alive", "asking", "running", "started", "starting"}
     summary_list = list(summaries)
@@ -250,6 +348,34 @@ def fleet_config(*, enabled: bool = True) -> FederationConfig:
     )
 
 
+def fleet_config_for_hosts(
+    *hosts: tuple[str, str],
+    enabled: bool = True,
+) -> FederationConfig:
+    """Build a multi-host federation config that never starts a real worker."""
+    return FederationConfig(
+        worker=FederationWorkerSettings(enabled=enabled),
+        hosts=()
+        if not enabled
+        else tuple(
+            FederationHostConfig(
+                alias=alias,
+                plan={
+                    "schema_version": 1,
+                    "provider_ref": "builtin:https",
+                    "endpoint": f"https://{alias}.example.test",
+                    "credential_ref": f"fleet:{alias}",
+                    "pinned_installation_id": installation_id,
+                    "connection_kind": "gateway",
+                },
+                bearer_token=f"test-token-{alias}",
+                origin_installation_id=installation_id,
+            )
+            for alias, installation_id in hosts
+        ),
+    )
+
+
 @dataclass
 class OfflineFleetFacade:
     """Fake federation facade with response counters and no external effects."""
@@ -259,6 +385,7 @@ class OfflineFleetFacade:
     followed_response: Mapping[str, Any] | None = None
     attention_response: Mapping[str, Any] | None = None
     calls: list[str] = field(default_factory=list)
+    requests: list[dict[str, Any]] = field(default_factory=list)
 
     async def summary(
         self,
@@ -266,8 +393,15 @@ class OfflineFleetFacade:
         cache_only: bool = False,
         timeout_seconds: float | None = None,
     ) -> dict[str, Any]:
-        del cache_only, timeout_seconds
         self.calls.append("summary")
+        self.requests.append(
+            {
+                "operation": "summary",
+                "request": None,
+                "cache_only": cache_only,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
         return dict(self.summary_response or fleet_host_response())
 
     async def catalog(
@@ -277,8 +411,15 @@ class OfflineFleetFacade:
         cache_only: bool = False,
         timeout_seconds: float | None = None,
     ) -> dict[str, Any]:
-        del query, cache_only, timeout_seconds
         self.calls.append("catalog")
+        self.requests.append(
+            {
+                "operation": "catalog",
+                "request": dict(query),
+                "cache_only": cache_only,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
         return dict(
             self.catalog_response or self.summary_response or fleet_host_response()
         )
@@ -290,8 +431,15 @@ class OfflineFleetFacade:
         cache_only: bool = False,
         timeout_seconds: float | None = None,
     ) -> dict[str, Any]:
-        del request, cache_only, timeout_seconds
         self.calls.append("followed_batch")
+        self.requests.append(
+            {
+                "operation": "followed_batch",
+                "request": dict(request),
+                "cache_only": cache_only,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
         return dict(
             self.followed_response or self.summary_response or fleet_host_response()
         )
@@ -303,6 +451,130 @@ class OfflineFleetFacade:
         cache_only: bool = False,
         timeout_seconds: float | None = None,
     ) -> dict[str, Any]:
-        del request, cache_only, timeout_seconds
         self.calls.append("attention")
+        self.requests.append(
+            {
+                "operation": "attention",
+                "request": dict(request),
+                "cache_only": cache_only,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
         return dict(self.attention_response or fleet_attention_response(()))
+
+
+@dataclass
+class ScriptedFleetFacade(OfflineFleetFacade):
+    """Offline facade with per-operation response scripts and async delays."""
+
+    scripts: Mapping[str, Iterable[Mapping[str, Any] | Exception]] = field(
+        default_factory=dict
+    )
+    delays: Mapping[str, float] = field(default_factory=dict)
+    _scripts: dict[str, list[Mapping[str, Any] | Exception]] = field(
+        default_factory=dict,
+        init=False,
+    )
+
+    def __post_init__(self) -> None:
+        self._scripts = {
+            operation: list(steps) for operation, steps in self.scripts.items()
+        }
+
+    async def _scripted(
+        self,
+        operation: str,
+        default: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        delay = float(self.delays.get(operation, 0.0) or 0.0)
+        if delay > 0:
+            await asyncio.sleep(delay)
+        steps = self._scripts.get(operation)
+        if steps:
+            step = steps.pop(0)
+            if isinstance(step, Exception):
+                raise step
+            return dict(step)
+        return dict(default)
+
+    async def summary(
+        self,
+        *,
+        cache_only: bool = False,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        self.calls.append("summary")
+        self.requests.append(
+            {
+                "operation": "summary",
+                "request": None,
+                "cache_only": cache_only,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return await self._scripted(
+            "summary", self.summary_response or fleet_host_response()
+        )
+
+    async def catalog(
+        self,
+        query: Mapping[str, Any],
+        *,
+        cache_only: bool = False,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        self.calls.append("catalog")
+        self.requests.append(
+            {
+                "operation": "catalog",
+                "request": dict(query),
+                "cache_only": cache_only,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        default = (
+            self.catalog_response or self.summary_response or fleet_host_response()
+        )
+        return await self._scripted("catalog", default)
+
+    async def followed_batch(
+        self,
+        request: Mapping[str, Any],
+        *,
+        cache_only: bool = False,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        self.calls.append("followed_batch")
+        self.requests.append(
+            {
+                "operation": "followed_batch",
+                "request": dict(request),
+                "cache_only": cache_only,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        default = (
+            self.followed_response or self.summary_response or fleet_host_response()
+        )
+        return await self._scripted("followed_batch", default)
+
+    async def attention(
+        self,
+        request: Mapping[str, Any],
+        *,
+        cache_only: bool = False,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        self.calls.append("attention")
+        self.requests.append(
+            {
+                "operation": "attention",
+                "request": dict(request),
+                "cache_only": cache_only,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return await self._scripted(
+            "attention",
+            self.attention_response or fleet_attention_response(()),
+        )

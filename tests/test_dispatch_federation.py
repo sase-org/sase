@@ -376,6 +376,93 @@ def test_supervisor_spawns_worker_and_replaces_config(tmp_path: Path) -> None:
     assert calls[3]["hosts"][0]["bearer_token"] == "secret-token"
 
 
+def test_facade_read_deadline_preserves_healthy_partial_host(
+    tmp_path: Path,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    class Supervisor:
+        def request(
+            self,
+            operation: Mapping[str, Any],
+            *,
+            timeout_seconds: float,
+            retry: bool = True,
+        ) -> dict[str, Any]:
+            calls.append(
+                {
+                    "operation": dict(operation),
+                    "timeout_seconds": timeout_seconds,
+                    "retry": retry,
+                }
+            )
+            return {
+                "schema_version": federation.FEDERATION_IPC_SCHEMA_VERSION,
+                "operation": "summary",
+                "configured_hosts": 2,
+                "partial": True,
+                "hosts": [
+                    {
+                        "schema_version": 1,
+                        "alias": "apollo",
+                        "origin_installation_id": _installation_id("a"),
+                        "connection_health": "online",
+                        "summaries": [{"logical_key": "healthy", "status": "running"}],
+                    }
+                ],
+                "diagnostics": [
+                    {
+                        "alias": "zeus",
+                        "operation": "summary",
+                        "code": "host_deadline_exceeded",
+                        "severity": "warning",
+                        "message": "zeus summary exceeded the read deadline",
+                    }
+                ],
+            }
+
+    config = federation.FederationConfig(
+        worker=federation.FederationWorkerSettings(
+            sase_home=tmp_path,
+            socket_path=tmp_path / "worker.sock",
+            request_timeout_seconds=5.0,
+        ),
+        hosts=(
+            federation.FederationHostConfig(
+                alias="apollo",
+                plan={"provider_ref": "fleet", "endpoint": "https://apollo.test"},
+                bearer_token="secret-a",
+                origin_installation_id=_installation_id("a"),
+            ),
+            federation.FederationHostConfig(
+                alias="zeus",
+                plan={"provider_ref": "fleet", "endpoint": "https://zeus.test"},
+                bearer_token="secret-b",
+                origin_installation_id=_installation_id("b"),
+            ),
+        ),
+    )
+    facade = federation.FederationFacade(
+        config,
+        supervisor=cast(federation.FederationWorkerSupervisor, Supervisor()),
+    )
+
+    response = facade.summary_sync(cache_only=False, timeout_seconds=0.125)
+
+    assert calls == [
+        {
+            "operation": {"op": "summary", "cache_only": False},
+            "timeout_seconds": 0.125,
+            "retry": True,
+        }
+    ]
+    assert response["partial"] is True
+    assert response["configured_hosts"] == 2
+    assert response["hosts"][0]["alias"] == "apollo"
+    assert response["hosts"][0]["summaries"][0]["logical_key"] == "healthy"
+    assert response["diagnostics"][0]["code"] == "host_deadline_exceeded"
+
+
 def test_ipc_client_decodes_success_and_error_frames(tmp_path: Path) -> None:
     success_socket = tmp_path / "success.sock"
     success_thread = _serve_one_ipc(

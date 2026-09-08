@@ -34,7 +34,12 @@ def _config(*machines: MachineRecord) -> DispatchConfig:
     )
 
 
-def _locator(install: str, agent: str = "worker") -> dict[str, Any]:
+def _locator(
+    install: str,
+    agent: str = "worker",
+    *,
+    run_id: str = "run-1",
+) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "logical": {
@@ -48,7 +53,7 @@ def _locator(install: str, agent: str = "worker") -> dict[str, Any]:
             "family_id": None,
         },
         "shell_id": "ace-run",
-        "run_id": "run-1",
+        "run_id": run_id,
         "attempt_id": "attempt-0",
     }
 
@@ -280,6 +285,59 @@ def test_precondition_mismatch_and_stale_revision_are_typed(
             operation_id="op-stale",
         )
     assert exc.value.outcome == "precondition_failed"
+
+
+def test_replaced_same_logical_agent_rejects_old_exact_instance(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    machine = _machine()
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    monkeypatch.setattr(mutations, "load_dispatch_config", lambda: _config(machine))
+    monkeypatch.setattr(mutations, "require_rust_binding", _rust_binding)
+    old_snapshot = _snapshot(machine, "worker")
+    replacement_exact = _locator(
+        machine.pinned_installation_id,
+        "worker",
+        run_id="run-2",
+    )
+    submitted: list[dict[str, Any]] = []
+
+    class Facade:
+        def mutate_sync(
+            self,
+            target: str,
+            request: dict[str, Any],
+            **_kwargs: Any,
+        ) -> dict[str, Any]:
+            submitted.append({"target": target, "request": request})
+            assert request["intent"]["target"] == old_snapshot["exact_locator"]
+            assert request["intent"]["target"] != replacement_exact
+            assert request["intent"]["row_revision"] == old_snapshot["row_revision"]
+            return {
+                "hosts": [
+                    {
+                        "payload": {
+                            "decision": "precondition_mismatch",
+                            "reason": "exact_instance_replaced",
+                            "receipt": {
+                                "state": "failed",
+                                "message": "old worker instance was replaced",
+                            },
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(mutations, "build_federation_facade", Facade)
+
+    (result,) = mutations.submit_remote_mutations([old_snapshot], kind="stop")
+
+    assert submitted[0]["target"] == "apollo"
+    assert result.outcome == "precondition_failed"
+    assert result.message == (
+        "stop on apollo precondition_failed: exact_instance_replaced"
+    )
 
 
 def test_lost_reply_reconciles_under_the_same_key(

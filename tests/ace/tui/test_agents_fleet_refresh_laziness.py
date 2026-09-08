@@ -11,13 +11,14 @@ from sase.ace.tui.actions.agents._fleet import AgentFleetMixin
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.fleet_agents import FleetRowsProjection
 from sase.dispatch.federation import FederationConfig, FederationWorkerSettings
-from sase.dispatch.follow_store import FollowStoreSnapshot
+from sase.dispatch.follow_store import FollowStoreMutationOutcome, FollowStoreSnapshot
 from tests.ace.tui.fleet_fixture import (
     OfflineFleetFacade,
     fleet_attention_response,
     fleet_config,
     fleet_follow_snapshot,
     fleet_host_response,
+    fleet_logical_locator,
     fleet_summary,
 )
 
@@ -172,3 +173,179 @@ async def test_zero_machine_config_refresh_performs_no_remote_work(
     assert app._agents_fleet_focus_rows == []
     assert app._agents == []
     assert app.reproject_sources == ["fleet_refresh"]
+
+
+@pytest.mark.asyncio
+async def test_empty_follow_snapshot_skips_hydration_and_reconciliation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = fleet_summary(agent_id="agent-a")
+    response = fleet_host_response(summaries=(summary,))
+    facade = OfflineFleetFacade(summary_response=response, catalog_response=response)
+    app = _FleetRefreshHarness(mode="focus")
+
+    def fail_reconcile(**_kwargs: object) -> object:
+        raise AssertionError("empty follow store must not reconcile promotions")
+
+    monkeypatch.setattr(fleet_mod, "load_federation_config", lambda: fleet_config())
+    monkeypatch.setattr(
+        fleet_mod,
+        "_load_reconciled_follow_snapshot",
+        lambda: FollowStoreSnapshot(
+            schema_version=1,
+            records=(),
+            tombstones=(),
+            path="/tmp/sase-fleet-follows.json",
+        ),
+    )
+    monkeypatch.setattr(fleet_mod, "reconcile_follow_store", fail_reconcile)
+    monkeypatch.setattr(fleet_mod, "build_federation_facade", lambda _config: facade)
+
+    await app._run_agents_fleet_refresh(generation=1, source="apply")
+
+    assert facade.calls == ["summary"]
+    assert app._agents_fleet_focus_rows == []
+
+
+@pytest.mark.asyncio
+async def test_followed_batch_promotes_singleton_before_attention_and_projection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    installation_id = "sase_inst_v1_" + "d" * 64
+    singleton = fleet_logical_locator(
+        installation_id=installation_id,
+        agent_id="worker",
+        family_id=None,
+    )
+    family = fleet_logical_locator(
+        installation_id=installation_id,
+        agent_id="worker",
+        family_id="family-1",
+    )
+    summary = fleet_summary(installation_id=installation_id, agent_id="worker")
+    followed = fleet_host_response(
+        installation_id=installation_id,
+        summaries=(summary,),
+    )
+    family_record = {
+        **fleet_follow_snapshot(family).records[0],
+        "logical_key": "family-logical-key",
+    }
+    family_snapshot = FollowStoreSnapshot(
+        schema_version=1,
+        records=(family_record,),
+        tombstones=(),
+        path="/tmp/sase-fleet-follows.json",
+    )
+    facade = OfflineFleetFacade(
+        summary_response=followed,
+        followed_response=followed,
+        attention_response=fleet_attention_response(()),
+    )
+    app = _FleetRefreshHarness(mode="focus")
+    promotions_seen: list[dict[str, Any]] = []
+
+    def reconcile(*, promotions: object = (), **_kwargs: object) -> object:
+        promotions_seen.extend(item for item in promotions if isinstance(item, dict))
+        return FollowStoreMutationOutcome(
+            changed=True,
+            snapshot=family_snapshot,
+        )
+
+    monkeypatch.setattr(fleet_mod, "load_federation_config", lambda: fleet_config())
+    monkeypatch.setattr(
+        fleet_mod,
+        "_load_reconciled_follow_snapshot",
+        lambda: fleet_follow_snapshot(singleton),
+    )
+    monkeypatch.setattr(fleet_mod, "reconcile_follow_store", reconcile)
+    monkeypatch.setattr(fleet_mod, "build_federation_facade", lambda _config: facade)
+
+    await app._run_agents_fleet_refresh(generation=1, source="apply")
+
+    assert promotions_seen == [
+        {
+            "schema_version": 1,
+            "from": singleton,
+            "to": family,
+        }
+    ]
+    assert [request["operation"] for request in facade.requests] == [
+        "summary",
+        "followed_batch",
+        "attention",
+    ]
+    attention_request = facade.requests[-1]["request"]
+    assert attention_request == {
+        "schema_version": 1,
+        "logical_keys": ["family-logical-key"],
+    }
+    assert [row.fleet_logical_locator for row in app._agents_fleet_focus_rows] == [
+        family
+    ]
+
+
+@pytest.mark.asyncio
+async def test_followed_batch_promotion_preserves_tombstoned_family(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    installation_id = "sase_inst_v1_" + "e" * 64
+    singleton = fleet_logical_locator(
+        installation_id=installation_id,
+        agent_id="worker",
+        family_id=None,
+    )
+    family = fleet_logical_locator(
+        installation_id=installation_id,
+        agent_id="worker",
+        family_id="family-1",
+    )
+    summary = fleet_summary(installation_id=installation_id, agent_id="worker")
+    followed = fleet_host_response(
+        installation_id=installation_id,
+        summaries=(summary,),
+    )
+    tombstone = {
+        "schema_version": 1,
+        "logical_locator": family,
+        "logical_key": "family-logical-key",
+        "unfollowed_at_unix": 1_800_000_010.0,
+    }
+    tombstoned_snapshot = FollowStoreSnapshot(
+        schema_version=1,
+        records=(),
+        tombstones=(tombstone,),
+        path="/tmp/sase-fleet-follows.json",
+    )
+    facade = OfflineFleetFacade(
+        summary_response=followed,
+        followed_response=followed,
+    )
+    app = _FleetRefreshHarness(mode="focus")
+
+    def reconcile(*, promotions: object = (), **_kwargs: object) -> object:
+        assert tuple(promotions) == (
+            {
+                "schema_version": 1,
+                "from": singleton,
+                "to": family,
+            },
+        )
+        return FollowStoreMutationOutcome(
+            changed=True,
+            snapshot=tombstoned_snapshot,
+        )
+
+    monkeypatch.setattr(fleet_mod, "load_federation_config", lambda: fleet_config())
+    monkeypatch.setattr(
+        fleet_mod,
+        "_load_reconciled_follow_snapshot",
+        lambda: fleet_follow_snapshot(singleton),
+    )
+    monkeypatch.setattr(fleet_mod, "reconcile_follow_store", reconcile)
+    monkeypatch.setattr(fleet_mod, "build_federation_facade", lambda _config: facade)
+
+    await app._run_agents_fleet_refresh(generation=1, source="apply")
+
+    assert app._agents_fleet_focus_rows == []
+    assert tombstoned_snapshot.tombstones == (tombstone,)

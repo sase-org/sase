@@ -31,6 +31,9 @@ from tests.ace.tui.bench_tui_jk_agents import (
     test_bench_clan_jk_at_each_panel_fold_level as test_bench_clan_jk_at_each_panel_fold_level,
     test_bench_selected_tribe_jk_at_each_fold_level as test_bench_selected_tribe_jk_at_each_fold_level,
 )
+from tests.ace.tui.bench_tui_jk_fleet import (
+    test_bench_agents_fleet_jk_fault_scenarios as test_bench_agents_fleet_jk_fault_scenarios,
+)
 from tests.ace.tui.bench_tui_jk_keypath import (
     test_bench_keystroke_reaches_no_provider_discovery_or_subprocess as test_bench_keystroke_reaches_no_provider_discovery_or_subprocess,
 )

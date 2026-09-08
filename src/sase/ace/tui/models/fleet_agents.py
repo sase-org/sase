@@ -131,6 +131,51 @@ def followed_logical_keys(
     return tuple(keys)
 
 
+def followed_batch_family_promotions(
+    snapshot: FollowStoreSnapshot | None,
+    followed_response: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], ...]:
+    """Derive safe singleton-to-family follow promotions from hydrated rows."""
+    if (
+        snapshot is None
+        or followed_response is None
+        or followed_response.get("disabled")
+    ):
+        return ()
+
+    family_locators = _family_locators_by_identity(followed_response)
+    if not family_locators:
+        return ()
+
+    promotions: list[dict[str, Any]] = []
+    promoted_sources: set[str] = set()
+    for record in snapshot.active_records:
+        if record.get("created_by") != "explicit":
+            continue
+        source = _mapping(record.get("logical_locator"))
+        if not source or _locator_family_id(source):
+            continue
+        source_identity = _promotion_identity(source)
+        if source_identity is None:
+            continue
+        matches = family_locators.get(source_identity)
+        if matches is None or len(matches) != 1:
+            continue
+        target = next(iter(matches.values()))
+        source_id = _locator_id(source)
+        if source_id in promoted_sources or source_id == _locator_id(target):
+            continue
+        promotions.append(
+            {
+                "schema_version": 1,
+                "from": dict(source),
+                "to": dict(target),
+            }
+        )
+        promoted_sources.add(source_id)
+    return tuple(promotions)
+
+
 def _rows_from_response(
     response: Mapping[str, Any] | None,
     *,
@@ -342,6 +387,44 @@ def _attention_entries_from_host(
     if isinstance(result, Mapping):
         return _attention_entries_from_host(result)
     return ()
+
+
+PromotionIdentity = tuple[str, str, str]
+
+
+def _family_locators_by_identity(
+    response: Mapping[str, Any],
+) -> dict[PromotionIdentity, dict[str, dict[str, Any]]]:
+    locators: dict[PromotionIdentity, dict[str, dict[str, Any]]] = {}
+    for host in _host_payloads(response):
+        for summary in _summary_payloads(host):
+            locator = _mapping(summary.get("logical_locator"))
+            if not locator or not _locator_family_id(locator):
+                continue
+            identity = _promotion_identity(locator)
+            if identity is None:
+                continue
+            locators.setdefault(identity, {})[_locator_id(locator)] = dict(locator)
+    return locators
+
+
+def _promotion_identity(locator: Mapping[str, Any]) -> PromotionIdentity | None:
+    project = _mapping(locator.get("project"))
+    origin = _mapping(project.get("origin"))
+    installation_id = _optional_str(
+        origin.get("installation_id"),
+        locator.get("origin_installation_id"),
+        locator.get("installation_id"),
+    )
+    project_id = _optional_str(project.get("project_id"), locator.get("project_id"))
+    agent_id = _optional_str(locator.get("agent_id"))
+    if installation_id is None or project_id is None or agent_id is None:
+        return None
+    return (installation_id, project_id, agent_id)
+
+
+def _locator_family_id(locator: Mapping[str, Any]) -> str | None:
+    return _optional_str(locator.get("family_id"))
 
 
 def _host_alias(host: Mapping[str, Any], host_index: int) -> str:
@@ -633,6 +716,7 @@ def _display_token(value: str) -> str:
 
 __all__ = [
     "FleetRowsProjection",
+    "followed_batch_family_promotions",
     "followed_logical_keys",
     "followed_logical_locators",
     "project_fleet_agents",
