@@ -1079,6 +1079,13 @@ Collection is gated by the temporary `provider_usage_metrics` beta flag and the 
 `llm_provider.usage_metrics.providers.<name>.enabled` overrides collection without
 hard-coding the initial three providers.
 
+`submit_usage_refresh` is the shared durable refresh service for CLI, ACE, AXE, and
+limit-event triggers. It coalesces work per provider and account generation, joins
+in-flight probes without dropping other requested providers, and bounds automatic
+retries with cadence-based backoff. AXE submits due work from the `usage_refresh` chop
+on the five-minute checks lumberjack. ACE requests the same due work after first paint
+and while open when AXE is absent. A normal TUI tick never probes inline.
+
 ## Configuration
 
 The LLM provider reads its configuration from `~/.config/sase/sase.yml` under the

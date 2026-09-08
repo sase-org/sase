@@ -144,6 +144,14 @@ class StartupLoadsMixin:
                 self._maybe_show_keymap_unification_toast()
             except Exception:
                 log.debug("Failed to show keymap unification toast", exc_info=True)
+        try:
+            schedule_usage_refresh = getattr(
+                self, "_schedule_usage_refresh_fallback", None
+            )
+            if callable(schedule_usage_refresh):
+                schedule_usage_refresh()
+        except Exception:
+            log.debug("Failed to schedule usage-refresh fallback", exc_info=True)
 
     async def _run_mount_state_loads(self: Any) -> None:
         """Load mount-time disk state without occupying the App message pump."""

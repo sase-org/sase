@@ -15198,6 +15198,75 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "8d25f72a9ff6142a",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "+1",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "dedup_key",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-k",
+                  "--dedup-key"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "sender",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-s",
+                  "--sender"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "notify",
+              "+1"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "id",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "id",
+                "nargs": "?"
+              },
+              {
+                "choices": null,
+                "dest": "note",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "note",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "73b94be56fb7db43",
             "hidden": false,
             "mutex_groups": [],
@@ -15340,7 +15409,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "409c488c6565ee1d",
+            "description_digest": "d44fa2a45576bb5b",
             "hidden": false,
             "mutex_groups": [],
             "name": "create",
@@ -15359,6 +15428,30 @@
               },
               {
                 "choices": null,
+                "dest": "dedup_key",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-k",
+                  "--dedup-key"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "plus_one_note",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--plus-one-note"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
                 "dest": "sender",
                 "hidden": false,
                 "kind": null,
@@ -15366,6 +15459,18 @@
                 "strings": [
                   "-s",
                   "--sender"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "supersedes",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-S",
+                  "--supersedes"
                 ],
                 "takes_value": true
               },

@@ -128,6 +128,8 @@ def _handle_possible_usage_limit(
             detection, settings, outcome, model=model, artifacts_dir=artifacts_dir
         )
 
+    _trigger_usage_refresh_after_limit(provider, outcome)
+
     return detection
 
 
@@ -156,6 +158,27 @@ def _dispatch_disable_followup(
     if _submit_drain(detection, settings, model=model, artifacts_dir=artifacts_dir):
         return
     _notify_usage_limit_disabled(detection, model=model, artifacts_dir=artifacts_dir)
+
+
+def _trigger_usage_refresh_after_limit(
+    provider: str, outcome: ProviderDisableWriteOutcome
+) -> None:
+    """Best-effort due mark and coalesced refresh after a usage-limit disable."""
+    try:
+        from sase.llm_provider.usage.refresh import (
+            trigger_usage_refresh_after_limit_event,
+        )
+
+        trigger_usage_refresh_after_limit_event(
+            provider,
+            expires_at=outcome.record.expires_at,
+        )
+    except Exception:
+        logger.debug(
+            "usage-limit refresh trigger failed for provider %r",
+            provider,
+            exc_info=True,
+        )
 
 
 def _provider_drain_enabled() -> bool:

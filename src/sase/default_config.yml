@@ -1072,6 +1072,14 @@ axe:
             handling of pinned claims with agent artifacts and terminalization of orphaned active proc rows. This
             five-minute placement still frees stale workspace claims and proc rows if the fast hooks lane is disabled,
             restarting, or repeatedly failing.
+        - name: usage_refresh
+          script: sase_chop_usage_refresh
+          description: |-
+            Submit due subscription-usage refreshes through the shared durable service
+
+            Checks machine-local due and backoff state and submits coalesced usage-refresh work for eligible
+            providers. One chop serves CLI, ACE, and AXE callers; it does not poll per agent or project. Collection
+            stays gated by the provider_usage_metrics beta flag and llm_provider.usage_metrics.enabled.
     external_mirror:
       description: |-
         Mirror external tracker issues and pull requests on a fifteen-minute cadence

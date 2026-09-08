@@ -33,9 +33,15 @@ PROVIDER_USAGE_STORE_WRITE_STATUSES = (
 
 PROVIDER_USAGE_REFRESH_RESERVED = "reserved"
 PROVIDER_USAGE_REFRESH_JOINED = "joined"
+PROVIDER_USAGE_REFRESH_DEFERRED = "deferred"
 PROVIDER_USAGE_REFRESH_STATUSES = (
     PROVIDER_USAGE_REFRESH_RESERVED,
     PROVIDER_USAGE_REFRESH_JOINED,
+)
+PROVIDER_USAGE_REFRESH_ADMIT_STATUSES = (
+    PROVIDER_USAGE_REFRESH_RESERVED,
+    PROVIDER_USAGE_REFRESH_JOINED,
+    PROVIDER_USAGE_REFRESH_DEFERRED,
 )
 
 
@@ -304,6 +310,124 @@ class ProviderUsageRefreshReservationOutcome:
         )
 
 
+@dataclass(frozen=True)
+class ProviderUsageRefreshDueOutcome:
+    """Whether one provider/context generation is due for refresh."""
+
+    version: int
+    due: bool
+    reason: str
+    due_at: float | None
+
+    @classmethod
+    def from_wire(cls, payload: object) -> ProviderUsageRefreshDueOutcome:
+        if not isinstance(payload, dict):
+            raise ProviderUsageStateError("provider-usage due outcome is not an object")
+        _require_exact_fields(
+            payload, {"version", "due", "reason", "due_at"}, "due outcome"
+        )
+        _require_version(payload["version"], "due outcome")
+        due = payload["due"]
+        reason = payload["reason"]
+        due_at = payload["due_at"]
+        if type(due) is not bool:
+            raise ProviderUsageStateError("due must be a boolean")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ProviderUsageStateError("due reason must be a non-empty string")
+        if due_at is not None and not is_finite_number(due_at):
+            raise ProviderUsageStateError("due_at must be a finite number or null")
+        return cls(
+            version=payload["version"],
+            due=due,
+            reason=reason,
+            due_at=None if due_at is None else float(due_at),
+        )
+
+
+@dataclass(frozen=True)
+class ProviderUsageRefreshAdmitOutcome:
+    """Result of admitting refresh work under due/backoff policy."""
+
+    version: int
+    status: str
+    reason: str | None
+    due_at: float | None
+    reservation: ProviderUsageRefreshReservation | None
+
+    @classmethod
+    def from_wire(cls, payload: object) -> ProviderUsageRefreshAdmitOutcome:
+        if not isinstance(payload, dict):
+            raise ProviderUsageStateError(
+                "provider-usage admit outcome is not an object"
+            )
+        _require_exact_fields(
+            payload,
+            {"version", "status", "reason", "due_at", "reservation"},
+            "admit outcome",
+        )
+        _require_version(payload["version"], "admit outcome")
+        status = payload["status"]
+        reason = payload["reason"]
+        due_at = payload["due_at"]
+        reservation = payload["reservation"]
+        if status not in PROVIDER_USAGE_REFRESH_ADMIT_STATUSES:
+            raise ProviderUsageStateError(
+                f"unknown provider-usage admission status: {status!r}"
+            )
+        if reason is not None and not isinstance(reason, str):
+            raise ProviderUsageStateError("admit reason must be a string or null")
+        if due_at is not None and not is_finite_number(due_at):
+            raise ProviderUsageStateError("due_at must be a finite number or null")
+        parsed: ProviderUsageRefreshReservation | None = None
+        if reservation is not None:
+            parsed = ProviderUsageRefreshReservation.from_wire(reservation)
+        if status != PROVIDER_USAGE_REFRESH_DEFERRED and parsed is None:
+            raise ProviderUsageStateError("admitted refresh is missing a reservation")
+        return cls(
+            version=payload["version"],
+            status=status,
+            reason=reason,
+            due_at=None if due_at is None else float(due_at),
+            reservation=parsed,
+        )
+
+
+@dataclass(frozen=True)
+class ProviderUsageRefreshMarkDueOutcome:
+    """Result of marking a provider due for refresh."""
+
+    version: int
+    marked: bool
+    due_at: float
+    reason: str
+
+    @classmethod
+    def from_wire(cls, payload: object) -> ProviderUsageRefreshMarkDueOutcome:
+        if not isinstance(payload, dict):
+            raise ProviderUsageStateError(
+                "provider-usage mark-due outcome is not an object"
+            )
+        _require_exact_fields(
+            payload, {"version", "marked", "due_at", "reason"}, "mark-due outcome"
+        )
+        _require_version(payload["version"], "mark-due outcome")
+        marked = payload["marked"]
+        due_at = payload["due_at"]
+        reason = payload["reason"]
+        if type(marked) is not bool:
+            raise ProviderUsageStateError("marked must be a boolean")
+        if not is_finite_number(due_at):
+            raise ProviderUsageStateError("due_at must be a finite number")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ProviderUsageStateError("mark-due reason must be a non-empty string")
+        return cls(
+            version=payload["version"],
+            marked=marked,
+            due_at=float(due_at),
+            reason=reason,
+        )
+
+
 def provider_usage_state_path() -> Path:
     """Return the canonical usage-state path under ``sase_home``."""
     binding = require_rust_binding("provider_usage_state_path")
@@ -420,6 +544,158 @@ def release_provider_usage_refresh(
     )
 
 
+def evaluate_provider_usage_refresh_due(
+    provider: str,
+    context_id: str,
+    account_generation: int,
+    *,
+    cadence_seconds: float = DEFAULT_USAGE_CADENCE_SECONDS,
+    explicit: bool = False,
+    now: float | None = None,
+) -> ProviderUsageRefreshDueOutcome:
+    """Return whether *provider* is due without reserving work."""
+    provider = require_provider_id(provider)
+    context_id = _require_context_id(context_id)
+    account_generation = _require_account_generation(account_generation)
+    if not is_finite_number(cadence_seconds) or float(cadence_seconds) <= 0.0:
+        raise ValueError("cadence_seconds must be a finite positive number")
+    if type(explicit) is not bool:
+        raise ValueError("explicit must be a boolean")
+    current = time.time() if now is None else now
+    binding = require_rust_binding("provider_usage_refresh_due")
+    return ProviderUsageRefreshDueOutcome.from_wire(
+        binding(
+            str(sase_home()),
+            {
+                "provider": provider,
+                "context_id": context_id,
+                "account_generation": account_generation,
+                "cadence_seconds": float(cadence_seconds),
+                "explicit": explicit,
+            },
+            current,
+        )
+    )
+
+
+def admit_provider_usage_refresh(
+    provider: str,
+    context_id: str,
+    account_generation: int,
+    operation_id: str,
+    ttl_seconds: float,
+    *,
+    cadence_seconds: float = DEFAULT_USAGE_CADENCE_SECONDS,
+    explicit: bool = False,
+    now: float | None = None,
+) -> ProviderUsageRefreshAdmitOutcome:
+    """Admit, join, or defer refresh work for one provider/account generation."""
+    provider = require_provider_id(provider)
+    context_id = _require_context_id(context_id)
+    operation_id = _require_context_id(operation_id)
+    account_generation = _require_account_generation(account_generation)
+    if not is_finite_number(ttl_seconds) or float(ttl_seconds) <= 0.0:
+        raise ValueError("ttl_seconds must be a finite positive number")
+    if not is_finite_number(cadence_seconds) or float(cadence_seconds) <= 0.0:
+        raise ValueError("cadence_seconds must be a finite positive number")
+    if type(explicit) is not bool:
+        raise ValueError("explicit must be a boolean")
+    current = time.time() if now is None else now
+    binding = require_rust_binding("provider_usage_admit_refresh")
+    return ProviderUsageRefreshAdmitOutcome.from_wire(
+        binding(
+            str(sase_home()),
+            {
+                "provider": provider,
+                "context_id": context_id,
+                "account_generation": account_generation,
+                "operation_id": operation_id,
+                "ttl_seconds": float(ttl_seconds),
+                "cadence_seconds": float(cadence_seconds),
+                "explicit": explicit,
+            },
+            current,
+        )
+    )
+
+
+def mark_provider_usage_refresh_due(
+    provider: str,
+    context_id: str,
+    account_generation: int,
+    reason: str,
+    *,
+    due_at: float | None = None,
+    now: float | None = None,
+) -> ProviderUsageRefreshMarkDueOutcome:
+    """Mark *provider* due once for *reason*, optionally at a future time."""
+    provider = require_provider_id(provider)
+    context_id = _require_context_id(context_id)
+    account_generation = _require_account_generation(account_generation)
+    if not isinstance(reason, str) or not reason.strip():
+        raise ValueError("reason must be a non-empty string")
+    if due_at is not None and not is_finite_number(due_at):
+        raise ValueError("due_at must be a finite number")
+    current = time.time() if now is None else now
+    binding = require_rust_binding("provider_usage_mark_refresh_due")
+    return ProviderUsageRefreshMarkDueOutcome.from_wire(
+        binding(
+            str(sase_home()),
+            {
+                "provider": provider,
+                "context_id": context_id,
+                "account_generation": account_generation,
+                "reason": reason.strip(),
+                "due_at": None if due_at is None else float(due_at),
+            },
+            current,
+        )
+    )
+
+
+def record_provider_usage_refresh_attempt(
+    provider: str,
+    context_id: str,
+    account_generation: int,
+    outcome: str,
+    *,
+    retry_after_seconds: float | None = None,
+    cadence_seconds: float = DEFAULT_USAGE_CADENCE_SECONDS,
+    now: float | None = None,
+) -> dict[str, Any]:
+    """Record backoff/cooldown after one provider refresh attempt."""
+    provider = require_provider_id(provider)
+    context_id = _require_context_id(context_id)
+    account_generation = _require_account_generation(account_generation)
+    if not isinstance(outcome, str) or not outcome.strip():
+        raise ValueError("outcome must be a non-empty string")
+    if retry_after_seconds is not None and (
+        not is_finite_number(retry_after_seconds) or float(retry_after_seconds) < 0.0
+    ):
+        raise ValueError("retry_after_seconds must be a finite nonnegative number")
+    if not is_finite_number(cadence_seconds) or float(cadence_seconds) <= 0.0:
+        raise ValueError("cadence_seconds must be a finite positive number")
+    current = time.time() if now is None else now
+    binding = require_rust_binding("provider_usage_record_refresh_attempt")
+    recorded = binding(
+        str(sase_home()),
+        {
+            "provider": provider,
+            "context_id": context_id,
+            "account_generation": account_generation,
+            "outcome": outcome.strip(),
+            "retry_after_seconds": (
+                None if retry_after_seconds is None else float(retry_after_seconds)
+            ),
+            "cadence_seconds": float(cadence_seconds),
+        },
+        current,
+    )
+    if not isinstance(recorded, dict):
+        raise ProviderUsageStateError("refresh attempt record is not an object")
+    return recorded
+
+
 def _require_context_id(value: object) -> str:
     """Validate an opaque provider context, operation, or lease identifier."""
     if not isinstance(value, str):
@@ -468,6 +744,8 @@ __all__ = [
     "DEFAULT_USAGE_WARN_PERCENT",
     "PROVIDER_USAGE_OBSERVATION_SCHEMA_VERSION",
     "PROVIDER_USAGE_PUBLIC_SCHEMA_VERSION",
+    "PROVIDER_USAGE_REFRESH_ADMIT_STATUSES",
+    "PROVIDER_USAGE_REFRESH_DEFERRED",
     "PROVIDER_USAGE_REFRESH_JOINED",
     "PROVIDER_USAGE_REFRESH_RESERVED",
     "PROVIDER_USAGE_REFRESH_STATUSES",
@@ -478,16 +756,23 @@ __all__ = [
     "PROVIDER_USAGE_STORE_WRITE_STATUSES",
     "PROVIDER_USAGE_STORE_WRITE_UNCHANGED",
     "ProviderUsageAccountContext",
+    "ProviderUsageRefreshAdmitOutcome",
+    "ProviderUsageRefreshDueOutcome",
+    "ProviderUsageRefreshMarkDueOutcome",
     "ProviderUsageRefreshReservation",
     "ProviderUsageRefreshReservationOutcome",
     "ProviderUsageStateError",
     "ProviderUsageStoreDiagnostic",
     "ProviderUsageStoreRead",
     "ProviderUsageStoreWriteOutcome",
+    "admit_provider_usage_refresh",
+    "evaluate_provider_usage_refresh_due",
     "load_provider_usage",
+    "mark_provider_usage_refresh_due",
     "prepare_provider_usage_account_context",
     "provider_usage_state_path",
     "record_provider_usage_observation",
+    "record_provider_usage_refresh_attempt",
     "release_provider_usage_refresh",
     "reserve_provider_usage_refresh",
 ]

@@ -23,6 +23,7 @@ from ._startup_prompt_catalog import StartupPromptCatalogMixin
 from ._startup_telemetry import StartupTelemetryMixin
 from ._startup_watchers import StartupWatchersMixin
 from ._state_init import StateInitMixin
+from ._usage_refresh_fallback import UsageRefreshFallbackMixin
 
 if TYPE_CHECKING:
     from .navigation._types import JumpAllResult
@@ -56,6 +57,7 @@ class StartupMixin(
     StartupMisspellingsMixin,
     StartupPromptCatalogMixin,
     StartupLoadsMixin,
+    UsageRefreshFallbackMixin,
     StartupWatchersMixin,
     StartupMountMixin,
     StartupTelemetryMixin,

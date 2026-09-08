@@ -258,6 +258,7 @@ def test_default_builtin_chops_use_explicit_full_script_names() -> None:
     assert "bead_task_triage" in checks.chop_names
     assert "plugins_required" in checks.chop_names
     assert "pr_submitted_checks" in checks.chop_names
+    assert "usage_refresh" in checks.chop_names
     plugins_required = next(
         chop for chop in checks.chops if chop.name == "plugins_required"
     )
