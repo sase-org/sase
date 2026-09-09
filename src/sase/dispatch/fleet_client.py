@@ -157,6 +157,14 @@ class FleetGatewayClient:
                 code="invalid_response",
                 status=status,
             )
+        if status == 409 and "outcome" not in payload:
+            # 409 is tolerated above because enrollment quarantine responses
+            # (``outcome: "quarantined"``) use it, but the gateway also uses 409
+            # for non-quarantine rejections such as a replayed bootstrap secret
+            # (a plain ``{"code": ..., "message": ...}`` error body). Those must
+            # still surface as a clear gateway error, not fall through and be
+            # misread as a token-bearing enrollment payload.
+            raise _api_error(status, raw)
         return payload
 
 

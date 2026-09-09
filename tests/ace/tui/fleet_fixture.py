@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -475,6 +476,14 @@ class ScriptedFleetFacade(OfflineFleetFacade):
         default_factory=dict,
         init=False,
     )
+    # Per-operation (perf_counter_start, perf_counter_end) spans covering each
+    # scripted call's delay, in the same clock as JKPerfTimer's samples, so a
+    # caller can prove a scripted response resolved during a measured window
+    # rather than trusting incidental timing.
+    call_windows: dict[str, list[tuple[float, float]]] = field(
+        default_factory=dict,
+        init=False,
+    )
 
     def __post_init__(self) -> None:
         self._scripts = {
@@ -486,16 +495,16 @@ class ScriptedFleetFacade(OfflineFleetFacade):
         operation: str,
         default: Mapping[str, Any],
     ) -> dict[str, Any]:
+        start = time.perf_counter()
         delay = float(self.delays.get(operation, 0.0) or 0.0)
         if delay > 0:
             await asyncio.sleep(delay)
         steps = self._scripts.get(operation)
-        if steps:
-            step = steps.pop(0)
-            if isinstance(step, Exception):
-                raise step
-            return dict(step)
-        return dict(default)
+        step = steps.pop(0) if steps else default
+        self.call_windows.setdefault(operation, []).append((start, time.perf_counter()))
+        if isinstance(step, Exception):
+            raise step
+        return dict(step)
 
     async def summary(
         self,
