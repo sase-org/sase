@@ -170,9 +170,7 @@ def test_wait_arg_completion_orders_kinds_and_matches_bare_tribe() -> None:
     assert [candidate.insertion for candidate in candidates] == [
         "agent=",
         "bead=",
-        "priority=",
         "proc=",
-        "runners=",
         "time=",
         "unit=",
         "@builders",
@@ -203,9 +201,7 @@ def test_wait_arg_completion_excludes_groups_and_deduplicates_insertions() -> No
     assert [candidate.insertion for candidate in candidates] == [
         "agent=",
         "bead=",
-        "priority=",
         "proc=",
-        "runners=",
         "time=",
         "unit=",
         "@builders",
@@ -219,7 +215,7 @@ def test_wait_arg_completion_excludes_groups_and_deduplicates_insertions() -> No
         "",
         [
             candidate.metadata
-            for candidate in candidates[2:]
+            for candidate in candidates
             if isinstance(candidate.metadata, AgentCompletionCandidate)
         ],
         excluded_names=frozenset({"@builders", "review", "ship"}),
@@ -238,14 +234,16 @@ def test_wait_arg_completion_ignores_time_keyword_fragment() -> None:
     assert shared == ""
 
 
-def test_wait_paren_arg_completion_suggests_runners_keyword() -> None:
+def test_wait_paren_arg_completion_does_not_suggest_queue_keywords() -> None:
     candidates, shared = build_directive_arg_completion_candidates(
         "wait",
         "run",
         agent_candidates=[agent_candidate("coder")],
     )
 
-    assert [candidate.insertion for candidate in candidates] == ["runners="]
+    assert candidates == []
+    priority_candidates, _ = build_directive_arg_completion_candidates("wait", "pri")
+    assert priority_candidates == []
     assert shared == ""
 
 
@@ -260,21 +258,34 @@ def test_wait_arg_completion_excludes_selected_keywords_case_insensitively() -> 
     assert [candidate.insertion for candidate in candidates] == [
         "agent=",
         "bead=",
-        "priority=",
         "proc=",
-        "runners=",
         "unit=",
         "coder",
     ]
     assert shared == ""
 
 
-def test_wait_priority_completion_describes_order_and_default() -> None:
-    candidates, _ = build_directive_arg_completion_candidates("wait", "pri")
+def test_queue_priority_completion_describes_order_and_default() -> None:
+    text = "%queue(pri"
+    clause = classify_directive_completion(text, len(text))
+    assert clause is not None
+    candidates, _ = build_directive_clause_candidates(clause)
 
     assert [candidate.insertion for candidate in candidates] == ["priority="]
     assert directive_arg_metadata(candidates[0]).description == (
         "Lower values start first; the default is 10"
+    )
+
+
+def test_queue_runner_completion_describes_limit() -> None:
+    text = "%queue(run"
+    clause = classify_directive_completion(text, len(text))
+    assert clause is not None
+    candidates, _ = build_directive_clause_candidates(clause)
+
+    assert [candidate.insertion for candidate in candidates] == ["runners="]
+    assert directive_arg_metadata(candidates[0]).description == (
+        "Start when at most this many agents are already running"
     )
 
 

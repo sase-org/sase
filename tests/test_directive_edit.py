@@ -311,26 +311,26 @@ def test_set_prompt_wait_clears_wait_directives() -> None:
     assert set_prompt_wait("%wait(dep, time=5m)\nDo work", None) == "Do work"
 
 
-def test_set_prompt_wait_formats_runner_threshold() -> None:
+def test_set_prompt_wait_ignores_runner_threshold() -> None:
     rewritten = set_prompt_wait(
         "Do work",
         PromptWaitDirective(agents=("dep",), time_token="5m", runners=0),
     )
 
-    assert rewritten == "%wait(dep, time=5m, runners=0)\nDo work"
+    assert rewritten == "%wait(dep, time=5m)\nDo work"
 
 
-def test_set_prompt_wait_formats_and_round_trips_priority() -> None:
+def test_set_prompt_wait_ignores_queue_priority() -> None:
     rewritten = set_prompt_wait(
         "Do work",
         PromptWaitDirective(agents=("dep",), runners=0, priority=20),
     )
 
-    assert rewritten == "%wait(dep, runners=0, priority=20)\nDo work"
+    assert rewritten == "%wait(dep)\nDo work"
     _, directives = extract_prompt_directives(rewritten)
     assert directives.wait == ["dep"]
-    assert directives.wait_runners == 0
-    assert directives.wait_priority == 20
+    assert directives.wait_runners is None
+    assert directives.wait_priority is None
 
 
 def test_set_prompt_wait_formats_and_round_trips_bead_only_conditions() -> None:

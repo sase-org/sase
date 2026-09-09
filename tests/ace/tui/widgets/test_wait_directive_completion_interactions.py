@@ -114,9 +114,7 @@ async def test_wait_arg_completion_excludes_selected_agent_and_groups() -> None:
         ] == [
             "agent=",
             "bead=",
-            "priority=",
             "proc=",
-            "runners=",
             "time=",
             "unit=",
             "ship",
@@ -148,9 +146,7 @@ async def test_wait_arg_completion_excludes_selected_keyword_in_paren_form() -> 
         ] == [
             "agent=",
             "bead=",
-            "priority=",
             "proc=",
-            "runners=",
             "unit=",
             "planner",
             "coder",
@@ -166,7 +162,7 @@ async def test_wait_arg_completion_excludes_selected_keyword_to_cursor_right() -
     ]
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
-        text = "%wait:, runners=1, Coder"
+        text = "%wait:, time=1m, Coder"
         ta.load_text(text)
         ta.cursor_location = (0, len("%wait:"))
 
@@ -281,7 +277,7 @@ async def test_wait_paren_empty_clause_offers_documented_bead_keyword() -> None:
         insertions = [
             candidate.insertion for candidate in ta._file_completion_candidates
         ]
-        assert insertions[:5] == ["agent=", "bead=", "priority=", "proc=", "runners="]
+        assert insertions[:4] == ["agent=", "bead=", "proc=", "unit="]
         bead = ta._file_completion_candidates[1]
         assert directive_arg_metadata(bead).description == (
             "Wait until this bead is closed"

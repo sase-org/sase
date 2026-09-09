@@ -290,7 +290,7 @@ def test_wait_bead_keyword_sets_bead_only_condition(directive: str) -> None:
 
 def test_wait_bead_keywords_mix_and_deduplicate_in_source_order() -> None:
     prompt = (
-        "%wait(builder, bead=sase-87.2, time=5m, runners=0, priority=3)\n"
+        "%wait(builder, bead=sase-87.2, time=5m) %queue(runners=0, priority=3)\n"
         "%w(bead=sase-87.1)\n"
         "%wait(bead=sase-87.2)\n"
         "Do work"
@@ -386,8 +386,8 @@ def test_wait_unknown_keyword_raises() -> None:
         DirectiveError,
         match=(
             r"Unsupported keyword on %wait: foo=\. "
-            r"Only agent=, bead=, priority=, proc=, runners=, time=, "
-            r"and unit= are supported\."
+            r"Use unit=, agent=, proc=, bead=, or time=\. "
+            r"Queue controls belong on %queue\."
         ),
     ):
         extract_prompt_directives(prompt)

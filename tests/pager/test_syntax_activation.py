@@ -20,7 +20,7 @@ from sase.pager.document import (
 from sase.pager.resolve import LinkTargetKind, resolve_ref
 from sase.pager.screen import PagerScreen
 from sase.pager.syntax_policy import PagerSyntaxSession
-from tests.pager.test_app import _pager_screen
+from tests.pager._app_helpers import pager_screen as _pager_screen
 
 
 def _write(path: Path, body: str) -> Path:
