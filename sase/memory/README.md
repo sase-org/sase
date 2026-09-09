@@ -155,14 +155,11 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 
 - Type: `reference`
 - Parent: `AGENTS.md`
-- Description: IMPORTANT: if you changed ANY file in the sase repo, you MUST read this
-  note before you finish your turn. Verification is not optional here and the lanes are
-  not interchangeable: this note covers the `just` command surface, the two-speed rule
-  that makes `just check` the agent default and `just check-full` a monitor-only landing
-  gate, the `just install` prerequisite for ephemeral workspace clones, and the PNG
-  snapshot suite.
-- Lines: 66
-- Approx. tokens: 870
+- Description: If you changed any file tracked by git in the sase repo (excluding file
+  changes in the separate repos the sase/repos/ directory), you MUST read this note
+  before you finish your turn. Verification is NOT optional.
+- Lines: 62
+- Approx. tokens: 815
 
 ### `sase/memory/sase_artifacts.md`
 
@@ -237,8 +234,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 10
 - Web descriptor notes: 3
-- Total lines: 1104
-- Total approx. tokens: 14236
+- Total lines: 1100
+- Total approx. tokens: 14181
 
 ## Commands
 

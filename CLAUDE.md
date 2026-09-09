@@ -111,12 +111,9 @@ memory files directly.
    xprompt skills), which are generated from source templates in the
    `src/sase/xprompts/skills/` and deployed to managed locations (my chezmoi repo, for
    example).
-3. **`sase/memory/lint_and_test.md`** - IMPORTANT: if you changed ANY file in the sase
-   repo, you MUST read this note before you finish your turn. Verification is not
-   optional here and the lanes are not interchangeable: this note covers the `just`
-   command surface, the two-speed rule that makes `just check` the agent default and
-   `just check-full` a monitor-only landing gate, the `just install` prerequisite for
-   ephemeral workspace clones, and the PNG snapshot suite.
+3. **`sase/memory/lint_and_test.md`** - If you changed any file tracked by git in the
+   sase repo (excluding file changes in the separate repos the sase/repos/ directory),
+   you MUST read this note before you finish your turn. Verification is NOT optional.
 4. **`sase/memory/sase_artifacts.md`** - Read before creating, consuming, resolving,
    linking, or managing retention for SASE artifact references and indexed files.
 5. **`sase/memory/sase_beads.md`** - Read before creating, updating, closing, or
