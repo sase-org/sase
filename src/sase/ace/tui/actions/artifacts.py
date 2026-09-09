@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -144,11 +145,11 @@ class _ArtifactsProjectChoices:
     @property
     def completion_display_names(self) -> tuple[str, ...]:
         """Return stable, deduplicated configured names for Stitches."""
-        labels = (
-            (choice.display_name for choice in self.choices)
-            if self.choices
-            else iter(self.display_names.values())
-        )
+        labels: Iterable[str]
+        if self.choices:
+            labels = (choice.display_name for choice in self.choices)
+        else:
+            labels = self.display_names.values()
         return tuple(dict.fromkeys(labels))
 
     @property

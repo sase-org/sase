@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from sase.telemetry._config import HealthThresholds
 from sase.telemetry.render.palette import Status
 
@@ -68,7 +70,10 @@ def _threshold_status(value: float, warn: float, critical: float) -> Status:
 
 
 def _worst(*statuses: Status | None) -> Status | None:
-    present = [status for status in statuses if status is not None]
+    present: list[Status] = []
+    for status in statuses:
+        if status is not None:
+            present.append(status)
     if not present:
         return None
-    return max(present, key=lambda status: _STATUS_RANK[status])
+    return max(present, key=lambda status: _STATUS_RANK[cast(Status, status)])

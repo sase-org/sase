@@ -14,7 +14,6 @@ from tests.ace.tui._bench_tui_jk_helpers import (
     _PATCHES_P95_BUDGET_MS,
     _install_axe_fixture,
     _make_patch,
-    _perf_jsonl as _perf_jsonl,
     _print_table,
     _read_samples,
     _summarize,
@@ -22,10 +21,14 @@ from tests.ace.tui._bench_tui_jk_helpers import (
     _warm_axe_navigation,
 )
 
+pytest_plugins = ("tests.ace.tui._bench_tui_jk_helpers",)
 pytestmark = pytest.mark.slow
 
 
-async def test_bench_patches_jk(_perf_jsonl: Path, tmp_path: Path) -> None:
+async def test_bench_patches_jk(
+    _perf_jsonl: Path,
+    tmp_path: Path,
+) -> None:
     """Measure j/k latency on the Patches tab with 50 synthetic Patches."""
     gp_file = tmp_path / "bench" / "bench.sase"
     gp_file.parent.mkdir(parents=True)

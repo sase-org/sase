@@ -14,7 +14,6 @@ from tests.ace.tui._bench_tui_jk_helpers import (
     _LINK_RAIL_P95_DELTA_BUDGET_MS,
     _install_agents_fixture,
     _install_link_index_fixture,
-    _perf_jsonl as _perf_jsonl,
     _print_table,
     _read_samples,
     _summarize,
@@ -22,6 +21,7 @@ from tests.ace.tui._bench_tui_jk_helpers import (
     _warm_agents_navigation,
 )
 
+pytest_plugins = ("tests.ace.tui._bench_tui_jk_helpers",)
 pytestmark = pytest.mark.slow
 
 

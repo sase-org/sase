@@ -22,7 +22,7 @@ from collections import OrderedDict
 from collections.abc import Iterable
 from threading import RLock
 from time import monotonic
-from typing import Final
+from typing import Final, Literal, cast
 
 from sase.agent.bead_display import BeadIssueLookupSession
 from sase.agent_family_plan_preview import (
@@ -249,8 +249,9 @@ def _preview_from_enrichment(
 
     bead = enrichment.phase_bead
     if bead is not None and bead.bead_type in ("phase", "task"):
+        bead_type = cast("Literal['phase', 'task']", bead.bead_type)
         preview = agent_family_plan_preview_from_bead(
-            bead_type=bead.bead_type,
+            bead_type=bead_type,
             title=bead.title,
             parent_title=bead.epic_title,
             size=bead.size,

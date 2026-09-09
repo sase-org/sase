@@ -123,8 +123,16 @@ class KillAndEditLastLaunchMixin:
             self._reveal_last_launch_target(matched[0].identity)
             begin_resolved_launch_action(record)
 
-            def finish(initiated: bool, target_record: LaunchRecord = record) -> None:
-                self._finish_resolved_launch_action(target_record, initiated=initiated)
+            def make_finish(target_record: LaunchRecord) -> Callable[[bool], None]:
+                def callback(initiated: bool) -> None:
+                    self._finish_resolved_launch_action(
+                        target_record,
+                        initiated=initiated,
+                    )
+
+                return callback
+
+            finish = make_finish(record)
 
             if len(matched) == 1:
                 self._kill_and_edit_agent(  # type: ignore[attr-defined]

@@ -50,17 +50,14 @@ def handle_bead_ref(args: argparse.Namespace) -> None:
         return
 
     context = artifact_reference_context()
-    resolved = [
-        (
-            issue,
-            (
-                resolve_artifact_ref_list(issue.refs, context=context)
-                if context is not None
-                else tuple(issue.refs)
-            ),
-        )
-        for issue in issues
-    ]
+    resolved: list[tuple[Issue, tuple[ArtifactRefListEntry | str, ...]]] = []
+    for issue in issues:
+        entries: tuple[ArtifactRefListEntry | str, ...]
+        if context is not None:
+            entries = resolve_artifact_ref_list(issue.refs, context=context)
+        else:
+            entries = tuple(issue.refs)
+        resolved.append((issue, entries))
     if as_json:
         print(
             json.dumps(

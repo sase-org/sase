@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import re
+import tomllib
+from pathlib import Path
+
 import pytest
 
 from sase.core.agent_launch_facade import (
@@ -11,6 +15,24 @@ from sase.core.agent_launch_facade import (
 from sase.core.agent_launch_wire import AgentUnitWire
 from sase.feature_flags import override_flags
 from sase.xprompt.queue_directive import collect_queue_fields, format_queue_directive
+
+
+ROOT = Path(__file__).resolve().parents[1]
+QUEUE_DIRECTIVE_CORE_FLOOR = (0, 32, 52)
+_CORE_FLOOR_RE = re.compile(r"^sase-core-rs>=(\d+(?:\.\d+)*),<\d+(?:\.\d+)*$")
+
+
+def _declared_core_floor() -> tuple[int, ...]:
+    data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    for dependency in data["project"]["dependencies"]:
+        match = _CORE_FLOOR_RE.match(dependency)
+        if match is not None:
+            return tuple(int(part) for part in match.group(1).split("."))
+    raise AssertionError("sase-core-rs dependency is missing from pyproject.toml")
+
+
+def test_sase_core_rs_floor_is_published_queue_directive_release() -> None:
+    assert _declared_core_floor() >= QUEUE_DIRECTIVE_CORE_FLOOR
 
 
 def test_queue_adapter_collects_and_formats_through_rust() -> None:

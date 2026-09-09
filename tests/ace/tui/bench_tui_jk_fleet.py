@@ -14,7 +14,6 @@ from sase.ace.tui.models.fleet_agents import project_fleet_agents
 from sase.dispatch.federation import FederationConfig
 from sase.dispatch.follow_store import FollowStoreSnapshot
 from tests.ace.tui._bench_tui_jk_helpers import (
-    _perf_jsonl as _perf_jsonl,
     _print_table,
     _read_samples,
     _summarize,
@@ -31,6 +30,7 @@ from tests.ace.tui.fleet_fixture import (
     fleet_summary,
 )
 
+pytest_plugins = ("tests.ace.tui._bench_tui_jk_helpers",)
 pytestmark = pytest.mark.slow
 
 _FLEET_FAULT_P95_BUDGET_MS = 16.0

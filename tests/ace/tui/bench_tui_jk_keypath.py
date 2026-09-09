@@ -14,10 +14,10 @@ from sase.ace.tui.app import AceApp
 from tests.ace.tui._bench_tui_jk_helpers import (
     _KEYS_PER_SCENARIO,
     _install_agents_fixture,
-    _perf_jsonl as _perf_jsonl,
     _wait_for_startup,
 )
 
+pytest_plugins = ("tests.ace.tui._bench_tui_jk_helpers",)
 pytestmark = pytest.mark.slow
 
 

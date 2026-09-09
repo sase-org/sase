@@ -16,7 +16,6 @@ from tests.ace.tui._bench_tui_jk_helpers import (
     _SELECTED_TRIBE_P95_BUDGET_MS,
     _install_agents_fixture,
     _install_clan_agents_fixture,
-    _perf_jsonl as _perf_jsonl,
     _print_table,
     _read_samples,
     _summarize,
@@ -24,10 +23,13 @@ from tests.ace.tui._bench_tui_jk_helpers import (
     _warm_agents_navigation,
 )
 
+pytest_plugins = ("tests.ace.tui._bench_tui_jk_helpers",)
 pytestmark = pytest.mark.slow
 
 
-async def test_bench_agents_jk_and_panel_navigation(_perf_jsonl: Path) -> None:
+async def test_bench_agents_jk_and_panel_navigation(
+    _perf_jsonl: Path,
+) -> None:
     """Measure Agents-tab row and tribe-panel navigation on a large synthetic list."""
     app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)
     async with app.run_test() as pilot:
@@ -63,7 +65,9 @@ async def test_bench_agents_jk_and_panel_navigation(_perf_jsonl: Path) -> None:
     )
 
 
-async def test_bench_clan_jk_at_each_panel_fold_level(_perf_jsonl: Path) -> None:
+async def test_bench_clan_jk_at_each_panel_fold_level(
+    _perf_jsonl: Path,
+) -> None:
     """Keep clan key-to-paint p95 below budget at levels 1, 2, and 3."""
     app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)
     level_summaries: dict[FoldLevel, dict[str, dict[str, float]]] = {}
