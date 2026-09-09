@@ -15,6 +15,7 @@ MODEL_COMPLETION_ENTRY_WIRE_FIELDS: tuple[str, ...] = (
     "description",
     "kind",
     "provider",
+    "provider_display",
     "aliases",
     "alias_kind",
     "target_provider",
@@ -47,6 +48,7 @@ class ModelCompletionEntry:
     description: str = ""
     kind: str = "model"
     provider: str = ""
+    provider_display: str = ""
     aliases: tuple[str, ...] = field(default_factory=tuple)
     alias_kind: str = ""
     target_provider: str = ""

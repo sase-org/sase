@@ -138,6 +138,7 @@ def _alias_entries() -> tuple[ModelCompletionEntry, ...]:
             description="Concrete model",
             kind="model",
             provider="codex",
+            provider_display="Codex",
             aliases=("large-model",),
         ),
     )

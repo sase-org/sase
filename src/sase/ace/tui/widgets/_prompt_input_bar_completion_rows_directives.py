@@ -9,6 +9,7 @@ from sase.ace.tui.model_alias_styles import (
     MODEL_ALIAS_KIND_STYLES,
     alias_kind_label,
     alias_state_text,
+    model_advisory_text,
     provider_model_text,
 )
 from sase.ace.tui.provider_styles import provider_name_style
@@ -226,6 +227,7 @@ def append_model_completion_row(
         kind_label = "model"
         kind_style = "bold magenta"
         state = Text(metadata.short_alias, style="dim")
+        _append_model_advisory_state(state, metadata)
         _append_model_routing_state(state, metadata)
     else:
         kind_style = MODEL_ALIAS_KIND_STYLES.get(metadata.alias_kind, "bold magenta")
@@ -277,10 +279,16 @@ def append_model_shortcut_completion_row(
     provider = _model_completion_target_text(metadata)
     provider.truncate(provider_width, overflow="ellipsis", pad=True)
     hint = _model_shortcut_hint_text(metadata, match_query)
+    advisory = model_advisory_text(
+        metadata.advisory_label,
+        metadata.advisory_severity,
+    )
     state = _model_routing_state_text(metadata)
     pieces: list[Text] = [provider]
     if hint:
         pieces.append(hint)
+    if advisory:
+        pieces.append(advisory)
     if state:
         pieces.append(state)
 
@@ -294,6 +302,7 @@ def append_model_shortcut_completion_row(
     name = _model_shortcut_name_text(
         candidate.display,
         name_style,
+        metadata=metadata,
         match_query=match_query,
     )
     name.truncate(name_width, overflow="ellipsis", pad=True)
@@ -312,9 +321,31 @@ def _model_shortcut_name_text(
     display: str,
     style: str,
     *,
+    metadata: ModelCompletionMetadata,
     match_query: str,
 ) -> Text:
     """Return a model label with the typed canonical prefix highlighted."""
+    head, separator, scoped_query = match_query.partition("/")
+    if separator and head:
+        scoped_prefix = f"{head}/"
+        if display.casefold().startswith(scoped_prefix.casefold()):
+            ranges = [(0, len(head))]
+            tail_start = len(scoped_prefix)
+            tail = display[tail_start:]
+            hint_matched = bool(
+                scoped_query
+                and metadata.short_alias.casefold().startswith(scoped_query.casefold())
+            )
+            if (
+                scoped_query
+                and not hint_matched
+                and tail.casefold().startswith(scoped_query.casefold())
+            ):
+                ranges.append((tail_start, tail_start + len(scoped_query)))
+            text = Text(no_wrap=True, overflow="ellipsis")
+            append_highlighted(text, display, ranges, base_style=style)
+            return text
+
     if not match_query or not display.casefold().startswith(match_query.casefold()):
         return Text(display, style=style)
     text = Text(no_wrap=True, overflow="ellipsis")
@@ -496,6 +527,19 @@ def _append_model_routing_state(text: Text, metadata: ModelCompletionMetadata) -
     if text:
         text.append(" · ", style="dim")
     text.append_text(state)
+
+
+def _append_model_advisory_state(text: Text, metadata: ModelCompletionMetadata) -> None:
+    """Append an advisory chip to the model state cell."""
+    advisory = model_advisory_text(
+        metadata.advisory_label,
+        metadata.advisory_severity,
+    )
+    if not advisory:
+        return
+    if text:
+        text.append(" · ", style="dim")
+    text.append_text(advisory)
 
 
 def _model_routing_state_text(metadata: ModelCompletionMetadata) -> Text:

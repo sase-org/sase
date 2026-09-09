@@ -254,16 +254,24 @@ def _model_explicit_completion_subtitle(
 
 
 def _model_explicit_completion_details(metadata: ModelCompletionMetadata) -> str:
-    provider = metadata.provider_display or metadata.description or metadata.provider
+    provider = metadata.provider_display or metadata.provider
+    details: list[str] = []
     if metadata.short_alias:
         provider = (
             f"{provider} ({metadata.short_alias})" if provider else metadata.short_alias
         )
-    if metadata.provenance in {"priority", "backup", "soft"}:
-        return (
-            f"{provider} · {metadata.provenance}" if provider else metadata.provenance
+    if provider:
+        details.append(provider)
+    if metadata.advisory_label:
+        from sase.llm_provider.registry import model_advisory_marker
+
+        details.append(
+            f"{model_advisory_marker(metadata.advisory_severity)} "
+            f"{metadata.advisory_label}"
         )
-    return provider
+    if metadata.provenance in {"priority", "backup", "soft"}:
+        details.append(metadata.provenance)
+    return " · ".join(details)
 
 
 def agent_completion_subtitle(

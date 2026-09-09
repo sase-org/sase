@@ -54,6 +54,9 @@ class ModelCompletionMetadata:
     pool_total: int = 0
     description: str = ""
     config_source: str = ""
+    bucket: str = ""
+    advisory_label: str = ""
+    advisory_severity: str = ""
     provider_model_count: int = 0
 
 

@@ -18,6 +18,8 @@ from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.model_alias_completion import MODEL_ALIAS_COMPLETION_KIND
 from sase.ace.tui.widgets.model_explicit_completion import (
     MODEL_EXPLICIT_COMPLETION_KIND,
+    build_loading_model_explicit_placeholder,
+    build_unavailable_model_explicit_placeholder,
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -42,6 +44,9 @@ def _model_row(
     provider_display: str,
     short_alias: str = "",
     description: str | None = None,
+    bucket: str = "",
+    advisory_label: str = "",
+    advisory_severity: str = "",
 ) -> CompletionCandidate:
     return _candidate(
         ModelCompletionMetadata(
@@ -51,6 +56,9 @@ def _model_row(
             provider_display=provider_display,
             short_alias=short_alias,
             description=description or f"{provider_display} ({short_alias or value})",
+            bucket=bucket,
+            advisory_label=advisory_label,
+            advisory_severity=advisory_severity,
         )
     )
 
@@ -210,6 +218,43 @@ _LONG_ALIAS_ROWS = [
     ),
 ]
 
+_LONG_EXPLICIT_MODEL_ROWS = [
+    _model_row(
+        "anthropic/claude-ultra-long-context-beta-preview-2026-09",
+        provider="opencode",
+        provider_display="OpenCode Anthropic",
+        short_alias="long-preview",
+        description="OpenCode Anthropic (long-preview)",
+    ),
+    _model_row(
+        "anthropic/claude-ultra-long-context-stable",
+        provider="opencode",
+        provider_display="OpenCode Anthropic",
+        short_alias="long-stable",
+        description="OpenCode Anthropic (long-stable)",
+    ),
+]
+
+_ADVISORY_MODEL_ROWS = [
+    _model_row(
+        "muse-contributor-1.1",
+        provider="muse",
+        provider_display="Muse",
+        short_alias="contrib",
+        description="Muse (contrib) — ⚠ trains on your data",
+        bucket="external",
+        advisory_label="trains on your data",
+        advisory_severity="warn",
+    ),
+    _model_row(
+        "muse-spark-1.2",
+        provider="muse",
+        provider_display="Muse",
+        short_alias="spark",
+        description="Muse (spark)",
+    ),
+]
+
 
 async def test_model_completion_mixed_menu_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
@@ -336,14 +381,34 @@ async def test_model_alias_completion_full_menu_png_snapshot(
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)
 
 
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        pytest.param(
+            "textual-dark",
+            "prompt_model_explicit_completion_full_dark_120x40",
+            "ACE prompt input — double-star model completion, dark theme",
+            id="dark",
+        ),
+        pytest.param(
+            "textual-light",
+            "prompt_model_explicit_completion_full_light_120x40",
+            "ACE prompt input — double-star model completion, light theme",
+            id="light",
+        ),
+    ],
+)
 async def test_model_explicit_completion_full_menu_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+    snapshot_name: str,
+    title: str,
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
-        page.app.theme = "textual-light"
+        page.app.theme = theme
         await wait_for_startup(page)
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
@@ -368,9 +433,176 @@ async def test_model_explicit_completion_full_menu_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "prompt_model_explicit_completion_full_light_120x40",
-            title="ACE prompt input — double-star model completion, light theme",
+            snapshot_name,
+            title=title,
         )
+
+
+async def test_model_explicit_completion_filtered_preview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        page.app.theme = "textual-light"
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, "Route **fa")
+
+        bar.show_file_completions(
+            "fa",
+            [_MODEL_ROWS[0]],
+            selected_index=0,
+            completion_kind=MODEL_EXPLICIT_COMPLETION_KIND,
+        )
+        await wait_for_svg_contains(page, "Enter → %m:claude-fable-5")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_model_explicit_completion_filtered_light_120x40",
+            title="ACE prompt input — filtered double-star model completion",
+        )
+
+
+async def test_model_explicit_completion_narrow_scoped_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches(), size=(70, 24)) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, "Try **anthropic/claude")
+
+        bar.show_file_completions(
+            "anthropic/claude",
+            _LONG_EXPLICIT_MODEL_ROWS,
+            selected_index=0,
+            completion_kind=MODEL_EXPLICIT_COMPLETION_KIND,
+        )
+        await wait_for_svg_contains(page, "Enter → %m:anthropic/claude")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_model_explicit_completion_scoped_narrow_70x24",
+            title="ACE prompt input — narrow provider-scoped double-star model completion",
+        )
+
+
+async def test_model_explicit_completion_stacked_pane_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        page.app.theme = "textual-light"
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, TWO_PANE_PROMPT)
+
+        bar.show_file_completions(
+            "gp",
+            [_MODEL_ROWS[2]],
+            selected_index=0,
+            completion_kind=MODEL_EXPLICIT_COMPLETION_KIND,
+        )
+        await wait_for_svg_contains(page, "Enter → %m:gpt-5.6-sol")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_model_explicit_completion_stack_light_120x40",
+            title="ACE prompt stack — double-star model completion, light theme",
+        )
+
+
+async def test_model_explicit_completion_advisory_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        page.app.theme = "textual-light"
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, "**contrib")
+
+        bar.show_file_completions(
+            "contrib",
+            _ADVISORY_MODEL_ROWS,
+            selected_index=0,
+            completion_kind=MODEL_EXPLICIT_COMPLETION_KIND,
+        )
+        await wait_for_svg_contains(page, "trains on your data")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_model_explicit_completion_advisory_light_120x40",
+            title="ACE prompt input — advisory double-star model completion",
+        )
+
+
+@pytest.mark.parametrize(
+    ("candidate", "snapshot_name", "title", "expected"),
+    [
+        pytest.param(
+            build_loading_model_explicit_placeholder(),
+            "prompt_model_explicit_completion_loading_120x40",
+            "ACE prompt input — loading double-star model completion",
+            "Loading models",
+            id="loading",
+        ),
+        pytest.param(
+            build_unavailable_model_explicit_placeholder(),
+            "prompt_model_explicit_completion_unavailable_120x40",
+            "ACE prompt input — unavailable double-star model completion",
+            "Models unavailable",
+            id="unavailable",
+        ),
+    ],
+)
+async def test_model_explicit_completion_status_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    candidate: CompletionCandidate,
+    snapshot_name: str,
+    title: str,
+    expected: str,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, "**")
+
+        bar.show_file_completions(
+            "",
+            [candidate],
+            selected_index=0,
+            completion_kind=MODEL_EXPLICIT_COMPLETION_KIND,
+        )
+        await wait_for_svg_contains(page, expected)
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
 
 
 async def test_model_alias_completion_filtered_preview_png_snapshot(

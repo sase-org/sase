@@ -167,6 +167,7 @@ def model_entries() -> list[ModelCompletionEntry]:
             display="claude-fable-5",
             description="Claude (fable)",
             provider="claude",
+            provider_display="Claude",
             aliases=("fable",),
         ),
         ModelCompletionEntry(
@@ -174,6 +175,7 @@ def model_entries() -> list[ModelCompletionEntry]:
             display="gpt-5.6-sol",
             description="Codex (gpt56sol)",
             provider="codex",
+            provider_display="Codex",
             aliases=("gpt56sol",),
         ),
     ]
@@ -188,6 +190,7 @@ def model_entries_with_providers() -> list[ModelCompletionEntry]:
             description="Claude",
             kind="provider",
             provider="claude",
+            provider_display="Claude",
             provider_model_count=1,
         ),
         ModelCompletionEntry(
@@ -196,6 +199,7 @@ def model_entries_with_providers() -> list[ModelCompletionEntry]:
             description="Codex",
             kind="provider",
             provider="codex",
+            provider_display="Codex",
             provider_model_count=1,
         ),
     ]

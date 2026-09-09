@@ -305,6 +305,38 @@ def test_directive_arg_completion_builds_model_candidates_from_catalog() -> None
     assert metadata.short_alias == "fable"
 
 
+def test_model_candidate_preserves_structured_advisory_metadata() -> None:
+    catalog = [
+        ModelCompletionEntry(
+            value="muse-contributor-1.1",
+            display="muse-contributor-1.1",
+            description="Muse (contrib) — ⚠ trains on your data",
+            kind="model",
+            provider="muse",
+            provider_display="Muse",
+            aliases=("contrib",),
+            bucket="external",
+            advisory_label="trains on your data",
+            advisory_severity="warn",
+        )
+    ]
+
+    with patch(MODEL_CATALOG_PATCH, return_value=catalog):
+        candidates, shared = build_directive_arg_completion_candidates(
+            "model",
+            "contrib",
+        )
+
+    assert shared == ""
+    metadata = model_metadata(candidates[0])
+    assert metadata.provider_display == "Muse"
+    assert metadata.description == "Muse (contrib) — ⚠ trains on your data"
+    assert metadata.short_alias == "contrib"
+    assert metadata.bucket == "external"
+    assert metadata.advisory_label == "trains on your data"
+    assert metadata.advisory_severity == "warn"
+
+
 def test_directive_arg_completion_filters_model_candidates_by_short_alias() -> None:
     with patch(MODEL_CATALOG_PATCH, return_value=model_entries()):
         candidates, shared = build_directive_arg_completion_candidates("model", "fa")

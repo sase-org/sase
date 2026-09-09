@@ -126,6 +126,7 @@ def _model_entries() -> tuple[ModelCompletionEntry, ...]:
             description="Codex (sol)",
             kind="model",
             provider="codex",
+            provider_display="Codex",
             aliases=("sol", "gpt56sol"),
         ),
         ModelCompletionEntry(
@@ -134,6 +135,7 @@ def _model_entries() -> tuple[ModelCompletionEntry, ...]:
             description="Claude (fable)",
             kind="model",
             provider="claude",
+            provider_display="Claude",
             aliases=("fable",),
         ),
         ModelCompletionEntry(
@@ -142,6 +144,7 @@ def _model_entries() -> tuple[ModelCompletionEntry, ...]:
             description="Codex",
             kind="provider",
             provider="codex",
+            provider_display="Codex",
             provider_model_count=1,
         ),
         ModelCompletionEntry(
@@ -150,6 +153,7 @@ def _model_entries() -> tuple[ModelCompletionEntry, ...]:
             description="OpenCode",
             kind="provider",
             provider="opencode",
+            provider_display="OpenCode",
             provider_model_count=1,
         ),
         ModelCompletionEntry(
@@ -158,12 +162,19 @@ def _model_entries() -> tuple[ModelCompletionEntry, ...]:
             description="OpenCode Anthropic",
             kind="model",
             provider="opencode",
+            provider_display="OpenCode Anthropic",
         ),
     )
 
 
 def _candidate_insertions(text_area: PromptTextArea) -> list[str]:
     return [candidate.insertion for candidate in text_area._file_completion_candidates]
+
+
+def _selected_insertion(text_area: PromptTextArea) -> str:
+    return text_area._file_completion_candidates[
+        text_area._file_completion_index
+    ].insertion
 
 
 async def test_double_star_auto_opens_and_enter_expands_without_submit() -> None:
@@ -276,6 +287,134 @@ async def test_star_shortcut_switches_between_alias_and_model_in_manual_session(
         assert ta._completion_kind == MODEL_ALIAS_COMPLETION_KIND
         assert _candidate_insertions(ta) == ["@large"]
         assert ta._file_completion_index == 0
+
+
+async def test_second_star_takes_over_when_alias_rows_are_empty() -> None:
+    model_only_entries = tuple(
+        entry for entry in _model_entries() if entry.kind == "model"
+    )
+    app = ModelExplicitCompletionTestApp(entries=model_only_entries)
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptInputBar).active_text_area()
+
+        await pilot.press("*")
+        assert ta.text == "*"
+        assert ta._file_completion_active is False
+
+        await pilot.press("*")
+        assert ta._completion_kind == MODEL_EXPLICIT_COMPLETION_KIND
+        assert _candidate_insertions(ta) == [
+            "gpt-5.6-sol",
+            "claude-fable-5",
+            "anthropic/claude-sonnet-4-5",
+        ]
+
+
+async def test_second_star_takes_over_when_alias_catalog_is_loading() -> None:
+    app = ModelExplicitCompletionTestApp(entries=None)
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptInputBar).active_text_area()
+
+        with patch.object(type(ta), "_schedule_model_completion_catalog_load"):
+            await pilot.press("*")
+            assert ta._completion_kind == MODEL_ALIAS_COMPLETION_KIND
+            assert ta._file_completion_candidates[0].display == (
+                "Loading model aliases…"
+            )
+
+            await pilot.press("*")
+
+        assert ta._completion_kind == MODEL_EXPLICIT_COMPLETION_KIND
+        assert ta._file_completion_candidates[0].display == "Loading models…"
+
+
+async def test_double_star_navigation_preserves_selection_while_filtering() -> None:
+    app = ModelExplicitCompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptInputBar).active_text_area()
+
+        await pilot.press("*")
+        await pilot.press("*")
+        assert _candidate_insertions(ta) == [
+            "gpt-5.6-sol",
+            "claude-fable-5",
+            "anthropic/claude-sonnet-4-5",
+        ]
+
+        await pilot.press("down")
+        assert _selected_insertion(ta) == "claude-fable-5"
+
+        await pilot.press("c")
+        assert ta.text == "**c"
+        assert _candidate_insertions(ta) == ["claude-fable-5"]
+        assert _selected_insertion(ta) == "claude-fable-5"
+
+        await pilot.press("backspace")
+        assert ta.text == "**"
+        assert _candidate_insertions(ta) == [
+            "gpt-5.6-sol",
+            "claude-fable-5",
+            "anthropic/claude-sonnet-4-5",
+        ]
+        assert _selected_insertion(ta) == "claude-fable-5"
+
+
+async def test_double_star_ctrl_l_accepts_selection_without_submit_or_newline() -> None:
+    app = ModelExplicitCompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptInputBar).active_text_area()
+
+        await pilot.press("*")
+        await pilot.press("*")
+        await pilot.press("f")
+        await pilot.press("ctrl+l")
+
+        assert ta.text == "%m:claude-fable-5 "
+        assert "\n" not in ta.text
+        assert app.submitted == []
+        assert ta._file_completion_active is False
+
+
+async def test_double_star_third_star_and_space_dismiss_completion() -> None:
+    app = ModelExplicitCompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptInputBar).active_text_area()
+
+        await pilot.press("*")
+        await pilot.press("*")
+        await pilot.press("g")
+        assert ta._completion_kind == MODEL_EXPLICIT_COMPLETION_KIND
+
+        await pilot.press("*")
+        assert ta.text == "**g*"
+        assert ta._file_completion_active is False
+
+        ta.load_text("**g")
+        ta.cursor_location = (0, 3)
+        assert ta._try_model_explicit_completion() is True
+        assert ta._file_completion_active is True
+
+        await pilot.press("space")
+        assert ta.text == "**g "
+        assert ta._file_completion_active is False
+
+
+async def test_warm_double_star_typing_never_builds_catalog_on_key_path() -> None:
+    app = ModelExplicitCompletionTestApp()
+    with patch(
+        "sase.ace.tui.widgets._file_completion_workers.build_model_completion_catalog",
+        side_effect=AssertionError("cold catalog builder reached"),
+    ):
+        async with app.run_test() as pilot:
+            ta = app.query_one(PromptInputBar).active_text_area()
+
+            await pilot.press("*")
+            await pilot.press("*")
+            await pilot.press("g")
+            await pilot.press("p")
+
+            assert ta._completion_kind == MODEL_EXPLICIT_COMPLETION_KIND
+            assert _candidate_insertions(ta) == ["gpt-5.6-sol"]
 
 
 async def test_double_star_accept_replaces_whole_token_from_mid_token_cursor() -> None:
@@ -427,6 +566,60 @@ async def test_model_catalog_worker_refreshes_only_matching_shortcut_kind() -> N
             refresh.assert_not_called()
             assert ta._model_completion_catalog_loaded is True
             assert ta._model_completion_catalog_available is True
+
+
+async def test_model_catalog_worker_rejects_stale_explicit_prompt_state() -> None:
+    app = ColdModelExplicitCompletionTestApp()
+    with patch.object(PromptTextArea, "run_worker", autospec=True):
+        async with app.run_test() as _pilot:
+            ta = app.query_one(PromptInputBar).active_text_area()
+            ta._model_completion_catalog_inflight = False
+            ta.load_text("**g")
+            ta.cursor_location = (0, 3)
+
+            assert ta._try_model_explicit_completion() is True
+
+            ta.load_text("**f")
+            ta.cursor_location = (0, 3)
+            with patch.object(ta, "_refresh_file_completion_from_cursor") as refresh:
+                ta._apply_model_completion_catalog_result(
+                    ModelCompletionCatalogWorkerResult(
+                        rows=_model_entries(),
+                        available=True,
+                    )
+                )
+
+            refresh.assert_not_called()
+            assert ta._model_completion_catalog_loaded is True
+            assert ta._model_completion_catalog_available is True
+
+
+async def test_model_catalog_failure_can_retry_explicit_unavailable_row() -> None:
+    app = ColdModelExplicitCompletionTestApp()
+    with patch.object(PromptTextArea, "run_worker", autospec=True):
+        async with app.run_test() as _pilot:
+            ta = app.query_one(PromptInputBar).active_text_area()
+            ta._model_completion_catalog_inflight = False
+            ta.load_text("**")
+            ta.cursor_location = (0, 2)
+
+            assert ta._try_model_explicit_completion() is True
+            ta._apply_model_completion_catalog_result(
+                ModelCompletionCatalogWorkerResult(rows=(), available=False)
+            )
+
+            assert ta._model_completion_catalog_available is False
+            assert ta._file_completion_candidates[0].display == "Models unavailable"
+
+            ta._model_completion_catalog_inflight = False
+            with patch.object(
+                type(ta),
+                "_schedule_model_completion_catalog_load",
+            ) as retry:
+                assert ta._try_model_explicit_completion(force=True) is True
+
+            retry.assert_called_once_with(force=True)
+            assert ta._file_completion_candidates[0].display == "Loading models…"
 
 
 def test_double_star_context_rejects_protected_regions() -> None:

@@ -77,6 +77,19 @@ def append_pool_weight(text: Text, weight: int) -> None:
     text.append(f" ×{weight}", style=_IMPLICIT_TAG_STYLE)
 
 
+def model_advisory_text(label: str, severity: str = "") -> Text:
+    """Return the shared inline advisory marker used for model rows."""
+    if not label:
+        return Text("")
+    from sase.llm_provider.registry import model_advisory_color, model_advisory_marker
+
+    color = model_advisory_color(severity)
+    text = Text()
+    text.append(model_advisory_marker(severity), style=f"bold {color}")
+    text.append(f" {label}", style=color)
+    return text
+
+
 def alias_state_text(
     provenance: str,
     reference: str = "",
@@ -124,5 +137,6 @@ __all__ = [
     "append_effort_suffix",
     "append_pool_chip",
     "append_pool_weight",
+    "model_advisory_text",
     "provider_model_text",
 ]

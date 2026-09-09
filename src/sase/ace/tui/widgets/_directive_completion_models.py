@@ -31,6 +31,12 @@ class _ModelEntryDisplay(Protocol):
     def kind(self) -> str: ...
 
     @property
+    def provider(self) -> str: ...
+
+    @property
+    def provider_display(self) -> str: ...
+
+    @property
     def description(self) -> str: ...
 
     @property
@@ -147,6 +153,9 @@ def _model_entry_completion_candidate(entry: Any) -> CompletionCandidate:
             pool_total=entry.pool_total,
             description=entry.description,
             config_source=entry.config_source,
+            bucket=entry.bucket,
+            advisory_label=entry.advisory_label,
+            advisory_severity=entry.advisory_severity,
             provider_model_count=entry.provider_model_count,
         ),
     )
@@ -187,14 +196,13 @@ def _build_model_alias_key_completion_candidates(
 
 def _model_provider_display(entry: _ModelEntryDisplay) -> str:
     """Extract the provider display label retained in a model entry."""
+    if entry.provider_display:
+        return entry.provider_display
     if entry.kind == "provider":
         return entry.description
     if entry.kind != "model":
         return ""
-    if not entry.aliases:
-        return entry.description
-    suffix = f" ({entry.aliases[0]})"
-    return entry.description.removesuffix(suffix)
+    return entry.provider
 
 
 def _model_insertion_is_self_ref(insertion: str, keyword: str) -> bool:

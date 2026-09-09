@@ -8,6 +8,7 @@ from rich.text import Text
 from sase.ace.tui.widgets._completion_match_highlight import MATCH_STYLE
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_model_completion_row,
+    append_model_shortcut_completion_row,
     model_completion_column_widths,
 )
 from sase.ace.tui.provider_styles import provider_name_style
@@ -33,6 +34,9 @@ def _candidate(
     pool_total: int = 0,
     description: str = "",
     config_source: str = "",
+    bucket: str = "",
+    advisory_label: str = "",
+    advisory_severity: str = "",
     provider_model_count: int = 0,
 ) -> CompletionCandidate:
     return CompletionCandidate(
@@ -57,6 +61,9 @@ def _candidate(
             pool_total=pool_total,
             description=description,
             config_source=config_source,
+            bucket=bucket,
+            advisory_label=advisory_label,
+            advisory_severity=advisory_severity,
             provider_model_count=provider_model_count,
         ),
     )
@@ -76,6 +83,25 @@ def _render(
         candidate,
         selected,
         widths or model_completion_column_widths([candidate]),
+        match_query=match_query,
+        available_width=available_width,
+    )
+    return text
+
+
+def _render_shortcut(
+    candidate: CompletionCandidate,
+    *,
+    selected: bool = False,
+    match_query: str,
+    available_width: int = 120,
+) -> Text:
+    text = Text()
+    append_model_shortcut_completion_row(
+        text,
+        candidate,
+        selected,
+        model_completion_column_widths([candidate]),
         match_query=match_query,
         available_width=available_width,
     )
@@ -282,3 +308,56 @@ def test_model_alias_shortcut_row_drops_optional_columns_before_name() -> None:
     assert "…" in text.plain
     assert "CODEX" not in text.plain
     assert "configured" not in text.plain
+
+
+def test_model_completion_row_renders_structured_advisory() -> None:
+    candidate = _candidate(
+        "muse-contributor-1.1",
+        kind="model",
+        alias_kind="",
+        provider="muse",
+        provider_display="Muse",
+        short_alias="contrib",
+        target_provider="",
+        target_model="",
+        provenance="",
+        description="Muse (contrib) — ⚠ trains on your data",
+        advisory_label="trains on your data",
+        advisory_severity="warn",
+    )
+
+    text = _render(candidate)
+
+    assert "Muse (contrib) —" not in text.plain
+    assert "contrib · ⚠ trains on your data" in text.plain
+
+
+def test_model_shortcut_row_highlights_scoped_provider_and_hint_only() -> None:
+    candidate = _candidate(
+        "claude/claude-fable-5",
+        kind="model",
+        alias_kind="",
+        provider="claude",
+        provider_display="Claude",
+        short_alias="fable",
+        target_provider="",
+        target_model="",
+        provenance="",
+    )
+
+    text = _render_shortcut(candidate, selected=True, match_query="claude/fa")
+
+    assert text.plain.startswith("claude/claude-fable-5")
+    highlighted_ranges = [
+        (span.start, span.end)
+        for span in text.spans
+        if str(span.style).lower() == MATCH_STYLE.lower()
+    ]
+    assert (0, len("claude")) in highlighted_ranges
+    canonical_fa_start = text.plain.index("fable")
+    hint_start = text.plain.rindex("fable")
+    assert (hint_start, hint_start + len("fa")) in highlighted_ranges
+    assert (
+        canonical_fa_start,
+        canonical_fa_start + len("fa"),
+    ) not in highlighted_ranges

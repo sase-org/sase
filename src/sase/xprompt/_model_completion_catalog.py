@@ -174,6 +174,7 @@ def _append_model_entry(
             description=description,
             kind="model",
             provider=provider,
+            provider_display=provider_display,
             aliases=aliases,
             advisory_label=advisory_label,
             advisory_severity=advisory_severity if advisory_label else "",
@@ -201,6 +202,7 @@ def _append_provider_entry(
             description=provider_display,
             kind="provider",
             provider=provider,
+            provider_display=provider_display,
             provider_model_count=model_count,
         )
     )
