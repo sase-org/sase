@@ -87,6 +87,10 @@ older evidence dropped by bounded retention. The default detail card adds a
 `+1 EVIDENCE` block with each retained sender, age, and note. Report cards also show the
 total and latest retained evidence age in their provenance line.
 
+Each row retains its newest 500 entries and counts older dropped entries in `N`. SASE
+collapses whitespace in each note and stores at most 2,000 characters. Repeated entries
+from the same sender remain separate occurrences.
+
 Press `+` to replace the detail pane with the newest retained `+1`, then walk backward
 through older entries. One more press after the oldest entry wraps to the normal detail
 pane. Changing rows or tabs also resets the cycle. A row with no retained evidence shows
@@ -657,6 +661,7 @@ Each notification contains:
 | `timestamp`         | string       | ISO-8601 creation timestamp; immutable, and never rewritten by a snooze or resurface                                                                                                                                |
 | `sender`            | string       | Source identifier (e.g., "plan", "sync", "axe")                                                                                                                                                                     |
 | `icon`              | string\|null | Optional single emoji or display glyph                                                                                                                                                                              |
+| `color`             | string\|null | Optional sender-declared `#RRGGBB` accent for the notification-panel tab                                                                                                                                            |
 | `notes`             | list[string] | Human-readable message lines                                                                                                                                                                                        |
 | `files`             | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                                                                                                                                |
 | `tags`              | list[string] | Optional normalized labels for filtering and modal tabs                                                                                                                                                             |
@@ -818,8 +823,9 @@ decide to create a fresh row.
 Producers can make that decision atomically with `sase notify create -k KEY -p NOTE`.
 When no `(sender, key)` row exists, SASE creates the input notification with that key;
 when one exists, it appends `NOTE` and does not create a duplicate.
-`-S/--supersedes OLD_KEY` retires matching old-key rows by appending a superseding `+1`
-and dismissing them. The same three values can be supplied as JSON `dedup_key`,
+`-S/--supersedes OLD_KEY` applies only on the create branch: it retires matching old-key
+rows by appending a superseding `+1` and dismissing them. It is ignored when the current
+key already matches a row. The same three values can be supplied as JSON `dedup_key`,
 `plus_one_note`, and `supersedes` fields.
 
 The first-class gate API reads a versioned gate specification from stdin:

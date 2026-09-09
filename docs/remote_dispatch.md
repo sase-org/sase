@@ -175,15 +175,18 @@ network work, and local mutations:
 | `sase machine` / `list`          | Read configured aliases only; never contacts a provider or gateway.                              |
 | `sase machine discover`          | Query configured discovery providers explicitly; `-p` is repeatable.                             |
 | `sase machine bootstrap`         | Issue a target-local, single-use bundle; the secret is written only to stdout.                   |
-| `sase machine init`              | Discover, select, enroll, reload config, and require an authenticated hello before success.      |
+| `sase machine init`              | Interactively discover, select, enroll, reload config, and require an authenticated hello.       |
 | `sase machine add`               | Enroll a named endpoint or discovered candidate from a protected bootstrap input.                |
 | `sase machine status`            | Run bounded authenticated hello checks for selected aliases, or every alias when none are given. |
 | `sase machine repair`            | Rotate a quarantined or mismatched enrollment with a fresh one-time bundle.                      |
 | `sase machine rename` / `remove` | Change viewer-local alias state; removal also deletes the local credential reference.            |
 
-`--bootstrap-file` is available on enrollment and repair commands. Without it, SASE
-reads a piped bundle or uses a hidden interactive prompt; bootstrap secrets are never
-accepted as command-line values.
+`--bootstrap-file` is available on `init`, `add`, and `repair`. The `init` workflow
+always requires an interactive stdin for candidate selection and alias prompts; it gets
+the bundle from `--bootstrap-file` or a hidden prompt, not from piped stdin. The lower
+level `add` and `repair` commands can instead read the bundle from a pipe when
+`--bootstrap-file` is omitted. Bootstrap secrets are never accepted as command-line
+values.
 
 ## Launch And Operate
 
@@ -200,12 +203,15 @@ remote launch does not combine with `%wait`, `%queue`, or `%clan`. The controlle
 only the dispatch selector, so other launch directives are processed on the target.
 
 Remote launch carries portable project evidence rather than the controller's local
-paths. When no Patch or explicit revision is available, the controller requires a clean
-Git checkout, an upstream branch, and a `HEAD` that is already published. Local-only
-payloads — collected inputs, resolved launch units, attachments, files, and images — are
-rejected before submission. A submitted request is durable and idempotent; an
-acceptance-uncertain response can be retried without intentionally duplicating the
-launch.
+paths. A trusted launch integration can supply a Patch reference or explicit revision in
+the durable request payload. Merely mentioning a Patch or xprompt in the prompt does not
+supply that source-side evidence. Without payload evidence, including for an ordinary
+`sase run` invocation, the controller requires a clean Git checkout, a current branch
+with an upstream, and a `HEAD` that is already published. This check happens before the
+target processes the remaining directives. Local-only payloads — collected inputs,
+resolved launch units, attachments, files, and images — are rejected before submission.
+A submitted request is durable and idempotent; an acceptance-uncertain response can be
+retried without intentionally duplicating the launch.
 
 ACE consumes the same fleet records. `sase ace --tmux` prints the tmux target for the
 session. Once a machine is enrolled, the Agents tab gains a **Focus / Fleet** strip:

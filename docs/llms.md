@@ -2135,15 +2135,17 @@ stable line-oriented text, while redirected output also becomes plain automatica
 ACE exposes the same cache from Launch Control: press `u`, or choose **Open Providers ·
 Usage** from the command palette. The modal never probes on first paint. Press its own
 `u` to update, close it without cancelling durable work, and reopen to reattach. AXE
-submits due refreshes on its checks cadence; when AXE is absent, ACE can request due
-work after first paint and while open. Coalescing prevents those callers from
-duplicating a live provider probe.
+submits due refreshes on its checks cadence. ACE independently requests due work after
+its first paint and then on the configured cadence while it remains open; it does not
+first detect whether AXE is running. Per-provider coalescing makes concurrent AXE, ACE,
+CLI, and limit-event requests join the same live probe.
 
 Each provider summary reports remaining capacity, scope, freshness, and collection
-status. Details preserve every observed window with its reset, age, applicability,
-state, and source. The cache can therefore distinguish no observation, stale data,
-unsupported collection, authentication failure, and a real low-capacity window rather
-than collapsing them into one percentage.
+status. Details show every currently retained allowance window with its reset, age,
+applicability, state, and source; they are current state, not a history of every sample.
+The cache can therefore distinguish no observation, stale data, unsupported collection,
+authentication failure, and a real low-capacity window rather than collapsing them into
+one percentage.
 
 Configuration controls refresh cadence (minimum 60 seconds) and warning/critical
 thresholds as percentages used; UI copy converts those to percentage left. See

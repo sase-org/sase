@@ -1932,11 +1932,14 @@ prompt and launch directives. V1 remote launch cannot be combined with `%wait`,
 units, collected inputs, attachments, files, and images. The remaining prompt must be
 non-empty.
 
-Project context must be reproducible on the target. A Patch or explicit revision can
-provide that evidence. Without one, the source directory must be a clean Git checkout
-whose current branch has an upstream and whose `HEAD` is not ahead of it. Dispatch
-requests are durable and idempotent; if acceptance is uncertain, retrying the same
-request does not intentionally create a second remote launch.
+Project context must be reproducible on the target. A trusted launch integration can
+provide a Patch reference or explicit revision in the durable request payload; writing a
+Patch or xprompt reference in the prompt does not supply that source-side evidence.
+Without payload evidence, including for an ordinary `sase run`, the source directory
+must be a clean Git checkout whose current branch has an upstream and whose `HEAD` is
+not ahead of it. Dispatch requests are durable and idempotent; if acceptance is
+uncertain, retrying the same request does not intentionally create a second remote
+launch.
 
 ACE and the xprompt LSP complete configured machine aliases after `%dispatch:`. See the
 [Remote Dispatch Runbook](remote_dispatch.md) for gateway setup, enrollment, status, and

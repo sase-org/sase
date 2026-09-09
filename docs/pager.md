@@ -51,7 +51,9 @@ Interactive section bodies have an editor-style line-number gutter. Numbers rest
 for each section and appear only on the first visual row of a wrapped logical line;
 continuation rows keep an empty gutter cell. The digit column is sized once from the
 largest section, so moving between sections does not shift the document. Following a
-target with a `:line` suffix scrolls to that logical line and accents its gutter number.
+line-qualified file target such as `path/to/file.py:42` or `README.md#L42` scrolls to
+that logical line. To jump within the current section, press `:` or `;`, type a line
+number, and press `Enter`; this route also accents the destination's gutter number.
 Plain and redirected output does not include the gutter.
 
 ## Syntax highlighting
