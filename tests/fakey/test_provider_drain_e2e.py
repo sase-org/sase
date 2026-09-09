@@ -191,6 +191,13 @@ def test_provider_drain_e2e_flag_on_relaunches_stranded_agent(
     harness = FakeyRetryHarness(tmp_path, monkeypatch, max_retries=1, wait_times=[0])
     _configure_reroute_environment(monkeypatch, harness)
     second_artifacts = _seed_second_agent(harness)
+    # The best-effort usage-refresh limit-event trigger is orthogonal to
+    # drain ownership (covered by test_usage_refresh.py); disable it so it
+    # does not add an unrelated submit_proc_request call to this drill.
+    monkeypatch.setattr(
+        "sase.llm_provider.usage_limit_disable._trigger_usage_refresh_after_limit",
+        lambda provider, outcome: None,
+    )
 
     from sase.procs import submit_proc_request as real_submit_proc_request
 
@@ -307,6 +314,13 @@ def test_provider_drain_e2e_flag_off_leaves_agents_alone(
     harness = FakeyRetryHarness(tmp_path, monkeypatch, max_retries=1, wait_times=[0])
     _configure_reroute_environment(monkeypatch, harness)
     second_artifacts = _seed_second_agent(harness)
+    # The best-effort usage-refresh limit-event trigger is orthogonal to
+    # drain ownership (covered by test_usage_refresh.py); disable it so it
+    # does not add an unrelated submit_proc_request call to this drill.
+    monkeypatch.setattr(
+        "sase.llm_provider.usage_limit_disable._trigger_usage_refresh_after_limit",
+        lambda provider, outcome: None,
+    )
     second_meta_before = (second_artifacts / "agent_meta.json").read_text(
         encoding="utf-8"
     )

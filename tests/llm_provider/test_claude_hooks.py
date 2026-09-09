@@ -42,6 +42,10 @@ def _invoke_with_fake_stream(
             return_value=stream_result,
         ),
         patch("sase.llm_provider.claude.provider_timer"),
+        patch(
+            "sase.llm_provider.usage.claude.capture_claude_passive_usage_context",
+            return_value=None,
+        ),
     ):
         ClaudeCodeProvider().invoke("hi", model_tier="small", suppress_output=True)
 

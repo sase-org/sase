@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.llm_provider.codex import CodexProvider
 from sase.llm_provider.usage.codex_collector import collect_codex_usage
 from sase.llm_provider.usage.probe import default_probe_context, run_usage_probe
@@ -272,12 +271,11 @@ def test_registered_hook_runs_through_isolated_probe(
     monkeypatch.setenv("SASE_CODEX_APP_SERVER_MODE", "multi_bucket")
     monkeypatch.setenv("SASE_CODEX_PATH", str(_FIXTURE))
     context = default_probe_context("codex", deadline_seconds=8)
-    with override_flags(provider_usage_metrics=True):
-        result = run_usage_probe(
-            context,
-            isolate=True,
-            plugin_spec=_CODEX_PLUGIN_SPEC,
-        )
+    result = run_usage_probe(
+        context,
+        isolate=True,
+        plugin_spec=_CODEX_PLUGIN_SPEC,
+    )
     assert result.skipped is None
     assert result.observation is not None
     assert result.observation["provider"] == "codex"

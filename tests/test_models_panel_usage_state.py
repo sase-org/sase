@@ -13,8 +13,7 @@ from sase.llm_provider.usage.store import (
 from tests._usage_view_helpers import usage_provider
 
 
-def _patch_settings(monkeypatch: pytest.MonkeyPatch, *, enabled: bool = True) -> None:
-    monkeypatch.setattr(usage_state, "usage_metrics_feature_enabled", lambda: enabled)
+def _patch_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         usage_state, "get_usage_metrics_settings", lambda: UsageMetricsSettings()
     )
@@ -37,7 +36,6 @@ def test_load_usage_view_snapshot_reads_cached_providers(
     assert snapshot.providers == (provider,)
     assert snapshot.diagnostics == read.diagnostics
     assert snapshot.captured_at == 100.0
-    assert snapshot.feature_enabled is True
     assert snapshot.load_error is None
 
 
@@ -71,15 +69,3 @@ def test_load_usage_view_snapshot_reports_store_errors_without_raising(
 
     assert snapshot.providers == ()
     assert snapshot.load_error == "store locked"
-
-
-def test_load_usage_view_snapshot_reports_feature_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_settings(monkeypatch, enabled=False)
-    read = ProviderUsageStoreRead(version=1, snapshot={"providers": []}, diagnostics=())
-    monkeypatch.setattr(usage_state, "load_provider_usage", lambda **_kw: read)
-
-    snapshot = usage_state.load_usage_view_snapshot(now=1.0)
-
-    assert snapshot.feature_enabled is False

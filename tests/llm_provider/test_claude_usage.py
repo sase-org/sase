@@ -10,7 +10,6 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.llm_provider._subprocess_claude import _process_json_line
 from sase.llm_provider.claude import ClaudeCodeProvider
 from sase.llm_provider.usage.claude import (
@@ -340,12 +339,9 @@ def test_claude_provider_exposes_usage_probe_hook(
     )
     assert provider.llm_usage_capabilities() == {"probe": True, "passive_events": True}
 
-    with (
-        override_flags(provider_usage_metrics=True),
-        patch(
-            "sase.llm_provider.usage.claude._run_claude_command",
-            side_effect=runner,
-        ),
+    with patch(
+        "sase.llm_provider.usage.claude._run_claude_command",
+        side_effect=runner,
     ):
         result = run_usage_probe(
             _context(),
@@ -366,12 +362,11 @@ def test_passive_context_hashes_auth_identity(
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
     runner = _runner()
 
-    with override_flags(provider_usage_metrics=True):
-        context = capture_claude_passive_usage_context(
-            executable="/fake/bin/claude",
-            runner=runner,
-            clock=lambda: OBSERVED_AT,
-        )
+    context = capture_claude_passive_usage_context(
+        executable="/fake/bin/claude",
+        runner=runner,
+        clock=lambda: OBSERVED_AT,
+    )
 
     assert context is not None
     assert context.context_id.startswith("claude-usage-")

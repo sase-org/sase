@@ -7,14 +7,12 @@ import os
 import shutil
 import subprocess
 import time
-from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.llm_provider.grok import GrokProvider
 from sase.llm_provider.usage.probe import default_probe_context, run_usage_probe
 
@@ -29,12 +27,6 @@ def _make_fake_grok(tmp_path: Path) -> Path:
     shutil.copy(_FIXTURE, path)
     path.chmod(0o755)
     return path
-
-
-@pytest.fixture(autouse=True)
-def _usage_flag() -> Iterator[None]:
-    with override_flags(provider_usage_metrics=True):
-        yield
 
 
 def _epoch(value: str) -> float:

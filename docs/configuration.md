@@ -1845,9 +1845,8 @@ Subscription-capacity collection settings. This is distinct from
 routing disables. `usage_metrics` controls whether SASE probes installed provider CLIs
 for included-allowance windows.
 
-The temporary `provider_usage_metrics` beta flag defaults off. While it is off, probes,
-isolated workers, and passive observation writes stay off even when `enabled` is true.
-The durable `enabled` preference remains after the flag is removed.
+`enabled` is the durable user preference; setting it `false` stops probes, isolated
+workers, passive observation writes, scheduled requests, and attention.
 
 ```yaml
 llm_provider:
@@ -5577,8 +5576,7 @@ for redirected output, `NO_COLOR`, or a dumb terminal.
 
 `--json` and `--plain` are mutually exclusive. Background mode returns after submission
 and renders the receipt instead of the cache. Unknown providers are usage errors.
-Collection requires the `provider_usage_metrics` beta flag and
-`llm_provider.usage_metrics.enabled`; see
+Collection requires `llm_provider.usage_metrics.enabled`; see
 [Subscription Usage](llms.md#subscription-usage).
 
 ### `sase notify`

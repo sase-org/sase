@@ -1,10 +1,9 @@
-"""Tests for ``llm_provider.usage_metrics`` parsing and the beta flag gate."""
+"""Tests for ``llm_provider.usage_metrics`` parsing and collection gating."""
 
 from __future__ import annotations
 
 import pytest
 
-from sase.feature_flags import FeatureFlag, current_flags, override_flags
 from sase.llm_provider.usage.config import (
     collection_skip_reason,
     get_usage_metrics_settings,
@@ -77,43 +76,20 @@ def test_invalid_thresholds_fall_back_to_defaults(
     assert settings.critical_percent == 90.0
 
 
-def test_flag_off_skips_probes_and_passive_writes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
-    context = default_probe_context("synth", now=1_800_000_000.0)
-    with override_flags(provider_usage_metrics=False):
-        assert current_flags().enabled(FeatureFlag.provider_usage_metrics) is False
-        assert collection_skip_reason("synth") == "flag_disabled"
-        result = run_usage_probe(
-            context,
-            isolate=False,
-            plugin=_SyntheticUsageProvider(),
-            now=1_800_000_000.0,
-        )
-        assert result.skipped == "flag_disabled"
-        assert result.observation is None
-        assert (
-            record_passive_usage_observation({"provider": "synth"}, now=1_800_000_000.0)
-            is None
-        )
-
-
-def test_config_disabled_skips_when_flag_is_on(
+def test_config_disabled_skips_probes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
     mock_provider_config(monkeypatch, {"usage_metrics": {"enabled": False}})
-    with override_flags(provider_usage_metrics=True):
-        assert collection_skip_reason("synth") == "config_disabled"
-        result = run_usage_probe(
-            default_probe_context("synth", now=1_800_000_000.0),
-            isolate=False,
-            plugin=_SyntheticUsageProvider(),
-            plugin_spec=SYNTHETIC_PLUGIN_SPEC,
-            now=1_800_000_000.0,
-        )
-        assert result.skipped == "config_disabled"
+    assert collection_skip_reason("synth") == "config_disabled"
+    result = run_usage_probe(
+        default_probe_context("synth", now=1_800_000_000.0),
+        isolate=False,
+        plugin=_SyntheticUsageProvider(),
+        plugin_spec=SYNTHETIC_PLUGIN_SPEC,
+        now=1_800_000_000.0,
+    )
+    assert result.skipped == "config_disabled"
 
 
 def test_per_provider_disable_does_not_hard_code_names(
@@ -124,9 +100,8 @@ def test_per_provider_disable_does_not_hard_code_names(
         monkeypatch,
         {"usage_metrics": {"providers": {"fourth": {"enabled": False}}}},
     )
-    with override_flags(provider_usage_metrics=True):
-        assert collection_skip_reason("fourth") == "provider_disabled"
-        assert collection_skip_reason("synth") is None
+    assert collection_skip_reason("fourth") == "provider_disabled"
+    assert collection_skip_reason("synth") is None
 
 
 def test_passive_observation_validates_when_collection_is_enabled(
@@ -163,8 +138,7 @@ def test_passive_observation_validates_when_collection_is_enabled(
             }
         ],
     }
-    with override_flags(provider_usage_metrics=True):
-        validated = record_passive_usage_observation(observation, now=now)
+    validated = record_passive_usage_observation(observation, now=now)
     assert validated is not None
     assert validated["source"] == "stream_event"
     assert validated["windows"][0]["key"] == "week"

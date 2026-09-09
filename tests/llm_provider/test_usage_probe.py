@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.llm_provider.usage.probe import default_probe_context, run_usage_probe
 from sase.testing.usage_synthetic import (
     SECRET_CANARY,
@@ -32,12 +31,11 @@ def test_synthetic_fourth_provider_collects_without_core_changes(
 ) -> None:
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
     context = default_probe_context("synth", deadline_seconds=20)
-    with override_flags(provider_usage_metrics=True):
-        result = run_usage_probe(
-            context,
-            isolate=True,
-            plugin_spec=SYNTHETIC_PLUGIN_SPEC,
-        )
+    result = run_usage_probe(
+        context,
+        isolate=True,
+        plugin_spec=SYNTHETIC_PLUGIN_SPEC,
+    )
     assert result.skipped is None
     assert result.observation is not None
     assert result.observation["provider"] == "synth"
@@ -51,13 +49,12 @@ def test_in_process_synthetic_probe_matches_isolated_shape(
 ) -> None:
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
     context = default_probe_context("synth", now=1_800_000_000.0)
-    with override_flags(provider_usage_metrics=True):
-        result = run_usage_probe(
-            context,
-            isolate=False,
-            plugin=_SyntheticUsageProvider(),
-            now=1_800_000_000.0,
-        )
+    result = run_usage_probe(
+        context,
+        isolate=False,
+        plugin=_SyntheticUsageProvider(),
+        now=1_800_000_000.0,
+    )
     assert result.observation is not None
     assert result.observation["windows"][0]["used_percent"] == 12.5
 
@@ -67,13 +64,12 @@ def test_hanging_plugin_is_killed_at_deadline(
 ) -> None:
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
     context = default_probe_context("synth", deadline_seconds=1.5)
-    with override_flags(provider_usage_metrics=True):
-        result = run_usage_probe(
-            context,
-            isolate=True,
-            plugin_spec=SYNTHETIC_PLUGIN_SPEC,
-            env={SYNTHETIC_MODE_ENV: "hang"},
-        )
+    result = run_usage_probe(
+        context,
+        isolate=True,
+        plugin_spec=SYNTHETIC_PLUGIN_SPEC,
+        env={SYNTHETIC_MODE_ENV: "hang"},
+    )
     assert result.observation is not None
     assert result.observation["outcome"] == "error"
     assert result.observation["reason_code"] == "timeout"
@@ -87,13 +83,12 @@ def test_secret_canary_exception_is_not_in_observation(
 ) -> None:
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
     context = default_probe_context("synth", deadline_seconds=20)
-    with override_flags(provider_usage_metrics=True):
-        result = run_usage_probe(
-            context,
-            isolate=True,
-            plugin_spec=SYNTHETIC_PLUGIN_SPEC,
-            env={SYNTHETIC_MODE_ENV: "secret"},
-        )
+    result = run_usage_probe(
+        context,
+        isolate=True,
+        plugin_spec=SYNTHETIC_PLUGIN_SPEC,
+        env={SYNTHETIC_MODE_ENV: "secret"},
+    )
     assert result.observation is not None
     assert result.observation["outcome"] == "error"
     assert result.observation["reason_code"] == "probe_failed"
@@ -110,16 +105,15 @@ def test_descendant_processes_are_reaped(
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
     pidfile = tmp_path / "child.pid"
     context = default_probe_context("synth", deadline_seconds=1.5)
-    with override_flags(provider_usage_metrics=True):
-        result = run_usage_probe(
-            context,
-            isolate=True,
-            plugin_spec=SYNTHETIC_PLUGIN_SPEC,
-            env={
-                SYNTHETIC_MODE_ENV: "descendants",
-                SYNTHETIC_PIDFILE_ENV: str(pidfile),
-            },
-        )
+    result = run_usage_probe(
+        context,
+        isolate=True,
+        plugin_spec=SYNTHETIC_PLUGIN_SPEC,
+        env={
+            SYNTHETIC_MODE_ENV: "descendants",
+            SYNTHETIC_PIDFILE_ENV: str(pidfile),
+        },
+    )
     assert result.observation is not None
     assert result.observation["reason_code"] == "timeout"
     child_pid = int(pidfile.read_text(encoding="utf-8"))

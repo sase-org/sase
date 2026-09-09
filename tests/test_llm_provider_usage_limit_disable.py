@@ -523,7 +523,17 @@ class TestUsageLimitDrainSubmission:
     Every branch covers both the ``provider_drain`` flag and the
     ``relaunch``/hard-disable preconditions the plan requires before a drain
     is ever attempted, and confirms exactly one notification path fires.
+    The best-effort usage-refresh limit-event trigger is orthogonal to drain
+    ownership (covered by test_usage_refresh.py) and is patched out here so
+    it does not add an unrelated ``submit_proc_request`` call to assert on.
     """
+
+    @pytest.fixture(autouse=True)
+    def _no_usage_refresh_trigger(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "sase.llm_provider.usage_limit_disable._trigger_usage_refresh_after_limit",
+            lambda provider, outcome: None,
+        )
 
     @patch("sase.procs.submit_proc_request")
     @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")

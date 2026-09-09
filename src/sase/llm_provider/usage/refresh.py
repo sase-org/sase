@@ -16,7 +16,6 @@ from sase.core.paths import sase_home
 from sase.llm_provider.usage.config import (
     collection_skip_reason,
     get_usage_metrics_settings,
-    usage_metrics_feature_enabled,
 )
 from sase.llm_provider.usage.store import (
     PROVIDER_USAGE_REFRESH_DEFERRED,
@@ -123,9 +122,6 @@ def submit_usage_refresh(
     background-eligible. Joining one in-flight provider never drops others.
     """
     origin = _normalize_origin(origin)
-    if not usage_metrics_feature_enabled():
-        names = tuple(providers or ())
-        return _disabled_receipt(names, origin, "flag_disabled")
     from sase.procs import new_proc_id
 
     settings = get_usage_metrics_settings()

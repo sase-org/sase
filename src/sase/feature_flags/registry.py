@@ -24,7 +24,6 @@ class FeatureFlag(StrEnum):
     ace_refresh_tokens = "ace_refresh_tokens"
     admin_center_flags = "admin_center_flags"
     provider_drain = "provider_drain"
-    provider_usage_metrics = "provider_usage_metrics"
     ref_sync_gesture = "ref_sync_gesture"
     typed_launch_units = "typed_launch_units"
 
@@ -58,15 +57,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "disable in Launch Control offers the same relaunch."
         ),
         bead="sase-sx",
-    ),
-    FeatureFlag.provider_usage_metrics: FeatureFlagDefinition(
-        key=FeatureFlag.provider_usage_metrics,
-        kind="beta",
-        description=(
-            "Beta gate for subscription usage probes and the optional "
-            "provider usage hook."
-        ),
-        bead="sase-yc",
     ),
     FeatureFlag.ref_sync_gesture: FeatureFlagDefinition(
         key=FeatureFlag.ref_sync_gesture,

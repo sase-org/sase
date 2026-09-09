@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import uuid
@@ -20,6 +21,8 @@ if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
     from .usage.types import UsageProbeContext
     from .usage_limit_config import ProviderUsageLimitConfig
+
+log = logging.getLogger(__name__)
 
 # Map model tiers to Claude CLI aliases
 _TIER_TO_MODEL: dict[ModelTier, str] = {
@@ -402,7 +405,11 @@ class ClaudeCodeProvider(LLMProvider):
         """
         from .usage.claude import capture_claude_passive_usage_context
 
-        usage_context = capture_claude_passive_usage_context(executable=args[0])
+        try:
+            usage_context = capture_claude_passive_usage_context(executable=args[0])
+        except Exception:  # noqa: BLE001 - never let usage capture break invoke.
+            log.debug("Claude passive usage context capture failed", exc_info=True)
+            usage_context = None
         process = subprocess.Popen(
             args,
             stdin=subprocess.PIPE,

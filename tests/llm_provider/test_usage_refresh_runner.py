@@ -9,7 +9,6 @@ import pytest
 
 from sase.axe.chop_script_context import ChopScriptContext, write_chop_context
 from sase.chops.builtin import run_builtin_chop
-from sase.feature_flags import override_flags
 from sase.llm_provider.usage.refresh import UsageRefreshReceipt
 from sase.llm_provider.usage.refresh_runner import _run_admitted_refresh
 from sase.testing.usage_synthetic import (
@@ -30,23 +29,22 @@ def test_runner_collects_synthetic_provider(
     runner_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv(SYNTHETIC_MODE_ENV, raising=False)
-    with override_flags(provider_usage_metrics=True):
-        results = _run_admitted_refresh(
-            {
-                "batch_deadline_seconds": 8,
-                "provider_deadline_seconds": 6,
-                "max_concurrent": 3,
-                "plugin_specs": {"synth": SYNTHETIC_PLUGIN_SPEC},
-                "providers": [
-                    {
-                        "provider": "synth",
-                        "context_id": "default",
-                        "account_generation": 1,
-                        "lease_id": "lease-synth",
-                    }
-                ],
-            }
-        )
+    results = _run_admitted_refresh(
+        {
+            "batch_deadline_seconds": 8,
+            "provider_deadline_seconds": 6,
+            "max_concurrent": 3,
+            "plugin_specs": {"synth": SYNTHETIC_PLUGIN_SPEC},
+            "providers": [
+                {
+                    "provider": "synth",
+                    "context_id": "default",
+                    "account_generation": 1,
+                    "lease_id": "lease-synth",
+                }
+            ],
+        }
+    )
     assert results[0]["provider"] == "synth"
     assert results[0]["outcome"] == "ok"
     stored = (runner_home / "llm_provider_usage.json").read_text(encoding="utf-8")
@@ -68,18 +66,15 @@ def test_runner_reports_providers_that_miss_the_batch_deadline(
         }
         for index in range(4)
     ]
-    with override_flags(provider_usage_metrics=True):
-        results = _run_admitted_refresh(
-            {
-                "batch_deadline_seconds": 1.2,
-                "provider_deadline_seconds": 0.4,
-                "max_concurrent": 3,
-                "plugin_specs": {
-                    f"p{index}": SYNTHETIC_PLUGIN_SPEC for index in range(4)
-                },
-                "providers": jobs,
-            }
-        )
+    results = _run_admitted_refresh(
+        {
+            "batch_deadline_seconds": 1.2,
+            "provider_deadline_seconds": 0.4,
+            "max_concurrent": 3,
+            "plugin_specs": {f"p{index}": SYNTHETIC_PLUGIN_SPEC for index in range(4)},
+            "providers": jobs,
+        }
+    )
     assert len(results) == 4
     assert {item["outcome"] for item in results} == {"error"}
     assert any(

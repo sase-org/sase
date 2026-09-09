@@ -3347,7 +3347,7 @@
         },
         "usage_metrics": {
           "type": "object",
-          "description": "Subscription-capacity collection settings. Distinct from usage_limit auto-disable. Behind the provider_usage_metrics beta flag; enabled remains the durable user preference after the flag is removed.",
+          "description": "Subscription-capacity collection settings. Distinct from usage_limit auto-disable. \"enabled\" is the durable user preference for probes and passive observation writes.",
           "additionalProperties": false,
           "properties": {
             "enabled": {
@@ -4253,11 +4253,6 @@
         "provider_drain": {
           "type": "boolean",
           "description": "Hard-disabling an LLM provider drains it: a usage-limit disable submits a durable 'sase agent drain' proc that relaunches the agents that provider stranded and sends one enriched usage-limit notification naming what moved and what did not, and a manual disable in Launch Control offers the same relaunch.",
-          "default": false
-        },
-        "provider_usage_metrics": {
-          "type": "boolean",
-          "description": "Beta gate for subscription usage probes and the optional provider usage hook.",
           "default": false
         },
         "ref_sync_gesture": {

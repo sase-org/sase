@@ -6,7 +6,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.llm_provider.usage.refresh import (
     USAGE_REFRESH_OPERATION,
     request_due_usage_refresh,
@@ -134,19 +133,18 @@ def test_submit_coalesces_overlapping_provider_subsets(
 
     monkeypatch.setattr("sase.procs.submit_proc_request", fake_submit)
     specs = {"synth": SYNTHETIC_PLUGIN_SPEC, "other": SYNTHETIC_PLUGIN_SPEC}
-    with override_flags(provider_usage_metrics=True):
-        first = submit_usage_refresh(
-            ("synth", "other"),
-            explicit=True,
-            origin="cli",
-            plugin_specs=specs,
-        )
-        second = submit_usage_refresh(
-            ("synth",),
-            explicit=True,
-            origin="ace",
-            plugin_specs=specs,
-        )
+    first = submit_usage_refresh(
+        ("synth", "other"),
+        explicit=True,
+        origin="cli",
+        plugin_specs=specs,
+    )
+    second = submit_usage_refresh(
+        ("synth",),
+        explicit=True,
+        origin="ace",
+        plugin_specs=specs,
+    )
     assert len(submitted) == 1
     assert submitted[0].operation == USAGE_REFRESH_OPERATION
     assert set(first.operation_ids) == {submitted[0].proc_id}
@@ -175,19 +173,18 @@ def test_joining_one_provider_does_not_drop_a_new_peer(
 
     monkeypatch.setattr("sase.procs.submit_proc_request", fake_submit)
     specs = {"synth": SYNTHETIC_PLUGIN_SPEC, "other": SYNTHETIC_PLUGIN_SPEC}
-    with override_flags(provider_usage_metrics=True):
-        submit_usage_refresh(
-            ("synth",),
-            explicit=True,
-            origin="axe",
-            plugin_specs=specs,
-        )
-        receipt = submit_usage_refresh(
-            ("synth", "other"),
-            explicit=True,
-            origin="cli",
-            plugin_specs=specs,
-        )
+    submit_usage_refresh(
+        ("synth",),
+        explicit=True,
+        origin="axe",
+        plugin_specs=specs,
+    )
+    receipt = submit_usage_refresh(
+        ("synth", "other"),
+        explicit=True,
+        origin="cli",
+        plugin_specs=specs,
+    )
     assert len(submitted) == 2
     by_provider = {item.provider: item.status for item in receipt.providers}
     assert by_provider["synth"] == "joined"
@@ -195,24 +192,18 @@ def test_joining_one_provider_does_not_drop_a_new_peer(
     assert submitted[1].operation_payload["providers"][0]["provider"] == "other"
 
 
-def test_flag_and_config_opt_out_do_not_submit(
+def test_config_opt_out_does_not_submit(
     usage_home: dict[str, object], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
         "sase.procs.submit_proc_request",
         lambda request: pytest.fail("opt-out submitted a proc"),
     )
-    with override_flags(provider_usage_metrics=False):
-        receipt = submit_usage_refresh(("synth",), explicit=True, origin="axe")
-    assert receipt.providers[0].status == "disabled"
-    assert receipt.providers[0].reason == "flag_disabled"
-    assert receipt.operation_ids == ()
-
     mock_provider_config(monkeypatch, {"usage_metrics": {"enabled": False}})
-    with override_flags(provider_usage_metrics=True):
-        receipt = submit_usage_refresh(("synth",), explicit=True, origin="cli")
+    receipt = submit_usage_refresh(("synth",), explicit=True, origin="cli")
     assert receipt.providers[0].status == "disabled"
     assert receipt.providers[0].reason == "config_disabled"
+    assert receipt.operation_ids == ()
 
 
 def test_limit_event_trigger_marks_due_and_submits(
@@ -225,10 +216,9 @@ def test_limit_event_trigger_marks_due_and_submits(
             submitted.append(request) or SimpleNamespace(proc_id=request.proc_id)
         ),
     )
-    with override_flags(provider_usage_metrics=True):
-        receipt = trigger_usage_refresh_after_limit_event(
-            "synth", expires_at=1_800_000_100.0
-        )
+    receipt = trigger_usage_refresh_after_limit_event(
+        "synth", expires_at=1_800_000_100.0
+    )
     assert receipt is not None
     assert submitted[0].origin == "limit_event"
     assert receipt.providers[0].provider == "synth"
@@ -245,7 +235,6 @@ def test_due_refresh_with_no_eligible_providers_is_empty(
         "sase.procs.submit_proc_request",
         lambda request: pytest.fail("empty due refresh submitted a proc"),
     )
-    with override_flags(provider_usage_metrics=True):
-        receipt = request_due_usage_refresh(origin="axe")
+    receipt = request_due_usage_refresh(origin="axe")
     assert receipt.providers == ()
     assert receipt.operation_ids == ()

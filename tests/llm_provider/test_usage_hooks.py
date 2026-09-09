@@ -5,7 +5,6 @@ from __future__ import annotations
 import pluggy
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.llm_provider import registry
 from sase.llm_provider._hookspec import LLMHookSpec, hookimpl
 from sase.llm_provider._plugin_manager import LLMPluginManager
@@ -82,13 +81,12 @@ def test_legacy_plugin_probe_is_unsupported(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
-    with override_flags(provider_usage_metrics=True):
-        result = run_usage_probe(
-            _context("legacy"),
-            isolate=False,
-            plugin=_legacy_plugin(),
-            now=1_800_000_000.0,
-        )
+    result = run_usage_probe(
+        _context("legacy"),
+        isolate=False,
+        plugin=_legacy_plugin(),
+        now=1_800_000_000.0,
+    )
     assert result.skipped is None
     assert result.observation is not None
     assert result.observation["outcome"] == "unsupported"
@@ -99,14 +97,13 @@ def test_probe_does_not_enter_registry_metadata_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
-    with override_flags(provider_usage_metrics=True):
-        run_usage_probe(
-            _context("synth"),
-            isolate=False,
-            plugin=_SyntheticUsageProvider(),
-            plugin_spec=SYNTHETIC_PLUGIN_SPEC,
-            now=1_800_000_000.0,
-        )
+    run_usage_probe(
+        _context("synth"),
+        isolate=False,
+        plugin=_SyntheticUsageProvider(),
+        plugin_spec=SYNTHETIC_PLUGIN_SPEC,
+        now=1_800_000_000.0,
+    )
     registry._build_llm_pm.cache_clear()
     registry._llm_metadata_payload.cache_clear()
     payload = registry._direct_llm_metadata_payload()

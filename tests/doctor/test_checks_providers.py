@@ -5,6 +5,8 @@ from __future__ import annotations
 import stat
 from pathlib import Path
 
+import pytest
+
 from sase.doctor.checks_providers import (
     _check_llm_auth,
     _check_llm_default,
@@ -196,13 +198,7 @@ def _usage_provider(status: str) -> dict[str, object]:
     }
 
 
-def _patch_usage_check_defaults(
-    monkeypatch, tmp_path, *, feature_enabled: bool
-) -> None:
-    monkeypatch.setattr(
-        "sase.doctor.checks_providers.usage_metrics_feature_enabled",
-        lambda: feature_enabled,
-    )
+def _patch_usage_check_defaults(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         "sase.doctor.checks_providers.get_usage_metrics_settings",
         lambda: UsageMetricsSettings(),
@@ -213,8 +209,15 @@ def _patch_usage_check_defaults(
     )
 
 
-def test_llm_usage_skips_when_beta_flag_is_disabled(monkeypatch, tmp_path) -> None:
-    _patch_usage_check_defaults(monkeypatch, tmp_path, feature_enabled=False)
+def test_llm_usage_skips_when_config_disabled(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.get_usage_metrics_settings",
+        lambda: UsageMetricsSettings(enabled=False),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.provider_usage_state_path",
+        lambda: tmp_path / "llm_provider_usage.json",
+    )
     monkeypatch.setattr(
         "sase.doctor.checks_providers.load_provider_usage",
         lambda **kwargs: pytest.fail("disabled usage diagnostics must not read store"),
@@ -223,11 +226,11 @@ def test_llm_usage_skips_when_beta_flag_is_disabled(monkeypatch, tmp_path) -> No
     check = _check_llm_usage(_context(tmp_path))
 
     assert check.status == "SKIP"
-    assert "provider_usage_metrics" in check.summary
+    assert "usage_metrics" in check.summary
 
 
 def test_llm_usage_warns_when_cache_is_empty(monkeypatch, tmp_path) -> None:
-    _patch_usage_check_defaults(monkeypatch, tmp_path, feature_enabled=True)
+    _patch_usage_check_defaults(monkeypatch, tmp_path)
     monkeypatch.setattr(
         "sase.doctor.checks_providers.eligible_usage_providers",
         lambda: ("codex",),
@@ -246,7 +249,7 @@ def test_llm_usage_warns_when_cache_is_empty(monkeypatch, tmp_path) -> None:
 
 
 def test_llm_usage_errors_when_cache_is_unreadable(monkeypatch, tmp_path) -> None:
-    _patch_usage_check_defaults(monkeypatch, tmp_path, feature_enabled=True)
+    _patch_usage_check_defaults(monkeypatch, tmp_path)
     monkeypatch.setattr(
         "sase.doctor.checks_providers.eligible_usage_providers",
         lambda: (),
@@ -267,7 +270,7 @@ def test_llm_usage_errors_when_cache_is_unreadable(monkeypatch, tmp_path) -> Non
 def test_llm_usage_warns_for_provider_collection_problems(
     monkeypatch, tmp_path
 ) -> None:
-    _patch_usage_check_defaults(monkeypatch, tmp_path, feature_enabled=True)
+    _patch_usage_check_defaults(monkeypatch, tmp_path)
     monkeypatch.setattr(
         "sase.doctor.checks_providers.eligible_usage_providers",
         lambda: ("codex",),

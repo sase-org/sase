@@ -3321,8 +3321,7 @@ Press `u` inside the view to submit or join bounded refresh work for eligible pr
 The modal stays responsive, reattaches to an in-flight refresh when reopened, reloads
 the cache as operations settle, and reports partial failures by provider. `Enter`
 focuses the detail table, `Tab` moves focus, `j`/`k` navigate, and `Esc`/`q` closes.
-Collection requires the `provider_usage_metrics` beta flag plus
-`llm_provider.usage_metrics.enabled`; see
+Collection requires `llm_provider.usage_metrics.enabled`; see
 [Subscription Usage](llms.md#subscription-usage).
 
 On `big epic starts at`, `Enter` and `e` open a focused positive-integer editor, and `r`

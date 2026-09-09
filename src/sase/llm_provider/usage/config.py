@@ -40,16 +40,6 @@ class UsageMetricsSettings:
         return override
 
 
-def usage_metrics_feature_enabled() -> bool:
-    """Return whether the temporary epic beta flag is on.
-
-    Resolved at call time, never at import.
-    """
-    from sase.feature_flags import FeatureFlag, current_flags
-
-    return current_flags().enabled(FeatureFlag.provider_usage_metrics)
-
-
 def get_usage_metrics_settings() -> UsageMetricsSettings:
     """Load and validate ``llm_provider.usage_metrics``."""
     section = _load_usage_metrics_section()
@@ -80,8 +70,6 @@ def get_usage_metrics_settings() -> UsageMetricsSettings:
 
 def collection_skip_reason(provider: str) -> UsageSkipReason | None:
     """Return why collection is inactive, or ``None`` when probes may run."""
-    if not usage_metrics_feature_enabled():
-        return "flag_disabled"
     settings = get_usage_metrics_settings()
     if not settings.enabled:
         return "config_disabled"

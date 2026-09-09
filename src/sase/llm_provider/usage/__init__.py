@@ -4,7 +4,6 @@ from sase.llm_provider.usage.config import (
     UsageMetricsSettings,
     collection_skip_reason,
     get_usage_metrics_settings,
-    usage_metrics_feature_enabled,
 )
 from sase.llm_provider.usage.probe import (
     default_probe_context,
@@ -104,6 +103,5 @@ __all__ = [
     "release_provider_usage_refresh",
     "reserve_provider_usage_refresh",
     "run_usage_probe",
-    "usage_metrics_feature_enabled",
     "worker_environ",
 ]

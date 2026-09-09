@@ -1081,7 +1081,7 @@ axe:
 
             Checks machine-local due and backoff state and submits coalesced usage-refresh work for eligible
             providers. One chop serves CLI, ACE, and AXE callers; it does not poll per agent or project. Collection
-            stays gated by the provider_usage_metrics beta flag and llm_provider.usage_metrics.enabled.
+            stays gated by llm_provider.usage_metrics.enabled.
     external_mirror:
       description: |-
         Mirror external tracker issues and pull requests on a fifteen-minute cadence
@@ -1321,10 +1321,9 @@ llm_provider:
   #       disable_seconds: null
   #       # null inherits the global reset-hint policy; true/false overrides it.
   #       honor_reset_hint: null
-  # Subscription-capacity collection (beta: provider_usage_metrics). Distinct
-  # from usage_limit auto-disable. enabled is the durable user preference;
-  # the beta flag is temporary epic scaffolding. Do not hard-code provider
-  # names in the generic schema — keys under providers are registered names.
+  # Subscription-capacity collection. Distinct from usage_limit auto-disable.
+  # enabled is the durable user preference. Do not hard-code provider names
+  # in the generic schema — keys under providers are registered names.
   # usage_metrics:
   #   enabled: true                 # false stops probes and passive writes
   #   refresh_seconds: 300          # cadence; minimum 60

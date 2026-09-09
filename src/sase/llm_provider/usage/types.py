@@ -29,7 +29,7 @@ UsageReasonCode = Literal[
 ]
 UsageCompleteness = Literal["complete", "partial"]
 UsageSource = Literal["probe", "stream_event"]
-UsageSkipReason = Literal["flag_disabled", "config_disabled", "provider_disabled"]
+UsageSkipReason = Literal["config_disabled", "provider_disabled"]
 
 _DIAGNOSTIC_BY_REASON: dict[str, str] = {
     "not_installed": "provider CLI is not installed",
@@ -43,7 +43,6 @@ _DIAGNOSTIC_BY_REASON: dict[str, str] = {
     "deadline_exceeded": "usage probe exceeded its deadline",
     "probe_failed": "usage probe failed",
     "unsupported": "provider does not collect subscription usage",
-    "flag_disabled": "subscription usage collection is disabled",
     "config_disabled": "subscription usage collection is disabled",
     "provider_disabled": "subscription usage collection is disabled for this provider",
 }

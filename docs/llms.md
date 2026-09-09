@@ -1075,10 +1075,9 @@ is owned by the usage store.
 Existing plugins that omit these hooks keep invoking normally: `LLMProvider.invoke` and
 `InvokeResult` are unchanged.
 
-Collection is gated by the temporary `provider_usage_metrics` beta flag and the durable
-`llm_provider.usage_metrics.enabled` preference. Per-provider
-`llm_provider.usage_metrics.providers.<name>.enabled` overrides collection without
-hard-coding the initial three providers.
+Collection is gated by the durable `llm_provider.usage_metrics.enabled` preference.
+Per-provider `llm_provider.usage_metrics.providers.<name>.enabled` overrides collection
+without hard-coding the initial three providers.
 
 `submit_usage_refresh` is the shared durable refresh service for CLI, ACE, AXE, and
 limit-event triggers. It coalesces work per provider and account generation, joins
@@ -1144,7 +1143,7 @@ llm_provider:
 | `llm_provider.model_aliases.custom`      | dict   | -           | User-defined aliases for `%model:@<alias>` / `%m:@<alias>`. Each value is an object with required `model` and `description` fields; `model` accepts the same single-target and selector grammar. Descriptions are shown in completions and Launch Control.                                                                                                                                                                                                                                                                                                                                   |
 | `llm_provider.model_aliases.buckets`     | dict   | -           | Optional display-only ACE Launch Control bucket descriptions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `llm_provider.usage_limit`               | dict   | enabled     | Usage-limit classification and automatic temporary provider-disable policy. See [Usage-Limit Auto-Disable](#usage-limit-auto-disable).                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `llm_provider.usage_metrics`             | dict   | enabled     | Subscription-capacity collection cadence and opt-out. Behind the `provider_usage_metrics` beta flag. See [Subscription usage extension](#subscription-usage-extension).                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `llm_provider.usage_metrics`             | dict   | enabled     | Subscription-capacity collection cadence and opt-out. See [Subscription usage extension](#subscription-usage-extension).                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 ## Per-Prompt Provider Switching
 
@@ -2100,11 +2099,8 @@ the remaining share of a session or weekly plan window. It is separate from per-
 [usage-limit auto-disable](#usage-limit-auto-disable): collecting a low observation does
 not itself disable routing.
 
-The feature is beta and needs both controls:
-
-```bash
-sase flag enable provider_usage_metrics
-```
+Collection is on by default and controlled by the durable
+`llm_provider.usage_metrics.enabled` preference:
 
 ```yaml
 llm_provider:

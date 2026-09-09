@@ -50,6 +50,17 @@ class TestHandleWorkflowErrorUsageLimitPrecedence:
     failing fast.
     """
 
+    @pytest.fixture(autouse=True)
+    def _no_usage_refresh_trigger(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # The best-effort usage-refresh limit-event trigger (covered by
+        # test_usage_refresh.py) is orthogonal to retry classification; its
+        # own admission backoff otherwise leaks time.sleep calls this class
+        # asserts on via a globally-patched sase.axe.run_agent_exec_retry.time.
+        monkeypatch.setattr(
+            "sase.llm_provider.usage_limit_disable._trigger_usage_refresh_after_limit",
+            lambda provider, outcome: None,
+        )
+
     def test_codex_usage_limit_error_does_not_consume_wait_times(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

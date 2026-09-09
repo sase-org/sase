@@ -98,13 +98,11 @@ def usage_view_snapshot(
     *providers: Mapping[str, Any],
     diagnostics: tuple[ProviderUsageStoreDiagnostic, ...] = (),
     captured_at: float = FROZEN_NOW,
-    feature_enabled: bool = True,
     load_error: str | None = None,
 ) -> ProviderUsageViewSnapshot:
     return ProviderUsageViewSnapshot(
         providers=tuple(providers),
         diagnostics=diagnostics,
         captured_at=captured_at,
-        feature_enabled=feature_enabled,
         load_error=load_error,
     )

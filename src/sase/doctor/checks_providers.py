@@ -12,10 +12,7 @@ from sase.diagnostics import CheckSpec, DiagnosticCheck
 from sase.llm_provider import registry as llm_registry
 from sase.llm_provider.config import get_llm_provider_config
 from sase.llm_provider.temporary_override import get_active_temporary_override
-from sase.llm_provider.usage.config import (
-    get_usage_metrics_settings,
-    usage_metrics_feature_enabled,
-)
+from sase.llm_provider.usage.config import get_usage_metrics_settings
 from sase.llm_provider.usage.refresh import eligible_usage_providers
 from sase.llm_provider.usage.store import (
     ProviderUsageStateError,
@@ -143,12 +140,10 @@ def _check_llm_model_advisory() -> DiagnosticCheck:
 
 def _check_llm_usage(context: DoctorContext) -> DiagnosticCheck:
     """Check cached subscription-usage state without provider calls."""
-    feature_enabled = usage_metrics_feature_enabled()
     settings = get_usage_metrics_settings()
     data: dict[str, Any] = {
         "critical_percent": settings.critical_percent,
         "enabled": settings.enabled,
-        "feature_flag_enabled": feature_enabled,
         "provider_overrides": dict(settings.providers),
         "refresh_seconds": settings.refresh_seconds,
         "sase_home": str(context.sase_home),
@@ -159,16 +154,6 @@ def _check_llm_usage(context: DoctorContext) -> DiagnosticCheck:
     except Exception as exc:  # noqa: BLE001 - stale bindings are reported below.
         data["state_path_error"] = str(exc)
 
-    if not feature_enabled:
-        return DiagnosticCheck(
-            id="llm.usage",
-            group="llm",
-            status="SKIP",
-            title="Subscription usage cache",
-            summary="Subscription usage collection is disabled by provider_usage_metrics.",
-            next_steps=("Enable the beta flag, then run `sase usage refresh`.",),
-            data=data,
-        )
     if not settings.enabled:
         return DiagnosticCheck(
             id="llm.usage",

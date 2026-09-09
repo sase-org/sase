@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Submit due subscription-usage refreshes through the shared durable service.
 
-Runs on the five-minute ``checks`` lumberjack. Collection is gated by the
-``provider_usage_metrics`` beta flag and ``llm_provider.usage_metrics.enabled``.
+Runs on the five-minute ``checks`` lumberjack. Collection is gated by
+``llm_provider.usage_metrics.enabled``.
 """
 
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop

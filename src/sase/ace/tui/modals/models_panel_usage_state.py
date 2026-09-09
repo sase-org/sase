@@ -7,10 +7,7 @@ from dataclasses import dataclass
 import time
 from typing import Any
 
-from sase.llm_provider.usage.config import (
-    get_usage_metrics_settings,
-    usage_metrics_feature_enabled,
-)
+from sase.llm_provider.usage.config import get_usage_metrics_settings
 from sase.llm_provider.usage.store import (
     ProviderUsageStoreDiagnostic,
     load_provider_usage,
@@ -24,14 +21,12 @@ class ProviderUsageViewSnapshot:
     providers: tuple[Mapping[str, Any], ...]
     diagnostics: tuple[ProviderUsageStoreDiagnostic, ...]
     captured_at: float
-    feature_enabled: bool
     load_error: str | None = None
 
 
 def load_usage_view_snapshot(now: float | None = None) -> ProviderUsageViewSnapshot:
     """Load the cached usage snapshot from disk. Never submits a probe."""
     captured_at = time.time() if now is None else float(now)
-    feature_enabled = usage_metrics_feature_enabled()
     settings = get_usage_metrics_settings()
     try:
         read = load_provider_usage(
@@ -45,7 +40,6 @@ def load_usage_view_snapshot(now: float | None = None) -> ProviderUsageViewSnaps
             providers=(),
             diagnostics=(),
             captured_at=captured_at,
-            feature_enabled=feature_enabled,
             load_error=str(exc),
         )
     raw_providers = read.snapshot.get("providers")
@@ -58,7 +52,6 @@ def load_usage_view_snapshot(now: float | None = None) -> ProviderUsageViewSnaps
         providers=providers,
         diagnostics=read.diagnostics,
         captured_at=captured_at,
-        feature_enabled=feature_enabled,
     )
 
 
