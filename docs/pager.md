@@ -125,6 +125,23 @@ instead of replacing the document. Each follow records a bounded backward/forwar
 and restores the prior section, scroll position, and search state when revisited.
 Following a new target after going back discards the forward branch.
 
+When either trail direction exists, a breadcrumb band appears below the subject line.
+The first row shows the retained visit position, total retained visits, available
+Back/Forward counts, and a `? trail` hint. The second row shows retained visits in
+chronological order with `›` separators; `●` marks the current visit and `…N` marks an
+omitted run of exactly `N` retained visits that did not fit. Returning to the earliest
+retained visit still shows forward context. On pager screens of 12 rows or fewer, the
+band compacts to one row with the same position, current marker, direction counts, and
+help hint. Positions count only retained visits, so older entries evicted by the bounded
+trail are not recoverable through the band or help sheet.
+
+Press `?` outside search typing or the goto prompt to open the scrollable Trail & keys
+sheet. When history exists, the complete retained trail appears before the key guide;
+each visit is numbered and marked as `back`, `current`, or `forward`, with identity
+details when they disambiguate identical titles. The sheet has its own scrolling keys:
+`j`/`k`, arrows, `Ctrl+D`/`Ctrl+U`, and `g`/`G`; `q`, `Esc`, or `?` dismiss it without
+changing document scroll, search state, pending link prefixes, or either history stack.
+
 `y` and `E` are prefix keys: follow them with a painted label to copy or edit that
 target, or press the prefix twice for the current section. Link scanning can be disabled
 with `--links never`; ordinary reading, search, section, and trail keys still work.

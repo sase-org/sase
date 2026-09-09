@@ -6,11 +6,15 @@ from typing import Any
 
 from textual.widgets import Static
 
-from sase.ace.tui.modals.trail_strip import TrailStripEntry, build_trail_strip
 from sase.ace.tui.widgets.vim_search_controller import VimSearchController
-from sase.pager._chrome import section_accent
 from sase.pager._labels import LabelWindowScope, PagerLabel, PagerLabelLayer
 from sase.pager._layout import ComposedBody
+from sase.pager._trail_chrome import (
+    PagerTrailSnapshot,
+    build_pager_trail_snapshot,
+    render_trail_band,
+    trail_band_row_count,
+)
 from sase.pager.app import PagerExit, PendingAction
 from sase.pager.document import PagerSection
 from sase.pager.trail import PagerSearchState, PagerTrailEntry, append_bounded_trail
@@ -27,6 +31,7 @@ class PagerTrailMixin:
     _label_window_scope: LabelWindowScope | None
     _last_activated_label: PagerLabel | None
     _pending_action: PendingAction
+    _trail_render_signature: object | None
 
     def action_trail_back(self: Any) -> None:
         if not self._back_trail:
@@ -149,32 +154,62 @@ class PagerTrailMixin:
             return None
         return self._current_section()
 
-    def _trail_strip_entries(self: Any) -> tuple[TrailStripEntry, ...]:
-        if not self._back_trail:
-            return ()
-        entries = [
-            TrailStripEntry(entry.section_title, kind=entry.section_kind)
-            for entry in self._back_trail
-        ]
-        current = self._current_section_or_none()
-        if current is None:
-            entries.append(TrailStripEntry(self.document.title))
-        else:
-            entries.append(TrailStripEntry(current.title, kind=current.kind))
-        return tuple(entries)
+    def _trail_snapshot(self: Any) -> PagerTrailSnapshot:
+        return build_pager_trail_snapshot(
+            back=self._back_trail,
+            document=self.document,
+            document_identity=self._document_identity(),
+            current_section=self._current_section_or_none(),
+            forward=self._forward_trail,
+        )
 
     def _update_trail(self: Any) -> None:
         trail = self.query_one("#pager-trail", Static)
-        entries = self._trail_strip_entries()
-        if not entries:
+        rule = self.query_one("#pager-chrome-rule", Static)
+        snapshot = self._trail_snapshot()
+        if not snapshot.visible:
+            signature: object = (snapshot.signature, "hidden")
+            if self._trail_render_signature == signature:
+                return
+            self._trail_render_signature = signature
             trail.update("")
             trail.add_class("hidden")
+            trail.remove_class("compact")
+            rule.remove_class("hidden")
             return
-        width = max(int(trail.size.width) - 2, 1)
-        current = self._current_section_or_none()
-        accent = "#AFAFAF" if current is None else section_accent(current.kind)
-        trail.update(build_trail_strip(entries, accent=accent, max_width=width))
+
+        width = self._trail_paint_width()
+        screen_height = max(int(self.size.height), 1)
+        rows = trail_band_row_count(
+            visible=snapshot.visible,
+            screen_height=screen_height,
+        )
+        signature = (snapshot.signature, width, rows)
+        if self._trail_render_signature == signature:
+            return
+        self._trail_render_signature = signature
+        trail.update(
+            render_trail_band(
+                snapshot,
+                width=width,
+                screen_height=screen_height,
+            )
+        )
         trail.remove_class("hidden")
+        if rows == 1:
+            trail.add_class("compact")
+        else:
+            trail.remove_class("compact")
+        rule.add_class("hidden")
+
+    def _trail_paint_width(self: Any) -> int:
+        trail = self.query_one("#pager-trail", Static)
+        padding = trail.styles.padding
+        horizontal = int(padding.left) + int(padding.right)
+        width = int(trail.size.width)
+        if width <= 0:
+            width = max(int(self.size.width), int(self._body_scroll().size.width))
+        return max(width - horizontal, 0)
 
 
 __all__ = ["PagerTrailMixin"]

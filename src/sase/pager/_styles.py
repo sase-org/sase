@@ -19,9 +19,14 @@ PagerScreen #pager-subject {
 }
 
 PagerScreen #pager-trail {
-    height: 1;
+    height: 2;
     padding: 0 1;
-    color: $text-muted;
+    background: $surface;
+    color: $text;
+}
+
+PagerScreen #pager-trail.compact {
+    height: 1;
 }
 
 PagerScreen #pager-chrome-rule {
@@ -63,15 +68,38 @@ PagerScreen #pager-footer {
 
 PagerHelpScreen {
     background: transparent;
+    align: center middle;
 }
 
 PagerHelpScreen #pager-help {
-    width: 64;
-    height: auto;
-    max-height: 80%;
+    width: 88;
+    max-width: 92%;
+    height: 80%;
+    max-height: 90%;
     border: round $accent;
-    padding: 1 2;
     background: $surface;
+}
+
+PagerHelpScreen #pager-help-header {
+    height: 1;
+    padding: 0 1;
+    background: $boost;
+}
+
+PagerHelpScreen #pager-help-scroll {
+    height: 1fr;
+    padding: 1 2;
+}
+
+PagerHelpScreen #pager-help-content {
+    width: 100%;
+}
+
+PagerHelpScreen #pager-help-footer {
+    height: 1;
+    padding: 0 1;
+    background: $boost;
+    color: $text-muted;
 }
 """
 

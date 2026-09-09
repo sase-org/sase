@@ -85,6 +85,7 @@ class PagerSyntaxMixin:
     _syntax_result_cache: SyntaxResultCache
     _syntax_styled_cache: StyledTextCache
     _syntax_restart_requested: bool
+    _trail_render_signature: object | None
     _syntax_pass_running: bool
     _syntax_document_span_budget_used: int
 
@@ -111,6 +112,10 @@ class PagerSyntaxMixin:
         self.call_after_refresh(self._schedule_syntax_preparation)
 
     def _on_app_theme_changed(self: Any) -> None:
+        self._trail_render_signature = None
+        update_trail = getattr(self, "_update_trail", None)
+        if update_trail is not None:
+            update_trail()
         palette = syntax_palette_from_theme(self._current_syntax_theme())
         if palette.signature == self._syntax_palette.signature:
             return

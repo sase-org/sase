@@ -309,7 +309,8 @@ def footer_legend(
     if section_total > 1:
         verbs.append(("^N/^P", "entity"))
     verbs.append(("/", "search"))
-    verbs.append(("?", "keys"))
+    help_label = "trail/keys" if trail_back_count or trail_forward_count else "keys"
+    verbs.append(("?", help_label))
     verbs.append(("q", "close"))
 
     line = Text()

@@ -76,11 +76,12 @@ class PagerSearchMixin:
 
     def vim_search_scroll_overlay(self: Any, *, x: int, y: int) -> None:
         self._body_scroll().scroll_to(x=x, y=y, animate=False, immediate=True)
+        self._update_chrome_position()
 
     def vim_search_restore_scroll(self: Any, *, x: int, y: int) -> None:
         def restore() -> None:
             self._body_scroll().scroll_to(x=x, y=y, animate=False, immediate=True)
-            self._update_subject()
+            self._update_chrome_position()
 
         self.call_after_refresh(restore)
 

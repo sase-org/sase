@@ -6,7 +6,7 @@ from rich.text import Text
 
 from sase.ace.tui.modals.trail_strip import (
     TrailStripEntry,
-    append_trail_entry,
+    _append_trail_entry,
     build_trail_strip,
 )
 
@@ -58,6 +58,6 @@ def test_typed_trail_entries_elide_by_depth() -> None:
 
 def test_append_trail_entry_keeps_untyped_labels_plain() -> None:
     text = Text()
-    append_trail_entry(text, TrailStripEntry("plain"))
+    _append_trail_entry(text, TrailStripEntry("plain"))
 
     assert text.plain == "plain"

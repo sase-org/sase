@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 from textual.widgets import Static
 
+from sase.pager._help import PagerHelpScreen
+from sase.pager.trail import PAGER_TRAIL_LIMIT
 from sase.pager.app import SasePager
 from sase.pager.resolve import LinkTarget, LinkTargetKind
 
@@ -60,7 +62,8 @@ async def test_follow_back_and_forward_restore_the_view(
         assert int(scroll.scroll_y) == 12
         assert not screen._back_trail
         assert screen._forward_trail
-        assert "hidden" in trail.classes
+        assert "hidden" not in trail.classes
+        assert "TRAIL 1/2" in trail.visual.plain  # type: ignore[attr-defined]
         assert "^I forward" in footer.visual.plain  # type: ignore[attr-defined]
 
         await pilot.press("ctrl+i")
@@ -69,6 +72,103 @@ async def test_follow_back_and_forward_restore_the_view(
         assert screen.document is target
         assert screen._back_trail
         assert not screen._forward_trail
+
+
+async def test_history_band_orders_forward_entries_and_clears_branch() -> None:
+    documents = {name: target_document(name) for name in ("A", "B", "C", "D", "E")}
+    app = SasePager(documents["A"])
+    async with app.run_test(size=(80, 24)) as pilot:
+        screen = pager_screen(app)
+        await pilot.pause()
+
+        for name in ("B", "C", "D"):
+            screen._apply_resolution(
+                name,
+                LinkTarget(kind=LinkTargetKind.DOCUMENT, document=documents[name]),
+                intent="follow",
+            )
+            await pilot.pause()
+
+        assert [entry.short_label for entry in screen._trail_snapshot().entries] == [
+            "target.py",
+            "target.py",
+            "target.py",
+            "target.py",
+        ]
+        assert screen._trail_snapshot().position == 4
+
+        await pilot.press("backspace")
+        await pilot.press("backspace")
+        await pilot.press("backspace")
+        await pilot.pause()
+
+        snapshot = screen._trail_snapshot()
+        assert screen.document is documents["A"]
+        assert snapshot.position == 1
+        assert snapshot.forward_count == 3
+        assert "hidden" not in screen.query_one("#pager-trail", Static).classes
+
+        await pilot.press("ctrl+i")
+        await pilot.pause()
+        assert screen.document is documents["B"]
+        assert screen._trail_snapshot().position == 2
+
+        screen._apply_resolution(
+            "E",
+            LinkTarget(kind=LinkTargetKind.DOCUMENT, document=documents["E"]),
+            intent="follow",
+        )
+        await pilot.pause()
+
+        assert screen.document is documents["E"]
+        assert screen._trail_snapshot().forward_count == 0
+
+
+async def test_bounded_trail_numbering_is_retained_history_only() -> None:
+    app = SasePager(target_document("root"))
+    async with app.run_test(size=(80, 24)) as pilot:
+        screen = pager_screen(app)
+        await pilot.pause()
+
+        for index in range(PAGER_TRAIL_LIMIT + 5):
+            document = target_document(f"doc-{index}")
+            screen._apply_resolution(
+                str(index),
+                LinkTarget(kind=LinkTargetKind.DOCUMENT, document=document),
+                intent="follow",
+            )
+        await pilot.pause()
+
+        snapshot = screen._trail_snapshot()
+        assert snapshot.total == PAGER_TRAIL_LIMIT + 1
+        assert snapshot.position == PAGER_TRAIL_LIMIT + 1
+        assert snapshot.entries[0].document_title == "doc-4"
+
+
+async def test_backspace_with_forward_history_still_exits_when_back_empty() -> None:
+    source = target_document("source")
+    target = target_document("target")
+    app = SasePager(source)
+    async with app.run_test(size=(80, 24)) as pilot:
+        screen = pager_screen(app)
+        await pilot.pause()
+        screen._apply_resolution(
+            "target",
+            LinkTarget(kind=LinkTargetKind.DOCUMENT, document=target),
+            intent="follow",
+        )
+        await pilot.pause()
+        await pilot.press("backspace")
+        await pilot.pause()
+
+        assert screen._forward_trail
+        assert not screen._back_trail
+
+        await pilot.press("backspace")
+        await pilot.pause()
+
+    assert app.return_value is not None
+    assert app.return_value.trail_exhausted is True
 
 
 async def test_back_restores_committed_search_state(
@@ -111,3 +211,28 @@ async def test_back_restores_committed_search_state(
         assert screen._search.mode == "committed"
         assert screen._search.last_search == ("needle", "forward")
         assert "hidden" not in command.classes
+
+
+async def test_question_mark_help_preserves_committed_search_state() -> None:
+    app = SasePager(searchable_link_source_document(Path("/tmp/target.py")))
+    async with app.run_test(size=(80, 12)) as pilot:
+        screen = pager_screen(app)
+        await pilot.press("slash")
+        for character in "needle":
+            await pilot.press(character)
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert screen._search.mode == "committed"
+
+        await pilot.press("question_mark")
+        await pilot.pause()
+
+        assert isinstance(app.screen, PagerHelpScreen)
+        assert screen._search.mode == "committed"
+
+        await pilot.press("question_mark")
+        await pilot.pause()
+
+        assert app.screen is screen
+        assert screen._search.mode == "committed"

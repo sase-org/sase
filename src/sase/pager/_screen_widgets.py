@@ -17,7 +17,9 @@ class _PagerBodyHost(Protocol):
 
     def _ensure_body(self) -> None: ...
 
-    def _update_subject(self) -> None: ...
+    def _after_scroll(self) -> None: ...
+
+    def _update_chrome_position(self) -> None: ...
 
 
 class PagerBodyScroll(VerticalScroll):
@@ -27,7 +29,23 @@ class PagerBodyScroll(VerticalScroll):
         screen = self.screen
         if isinstance(screen, _PagerBodyHost):
             screen._ensure_body()
-            screen._update_subject()
+            screen._update_chrome_position()
+
+    def watch_scroll_x(self, old_value: float, new_value: float) -> None:
+        super().watch_scroll_x(old_value, new_value)
+        if old_value == new_value:
+            return
+        screen = self.screen
+        if isinstance(screen, _PagerBodyHost):
+            screen._after_scroll()
+
+    def watch_scroll_y(self, old_value: float, new_value: float) -> None:
+        super().watch_scroll_y(old_value, new_value)
+        if old_value == new_value:
+            return
+        screen = self.screen
+        if isinstance(screen, _PagerBodyHost):
+            screen._after_scroll()
 
 
 class PagerBody(Static):

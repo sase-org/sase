@@ -62,26 +62,26 @@ def build_trail_strip(
         text.append("⟨ ", style="dim")
         text.append(f"…{len(entries) - 1}", style="dim")
         text.append(_SEPARATOR, style="dim")
-        append_trail_entry(text, entries[-1])
+        _append_trail_entry(text, entries[-1])
         text.append(" ⟩", style="dim")
     elif _should_width_elide(entries, max_width=max_width):
-        append_trail_entry(text, entries[0])
+        _append_trail_entry(text, entries[0])
         text.append(_SEPARATOR, style="dim")
         text.append("…", style="dim")
         for entry in entries[-2:]:
             text.append(_SEPARATOR, style="dim")
-            append_trail_entry(text, entry)
+            _append_trail_entry(text, entry)
     else:
         _append_joined_entries(text, entries)
     return text
 
 
-def append_trail_entry(text: Text, entry: TrailStripEntry) -> None:
+def _append_trail_entry(text: Text, entry: TrailStripEntry) -> None:
     """Append one crumb to ``text`` with optional kind glyph/accent styling."""
     if entry.kind is None:
         text.append(entry.label)
         return
-    icon, accent = _entry_marker(entry.kind)
+    icon, accent = entry_marker(entry.kind)
     text.append(f"{icon} ", style=f"bold {accent}")
     text.append(entry.label, style=accent)
 
@@ -90,7 +90,7 @@ def _append_joined_entries(text: Text, entries: tuple[TrailStripEntry, ...]) -> 
     for index, entry in enumerate(entries):
         if index > 0:
             text.append(_SEPARATOR, style="dim")
-        append_trail_entry(text, entry)
+        _append_trail_entry(text, entry)
 
 
 def _should_count_elide(entries: tuple[TrailStripEntry, ...]) -> bool:
@@ -114,7 +114,7 @@ def _plain_joined_entries(entries: tuple[TrailStripEntry, ...]) -> str:
 def _plain_entry(entry: TrailStripEntry) -> str:
     if entry.kind is None:
         return entry.label
-    icon, _accent = _entry_marker(entry.kind)
+    icon, _accent = entry_marker(entry.kind)
     return f"{icon} {entry.label}"
 
 
@@ -124,7 +124,9 @@ def _coerce_entry(entry: str | TrailStripEntry) -> TrailStripEntry:
     return TrailStripEntry(entry)
 
 
-def _entry_marker(kind: str) -> tuple[str, str]:
+def entry_marker(kind: str) -> tuple[str, str]:
+    """Return the shared breadcrumb glyph and accent for an artifact kind."""
+
     tab = _KIND_TO_TAB.get(kind)
     if tab is None:
         return (_DEFAULT_ENTRY_ICON, _DEFAULT_ENTRY_ACCENT)
@@ -134,4 +136,4 @@ def _entry_marker(kind: str) -> tuple[str, str]:
     )
 
 
-__all__ = ["TrailStripEntry", "append_trail_entry", "build_trail_strip"]
+__all__ = ["TrailStripEntry", "build_trail_strip", "entry_marker"]

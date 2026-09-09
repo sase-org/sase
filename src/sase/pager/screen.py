@@ -104,6 +104,7 @@ class PagerScreen(
         self._search = VimSearchController(self)
         self._back_trail: list[PagerTrailEntry] = []
         self._forward_trail: list[PagerTrailEntry] = []
+        self._trail_render_signature: object | None = None
         self._footer_status: str | None = None
         self._init_goto_state()
         self._init_syntax_state()
@@ -154,6 +155,11 @@ class PagerScreen(
             event.prevent_default()
             event.stop()
             return
+        if event.key == "question_mark" and self._search.mode != "typing":
+            self.action_show_help()
+            event.prevent_default()
+            event.stop()
+            return
         disposition = self._search.handle_key(
             event.key,
             event.character,
@@ -177,7 +183,7 @@ class PagerScreen(
             PagerHelpScreen(
                 section_total=len(self.document.sections),
                 label_count=self._visible_label_count(),
-                trail_entries=self._trail_strip_entries(),
+                trail_snapshot=self._trail_snapshot(),
             )
         )
 
