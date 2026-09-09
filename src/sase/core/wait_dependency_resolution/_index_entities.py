@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from ._artifact_state import same_artifact_dir
+from ._artifact_state import artifact_dir_key
 from ._types import ArtifactCandidate, WaitCandidate
 
 
@@ -23,6 +23,7 @@ class WaitDependencyEntityQueries:
     families: dict[str, list[ArtifactCandidate]]
     clans: dict[str, dict[str, list[ArtifactCandidate]]]
     artifacts_by_dir: dict[str, ArtifactCandidate]
+    _artifacts_by_dir_key_cache: dict[str, ArtifactCandidate] | None
 
     def _clan_entity(
         self,
@@ -162,12 +163,28 @@ class WaitDependencyEntityQueries:
         exclude_artifact_dir: str | Path | None,
     ) -> str | None:
         """Return the agent name of the artifact excluded as the waiter itself."""
-        if exclude_artifact_dir is None:
+        candidate = self._artifact_candidate_for_dir(exclude_artifact_dir)
+        if candidate is None:
             return None
-        for candidate in self.artifacts_by_dir.values():
-            if same_artifact_dir(candidate.artifact_dir, exclude_artifact_dir):
-                return candidate.name or None
-        return None
+        return candidate.name or None
+
+    def _artifact_candidate_for_dir(
+        self,
+        artifact_dir: str | Path | None,
+    ) -> ArtifactCandidate | None:
+        if artifact_dir is None:
+            return None
+        key = artifact_dir_key(str(artifact_dir))
+        return self._artifacts_by_dir_key().get(key)
+
+    def _artifacts_by_dir_key(self) -> dict[str, ArtifactCandidate]:
+        cache = self._artifacts_by_dir_key_cache
+        if cache is None:
+            cache = {}
+            for candidate in self.artifacts_by_dir.values():
+                cache.setdefault(artifact_dir_key(candidate.artifact_dir), candidate)
+            self._artifacts_by_dir_key_cache = cache
+        return cache
 
     def _excluded_present_names(
         self,
@@ -257,9 +274,17 @@ class WaitDependencyEntityQueries:
     ) -> list[ArtifactCandidate]:
         if not candidates:
             return []
+        exclude_key = (
+            artifact_dir_key(str(exclude_artifact_dir))
+            if exclude_artifact_dir is not None
+            else None
+        )
         return [
             candidate
             for candidate in candidates
             if (not exclude_queued or not candidate.is_queued)
-            and not same_artifact_dir(candidate.artifact_dir, exclude_artifact_dir)
+            and (
+                exclude_key is None
+                or artifact_dir_key(candidate.artifact_dir) != exclude_key
+            )
         ]

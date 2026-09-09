@@ -15,6 +15,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_cleanup_execution import try_delete_agent_artifacts
+from sase.core.wait_dependency_resolution._artifact_state import artifact_dir_key
 from sase.core.wait_dependency_resolution import (
     WaitDependencyIndex,
     build_wait_dependency_index,
@@ -337,14 +338,7 @@ def _identity_dependency_matches(
 
 
 def _same_artifact_dir(left: str | Path, right: str | Path) -> bool:
-    return _artifact_dir_key(left) == _artifact_dir_key(right)
-
-
-def _artifact_dir_key(value: str | Path) -> str:
-    try:
-        return str(Path(value).expanduser().resolve(strict=False))
-    except (OSError, RuntimeError, ValueError):
-        return str(value)
+    return artifact_dir_key(str(left)) == artifact_dir_key(str(right))
 
 
 def dismiss_notifications_for_agents(agents: Iterable[Agent]) -> int:

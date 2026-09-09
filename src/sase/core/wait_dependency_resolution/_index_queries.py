@@ -7,7 +7,6 @@ from pathlib import Path
 from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
 from sase.plan_chain import planner_row_name
 
-from ._artifact_state import same_artifact_dir
 from ._index_entities import WaitDependencyEntityQueries
 from ._index_fork_queries import WaitDependencyForkQueries
 from ._index_identity_queries import WaitDependencyIdentityQueries
@@ -33,6 +32,7 @@ class WaitDependencyIndexQueries(
     effective_clan_tribes: dict[tuple[str, str], str]
     named: dict[str, WaitCandidate]
     artifacts_by_dir: dict[str, ArtifactCandidate]
+    _tribe_member_rows_cache: list[TribeMemberRow] | None
 
     def tribe_candidate(
         self,
@@ -50,47 +50,10 @@ class WaitDependencyIndexQueries(
         if newer_than is None:
             return None
 
-        direct_tribes_by_artifact: dict[str, set[str]] = {}
-        for direct_tribe, artifacts in self.tribes.items():
-            for artifact in artifacts:
-                direct_tribes_by_artifact.setdefault(artifact.artifact_dir, set()).add(
-                    direct_tribe
-                )
-
-        rows: list[TribeMemberRow] = []
-        for artifact in self.artifacts_by_dir.values():
-            direct_tribes = direct_tribes_by_artifact.get(artifact.artifact_dir)
-            for member_tribe in direct_tribes or (None,):
-                rows.append(
-                    TribeMemberRow(
-                        tribe=member_tribe,
-                        launch_timestamp=artifact.timestamp,
-                        identity=artifact.artifact_dir,
-                        name=artifact.name,
-                        clan_name=artifact.clan_name,
-                        clan_generation=artifact.clan_generation,
-                        effective_clan_tribe=self.effective_clan_tribes.get(
-                            (artifact.clan_name, artifact.clan_generation)
-                        )
-                        if artifact.clan_name is not None
-                        and artifact.clan_generation is not None
-                        else None,
-                        is_complete=artifact.is_resolved and artifact.is_done,
-                        is_terminal=(
-                            artifact.is_done
-                            or artifact.is_failed
-                            or artifact.is_identity_success
-                        ),
-                    )
-                )
-
-        exclude_identity = next(
-            (
-                artifact.artifact_dir
-                for artifact in self.artifacts_by_dir.values()
-                if same_artifact_dir(artifact.artifact_dir, exclude_artifact_dir)
-            ),
-            None,
+        rows = self._tribe_member_rows()
+        exclude_candidate = self._artifact_candidate_for_dir(exclude_artifact_dir)
+        exclude_identity = (
+            exclude_candidate.artifact_dir if exclude_candidate is not None else None
         )
         binding = resolve_tribe_wait_binding(
             tribe,
@@ -132,6 +95,47 @@ class WaitDependencyIndexQueries(
             timestamp=binding.timestamp,
             members=members,
         )
+
+    def _tribe_member_rows(self) -> list[TribeMemberRow]:
+        cache = self._tribe_member_rows_cache
+        if cache is not None:
+            return cache
+
+        direct_tribes_by_artifact: dict[str, set[str]] = {}
+        for direct_tribe, artifacts in self.tribes.items():
+            for artifact in artifacts:
+                direct_tribes_by_artifact.setdefault(artifact.artifact_dir, set()).add(
+                    direct_tribe
+                )
+
+        rows: list[TribeMemberRow] = []
+        for artifact in self.artifacts_by_dir.values():
+            direct_tribes = direct_tribes_by_artifact.get(artifact.artifact_dir)
+            for member_tribe in direct_tribes or (None,):
+                rows.append(
+                    TribeMemberRow(
+                        tribe=member_tribe,
+                        launch_timestamp=artifact.timestamp,
+                        identity=artifact.artifact_dir,
+                        name=artifact.name,
+                        clan_name=artifact.clan_name,
+                        clan_generation=artifact.clan_generation,
+                        effective_clan_tribe=self.effective_clan_tribes.get(
+                            (artifact.clan_name, artifact.clan_generation)
+                        )
+                        if artifact.clan_name is not None
+                        and artifact.clan_generation is not None
+                        else None,
+                        is_complete=artifact.is_resolved and artifact.is_done,
+                        is_terminal=(
+                            artifact.is_done
+                            or artifact.is_failed
+                            or artifact.is_identity_success
+                        ),
+                    )
+                )
+        self._tribe_member_rows_cache = rows
+        return rows
 
     def clan_candidate(
         self,

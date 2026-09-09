@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +32,7 @@ from ._artifact_state import (
 from ._index_queries import WaitDependencyIndexQueries
 from ._json_io import read_json_dict
 from ._submitted_plans import plan_path_marker, submitted_plan_artifact
+from ._tribe_binding import TribeMemberRow
 from ._types import (
     WAIT_SUCCESS_OUTCOMES,
     ArtifactCandidate,
@@ -50,6 +51,18 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
     agent_tribes: dict[RawAgentTribeIdentity, str]
     artifacts: dict[tuple[str, str], ArtifactCandidate]
     artifacts_by_dir: dict[str, ArtifactCandidate]
+    _artifacts_by_dir_key_cache: dict[str, ArtifactCandidate] | None = field(
+        init=False,
+        repr=False,
+        compare=False,
+        default=None,
+    )
+    _tribe_member_rows_cache: list[TribeMemberRow] | None = field(
+        init=False,
+        repr=False,
+        compare=False,
+        default=None,
+    )
 
     @classmethod
     def empty(
@@ -178,6 +191,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         done_data: dict[str, Any] | None,
         archived_completion: ArchivedAgentCompletion | None,
     ) -> None:
+        self._invalidate_query_caches()
         done_path = artifact_dir / "done.json"
         if done_data is not None:
             outcome = done_outcome_from_data(done_data)
@@ -315,6 +329,10 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         }
         for tribe in direct_tribes:
             self.tribes.setdefault(tribe, []).append(artifact)
+
+    def _invalidate_query_caches(self) -> None:
+        self._artifacts_by_dir_key_cache = None
+        self._tribe_member_rows_cache = None
 
     @staticmethod
     def _valid_tribe(value: object) -> str | None:

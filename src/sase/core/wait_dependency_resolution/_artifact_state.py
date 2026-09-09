@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -147,10 +148,15 @@ def artifact_succeeded_for_identity(done_data: Mapping[str, Any] | None) -> bool
 def same_artifact_dir(left: str, right: str | Path | None) -> bool:
     if right is None:
         return False
-    return _artifact_dir_key(left) == _artifact_dir_key(str(right))
+    return artifact_dir_key(left) == artifact_dir_key(str(right))
 
 
-def _artifact_dir_key(value: str) -> str:
+@lru_cache(maxsize=65536)
+def artifact_dir_key(value: str) -> str:
+    return _artifact_dir_key_uncached(value)
+
+
+def _artifact_dir_key_uncached(value: str) -> str:
     try:
         return str(Path(value).expanduser().resolve(strict=False))
     except (OSError, RuntimeError, ValueError):
