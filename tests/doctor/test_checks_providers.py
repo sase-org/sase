@@ -188,10 +188,20 @@ def _usage_store_read(
     )
 
 
-def _usage_provider(status: str) -> dict[str, object]:
+def _usage_provider(
+    status: str,
+    *,
+    collector_health: dict[str, object] | None = None,
+    diagnostic: str | None = None,
+) -> dict[str, object]:
     return {
         "collection_status": status,
-        "diagnostic": "provider is logged out" if status == "unauthenticated" else None,
+        "collector_health": collector_health,
+        "diagnostic": diagnostic
+        if diagnostic is not None
+        else "provider is logged out"
+        if status == "unauthenticated"
+        else None,
         "provider": "codex",
         "summary": {"freshness": "fresh"},
         "windows": [],
@@ -293,6 +303,83 @@ def test_llm_usage_warns_for_provider_collection_problems(
     assert check.status == "WARN"
     assert "collection problems" in check.summary
     assert any("codex: unauthenticated" in detail for detail in check.details)
+
+
+def test_llm_usage_warns_for_failing_collector_health(monkeypatch, tmp_path) -> None:
+    _patch_usage_check_defaults(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.eligible_usage_providers",
+        lambda: ("codex",),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.time.time",
+        lambda: 1_800_000_000.0,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.load_provider_usage",
+        lambda **kwargs: _usage_store_read(
+            _usage_provider(
+                "ok",
+                collector_health={
+                    "state": "failing",
+                    "consecutive_failures": 5,
+                    "last_success_at": 1_799_740_800.0,
+                    "failing_since": 1_799_740_800.0,
+                },
+                diagnostic="provider CLI request shape changed",
+            )
+        ),
+    )
+
+    check = _check_llm_usage(_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert "collection problems" in check.summary
+    assert check.data["collector_health_counts"]["failing"] == 1
+    assert any(
+        "codex: collector failing (5 consecutive failures, last success 3d ago)"
+        in detail
+        for detail in check.details
+    )
+
+
+def test_llm_usage_reports_degraded_collector_health_as_detail_only(
+    monkeypatch, tmp_path
+) -> None:
+    _patch_usage_check_defaults(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.eligible_usage_providers",
+        lambda: ("codex",),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.time.time",
+        lambda: 1_800_000_000.0,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.load_provider_usage",
+        lambda **kwargs: _usage_store_read(
+            _usage_provider(
+                "ok",
+                collector_health={
+                    "state": "degraded",
+                    "consecutive_failures": 2,
+                    "last_success_at": 1_799_996_400.0,
+                    "failing_since": 1_799_996_400.0,
+                },
+                diagnostic="one retry failed",
+            )
+        ),
+    )
+
+    check = _check_llm_usage(_context(tmp_path))
+
+    assert check.status == "OK"
+    assert check.data["collector_health_counts"]["degraded"] == 1
+    assert any(
+        "codex: collector degraded (2 consecutive failures, last success 1h ago)"
+        in detail
+        for detail in check.details
+    )
 
 
 def test_setup_hint_prefers_enriched_provider_metadata() -> None:

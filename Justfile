@@ -337,6 +337,8 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-yy.4(append_artifact_link_outbox_event)" \
         --epic-symbol "sase-yy.5(pending_artifact_link_outbox_events)" \
+        --epic-symbol "sase-yz.4(collector_health_label)" \
+        --epic-symbol "sase-yz.4(collector_health_style)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

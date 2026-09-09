@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import io
+
+from rich.console import Console
+
 from sase.llm_provider.usage import presentation
 from sase.llm_provider.usage.presentation import (
+    collector_health_label,
+    collector_health_style,
     render_usage_plain,
+    render_usage_rich,
     reset_label,
     timestamp_label,
     usage_snapshot_json_payload,
@@ -67,6 +74,19 @@ def _codex_provider() -> dict[str, object]:
     }
 
 
+def _failing_codex_provider() -> dict[str, object]:
+    provider = _codex_provider()
+    provider["collection_reason"] = "vendor_drift"
+    provider["diagnostic"] = "primary request shape was rejected"
+    provider["collector_health"] = {
+        "state": "failing",
+        "consecutive_failures": 5,
+        "last_success_at": 1_799_740_800.0,
+        "failing_since": 1_799_740_800.0,
+    }
+    return provider
+
+
 def test_plain_empty_snapshot_points_at_refresh() -> None:
     text = render_usage_plain(_snapshot())
 
@@ -94,6 +114,52 @@ def test_plain_window_records_include_core_remaining_text(monkeypatch) -> None:
     assert 'diagnostic provider=codex message="cache warning"' in text
 
 
+def test_collector_health_helpers_render_compact_unhealthy_state() -> None:
+    health = {
+        "state": "failing",
+        "consecutive_failures": 5,
+        "last_success_at": 1_799_740_800.0,
+        "failing_since": 1_799_740_800.0,
+    }
+
+    assert collector_health_label(health, reason="vendor_drift") == (
+        "failing · vendor drift · 5x"
+    )
+    assert collector_health_style(health) == "bold #FFAF5F"
+
+
+def test_rich_status_cell_uses_unhealthy_collector_health() -> None:
+    stream = io.StringIO()
+    console = Console(
+        file=stream,
+        force_terminal=False,
+        color_system=None,
+        width=120,
+    )
+
+    console.print(
+        render_usage_rich(_snapshot(_failing_codex_provider()), now=1_800_000_000.0)
+    )
+
+    text = stream.getvalue()
+    assert "failing" in text
+    assert "vendor drift" in text
+    assert "5x" in text
+
+
+def test_verbose_plain_provider_record_includes_collector_health() -> None:
+    text = render_usage_plain(
+        _snapshot(_failing_codex_provider()),
+        verbose=True,
+        now=1_800_000_000.0,
+    )
+
+    assert "health=failing" in text
+    assert "consecutive_failures=5" in text
+    assert 'last_success="2027-01-12 03:00:00 EST (3d ago)"' in text
+    assert 'failing_since="2027-01-12 03:00:00 EST (3d ago)"' in text
+
+
 def test_json_payload_filters_and_reports_missing_requested_providers() -> None:
     payload = usage_snapshot_json_payload(
         _snapshot(_codex_provider()),
@@ -103,6 +169,17 @@ def test_json_payload_filters_and_reports_missing_requested_providers() -> None:
     assert [item["provider"] for item in payload["providers"]] == ["codex"]
     assert payload["requested_providers"] == ["codex", "grok"]
     assert payload["missing_providers"] == ["grok"]
+
+
+def test_json_payload_filter_preserves_collector_health() -> None:
+    provider = _failing_codex_provider()
+
+    payload = usage_snapshot_json_payload(
+        _snapshot(provider),
+        requested_providers=("codex",),
+    )
+
+    assert payload["providers"][0]["collector_health"] == provider["collector_health"]
 
 
 def test_verbose_reset_label_omits_relative_age_for_a_future_timestamp() -> None:

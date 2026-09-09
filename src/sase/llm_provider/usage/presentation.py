@@ -38,6 +38,10 @@ _ATTENTION_STYLES: Mapping[str, str] = {
     "low": "yellow",
     "collection_problem": "yellow",
 }
+_COLLECTOR_HEALTH_STYLES: Mapping[str, str] = {
+    "degraded": "yellow",
+    "failing": "bold #FFAF5F",
+}
 
 
 def usage_snapshot_json_payload(
@@ -183,11 +187,11 @@ def render_usage_rich(
                 window_label(window),
                 reset_label(window, clock, verbose=verbose),
                 age_label(window),
-                window_status_label(window),
+                _window_status_label_for_provider(provider, window),
             ]
             if verbose:
                 values.append(_window_source_label(window))
-            table.add_row(*values, style=_window_style(window))
+            table.add_row(*values, style=_provider_window_style(provider, window))
 
     diagnostic_lines = tuple(
         diagnostic_line(_usage_diagnostic_to_json(item)) for item in diagnostics
@@ -316,6 +320,14 @@ def _provider_plain_record(
     if diagnostic is not None:
         values["diagnostic"] = diagnostic
     if verbose:
+        health = _provider_collector_health(provider)
+        if health is not None:
+            values["health"] = str(health.get("state") or "unknown")
+            failures = _failure_count(health)
+            if failures is not None:
+                values["consecutive_failures"] = failures
+            values["last_success"] = timestamp_label(health.get("last_success_at"), now)
+            values["failing_since"] = timestamp_label(health.get("failing_since"), now)
         values["plan"] = provider.get("plan")
         values["account_mode"] = provider.get("account_mode")
         values["last_attempt"] = timestamp_label(provider.get("last_attempt_at"), now)
@@ -380,6 +392,9 @@ def _plain_value(value: Any) -> str:
 
 
 def provider_status_label(provider: Mapping[str, Any]) -> str:
+    health_label = _unhealthy_collector_health_label(provider)
+    if health_label is not None:
+        return health_label
     status = str(provider.get("collection_status") or "unknown")
     label = _STATE_STATUS_LABELS.get(status, status.replace("_", " "))
     reason = _optional_text(provider.get("collection_reason"))
@@ -391,6 +406,44 @@ def provider_status_label(provider: Mapping[str, Any]) -> str:
 def window_status_label(window: Mapping[str, Any]) -> str:
     state = str(window.get("vendor_state") or "unknown")
     return _WINDOW_STATE_LABELS.get(state, state.replace("_", " "))
+
+
+def collector_health_label(
+    health: Mapping[str, Any] | None,
+    *,
+    reason: Any = None,
+) -> str | None:
+    """Return a compact human label for a public ``collector_health`` block."""
+    if health is None:
+        return None
+    state = str(health.get("state") or "unknown")
+    label = state.replace("_", " ")
+    parts = [label]
+    reason_text = _optional_text(reason)
+    if reason_text is not None:
+        parts.append(reason_text.replace("_", " "))
+    failures = _failure_count(health)
+    if failures is not None and (state != "ok" or failures > 0):
+        parts.append(f"{failures}x")
+    return " · ".join(parts)
+
+
+def collector_health_style(health: Mapping[str, Any] | None) -> str:
+    """Return the Rich style associated with a collector-health block."""
+    if health is None:
+        return ""
+    state = str(health.get("state") or "")
+    return _COLLECTOR_HEALTH_STYLES.get(state, "")
+
+
+def _window_status_label_for_provider(
+    provider: Mapping[str, Any],
+    window: Mapping[str, Any],
+) -> str:
+    health_label = _unhealthy_collector_health_label(provider)
+    if health_label is not None:
+        return health_label
+    return window_status_label(window)
 
 
 def _window_source_label(window: Mapping[str, Any]) -> str:
@@ -498,10 +551,23 @@ def applicability_label(value: Any) -> str:
 
 
 def provider_style(provider: Mapping[str, Any]) -> str:
+    health_style = collector_health_style(_provider_collector_health(provider))
+    if health_style:
+        return health_style
     status = str(provider.get("collection_status") or "")
     if status in {"error", "unauthenticated"}:
         return "yellow"
     return ""
+
+
+def _provider_window_style(
+    provider: Mapping[str, Any],
+    window: Mapping[str, Any],
+) -> str:
+    health_style = collector_health_style(_provider_collector_health(provider))
+    if health_style:
+        return health_style
+    return _window_style(window)
 
 
 def _window_style(window: Mapping[str, Any]) -> str:
@@ -544,6 +610,30 @@ def _optional_text(value: Any) -> str | None:
     return stripped or None
 
 
+def _provider_collector_health(provider: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    health = provider.get("collector_health")
+    return health if isinstance(health, Mapping) else None
+
+
+def _unhealthy_collector_health_label(provider: Mapping[str, Any]) -> str | None:
+    health = _provider_collector_health(provider)
+    if health is None:
+        return None
+    state = str(health.get("state") or "")
+    if state not in {"degraded", "failing"}:
+        return None
+    return collector_health_label(health, reason=provider.get("collection_reason"))
+
+
+def _failure_count(health: Mapping[str, Any]) -> int | None:
+    value = health.get("consecutive_failures")
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    if not math.isfinite(float(value)):
+        return None
+    return max(int(value), 0)
+
+
 def _string_list(value: Any) -> tuple[str, ...]:
     if not isinstance(value, list | tuple):
         return ()
@@ -553,6 +643,8 @@ def _string_list(value: Any) -> tuple[str, ...]:
 __all__ = [
     "age_label",
     "applicability_label",
+    "collector_health_label",
+    "collector_health_style",
     "diagnostic_line",
     "duration_label",
     "provider_status_label",

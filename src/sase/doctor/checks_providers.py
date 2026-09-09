@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import time
 from collections.abc import Mapping, Sequence
 from typing import Any, TYPE_CHECKING
 
@@ -13,6 +14,7 @@ from sase.llm_provider import registry as llm_registry
 from sase.llm_provider.config import get_llm_provider_config
 from sase.llm_provider.temporary_override import get_active_temporary_override
 from sase.llm_provider.usage.config import get_usage_metrics_settings
+from sase.llm_provider.usage.presentation import duration_label
 from sase.llm_provider.usage.refresh import eligible_usage_providers
 from sase.llm_provider.usage.store import (
     ProviderUsageStateError,
@@ -209,6 +211,7 @@ def _check_llm_usage(context: DoctorContext) -> DiagnosticCheck:
                 for item in read.diagnostics
             ],
             "provider_count": len(providers),
+            "collector_health_counts": _usage_collector_health_counts(providers),
             "stale_provider_count": _usage_stale_provider_count(providers),
             "status_counts": _usage_status_counts(providers),
         }
@@ -216,6 +219,14 @@ def _check_llm_usage(context: DoctorContext) -> DiagnosticCheck:
     details.extend(
         f"{item.provider or 'store'}: {item.message}" for item in read.diagnostics
     )
+    clock = time.time()
+    failing_collectors = _usage_collector_health_providers(
+        providers, state="failing", now=clock
+    )
+    degraded_collectors = _usage_collector_health_providers(
+        providers, state="degraded", now=clock
+    )
+    details.extend(degraded_collectors)
     problem_providers = _usage_problem_providers(providers)
     if not providers:
         return DiagnosticCheck(
@@ -228,14 +239,14 @@ def _check_llm_usage(context: DoctorContext) -> DiagnosticCheck:
             next_steps=("Run `sase usage refresh`.",),
             data=data,
         )
-    if problem_providers or read.diagnostics:
+    if failing_collectors or problem_providers or read.diagnostics:
         return DiagnosticCheck(
             id="llm.usage",
             group="llm",
             status="WARN",
             title="Subscription usage cache",
             summary="Subscription usage cache has collection problems.",
-            details=(*details, *problem_providers),
+            details=(*details, *failing_collectors, *problem_providers),
             next_steps=(
                 "Run `sase usage refresh`; rerun provider login if a provider "
                 "is unauthenticated.",
@@ -277,6 +288,31 @@ def _usage_problem_providers(providers: Sequence[Mapping[str, Any]]) -> tuple[st
     return tuple(problems)
 
 
+def _usage_collector_health_providers(
+    providers: Sequence[Mapping[str, Any]],
+    *,
+    state: str,
+    now: float,
+) -> tuple[str, ...]:
+    details: list[str] = []
+    for provider in providers:
+        health = provider.get("collector_health")
+        if not isinstance(health, Mapping):
+            continue
+        if str(health.get("state") or "") != state:
+            continue
+        name = provider.get("provider") or "unknown"
+        failures = _failure_count(health)
+        last_success = _relative_timestamp_label(health.get("last_success_at"), now)
+        diagnostic = optional_str(provider.get("diagnostic"))
+        suffix = f": {_bounded_diagnostic(diagnostic)}" if diagnostic else ""
+        details.append(
+            f"{name}: collector {state} ({failures} consecutive failures, "
+            f"last success {last_success}){suffix}"
+        )
+    return tuple(details)
+
+
 def _usage_stale_provider_count(providers: Sequence[Mapping[str, Any]]) -> int:
     count = 0
     for provider in providers:
@@ -293,12 +329,47 @@ def _usage_stale_provider_count(providers: Sequence[Mapping[str, Any]]) -> int:
     return count
 
 
+def _usage_collector_health_counts(
+    providers: Sequence[Mapping[str, Any]],
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for provider in providers:
+        health = provider.get("collector_health")
+        state = (
+            str(health.get("state") or "unknown")
+            if isinstance(health, Mapping)
+            else "unknown"
+        )
+        counts[state] = counts.get(state, 0) + 1
+    return counts
+
+
 def _usage_status_counts(providers: Sequence[Mapping[str, Any]]) -> dict[str, int]:
     counts: dict[str, int] = {}
     for provider in providers:
         status = str(provider.get("collection_status") or "unknown")
         counts[status] = counts.get(status, 0) + 1
     return counts
+
+
+def _relative_timestamp_label(value: Any, now: float) -> str:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return "never"
+    timestamp = float(value)
+    return f"{duration_label(max(now - timestamp, 0.0))} ago"
+
+
+def _failure_count(health: Mapping[str, Any]) -> int:
+    value = health.get("consecutive_failures")
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return 0
+    return max(int(value), 0)
+
+
+def _bounded_diagnostic(value: str, limit: int = 160) -> str:
+    if len(value) <= limit:
+        return value
+    return value[: limit - 3].rstrip() + "..."
 
 
 def selection_context() -> dict[str, Any]:
